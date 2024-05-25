@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +16,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/controller/mocks"
 	hdb_mocks "github.com/eagraf/habitat-new/internal/node/hdb/mocks"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -29,46 +27,41 @@ func TestMigrations(t *testing.T) {
 	m := mocks.NewMockNodeController(ctrl)
 	handler := NewMigrationRoute(m)
 
-	router := mux.NewRouter()
-	router.Handle(handler.Pattern(), handler).Methods(handler.Method())
-	server := httptest.NewServer(router)
-
-	body := &types.MigrateRequest{
+	b, err := json.Marshal(types.MigrateRequest{
 		TargetVersion: "v0.0.2",
-	}
-
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		t.Error(err)
-	}
-
-	client := server.Client()
-	url := fmt.Sprintf("%s%s", server.URL, handler.Pattern())
+	})
+	require.NoError(t, err)
 
 	m.EXPECT().MigrateNodeDB("v0.0.2").Return(nil).Times(1)
-
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusOK, resp.Result().StatusCode)
 
 	// Test error from node controller
 	m.EXPECT().MigrateNodeDB("v0.0.2").Return(errors.New("invalid version")).Times(1)
-
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 
 	// Test invalid semver
-	body.TargetVersion = "invalid"
-	bodyBytes, err = json.Marshal(body)
-	if err != nil {
-		t.Error(err)
-	}
+	b, err = json.Marshal(types.MigrateRequest{
+		TargetVersion: "invalid",
+	})
+	require.NoError(t, err)
 
-	m.EXPECT().MigrateNodeDB("invalid").Times(0)
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	m.EXPECT().MigrateNodeDB(gomock.Any()).Times(0)
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b)),
+	)
+	assert.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
 
 }
 
@@ -78,11 +71,6 @@ func TestInstallAppHandler(t *testing.T) {
 	m := mocks.NewMockNodeController(ctrl)
 
 	handler := NewInstallAppRoute(m)
-
-	router := mux.NewRouter()
-	router.Handle(handler.Pattern(), handler).Methods(handler.Method())
-
-	server := httptest.NewServer(router)
 
 	body := &types.PostAppRequest{
 		AppInstallation: &node.AppInstallation{
@@ -98,38 +86,49 @@ func TestInstallAppHandler(t *testing.T) {
 		ReverseProxyRules: []*node.ReverseProxyRule{},
 	}
 
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		t.Error(err)
-	}
+	b, err := json.Marshal(body)
+	require.NoError(t, err)
 
 	testAppInstallation := body.AppInstallation
 	testAppInstallation.UserID = "0"
 	m.EXPECT().InstallApp("0", testAppInstallation, []*node.ReverseProxyRule{}).Return(nil).Times(1)
 
-	client := server.Client()
-	url := fmt.Sprintf("%s/node/users/0/apps", server.URL)
-
 	// Test the happy path
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	req := httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b))
+	req.SetPathValue("user_id", "0")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		req,
+	)
+	require.Equal(t, http.StatusCreated, resp.Result().StatusCode)
 
-	respBody, err := io.ReadAll(resp.Body)
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(respBody))
+	respBody, err := io.ReadAll(resp.Result().Body)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(respBody))
 
 	// Test an error returned by the controller
-	m.EXPECT().InstallApp("0", testAppInstallation, []*node.ReverseProxyRule{}).Return(errors.New("Couldn't install app")).Times(1)
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	m.EXPECT().
+		InstallApp("0", testAppInstallation, []*node.ReverseProxyRule{}).
+		Return(errors.New("Couldn't install app")).
+		Times(1)
+	req = httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b))
+	req.SetPathValue("user_id", "0")
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		req,
+	)
+	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 
 	// Test invalid request
 	m.EXPECT().StartProcess(body.AppInstallation).Times(0)
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer([]byte("invalid")))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader([]byte("invalid"))),
+	)
+	assert.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
 }
 
 func TestStartProcessHandler(t *testing.T) {
@@ -137,20 +136,13 @@ func TestStartProcessHandler(t *testing.T) {
 
 	m := mocks.NewMockNodeController(ctrl)
 
-	handler := NewStartProcessHandler(m)
-
-	router := mux.NewRouter()
 	middleware := &test_helpers.TestAuthMiddleware{UserID: "user_1"}
-	router.Use(middleware.Middleware)
-	router.Handle(handler.Pattern(), handler).Methods(handler.Method())
+	startProcessHandler := NewStartProcessHandler(m)
+	handler := middleware.Middleware(startProcessHandler)
 
-	server := httptest.NewServer(router)
-
-	body := &types.PostProcessRequest{
+	b, err := json.Marshal(types.PostProcessRequest{
 		AppInstallationID: "app_1",
-	}
-
-	bodyBytes, err := json.Marshal(body)
+	})
 	if err != nil {
 		t.Error(err)
 	}
@@ -173,17 +165,17 @@ func TestStartProcessHandler(t *testing.T) {
 		return nil
 	}).Times(1)
 
-	client := server.Client()
-	url := fmt.Sprintf("%s/node/processes", server.URL)
-
 	// Test the happy path
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, startProcessHandler.Pattern(), bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusCreated, resp.Result().StatusCode)
 
-	respBody, err := io.ReadAll(resp.Body)
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(respBody))
+	respBody, err := io.ReadAll(resp.Result().Body)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(respBody))
 
 	// Test an error returned by the controller
 	m.EXPECT().GetAppByID("app_1").Return(&node.AppInstallation{
@@ -191,19 +183,26 @@ func TestStartProcessHandler(t *testing.T) {
 		Package: node.Package{Driver: "docker"},
 	}, nil).Times(1)
 	m.EXPECT().StartProcess(gomock.Any()).Return(errors.New("Couldn't install app")).Times(1)
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, startProcessHandler.Pattern(), bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 
 	// Test invalid request
-	m.EXPECT().GetAppByID("app_1").Return(&node.AppInstallation{
-		ID:      "app_1",
-		Package: node.Package{Driver: "docker"},
-	}, nil).Times(0)
+	m.EXPECT().GetAppByID(gomock.Any()).Times(0)
 	m.EXPECT().StartProcess(gomock.Any()).Times(0)
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer([]byte("invalid")))
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(
+			http.MethodPost,
+			startProcessHandler.Pattern(),
+			bytes.NewReader([]byte("invalid")),
+		),
+	)
+	assert.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
 }
 
 func TestGetNodeHandler(t *testing.T) {
@@ -224,27 +223,19 @@ func TestGetNodeHandler(t *testing.T) {
 
 	mockDB.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockClient, nil)
 	mockClient.EXPECT().Bytes().Return(bytes)
-	id := uuid.New().String()
-	mockClient.EXPECT().DatabaseID().Return(id)
+	mockClient.EXPECT().DatabaseID().Return(uuid.New().String())
 
 	handler := NewGetNodeRoute(mockDB)
 
-	router := mux.NewRouter()
-	router.Handle(handler.Pattern(), handler).Methods(handler.Method())
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, handler.Pattern(), nil))
+	require.Equal(t, http.StatusOK, resp.Result().StatusCode)
 
-	server := httptest.NewServer(router)
-	client := server.Client()
-	url := fmt.Sprintf("%s%s", server.URL, handler.Pattern())
-
-	resp, err := client.Get(url)
-	require.Nil(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	bytes, err = io.ReadAll(resp.Body)
-	require.Nil(t, err)
+	bytes, err = io.ReadAll(resp.Result().Body)
+	require.NoError(t, err)
 
 	var respBody types.GetNodeResponse
-	require.Nil(t, json.Unmarshal(bytes, &respBody))
+	require.NoError(t, json.Unmarshal(bytes, &respBody))
 	for k, v := range respBody.State {
 		v2, ok := testState[k]
 		require.True(t, ok)
@@ -259,37 +250,36 @@ func TestAddUserHandler(t *testing.T) {
 	m := mocks.NewMockNodeController(ctrl)
 	handler := NewAddUserRoute(m)
 
-	router := mux.NewRouter()
-	router.Handle(handler.Pattern(), handler).Methods(handler.Method())
-
-	server := httptest.NewServer(router)
-	client := server.Client()
-	url := fmt.Sprintf("%s%s", server.URL, handler.Pattern())
-
-	body := &types.PostAddUserRequest{
+	b, err := json.Marshal(&types.PostAddUserRequest{
 		UserID:      "myUserID",
 		Username:    "myUsername",
 		Certificate: "myCert",
-	}
-	b, err := json.Marshal(body)
-	require.Nil(t, err)
+	})
+	require.NoError(t, err)
 
 	m.EXPECT().AddUser("myUserID", "myUsername", "myCert").Return(nil)
-
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(b))
-	require.Nil(t, err)
-	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusCreated, resp.Result().StatusCode)
 
 	// Test internal server error
 	m.EXPECT().AddUser("myUserID", "myUsername", "myCert").Return(errors.New("error adding user"))
-
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer(b))
-	require.Nil(t, err)
-	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 
 	// Test invalid request
 	m.EXPECT().AddUser("myUserID", "myUsername", "myCert").Times(0)
-	resp, err = client.Post(url, "application/json", bytes.NewBuffer([]byte("invalid")))
-	require.Nil(t, err)
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	resp = httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader([]byte("invalid"))),
+	)
+	require.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
 }

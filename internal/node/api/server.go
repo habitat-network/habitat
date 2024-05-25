@@ -8,13 +8,17 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 )
 
 const CertificateDir = "/dev_certificates"
 
-func NewAPIServer(router *mux.Router, logger *zerolog.Logger, proxyRules reverse_proxy.RuleSet, nodeConfig *config.NodeConfig) (*http.Server, error) {
+func NewAPIServer(
+	router http.Handler,
+	logger *zerolog.Logger,
+	proxyRules reverse_proxy.RuleSet,
+	nodeConfig *config.NodeConfig,
+) (*http.Server, error) {
 	srv := &http.Server{Addr: fmt.Sprintf(":%s", constants.DefaultPortHabitatAPI), Handler: router}
 	tlsConfig, err := nodeConfig.TLSConfig()
 	if err != nil {

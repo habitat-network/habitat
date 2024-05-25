@@ -7,7 +7,6 @@ require (
 	github.com/docker/go-connections v0.5.0
 	github.com/evanphx/json-patch/v5 v5.9.0
 	github.com/google/uuid v1.5.0
-	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/raft v1.6.0
 	github.com/hashicorp/raft-boltdb v0.0.0-20231211162105-6c830fa4535e
 	github.com/qri-io/jsonschema v0.2.1

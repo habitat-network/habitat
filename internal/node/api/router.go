@@ -1,11 +1,11 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/controller"
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 )
 
@@ -17,11 +17,36 @@ type Route interface {
 	Method() string
 }
 
-func NewRouter(routes []Route, logger *zerolog.Logger, nodeController controller.NodeController, nodeConfig *config.NodeConfig) *mux.Router {
-	router := mux.NewRouter()
+type processedRoute struct {
+	Route
+}
+
+func processRoute(route Route) processedRoute {
+	return processedRoute{route}
+}
+
+func (p processedRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != p.Route.Method() {
+		http.Error(
+			w,
+			fmt.Sprintf("invalid method, require %s", p.Route.Method()),
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+	p.Route.ServeHTTP(w, r)
+}
+
+func NewRouter(
+	routes []Route,
+	logger *zerolog.Logger,
+	nodeController controller.NodeController,
+	nodeConfig *config.NodeConfig,
+) http.Handler {
+	router := http.NewServeMux()
 	for _, route := range routes {
 		logger.Info().Msgf("Registering route: %s", route.Pattern())
-		router.Handle(route.Pattern(), route).Methods(route.Method())
+		router.Handle(route.Pattern(), processRoute(route))
 	}
 
 	authMiddleware := &authenticationMiddleware{
@@ -29,7 +54,5 @@ func NewRouter(routes []Route, logger *zerolog.Logger, nodeController controller
 		nodeConfig:     nodeConfig,
 	}
 
-	router.Use(authMiddleware.Middleware)
-
-	return router
+	return authMiddleware.Middleware(router)
 }
