@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -65,11 +66,16 @@ func TestProxy(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 2, len(proxy.Rules))
 
-	close, err := proxy.Start("localhost:9898", nil)
+	// binding to :0 chooses any open ports for tests
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.Nil(t, err)
-	defer close()
+	port := listener.Addr().(*net.TCPAddr).Port
 
-	url := "http://" + proxy.server.Addr
+	go func() {
+		_ = http.Serve(listener, proxy)
+	}()
+
+	url := fmt.Sprintf("http://localhost:%d", port)
 	// Check redirection
 	resp, err := http.Get(url + "/backend1")
 	if err != nil {
