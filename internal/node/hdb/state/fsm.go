@@ -24,15 +24,15 @@ func NewRaftFSMAdapter(databaseID string, schema hdb.Schema, commState []byte) (
 	var jsonState *hdb.JSONState
 	var err error
 	if commState == nil {
-		initState, err := schema.InitState()
+		emptyState, err := schema.EmptyState()
 		if err != nil {
 			return nil, err
 		}
-		initStateBytes, err := initState.Bytes()
+		emptyStateBytes, err := emptyState.Bytes()
 		if err != nil {
 			return nil, err
 		}
-		jsonState, err = hdb.NewJSONState(schema, initStateBytes)
+		jsonState, err = hdb.NewJSONState(schema, emptyStateBytes)
 		if err != nil {
 			return nil, err
 		}

@@ -19,7 +19,7 @@ func GetSchema(schemaType string) (hdb.Schema, error) {
 }
 
 // TODO this should account for schema version too
-func StateMachineFactory(databaseID string, schemaType string, initState []byte, replicator state.Replicator, publisher pubsub.Publisher[hdb.StateUpdate]) (state.StateMachineController, error) {
+func StateMachineFactory(databaseID string, schemaType string, emptyState []byte, replicator state.Replicator, publisher pubsub.Publisher[hdb.StateUpdate]) (state.StateMachineController, error) {
 	var schema hdb.Schema
 
 	switch schemaType {
@@ -29,19 +29,19 @@ func StateMachineFactory(databaseID string, schemaType string, initState []byte,
 		return nil, fmt.Errorf("schema type %s not found", schemaType)
 	}
 
-	if initState == nil {
-		initStateStruct, err := schema.InitState()
+	if emptyState == nil {
+		initStateStruct, err := schema.EmptyState()
 		if err != nil {
 			return nil, err
 		}
-		initStateBytes, err := initStateStruct.Bytes()
+		emptyStateBytes, err := initStateStruct.Bytes()
 		if err != nil {
 			return nil, err
 		}
-		initState = initStateBytes
+		emptyState = emptyStateBytes
 	}
 
-	stateMachineController, err := state.NewStateMachine(databaseID, schema, initState, replicator, publisher)
+	stateMachineController, err := state.NewStateMachine(databaseID, schema, emptyState, replicator, publisher)
 	if err != nil {
 		return nil, err
 	}

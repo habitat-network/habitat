@@ -16,7 +16,7 @@ func TestSchemaParsing(t *testing.T) {
 
 	// Test that an empty state from InitState() is valid
 	ns := &NodeSchema{}
-	initState, err := ns.InitState()
+	initState, err := ns.EmptyState()
 	assert.Nil(t, err)
 	assert.NotNil(t, ns.Type())
 	assert.Equal(t, "node", ns.Name())
@@ -35,7 +35,7 @@ func TestSchemaParsing(t *testing.T) {
 
 func TestInitializationTransition(t *testing.T) {
 	ns := &NodeSchema{}
-	initState, err := ns.InitState()
+	initState, err := ns.EmptyState()
 	assert.Nil(t, err)
 	initStateBytes, err := json.Marshal(initState)
 	assert.Nil(t, err)

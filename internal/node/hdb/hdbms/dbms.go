@@ -142,7 +142,7 @@ func (dm *DatabaseManager) RestartDBs() error {
 
 // CreateDatabase creates a new database with the given name and schema type.
 // This is a no-op if a database with the same name already exists.
-func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initState []byte) (hdb.Client, error) {
+func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initialTransitions []hdb.Transition) (hdb.Client, error) {
 	// First ensure that no db has the same name
 	err := dm.checkDatabaseExists(name)
 	if err != nil {
@@ -193,14 +193,9 @@ func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initSt
 	}
 	db.StateMachineController = stateMachineController
 
-	initTransition, err := schema.InitializationTransition(initState)
-	if err != nil {
-		return nil, err
-	}
-
 	db.StateMachineController.StartListening()
 
-	_, err = db.StateMachineController.ProposeTransitions([]hdb.Transition{initTransition})
+	_, err = db.StateMachineController.ProposeTransitions(initialTransitions)
 	if err != nil {
 		return nil, err
 	}

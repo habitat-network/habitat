@@ -13,7 +13,7 @@ func testTransitions(oldState *NodeState, transitions []hdb.Transition) (*NodeSt
 	var oldJSONState *hdb.JSONState
 	schema := &NodeSchema{}
 	if oldState == nil {
-		emptyState, err := schema.InitState()
+		emptyState, err := schema.EmptyState()
 		if err != nil {
 			return nil, err
 		}

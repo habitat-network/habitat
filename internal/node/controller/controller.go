@@ -8,7 +8,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/mod/semver"
 )
@@ -42,21 +41,18 @@ func NewNodeController(habitatDBManager hdb.HDBManager, config *config.NodeConfi
 		databaseManager: habitatDBManager,
 		nodeConfig:      config,
 	}
-	err := controller.InitializeNodeDB()
-	if err != nil {
-		return nil, err
-	}
 	return controller, nil
 }
 
 // InitializeNodeDB tries initializing the database; it is a noop if a database with the same name already exists
 func (c *BaseNodeController) InitializeNodeDB() error {
-	initState, err := generateInitState(c.nodeConfig)
+
+	initialTransitions, err := initTranstitions(c.nodeConfig)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.databaseManager.CreateDatabase(constants.NodeDBDefaultName, node.SchemaName, initState)
+	_, err = c.databaseManager.CreateDatabase(constants.NodeDBDefaultName, node.SchemaName, initialTransitions)
 	if err != nil {
 		if _, ok := err.(*hdb.DatabaseAlreadyExistsError); ok {
 			log.Info().Msg("Node database already exists, doing nothing.")
@@ -265,26 +261,4 @@ func (c *BaseNodeController) GetUserByUsername(username string) (*node.User, err
 	}
 
 	return nil, fmt.Errorf("user with username %s not found", username)
-}
-
-// TODO this is basically a placeholder until we actually have a way of generating
-// the certificate for the node.
-func generateInitState(nodeConfig *config.NodeConfig) ([]byte, error) {
-	nodeUUID := uuid.New().String()
-
-	rootCert := nodeConfig.RootUserCertB64()
-
-	emptyState, err := node.GetEmptyStateForVersion(node.LatestVersion)
-	if err != nil {
-		return nil, err
-	}
-
-	emptyState.NodeID = nodeUUID
-	emptyState.Users[constants.RootUserID] = &node.User{
-		ID:          constants.RootUserID,
-		Username:    constants.RootUsername,
-		Certificate: rootCert,
-	}
-
-	return json.Marshal(emptyState)
 }

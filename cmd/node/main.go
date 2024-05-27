@@ -81,6 +81,11 @@ func main() {
 		}
 	}()
 
+	err = nodeCtrl.InitializeNodeDB()
+	if err != nil {
+		log.Fatal().Err(err)
+	}
+
 	server, err := api.NewAPIServer(router, log, proxy.Rules, nodeConfig)
 	if err != nil {
 		log.Fatal().Err(err)

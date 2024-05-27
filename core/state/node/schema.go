@@ -152,7 +152,7 @@ func (s *NodeSchema) Name() string {
 	return SchemaName
 }
 
-func (s *NodeSchema) InitState() (hdb.State, error) {
+func (s *NodeSchema) EmptyState() (hdb.State, error) {
 
 	return GetEmptyStateForVersion(CurrentVersion)
 
