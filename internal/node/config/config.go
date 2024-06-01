@@ -10,12 +10,19 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	viper "github.com/spf13/viper"
 )
 
 func loadEnv() error {
-	err := viper.BindEnv("habitat_path", "HABITAT_PATH")
+	err := viper.BindEnv("debug", "DEBUG")
+	if err != nil {
+		return err
+	}
+	viper.SetDefault("debug", "DEBUG")
+
+	err = viper.BindEnv("habitat_path", "HABITAT_PATH")
 	if err != nil {
 		return err
 	}
@@ -24,6 +31,17 @@ func loadEnv() error {
 		return err
 	}
 	viper.SetDefault("habitat_path", filepath.Join(homedir, ".habitat"))
+
+	err = viper.BindEnv("habitat_app_path")
+	if err != nil {
+		return err
+	}
+
+	err = viper.BindEnv("use_tls", "USE_TLS")
+	if err != nil {
+		return err
+	}
+	viper.SetDefault("use_tls", false)
 
 	err = viper.BindEnv("tailscale_authkey", "TS_AUTHKEY")
 	if err != nil {
@@ -35,10 +53,6 @@ func loadEnv() error {
 		return err
 	}
 
-	err = viper.BindEnv("habitat_app_path")
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -117,11 +131,20 @@ func NewNodeConfig() (*NodeConfig, error) {
 	return loadConfig()
 }
 
+func (n *NodeConfig) LogLevel() zerolog.Level {
+	isDebug := viper.GetBool("debug")
+	if isDebug {
+		return zerolog.DebugLevel
+	}
+	return zerolog.InfoLevel
+}
+
 func (n *NodeConfig) HabitatPath() string {
 	return viper.GetString("habitat_path")
 }
 
 func (n *NodeConfig) HabitatAppPath() string {
+	// Note that in dev mode, this should point to a path on the host machine rather than in the Docker container.
 	return viper.GetString("habitat_app_path")
 }
 
@@ -146,6 +169,10 @@ func (n *NodeConfig) RootUserCertB64() string {
 }
 
 func (n *NodeConfig) TLSConfig() (*tls.Config, error) {
+	if !n.UseTLS() {
+		return nil, nil
+	}
+
 	rootCertBytes, err := os.ReadFile(n.RootUserCertPath())
 	if err != nil {
 		return nil, err
@@ -160,6 +187,10 @@ func (n *NodeConfig) TLSConfig() (*tls.Config, error) {
 	}, nil
 }
 
+func (n *NodeConfig) UseTLS() bool {
+	return viper.GetBool("use_tls")
+}
+
 // Currently unused, but may be necessary to implement adding members to the community.
 func (n *NodeConfig) TailnetName() string {
 	return viper.GetString("tailnet")
@@ -167,6 +198,11 @@ func (n *NodeConfig) TailnetName() string {
 
 func (n *NodeConfig) TailscaleAuthkey() string {
 	return viper.GetString("tailscale_authkey")
+}
+
+func (n *NodeConfig) TailScaleStatePath() string {
+	// Note: this is intentionally not configurable for simplicity's sake.
+	return filepath.Join(n.HabitatPath(), "tailscale_state")
 }
 
 func homedir() (string, error) {

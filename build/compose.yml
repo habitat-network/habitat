@@ -1,24 +1,5 @@
 name: habitat-node
 services:
-  tailscale:
-    image: tailscale/tailscale:latest
-    hostname: habitat
-    container_name: tailscale
-    volumes:
-      - ${DEV_HABITAT_PATH}/ts-state:/etc/ts-state
-      - /dev/net/tun:/dev/net/tun
-    ports:
-      - 3000:3000
-      - 3001:3001
-      - 4000:4000
-    cap_add:
-      - net_admin
-      - sys_module
-    environment:
-      - TS_STATE_DIR=/etc/ts-state/
-      - TS_TAILNET=habitat.ts.test@gmail.com
-      - TS_EXTRA_ARGS=--advertise-tags=tag:habitat-node-dev
-      - TS_AUTHKEY=${TS_AUTHKEY}
   habitat_node:
     volumes:
         - ${TOPDIR}/core:${DOCKER_WORKDIR}/core
@@ -29,8 +10,13 @@ services:
         - /var/run/docker.sock:/var/run/docker.sock
     environment:
         - HABITAT_PATH=/.habitat
-    network_mode: service:tailscale
-    depends_on:
-        - tailscale
+        - HABITAT_APP_PATH=${DEV_HABITAT_APP_PATH}
+    ports:
+      - 3000:3000
+      - 3001:3001
+      - 4000:4000
     image: habitat_node
     build: node.dev.Dockerfile
+    env_file:
+      - path: ../dev.env
+        required: false

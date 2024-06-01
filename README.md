@@ -5,7 +5,7 @@ To run all the code and tooling in this repository, you will need to have the fo
 * GNU Make > v4 (this should be available through xcode)
 * Docker Engine and the Docker CLI: https://docs.docker.com/engine/install/
 * golangci-lint: https://golangci-lint.run/usage/install/
-* go-test-coverage: Run `go install github.com/vladopajic/go-test-coverage/v2@v2.8.2`
+* go-test-coverage: Run `go install github.com/vladopajic/go-test-coverage/v2@latest`
 * Postman: https://www.postman.com/downloads/
 
 ## Local Development
@@ -36,8 +36,11 @@ make run-dev-fresh
 You should now see a bunch of logs indicating the node has come up.
 
 ### Setting up Postman
-Now that your node is running, let's set up Postman so we can make requests to the Habitat API. Habitat uses an mTLS for authentication, which means that clients must supply a certificate that the server is able to authenticate. In the previous steps, we already supplied our dev certificate to the server, but now we need to add it to Postman so that it can
-submit it along with the request.
+```
+Note: this is disabled until we can get a more cohesive auth system going
+```
+
+Now that your node is running, let's set up Postman so we can make requests to the Habitat API. Habitat uses an mTLS for authentication, which means that clients must supply a certificate that the server is able to authenticate. In the previous steps, we already supplied our dev certificate to the server, but now we need to add it to Postman so that it can submit it along with the request.
 
 Go to `Postman > Preferences > Certificates` and press `Add Certificate`. Fill in the following fields:
 ```

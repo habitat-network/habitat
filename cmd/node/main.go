@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"os/signal"
@@ -21,10 +20,11 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/processes"
 	"github.com/eagraf/habitat-new/internal/node/pubsub"
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
+	"github.com/eagraf/habitat-new/internal/node/server"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 )
-
-var log = logging.NewLogger()
 
 func main() {
 	nodeConfig, err := config.NewNodeConfig()
@@ -32,8 +32,11 @@ func main() {
 		log.Fatal().Err(err)
 	}
 
+	logger := logging.NewLogger()
+	zerolog.SetGlobalLevel(nodeConfig.LogLevel())
+
 	hdbPublisher := pubsub.NewSimplePublisher[hdb.StateUpdate]()
-	db, dbClose, err := hdbms.NewHabitatDB(log, hdbPublisher, nodeConfig)
+	db, dbClose, err := hdbms.NewHabitatDB(logger, hdbPublisher, nodeConfig)
 	if err != nil {
 		log.Fatal().Err(err)
 	}
@@ -49,7 +52,7 @@ func main() {
 		log.Fatal().Err(err)
 	}
 
-	stateLogger := hdbms.NewStateUpdateLogger(log)
+	stateLogger := hdbms.NewStateUpdateLogger(logger)
 	appLifecycleSubscriber, err := package_manager.NewAppLifecycleSubscriber(dockerDriver.PackageManager, nodeCtrl)
 	if err != nil {
 		log.Fatal().Err(err)
@@ -61,7 +64,22 @@ func main() {
 		log.Fatal().Err(err)
 	}
 
-	stateUpdates := pubsub.NewSimpleChannel([]pubsub.Publisher[hdb.StateUpdate]{hdbPublisher}, []pubsub.Subscriber[hdb.StateUpdate]{stateLogger, appLifecycleSubscriber, pmSub})
+	// ctx.Done() returns when SIGINT is called or cancel() is called.
+	// calling cancel() unregisters the signal trapping.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// egCtx is cancelled if any function called with eg.Go() returns an error.
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	proxy := reverse_proxy.NewProxyServer(logger, nodeConfig)
+
+	proxyRuleStateUpdateSubscriber, err := reverse_proxy.NewProcessProxyRuleStateUpdateSubscriber(proxy.Rules)
+	if err != nil {
+		log.Fatal().Err(err)
+	}
+
+	stateUpdates := pubsub.NewSimpleChannel([]pubsub.Publisher[hdb.StateUpdate]{hdbPublisher}, []pubsub.Subscriber[hdb.StateUpdate]{stateLogger, appLifecycleSubscriber, pmSub, proxyRuleStateUpdateSubscriber})
 	go func() {
 		err := stateUpdates.Listen()
 		if err != nil {
@@ -73,28 +91,29 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err)
 	}
-	// ctx.Done() returns when SIGINT is called or cancel() is called.
-	// calling cancel() unregisters the signal trapping.
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
-	// egCtx is cancelled if any function called with eg.Go() returns an error.
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	proxy := reverse_proxy.NewProxyServer(log, nodeConfig)
+	// Set up the reverse proxy server
 	tlsConfig, err := nodeConfig.TLSConfig()
 	if err != nil {
 		log.Fatal().Err(err)
 	}
+	addr := fmt.Sprintf(":%s", constants.DefaultPortReverseProxy)
 	proxyServer := &http.Server{
-		Addr:        fmt.Sprintf(":%s", constants.DefaultPortReverseProxy),
-		TLSConfig:   tlsConfig,
-		Handler:     proxy,
-		BaseContext: func(net.Listener) context.Context { return context.Background() },
+		Addr:    addr,
+		Handler: proxy,
 	}
+	ln, err := proxy.Listener(addr)
+	if err != nil {
+		log.Fatal().Err(err)
+	}
+	eg.Go(server.ServeFn(
+		proxyServer,
+		"proxy-server",
+		server.WithTLSConfig(tlsConfig, nodeConfig.NodeCertPath(), nodeConfig.NodeKeyPath()),
+		server.WithListener(ln),
+	))
 
-	eg.Go(serveFn(proxyServer, "proxy-server", WithTLSConfig(nodeConfig.NodeCertPath(), nodeConfig.NodeKeyPath())))
-
+	// Set up the main API server
 	routes := []api.Route{
 		api.NewVersionHandler(),
 		controller.NewGetNodeRoute(db.Manager),
@@ -104,12 +123,10 @@ func main() {
 		controller.NewMigrationRoute(nodeCtrl),
 	}
 
-	router := api.NewRouter(routes, log, nodeCtrl, nodeConfig)
+	router := api.NewRouter(routes, logger, nodeCtrl, nodeConfig)
 	apiServer := &http.Server{
-		Addr:        fmt.Sprintf(":%s", constants.DefaultPortHabitatAPI),
-		TLSConfig:   tlsConfig,
-		Handler:     router,
-		BaseContext: func(net.Listener) context.Context { return context.Background() },
+		Addr:    fmt.Sprintf(":%s", constants.DefaultPortHabitatAPI),
+		Handler: router,
 	}
 	url, err := url.Parse(fmt.Sprintf("http://localhost:%s", constants.DefaultPortHabitatAPI))
 	if err != nil {
@@ -122,7 +139,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(fmt.Errorf("error adding Habitat API proxy rule: %v", err))
 	}
-	eg.Go(serveFn(apiServer, "api-server", WithTLSConfig(nodeConfig.NodeCertPath(), nodeConfig.NodeKeyPath())))
+	eg.Go(server.ServeFn(apiServer, "api-server", server.WithTLSConfig(tlsConfig, nodeConfig.NodeCertPath(), nodeConfig.NodeKeyPath())))
 
 	// Wait for either os.Interrupt which triggers ctx.Done()
 	// Or one of the servers to error, which triggers egCtx.Done()
@@ -154,51 +171,4 @@ func main() {
 		log.Err(err).Msg("received error on eg.Wait()")
 	}
 	log.Info().Msg("Finished!")
-}
-
-// config provided to http.Server.ListenAndServeTLS()
-type tlsConfig struct {
-	certFile string
-	keyFile  string
-}
-
-// serverOptions provide optional config for an http.Server passed to serveFn()
-type serverOption struct {
-	tlsConfig *tlsConfig
-}
-
-// conventional way to supply arbitrary and optional arguments as options to a function.
-type option func(*serverOption)
-
-// WithTLSConfig provides serverOption with tlsConfig
-func WithTLSConfig(certFile string, keyFile string) option {
-	return func(so *serverOption) {
-		so.tlsConfig = &tlsConfig{
-			certFile: certFile,
-			keyFile:  keyFile,
-		}
-	}
-}
-
-// serveFn takes in an http.Server and additional config and returns a callback that can be run in a separate go-routine.
-func serveFn(srv *http.Server, name string, opts ...option) func() error {
-	options := &serverOption{}
-	for _, o := range opts {
-		o(options)
-	}
-	return func() error {
-		var err error
-		if srv.TLSConfig != nil && options.tlsConfig != nil {
-			log.Info().Msgf("Starting Habitat server[%s] at %s over TLS", name, srv.Addr)
-			err = srv.ListenAndServeTLS(options.tlsConfig.certFile, options.tlsConfig.keyFile)
-		} else {
-			log.Warn().Msgf("No TSL config found: starting Habitat server[%s] at %s without TLS enabled", name, srv.Addr)
-			err = srv.ListenAndServe()
-		}
-		if err != http.ErrServerClosed {
-			log.Err(err).Msgf("Habitat server[%s] closed abnormally", name)
-			return err
-		}
-		return nil
-	}
 }

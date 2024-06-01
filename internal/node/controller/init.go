@@ -15,7 +15,7 @@ import (
 
 func generatePDSAppConfig(nodeConfig *config.NodeConfig) types.PostAppRequest {
 
-	pdsMountDir := filepath.Join(nodeConfig.HabitatPath(), "pds")
+	pdsMountDir := filepath.Join(nodeConfig.HabitatAppPath(), "pds")
 
 	// TODO @eagraf - unhardcode as much of this as possible
 	return types.PostAppRequest{
@@ -27,7 +27,7 @@ func generatePDSAppConfig(nodeConfig *config.NodeConfig) types.PostAppRequest {
 				Driver: "docker",
 				DriverConfig: map[string]interface{}{
 					"env": []string{
-						"PDS_HOSTNAME=ethangraf.com",
+						"PDS_HOSTNAME=localhost",
 						"PDS_DATA_DIRECTORY=/pds",
 						"PDS_BLOBSTORE_DISK_LOCATION=/pds/blocks",
 						"PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX=5290bb1866a03fb23b09a6ffd64d21f6a4ebf624eaa301930eeb81740699239c",

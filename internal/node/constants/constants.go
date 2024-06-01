@@ -16,4 +16,6 @@ const (
 	// Default port values
 	DefaultPortHabitatAPI   = "3000"
 	DefaultPortReverseProxy = "3001"
+
+	DefaultTSNetHostname = "habitat"
 )

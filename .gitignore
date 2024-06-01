@@ -9,3 +9,6 @@ coverage.out
 
 # Bin directory
 bin/
+
+# Developer specific environment
+dev.env
