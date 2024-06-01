@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/eagraf/habitat-new/internal/frontend"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
@@ -53,7 +54,10 @@ func main() {
 	}
 
 	stateLogger := hdbms.NewStateUpdateLogger(logger)
-	appLifecycleSubscriber, err := package_manager.NewAppLifecycleSubscriber(dockerDriver.PackageManager, nodeCtrl)
+	appLifecycleSubscriber, err := package_manager.NewAppLifecycleSubscriber(
+		dockerDriver.PackageManager,
+		nodeCtrl,
+	)
 	if err != nil {
 		log.Fatal().Err(err)
 	}
@@ -74,12 +78,22 @@ func main() {
 
 	proxy := reverse_proxy.NewProxyServer(logger, nodeConfig)
 
-	proxyRuleStateUpdateSubscriber, err := reverse_proxy.NewProcessProxyRuleStateUpdateSubscriber(proxy.Rules)
+	proxyRuleStateUpdateSubscriber, err := reverse_proxy.NewProcessProxyRuleStateUpdateSubscriber(
+		proxy.Rules,
+	)
 	if err != nil {
 		log.Fatal().Err(err)
 	}
 
-	stateUpdates := pubsub.NewSimpleChannel([]pubsub.Publisher[hdb.StateUpdate]{hdbPublisher}, []pubsub.Subscriber[hdb.StateUpdate]{stateLogger, appLifecycleSubscriber, pmSub, proxyRuleStateUpdateSubscriber})
+	stateUpdates := pubsub.NewSimpleChannel(
+		[]pubsub.Publisher[hdb.StateUpdate]{hdbPublisher},
+		[]pubsub.Subscriber[hdb.StateUpdate]{
+			stateLogger,
+			appLifecycleSubscriber,
+			pmSub,
+			proxyRuleStateUpdateSubscriber,
+		},
+	)
 	go func() {
 		err := stateUpdates.Listen()
 		if err != nil {
@@ -139,7 +153,18 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(fmt.Errorf("error adding Habitat API proxy rule: %v", err))
 	}
-	eg.Go(server.ServeFn(apiServer, "api-server", server.WithTLSConfig(tlsConfig, nodeConfig.NodeCertPath(), nodeConfig.NodeKeyPath())))
+	eg.Go(
+		server.ServeFn(
+			apiServer,
+			"api-server",
+			server.WithTLSConfig(tlsConfig, nodeConfig.NodeCertPath(), nodeConfig.NodeKeyPath()),
+		),
+	)
+
+	err = proxy.Rules.Add("Frontend", frontend.NewFrontendProxyRule())
+	if err != nil {
+		log.Fatal().Err(fmt.Errorf("error adding frontend proxy rule: %v", err))
+	}
 
 	// Wait for either os.Interrupt which triggers ctx.Done()
 	// Or one of the servers to error, which triggers egCtx.Done()

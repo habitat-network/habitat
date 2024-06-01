@@ -1,5 +1,15 @@
 name: habitat-node
 services:
+  habitat_frontend:
+    image: habitat_frontend
+    build: 
+      context: ..
+      dockerfile: build/frontend.dev.Dockerfile
+    volumes:
+      - ${TOPDIR}/frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
   habitat_node:
     volumes:
         - ${TOPDIR}/core:${DOCKER_WORKDIR}/core
@@ -11,12 +21,18 @@ services:
     environment:
         - HABITAT_PATH=/.habitat
         - HABITAT_APP_PATH=${DEV_HABITAT_APP_PATH}
+        - FRONTEND_DEV=1
     ports:
       - 3000:3000
       - 3001:3001
       - 4000:4000
     image: habitat_node
-    build: node.dev.Dockerfile
+    build: 
+      context: ..
+      dockerfile: build/node.dev.Dockerfile
     env_file:
       - path: ../dev.env
         required: false
+    depends_on:
+      - habitat_frontend
+
