@@ -82,7 +82,7 @@ Note: we know that doing this is insecure, but this is a quick way to bootstrap 
 
 The installer will ask you to generate some credentials. If you have done this before, you can skip this step. After finishing the installer, you can now run habitat like this:
 ```
-habitat
+~/.habitat/bin/habitat
 ```
 
 Currently, there is no way to run Habitat as a daemon, but this will be supported in the future.

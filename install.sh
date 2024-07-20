@@ -6,6 +6,16 @@
 # We are doing this for convenience, but don't take this as a good example of how
 # to do things. You should always verify the contents of a script before executing it.
 
+# Usage:
+#
+# Use latest version:
+#
+#   curl -sL https://github.com/eagraf/habitat-new/releases/latest/download/install.sh 2>&1 | bash
+#
+# Use specific version:
+#
+#   curl -sL https://github.com/eagraf/habitat-new/releases/download/v0.0.2/install.sh 2>&1 | bash
+
 set -euxo pipefail
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -14,7 +24,16 @@ if [ "$ARCH" == "x86_64" ]; then
     ARCH="amd64"
 fi
 
-ARCHIVE_URL="https://github.com/eagraf/habitat-new/releases/latest/download/habitat-${ARCH}-${OS}.tar.gz"
+VERSION="latest"
+if [ -n "$1" ]; then
+    VERSION=$1
+fi
+
+if [[ "$VERSION" == "latest" ]]; then
+    ARCHIVE_URL="https://github.com/eagraf/habitat-new/releases/latest/download/habitat-${ARCH}-${OS}.tar.gz"
+else
+    ARCHIVE_URL="https://github.com/eagraf/habitat-new/releases/download/${VERSION}/habitat-${ARCH}-${OS}.tar.gz"
+fi
 
 TMP_DIR=$(mktemp -d)
 echo "Downloading to $TMP_DIR"
@@ -22,9 +41,11 @@ curl -L $ARCHIVE_URL -o $TMP_DIR/habitat-${ARCH}-${OS}.tar.gz
 mkdir -p $TMP_DIR/habitat-${ARCH}-${OS}
 tar -xzf $TMP_DIR/habitat-${ARCH}-${OS}.tar.gz -C $TMP_DIR/habitat-${ARCH}-${OS}
 
-cp $TMP_DIR/habitat-${ARCH}-${OS}/habitat /usr/local/bin/habitat
 
-mkdir -p $HOME/.habitat
+BIN_PATH="$HOME/.habitat/bin"
+mkdir -p $BIN_PATH
+
+cp $TMP_DIR/habitat-${ARCH}-${OS}/habitat $BIN_PATH/habitat
 
 CERT_DIR="$HOME/.habitat/certificates"
 mkdir -p "$CERT_DIR"

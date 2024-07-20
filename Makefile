@@ -29,6 +29,12 @@ archive: $(TOPDIR)/bin/amd64-linux/habitat-amd64-linux.tar.gz $(TOPDIR)/bin/amd6
 test::
 	go test ./... -timeout 1s
 
+clean::
+	rm -rf $(TOPDIR)/bin
+	rm -rf $(TOPDIR)/internal/frontend/build
+	rm -rf $(TOPDIR)/frontend/out
+	rm -rf $(TOPDIR)/frontend/.next
+
 test-coverage:
 	go test ./... -coverprofile=coverage.out -coverpkg=./... -timeout 1s
 	${GOBIN}/go-test-coverage --config=./.testcoverage.yml || true
@@ -93,15 +99,22 @@ $(TOPDIR)/bin: $(TOPDIR)
 	mkdir -p $(TOPDIR)/bin
 
 # Linux AMD64 Builds
-$(TOPDIR)/bin/amd64-linux/habitat: $(TOPDIR)/bin
+$(TOPDIR)/bin/amd64-linux/habitat: $(TOPDIR)/bin internal/frontend/build
 	GOARCH=amd64 GOOS=linux go build -o $(TOPDIR)/bin/amd64-linux/habitat $(TOPDIR)/cmd/node/main.go
 
 $(TOPDIR)/bin/amd64-linux/habitat-amd64-linux.tar.gz: $(TOPDIR)/bin/amd64-linux/habitat
 	tar -czf $(TOPDIR)/bin/amd64-linux/habitat-amd64-linux.tar.gz -C $(TOPDIR)/bin/amd64-linux habitat
 
 # Darwin AMD64 Builds
-$(TOPDIR)/bin/amd64-darwin/habitat: $(TOPDIR)/bin
+$(TOPDIR)/bin/amd64-darwin/habitat: $(TOPDIR)/bin internal/frontend/build
 	GOARCH=amd64 GOOS=darwin go build -o $(TOPDIR)/bin/amd64-darwin/habitat $(TOPDIR)/cmd/node/main.go
 
 $(TOPDIR)/bin/amd64-darwin/habitat-amd64-darwin.tar.gz: $(TOPDIR)/bin/amd64-darwin/habitat
 	tar -czf $(TOPDIR)/bin/amd64-darwin/habitat-amd64-darwin.tar.gz -C $(TOPDIR)/bin/amd64-darwin habitat
+
+
+# Embed the frontend in the binary
+internal/frontend/build:
+	cd $(TOPDIR)/frontend && npm install && npm run build
+	mkdir -p $(TOPDIR)/internal/frontend/build
+	cp -r $(TOPDIR)/frontend/out/* $(TOPDIR)/internal/frontend/build

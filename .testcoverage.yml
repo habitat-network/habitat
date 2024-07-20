@@ -36,3 +36,4 @@ exclude:
     - ^cmd/node
     - ^internal/node/reverse_proxy/server.go
     - ^internal/node/server/server.go
+    - ^internal/frontend

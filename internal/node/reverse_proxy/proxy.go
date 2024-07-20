@@ -2,6 +2,7 @@ package reverse_proxy
 
 import (
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -68,6 +69,7 @@ type RuleHandler interface {
 type FileServerRule struct {
 	Matcher string
 	Path    string
+	FS      fs.FS // Optional, instead of using Path, pass in an fs.FS. Useful for embedding the Habitat frontend.
 }
 
 func (r *FileServerRule) Type() string {
@@ -84,12 +86,15 @@ func (r *FileServerRule) Handler() http.Handler {
 	return &FileServerHandler{
 		Prefix: r.Matcher,
 		Path:   r.Path,
+		FS:     r.FS,
 	}
 }
 
 type FileServerHandler struct {
 	Prefix string
 	Path   string
+
+	FS fs.FS // Optional, instead of using Path, pass in an fs.FS. Useful for embedding the Habitat frontend.
 }
 
 func (h *FileServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +108,11 @@ func (h *FileServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	http.FileServer(http.Dir(h.Path)).ServeHTTP(w, r)
+	if h.FS != nil {
+		http.FileServer(http.FS(h.FS)).ServeHTTP(w, r)
+	} else {
+		http.FileServer(http.Dir(h.Path)).ServeHTTP(w, r)
+	}
 }
 
 type RedirectRule struct {

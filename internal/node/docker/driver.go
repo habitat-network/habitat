@@ -73,7 +73,7 @@ func (d *AppDriver) IsInstalled(packageSpec *node.Package, version string) (bool
 	if err != nil {
 		return false, err
 	}
-	return !(len(images) > 0), nil
+	return len(images) > 0, nil
 }
 
 // Implement the package manager interface

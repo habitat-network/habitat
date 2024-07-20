@@ -12,3 +12,6 @@ bin/
 
 # Developer specific environment
 dev.env
+
+# Ignore frontend build
+internal/frontend/build
