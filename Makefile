@@ -115,6 +115,6 @@ $(TOPDIR)/bin/amd64-darwin/habitat-amd64-darwin.tar.gz: $(TOPDIR)/bin/amd64-darw
 
 # Embed the frontend in the binary
 internal/frontend/build:
-	cd $(TOPDIR)/frontend && npm install && npm run build
+	cd $(TOPDIR)/frontend && pnpm install && pnpm run build
 	mkdir -p $(TOPDIR)/internal/frontend/build
 	cp -r $(TOPDIR)/frontend/out/* $(TOPDIR)/internal/frontend/build

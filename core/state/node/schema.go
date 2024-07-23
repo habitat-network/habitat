@@ -20,7 +20,7 @@ var nodeSchemaRaw string
 
 // TODO structs defined here can embed the immutable structs, but also include mutable fields.
 
-type NodeState struct {
+type State struct {
 	NodeID            string                           `json:"node_id"`
 	Name              string                           `json:"name"`
 	Certificate       string                           `json:"certificate"` // TODO turn this into b64
@@ -53,25 +53,24 @@ type ProcessState struct {
 	ExtDriverID string `json:"ext_driver_id"`
 }
 
-func (s NodeState) Schema() hdb.Schema {
+func (s State) Schema() hdb.Schema {
 	ns := &NodeSchema{}
 	return ns
 }
 
-func (s NodeState) Bytes() ([]byte, error) {
+func (s State) Bytes() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-func (s NodeState) GetAppByID(appID string) (*AppInstallationState, error) {
-	for _, app := range s.AppInstallations {
-		if app.ID == appID {
-			return app, nil
-		}
+func (s State) GetAppByID(appID string) (*AppInstallationState, error) {
+	app, ok := s.AppInstallations[appID]
+	if !ok {
+		return nil, fmt.Errorf("app with ID %s not found", appID)
 	}
-	return nil, fmt.Errorf("app with ID %s not found", appID)
+	return app, nil
 }
 
-func (s NodeState) GetAppsForUser(userID string) ([]*AppInstallationState, error) {
+func (s State) GetAppsForUser(userID string) ([]*AppInstallationState, error) {
 	apps := make([]*AppInstallationState, 0)
 	for _, app := range s.AppInstallations {
 		if app.UserID == userID {
@@ -81,7 +80,7 @@ func (s NodeState) GetAppsForUser(userID string) ([]*AppInstallationState, error
 	return apps, nil
 }
 
-func (s NodeState) GetProcessesForUser(userID string) ([]*ProcessState, error) {
+func (s State) GetProcessesForUser(userID string) ([]*ProcessState, error) {
 	procs := make([]*ProcessState, 0)
 	for _, proc := range s.Processes {
 		if proc.UserID == userID {
@@ -91,7 +90,7 @@ func (s NodeState) GetProcessesForUser(userID string) ([]*ProcessState, error) {
 	return procs, nil
 }
 
-func (s NodeState) GetReverseProxyRulesForProcess(processID string) ([]*ReverseProxyRule, error) {
+func (s State) GetReverseProxyRulesForProcess(processID string) ([]*ReverseProxyRule, error) {
 	process, ok := s.Processes[processID]
 	if !ok {
 		return nil, fmt.Errorf("process with ID %s not found", processID)
@@ -109,12 +108,12 @@ func (s NodeState) GetReverseProxyRulesForProcess(processID string) ([]*ReverseP
 	return rules, nil
 }
 
-func (s NodeState) Copy() (*NodeState, error) {
+func (s State) Copy() (*State, error) {
 	marshaled, err := s.Bytes()
 	if err != nil {
 		return nil, err
 	}
-	var copy NodeState
+	var copy State
 	err = json.Unmarshal(marshaled, &copy)
 	if err != nil {
 		return nil, err
@@ -122,7 +121,7 @@ func (s NodeState) Copy() (*NodeState, error) {
 	return &copy, nil
 }
 
-func (s NodeState) Validate() error {
+func (s State) Validate() error {
 	schemaVersion := s.SchemaVersion
 
 	ns := &NodeSchema{}
@@ -159,11 +158,11 @@ func (s *NodeSchema) EmptyState() (hdb.State, error) {
 }
 
 func (s *NodeSchema) Type() reflect.Type {
-	return reflect.TypeOf(&NodeState{})
+	return reflect.TypeOf(&State{})
 }
 
 func (s *NodeSchema) InitializationTransition(initState []byte) (hdb.Transition, error) {
-	var is *NodeState
+	var is *State
 	err := json.Unmarshal(initState, &is)
 	if err != nil {
 		return nil, err
@@ -196,7 +195,7 @@ func (s *NodeSchema) JSONSchemaForVersion(version string) (*jsonschema.Schema, e
 }
 
 func (s *NodeSchema) ValidateState(state []byte) error {
-	var stateObj NodeState
+	var stateObj State
 	err := json.Unmarshal(state, &stateObj)
 	if err != nil {
 		return err

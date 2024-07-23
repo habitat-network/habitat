@@ -54,17 +54,17 @@ func (mr *MockNodeControllerMockRecorder) AddUser(userID, username, certificate 
 }
 
 // FinishAppInstallation mocks base method.
-func (m *MockNodeController) FinishAppInstallation(userID, appID, registryURLBase, registryPackageID string) error {
+func (m *MockNodeController) FinishAppInstallation(userID, appID, registryURLBase, registryPackageID string, startAfterInstall bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FinishAppInstallation", userID, appID, registryURLBase, registryPackageID)
+	ret := m.ctrl.Call(m, "FinishAppInstallation", userID, appID, registryURLBase, registryPackageID, startAfterInstall)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // FinishAppInstallation indicates an expected call of FinishAppInstallation.
-func (mr *MockNodeControllerMockRecorder) FinishAppInstallation(userID, appID, registryURLBase, registryPackageID any) *gomock.Call {
+func (mr *MockNodeControllerMockRecorder) FinishAppInstallation(userID, appID, registryURLBase, registryPackageID, startAfterInstall any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishAppInstallation", reflect.TypeOf((*MockNodeController)(nil).FinishAppInstallation), userID, appID, registryURLBase, registryPackageID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishAppInstallation", reflect.TypeOf((*MockNodeController)(nil).FinishAppInstallation), userID, appID, registryURLBase, registryPackageID, startAfterInstall)
 }
 
 // GetAppByID mocks base method.
@@ -154,17 +154,17 @@ func (mr *MockNodeControllerMockRecorder) SetProcessRunning(processID any) *gomo
 }
 
 // StartProcess mocks base method.
-func (m *MockNodeController) StartProcess(process *node.Process) error {
+func (m *MockNodeController) StartProcess(appID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StartProcess", process)
+	ret := m.ctrl.Call(m, "StartProcess", appID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // StartProcess indicates an expected call of StartProcess.
-func (mr *MockNodeControllerMockRecorder) StartProcess(process any) *gomock.Call {
+func (mr *MockNodeControllerMockRecorder) StartProcess(appID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartProcess", reflect.TypeOf((*MockNodeController)(nil).StartProcess), process)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartProcess", reflect.TypeOf((*MockNodeController)(nil).StartProcess), appID)
 }
 
 // StopProcess mocks base method.

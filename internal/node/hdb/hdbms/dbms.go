@@ -9,7 +9,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/eagraf/habitat-new/internal/node/hdb/consensus"
 	"github.com/eagraf/habitat-new/internal/node/hdb/state"
-	"github.com/eagraf/habitat-new/internal/node/hdb/state/schemas"
 	"github.com/eagraf/habitat-new/internal/node/pubsub"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -106,7 +105,7 @@ func (dm *DatabaseManager) RestartDBs() error {
 		}
 		name := string(nameBytes)
 
-		schema, err := schemas.GetSchema(schemaType)
+		schema, err := state.GetSchema(schemaType)
 		if err != nil {
 			return err
 		}
@@ -127,7 +126,7 @@ func (dm *DatabaseManager) RestartDBs() error {
 			return fmt.Errorf("error restoring database %s: %s", dbID, err)
 		}
 
-		stateMachineController, err := schemas.StateMachineFactory(dbID, schemaType, nil, cluster, dm.publisher)
+		stateMachineController, err := state.StateMachineFactory(dbID, schemaType, nil, cluster, dm.publisher)
 		if err != nil {
 			return err
 		}
@@ -162,7 +161,7 @@ func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initia
 		return nil, err
 	}
 
-	schema, err := schemas.GetSchema(schemaType)
+	schema, err := state.GetSchema(schemaType)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +186,7 @@ func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initia
 		return nil, err
 	}
 
-	stateMachineController, err := schemas.StateMachineFactory(db.id, schemaType, nil, cluster, dm.publisher)
+	stateMachineController, err := state.StateMachineFactory(db.id, schemaType, nil, cluster, dm.publisher)
 	if err != nil {
 		return nil, err
 	}

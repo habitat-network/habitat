@@ -7,6 +7,8 @@ To run all the code and tooling in this repository, you will need to have the fo
 * golangci-lint: https://golangci-lint.run/usage/install/
 * go-test-coverage: Run `go install github.com/vladopajic/go-test-coverage/v2@latest`
 * Postman: https://www.postman.com/downloads/
+* pnpm: https://pnpm.io/installation
+* NodeJS: https://nodejs.org/en/download/package-manager
 
 ## Local Development
 The local dev setup runs the main Habitat node in a docker container. The code is built inside the container using [Air](https://github.com/cosmtrek/air), which allows for live reloading. To build the dev container, run:
@@ -61,6 +63,7 @@ make test-coverage
 ```
 This repository uses [gomock](https://github.com/uber-go/mock) to create mocks in tests. Generally, mocks will be generated with a command looking like this that writes the mock code into a `mocks` package sitting next to where the real code lives:
 ```
+// If you haven't installed before, run $go install go.uber.org/mock/mockgen@latest
 mockgen -source=internal/node/hdb/dbms.go -package mocks > internal/node/hdb/mocks/mock_dbms.go
 ```
 The mocks can be regenerated as needed when the interface they are mocking is changed. 

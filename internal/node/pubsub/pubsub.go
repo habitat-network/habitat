@@ -10,14 +10,14 @@ type Event interface {
 }
 
 type Publisher[E Event] interface {
-	PublishEvent(*E) error
-	GetChan() <-chan *E
+	PublishEvent(E) error
+	GetChan() <-chan E
 	// AddSubscriber(Subscriber[E])
 }
 
 type Subscriber[E Event] interface {
 	Name() string
-	ConsumeEvent(*E) error
+	ConsumeEvent(E) error
 }
 
 type Channel[E Event] interface {
@@ -32,22 +32,22 @@ type Channel[E Event] interface {
 // TODO: Implement a topic based publisher.
 type SimplePublisher[E Event] struct {
 	//subscribers []Subscriber[E]
-	channel chan *E
+	channel chan E
 }
 
 func newSimplePublisher[E Event]() *SimplePublisher[E] {
 	return &SimplePublisher[E]{
-		channel: make(chan *E),
+		channel: make(chan E),
 	}
 }
 
-func (p *SimplePublisher[E]) PublishEvent(e *E) error {
+func (p *SimplePublisher[E]) PublishEvent(e E) error {
 	p.channel <- e
 
 	return nil
 }
 
-func (p *SimplePublisher[E]) GetChan() <-chan *E {
+func (p *SimplePublisher[E]) GetChan() <-chan E {
 	return p.channel
 }
 
@@ -64,7 +64,7 @@ func newSimpleChannel[E Event]() *SimpleChannel[E] {
 }
 
 func (c *SimpleChannel[E]) Listen() error {
-	chans := make([]<-chan *E, len(c.publishers))
+	chans := make([]<-chan E, len(c.publishers))
 	for i, p := range c.publishers {
 		chans[i] = p.GetChan()
 	}
@@ -83,12 +83,12 @@ func (c *SimpleChannel[E]) Listen() error {
 		}
 
 		for _, sub := range c.subscribers {
-			go func(s Subscriber[E], e *E) {
+			go func(s Subscriber[E], e E) {
 				err := s.ConsumeEvent(e)
 				if err != nil {
 					log.Error().Err(err).Msgf("Subscriber %s had an error while consuming event: %s", s.Name(), err.Error())
 				}
-			}(sub, value.Interface().(*E))
+			}(sub, value.Interface().(E))
 		}
 
 	}

@@ -8,6 +8,7 @@ import (
 	ctrl_mocks "github.com/eagraf/habitat-new/internal/node/controller/mocks"
 	"github.com/eagraf/habitat-new/internal/node/processes/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -26,18 +27,19 @@ func TestSubscriber(t *testing.T) {
 	}
 
 	startProcessStateUpdate, err := test_helpers.StateUpdateTestHelper(&node.ProcessStartTransition{
-		Process: &node.Process{
-			ID:     "proc1",
-			Driver: "test",
-		},
-		App: &node.AppInstallation{
-			ID:   "app1",
-			Name: "appname1",
-			Package: node.Package{
-				Driver: "test",
+		AppID: "app1",
+	}, &node.State{
+		AppInstallations: map[string]*node.AppInstallationState{
+			"app1": {
+				AppInstallation: &node.AppInstallation{
+					UserID: "0",
+					ID:     "app1",
+					Package: node.Package{
+						Driver: "test",
+					},
+				},
 			},
 		},
-	}, &node.NodeState{
 		Processes: map[string]*node.ProcessState{},
 	})
 	assert.Nil(t, err)
@@ -46,25 +48,18 @@ func TestSubscriber(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, true, shouldExecute)
 
-	mockDriver.EXPECT().StartProcess(
-		gomock.Eq(
-			&node.Process{
-				ID:     "proc1",
-				Driver: "test",
-			},
-		),
-		gomock.Eq(
-			&node.AppInstallation{
-				ID:   "app1",
-				Name: "appname1",
-				Package: node.Package{
-					Driver: "test",
-				},
-			},
-		),
-	).Return("ext_proc1", nil)
+	mockDriver.EXPECT().StartProcess(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(process *node.Process, app *node.AppInstallation) (string, error) {
+			require.Equal(t, "app1", process.AppID)
+			require.Equal(t, "0", process.UserID)
 
-	nc.EXPECT().SetProcessRunning("proc1").Return(nil)
+			require.Equal(t, "test", app.Package.Driver)
+
+			return "ext_proc1", nil
+		},
+	)
+
+	nc.EXPECT().SetProcessRunning(gomock.Any()).Return(nil)
 
 	err = startProcessExecutor.Execute(startProcessStateUpdate)
 	assert.Nil(t, err)

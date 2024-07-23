@@ -36,9 +36,9 @@ func TestSimpleChannel(t *testing.T) {
 		consumedEvents: make([]*TestEvent, 0),
 	}
 
-	sp := NewSimplePublisher[TestEvent]()
+	sp := NewSimplePublisher[*TestEvent]()
 
-	channel := NewSimpleChannel[TestEvent]([]Publisher[TestEvent]{sp}, []Subscriber[TestEvent]{subscriber1, subscriber2})
+	channel := NewSimpleChannel[*TestEvent]([]Publisher[*TestEvent]{sp}, []Subscriber[*TestEvent]{subscriber1, subscriber2})
 	go func() {
 		err := channel.Listen()
 		if err != nil {

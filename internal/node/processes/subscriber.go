@@ -17,14 +17,14 @@ func (e *StartProcessExecutor) TransitionType() string {
 	return node.TransitionStartProcess
 }
 
-func (e *StartProcessExecutor) ShouldExecute(update *hdb.StateUpdate) (bool, error) {
+func (e *StartProcessExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {
 	var processStartTransition node.ProcessStartTransition
-	err := json.Unmarshal(update.Transition, &processStartTransition)
+	err := json.Unmarshal(update.Transition(), &processStartTransition)
 	if err != nil {
 		return false, err
 	}
 
-	_, err = e.processManager.GetProcess(processStartTransition.Process.ID)
+	_, err = e.processManager.GetProcess(processStartTransition.EnrichedData.Process.ID)
 	if err != nil {
 		return true, nil
 	}
@@ -32,19 +32,26 @@ func (e *StartProcessExecutor) ShouldExecute(update *hdb.StateUpdate) (bool, err
 	return false, nil
 }
 
-func (e *StartProcessExecutor) Execute(update *hdb.StateUpdate) error {
+func (e *StartProcessExecutor) Execute(update hdb.StateUpdate) error {
 	var processStartTransition node.ProcessStartTransition
-	err := json.Unmarshal(update.Transition, &processStartTransition)
+	err := json.Unmarshal(update.Transition(), &processStartTransition)
 	if err != nil {
 		return err
 	}
 
-	err = e.processManager.StartProcess(processStartTransition.Process, processStartTransition.App)
+	nodeState := update.NewState().(*node.State)
+
+	app, err := nodeState.GetAppByID(processStartTransition.AppID)
 	if err != nil {
 		return err
 	}
 
-	err = e.nodeController.SetProcessRunning(processStartTransition.Process.ID)
+	err = e.processManager.StartProcess(processStartTransition.EnrichedData.Process.Process, app.AppInstallation)
+	if err != nil {
+		return err
+	}
+
+	err = e.nodeController.SetProcessRunning(processStartTransition.EnrichedData.Process.ID)
 	if err != nil {
 		return err
 	}
@@ -52,6 +59,6 @@ func (e *StartProcessExecutor) Execute(update *hdb.StateUpdate) error {
 	return nil
 }
 
-func (e *StartProcessExecutor) PostHook(update *hdb.StateUpdate) error {
+func (e *StartProcessExecutor) PostHook(update hdb.StateUpdate) error {
 	return nil
 }

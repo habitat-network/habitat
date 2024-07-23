@@ -28,7 +28,7 @@ func TestProcessRestorer(t *testing.T) {
 		nodeController: nc,
 	}
 
-	restoreUpdate, err := test_helpers.StateUpdateTestHelper(&node.InitalizationTransition{}, &node.NodeState{
+	restoreUpdate, err := test_helpers.StateUpdateTestHelper(&node.InitalizationTransition{}, &node.State{
 		Users: map[string]*node.User{
 			"user1": {
 				ID: "user1",

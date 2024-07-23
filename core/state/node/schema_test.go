@@ -54,7 +54,7 @@ func TestInitializationTransition(t *testing.T) {
 }
 
 func TestGetAppByID(t *testing.T) {
-	state := &NodeState{
+	state := &State{
 		AppInstallations: map[string]*AppInstallationState{
 			"app1": {
 				AppInstallation: &AppInstallation{
@@ -74,7 +74,7 @@ func TestGetAppByID(t *testing.T) {
 
 func TestGetReverseProxyRulesForProcess(t *testing.T) {
 
-	state := &NodeState{
+	state := &State{
 		AppInstallations: map[string]*AppInstallationState{
 			"app1": {
 				AppInstallation: &AppInstallation{

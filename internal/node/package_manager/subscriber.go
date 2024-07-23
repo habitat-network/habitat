@@ -17,9 +17,9 @@ func (e *InstallAppExecutor) TransitionType() string {
 	return node.TransitionStartInstallation
 }
 
-func (e *InstallAppExecutor) ShouldExecute(update *hdb.StateUpdate) (bool, error) {
+func (e *InstallAppExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {
 	var t node.StartInstallationTransition
-	err := json.Unmarshal(update.Transition, &t)
+	err := json.Unmarshal(update.Transition(), &t)
 	if err != nil {
 		return false, err
 	}
@@ -35,9 +35,9 @@ func (e *InstallAppExecutor) ShouldExecute(update *hdb.StateUpdate) (bool, error
 	return true, nil
 }
 
-func (e *InstallAppExecutor) Execute(update *hdb.StateUpdate) error {
+func (e *InstallAppExecutor) Execute(update hdb.StateUpdate) error {
 	var t node.StartInstallationTransition
-	err := json.Unmarshal(update.Transition, &t)
+	err := json.Unmarshal(update.Transition(), &t)
 	if err != nil {
 		return err
 	}
@@ -49,19 +49,55 @@ func (e *InstallAppExecutor) Execute(update *hdb.StateUpdate) error {
 	return nil
 }
 
-func (e *InstallAppExecutor) PostHook(update *hdb.StateUpdate) error {
+func (e *InstallAppExecutor) PostHook(update hdb.StateUpdate) error {
 	var t node.StartInstallationTransition
-	err := json.Unmarshal(update.Transition, &t)
+	err := json.Unmarshal(update.Transition(), &t)
 	if err != nil {
 		return err
 	}
 
 	// After finishing the installation, update the application's lifecycle state
-	err = e.nodeController.FinishAppInstallation(t.UserID, t.AppInstallation.ID, t.RegistryURLBase, t.RegistryPackageID)
+	appInstallation := t.EnrichedData.AppState
+	err = e.nodeController.FinishAppInstallation(t.UserID, appInstallation.ID, appInstallation.RegistryURLBase, appInstallation.RegistryPackageID, t.StartAfterInstallation)
 	if err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// FinishInstallExecutor is a state update executor that finishes the installation of an application.
+type FinishInstallExecutor struct {
+	nodeController controller.NodeController
+}
+
+func (e *FinishInstallExecutor) TransitionType() string {
+	return node.TransitionFinishInstallation
+}
+
+func (e *FinishInstallExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {
+	return true, nil
+}
+
+func (e *FinishInstallExecutor) Execute(update hdb.StateUpdate) error {
+	var t node.FinishInstallationTransition
+	err := json.Unmarshal(update.Transition(), &t)
+	if err != nil {
+		return err
+	}
+
+	if t.StartAfterInstallation {
+		err = e.nodeController.StartProcess(t.AppID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (e *FinishInstallExecutor) PostHook(update hdb.StateUpdate) error {
+	// noop
 	return nil
 }
 
@@ -78,6 +114,9 @@ func NewAppLifecycleSubscriber(packageManager PackageManager, nodeController con
 		[]hdb.IdempotentStateUpdateExecutor{
 			&InstallAppExecutor{
 				packageManager: packageManager,
+				nodeController: nodeController,
+			},
+			&FinishInstallExecutor{
 				nodeController: nodeController,
 			},
 		},

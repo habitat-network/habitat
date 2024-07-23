@@ -13,7 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestSubscriber(t *testing.T) {
+func TestAppInstallSubscriber(t *testing.T) {
 	stateUpdate, err := test_helpers.StateUpdateTestHelper(
 		&node.StartInstallationTransition{
 			UserID: "user1",
@@ -28,7 +28,7 @@ func TestSubscriber(t *testing.T) {
 				},
 			},
 		},
-		&node.NodeState{
+		&node.State{
 			Users: map[string]*node.User{
 				"user1": {
 					ID: "user1",
@@ -84,7 +84,7 @@ func TestSubscriber(t *testing.T) {
 	err = installAppExecutor.Execute(stateUpdate)
 	assert.Nil(t, err)
 
-	nc.EXPECT().FinishAppInstallation(gomock.Eq("user1"), gomock.Any(), gomock.Eq("registry.com"), gomock.Eq("package1")).Return(nil).Times(2)
+	nc.EXPECT().FinishAppInstallation(gomock.Eq("user1"), gomock.Any(), gomock.Eq("registry.com"), gomock.Eq("package1"), false).Return(nil).Times(2)
 
 	err = installAppExecutor.PostHook(stateUpdate)
 	assert.Nil(t, err)
@@ -102,4 +102,123 @@ func TestSubscriber(t *testing.T) {
 
 	assert.Equal(t, node.TransitionStartInstallation, installAppExecutor.TransitionType())
 	require.NoError(t, lifeCycleSubscriber.ConsumeEvent(stateUpdate))
+}
+
+func TestFinishInstallSubscriber(t *testing.T) {
+	stateUpdate, err := test_helpers.StateUpdateTestHelper(
+		&node.FinishInstallationTransition{
+			UserID:                 "user1",
+			AppID:                  "app1",
+			RegistryURLBase:        "registry.com",
+			RegistryAppID:          "package1",
+			StartAfterInstallation: true,
+		},
+		&node.State{
+			Users: map[string]*node.User{
+				"user1": {
+					ID: "user1",
+				},
+			},
+			AppInstallations: map[string]*node.AppInstallationState{
+				"app1": {
+					AppInstallation: &node.AppInstallation{
+						ID:      "app1",
+						Name:    "appname1",
+						Version: "v1",
+						Package: node.Package{
+							Driver:            "test",
+							RegistryURLBase:   "registry.com",
+							RegistryPackageID: "package1",
+						},
+					},
+					State: node.AppLifecycleStateInstalling,
+				},
+			},
+		})
+	assert.Nil(t, err)
+
+	ctrl := gomock.NewController(t)
+
+	nc := controller_mocks.NewMockNodeController(ctrl)
+	pm := mocks.NewMockPackageManager(ctrl)
+
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(pm, nc)
+	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
+	require.Nil(t, err)
+
+	finishAppInstallExecutor := &FinishInstallExecutor{
+		nodeController: nc,
+	}
+
+	should, err := finishAppInstallExecutor.ShouldExecute(stateUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, true, should)
+
+	// Test that executing is a no-op
+	nc.EXPECT().StartProcess(gomock.Eq("app1")).Return(nil).Times(1)
+	err = finishAppInstallExecutor.Execute(stateUpdate)
+	assert.Nil(t, err)
+
+	err = finishAppInstallExecutor.PostHook(stateUpdate)
+	assert.Nil(t, err)
+}
+
+func TestFinishInstallSubscriberNoAutoStart(t *testing.T) {
+	stateUpdate, err := test_helpers.StateUpdateTestHelper(
+		&node.FinishInstallationTransition{
+			UserID:                 "user1",
+			AppID:                  "app1",
+			RegistryURLBase:        "registry.com",
+			RegistryAppID:          "package1",
+			StartAfterInstallation: false,
+		},
+		&node.State{
+			Users: map[string]*node.User{
+				"user1": {
+					ID: "user1",
+				},
+			},
+			AppInstallations: map[string]*node.AppInstallationState{
+				"app1": {
+					AppInstallation: &node.AppInstallation{
+						ID:      "app1",
+						Name:    "appname1",
+						Version: "v1",
+						Package: node.Package{
+							Driver:            "test",
+							RegistryURLBase:   "registry.com",
+							RegistryPackageID: "package1",
+						},
+					},
+					State: node.AppLifecycleStateInstalling,
+				},
+			},
+		})
+	assert.Nil(t, err)
+
+	ctrl := gomock.NewController(t)
+
+	nc := controller_mocks.NewMockNodeController(ctrl)
+	pm := mocks.NewMockPackageManager(ctrl)
+
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(pm, nc)
+	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
+	require.Nil(t, err)
+
+	finishAppInstallExecutor := &FinishInstallExecutor{
+		nodeController: nc,
+	}
+
+	should, err := finishAppInstallExecutor.ShouldExecute(stateUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, true, should)
+
+	nc.EXPECT().StartProcess(gomock.Eq("app1")).Return(nil).Times(0)
+	err = finishAppInstallExecutor.Execute(stateUpdate)
+	assert.Nil(t, err)
+
+	// Test that we start the process.
+
+	err = finishAppInstallExecutor.PostHook(stateUpdate)
+	assert.Nil(t, err)
 }

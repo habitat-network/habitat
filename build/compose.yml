@@ -1,4 +1,4 @@
-name: habitat-node
+version: "3.3"
 services:
   habitat_frontend:
     image: habitat_frontend
@@ -30,9 +30,8 @@ services:
     build: 
       context: ..
       dockerfile: build/node.dev.Dockerfile
-    env_file:
-      - path: ../dev.env
-        required: false
+    env_file: ../dev.env
     depends_on:
       - habitat_frontend
-
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

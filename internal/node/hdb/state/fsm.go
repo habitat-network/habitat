@@ -81,14 +81,14 @@ func (sm *RaftFSMAdapter) Apply(entry *raft.Log) interface{} {
 			log.Error().Msgf("error applying patch: %s", err)
 		}
 
-		sm.updateChan <- hdb.StateUpdate{
-			Index:          entry.Index,
-			SchemaType:     sm.schema.Name(),
-			DatabaseID:     sm.databaseID,
-			TransitionType: w.Type,
-			Transition:     w.Transition,
-			NewState:       sm.jsonState.Bytes(),
+		metadata := hdb.NewStateUpdateMetadata(entry.Index, sm.schema.Name(), sm.databaseID)
+
+		update, err := StateUpdateInternalFactory(sm.schema.Name(), sm.jsonState.Bytes(), w, metadata)
+		if err != nil {
+			log.Error().Msgf("error creating state update internal: %s", err)
 		}
+
+		sm.updateChan <- update
 	}
 
 	return sm.JSONState()

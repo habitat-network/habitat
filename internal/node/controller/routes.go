@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	types "github.com/eagraf/habitat-new/core/api"
-	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"golang.org/x/mod/semver"
@@ -84,10 +83,7 @@ func (h *InstallAppRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO the user id should come from the authentication
-	// TODO request types that aren't coupled with the core domain types
 	appInstallation := req.AppInstallation
-	appInstallation.UserID = userID
 
 	err = h.nodeController.InstallApp(userID, appInstallation, req.ReverseProxyRules)
 	if err != nil {
@@ -125,21 +121,13 @@ func (h *StartProcessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userID := r.Context().Value(constants.ContextKeyUserID).(string)
-
 	app, err := h.nodeController.GetAppByID(req.AppInstallationID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	process := &node.Process{
-		UserID: userID,
-		Driver: app.Driver,
-		AppID:  app.ID,
-	}
-
-	err = h.nodeController.StartProcess(process)
+	err = h.nodeController.StartProcess(app.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

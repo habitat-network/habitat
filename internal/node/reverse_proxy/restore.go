@@ -1,8 +1,6 @@
 package reverse_proxy
 
 import (
-	"encoding/json"
-
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/rs/zerolog/log"
@@ -12,13 +10,8 @@ type ReverseProxyRestorer struct {
 	ruleSet RuleSet
 }
 
-func (r *ReverseProxyRestorer) Restore(restoreEvent *hdb.StateUpdate) error {
-	var nodeState node.NodeState
-	err := json.Unmarshal(restoreEvent.NewState, &nodeState)
-	if err != nil {
-		return err
-	}
-
+func (r *ReverseProxyRestorer) Restore(restoreEvent hdb.StateUpdate) error {
+	nodeState := restoreEvent.NewState().(*node.State)
 	for _, process := range nodeState.Processes {
 		rules, err := nodeState.GetReverseProxyRulesForProcess(process.ID)
 		if err != nil {

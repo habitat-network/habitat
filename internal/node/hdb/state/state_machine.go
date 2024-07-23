@@ -70,23 +70,27 @@ func (sm *StateMachine) StartListening() {
 					// Only apply state updates if the update index is greater than the restart index.
 					// If the update index is equal to the restart index, then the state update is a
 					// restore message which tells the subscribers to restore everything from the most up to date state.
-					if sm.restartIndex > stateUpdate.Index {
+					if sm.restartIndex > stateUpdate.Index() {
 						continue
 					}
 
 					// execute state update
-					jsonState, err := hdb.NewJSONState(sm.schema, stateUpdate.NewState)
+					stateBytes, err := stateUpdate.NewState().Bytes()
+					if err != nil {
+						log.Error().Err(err).Msgf("error getting new state bytes from state update chan")
+					}
+					jsonState, err := hdb.NewJSONState(sm.schema, stateBytes)
 					if err != nil {
 						log.Error().Err(err).Msgf("error getting new state from state update chan")
 					}
 					sm.jsonState = jsonState
 
-					if sm.restartIndex == stateUpdate.Index {
-						log.Info().Msgf("Restoring node state: %s", string(stateUpdate.NewState))
-						stateUpdate.Restore = true
+					if sm.restartIndex == stateUpdate.Index() {
+						log.Info().Msgf("Restoring node state")
+						stateUpdate.SetRestore()
 					}
 
-					err = sm.publisher.PublishEvent(&stateUpdate)
+					err = sm.publisher.PublishEvent(stateUpdate)
 					if err != nil {
 						log.Error().Err(err).Msgf("error publishing state update")
 					}
@@ -123,6 +127,11 @@ func (sm *StateMachine) ProposeTransitions(transitions []hdb.Transition) (*hdb.J
 	wrappers := make([]*hdb.TransitionWrapper, 0)
 
 	for _, t := range transitions {
+
+		err = t.Enrich(sm.jsonState.Bytes())
+		if err != nil {
+			return nil, fmt.Errorf("transition enrichment failed: %s", err)
+		}
 
 		err = t.Validate(jsonStateBranch.Bytes())
 		if err != nil {

@@ -23,10 +23,10 @@ type NodeController interface {
 	GetUserByUsername(username string) (*node.User, error)
 
 	InstallApp(userID string, newApp *node.AppInstallation, newProxyRules []*node.ReverseProxyRule) error
-	FinishAppInstallation(userID string, appID, registryURLBase, registryPackageID string) error
+	FinishAppInstallation(userID string, appID, registryURLBase, registryPackageID string, startAfterInstall bool) error
 	GetAppByID(appID string) (*node.AppInstallation, error)
 
-	StartProcess(process *node.Process) error
+	StartProcess(appID string) error
 	SetProcessRunning(processID string) error
 	StopProcess(processID string) error
 }
@@ -70,7 +70,7 @@ func (c *BaseNodeController) MigrateNodeDB(targetVersion string) error {
 		return err
 	}
 
-	var nodeState node.NodeState
+	var nodeState node.State
 	err = json.Unmarshal(dbClient.Bytes(), &nodeState)
 	if err != nil {
 		return nil
@@ -107,7 +107,7 @@ func (c *BaseNodeController) InstallApp(userID string, newApp *node.AppInstallat
 }
 
 // FinishAppInstallation marks the app lifecycle state as installed
-func (c *BaseNodeController) FinishAppInstallation(userID string, appID, registryURLBase, registryAppID string) error {
+func (c *BaseNodeController) FinishAppInstallation(userID string, appID, registryURLBase, registryAppID string, startAfterInstall bool) error {
 	dbClient, err := c.databaseManager.GetDatabaseClientByName(constants.NodeDBDefaultName)
 	if err != nil {
 		return err
@@ -119,6 +119,8 @@ func (c *BaseNodeController) FinishAppInstallation(userID string, appID, registr
 			AppID:           appID,
 			RegistryURLBase: registryURLBase,
 			RegistryAppID:   registryAppID,
+
+			StartAfterInstallation: startAfterInstall,
 		},
 	})
 	if err != nil {
@@ -134,7 +136,7 @@ func (c *BaseNodeController) GetAppByID(appID string) (*node.AppInstallation, er
 		return nil, err
 	}
 
-	var nodeState node.NodeState
+	var nodeState node.State
 	err = json.Unmarshal(dbClient.Bytes(), &nodeState)
 	if err != nil {
 		return nil, err
@@ -148,39 +150,21 @@ func (c *BaseNodeController) GetAppByID(appID string) (*node.AppInstallation, er
 	return app.AppInstallation, nil
 }
 
-func (c *BaseNodeController) StartProcess(process *node.Process) error {
+func (c *BaseNodeController) StartProcess(appID string) error {
 	dbClient, err := c.databaseManager.GetDatabaseClientByName(constants.NodeDBDefaultName)
 	if err != nil {
 		return err
 	}
 
-	var nodeState node.NodeState
+	var nodeState node.State
 	err = json.Unmarshal(dbClient.Bytes(), &nodeState)
 	if err != nil {
 		return nil
 	}
 
-	var user *node.User
-	for _, u := range nodeState.Users {
-		if u.ID == process.UserID {
-			user = u
-		}
-	}
-	if user == nil {
-		return fmt.Errorf("user %s not found", process.UserID)
-	}
-
-	var app *node.AppInstallation
-	appState, ok := nodeState.AppInstallations[process.AppID]
-	if !ok {
-		return fmt.Errorf("app with ID %s not found", process.AppID)
-	}
-	app = appState.AppInstallation
-
 	_, err = dbClient.ProposeTransitions([]hdb.Transition{
 		&node.ProcessStartTransition{
-			Process: process,
-			App:     app,
+			AppID: appID,
 		},
 	})
 	if err != nil {
@@ -234,7 +218,6 @@ func (c *BaseNodeController) AddUser(userID, username, certificate string) error
 
 	_, err = dbClient.ProposeTransitions([]hdb.Transition{
 		&node.AddUserTransition{
-			UserID:      userID,
 			Username:    username,
 			Certificate: certificate,
 		},
@@ -248,7 +231,7 @@ func (c *BaseNodeController) GetUserByUsername(username string) (*node.User, err
 		return nil, err
 	}
 
-	var nodeState node.NodeState
+	var nodeState node.State
 	err = json.Unmarshal(dbClient.Bytes(), &nodeState)
 	if err != nil {
 		return nil, err

@@ -74,6 +74,7 @@ func TestInstallAppHandler(t *testing.T) {
 
 	body := &types.PostAppRequest{
 		AppInstallation: &node.AppInstallation{
+			UserID:  "0",
 			Name:    "app_name1",
 			Version: "1",
 			Package: node.Package{
@@ -153,17 +154,8 @@ func TestStartProcessHandler(t *testing.T) {
 	}, nil).Times(1)
 
 	m.EXPECT().StartProcess(
-		gomock.Any(),
-	).DoAndReturn(func(process *node.Process) error {
-		assert.NotNil(t, process)
-		assert.Equal(t, "app_1", process.AppID)
-		assert.Equal(t, "user_1", process.UserID)
-		assert.Equal(t, "docker", process.Driver)
-		assert.Equal(t, "", process.Created)
-		assert.Equal(t, "", process.ID)
-
-		return nil
-	}).Times(1)
+		"app_1",
+	).Times(1)
 
 	// Test the happy path
 	resp := httptest.NewRecorder()

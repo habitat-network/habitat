@@ -1,8 +1,6 @@
 package processes
 
 import (
-	"encoding/json"
-
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
@@ -14,13 +12,9 @@ type ProcessRestorer struct {
 	nodeController controller.NodeController
 }
 
-func (r *ProcessRestorer) Restore(restoreEvent *hdb.StateUpdate) error {
-	var nodeState node.NodeState
-	err := json.Unmarshal(restoreEvent.NewState, &nodeState)
-	if err != nil {
-		return err
-	}
+func (r *ProcessRestorer) Restore(restoreEvent hdb.StateUpdate) error {
 
+	nodeState := restoreEvent.NewState().(*node.State)
 	for _, process := range nodeState.Processes {
 		app, err := nodeState.GetAppByID(process.AppID)
 		if err != nil {

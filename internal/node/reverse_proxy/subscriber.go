@@ -16,26 +16,20 @@ func (e *ProcessProxyRulesExecutor) TransitionType() string {
 	return node.TransitionStartProcess
 }
 
-func (e *ProcessProxyRulesExecutor) ShouldExecute(update *hdb.StateUpdate) (bool, error) {
+func (e *ProcessProxyRulesExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {
 	// This process is very lightweight, so we can just execute it every time
 	return true, nil
 }
 
-func (e *ProcessProxyRulesExecutor) Execute(update *hdb.StateUpdate) error {
+func (e *ProcessProxyRulesExecutor) Execute(update hdb.StateUpdate) error {
 	var processStartTransition node.ProcessStartTransition
-	err := json.Unmarshal(update.Transition, &processStartTransition)
+	err := json.Unmarshal(update.Transition(), &processStartTransition)
 	if err != nil {
 		return err
 	}
 
-	// Get the node state
-	var state node.NodeState
-	err = json.Unmarshal(update.NewState, &state)
-	if err != nil {
-		return err
-	}
-
-	for _, rule := range *state.ReverseProxyRules {
+	nodeState := update.NewState().(*node.State)
+	for _, rule := range *nodeState.ReverseProxyRules {
 		if rule.AppID == processStartTransition.AppID {
 			log.Info().Msgf("Adding reverse proxy rule %v", rule)
 			err = e.RuleSet.AddRule(rule)
@@ -50,6 +44,6 @@ func (e *ProcessProxyRulesExecutor) Execute(update *hdb.StateUpdate) error {
 
 // TODO remove rule when process is stopped
 
-func (e *ProcessProxyRulesExecutor) PostHook(update *hdb.StateUpdate) error {
+func (e *ProcessProxyRulesExecutor) PostHook(update hdb.StateUpdate) error {
 	return nil
 }

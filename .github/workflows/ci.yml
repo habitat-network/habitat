@@ -25,6 +25,11 @@ jobs:
       with:
         node-version: 22
 
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
     - name: Get dependencies
       run: |
         go get -v -t -d ./...

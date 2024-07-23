@@ -76,7 +76,7 @@ func TestValidationFailure(t *testing.T) {
 	state, err := nodeSchema.EmptyState()
 	assert.Nil(t, err)
 
-	state.(*NodeState).TestField = "test"
+	state.(*State).TestField = "test"
 	err = state.Validate()
 	assert.NotNil(t, err)
 }
@@ -91,7 +91,7 @@ func TestBackwardsCompatibility(t *testing.T) {
 	// changing this test to make your code pass.
 
 	// NodeSchema in v0.0.1
-	nodeState := &NodeState{
+	nodeState := &State{
 		NodeID:        "node1",
 		Name:          "My Node",
 		Certificate:   "Fake certificate",
