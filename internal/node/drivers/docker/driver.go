@@ -3,7 +3,6 @@ package docker
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/docker/docker/api/types"
@@ -46,9 +45,9 @@ import (
 	}
 **/
 
-// DockerAppInstallationConfig is a struct to hold the configuration for a docker container
+// AppInstallationConfig is a struct to hold the configuration for a docker container
 // Most of these types are taken directly from the Docker Go SDK
-type DockerAppInstallationConfig struct {
+type AppInstallationConfig struct {
 	// ExposedPorts is a slice of ports exposed by the docker container
 	ExposedPorts []string `json:"exposed_ports"`
 	// Env is a slice of environment variables to be set in the container, specified as KEY=VALUE
@@ -63,11 +62,16 @@ type AppDriver struct {
 	client *client.Client
 }
 
+func (d *AppDriver) Driver() string {
+	return constants.AppDriverDocker
+}
+
 func (d *AppDriver) IsInstalled(packageSpec *node.Package, version string) (bool, error) {
 	// TODO review all contexts we create.
+	repoURL := repoURLFromPackage(packageSpec, version)
 	images, err := d.client.ImageList(context.Background(), types.ImageListOptions{
 		Filters: filters.NewArgs(
-			filters.Arg("reference", fmt.Sprintf("%s/%s:%s", packageSpec.RegistryURLBase, packageSpec.RegistryPackageID, packageSpec.RegistryPackageTag)),
+			filters.Arg("reference", repoURL),
 		),
 	})
 	if err != nil {
@@ -78,22 +82,27 @@ func (d *AppDriver) IsInstalled(packageSpec *node.Package, version string) (bool
 
 // Implement the package manager interface
 func (d *AppDriver) InstallPackage(packageSpec *node.Package, version string) error {
-	if packageSpec.Driver != "docker" {
+	if packageSpec.Driver != constants.AppDriverDocker {
 		return fmt.Errorf("invalid package driver: %s, expected docker", packageSpec.Driver)
 	}
 
-	registryURL := fmt.Sprintf("%s/%s:%s", packageSpec.RegistryURLBase, packageSpec.RegistryPackageID, packageSpec.RegistryPackageTag)
-	_, err := d.client.ImagePull(context.Background(), registryURL, types.ImagePullOptions{})
+	repoURL := repoURLFromPackage(packageSpec, version)
+	_, err := d.client.ImagePull(context.Background(), repoURL, types.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
 
-	log.Info().Msgf("Pulled image %s", registryURL)
+	log.Info().Msgf("Pulled image %s", repoURL)
 	return nil
 }
 
 func (d *AppDriver) UninstallPackage(packageURL *node.Package, version string) error {
-	return errors.New("not implemented")
+	repoURL := repoURLFromPackage(packageURL, version)
+	_, err := d.client.ImageRemove(context.Background(), repoURL, types.ImageRemoveOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type ProcessDriver struct {
@@ -107,7 +116,7 @@ func (d *ProcessDriver) Type() string {
 // StartProcess helps implement processes.ProcessDriver
 func (d *ProcessDriver) StartProcess(process *node.Process, app *node.AppInstallation) (string, error) {
 
-	var dockerConfig DockerAppInstallationConfig
+	var dockerConfig AppInstallationConfig
 	dockerConfigBytes, err := json.Marshal(app.DriverConfig)
 	if err != nil {
 		return "", err
@@ -154,18 +163,18 @@ func (d *ProcessDriver) StopProcess(extProcessID string) error {
 	return nil
 }
 
-type DriverResult struct {
+type Driver struct {
 	PackageManager package_manager.PackageManager
 	ProcessDriver  processes.ProcessDriver `group:"process_drivers"`
 }
 
-func NewDockerDriver() (DriverResult, error) {
+func NewDriver() (Driver, error) {
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create docker client")
 	}
 
-	res := DriverResult{
+	res := Driver{
 		PackageManager: &AppDriver{
 			client: dockerClient,
 		},

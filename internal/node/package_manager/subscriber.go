@@ -2,6 +2,7 @@ package package_manager
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/controller"
@@ -9,8 +10,8 @@ import (
 )
 
 type InstallAppExecutor struct {
-	packageManager PackageManager
-	nodeController controller.NodeController
+	packageManagers map[string]PackageManager
+	nodeController  controller.NodeController
 }
 
 func (e *InstallAppExecutor) TransitionType() string {
@@ -25,7 +26,13 @@ func (e *InstallAppExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error)
 	}
 	spec := t.Package
 
-	isInstalled, err := e.packageManager.IsInstalled(&spec, t.Version)
+	appDriver, err := e.getAppDriver(&spec)
+	if err != nil {
+		return false, err
+	}
+
+	// Use the driver to check if the package is already installed.
+	isInstalled, err := appDriver.IsInstalled(&spec, t.Version)
 	if err != nil {
 		return false, err
 	}
@@ -41,7 +48,13 @@ func (e *InstallAppExecutor) Execute(update hdb.StateUpdate) error {
 	if err != nil {
 		return err
 	}
-	err = e.packageManager.InstallPackage(&t.Package, t.Version)
+
+	appDriver, err := e.getAppDriver(&t.Package)
+	if err != nil {
+		return err
+	}
+
+	err = appDriver.InstallPackage(&t.Package, t.Version)
 	if err != nil {
 		return err
 	}
@@ -64,6 +77,15 @@ func (e *InstallAppExecutor) PostHook(update hdb.StateUpdate) error {
 	}
 
 	return nil
+}
+
+func (e *InstallAppExecutor) getAppDriver(pkg *node.Package) (PackageManager, error) {
+	// Get the right driver for this type of package.
+	pkgDriver, ok := e.packageManagers[pkg.Driver]
+	if !ok {
+		return nil, fmt.Errorf("no package manager found for driver '%s'", pkg.Driver)
+	}
+	return pkgDriver, nil
 }
 
 // FinishInstallExecutor is a state update executor that finishes the installation of an application.
@@ -101,11 +123,11 @@ func (e *FinishInstallExecutor) PostHook(update hdb.StateUpdate) error {
 	return nil
 }
 
-func NewAppLifecycleSubscriber(packageManager PackageManager, nodeController controller.NodeController) (*hdb.IdempotentStateUpdateSubscriber, error) {
+func NewAppLifecycleSubscriber(packageManagers map[string]PackageManager, nodeController controller.NodeController) (*hdb.IdempotentStateUpdateSubscriber, error) {
 	// TODO this should have a fx cleanup hook to cleanly handle interrupted installs
 	// when the node shuts down.
 	pmRestorer := &PackageManagerRestorer{
-		packageManager: packageManager,
+		packageManagers: packageManagers,
 	}
 
 	return hdb.NewIdempotentStateUpdateSubscriber(
@@ -113,8 +135,8 @@ func NewAppLifecycleSubscriber(packageManager PackageManager, nodeController con
 		node.SchemaName,
 		[]hdb.IdempotentStateUpdateExecutor{
 			&InstallAppExecutor{
-				packageManager: packageManager,
-				nodeController: nodeController,
+				packageManagers: packageManagers,
+				nodeController:  nodeController,
 			},
 			&FinishInstallExecutor{
 				nodeController: nodeController,

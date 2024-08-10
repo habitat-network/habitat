@@ -10,7 +10,9 @@ import (
 
 func TestSubscriber(t *testing.T) {
 	executor := &ProcessProxyRulesExecutor{
-		RuleSet: make(RuleSet),
+		RuleSet: &RuleSet{
+			rules: make(map[string]RuleHandler),
+		},
 	}
 
 	startProcessStateUpdate, err := test_helpers.StateUpdateTestHelper(&node.ProcessStartTransition{
@@ -50,16 +52,18 @@ func TestSubscriber(t *testing.T) {
 	shouldExecute, err := executor.ShouldExecute(startProcessStateUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, true, shouldExecute)
-	assert.Equal(t, 0, len(executor.RuleSet))
+	assert.Equal(t, 0, len(executor.RuleSet.rules))
 
 	err = executor.Execute(startProcessStateUpdate)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(executor.RuleSet))
+	assert.Equal(t, 1, len(executor.RuleSet.rules))
 }
 
 func TestBrokenRule(t *testing.T) {
 	executor := &ProcessProxyRulesExecutor{
-		RuleSet: make(RuleSet),
+		RuleSet: &RuleSet{
+			rules: make(map[string]RuleHandler),
+		},
 	}
 
 	startProcessStateUpdate, err := test_helpers.StateUpdateTestHelper(&node.ProcessStartTransition{
@@ -91,5 +95,5 @@ func TestBrokenRule(t *testing.T) {
 
 	err = executor.Execute(startProcessStateUpdate)
 	assert.NotNil(t, err)
-	assert.Equal(t, 0, len(executor.RuleSet))
+	assert.Equal(t, 0, len(executor.RuleSet.rules))
 }

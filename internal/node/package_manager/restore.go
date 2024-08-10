@@ -1,12 +1,14 @@
 package package_manager
 
 import (
+	"fmt"
+
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 )
 
 type PackageManagerRestorer struct {
-	packageManager PackageManager
+	packageManagers map[string]PackageManager
 }
 
 func (r *PackageManagerRestorer) Restore(restoreEvent hdb.StateUpdate) error {
@@ -14,7 +16,13 @@ func (r *PackageManagerRestorer) Restore(restoreEvent hdb.StateUpdate) error {
 	for _, app := range nodeState.AppInstallations {
 		// Only try to install the app if it was in the state "installing"
 		if app.State == node.AppLifecycleStateInstalling {
-			err := r.packageManager.InstallPackage(&app.Package, app.Version)
+
+			appDriver, err := r.getAppDriver(&app.Package)
+			if err != nil {
+				return err
+			}
+
+			err = appDriver.InstallPackage(&app.Package, app.Version)
 			if err != nil {
 				return err
 			}
@@ -22,4 +30,12 @@ func (r *PackageManagerRestorer) Restore(restoreEvent hdb.StateUpdate) error {
 	}
 
 	return nil
+}
+
+func (r *PackageManagerRestorer) getAppDriver(spec *node.Package) (PackageManager, error) {
+	driver, ok := r.packageManagers[spec.Driver]
+	if !ok {
+		return nil, fmt.Errorf("driver '%s' not found", spec.Driver)
+	}
+	return driver, nil
 }

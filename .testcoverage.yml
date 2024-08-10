@@ -31,7 +31,7 @@ exclude:
     - \/test_helpers
     - ^pkg\/raft\/transport
     - ^pkg\/raft\/transport
-    - ^internal/node/docker
+    - ^internal/node/drivers
     - ^internal/node/api
     - ^cmd/node
     - ^internal/node/reverse_proxy/server.go

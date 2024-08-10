@@ -21,12 +21,18 @@ func TestRestore(t *testing.T) {
 			"app1": {
 				AppInstallation: &node.AppInstallation{
 					ID: "app1",
+					Package: node.Package{
+						Driver: "test",
+					},
 				},
 				State: node.AppLifecycleStateInstalling,
 			},
 			"app2": {
 				AppInstallation: &node.AppInstallation{
 					ID: "app2",
+					Package: node.Package{
+						Driver: "test",
+					},
 				},
 				State: node.AppLifecycleStateInstalled,
 			},
@@ -39,7 +45,9 @@ func TestRestore(t *testing.T) {
 	pm := mocks.NewMockPackageManager(ctrl)
 
 	pmRestorer := &PackageManagerRestorer{
-		packageManager: pm,
+		packageManagers: map[string]PackageManager{
+			"test": pm,
+		},
 	}
 
 	pm.EXPECT().InstallPackage(gomock.Any(), gomock.Any()).Times(1)

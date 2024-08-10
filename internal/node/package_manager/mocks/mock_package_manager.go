@@ -39,6 +39,20 @@ func (m *MockPackageManager) EXPECT() *MockPackageManagerMockRecorder {
 	return m.recorder
 }
 
+// Driver mocks base method.
+func (m *MockPackageManager) Driver() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Driver")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Driver indicates an expected call of Driver.
+func (mr *MockPackageManagerMockRecorder) Driver() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Driver", reflect.TypeOf((*MockPackageManager)(nil).Driver))
+}
+
 // InstallPackage mocks base method.
 func (m *MockPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
 	m.ctrl.T.Helper()

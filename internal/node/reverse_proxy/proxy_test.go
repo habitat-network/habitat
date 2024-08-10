@@ -46,25 +46,25 @@ func TestProxy(t *testing.T) {
 
 	// Create proxy server
 	proxy := NewProxyServer(logging.NewLogger(), &config.NodeConfig{})
-	err = proxy.Rules.Add("backend1", &RedirectRule{
+	err = proxy.RuleSet.Add("backend1", &RedirectRule{
 		Matcher:         "/backend1",
 		ForwardLocation: redirectedServerURL,
 	})
 	require.Nil(t, err)
 
 	// Test adding naming conflict
-	err = proxy.Rules.Add("backend1", &RedirectRule{
+	err = proxy.RuleSet.Add("backend1", &RedirectRule{
 		Matcher:         "/backend1",
 		ForwardLocation: redirectedServerURL,
 	})
 	require.NotNil(t, err)
 
-	err = proxy.Rules.Add("fileserver", &FileServerRule{
+	err = proxy.RuleSet.Add("fileserver", &FileServerRule{
 		Matcher: "/fileserver",
 		Path:    fileDir,
 	})
 	require.Nil(t, err)
-	require.Equal(t, 2, len(proxy.Rules))
+	require.Equal(t, 2, len(proxy.RuleSet.rules))
 
 	// binding to :0 chooses any open ports for tests
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -115,47 +115,49 @@ func TestProxy(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	// Test removing a rule
-	err = proxy.Rules.Remove("fileserver")
+	err = proxy.RuleSet.Remove("fileserver")
 	require.Nil(t, err)
 	resp, err = http.Get(fmt.Sprintf("%s/fileserver/%s", url, "nonexistentfile"))
 	require.Nil(t, err)
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
-	require.Equal(t, 1, len(proxy.Rules))
+	require.Equal(t, 1, len(proxy.RuleSet.rules))
 
 	// Removing it again should fail
-	err = proxy.Rules.Remove("fileserver")
+	err = proxy.RuleSet.Remove("fileserver")
 	require.NotNil(t, err)
 
-	require.Equal(t, 1, len(proxy.Rules))
+	require.Equal(t, 1, len(proxy.RuleSet.rules))
 }
 
 func TestAddRule(t *testing.T) {
 	proxy := &ProxyServer{
-		Rules: make(RuleSet),
+		RuleSet: &RuleSet{
+			rules: make(map[string]RuleHandler),
+		},
 	}
 
-	err := proxy.Rules.AddRule(&node.ReverseProxyRule{
+	err := proxy.RuleSet.AddRule(&node.ReverseProxyRule{
 		ID:      "backend1",
 		Type:    "redirect",
 		Matcher: "/backend1",
 		Target:  "http://localhost:8080",
 	})
 	require.Nil(t, err)
-	require.Equal(t, 1, len(proxy.Rules))
-	require.Equal(t, ProxyRuleRedirect, proxy.Rules["backend1"].Type())
+	require.Equal(t, 1, len(proxy.RuleSet.rules))
+	require.Equal(t, ProxyRuleRedirect, proxy.RuleSet.rules["backend1"].Type())
 
-	err = proxy.Rules.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
 		ID:      "backend2",
 		Type:    "file",
 		Matcher: "/backend2",
 		Target:  "http://localhost:8080",
 	})
 	require.Nil(t, err)
-	require.Equal(t, 2, len(proxy.Rules))
-	require.Equal(t, ProxyRuleFileServer, proxy.Rules["backend2"].Type())
+	require.Equal(t, 2, len(proxy.RuleSet.rules))
+	require.Equal(t, ProxyRuleFileServer, proxy.RuleSet.rules["backend2"].Type())
 
 	// Test unknown rule
-	err = proxy.Rules.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
 		ID:      "backend3",
 		Type:    "unknown",
 		Matcher: "/backend3",

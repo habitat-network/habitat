@@ -13,7 +13,8 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller"
-	"github.com/eagraf/habitat-new/internal/node/docker"
+	"github.com/eagraf/habitat-new/internal/node/drivers/docker"
+	"github.com/eagraf/habitat-new/internal/node/drivers/web"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/eagraf/habitat-new/internal/node/hdb/hdbms"
 	"github.com/eagraf/habitat-new/internal/node/logging"
@@ -48,21 +49,30 @@ func main() {
 		log.Fatal().Err(err)
 	}
 
-	dockerDriver, err := docker.NewDockerDriver()
+	// Initialize application drivers
+	dockerDriver, err := docker.NewDriver()
+	if err != nil {
+		log.Fatal().Err(err)
+	}
+
+	webDriver, err := web.NewDriver(nodeConfig)
 	if err != nil {
 		log.Fatal().Err(err)
 	}
 
 	stateLogger := hdbms.NewStateUpdateLogger(logger)
 	appLifecycleSubscriber, err := package_manager.NewAppLifecycleSubscriber(
-		dockerDriver.PackageManager,
+		map[string]package_manager.PackageManager{
+			constants.AppDriverDocker: dockerDriver.PackageManager,
+			constants.AppDriverWeb:    webDriver.PackageManager,
+		},
 		nodeCtrl,
 	)
 	if err != nil {
 		log.Fatal().Err(err)
 	}
 
-	pm := processes.NewProcessManager([]processes.ProcessDriver{dockerDriver.ProcessDriver})
+	pm := processes.NewProcessManager([]processes.ProcessDriver{dockerDriver.ProcessDriver, webDriver.ProcessDriver})
 	pmSub, err := processes.NewProcessManagerStateUpdateSubscriber(pm, nodeCtrl)
 	if err != nil {
 		log.Fatal().Err(err)
@@ -79,7 +89,7 @@ func main() {
 	proxy := reverse_proxy.NewProxyServer(logger, nodeConfig)
 
 	proxyRuleStateUpdateSubscriber, err := reverse_proxy.NewProcessProxyRuleStateUpdateSubscriber(
-		proxy.Rules,
+		proxy.RuleSet,
 	)
 	if err != nil {
 		log.Fatal().Err(err)
@@ -147,7 +157,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(fmt.Errorf("error parsing Habitat API URL: %v", err))
 	}
-	err = proxy.Rules.Add("Habitat API", &reverse_proxy.RedirectRule{
+	err = proxy.RuleSet.Add("Habitat API", &reverse_proxy.RedirectRule{
 		ForwardLocation: url,
 		Matcher:         "/habitat/api",
 	})
@@ -167,7 +177,7 @@ func main() {
 		log.Fatal().Err(fmt.Errorf("error getting frontend proxy rule: %v", err))
 	}
 
-	err = proxy.Rules.Add("Frontend", frontendProxyRule)
+	err = proxy.RuleSet.Add("Frontend", frontendProxyRule)
 	if err != nil {
 		log.Fatal().Err(fmt.Errorf("error adding frontend proxy rule: %v", err))
 	}

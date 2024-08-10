@@ -7,7 +7,7 @@ import (
 )
 
 type ReverseProxyRestorer struct {
-	ruleSet RuleSet
+	ruleSet *RuleSet
 }
 
 func (r *ReverseProxyRestorer) Restore(restoreEvent hdb.StateUpdate) error {

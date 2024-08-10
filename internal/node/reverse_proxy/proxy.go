@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,23 +16,27 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type RuleSet map[string]RuleHandler
+type RuleSet struct {
+	rules        map[string]RuleHandler
+	baseFilePath string // Optional, if set, all file server rules will be relative to this path
+}
 
-func (r RuleSet) Add(name string, rule RuleHandler) error {
-	if _, ok := r[name]; ok {
+func (rs RuleSet) Add(name string, rule RuleHandler) error {
+	if _, ok := rs.rules[name]; ok {
 		return fmt.Errorf("rule name %s is already taken", name)
 	}
-	r[name] = rule
+	rs.rules[name] = rule
 	return nil
 }
 
-func (r RuleSet) AddRule(rule *node.ReverseProxyRule) error {
+// AddRule is a wrapper around Add for finding the correct rule handler type.
+func (rs RuleSet) AddRule(rule *node.ReverseProxyRule) error {
 	if rule.Type == ProxyRuleRedirect {
 		url, err := url.Parse(rule.Target)
 		if err != nil {
 			return err
 		}
-		err = r.Add(rule.ID, &RedirectRule{
+		err = rs.Add(rule.ID, &RedirectRule{
 			Matcher:         rule.Matcher,
 			ForwardLocation: url,
 		})
@@ -39,9 +44,10 @@ func (r RuleSet) AddRule(rule *node.ReverseProxyRule) error {
 			return err
 		}
 	} else if rule.Type == ProxyRuleFileServer {
-		err := r.Add(rule.ID, &FileServerRule{
-			Matcher: rule.Matcher,
-			Path:    rule.Target,
+		err := rs.Add(rule.ID, &FileServerRule{
+			Matcher:  rule.Matcher,
+			Path:     rule.Target,
+			BasePath: rs.baseFilePath,
 		})
 		if err != nil {
 			return err
@@ -52,11 +58,11 @@ func (r RuleSet) AddRule(rule *node.ReverseProxyRule) error {
 	return nil
 }
 
-func (r RuleSet) Remove(name string) error {
-	if _, ok := r[name]; !ok {
+func (rs RuleSet) Remove(name string) error {
+	if _, ok := rs.rules[name]; !ok {
 		return fmt.Errorf("rule %s does not exist", name)
 	}
-	delete(r, name)
+	delete(rs.rules, name)
 	return nil
 }
 
@@ -70,7 +76,9 @@ type RuleHandler interface {
 type FileServerRule struct {
 	Matcher string
 	Path    string
-	FS      fs.FS // Optional, instead of using Path, pass in an fs.FS. Useful for embedding the Habitat frontend.
+
+	FS       fs.FS  // Optional, instead of using Path, pass in an fs.FS. Useful for embedding the Habitat frontend.
+	BasePath string // Optional, if set, all file server rules will be relative to this path
 }
 
 func (r *FileServerRule) Type() string {
@@ -85,9 +93,10 @@ func (r *FileServerRule) Match(url *url.URL) bool {
 
 func (r *FileServerRule) Handler() http.Handler {
 	return &FileServerHandler{
-		Prefix: r.Matcher,
-		Path:   r.Path,
-		FS:     r.FS,
+		Prefix:   r.Matcher,
+		Path:     r.Path,
+		FS:       r.FS,
+		BasePath: r.BasePath,
 	}
 }
 
@@ -99,7 +108,8 @@ type FileServerHandler struct {
 	Prefix string
 	Path   string
 
-	FS fs.FS // Optional, instead of using Path, pass in an fs.FS. Useful for embedding the Habitat frontend.
+	BasePath string // Optional, if set, all file server rules will be relative to this path
+	FS       fs.FS  // Optional, instead of using Path, pass in an fs.FS. Useful for embedding the Habitat frontend.
 }
 
 func (h *FileServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +126,13 @@ func (h *FileServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.FS != nil {
 		http.FileServer(http.FS(h.FS)).ServeHTTP(w, r)
 	} else {
-		http.FileServer(http.Dir(h.Path)).ServeHTTP(w, r)
+		path := h.Path
+
+		// If a base path is set, and the path is relative, use that instead
+		if h.BasePath != "" && !filepath.IsAbs(h.Path) {
+			path = filepath.Join(h.BasePath, h.Path)
+		}
+		http.FileServer(http.Dir(path)).ServeHTTP(w, r)
 	}
 }
 

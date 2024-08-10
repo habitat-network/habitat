@@ -9,7 +9,7 @@ import (
 )
 
 type ProcessProxyRulesExecutor struct {
-	RuleSet RuleSet
+	RuleSet *RuleSet
 }
 
 func (e *ProcessProxyRulesExecutor) TransitionType() string {

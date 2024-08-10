@@ -43,13 +43,13 @@ func TestAppInstallSubscriber(t *testing.T) {
 	pm := mocks.NewMockPackageManager(ctrl)
 	nc := controller_mocks.NewMockNodeController(ctrl)
 
-	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(pm, nc)
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
 	require.Nil(t, err)
 
 	installAppExecutor := &InstallAppExecutor{
-		packageManager: pm,
-		nodeController: nc,
+		packageManagers: map[string]PackageManager{"test": pm},
+		nodeController:  nc,
 	}
 
 	// Test not installed
@@ -143,7 +143,7 @@ func TestFinishInstallSubscriber(t *testing.T) {
 	nc := controller_mocks.NewMockNodeController(ctrl)
 	pm := mocks.NewMockPackageManager(ctrl)
 
-	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(pm, nc)
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
 	require.Nil(t, err)
 
@@ -202,7 +202,7 @@ func TestFinishInstallSubscriberNoAutoStart(t *testing.T) {
 	nc := controller_mocks.NewMockNodeController(ctrl)
 	pm := mocks.NewMockPackageManager(ctrl)
 
-	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(pm, nc)
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
 	require.Nil(t, err)
 

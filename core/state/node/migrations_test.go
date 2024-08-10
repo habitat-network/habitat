@@ -294,7 +294,7 @@ func validateNodeSchemaMigrations(targetVersion string) error {
 
 	err = compareSchemas(nodeSchemaRaw, string(schema))
 	if err != nil {
-		return fmt.Errorf("latest schema: %s\nderived schema: %s\ndiff: %s", nodeSchemaRaw, string(schema), err)
+		return err
 	}
 
 	return nil

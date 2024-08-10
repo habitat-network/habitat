@@ -183,6 +183,11 @@ func (n *NodeConfig) HDBPath() string {
 	return filepath.Join(n.HabitatPath(), "hdb")
 }
 
+// WebBundlePath returns the path to the directory where web bundles for various applications are stored.
+func (n *NodeConfig) WebBundlePath() string {
+	return filepath.Join(n.HabitatPath(), "web")
+}
+
 func (n *NodeConfig) NodeCertPath() string {
 	return filepath.Join(n.HabitatPath(), "certificates", "dev_node_cert.pem")
 }
