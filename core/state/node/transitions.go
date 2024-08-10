@@ -120,6 +120,7 @@ func (t *MigrationTransition) Validate(oldState hdb.SerializedState) error {
 type AddUserTransition struct {
 	Username    string `json:"username"`
 	Certificate string `json:"certificate"`
+	AtprotoDID  string `json:"atproto_did"`
 
 	EnrichedData *AddUserTranstitionEnrichedData `json:"enriched_data"`
 }
@@ -155,6 +156,7 @@ func (t *AddUserTransition) Enrich(oldState hdb.SerializedState) error {
 			ID:          id,
 			Username:    t.Username,
 			Certificate: t.Certificate,
+			AtprotoDID:  t.AtprotoDID,
 		},
 	}
 	return nil

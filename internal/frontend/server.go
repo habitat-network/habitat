@@ -15,8 +15,9 @@ var frontendBuild embed.FS
 func NewFrontendProxyRule(config *config.NodeConfig) (reverse_proxy.RuleHandler, error) {
 	if config.FrontendDev() {
 		feDevServer, _ := url.Parse("http://habitat_frontend:8000/")
+		// The root matcher is empty, so this rule will match all requests that don't have a more specific rule
 		return &reverse_proxy.RedirectRule{
-			Matcher:         "/",
+			Matcher:         "",
 			ForwardLocation: feDevServer,
 		}, nil
 	} else {
@@ -26,7 +27,7 @@ func NewFrontendProxyRule(config *config.NodeConfig) (reverse_proxy.RuleHandler,
 			return nil, err
 		}
 		return &reverse_proxy.FileServerRule{
-			Matcher: "/",
+			Matcher: "",
 			FS:      fSys,
 		}, nil
 	}

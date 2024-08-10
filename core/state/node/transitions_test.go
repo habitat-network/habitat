@@ -98,7 +98,7 @@ func TestNodeInitialization(t *testing.T) {
 				NodeID:        "abc",
 				Certificate:   "123",
 				Name:          "New Node",
-				SchemaVersion: "v0.0.1",
+				SchemaVersion: CurrentVersion,
 			},
 		},
 	}
@@ -127,7 +127,7 @@ func TestAddingUsers(t *testing.T) {
 				NodeID:        "abc",
 				Certificate:   "123",
 				Name:          "New Node",
-				SchemaVersion: "v0.0.1",
+				SchemaVersion: CurrentVersion,
 			},
 		},
 		&AddUserTransition{

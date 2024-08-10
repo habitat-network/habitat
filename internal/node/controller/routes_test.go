@@ -244,12 +244,14 @@ func TestAddUserHandler(t *testing.T) {
 
 	b, err := json.Marshal(&types.PostAddUserRequest{
 		UserID:      "myUserID",
-		Username:    "myUsername",
+		Email:       "user@user.com",
+		Handle:      "myUsername",
+		Password:    "password",
 		Certificate: "myCert",
 	})
 	require.NoError(t, err)
 
-	m.EXPECT().AddUser("myUserID", "myUsername", "myCert").Return(nil)
+	m.EXPECT().AddUser("myUserID", "user@user.com", "myUsername", "password", "myCert").Return(map[string]interface{}{}, nil)
 	resp := httptest.NewRecorder()
 	handler.ServeHTTP(
 		resp,
@@ -258,7 +260,7 @@ func TestAddUserHandler(t *testing.T) {
 	require.Equal(t, http.StatusCreated, resp.Result().StatusCode)
 
 	// Test internal server error
-	m.EXPECT().AddUser("myUserID", "myUsername", "myCert").Return(errors.New("error adding user"))
+	m.EXPECT().AddUser("myUserID", "user@user.com", "myUsername", "password", "myCert").Return(map[string]interface{}{}, errors.New("error adding user"))
 	resp = httptest.NewRecorder()
 	handler.ServeHTTP(
 		resp,
@@ -267,11 +269,35 @@ func TestAddUserHandler(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 
 	// Test invalid request
-	m.EXPECT().AddUser("myUserID", "myUsername", "myCert").Times(0)
+	m.EXPECT().AddUser("myUserID", "user@user.com", "myUsername", "password", "myCert").Times(0)
 	resp = httptest.NewRecorder()
 	handler.ServeHTTP(
 		resp,
 		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader([]byte("invalid"))),
 	)
 	require.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
+}
+
+func TestLogin(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockPDS := mocks.NewMockPDSClientI(ctrl)
+
+	handler := NewLoginRoute(mockPDS)
+
+	mockPDS.EXPECT().CreateSession("identifier", "password").Return(types.PDSCreateSessionResponse{}, nil).Times(1)
+
+	b, err := json.Marshal(types.PDSCreateSessionRequest{
+		Identifier: "identifier",
+		Password:   "password",
+	})
+	require.NoError(t, err)
+
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusOK, resp.Result().StatusCode)
+
 }

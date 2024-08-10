@@ -10,13 +10,20 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	viper "github.com/spf13/viper"
 )
 
 func loadEnv() error {
-	err := viper.BindEnv("debug", "DEBUG")
+	err := viper.BindEnv("environment", "ENVIRONMENT")
+	if err != nil {
+		return err
+	}
+	viper.SetDefault("environment", constants.EnvironmentProd)
+
+	err = viper.BindEnv("debug", "DEBUG")
 	if err != nil {
 		return err
 	}
@@ -49,6 +56,16 @@ func loadEnv() error {
 	}
 
 	err = viper.BindEnv("tailnet", "TS_TAILNET")
+	if err != nil {
+		return err
+	}
+
+	err = viper.BindEnv("tailscale_funnel_enabled", "TS_FUNNEL_ENABLED")
+	if err != nil {
+		return err
+	}
+
+	err = viper.BindEnv("domain", "DOMAIN")
 	if err != nil {
 		return err
 	}
@@ -137,6 +154,10 @@ func NewNodeConfig() (*NodeConfig, error) {
 	return loadConfig()
 }
 
+func (n *NodeConfig) Environment() string {
+	return viper.GetString("environment")
+}
+
 func (n *NodeConfig) LogLevel() zerolog.Level {
 	isDebug := viper.GetBool("debug")
 	if isDebug {
@@ -201,6 +222,34 @@ func (n *NodeConfig) UseTLS() bool {
 	return viper.GetBool("use_tls")
 }
 
+// Hostname that the node listens on. This may be updated dynamically because Tailscale may add a suffix
+func (n *NodeConfig) Hostname() string {
+	if n.TailscaleAuthkey() != "" {
+		if n.Environment() == constants.EnvironmentDev {
+			return constants.TSNetHostnameDev
+		} else {
+			return constants.TSNetHostnameDefault
+		}
+	}
+	return "localhost"
+}
+
+// Domain name that hosts this Habitat node, if tailscale funnel is enabled.
+func (n *NodeConfig) Domain() string {
+	if n.TailScaleFunnelEnabled() {
+		return viper.GetString("domain")
+	} else {
+		return ""
+	}
+}
+
+func (n *NodeConfig) ReverseProxyPort() string {
+	if n.TailScaleFunnelEnabled() {
+		return constants.PortReverseProxyTSFunnel
+	}
+	return constants.DefaultPortReverseProxy
+}
+
 // Currently unused, but may be necessary to implement adding members to the community.
 func (n *NodeConfig) TailnetName() string {
 	return viper.GetString("tailnet")
@@ -213,6 +262,23 @@ func (n *NodeConfig) TailscaleAuthkey() string {
 func (n *NodeConfig) TailScaleStatePath() string {
 	// Note: this is intentionally not configurable for simplicity's sake.
 	return filepath.Join(n.HabitatPath(), "tailscale_state")
+}
+
+func (n *NodeConfig) TailScaleFunnelEnabled() bool {
+	if n.TailscaleAuthkey() != "" {
+		return viper.GetBool("tailscale_funnel_enabled")
+	} else {
+		return false
+	}
+}
+
+// TODO @eagraf we probably will eventually need a better secret management system.
+func (n *NodeConfig) PDSAdminUsername() string {
+	return "admin"
+}
+
+func (n *NodeConfig) PDSAdminPassword() string {
+	return "password"
 }
 
 func (n *NodeConfig) FrontendDev() bool {

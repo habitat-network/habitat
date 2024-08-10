@@ -1,0 +1,19 @@
+{
+    "old_version": "v0.0.4",
+    "new_version": "v0.0.5",
+    "up": [
+        {
+            "op": "add",
+            "path": "/properties/users/additionalProperties/properties/atproto_did",
+            "value": {
+                "type": "string"
+            }
+        }
+    ],
+    "down": [
+        {
+            "op": "remove",
+            "path": "/properties/users/additionalProperties/properties/atproto_did"
+        }
+    ]
+}

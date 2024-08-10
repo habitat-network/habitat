@@ -111,7 +111,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err)
 	}
-	addr := fmt.Sprintf(":%s", constants.DefaultPortReverseProxy)
+	addr := fmt.Sprintf(":%s", nodeConfig.ReverseProxyPort())
 	proxyServer := &http.Server{
 		Addr:    addr,
 		Handler: proxy,
@@ -131,6 +131,7 @@ func main() {
 	routes := []api.Route{
 		api.NewVersionHandler(),
 		controller.NewGetNodeRoute(db.Manager),
+		controller.NewLoginRoute(&controller.PDSClient{NodeConfig: nodeConfig}),
 		controller.NewAddUserRoute(nodeCtrl),
 		controller.NewInstallAppRoute(nodeCtrl),
 		controller.NewStartProcessHandler(nodeCtrl),

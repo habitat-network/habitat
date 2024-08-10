@@ -12,8 +12,14 @@ type GetNodeResponse struct {
 
 type PostAddUserRequest struct {
 	UserID      string `json:"user_id"`
-	Username    string `json:"username"`
+	Handle      string `json:"handle"`
+	Password    string `json:"password"`
+	Email       string `json:"email"`
 	Certificate string `json:"certificate"`
+}
+
+type PostAddUserResponse struct {
+	PDSCreateAccountResponse map[string]interface{} `json:"pds_create_account_response"`
 }
 
 type PostAppRequest struct {

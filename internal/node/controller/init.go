@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/docker/docker/api/types/mount"
@@ -27,12 +28,17 @@ func generatePDSAppConfig(nodeConfig *config.NodeConfig) types.PostAppRequest {
 				Driver: "docker",
 				DriverConfig: map[string]interface{}{
 					"env": []string{
-						"PDS_HOSTNAME=localhost",
+						fmt.Sprintf("PDS_HOSTNAME=%s", nodeConfig.Domain()),
 						"PDS_DATA_DIRECTORY=/pds",
 						"PDS_BLOBSTORE_DISK_LOCATION=/pds/blocks",
 						"PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX=5290bb1866a03fb23b09a6ffd64d21f6a4ebf624eaa301930eeb81740699239c",
 						"PDS_JWT_SECRET=bd6df801372d7058e1ce472305d7fc2e",
 						"PDS_ADMIN_PASSWORD=password",
+						"PDS_BSKY_APP_VIEW_URL=https://api.bsky.app",
+						"PDS_BSKY_APP_VIEW_DID=did:web:api.bsky.app",
+						"PDS_REPORT_SERVICE_URL=https://mod.bsky.app",
+						"PDS_REPORT_SERVICE_DID=did:plc:ar7c4by46qjdydhdevvrndac",
+						"PDS_CRAWLERS=https://bsky.network",
 					},
 					"mounts": []mount.Mount{
 						{

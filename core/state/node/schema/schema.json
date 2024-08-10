@@ -21,7 +21,8 @@
                 "properties": {
                     "id": { "type": "string" },
                     "username": { "type": "string" },
-                    "certificate": { "type": "string" }
+                    "certificate": { "type": "string" },
+                    "atproto_did": { "type": "string" }
                 },
                 "additionalProperties": false,
                 "required": [ "id", "username", "certificate" ]

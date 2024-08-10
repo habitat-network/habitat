@@ -12,8 +12,8 @@ import (
 )
 
 const SchemaName = "node"
-const CurrentVersion = "v0.0.4"
-const LatestVersion = "v0.0.4"
+const CurrentVersion = "v0.0.5"
+const LatestVersion = "v0.0.5"
 
 //go:embed schema/schema.json
 var nodeSchemaRaw string
@@ -36,6 +36,7 @@ type User struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
 	Certificate string `json:"certificate"` // TODO turn this into b64
+	AtprotoDID  string `json:"atproto_did,omitempty"`
 }
 
 const AppStateInstalling = "installing"

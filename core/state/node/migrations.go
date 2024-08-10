@@ -334,6 +334,23 @@ var NodeDataMigrations = MigrationsList{
 			return newState, nil
 		},
 	},
+	&basicDataMigration{
+		upVersion:   "v0.0.5",
+		downVersion: "v0.0.4",
+		up: func(state *State) (*State, error) {
+			return state, nil
+		},
+		down: func(state *State) (*State, error) {
+			newState, err := state.Copy()
+			if err != nil {
+				return nil, err
+			}
+			for _, user := range newState.Users {
+				user.AtprotoDID = ""
+			}
+			return newState, nil
+		},
+	},
 }
 
 func applyPatchToState(diffPatch jsondiff.Patch, state *State) (*State, error) {

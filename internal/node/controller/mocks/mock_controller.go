@@ -12,6 +12,7 @@ package mocks
 import (
 	reflect "reflect"
 
+	types "github.com/eagraf/habitat-new/core/api"
 	node "github.com/eagraf/habitat-new/core/state/node"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -40,17 +41,18 @@ func (m *MockNodeController) EXPECT() *MockNodeControllerMockRecorder {
 }
 
 // AddUser mocks base method.
-func (m *MockNodeController) AddUser(userID, username, certificate string) error {
+func (m *MockNodeController) AddUser(userID, email, handle, password, certificate string) (types.PDSCreateAccountResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddUser", userID, username, certificate)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "AddUser", userID, email, handle, password, certificate)
+	ret0, _ := ret[0].(types.PDSCreateAccountResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AddUser indicates an expected call of AddUser.
-func (mr *MockNodeControllerMockRecorder) AddUser(userID, username, certificate any) *gomock.Call {
+func (mr *MockNodeControllerMockRecorder) AddUser(userID, email, handle, password, certificate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddUser", reflect.TypeOf((*MockNodeController)(nil).AddUser), userID, username, certificate)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddUser", reflect.TypeOf((*MockNodeController)(nil).AddUser), userID, email, handle, password, certificate)
 }
 
 // FinishAppInstallation mocks base method.

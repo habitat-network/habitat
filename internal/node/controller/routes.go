@@ -212,12 +212,66 @@ func (h *AddUserRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.nodeController.AddUser(req.UserID, req.Username, req.Certificate)
+	pdsResp, err := h.nodeController.AddUser(req.UserID, req.Email, req.Handle, req.Password, req.Certificate)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// TODO validate request
+	resp := types.PostAddUserResponse{
+		PDSCreateAccountResponse: pdsResp,
+	}
+	respBody, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(respBody)
+}
+
+// LoginRoute logs a user in, by proxying to the PDS com.atproto.server.createSession endpoint.
+type LoginRoute struct {
+	pdsClient PDSClientI
+}
+
+func NewLoginRoute(pdsClient PDSClientI) *LoginRoute {
+	return &LoginRoute{
+		pdsClient: pdsClient,
+	}
+}
+
+func (h *LoginRoute) Pattern() string {
+	return "/node/login"
+}
+
+func (h *LoginRoute) Method() string {
+	return http.MethodPost
+}
+
+func (h *LoginRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var req types.PDSCreateSessionRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	pdsResp, err := h.pdsClient.CreateSession(req.Identifier, req.Password)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respBody, err := json.Marshal(pdsResp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(respBody)
 }

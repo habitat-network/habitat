@@ -7,7 +7,6 @@ services:
       dockerfile: build/frontend.dev.Dockerfile
     volumes:
       - ${TOPDIR}/frontend:/app
-      - /app/node_modules
     environment:
       - NODE_ENV=development
   habitat_node:
@@ -23,8 +22,13 @@ services:
         - HABITAT_APP_PATH=${DEV_HABITAT_APP_PATH}
         - FRONTEND_DEV=1
     ports:
+      # Standard API port
       - 3000:3000
+      # Reverse proxy port
       - 3001:3001
+      # Reverse proxy port used when TS funnel is enabled.
+      - 443:443
+      # Debugger port
       - 4000:4000
     image: habitat_node
     build: 

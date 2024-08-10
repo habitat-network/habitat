@@ -13,6 +13,7 @@ export default function Home() {
         <ul>
           <li>
             <Link href="/test">Test Route</Link>
+            <Link href="/login">Login</Link>
           </li>
         </ul>
       </nav>

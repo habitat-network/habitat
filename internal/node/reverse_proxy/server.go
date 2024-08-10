@@ -6,7 +6,6 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/config"
-	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/rs/zerolog"
 
@@ -43,11 +42,22 @@ func NewProxyServer(logger *zerolog.Logger, config *config.NodeConfig) *ProxySer
 }
 
 func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var bestMatch RuleHandler = nil
+	// Find the matching rule with the highest "rank", aka the most slashes '/' in the URL path.
+	highestRank := -1
 	for _, rule := range s.Rules {
 		if rule.Match(r.URL) {
-			rule.Handler().ServeHTTP(w, r)
-			return
+			if rule.Rank() > highestRank {
+				bestMatch = rule
+				highestRank = rule.Rank()
+			}
 		}
+	}
+
+	// Serve the handler with the best matching rule.
+	if bestMatch != nil {
+		bestMatch.Handler().ServeHTTP(w, r)
+		return
 	}
 	// No rules matched
 	w.WriteHeader(http.StatusNotFound)
@@ -64,18 +74,26 @@ func (s *ProxyServer) Listener(addr string) (net.Listener, error) {
 		listener = ln
 	} else {
 		tsnet := &tsnet.Server{
-			Hostname: constants.DefaultTSNetHostname,
+			Hostname: s.nodeConfig.Hostname(),
 			Dir:      s.nodeConfig.TailScaleStatePath(),
 			Logf: func(msg string, args ...any) {
 				s.logger.Debug().Msgf(msg, args...)
 			},
 		}
 
-		ln, err := tsnet.Listen("tcp", addr)
-		if err != nil {
-			return nil, err
+		if s.nodeConfig.TailScaleFunnelEnabled() {
+			ln, err := tsnet.ListenFunnel("tcp", addr)
+			if err != nil {
+				return nil, err
+			}
+			listener = ln
+		} else {
+			ln, err := tsnet.Listen("tcp", addr)
+			if err != nil {
+				return nil, err
+			}
+			listener = ln
 		}
-		listener = ln
 	}
 
 	return listener, nil
