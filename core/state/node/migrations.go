@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -123,7 +124,29 @@ func compareSchemas(expected, actual string) error {
 	}
 
 	if len(patch) > 0 {
-		return fmt.Errorf("schemas are not equal, here is the diff patch: %s", patch)
+		// Pretty print the JSON in the error so it's easy to read.
+		indented := &bytes.Buffer{}
+		encoder := json.NewEncoder(indented)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(patch); err != nil {
+			return fmt.Errorf("failed to indent JSON patch: %v", err)
+		}
+		// Pretty print the actual and expected JSON for easier comparison
+		indentedActual := &bytes.Buffer{}
+		indentedExpected := &bytes.Buffer{}
+		err = json.Indent(indentedActual, []byte(actual), "", "  ")
+		if err != nil {
+			return err
+		}
+		err = json.Indent(indentedExpected, []byte(expected), "", "  ")
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("schemas are not equal.\n\nDiff patch:\n%s\n\nExpected:\n%s\n\nActual:\n%s",
+			indented.String(),
+			indentedExpected.String(),
+			indentedActual.String())
 	}
 
 	return nil

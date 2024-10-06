@@ -11,11 +11,23 @@ import (
 )
 
 func TestSchemaMigrations(t *testing.T) {
+	// Test applying all migrations one at a time, and make sure the finalresult
+	// matches the schema.json file. Then go back down, and make sure we start
+	// from the same initial empty state.
 	err := validateSchemaMigrations()
-	assert.Nil(t, err)
+	if err != nil {
+		t.Error(err)
+	}
 
+	// Test migrating directly to the latest version. This path is more similar to
+	// what the node will actually execute.
+	//
+	// NOTE: if this test is failing, check that the LatestVersion reflects the most
+	// recent migrations you have written.
 	err = validateNodeSchemaMigrations(LatestVersion)
-	assert.Nil(t, err)
+	if err != nil {
+		t.Error(err)
+	}
 
 	// Test non-existant high version
 	err = validateNodeSchemaMigrations("v1000.0.1")
