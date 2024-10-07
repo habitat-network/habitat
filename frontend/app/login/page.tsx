@@ -1,20 +1,30 @@
 'use client'
 
-import React, { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, FormEvent, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import './login.css';
 import { useAuth } from '@/components/authContext';
 
-const Login = () => {
+const LoginInternal = () => {
     const [handle, setHandle] = useState('');
     const [password, setPassword] = useState('');
     const { login } = useAuth();
 
-    const router = useRouter();
+    useRouter();
+
+    const searchParams = useSearchParams();
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        let redirectRoute: string = '/home';
+        const overrideRoute =  searchParams.get('redirectRoute');
+        if (overrideRoute) {
+            redirectRoute = overrideRoute;
+        }
+
+        const source = searchParams.get('source');
+
         event.preventDefault();
-        login(handle, password);
+        login(handle, password, redirectRoute, source);
     };
 
     return (
@@ -44,6 +54,14 @@ const Login = () => {
                 <button type="submit">Login</button>
             </form>
         </div>
+    );
+};
+
+const Login = () => {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <LoginInternal />
+        </Suspense>
     );
 };
 
