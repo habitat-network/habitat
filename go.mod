@@ -17,6 +17,7 @@ require (
 	go.uber.org/mock v0.4.0
 	golang.org/x/mod v0.14.0
 	golang.org/x/sync v0.6.0
+	gopkg.in/yaml.v3 v3.0.1
 	tailscale.com v1.66.4
 )
 
@@ -145,7 +146,6 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 	gvisor.dev/gvisor v0.0.0-20240306221502-ee1e1f6070e3 // indirect
 	nhooyr.io/websocket v1.8.10 // indirect

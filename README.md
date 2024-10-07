@@ -37,6 +37,41 @@ make run-dev-fresh
 ```
 You should now see a bunch of logs indicating the node has come up.
 
+### Configuration for Local Development
+In development, the node can be configured using environment variables or through the `habitat.yml` file in the `.habitat` directory at the root of your repository. For a full list of configuration options, check out the `internal/node/config/config.go` file. When developing Habitat apps, it is often helpful to configure the `default_apps` field in the `habitat.yml` file. Doing so will automatically install the app for you and start the app when the node starts, which will save you a lot of clicking around. Here's an example of what setting the `default_apps` field could look like:
+
+```
+default_apps:
+  pouch_frontend:
+    app_installation:
+      name: pouch_frontend
+      version: 3
+      driver: web
+
+      driver_config:
+        download_url: https://github.com/eagraf/extension-save-to-pocket/releases/download/demo-release-2/dist.tar.gz
+        bundle_directory_name: pouch
+
+      registry_url_base: a
+      registry_app_id: b
+      registry_tag: c
+
+    reverse_proxy_rules:
+      - type: file
+        matcher: /pouch
+        target: pouch/3/dist
+      - type: redirect
+        matcher: /pouch_api
+        target: http://100.113.121.9:5000
+      - type: fishtail_ingest
+        matcher: /pouch_api/ingest
+        target: http://100.113.121.9:5000/api/v1/ingest
+        fishtail_ingest_config:
+          subscribed_collections:
+            - lexicon: app.bsky.feed.like
+            - lexicon: com.habitat.pouch.link
+```
+
 ### Setting up Postman
 ```
 Note: this is disabled until we can get a more cohesive auth system going

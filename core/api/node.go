@@ -23,8 +23,8 @@ type PostAddUserResponse struct {
 }
 
 type PostAppRequest struct {
-	AppInstallation   *node.AppInstallation    `json:"app_installation"`
-	ReverseProxyRules []*node.ReverseProxyRule `json:"reverse_proxy_rules"`
+	AppInstallation   *node.AppInstallation    `json:"app_installation" yaml:"app_installation"`
+	ReverseProxyRules []*node.ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
 }
 
 type PostProcessRequest struct {

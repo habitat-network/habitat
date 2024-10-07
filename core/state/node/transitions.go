@@ -311,6 +311,10 @@ func (t *StartInstallationTransition) Validate(oldState hdb.SerializedState) err
 		}
 	}
 
+	if t.AppInstallation.DriverConfig == nil {
+		return fmt.Errorf("driver config is required for starting an installation")
+	}
+
 	return nil
 }
 

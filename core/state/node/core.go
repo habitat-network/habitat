@@ -10,20 +10,20 @@ const AppLifecycleStateInstalling = "installing"
 const AppLifecycleStateInstalled = "installed"
 
 type Package struct {
-	Driver             string                 `json:"driver"`
-	DriverConfig       map[string]interface{} `json:"driver_config"`
-	RegistryURLBase    string                 `json:"registry_url_base"`
-	RegistryPackageID  string                 `json:"registry_app_id"`
-	RegistryPackageTag string                 `json:"registry_tag"`
+	Driver             string                 `json:"driver" yaml:"driver"`
+	DriverConfig       map[string]interface{} `json:"driver_config" yaml:"driver_config"`
+	RegistryURLBase    string                 `json:"registry_url_base" yaml:"registry_url_base"`
+	RegistryPackageID  string                 `json:"registry_app_id" yaml:"registry_app_id"`
+	RegistryPackageTag string                 `json:"registry_tag" yaml:"registry_tag"`
 }
 
 // TODO some fields should be ignored by the REST api
 type AppInstallation struct {
-	ID      string `json:"id"`
-	UserID  string `json:"user_id"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Package
+	ID      string `json:"id" yaml:"id"`
+	UserID  string `json:"user_id" yaml:"user_id"`
+	Name    string `json:"name" yaml:"name"`
+	Version string `json:"version" yaml:"version"`
+	Package `yaml:",inline"`
 }
 
 const ProcessStateStarting = "starting"
@@ -46,9 +46,9 @@ type Process struct {
 // The semantics of the target field changes depending on the type. For file servers, it represents the
 // path to the directory to serve files from. For redirects, it represents the URL to redirect to.
 type ReverseProxyRule struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"`
-	Matcher string `json:"matcher"`
-	Target  string `json:"target"`
-	AppID   string `json:"app_id"`
+	ID      string `json:"id" yaml:"id"`
+	Type    string `json:"type" yaml:"type"`
+	Matcher string `json:"matcher" yaml:"matcher"`
+	Target  string `json:"target" yaml:"target"`
+	AppID   string `json:"app_id" yaml:"app_id"`
 }

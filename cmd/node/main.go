@@ -31,7 +31,7 @@ import (
 func main() {
 	nodeConfig, err := config.NewNodeConfig()
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error loading node config")
 	}
 
 	logger := logging.NewLogger()
@@ -40,24 +40,24 @@ func main() {
 	hdbPublisher := pubsub.NewSimplePublisher[hdb.StateUpdate]()
 	db, dbClose, err := hdbms.NewHabitatDB(logger, hdbPublisher, nodeConfig)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error creating habitat db")
 	}
 	defer dbClose()
 
 	nodeCtrl, err := controller.NewNodeController(db.Manager, nodeConfig)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error creating node controller")
 	}
 
 	// Initialize application drivers
 	dockerDriver, err := docker.NewDriver()
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error creating docker driver")
 	}
 
 	webDriver, err := web.NewDriver(nodeConfig)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error creating web driver")
 	}
 
 	stateLogger := hdbms.NewStateUpdateLogger(logger)
@@ -69,13 +69,13 @@ func main() {
 		nodeCtrl,
 	)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error creating app lifecycle subscriber")
 	}
 
 	pm := processes.NewProcessManager([]processes.ProcessDriver{dockerDriver.ProcessDriver, webDriver.ProcessDriver})
 	pmSub, err := processes.NewProcessManagerStateUpdateSubscriber(pm, nodeCtrl)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error creating process manager state update subscriber")
 	}
 
 	// ctx.Done() returns when SIGINT is called or cancel() is called.
@@ -92,7 +92,7 @@ func main() {
 		proxy.RuleSet,
 	)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error creating proxy rule state update subscriber")
 	}
 
 	stateUpdates := pubsub.NewSimpleChannel(
@@ -107,19 +107,19 @@ func main() {
 	go func() {
 		err := stateUpdates.Listen()
 		if err != nil {
-			log.Fatal().Err(err).Msgf("unrecoverable error listening to channel")
+			log.Fatal().Err(err).Msg("unrecoverable error listening to channel")
 		}
 	}()
 
 	err = nodeCtrl.InitializeNodeDB()
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error initializing node db")
 	}
 
 	// Set up the reverse proxy server
 	tlsConfig, err := nodeConfig.TLSConfig()
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error getting tls config")
 	}
 	addr := fmt.Sprintf(":%s", nodeConfig.ReverseProxyPort())
 	proxyServer := &http.Server{
@@ -128,7 +128,7 @@ func main() {
 	}
 	ln, err := proxy.Listener(addr)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Fatal().Err(err).Msg("error getting listener")
 	}
 	eg.Go(server.ServeFn(
 		proxyServer,
@@ -155,14 +155,14 @@ func main() {
 	}
 	url, err := url.Parse(fmt.Sprintf("http://localhost:%s", constants.DefaultPortHabitatAPI))
 	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error parsing Habitat API URL: %v", err))
+		log.Fatal().Err(fmt.Errorf("error parsing Habitat API URL: %v", err)).Msg("error parsing Habitat API URL")
 	}
 	err = proxy.RuleSet.Add("Habitat API", &reverse_proxy.RedirectRule{
 		ForwardLocation: url,
 		Matcher:         "/habitat/api",
 	})
 	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error adding Habitat API proxy rule: %v", err))
+		log.Fatal().Err(fmt.Errorf("error adding Habitat API proxy rule: %v", err)).Msg("error adding Habitat API proxy rule")
 	}
 	eg.Go(
 		server.ServeFn(
@@ -174,12 +174,12 @@ func main() {
 
 	frontendProxyRule, err := frontend.NewFrontendProxyRule(nodeConfig)
 	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error getting frontend proxy rule: %v", err))
+		log.Fatal().Err(fmt.Errorf("error getting frontend proxy rule: %v", err)).Msg("error getting frontend proxy rule")
 	}
 
 	err = proxy.RuleSet.Add("Frontend", frontendProxyRule)
 	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error adding frontend proxy rule: %v", err))
+		log.Fatal().Err(fmt.Errorf("error adding frontend proxy rule: %v", err)).Msg("error adding frontend proxy rule")
 	}
 
 	// Wait for either os.Interrupt which triggers ctx.Done()

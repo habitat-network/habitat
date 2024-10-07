@@ -10,7 +10,9 @@ import (
 	"os/user"
 	"path/filepath"
 
+	types "github.com/eagraf/habitat-new/core/api"
 	"github.com/eagraf/habitat-new/internal/node/constants"
+	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	viper "github.com/spf13/viper"
@@ -141,6 +143,7 @@ func decodePemCert(certPath string) (*x509.Certificate, error) {
 	return cert, nil
 }
 
+// TODO @eagraf look at whether we should put all available fields in the config struct.
 type NodeConfig struct {
 	RootUserCert *x509.Certificate
 	NodeCert     *x509.Certificate
@@ -289,6 +292,27 @@ func (n *NodeConfig) PDSAdminPassword() string {
 func (n *NodeConfig) FrontendDev() bool {
 	return viper.GetBool("frontend_dev")
 }
+
+func (n *NodeConfig) DefaultApps() []*types.PostAppRequest {
+	var appRequestsMap map[string]*types.PostAppRequest
+	err := viper.UnmarshalKey("default_apps", &appRequestsMap, viper.DecoderConfigOption(
+		func(decoderConfig *mapstructure.DecoderConfig) {
+			decoderConfig.TagName = "yaml"
+			decoderConfig.Squash = true
+		},
+	))
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to unmarshal default apps")
+		return nil
+	}
+	appRequests := make([]*types.PostAppRequest, 0, len(appRequestsMap))
+	for _, appRequest := range appRequestsMap {
+		appRequests = append(appRequests, appRequest)
+	}
+	return appRequests
+}
+
+// Helper functions
 
 func homedir() (string, error) {
 	usr, err := user.Current()
