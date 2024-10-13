@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os/signal"
 	"syscall"
 
-	"github.com/eagraf/habitat-new/internal/frontend"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
@@ -88,7 +86,7 @@ func main() {
 
 	proxy := reverse_proxy.NewProxyServer(logger, nodeConfig)
 
-	proxyRuleStateUpdateSubscriber, err := reverse_proxy.NewProcessProxyRuleStateUpdateSubscriber(
+	proxyRuleStateUpdateSubscriber, err := reverse_proxy.NewProcessProxyRuleSubscriber(
 		proxy.RuleSet,
 	)
 	if err != nil {
@@ -153,17 +151,6 @@ func main() {
 		Addr:    fmt.Sprintf(":%s", constants.DefaultPortHabitatAPI),
 		Handler: router,
 	}
-	url, err := url.Parse(fmt.Sprintf("http://localhost:%s", constants.DefaultPortHabitatAPI))
-	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error parsing Habitat API URL: %v", err)).Msg("error parsing Habitat API URL")
-	}
-	err = proxy.RuleSet.Add("Habitat API", &reverse_proxy.RedirectRule{
-		ForwardLocation: url,
-		Matcher:         "/habitat/api",
-	})
-	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error adding Habitat API proxy rule: %v", err)).Msg("error adding Habitat API proxy rule")
-	}
 	eg.Go(
 		server.ServeFn(
 			apiServer,
@@ -171,16 +158,6 @@ func main() {
 			server.WithTLSConfig(tlsConfig, nodeConfig.NodeCertPath(), nodeConfig.NodeKeyPath()),
 		),
 	)
-
-	frontendProxyRule, err := frontend.NewFrontendProxyRule(nodeConfig)
-	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error getting frontend proxy rule: %v", err)).Msg("error getting frontend proxy rule")
-	}
-
-	err = proxy.RuleSet.Add("Frontend", frontendProxyRule)
-	if err != nil {
-		log.Fatal().Err(fmt.Errorf("error adding frontend proxy rule: %v", err)).Msg("error adding frontend proxy rule")
-	}
 
 	// Wait for either os.Interrupt which triggers ctx.Done()
 	// Or one of the servers to error, which triggers egCtx.Done()

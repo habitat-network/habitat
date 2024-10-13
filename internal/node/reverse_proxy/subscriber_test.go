@@ -6,12 +6,13 @@ import (
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/core/state/node/test_helpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestSubscriber(t *testing.T) {
+func TestStartProcessExecutor(t *testing.T) {
 	executor := &ProcessProxyRulesExecutor{
 		RuleSet: &RuleSet{
-			rules: make(map[string]RuleHandler),
+			rules: make(map[string]*node.ReverseProxyRule),
 		},
 	}
 
@@ -62,7 +63,7 @@ func TestSubscriber(t *testing.T) {
 func TestBrokenRule(t *testing.T) {
 	executor := &ProcessProxyRulesExecutor{
 		RuleSet: &RuleSet{
-			rules: make(map[string]RuleHandler),
+			rules: make(map[string]*node.ReverseProxyRule),
 		},
 	}
 
@@ -96,4 +97,39 @@ func TestBrokenRule(t *testing.T) {
 	err = executor.Execute(startProcessStateUpdate)
 	assert.NotNil(t, err)
 	assert.Equal(t, 0, len(executor.RuleSet.rules))
+}
+
+func TestAddRuleExecutor(t *testing.T) {
+	subscriber, err := NewProcessProxyRuleSubscriber(
+		&RuleSet{
+			rules: make(map[string]*node.ReverseProxyRule),
+		},
+	)
+	require.Nil(t, err)
+
+	exec, err := subscriber.GetExecutor(node.TransitionAddReverseProxyRule)
+	require.Nil(t, err)
+	executor, _ := exec.(*AddProxyRulesExecutor)
+
+	addRuleStateUpdate, err := test_helpers.StateUpdateTestHelper(&node.AddReverseProxyRuleTransition{
+		Rule: &node.ReverseProxyRule{
+			ID:      "new-rule",
+			Type:    node.ProxyRuleRedirect,
+			Matcher: "/my-matcher",
+			Target:  "http://myhost/api",
+		},
+	}, &node.State{
+		ReverseProxyRules: &map[string]*node.ReverseProxyRule{},
+	})
+	assert.Nil(t, err)
+
+	shouldExecute, err := executor.ShouldExecute(addRuleStateUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, true, shouldExecute)
+	assert.Equal(t, 0, len(executor.RuleSet.rules))
+
+	err = executor.Execute(addRuleStateUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(executor.RuleSet.rules))
+
 }

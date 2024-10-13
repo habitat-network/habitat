@@ -46,9 +46,17 @@ type Process struct {
 // The semantics of the target field changes depending on the type. For file servers, it represents the
 // path to the directory to serve files from. For redirects, it represents the URL to redirect to.
 type ReverseProxyRule struct {
-	ID      string `json:"id" yaml:"id"`
-	Type    string `json:"type" yaml:"type"`
-	Matcher string `json:"matcher" yaml:"matcher"`
-	Target  string `json:"target" yaml:"target"`
-	AppID   string `json:"app_id" yaml:"app_id"`
+	ID      string               `json:"id" yaml:"id"`
+	Type    ReverseProxyRuleType `json:"type" yaml:"type"`
+	Matcher string               `json:"matcher" yaml:"matcher"`
+	Target  string               `json:"target" yaml:"target"`
+	AppID   string               `json:"app_id" yaml:"app_id"`
 }
+
+type ReverseProxyRuleType = string
+
+const (
+	ProxyRuleFileServer       ReverseProxyRuleType = "file"
+	ProxyRuleRedirect         ReverseProxyRuleType = "redirect"
+	ProxyRuleEmbeddedFrontend ReverseProxyRuleType = "embedded_frontend"
+)

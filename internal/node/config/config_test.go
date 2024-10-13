@@ -42,11 +42,13 @@ default_apps:
 `
 
 func TestLoadingDefaultApps(t *testing.T) {
-	viper.SetConfigType("yaml")
-	err := viper.ReadConfig(strings.NewReader(testHabitatYaml))
+	v := viper.New()
+	v.SetConfigType("yaml")
+	err := v.ReadConfig(strings.NewReader(testHabitatYaml))
 	assert.NoError(t, err)
 
-	testNodeConfig := &NodeConfig{}
+	testNodeConfig, err := NewNodeConfigFromViper(v)
+	assert.NoError(t, err)
 
 	defaultApps := testNodeConfig.DefaultApps()
 	assert.Len(t, defaultApps, 1)

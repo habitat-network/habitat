@@ -10,7 +10,7 @@ import (
 
 func TestProcessRestorer(t *testing.T) {
 	ruleSet := &RuleSet{
-		rules: make(map[string]RuleHandler),
+		rules: make(map[string]*node.ReverseProxyRule),
 	}
 
 	restorer := &ReverseProxyRestorer{
@@ -72,5 +72,5 @@ func TestProcessRestorer(t *testing.T) {
 	err = restorer.Restore(restoreUpdate)
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, len(restorer.ruleSet.rules))
+	assert.Equal(t, 2, len(restorer.ruleSet.rules))
 }

@@ -20,6 +20,7 @@ var (
 	TransitionStartProcess        = "process_start"
 	TransitionProcessRunning      = "process_running"
 	TransitionStopProcess         = "process_stop"
+	TransitionAddReverseProxyRule = "add_reverse_proxy_rule"
 )
 
 type InitalizationTransition struct {
@@ -586,5 +587,54 @@ func (t *ProcessStopTransition) Validate(oldState hdb.SerializedState) error {
 	if !ok {
 		return fmt.Errorf("process with id %s not found", t.ProcessID)
 	}
+	return nil
+}
+
+type AddReverseProxyRuleTransition struct {
+	Rule *ReverseProxyRule `json:"rule"`
+}
+
+func (t *AddReverseProxyRuleTransition) Type() string {
+	return TransitionAddReverseProxyRule
+}
+
+func (t *AddReverseProxyRuleTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
+
+	marshaledRule, err := json.Marshal(t.Rule)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(fmt.Sprintf(`[{
+		"op": "add",
+		"path": "/reverse_proxy_rules/%s",
+		"value": %s
+	}]`, t.Rule.ID, string(marshaledRule))), nil
+}
+
+func (t *AddReverseProxyRuleTransition) Enrich(oldState hdb.SerializedState) error {
+	if t.Rule.ID == "" {
+		t.Rule.ID = uuid.New().String()
+	}
+
+	return nil
+}
+
+func (t *AddReverseProxyRuleTransition) Validate(oldState hdb.SerializedState) error {
+	var oldNode State
+	err := json.Unmarshal(oldState, &oldNode)
+	if err != nil {
+		return err
+	}
+
+	for _, rule := range *oldNode.ReverseProxyRules {
+		if rule.ID == t.Rule.ID {
+			return fmt.Errorf("reverse proxy rule with id %s already exists", t.Rule.ID)
+		}
+		if rule.Matcher == t.Rule.Matcher {
+			return fmt.Errorf("reverse proxy rule with matcher %s already exists", t.Rule.Matcher)
+		}
+	}
+
 	return nil
 }

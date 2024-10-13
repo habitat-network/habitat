@@ -18,20 +18,20 @@ import (
 	viper "github.com/spf13/viper"
 )
 
-func loadEnv() error {
-	err := viper.BindEnv("environment", "ENVIRONMENT")
+func loadEnv(v *viper.Viper) error {
+	err := v.BindEnv("environment", "ENVIRONMENT")
 	if err != nil {
 		return err
 	}
-	viper.SetDefault("environment", constants.EnvironmentProd)
+	v.SetDefault("environment", constants.EnvironmentProd)
 
-	err = viper.BindEnv("debug", "DEBUG")
+	err = v.BindEnv("debug", "DEBUG")
 	if err != nil {
 		return err
 	}
-	viper.SetDefault("debug", "DEBUG")
+	v.SetDefault("debug", false)
 
-	err = viper.BindEnv("habitat_path", "HABITAT_PATH")
+	err = v.BindEnv("habitat_path", "HABITAT_PATH")
 	if err != nil {
 		return err
 	}
@@ -39,86 +39,72 @@ func loadEnv() error {
 	if err != nil {
 		return err
 	}
-	viper.SetDefault("habitat_path", filepath.Join(homedir, ".habitat"))
+	v.SetDefault("habitat_path", filepath.Join(homedir, ".habitat"))
 
-	err = viper.BindEnv("habitat_app_path", "HABITAT_APP_PATH")
+	err = v.BindEnv("habitat_app_path", "HABITAT_APP_PATH")
 	if err != nil {
 		return err
 	}
 
-	err = viper.BindEnv("use_tls", "USE_TLS")
+	err = v.BindEnv("use_tls", "USE_TLS")
 	if err != nil {
 		return err
 	}
-	viper.SetDefault("use_tls", false)
+	v.SetDefault("use_tls", false)
 
-	err = viper.BindEnv("tailscale_authkey", "TS_AUTHKEY")
-	if err != nil {
-		return err
-	}
-
-	err = viper.BindEnv("tailnet", "TS_TAILNET")
+	err = v.BindEnv("tailscale_authkey", "TS_AUTHKEY")
 	if err != nil {
 		return err
 	}
 
-	err = viper.BindEnv("tailscale_funnel_enabled", "TS_FUNNEL_ENABLED")
+	err = v.BindEnv("tailnet", "TS_TAILNET")
 	if err != nil {
 		return err
 	}
 
-	err = viper.BindEnv("domain", "DOMAIN")
+	err = v.BindEnv("tailscale_funnel_enabled", "TS_FUNNEL_ENABLED")
 	if err != nil {
 		return err
 	}
 
-	err = viper.BindEnv("frontend_dev", "FRONTEND_DEV")
+	err = v.BindEnv("domain", "DOMAIN")
 	if err != nil {
 		return err
 	}
-	viper.SetDefault("frontend_dev", false)
+
+	err = v.BindEnv("frontend_dev", "FRONTEND_DEV")
+	if err != nil {
+		return err
+	}
+	v.SetDefault("frontend_dev", false)
 
 	return nil
 }
 
-func loadConfig() (*NodeConfig, error) {
+func loadViperConfig() (*viper.Viper, error) {
+	v := viper.New()
+
+	err := loadEnv(v)
+	if err != nil {
+		return nil, err
+	}
+
 	homedir, err := homedir()
 	if err != nil {
 		return nil, err
 	}
 
-	viper.AddConfigPath(filepath.Join(homedir, ".habitat"))
-	viper.AddConfigPath(viper.GetString("habitat_path"))
+	v.AddConfigPath(filepath.Join(homedir, ".habitat"))
+	v.AddConfigPath(v.GetString("habitat_path"))
 
-	viper.SetConfigType("yml")
-	viper.SetConfigName("habitat")
+	v.SetConfigType("yml")
+	v.SetConfigName("habitat")
 
-	if err := viper.ReadInConfig(); err != nil {
+	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
 
-	var config NodeConfig
-	err = viper.Unmarshal(&config)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read cert files
-	rootCert, err := decodePemCert(config.RootUserCertPath())
-	if err != nil {
-		return nil, err
-	}
-	config.RootUserCert = rootCert
-
-	nodeCert, err := decodePemCert(config.NodeCertPath())
-	if err != nil {
-		return nil, err
-	}
-	config.NodeCert = nodeCert
-
-	log.Debug().Msgf("Loaded node config: node cert: %s root cert: %s node key: %s", config.NodeCertPath(), config.RootUserCertPath(), config.NodeKeyPath())
-
-	return &config, nil
+	return v, nil
 }
 
 func decodePemCert(certPath string) (*x509.Certificate, error) {
@@ -147,22 +133,85 @@ func decodePemCert(certPath string) (*x509.Certificate, error) {
 type NodeConfig struct {
 	RootUserCert *x509.Certificate
 	NodeCert     *x509.Certificate
+
+	viper *viper.Viper
 }
 
 func NewNodeConfig() (*NodeConfig, error) {
-	err := loadEnv()
+	// Use viper to load all configs from the config file, env, etc.
+	v, err := loadViperConfig()
 	if err != nil {
 		return nil, err
 	}
-	return loadConfig()
+
+	// Then, use the loaded Viper instance to create the NodeConfig struct
+	config, err := NewNodeConfigFromViper(v)
+	if err != nil {
+		return nil, err
+	}
+
+	// Finally, load the certs from disk into the NodeConfig struct
+	rootCertPath := config.RootUserCertPath()
+	if rootCertPath != "" {
+		// Read cert files
+		rootCert, err := decodePemCert(rootCertPath)
+		if err != nil {
+			return nil, err
+		}
+		config.RootUserCert = rootCert
+	}
+
+	if config.NodeCertPath() != "" {
+		nodeCert, err := decodePemCert(config.NodeCertPath())
+		if err != nil {
+			return nil, err
+		}
+		config.NodeCert = nodeCert
+	}
+
+	log.Debug().Msgf("Loaded node config: node cert: %s root cert: %s node key: %s", config.NodeCertPath(), config.RootUserCertPath(), config.NodeKeyPath())
+
+	return config, nil
+}
+
+func NewNodeConfigFromViper(v *viper.Viper) (*NodeConfig, error) {
+
+	var config NodeConfig
+	err := v.Unmarshal(&config)
+	if err != nil {
+		return nil, err
+	}
+	config.viper = v
+
+	return &config, nil
+}
+
+// NewTestNodeConfig returns a NodeConfig suitable for testing.
+// Besides setting up the Viper instance, it also sets a fake root user cert.
+func NewTestNodeConfig(optionalViper *viper.Viper) (*NodeConfig, error) {
+
+	// Create a new Viper instance if none was provided
+	v := optionalViper
+	if v == nil {
+		v = viper.New()
+	}
+
+	config, err := NewNodeConfigFromViper(v)
+	if err != nil {
+		return nil, err
+	}
+	config.RootUserCert = &x509.Certificate{
+		Raw: []byte("root_cert"),
+	}
+	return config, nil
 }
 
 func (n *NodeConfig) Environment() string {
-	return viper.GetString("environment")
+	return n.viper.GetString("environment")
 }
 
 func (n *NodeConfig) LogLevel() zerolog.Level {
-	isDebug := viper.GetBool("debug")
+	isDebug := n.viper.GetBool("debug")
 	if isDebug {
 		return zerolog.DebugLevel
 	}
@@ -170,12 +219,12 @@ func (n *NodeConfig) LogLevel() zerolog.Level {
 }
 
 func (n *NodeConfig) HabitatPath() string {
-	return viper.GetString("habitat_path")
+	return n.viper.GetString("habitat_path")
 }
 
 func (n *NodeConfig) HabitatAppPath() string {
 	// Note that in dev mode, this should point to a path on the host machine rather than in the Docker container.
-	path := viper.GetString("habitat_app_path")
+	path := n.viper.GetString("habitat_app_path")
 	if path == "" {
 		return filepath.Join(n.HabitatPath(), "apps")
 	}
@@ -192,11 +241,19 @@ func (n *NodeConfig) WebBundlePath() string {
 }
 
 func (n *NodeConfig) NodeCertPath() string {
+	habitatPath := n.HabitatPath()
+	if habitatPath == "" {
+		return ""
+	}
 	return filepath.Join(n.HabitatPath(), "certificates", "dev_node_cert.pem")
 }
 
 func (n *NodeConfig) NodeKeyPath() string {
-	return filepath.Join(n.HabitatPath(), "certificates", "dev_node_key.pem")
+	habitatPath := n.HabitatPath()
+	if habitatPath == "" {
+		return ""
+	}
+	return filepath.Join(habitatPath, "certificates", "dev_node_key.pem")
 }
 
 func (n *NodeConfig) RootUserCertPath() string {
@@ -227,7 +284,7 @@ func (n *NodeConfig) TLSConfig() (*tls.Config, error) {
 }
 
 func (n *NodeConfig) UseTLS() bool {
-	return viper.GetBool("use_tls")
+	return n.viper.GetBool("use_tls")
 }
 
 // Hostname that the node listens on. This may be updated dynamically because Tailscale may add a suffix
@@ -245,7 +302,7 @@ func (n *NodeConfig) Hostname() string {
 // Domain name that hosts this Habitat node, if tailscale funnel is enabled.
 func (n *NodeConfig) Domain() string {
 	if n.TailScaleFunnelEnabled() {
-		return viper.GetString("domain")
+		return n.viper.GetString("domain")
 	} else {
 		return ""
 	}
@@ -260,11 +317,11 @@ func (n *NodeConfig) ReverseProxyPort() string {
 
 // Currently unused, but may be necessary to implement adding members to the community.
 func (n *NodeConfig) TailnetName() string {
-	return viper.GetString("tailnet")
+	return n.viper.GetString("tailnet")
 }
 
 func (n *NodeConfig) TailscaleAuthkey() string {
-	return viper.GetString("tailscale_authkey")
+	return n.viper.GetString("tailscale_authkey")
 }
 
 func (n *NodeConfig) TailScaleStatePath() string {
@@ -274,7 +331,7 @@ func (n *NodeConfig) TailScaleStatePath() string {
 
 func (n *NodeConfig) TailScaleFunnelEnabled() bool {
 	if n.TailscaleAuthkey() != "" {
-		return viper.GetBool("tailscale_funnel_enabled")
+		return n.viper.GetBool("tailscale_funnel_enabled")
 	} else {
 		return false
 	}
@@ -290,12 +347,12 @@ func (n *NodeConfig) PDSAdminPassword() string {
 }
 
 func (n *NodeConfig) FrontendDev() bool {
-	return viper.GetBool("frontend_dev")
+	return n.viper.GetBool("frontend_dev")
 }
 
 func (n *NodeConfig) DefaultApps() []*types.PostAppRequest {
 	var appRequestsMap map[string]*types.PostAppRequest
-	err := viper.UnmarshalKey("default_apps", &appRequestsMap, viper.DecoderConfigOption(
+	err := n.viper.UnmarshalKey("default_apps", &appRequestsMap, viper.DecoderConfigOption(
 		func(decoderConfig *mapstructure.DecoderConfig) {
 			decoderConfig.TagName = "yaml"
 			decoderConfig.Squash = true

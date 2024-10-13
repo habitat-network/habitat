@@ -116,6 +116,13 @@ func (s *IdempotentStateUpdateSubscriber) Name() string {
 	return s.name
 }
 
+func (s *IdempotentStateUpdateSubscriber) GetExecutor(transitionType string) (IdempotentStateUpdateExecutor, error) {
+	if _, ok := s.executors[transitionType]; !ok {
+		return nil, fmt.Errorf("executor with transition type %s not found", transitionType)
+	}
+	return s.executors[transitionType], nil
+}
+
 func (s *IdempotentStateUpdateSubscriber) ConsumeEvent(event StateUpdate) error {
 	// If the restore flag is set, we restore the entire state rather than processing the individual state update.
 	if event.IsRestore() {

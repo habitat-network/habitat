@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 
 	"github.com/docker/docker/api/types/mount"
@@ -73,6 +74,39 @@ func generatePDSAppConfig(nodeConfig *config.NodeConfig) *types.PostAppRequest {
 	}
 }
 
+func generateDefaultReverseProxyRules(nodeConfig *config.NodeConfig) ([]*node.ReverseProxyRule, error) {
+	apiURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", constants.DefaultPortHabitatAPI))
+	if err != nil {
+		return nil, err
+	}
+
+	frontendRule := &node.ReverseProxyRule{
+		ID:      "default-rule-frontend",
+		Matcher: "", // Root matcher
+	}
+	if nodeConfig.FrontendDev() {
+		// In development mode, we run the frontend in a separate docker container with hot-reloading.
+		// As a result, all frontend requests must be forwarde to the frontend container.
+		frontendRule.Type = node.ProxyRuleRedirect
+		frontendRule.Target = "http://habitat_frontend:8000/"
+	} else {
+		// In production mode, we embed the frontend into the node binary. That way, we can serve
+		// the frontend without needing to set it up on the host machine.
+		// TODO @eagraf - evaluate the performance implications of this.
+		frontendRule.Type = node.ProxyRuleEmbeddedFrontend
+	}
+
+	return []*node.ReverseProxyRule{
+		{
+			ID:      "default-rule-api",
+			Type:    node.ProxyRuleRedirect,
+			Matcher: "/habitat/api",
+			Target:  apiURL.String(),
+		},
+		frontendRule,
+	}, nil
+}
+
 // TODO this is basically a placeholder until we actually have a way of generating
 // the certificate for the node.
 func generateInitState(nodeConfig *config.NodeConfig) (*node.State, error) {
@@ -102,12 +136,26 @@ func initTranstitions(nodeConfig *config.NodeConfig) ([]hdb.Transition, error) {
 		return nil, err
 	}
 
+	// A list of transitions to apply when the node starts up for the first time.
 	transitions := []hdb.Transition{
 		&node.InitalizationTransition{
 			InitState: initState,
 		},
 	}
 
+	// Generate the list of default proxy rules to have available when the node first comes up
+	proxyRules, err := generateDefaultReverseProxyRules(nodeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rule := range proxyRules {
+		transitions = append(transitions, &node.AddReverseProxyRuleTransition{
+			Rule: rule,
+		})
+	}
+
+	// Generate the list of apps to have installed and started when the node first comes up
 	pdsAppConfig := generatePDSAppConfig(nodeConfig)
 	defaultApplications := []*types.PostAppRequest{
 		pdsAppConfig,
@@ -126,5 +174,6 @@ func initTranstitions(nodeConfig *config.NodeConfig) ([]hdb.Transition, error) {
 			StartAfterInstallation: true,
 		})
 	}
+
 	return transitions, nil
 }

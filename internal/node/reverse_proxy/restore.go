@@ -12,19 +12,17 @@ type ReverseProxyRestorer struct {
 
 func (r *ReverseProxyRestorer) Restore(restoreEvent hdb.StateUpdate) error {
 	nodeState := restoreEvent.NewState().(*node.State)
-	for _, process := range nodeState.Processes {
-		rules, err := nodeState.GetReverseProxyRulesForProcess(process.ID)
-		if err != nil {
-			return err
-		}
+	if nodeState.ReverseProxyRules == nil {
+		return nil
+	}
 
-		for _, rule := range rules {
-			log.Info().Msgf("Restoring rule %s", rule)
-			err = r.ruleSet.AddRule(rule)
-			if err != nil {
-				log.Error().Msgf("error restoring rule: %s", err)
-			}
+	for _, rule := range *nodeState.ReverseProxyRules {
+		log.Info().Msgf("Restoring rule %s, matcher: %s", rule.ID, rule.Matcher)
+		err := r.ruleSet.AddRule(rule)
+		if err != nil {
+			log.Error().Msgf("error restoring rule: %s", err)
 		}
 	}
+
 	return nil
 }
