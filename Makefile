@@ -35,6 +35,7 @@ clean::
 	rm -rf $(TOPDIR)/frontend/out
 	rm -rf $(TOPDIR)/frontend/.next
 
+
 test-coverage:
 	go test ./... -coverprofile=coverage.out -coverpkg=./... -timeout 1s
 	${GOBIN}/go-test-coverage --config=./.testcoverage.yml || true
@@ -95,6 +96,9 @@ $(CERT_DIR)/dev_root_user_cert.pem: $(CERT_DIR)
 		-keyout $(CERT_DIR)/dev_root_user_key.pem \
 		-subj "/C=US/ST=California/L=Mountain View/O=Habitat/CN=root"
 
+
+# ===================== Production binary build rules =====================
+
 $(TOPDIR)/bin: $(TOPDIR)
 	mkdir -p $(TOPDIR)/bin
 
@@ -113,8 +117,21 @@ $(TOPDIR)/bin/amd64-darwin/habitat-amd64-darwin.tar.gz: $(TOPDIR)/bin/amd64-darw
 	tar -czf $(TOPDIR)/bin/amd64-darwin/habitat-amd64-darwin.tar.gz -C $(TOPDIR)/bin/amd64-darwin habitat
 
 
+# ===================== Frontend build rules =====================
+
+clean:: clean-frontend-types
+
+clean-frontend-types:
+	rm -rf $(TOPDIR)/frontend/types/*.ts
+# Generate the frontend types
+frontend/types/api.ts:
+	tygo --config $(TOPDIR)/config/tygo.yml generate
+
+frontend-types: frontend/types/api.ts
+PHONY += frontend-types
+
 # Embed the frontend in the binary
-internal/frontend/build:
+internal/frontend/build: frontend/types/api.ts
 	cd $(TOPDIR)/frontend && pnpm install && pnpm run build
 	mkdir -p $(TOPDIR)/internal/frontend/build
 	cp -r $(TOPDIR)/frontend/out/* $(TOPDIR)/internal/frontend/build

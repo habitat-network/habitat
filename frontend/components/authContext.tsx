@@ -4,9 +4,11 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import Cookies from 'js-cookie';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
+import Header from './header';
 
 interface AuthContextType {
     isAuthenticated: boolean;
+    handle: string | null;
     login: (email: string, password: string, redirectRoute: string | null, source: string | null) => Promise<void>;
     logout: () => void;
 }
@@ -14,10 +16,26 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const token = Cookies.get('access_token');
-    const authed = token ? true : false;
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(authed);
+
+        
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+
+    const [handle, setHandle] = useState<string | null>(null);
     const router = useRouter();
+
+    useEffect(() => {
+        const token = Cookies.get('access_token');
+        const authed = token ? true : false;
+        setIsAuthenticated(authed);
+    }, []);
+
+    useEffect(() => {
+        const handle = Cookies.get('handle');
+        if (handle) {
+            setHandle(handle);
+        }
+    }, []);
+
 
     const login = async (
         identifier: string,
@@ -26,9 +44,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         source: string | null = null
     ) => {
         try {
+            const fullHandle = `${identifier}.${window.location.hostname}`;
             const response = await axios.post(`${window.location.origin}/habitat/api/node/login`, {
                 password: password,
-                identifier: identifier,
+                identifier: fullHandle,
               }, {
                 headers: {
                   'Content-Type': 'application/json',
@@ -36,7 +55,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
             console.log(response.data);
 
-            const { accessJwt, refreshJwt, did } = response.data;
+            const { accessJwt, refreshJwt, did, handle } = response.data;
 
             // If we are using a *ts.net domain, make sure the cookies are applied to all other subdomains on that TailNet.
             let parentDomain = window.location.hostname;
@@ -67,8 +86,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 expires: 7,
                 domain: parentDomain,
             });
+            
+            Cookies.set('handle', handle, {
+                expires: 7,
+                domain: parentDomain,
+            });
 
             setIsAuthenticated(true);
+            setHandle(handle);
 
             // Set cookies required for the Habitat chrome extensioon
             if (source === 'chrome_extension') {
@@ -78,7 +103,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             if (!redirectRoute) {
-                redirectRoute = '/home';
+                redirectRoute = '/';
             }
             router.push(redirectRoute);
 
@@ -95,13 +120,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         Cookies.remove('chrome_extension_access_token');
         Cookies.remove('chrome_extension_refresh_token');
 
+        Cookies.remove('handle');
+
         setIsAuthenticated(false);
         router.push('/login');
     };
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
-            {children}
+        <AuthContext.Provider value={{ isAuthenticated, handle, login, logout }}>
+            <div className="flex flex-col items-center justify-center w-full h-screen">
+                <div className="flex flex-col items-center justify-center w-full">
+                    <Header isAuthenticated={isAuthenticated} handle={handle} logout={logout} />
+                </div>
+                <div className="flex flex-col items-center justify-center w-full h-screen">
+                    {children}
+                </div>
+            </div>
         </AuthContext.Provider>
     );
 };

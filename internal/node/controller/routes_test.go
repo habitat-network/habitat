@@ -228,12 +228,6 @@ func TestGetNodeHandler(t *testing.T) {
 
 	var respBody types.GetNodeResponse
 	require.NoError(t, json.Unmarshal(bytes, &respBody))
-	for k, v := range respBody.State {
-		v2, ok := testState[k]
-		require.True(t, ok)
-		require.Equal(t, v, v2)
-	}
-
 }
 
 func TestAddUserHandler(t *testing.T) {

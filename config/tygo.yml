@@ -1,0 +1,16 @@
+packages:
+  - path: "github.com/eagraf/habitat-new/core/api"
+    output_path: "frontend/types/api.ts"
+    exclude_files:
+      - habitat_db.go
+    frontmatter: |
+      import * as node from "./node"
+    type_mappings:
+      node.State: "node.State"
+      node.AppInstallation: "node.AppInstallation"
+      node.ReverseProxyRule: "node.ReverseProxyRule"
+  - path: "github.com/eagraf/habitat-new/core/state/node"
+    output_path: "frontend/types/node.ts"
+    include_files:
+      - schema.go
+      - core.go

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/eagraf/habitat-new/internal/node/api"
+	"github.com/eagraf/habitat-new/internal/node/appstore"
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller"
@@ -136,7 +137,10 @@ func main() {
 	))
 
 	// Set up the main API server
+	// TODO: create a less tedious way to register all the routes in the future. It might be as simple
+	// as having a dedicated file to list these, instead of putting them all in main.
 	routes := []api.Route{
+		// Node routes
 		api.NewVersionHandler(),
 		controller.NewGetNodeRoute(db.Manager),
 		controller.NewLoginRoute(&controller.PDSClient{NodeConfig: nodeConfig}),
@@ -144,6 +148,9 @@ func main() {
 		controller.NewInstallAppRoute(nodeCtrl),
 		controller.NewStartProcessHandler(nodeCtrl),
 		controller.NewMigrationRoute(nodeCtrl),
+
+		// App store routes
+		appstore.NewAvailableAppsRoute(nodeConfig),
 	}
 
 	router := api.NewRouter(routes, logger, nodeCtrl, nodeConfig)

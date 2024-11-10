@@ -101,9 +101,10 @@ func (c *BaseNodeController) InstallApp(userID string, newApp *node.AppInstallat
 
 	_, err = dbClient.ProposeTransitions([]hdb.Transition{
 		&node.StartInstallationTransition{
-			UserID:          userID,
-			AppInstallation: newApp,
-			NewProxyRules:   newProxyRules,
+			UserID:                 userID,
+			AppInstallation:        newApp,
+			NewProxyRules:          newProxyRules,
+			StartAfterInstallation: true,
 		},
 	})
 	return err

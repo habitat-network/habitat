@@ -179,6 +179,7 @@ func (m MigrationsList) GetNeededMigrations(currentVersion, targetVersion string
 			break
 		}
 	}
+
 	if len(migrations) == 0 {
 		return nil, fmt.Errorf("no migrations found")
 	}

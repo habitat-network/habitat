@@ -15,3 +15,5 @@ dev.env
 
 # Ignore frontend build
 internal/frontend/build
+next
+frontend@*

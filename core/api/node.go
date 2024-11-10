@@ -7,7 +7,7 @@ type MigrateRequest struct {
 }
 
 type GetNodeResponse struct {
-	State map[string]interface{} `json:"state"`
+	State node.State `json:"state"`
 }
 
 type PostAddUserRequest struct {

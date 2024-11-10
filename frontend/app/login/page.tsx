@@ -2,7 +2,7 @@
 
 import React, { useState, FormEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import './login.css';
+import styles from './login.module.css';
 import { useAuth } from '@/components/authContext';
 
 const LoginInternal = () => {
@@ -15,7 +15,7 @@ const LoginInternal = () => {
     const searchParams = useSearchParams();
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        let redirectRoute: string = '/home';
+        let redirectRoute: string = '/';
         const overrideRoute =  searchParams.get('redirectRoute');
         if (overrideRoute) {
             redirectRoute = overrideRoute;
@@ -28,10 +28,11 @@ const LoginInternal = () => {
     };
 
     return (
-        <div className="login-container">
-            <form className="login-form" onSubmit={handleSubmit}>
+        <div className={styles.loginBody}>
+            <div className={styles.loginContainer}>
+                <form className={styles.loginForm} onSubmit={handleSubmit}>
                 <h2>Login</h2>
-                <div className="form-group">
+                <div className={styles.formGroup}>
                     <label htmlFor="handle">Handle:</label>
                     <input
                         type="text"
@@ -41,7 +42,7 @@ const LoginInternal = () => {
                         required
                     />
                 </div>
-                <div className="form-group">
+                <div className={styles.formGroup}>
                     <label htmlFor="password">Password:</label>
                     <input
                         type="password"
@@ -51,13 +52,15 @@ const LoginInternal = () => {
                         required
                     />
                 </div>
-                <button type="submit">Login</button>
-            </form>
+                <button className={styles.loginButton} type="submit">Login</button>
+                </form>
+            </div>
         </div>
     );
 };
 
 const Login = () => {
+    // TODO redirect to home if already logged in
     return (
         <Suspense fallback={<div>Loading...</div>}>
             <LoginInternal />

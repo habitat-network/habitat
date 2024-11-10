@@ -1,14 +1,15 @@
-body {
+.loginBody {
     font-family: Arial, sans-serif;
     background-color: #f0f2f5;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    width: 100vw;
     margin: 0;
 }
 
-.login-container {
+.loginContainer {
     width: 300px;
     padding: 20px;
     background-color: #fff;
@@ -16,23 +17,23 @@ body {
     border-radius: 8px;
 }
 
-.login-form h2 {
+.loginForm h2 {
     margin-bottom: 20px;
     color: #333;
     text-align: center;
 }
 
-.form-group {
+.formGroup {
     margin-bottom: 15px;
 }
 
-.form-group label {
+.formGroup label {
     display: block;
     margin-bottom: 5px;
     color: #555;
 }
 
-.form-group input {
+.formGroup input {
     width: calc(100% - 20px);
     padding: 8px;
     border: 1px solid #ccc;
@@ -40,7 +41,7 @@ body {
     box-sizing: border-box;
 }
 
-button {
+.loginButton {
     width: 100%;
     padding: 10px;
     background-color: #007bff;
@@ -51,6 +52,6 @@ button {
     cursor: pointer;
 }
 
-button:hover {
+.loginButton:hover {
     background-color: #0056b3;
 }

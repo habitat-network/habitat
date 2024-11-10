@@ -44,12 +44,12 @@ const AppStateInstalled = "installed"
 const AppStateUninstalled = "uninstalled"
 
 type AppInstallationState struct {
-	*AppInstallation
-	State string `json:"state"`
+	*AppInstallation `tstype:",extends,required"`
+	State            string `json:"state"`
 }
 
 type ProcessState struct {
-	*Process
+	*Process    `tstype:",extends,required"`
 	State       string `json:"state"`
 	ExtDriverID string `json:"ext_driver_id"`
 }
