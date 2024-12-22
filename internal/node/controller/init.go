@@ -39,8 +39,10 @@ func generatePDSAppConfig(nodeConfig *config.NodeConfig) *types.PostAppRequest {
 						"PDS_BSKY_APP_VIEW_URL=https://api.bsky.app",
 						"PDS_BSKY_APP_VIEW_DID=did:web:api.bsky.app",
 						"PDS_REPORT_SERVICE_URL=https://mod.bsky.app",
+						"PDS_INVITE_REQUIRED=false",
 						"PDS_REPORT_SERVICE_DID=did:plc:ar7c4by46qjdydhdevvrndac",
 						"PDS_CRAWLERS=https://bsky.network",
+						"DEBUG=t",
 					},
 					"mounts": []mount.Mount{
 						{

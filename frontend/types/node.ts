@@ -46,26 +46,18 @@ export interface ReverseProxyRule {
   matcher: string;
   target: string;
   app_id: string;
-  fishtail_ingest_config?: FishtailIngestConfig;
-}
-export interface FishtailIngestConfig {
-  subscribed_collections: (FishtailSubscription | undefined)[];
-}
-export interface FishtailSubscription {
-  lexicon: string;
 }
 export type ReverseProxyRuleType = string;
 export const ProxyRuleFileServer: ReverseProxyRuleType = "file";
 export const ProxyRuleRedirect: ReverseProxyRuleType = "redirect";
 export const ProxyRuleEmbeddedFrontend: ReverseProxyRuleType = "embedded_frontend";
-export const ProxyRuleFishtailIngest: ReverseProxyRuleType = "fishtail_ingest";
 
 //////////
 // source: schema.go
 
 export const SchemaName = "node";
-export const CurrentVersion = "v0.0.7";
-export const LatestVersion = "v0.0.7";
+export const CurrentVersion = "v0.0.6";
+export const LatestVersion = "v0.0.6";
 export interface State {
   node_id: string;
   name: string;

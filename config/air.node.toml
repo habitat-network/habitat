@@ -17,7 +17,7 @@ stop_on_error = true
 # When in debugging mode, it sometimes helps to have the application block immediately so that you can
 # easily debug code that executes near startup. To do this, remove the --continue flag and rebuild the docker
 # image.
-full_bin = "dlv exec --accept-multiclient --log --headless --continue --listen :4000 --api-version 2 /habitat_node"
+full_bin = "dlv exec --accept-multiclient --log --headless --listen :4000 --api-version 2 /habitat_node"
 
 # Watch these filename extensions.
 include_ext = ["go", "yml"]

@@ -13,7 +13,6 @@ import (
 	reflect "reflect"
 
 	types "github.com/eagraf/habitat-new/core/api"
-	config "github.com/eagraf/habitat-new/internal/node/config"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -21,6 +20,7 @@ import (
 type MockPDSClientI struct {
 	ctrl     *gomock.Controller
 	recorder *MockPDSClientIMockRecorder
+	isgomock struct{}
 }
 
 // MockPDSClientIMockRecorder is the mock recorder for MockPDSClientI.
@@ -41,18 +41,18 @@ func (m *MockPDSClientI) EXPECT() *MockPDSClientIMockRecorder {
 }
 
 // CreateAccount mocks base method.
-func (m *MockPDSClientI) CreateAccount(nodeConfig *config.NodeConfig, email, handle, password, inviteCode string) (types.PDSCreateAccountResponse, error) {
+func (m *MockPDSClientI) CreateAccount(email, handle, password string) (types.PDSCreateAccountResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAccount", nodeConfig, email, handle, password, inviteCode)
+	ret := m.ctrl.Call(m, "CreateAccount", email, handle, password)
 	ret0, _ := ret[0].(types.PDSCreateAccountResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateAccount indicates an expected call of CreateAccount.
-func (mr *MockPDSClientIMockRecorder) CreateAccount(nodeConfig, email, handle, password, inviteCode any) *gomock.Call {
+func (mr *MockPDSClientIMockRecorder) CreateAccount(email, handle, password any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockPDSClientI)(nil).CreateAccount), nodeConfig, email, handle, password, inviteCode)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockPDSClientI)(nil).CreateAccount), email, handle, password)
 }
 
 // CreateSession mocks base method.
@@ -68,19 +68,4 @@ func (m *MockPDSClientI) CreateSession(identifier, password string) (types.PDSCr
 func (mr *MockPDSClientIMockRecorder) CreateSession(identifier, password any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSession", reflect.TypeOf((*MockPDSClientI)(nil).CreateSession), identifier, password)
-}
-
-// GetInviteCode mocks base method.
-func (m *MockPDSClientI) GetInviteCode(nodeConfig *config.NodeConfig) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetInviteCode", nodeConfig)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetInviteCode indicates an expected call of GetInviteCode.
-func (mr *MockPDSClientIMockRecorder) GetInviteCode(nodeConfig any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInviteCode", reflect.TypeOf((*MockPDSClientI)(nil).GetInviteCode), nodeConfig)
 }

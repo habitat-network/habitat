@@ -46,13 +46,3 @@ export interface PDSCreateSessionRequest {
   password: string;
 }
 export type PDSCreateSessionResponse = { [key: string]: any};
-export interface PDSGetRecordRequest {
-  repo: string;
-  collection: string;
-  rkey: string;
-}
-export interface PDSGetRecordResponse {
-  uri: string;
-  cid: string;
-  value: { [key: string]: any};
-}

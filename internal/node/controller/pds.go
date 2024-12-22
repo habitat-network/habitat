@@ -9,42 +9,29 @@ import (
 	"net/http"
 
 	types "github.com/eagraf/habitat-new/core/api"
-
-	"github.com/eagraf/habitat-new/internal/node/config"
 )
 
 type PDSClientI interface {
 	CreateSession(identifier, password string) (types.PDSCreateSessionResponse, error)
-	GetInviteCode(nodeConfig *config.NodeConfig) (string, error)
-	CreateAccount(nodeConfig *config.NodeConfig, email, handle, password, inviteCode string) (types.PDSCreateAccountResponse, error)
+	CreateAccount(email, handle, password string) (types.PDSCreateAccountResponse, error)
 }
 
-type PDSClient struct {
-	NodeConfig *config.NodeConfig
+var _ PDSClientI = &pdsClient{}
+
+type pdsClient struct {
+	pdsUsername string
+	pdsPassword string
 }
 
-func (p *PDSClient) GetInviteCode(nodeConfig *config.NodeConfig) (string, error) {
-	// Parse the response body to get the invite code
-	body, err := p.makePDSHttpReq("com.atproto.server.createInviteCode", http.MethodPost, []byte("{\"useCount\": 1}"), true)
-	if err != nil {
-		return "", err
-	}
-
-	var inviteResponse types.PDSInviteCodeResponse
-	err = json.Unmarshal(body, &inviteResponse)
-	if err != nil {
-		return "", err
-	}
-
-	return inviteResponse.Code, nil
+func NewPDSClient(username string, password string) PDSClientI {
+	return &pdsClient{username, password}
 }
 
-func (p *PDSClient) CreateAccount(nodeConfig *config.NodeConfig, email, handle, password, inviteCode string) (types.PDSCreateAccountResponse, error) {
+func (p *pdsClient) CreateAccount(email, handle, password string) (types.PDSCreateAccountResponse, error) {
 	reqBody := types.PDSCreateAccountRequest{
-		Email:      email,
-		Handle:     handle,
-		Password:   password,
-		InviteCode: inviteCode,
+		Email:    email,
+		Handle:   handle,
+		Password: password,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -66,7 +53,7 @@ func (p *PDSClient) CreateAccount(nodeConfig *config.NodeConfig, email, handle, 
 	return createAccountResponse, nil
 }
 
-func (p *PDSClient) CreateSession(identifier, password string) (types.PDSCreateSessionResponse, error) {
+func (p *pdsClient) CreateSession(identifier, password string) (types.PDSCreateSessionResponse, error) {
 	reqBody := types.PDSCreateSessionRequest{
 		Identifier: identifier,
 		Password:   password,
@@ -92,7 +79,7 @@ func (p *PDSClient) CreateSession(identifier, password string) (types.PDSCreateS
 }
 
 // Helper function to make HTTP requests to PDS
-func (p *PDSClient) makePDSHttpReq(endpoint, method string, body []byte, isAdminReq bool) ([]byte, error) {
+func (p *pdsClient) makePDSHttpReq(endpoint, method string, body []byte, isAdminReq bool) ([]byte, error) {
 	pdsURL := fmt.Sprintf("http://%s:%s/xrpc/%s", "host.docker.internal", "5001", endpoint)
 
 	req, err := http.NewRequest(method, pdsURL, bytes.NewReader(body))
@@ -102,7 +89,7 @@ func (p *PDSClient) makePDSHttpReq(endpoint, method string, body []byte, isAdmin
 
 	req.Header.Add("Content-Type", "application/json")
 	if isAdminReq {
-		authHeader := basicAuthHeader(p.NodeConfig.PDSAdminUsername(), p.NodeConfig.PDSAdminPassword())
+		authHeader := basicAuthHeader(p.pdsUsername, p.pdsPassword)
 		req.Header.Add("Authorization", authHeader)
 	}
 

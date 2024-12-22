@@ -43,7 +43,8 @@ func main() {
 	}
 	defer dbClose()
 
-	nodeCtrl, err := controller.NewNodeController(db.Manager, nodeConfig)
+	pdsClient := controller.NewPDSClient(nodeConfig.PDSAdminUsername(), nodeConfig.PDSAdminPassword())
+	nodeCtrl, err := controller.NewNodeController(db.Manager, nodeConfig, pdsClient)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node controller")
 	}
@@ -143,7 +144,7 @@ func main() {
 		// Node routes
 		api.NewVersionHandler(),
 		controller.NewGetNodeRoute(db.Manager),
-		controller.NewLoginRoute(&controller.PDSClient{NodeConfig: nodeConfig}),
+		controller.NewLoginRoute(pdsClient),
 		controller.NewAddUserRoute(nodeCtrl),
 		controller.NewInstallAppRoute(nodeCtrl),
 		controller.NewStartProcessHandler(nodeCtrl),

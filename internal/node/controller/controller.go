@@ -38,11 +38,11 @@ type BaseNodeController struct {
 	pdsClient       PDSClientI
 }
 
-func NewNodeController(habitatDBManager hdb.HDBManager, config *config.NodeConfig) (*BaseNodeController, error) {
+func NewNodeController(habitatDBManager hdb.HDBManager, config *config.NodeConfig, pds PDSClientI) (*BaseNodeController, error) {
 	controller := &BaseNodeController{
 		databaseManager: habitatDBManager,
 		nodeConfig:      config,
-		pdsClient:       &PDSClient{},
+		pdsClient:       pds,
 	}
 	return controller, nil
 }
@@ -215,13 +215,7 @@ func (c *BaseNodeController) StopProcess(processID string) error {
 }
 
 func (c *BaseNodeController) AddUser(userID, email, handle, password, certificate string) (types.PDSCreateAccountResponse, error) {
-
-	inviteCode, err := c.pdsClient.GetInviteCode(c.nodeConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.pdsClient.CreateAccount(c.nodeConfig, email, handle, password, inviteCode)
+	resp, err := c.pdsClient.CreateAccount(email, handle, password)
 	if err != nil {
 		return nil, err
 	}
