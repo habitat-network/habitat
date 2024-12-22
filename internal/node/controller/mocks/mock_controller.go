@@ -14,6 +14,7 @@ import (
 
 	types "github.com/eagraf/habitat-new/core/api"
 	node "github.com/eagraf/habitat-new/core/state/node"
+	hdb "github.com/eagraf/habitat-new/internal/node/hdb"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -101,17 +102,17 @@ func (mr *MockNodeControllerMockRecorder) GetUserByUsername(username any) *gomoc
 }
 
 // InitializeNodeDB mocks base method.
-func (m *MockNodeController) InitializeNodeDB() error {
+func (m *MockNodeController) InitializeNodeDB(transitions []hdb.Transition) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InitializeNodeDB")
+	ret := m.ctrl.Call(m, "InitializeNodeDB", transitions)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InitializeNodeDB indicates an expected call of InitializeNodeDB.
-func (mr *MockNodeControllerMockRecorder) InitializeNodeDB() *gomock.Call {
+func (mr *MockNodeControllerMockRecorder) InitializeNodeDB(transitions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeNodeDB", reflect.TypeOf((*MockNodeController)(nil).InitializeNodeDB))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeNodeDB", reflect.TypeOf((*MockNodeController)(nil).InitializeNodeDB), transitions)
 }
 
 // InstallApp mocks base method.

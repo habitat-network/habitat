@@ -14,6 +14,6 @@ bin/
 dev.env
 
 # Ignore frontend build
-internal/frontend/build
+frontend_server/build
 next
 frontend@*

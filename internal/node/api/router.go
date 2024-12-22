@@ -1,10 +1,10 @@
 package api
 
 import (
+	"crypto/x509"
 	"fmt"
 	"net/http"
 
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/rs/zerolog"
 )
@@ -41,7 +41,8 @@ func NewRouter(
 	routes []Route,
 	logger *zerolog.Logger,
 	nodeController controller.NodeController,
-	nodeConfig *config.NodeConfig,
+	useTLS bool,
+	rootUserCert *x509.Certificate,
 ) http.Handler {
 	router := http.NewServeMux()
 	for _, route := range routes {
@@ -51,7 +52,8 @@ func NewRouter(
 
 	authMiddleware := &authenticationMiddleware{
 		nodeController: nodeController,
-		nodeConfig:     nodeConfig,
+		useTLS:         useTLS,
+		rootUserCert:   rootUserCert,
 	}
 
 	return authMiddleware.Middleware(router)

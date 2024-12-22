@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/rs/zerolog/log"
@@ -17,7 +16,8 @@ import (
 
 type authenticationMiddleware struct {
 	nodeController controller.NodeController
-	nodeConfig     *config.NodeConfig
+	useTLS         bool
+	rootUserCert   *x509.Certificate
 }
 
 func (amw *authenticationMiddleware) Middleware(next http.Handler) http.Handler {
@@ -28,7 +28,7 @@ func (amw *authenticationMiddleware) Middleware(next http.Handler) http.Handler 
 		var userID string
 
 		// Only authenticate if TLS is enabled. This is temporary.
-		if amw.nodeConfig.UseTLS() {
+		if amw.useTLS {
 			if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.VerifiedChains[0]) == 0 {
 				http.Error(w, "No client certificate found", http.StatusUnauthorized)
 				return
@@ -40,7 +40,7 @@ func (amw *authenticationMiddleware) Middleware(next http.Handler) http.Handler 
 
 			var storedCert *x509.Certificate
 			if username == constants.RootUsername {
-				storedCert = amw.nodeConfig.RootUserCert
+				storedCert = amw.rootUserCert
 				username = constants.RootUsername
 				userID = constants.RootUserID
 			} else {

@@ -62,6 +62,9 @@ type AppDriver struct {
 	client *client.Client
 }
 
+// AppDriver implements PackageManager
+var _ package_manager.PackageManager = &AppDriver{}
+
 func (d *AppDriver) Driver() string {
 	return constants.AppDriverDocker
 }

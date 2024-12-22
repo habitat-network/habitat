@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/logging"
 	"github.com/stretchr/testify/require"
 )
@@ -45,9 +44,7 @@ func TestProxy(t *testing.T) {
 	file.Close()
 
 	// Create proxy server
-	config, err := config.NewTestNodeConfig(nil)
-	require.Nil(t, err)
-	proxy := NewProxyServer(logging.NewLogger(), config)
+	proxy := NewProxyServer(logging.NewLogger(), "default/path")
 	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
 		ID:      "backend1",
 		Type:    node.ProxyRuleRedirect,

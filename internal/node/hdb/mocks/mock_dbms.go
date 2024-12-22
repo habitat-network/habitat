@@ -20,6 +20,7 @@ import (
 type MockHDBManager struct {
 	ctrl     *gomock.Controller
 	recorder *MockHDBManagerMockRecorder
+	isgomock struct{}
 }
 
 // MockHDBManagerMockRecorder is the mock recorder for MockHDBManager.
@@ -126,6 +127,7 @@ func (mr *MockHDBManagerMockRecorder) Stop() *gomock.Call {
 type MockDatabaseConfig struct {
 	ctrl     *gomock.Controller
 	recorder *MockDatabaseConfigMockRecorder
+	isgomock struct{}
 }
 
 // MockDatabaseConfigMockRecorder is the mock recorder for MockDatabaseConfig.

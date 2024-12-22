@@ -10,8 +10,6 @@ import (
 	"text/template"
 
 	types "github.com/eagraf/habitat-new/core/api"
-	"github.com/eagraf/habitat-new/internal/node/config"
-	"github.com/eagraf/habitat-new/internal/node/constants"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -23,17 +21,17 @@ import (
 var appsDevYml embed.FS
 
 // getAppsList returns the contents of the embedded apps.dev.yml file
-func getDevAppsList(config *config.NodeConfig) ([]*types.PostAppRequest, error) {
+func getDevAppsList(path string) ([]*types.PostAppRequest, error) {
 	raw, err := fs.ReadFile(appsDevYml, "apps.dev.yml.tpl")
 	if err != nil {
 		return nil, err
 	}
 
-	return renderDevAppsList(config, raw)
+	return renderDevAppsList(path, raw)
 }
 
 // Render the template for the dev apps list. Only used in dev mode.
-func renderDevAppsList(config *config.NodeConfig, raw []byte) ([]*types.PostAppRequest, error) {
+func renderDevAppsList(path string, raw []byte) ([]*types.PostAppRequest, error) {
 	tmpl, err := template.New("apps").Parse(string(raw))
 	if err != nil {
 		return nil, err
@@ -42,7 +40,7 @@ func renderDevAppsList(config *config.NodeConfig, raw []byte) ([]*types.PostAppR
 	data := struct {
 		HabitatPath string
 	}{
-		HabitatPath: config.HabitatPath(),
+		HabitatPath: path,
 	}
 
 	var buf bytes.Buffer
@@ -64,11 +62,11 @@ func renderDevAppsList(config *config.NodeConfig, raw []byte) ([]*types.PostAppR
 
 // AvailableAppsRoute lists apps the user is able to install.
 type AvailableAppsRoute struct {
-	config *config.NodeConfig
+	path string
 }
 
-func NewAvailableAppsRoute(config *config.NodeConfig) *AvailableAppsRoute {
-	return &AvailableAppsRoute{config: config}
+func NewAvailableAppsRoute(path string) *AvailableAppsRoute {
+	return &AvailableAppsRoute{path}
 }
 
 func (h *AvailableAppsRoute) Pattern() string {
@@ -80,26 +78,21 @@ func (h *AvailableAppsRoute) Method() string {
 }
 
 func (h *AvailableAppsRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h.config.Environment() == constants.EnvironmentDev {
-		apps, err := getDevAppsList(h.config)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	apps, err := getDevAppsList(h.path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-		marsahalled, err := json.Marshal(apps)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	marsahalled, err := json.Marshal(apps)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-		_, err = w.Write(marsahalled)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// TODO: implement this in "prod" mode
-		http.Error(w, "Not implemented", http.StatusNotImplemented)
+	_, err = w.Write(marsahalled)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

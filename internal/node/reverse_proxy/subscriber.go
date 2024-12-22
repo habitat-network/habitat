@@ -5,6 +5,7 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
+
 	"github.com/rs/zerolog/log"
 )
 

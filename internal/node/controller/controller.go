@@ -6,7 +6,6 @@ import (
 
 	types "github.com/eagraf/habitat-new/core/api"
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/rs/zerolog/log"
@@ -17,7 +16,7 @@ import (
 // For example, installing apps or adding users. This will likely expand to be a much bigger API as we move forward.
 
 type NodeController interface {
-	InitializeNodeDB() error
+	InitializeNodeDB(transitions []hdb.Transition) error
 	MigrateNodeDB(targetVersion string) error
 
 	AddUser(userID, email, handle, password, certificate string) (types.PDSCreateAccountResponse, error)
@@ -34,28 +33,20 @@ type NodeController interface {
 
 type BaseNodeController struct {
 	databaseManager hdb.HDBManager
-	nodeConfig      *config.NodeConfig
 	pdsClient       PDSClientI
 }
 
-func NewNodeController(habitatDBManager hdb.HDBManager, config *config.NodeConfig, pds PDSClientI) (*BaseNodeController, error) {
+func NewNodeController(habitatDBManager hdb.HDBManager, pds PDSClientI) (*BaseNodeController, error) {
 	controller := &BaseNodeController{
 		databaseManager: habitatDBManager,
-		nodeConfig:      config,
 		pdsClient:       pds,
 	}
 	return controller, nil
 }
 
 // InitializeNodeDB tries initializing the database; it is a noop if a database with the same name already exists
-func (c *BaseNodeController) InitializeNodeDB() error {
-
-	initialTransitions, err := initTranstitions(c.nodeConfig)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.databaseManager.CreateDatabase(constants.NodeDBDefaultName, node.SchemaName, initialTransitions)
+func (c *BaseNodeController) InitializeNodeDB(transitions []hdb.Transition) error {
+	_, err := c.databaseManager.CreateDatabase(constants.NodeDBDefaultName, node.SchemaName, transitions)
 	if err != nil {
 		if _, ok := err.(*hdb.DatabaseAlreadyExistsError); ok {
 			log.Info().Msg("Node database already exists, doing nothing.")
@@ -63,7 +54,6 @@ func (c *BaseNodeController) InitializeNodeDB() error {
 			return err
 		}
 	}
-
 	return nil
 }
 

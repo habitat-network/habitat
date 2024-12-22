@@ -14,12 +14,11 @@ import (
 	"time"
 
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/frontend"
-	"github.com/eagraf/habitat-new/internal/node/config"
+	frontend "github.com/eagraf/habitat-new/frontend_server"
 	"github.com/rs/zerolog/log"
 )
 
-func getHandlerFromRule(rule *node.ReverseProxyRule, nodeConfig *config.NodeConfig) (http.Handler, error) {
+func getHandlerFromRule(rule *node.ReverseProxyRule, webBundlePath string) (http.Handler, error) {
 	switch rule.Type {
 
 	// The reverse proxy will forward the traffic to another service.
@@ -28,7 +27,7 @@ func getHandlerFromRule(rule *node.ReverseProxyRule, nodeConfig *config.NodeConf
 
 	// The reverse proxy will serve files directly from the host system.
 	case node.ProxyRuleFileServer:
-		return getFileServerHandler(rule, WithBasePath(nodeConfig.WebBundlePath()))
+		return getFileServerHandler(rule, WithBasePath(webBundlePath))
 
 	// The reverse proxy will serve the node frontend.
 	// The frontend's bundle is embedded directly into this processes binary, so we can serve it without

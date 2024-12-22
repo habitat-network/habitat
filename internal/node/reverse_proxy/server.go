@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -16,19 +15,19 @@ import (
 )
 
 type ProxyServer struct {
-	logger     *zerolog.Logger
-	nodeConfig *config.NodeConfig
-	RuleSet    *RuleSet
+	logger           *zerolog.Logger
+	RuleSet          *RuleSet
+	defaultServePath string
 }
 
-func NewProxyServer(logger *zerolog.Logger, config *config.NodeConfig) *ProxyServer {
+func NewProxyServer(logger *zerolog.Logger, defaultServePath string) *ProxyServer {
 	return &ProxyServer{
 		logger: logger,
 		RuleSet: &RuleSet{
 			rules:        make(map[string]*node.ReverseProxyRule),
-			baseFilePath: config.WebBundlePath(),
+			baseFilePath: defaultServePath,
 		},
-		nodeConfig: config,
+		defaultServePath: defaultServePath,
 	}
 }
 
@@ -39,7 +38,7 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, rule := range s.RuleSet.rules {
 		if rule != nil {
 			if matchRule(r.URL, rule) {
-				rank := rankMatch(r.URL, rule)
+				rank := rankMatch(rule)
 				if rank > highestRank {
 					bestMatch = rule
 					highestRank = rank
@@ -55,7 +54,7 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the handler for the best matching rule
-	handler, err := getHandlerFromRule(bestMatch, s.nodeConfig)
+	handler, err := getHandlerFromRule(bestMatch, s.defaultServePath)
 	if err != nil {
 		msg := fmt.Sprintf("error getting handler: %s", err)
 		log.Error().Msg(msg)
@@ -73,40 +72,34 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(w, r)
 }
 
-func (s *ProxyServer) Listener(addr string) (net.Listener, error) {
-	// If TS_AUTHKEY is set, create a tsnet listener. Otherwise, create a normal tcp listener.
+func (s *ProxyServer) TailscaleListener(addr, hostname, tsStatePath string, funnelEnabled bool) (net.Listener, error) {
 	var listener net.Listener
-	if s.nodeConfig.TailscaleAuthkey() == "" {
-		ln, err := net.Listen("tcp", addr)
+	tsnet := &tsnet.Server{
+		Hostname: hostname,
+		Dir:      tsStatePath,
+		Logf: func(msg string, args ...any) {
+			s.logger.Debug().Msgf(msg, args...)
+		},
+	}
+
+	if funnelEnabled {
+		ln, err := tsnet.ListenFunnel("tcp", addr)
 		if err != nil {
 			return nil, err
 		}
 		listener = ln
 	} else {
-		tsnet := &tsnet.Server{
-			Hostname: s.nodeConfig.Hostname(),
-			Dir:      s.nodeConfig.TailScaleStatePath(),
-			Logf: func(msg string, args ...any) {
-				s.logger.Debug().Msgf(msg, args...)
-			},
+		ln, err := tsnet.Listen("tcp", addr)
+		if err != nil {
+			return nil, err
 		}
-
-		if s.nodeConfig.TailScaleFunnelEnabled() {
-			ln, err := tsnet.ListenFunnel("tcp", addr)
-			if err != nil {
-				return nil, err
-			}
-			listener = ln
-		} else {
-			ln, err := tsnet.Listen("tcp", addr)
-			if err != nil {
-				return nil, err
-			}
-			listener = ln
-		}
+		listener = ln
 	}
-
 	return listener, nil
+}
+
+func (s *ProxyServer) Listener(addr string) (net.Listener, error) {
+	return net.Listen("tcp", addr)
 }
 
 // Determine whether a rule matches a URL
@@ -125,6 +118,6 @@ func matchRule(requestURL *url.URL, rule *node.ReverseProxyRule) bool {
 }
 
 // Find the rank of a match, given a requestURL and a rule
-func rankMatch(requestURL *url.URL, rule *node.ReverseProxyRule) int {
+func rankMatch(rule *node.ReverseProxyRule) int {
 	return strings.Count(rule.Matcher, "/")
 }

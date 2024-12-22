@@ -75,6 +75,25 @@ func testTransitions(oldState *State, transitions []hdb.Transition) (*State, err
 	return &state, nil
 }
 
+func TestFrontendDevMode(t *testing.T) {
+	state, err := InitRootState("fake_user_cert")
+	require.NoError(t, err)
+	newState, err := testTransitions(state, []hdb.Transition{
+		&AddReverseProxyRuleTransition{
+			Rule: &ReverseProxyRule{
+				Type:    ProxyRuleRedirect,
+				ID:      "default-rule-frontend",
+				Matcher: "", // Root matcher
+			},
+		},
+	})
+	require.Nil(t, err)
+
+	frontendRule, ok := (*newState.ReverseProxyRules)["default-rule-frontend"]
+	require.Equal(t, true, ok)
+	require.Equal(t, ProxyRuleRedirect, frontendRule.Type)
+}
+
 // use this if you expect the transitions to cause an error
 func testTransitionsOnCopy(oldState *State, transitions []hdb.Transition) (*State, error) {
 	marshaled, err := json.Marshal(oldState)

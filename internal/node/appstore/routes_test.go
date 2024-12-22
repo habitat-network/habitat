@@ -8,9 +8,6 @@ import (
 	"testing"
 
 	types "github.com/eagraf/habitat-new/core/api"
-	"github.com/eagraf/habitat-new/internal/node/config"
-	"github.com/eagraf/habitat-new/internal/node/constants"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,15 +36,8 @@ func TestRenderDevAppsList(t *testing.T) {
     registry_app_id: ethangraf/pouch-backend
     registry_tag: release-3`)
 
-	// Create a test node config
-	v := viper.New()
-	v.Set("habitat_path", "/home/fakeuser/.habitat")
-	config, err := config.NewTestNodeConfig(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	apps, err := renderDevAppsList(config, raw)
+	path := "/home/fakeuser/.habitat"
+	apps, err := renderDevAppsList(path, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,23 +59,20 @@ func TestRenderDevAppsList(t *testing.T) {
 	require.Equal(t, "/home/fakeuser/.habitat/apps/pouch/database.sqlite", mount["source"])
 
 	// Test parsing bad app list
-	_, err = renderDevAppsList(config, []byte("not yaml"))
+	_, err = renderDevAppsList(path, []byte("not yaml"))
 	require.Error(t, err)
 }
 
 func TestAvailableAppsRouteDev(t *testing.T) {
-	v := viper.New()
-	v.Set("environment", constants.EnvironmentDev)
-	config, err := config.NewTestNodeConfig(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	handler := NewAvailableAppsRoute(config)
+	path := "/home/fakeuser/.habitat"
+	handler := NewAvailableAppsRoute(path)
 
 	resp := httptest.NewRecorder()
 	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, handler.Pattern(), nil))
 	require.Equal(t, http.StatusOK, resp.Result().StatusCode)
+	// Get test coverage to pass
+	require.Equal(t, "/app_store/available_apps", handler.Pattern())
+	require.Equal(t, http.MethodGet, handler.Method())
 
 	bytes, err := io.ReadAll(resp.Result().Body)
 	require.NoError(t, err)
@@ -96,19 +83,4 @@ func TestAvailableAppsRouteDev(t *testing.T) {
 	require.Equal(t, 2, len(respBody))
 	require.Equal(t, "pouch_frontend", respBody[0].AppInstallation.Name)
 	require.Equal(t, "4", respBody[0].AppInstallation.Version)
-}
-
-func TestAvailableAppsRouteProd(t *testing.T) {
-	v := viper.New()
-	v.Set("environment", constants.EnvironmentProd)
-	config, err := config.NewTestNodeConfig(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	handler := NewAvailableAppsRoute(config)
-
-	resp := httptest.NewRecorder()
-	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, handler.Pattern(), nil))
-	require.Equal(t, http.StatusNotImplemented, resp.Result().StatusCode)
 }

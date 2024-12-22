@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
+	"github.com/google/uuid"
 	"github.com/qri-io/jsonschema"
 )
 
@@ -217,4 +219,25 @@ func (s *NodeSchema) ValidateState(state []byte) error {
 		return keyErrs[0]
 	}
 	return nil
+}
+
+func InitRootState(rootUserCert string) (*State, error) {
+	// TODO this is basically a placeholder until we actually have a way of generating
+	// the certificate for the node.
+	nodeUUID := uuid.New().String()
+	rootCert := rootUserCert
+
+	initState, err := GetEmptyStateForVersion(LatestVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	initState.NodeID = nodeUUID
+	initState.Users[constants.RootUserID] = &User{
+		ID:          constants.RootUserID,
+		Username:    constants.RootUsername,
+		Certificate: rootCert,
+	}
+
+	return initState, nil
 }

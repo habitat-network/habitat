@@ -1,7 +1,6 @@
 package web
 
 import (
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/package_manager"
 )
 
@@ -15,10 +14,10 @@ type Driver struct {
 	ProcessDriver  *ProcessDriver
 }
 
-func NewDriver(config *config.NodeConfig) (*Driver, error) {
+func NewDriver(webBundlePath string) (*Driver, error) {
 	return &Driver{
 		PackageManager: &AppDriver{
-			config: config,
+			webBundlePath: webBundlePath,
 		},
 	}, nil
 }

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller/mocks"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
@@ -16,17 +15,39 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func fakeInitState(rootUserCert, rootUserID, rootUsername string) *node.State {
+	initState, err := node.GetEmptyStateForVersion(node.LatestVersion)
+	if err != nil {
+		panic(err)
+	}
+
+	initState.Users[rootUserID] = &node.User{
+		ID:          rootUserID,
+		Username:    rootUsername,
+		Certificate: rootUserCert,
+	}
+
+	return initState
+}
+
 func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (NodeController, *mocks.MockPDSClientI, *hdb_mocks.MockHDBManager, *hdb_mocks.MockClient) {
 
 	mockedPDSClient := mocks.NewMockPDSClientI(ctrl)
 	mockedManager := hdb_mocks.NewMockHDBManager(ctrl)
 	mockedClient := hdb_mocks.NewMockClient(ctrl)
 
+	initState := fakeInitState("fake_cert", "fake_user_id", "fake_username")
+	transitions := []hdb.Transition{
+		&node.InitalizationTransition{
+			InitState: initState,
+		},
+	}
+
 	// Check that fakeInitState is based off of the config we pass in
 	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		// signature of anonymous function must have the same number of input and output arguments as the mocked method.
 		func(nodeName, schemaName string, initTransitions []hdb.Transition) (hdb.Client, error) {
-			require.Equal(t, 4, len(initTransitions))
+			require.Equal(t, 1, len(initTransitions))
 
 			initStateTransition := initTransitions[0]
 			require.Equal(t, node.TransitionInitialize, initStateTransition.Type())
@@ -34,19 +55,16 @@ func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (NodeController, *mo
 			state := initStateTransition.(*node.InitalizationTransition).InitState
 
 			assert.Equal(t, 1, len(state.Users))
-			assert.Equal(t, constants.RootUsername, state.Users["0"].Username)
-			assert.Equal(t, constants.RootUserID, state.Users["0"].ID)
-			assert.Equal(t, "cm9vdF9jZXJ0", state.Users["0"].Certificate)
+			assert.Equal(t, "fake_username", state.Users["fake_user_id"].Username)
+			assert.Equal(t, "fake_user_id", state.Users["fake_user_id"].ID)
+			assert.Equal(t, "fake_cert", state.Users["fake_user_id"].Certificate)
 
 			return mockedClient, nil
 		}).Times(1)
 
-	config, err := config.NewTestNodeConfig(nil)
+	controller, err := NewNodeController(mockedManager, mockedPDSClient)
 	require.Nil(t, err)
-
-	controller, err := NewNodeController(mockedManager, config, mockedPDSClient)
-	require.Nil(t, err)
-	err = controller.InitializeNodeDB()
+	err = controller.InitializeNodeDB(transitions)
 	require.Nil(t, err)
 
 	return controller, mockedPDSClient, mockedManager, mockedClient
@@ -58,11 +76,11 @@ func TestInitializeNodeDB(t *testing.T) {
 	controller, _, mockedManager, _ := setupNodeDBTest(ctrl, t)
 
 	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
-	err := controller.InitializeNodeDB()
+	err := controller.InitializeNodeDB(nil)
 	require.NotNil(t, err)
 
 	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, &hdb.DatabaseAlreadyExistsError{}).Times(1)
-	err = controller.InitializeNodeDB()
+	err = controller.InitializeNodeDB(nil)
 	require.Nil(t, err)
 }
 

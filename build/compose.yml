@@ -12,6 +12,7 @@ services:
   habitat_node:
     volumes:
         - ${TOPDIR}/core:${DOCKER_WORKDIR}/core
+        - ${TOPDIR}/frontend_server:${DOCKER_WORKDIR}/frontend_server
         - ${TOPDIR}/cmd:${DOCKER_WORKDIR}/cmd
         - ${TOPDIR}/internal:${DOCKER_WORKDIR}/internal
         - ${TOPDIR}/pkg:${DOCKER_WORKDIR}/pkg

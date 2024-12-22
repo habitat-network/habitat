@@ -31,14 +31,10 @@ export interface PostProcessRequest {
 //////////
 // source: pds.go
 
-export interface PDSInviteCodeResponse {
-  code: string;
-}
 export interface PDSCreateAccountRequest {
   email: string;
   handle: string;
   password: string;
-  inviteCode: string;
 }
 export type PDSCreateAccountResponse = { [key: string]: any};
 export interface PDSCreateSessionRequest {
