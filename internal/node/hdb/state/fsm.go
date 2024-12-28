@@ -20,6 +20,9 @@ type RaftFSMAdapter struct {
 	schema     hdb.Schema
 }
 
+// RaftFSMAdapter should implement the raft.FSM interface
+var _ raft.FSM = &RaftFSMAdapter{}
+
 func NewRaftFSMAdapter(databaseID string, schema hdb.Schema, commState []byte) (*RaftFSMAdapter, error) {
 	var jsonState *hdb.JSONState
 	var err error

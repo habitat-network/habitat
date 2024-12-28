@@ -1,4 +1,4 @@
-package processes
+package process
 
 import (
 	"fmt"
@@ -19,21 +19,15 @@ type ProcessManager interface {
 	GetProcess(processID string) (*node.ProcessState, error)
 }
 
-type ProcessDriver interface {
-	Type() string
-	StartProcess(*node.Process, *node.AppInstallation) (string, error)
-	StopProcess(extProcessID string) error
-}
-
 type BaseProcessManager struct {
-	processDrivers map[string]ProcessDriver
+	processDrivers map[string]Driver
 
 	processes map[string]*RunningProcess
 }
 
-func NewProcessManager(drivers []ProcessDriver) ProcessManager {
+func NewProcessManager(drivers []Driver) ProcessManager {
 	pm := &BaseProcessManager{
-		processDrivers: make(map[string]ProcessDriver),
+		processDrivers: make(map[string]Driver),
 		processes:      make(map[string]*RunningProcess),
 	}
 	for _, driver := range drivers {

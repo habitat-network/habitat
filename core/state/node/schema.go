@@ -41,21 +41,6 @@ type User struct {
 	AtprotoDID  string `json:"atproto_did,omitempty"`
 }
 
-const AppStateInstalling = "installing"
-const AppStateInstalled = "installed"
-const AppStateUninstalled = "uninstalled"
-
-type AppInstallationState struct {
-	*AppInstallation `tstype:",extends,required"`
-	State            string `json:"state"`
-}
-
-type ProcessState struct {
-	*Process    `tstype:",extends,required"`
-	State       string `json:"state"`
-	ExtDriverID string `json:"ext_driver_id"`
-}
-
 func (s State) Schema() hdb.Schema {
 	ns := &NodeSchema{}
 	return ns

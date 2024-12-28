@@ -16,7 +16,6 @@ func (r *PackageManagerRestorer) Restore(restoreEvent hdb.StateUpdate) error {
 	for _, app := range nodeState.AppInstallations {
 		// Only try to install the app if it was in the state "installing"
 		if app.State == node.AppLifecycleStateInstalling {
-
 			appDriver, err := r.getAppDriver(&app.Package)
 			if err != nil {
 				return err

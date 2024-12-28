@@ -5,9 +5,8 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/core/state/node/test_helpers"
-	"github.com/eagraf/habitat-new/internal/node/package_manager/mocks"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRestore(t *testing.T) {
@@ -40,9 +39,7 @@ func TestRestore(t *testing.T) {
 	})
 	assert.Nil(t, err)
 
-	ctrl := gomock.NewController(t)
-
-	pm := mocks.NewMockPackageManager(ctrl)
+	pm := newMockManager()
 
 	pmRestorer := &PackageManagerRestorer{
 		packageManagers: map[string]PackageManager{
@@ -50,9 +47,8 @@ func TestRestore(t *testing.T) {
 		},
 	}
 
-	pm.EXPECT().InstallPackage(gomock.Any(), gomock.Any()).Times(1)
-
 	err = pmRestorer.Restore(restoreUpdate)
 	assert.Nil(t, err)
+	require.Len(t, pm.installed, 1)
 
 }

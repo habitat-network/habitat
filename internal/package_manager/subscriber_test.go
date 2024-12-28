@@ -1,13 +1,11 @@
 package package_manager
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/core/state/node/test_helpers"
 	controller_mocks "github.com/eagraf/habitat-new/internal/node/controller/mocks"
-	"github.com/eagraf/habitat-new/internal/node/package_manager/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -40,7 +38,7 @@ func TestAppInstallSubscriber(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 
-	pm := mocks.NewMockPackageManager(ctrl)
+	pm := newMockManager()
 	nc := controller_mocks.NewMockNodeController(ctrl)
 
 	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
@@ -53,34 +51,31 @@ func TestAppInstallSubscriber(t *testing.T) {
 	}
 
 	// Test not installed
-	pm.EXPECT().IsInstalled(gomock.Eq(&node.Package{
+	installed, err := pm.IsInstalled(&node.Package{
 		Driver:            "test",
 		RegistryURLBase:   "registry.com",
 		RegistryPackageID: "package1",
-	}), gomock.Eq("v1")).Return(false, nil).Times(1)
+	}, "v1")
+	require.NoError(t, err)
+	require.False(t, installed)
 
 	should, err := installAppExecutor.ShouldExecute(stateUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, true, should)
 
 	// Test that ShouldExecute returns false when it is installed
-	pm.EXPECT().IsInstalled(gomock.Eq(&node.Package{
+	require.NoError(t, pm.InstallPackage(&node.Package{
 		Driver:            "test",
 		RegistryURLBase:   "registry.com",
 		RegistryPackageID: "package1",
-	}), gomock.Eq("v1")).Return(true, nil).Times(2)
+	}, "v1"))
 
 	should, err = installAppExecutor.ShouldExecute(stateUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, false, should)
 
-	// Test installing the package
-
-	pm.EXPECT().InstallPackage(gomock.Eq(&node.Package{
-		Driver:            "test",
-		RegistryURLBase:   "registry.com",
-		RegistryPackageID: "package1",
-	}), gomock.Eq("v1")).Return(nil).Times(1)
+	// Clear pm history to test Execute()
+	pm.installed = []*node.Package{}
 
 	err = installAppExecutor.Execute(stateUpdate)
 	assert.Nil(t, err)
@@ -91,12 +86,11 @@ func TestAppInstallSubscriber(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Test installation failure from driver
-
-	pm.EXPECT().InstallPackage(gomock.Eq(&node.Package{
+	require.ErrorIs(t, pm.InstallPackage(&node.Package{
 		Driver:            "test",
 		RegistryURLBase:   "registry.com",
 		RegistryPackageID: "package1",
-	}), gomock.Eq("v1")).Return(errors.New("Couldn't install")).Times(1)
+	}, "v1"), errDuplicate)
 
 	err = installAppExecutor.Execute(stateUpdate)
 	assert.NotNil(t, err)
@@ -141,7 +135,7 @@ func TestFinishInstallSubscriber(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	nc := controller_mocks.NewMockNodeController(ctrl)
-	pm := mocks.NewMockPackageManager(ctrl)
+	pm := newMockManager()
 
 	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
@@ -200,7 +194,7 @@ func TestFinishInstallSubscriberNoAutoStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	nc := controller_mocks.NewMockNodeController(ctrl)
-	pm := mocks.NewMockPackageManager(ctrl)
+	pm := newMockManager()
 
 	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")

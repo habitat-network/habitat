@@ -3,7 +3,7 @@ package hdb
 import (
 	"fmt"
 
-	"github.com/eagraf/habitat-new/internal/node/pubsub"
+	"github.com/eagraf/habitat-new/internal/pubsub"
 	"github.com/rs/zerolog/log"
 )
 

@@ -225,7 +225,7 @@ func TestAppLifecycle(t *testing.T) {
 	assert.Equal(t, ok, true)
 	assert.NotEmpty(t, app.ID)
 	assert.Equal(t, "app_name1", app.Name)
-	assert.Equal(t, "installing", app.State)
+	assert.Equal(t, AppLifecycleStateInstalling, app.State)
 
 	testSecondAppConflict := []hdb.Transition{
 		&StartInstallationTransition{
@@ -267,7 +267,7 @@ func TestAppLifecycle(t *testing.T) {
 
 	newState, err = testTransitionsOnCopy(newState, testInstallationCompleted)
 	assert.Nil(t, err)
-	assert.Equal(t, "installed", newState.AppInstallations[app.ID].State)
+	assert.Equal(t, AppLifecycleStateInstalled, newState.AppInstallations[app.ID].State)
 
 	testUserDoesntExist := []hdb.Transition{
 		&StartInstallationTransition{
@@ -417,7 +417,7 @@ func TestProcesses(t *testing.T) {
 	assert.Equal(t, 1, len(newState.Users))
 	assert.Equal(t, 1, len(newState.AppInstallations))
 	assert.Equal(t, "app_name1", newState.AppInstallations["App1"].Name)
-	assert.Equal(t, "installed", newState.AppInstallations["App1"].State)
+	assert.Equal(t, AppLifecycleStateInstalled, newState.AppInstallations["App1"].State)
 	assert.Equal(t, 1, len(newState.Processes))
 
 	procs, err := newState.GetProcessesForUser("123")
@@ -426,7 +426,7 @@ func TestProcesses(t *testing.T) {
 
 	proc := procs[0]
 	assert.NotEmpty(t, proc.ID)
-	assert.Equal(t, "starting", proc.State)
+	assert.Equal(t, ProcessStateStarting, proc.State)
 	assert.Equal(t, "App1", proc.AppID)
 	assert.Equal(t, "123", proc.UserID)
 
@@ -440,7 +440,7 @@ func TestProcesses(t *testing.T) {
 
 	newState, err = testTransitionsOnCopy(newState, testProcessRunning)
 	assert.Nil(t, err)
-	assert.Equal(t, "running", newState.Processes[proc.ID].State)
+	assert.Equal(t, ProcessStateRunning, newState.Processes[proc.ID].State)
 
 	testProcessRunningNoMatchingID := []hdb.Transition{
 		&ProcessRunningTransition{

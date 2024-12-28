@@ -11,24 +11,25 @@ import (
 	"syscall"
 
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	types "github.com/eagraf/habitat-new/core/api"
 	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/docker"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/appstore"
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller"
-	"github.com/eagraf/habitat-new/internal/node/drivers/docker"
-	"github.com/eagraf/habitat-new/internal/node/drivers/web"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/eagraf/habitat-new/internal/node/hdb/hdbms"
 	"github.com/eagraf/habitat-new/internal/node/logging"
-	"github.com/eagraf/habitat-new/internal/node/package_manager"
-	"github.com/eagraf/habitat-new/internal/node/processes"
-	"github.com/eagraf/habitat-new/internal/node/pubsub"
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	"github.com/eagraf/habitat-new/internal/node/server"
+	"github.com/eagraf/habitat-new/internal/package_manager"
+	"github.com/eagraf/habitat-new/internal/process"
+	"github.com/eagraf/habitat-new/internal/pubsub"
+	"github.com/eagraf/habitat-new/internal/web"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -57,31 +58,25 @@ func main() {
 		log.Fatal().Err(err).Msg("error creating node controller")
 	}
 
-	// Initialize application drivers
-	dockerDriver, err := docker.NewDriver()
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		log.Fatal().Err(err).Msg("error creating docker driver")
+		log.Fatal().Err(err).Msg("Failed to create docker client")
 	}
 
-	webDriver, err := web.NewDriver(nodeConfig.WebBundlePath())
-	if err != nil {
-		log.Fatal().Err(err).Msg("error creating web driver")
-	}
-
+	// Initialize package managers
 	stateLogger := hdbms.NewStateUpdateLogger(logger)
 	appLifecycleSubscriber, err := package_manager.NewAppLifecycleSubscriber(
 		map[string]package_manager.PackageManager{
-			constants.AppDriverDocker: dockerDriver.PackageManager,
-			constants.AppDriverWeb:    webDriver.PackageManager,
+			constants.AppDriverDocker: docker.NewPackageManager(dockerClient),
+			constants.AppDriverWeb:    web.NewPackageManager(nodeConfig.WebBundlePath()),
 		},
 		nodeCtrl,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating app lifecycle subscriber")
 	}
-
-	pm := processes.NewProcessManager([]processes.ProcessDriver{dockerDriver.ProcessDriver, webDriver.ProcessDriver})
-	pmSub, err := processes.NewProcessManagerStateUpdateSubscriber(pm, nodeCtrl)
+	pm := process.NewProcessManager([]process.Driver{docker.NewDriver(dockerClient), web.NewDriver()})
+	pmSub, err := process.NewProcessManagerStateUpdateSubscriber(pm, nodeCtrl)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating process manager state update subscriber")
 	}
@@ -111,12 +106,10 @@ func main() {
 			proxyRuleStateUpdateSubscriber,
 		},
 	)
-	go func() {
-		err := stateUpdates.Listen()
-		if err != nil {
-			log.Fatal().Err(err).Msg("unrecoverable error listening to channel")
-		}
-	}()
+
+	eg.Go(func() error {
+		return stateUpdates.Listen()
+	})
 
 	initState, err := node.InitRootState(nodeConfig.RootUserCertB64())
 	if err != nil {

@@ -6,37 +6,6 @@ package node
 
 // TODO to make these truly immutable, only methods should be exported, all fields should be private.
 
-const AppLifecycleStateInstalling = "installing"
-const AppLifecycleStateInstalled = "installed"
-
-type Package struct {
-	Driver             string                 `json:"driver" yaml:"driver"`
-	DriverConfig       map[string]interface{} `json:"driver_config" yaml:"driver_config"`
-	RegistryURLBase    string                 `json:"registry_url_base" yaml:"registry_url_base"`
-	RegistryPackageID  string                 `json:"registry_app_id" yaml:"registry_app_id"`
-	RegistryPackageTag string                 `json:"registry_tag" yaml:"registry_tag"`
-}
-
-// TODO some fields should be ignored by the REST api
-type AppInstallation struct {
-	ID      string `json:"id" yaml:"id"`
-	UserID  string `json:"user_id" yaml:"user_id"`
-	Name    string `json:"name" yaml:"name"`
-	Version string `json:"version" yaml:"version"`
-	Package `yaml:",inline"`
-}
-
-const ProcessStateStarting = "starting"
-const ProcessStateRunning = "running"
-
-type Process struct {
-	ID      string `json:"id"`
-	AppID   string `json:"app_id"`
-	UserID  string `json:"user_id"`
-	Created string `json:"created"`
-	Driver  string `json:"driver"`
-}
-
 // ReverseProxyRule matches a URL path to a target of the given type.
 // There are two types of rules currently:
 //  1. File server: serves files from a given directory (useful for serving websites from Habitat)

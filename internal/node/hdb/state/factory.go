@@ -6,7 +6,7 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
-	"github.com/eagraf/habitat-new/internal/node/pubsub"
+	"github.com/eagraf/habitat-new/internal/pubsub"
 )
 
 func GetSchema(schemaType string) (hdb.Schema, error) {
