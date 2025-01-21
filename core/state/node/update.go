@@ -26,7 +26,7 @@ func (n *NodeStateUpdate) Transition() []byte {
 	return n.transitionWrapper.Transition
 }
 
-func (n *NodeStateUpdate) TransitionType() string {
+func (n *NodeStateUpdate) TransitionType() hdb.TransitionType {
 	return n.transitionWrapper.Type
 }
 

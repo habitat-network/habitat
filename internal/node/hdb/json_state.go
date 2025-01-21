@@ -12,11 +12,12 @@ type JSONState struct {
 	schema Schema
 	state  []byte
 
-	*sync.Mutex
+	// TODO: Don't embed this type -- callers shouldn't be locking/unlocking this
+	// Concurrent-safe management of inner state should be handled inside this type
+	mu *sync.Mutex
 }
 
 func NewJSONState(schema Schema, initState []byte) (*JSONState, error) {
-
 	err := schema.ValidateState(initState)
 	if err != nil {
 		return nil, fmt.Errorf("error validating initial state: %s", err)
@@ -25,7 +26,7 @@ func NewJSONState(schema Schema, initState []byte) (*JSONState, error) {
 	return &JSONState{
 		schema: schema,
 		state:  initState,
-		Mutex:  &sync.Mutex{},
+		mu:     &sync.Mutex{},
 	}, nil
 }
 
@@ -36,8 +37,8 @@ func (s *JSONState) ApplyPatch(patchJSON []byte) error {
 	}
 
 	// only update state if everything worked out
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	s.state = updated
 

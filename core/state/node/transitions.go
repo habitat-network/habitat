@@ -10,25 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
-	TransitionInitialize          = "initialize"
-	TransitionMigrationUp         = "migration_up"
-	TransitionAddUser             = "add_user"
-	TransitionStartInstallation   = "start_installation"
-	TransitionFinishInstallation  = "finish_installation"
-	TransitionStartUninstallation = "start_uninstallation"
-	TransitionStartProcess        = "process_start"
-	TransitionProcessRunning      = "process_running"
-	TransitionStopProcess         = "process_stop"
-	TransitionAddReverseProxyRule = "add_reverse_proxy_rule"
-)
-
 type InitalizationTransition struct {
 	InitState *State `json:"init_state"`
 }
 
-func (t *InitalizationTransition) Type() string {
-	return TransitionInitialize
+func (t *InitalizationTransition) Type() hdb.TransitionType {
+	return hdb.TransitionInitialize
 }
 
 func (t *InitalizationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
@@ -41,7 +28,7 @@ func (t *InitalizationTransition) Patch(oldState hdb.SerializedState) (hdb.Seria
 	}
 
 	if t.InitState.Processes == nil {
-		t.InitState.Processes = make(map[string]*ProcessState)
+		t.InitState.Processes = make(map[string]*Process)
 	}
 
 	marshaled, err := json.Marshal(t.InitState)
@@ -70,8 +57,8 @@ type MigrationTransition struct {
 	TargetVersion string
 }
 
-func (t *MigrationTransition) Type() string {
-	return TransitionMigrationUp
+func (t *MigrationTransition) Type() hdb.TransitionType {
+	return hdb.TransitionMigrationUp
 }
 
 func (t *MigrationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
@@ -130,8 +117,8 @@ type AddUserTranstitionEnrichedData struct {
 	User *User `json:"user"`
 }
 
-func (t *AddUserTransition) Type() string {
-	return TransitionAddUser
+func (t *AddUserTransition) Type() hdb.TransitionType {
+	return hdb.TransitionAddUser
 }
 
 func (t *AddUserTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
@@ -199,8 +186,8 @@ type StartInstallationTransitionEnrichedData struct {
 	NewProxyRules []*ReverseProxyRule   `json:"new_proxy_rules"`
 }
 
-func (t *StartInstallationTransition) Type() string {
-	return TransitionStartInstallation
+func (t *StartInstallationTransition) Type() hdb.TransitionType {
+	return hdb.TransitionStartInstallation
 }
 
 func (t *StartInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
@@ -328,8 +315,8 @@ type FinishInstallationTransition struct {
 	StartAfterInstallation bool `json:"start_after_installation"`
 }
 
-func (t *FinishInstallationTransition) Type() string {
-	return TransitionFinishInstallation
+func (t *FinishInstallationTransition) Type() hdb.TransitionType {
+	return hdb.TransitionFinishInstallation
 }
 
 func (t *FinishInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
@@ -382,18 +369,34 @@ func (t *FinishInstallationTransition) Validate(oldState hdb.SerializedState) er
 
 type ProcessStartTransition struct {
 	// Requested data
-	AppID string
+	Process *Process
+}
 
-	EnrichedData *ProcessStartTransitionEnrichedData
+func GenProcessStartTransition(appID string, oldState *State) (*ProcessStartTransition, error) {
+	app, err := oldState.GetAppByID(appID)
+	if err != nil {
+		return nil, err
+	}
+
+	proc := &Process{
+		UserID: app.UserID,
+		Driver: app.Driver,
+		AppID:  app.ID,
+	}
+	proc.ID = uuid.New().String()
+	proc.Created = time.Now().Format(time.RFC3339)
+	return &ProcessStartTransition{
+		Process: proc,
+	}, nil
 }
 
 type ProcessStartTransitionEnrichedData struct {
-	Process *ProcessState
+	Process *Process
 	App     *AppInstallationState
 }
 
-func (t *ProcessStartTransition) Type() string {
-	return TransitionStartProcess
+func (t *ProcessStartTransition) Type() hdb.TransitionType {
+	return hdb.TransitionStartProcess
 }
 
 func (t *ProcessStartTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
@@ -403,7 +406,7 @@ func (t *ProcessStartTransition) Patch(oldState hdb.SerializedState) (hdb.Serial
 		return nil, err
 	}
 
-	marshaled, err := json.Marshal(t.EnrichedData.Process)
+	marshaled, err := json.Marshal(t.Process)
 	if err != nil {
 		return nil, err
 	}
@@ -412,38 +415,10 @@ func (t *ProcessStartTransition) Patch(oldState hdb.SerializedState) (hdb.Serial
 			"op": "add",
 			"path": "/processes/%s",
 			"value": %s
-		}]`, t.EnrichedData.Process.ID, marshaled)), nil
+		}]`, t.Process.ID, marshaled)), nil
 }
 
 func (t *ProcessStartTransition) Enrich(oldState hdb.SerializedState) error {
-	var oldNode State
-	err := json.Unmarshal(oldState, &oldNode)
-	if err != nil {
-		return err
-	}
-
-	app, err := oldNode.GetAppByID(t.AppID)
-	if err != nil {
-		return err
-	}
-
-	proc := &ProcessState{
-		Process: &Process{
-			UserID: app.UserID,
-			Driver: app.Driver,
-			AppID:  app.ID,
-		},
-		State:       ProcessStateStarting,
-		ExtDriverID: "", // this should not be set yet
-	}
-
-	proc.ID = uuid.New().String()
-	proc.Process.Created = time.Now().Format(time.RFC3339)
-
-	t.EnrichedData = &ProcessStartTransitionEnrichedData{
-		Process: proc,
-		App:     app,
-	}
 	return nil
 }
 
@@ -455,91 +430,34 @@ func (t *ProcessStartTransition) Validate(oldState hdb.SerializedState) error {
 		return err
 	}
 
-	if t.EnrichedData.Process == nil {
-		return fmt.Errorf("process was not properly enriched")
-	}
-
-	if t.EnrichedData.App == nil {
-		return fmt.Errorf("app was not properly enriched")
+	if t.Process == nil {
+		return fmt.Errorf("process transition was not properly created")
 	}
 
 	// Make sure the app installation is in the installed state
-	userID := t.EnrichedData.Process.UserID
-	if t.EnrichedData.App.State != AppLifecycleStateInstalled {
-		return fmt.Errorf("app with id %s for user %s is not in state %s", t.AppID, userID, AppLifecycleStateInstalled)
+	userID := t.Process.UserID
+	app, err := oldNode.GetAppByID(t.Process.AppID)
+	if err != nil {
+		return err
+	}
+	if app.State != AppLifecycleStateInstalled {
+		return fmt.Errorf("app with id %s for user %s is not in state %s", t.Process.AppID, userID, AppLifecycleStateInstalled)
 	}
 
 	// Check user exists
-	_, ok := oldNode.Users[t.EnrichedData.Process.UserID]
+	_, ok := oldNode.Users[t.Process.UserID]
 	if !ok {
 		return fmt.Errorf("user with id %s does not exist", userID)
 	}
-	if _, ok := oldNode.Processes[t.EnrichedData.Process.ID]; ok {
-		return fmt.Errorf("Process with id %s already exists", t.EnrichedData.Process.ID)
+	if _, ok := oldNode.Processes[t.Process.ID]; ok {
+		return fmt.Errorf("Process with id %s already exists", t.Process.ID)
 	}
 
 	for _, proc := range oldNode.Processes {
 		// Make sure that no app with the same ID has a process
-		if proc.AppID == t.AppID {
-			return fmt.Errorf("app with id %s already has a process", t.AppID)
+		if proc.AppID == t.Process.AppID {
+			return fmt.Errorf("app with id %s already has a process", t.Process.AppID)
 		}
-	}
-
-	return nil
-}
-
-type ProcessRunningTransition struct {
-	ProcessID string `json:"process_id"`
-}
-
-func (t *ProcessRunningTransition) Type() string {
-	return TransitionProcessRunning
-}
-
-func (t *ProcessRunningTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
-	var oldNode State
-	err := json.Unmarshal(oldState, &oldNode)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the matching process
-	proc, ok := oldNode.Processes[t.ProcessID]
-	if !ok {
-		return nil, fmt.Errorf("process with id %s not found", t.ProcessID)
-	}
-	proc.State = ProcessStateRunning
-
-	marshaled, err := json.Marshal(proc)
-	if err != nil {
-		return nil, err
-	}
-
-	return []byte(fmt.Sprintf(`[{
-		"op": "replace",
-		"path": "/processes/%s",
-		"value": %s
-	}]`, t.ProcessID, marshaled)), nil
-}
-
-func (t *ProcessRunningTransition) Enrich(oldState hdb.SerializedState) error {
-	return nil
-}
-
-func (t *ProcessRunningTransition) Validate(oldState hdb.SerializedState) error {
-	var oldNode State
-	err := json.Unmarshal(oldState, &oldNode)
-	if err != nil {
-		return err
-	}
-
-	// Make sure there is a matching process
-	proc, ok := oldNode.Processes[t.ProcessID]
-	if !ok {
-		return fmt.Errorf("process with id %s not found", t.ProcessID)
-	}
-	if proc.State != ProcessStateStarting {
-		return fmt.Errorf("Process with id %s is in state %s, must be in state %s", t.ProcessID, proc.State, ProcessStateStarting)
 	}
 
 	return nil
@@ -549,8 +467,8 @@ type ProcessStopTransition struct {
 	ProcessID string `json:"process_id"`
 }
 
-func (t *ProcessStopTransition) Type() string {
-	return TransitionStopProcess
+func (t *ProcessStopTransition) Type() hdb.TransitionType {
+	return hdb.TransitionStopProcess
 }
 
 func (t *ProcessStopTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
@@ -594,8 +512,8 @@ type AddReverseProxyRuleTransition struct {
 	Rule *ReverseProxyRule `json:"rule"`
 }
 
-func (t *AddReverseProxyRuleTransition) Type() string {
-	return TransitionAddReverseProxyRule
+func (t *AddReverseProxyRuleTransition) Type() hdb.TransitionType {
+	return hdb.TransitionAddReverseProxyRule
 }
 
 func (t *AddReverseProxyRuleTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {

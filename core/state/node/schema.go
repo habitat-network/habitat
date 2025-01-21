@@ -14,8 +14,14 @@ import (
 )
 
 const SchemaName = "node"
-const CurrentVersion = "v0.0.6"
-const LatestVersion = "v0.0.6"
+const CurrentVersion = "v0.0.7"
+const LatestVersion = "v0.0.7"
+
+// This paackage contains core structs for the node state. These are intended to be embedable in other structs
+// throughout the application. That way, it's easy to modify the core struct, while having
+// the component specific structs to be decoupled. Fields in these structs should be immutable.
+
+// TODO to make these truly immutable, only methods should be exported, all fields should be private.
 
 //go:embed schema/schema.json
 var nodeSchemaRaw string
@@ -23,13 +29,14 @@ var nodeSchemaRaw string
 // TODO structs defined here can embed the immutable structs, but also include mutable fields.
 
 type State struct {
-	NodeID            string                           `json:"node_id"`
-	Name              string                           `json:"name"`
-	Certificate       string                           `json:"certificate"` // TODO turn this into b64
-	SchemaVersion     string                           `json:"schema_version"`
-	TestField         string                           `json:"test_field,omitempty"`
-	Users             map[string]*User                 `json:"users"`
-	Processes         map[string]*ProcessState         `json:"processes"`
+	NodeID        string           `json:"node_id"`
+	Name          string           `json:"name"`
+	Certificate   string           `json:"certificate"` // TODO turn this into b64
+	SchemaVersion string           `json:"schema_version"`
+	TestField     string           `json:"test_field,omitempty"`
+	Users         map[string]*User `json:"users"`
+	// A set of running processes that a node can restore to on startup.
+	Processes         map[string]*Process              `json:"processes"`
 	AppInstallations  map[string]*AppInstallationState `json:"app_installations"`
 	ReverseProxyRules *map[string]*ReverseProxyRule    `json:"reverse_proxy_rules,omitempty"`
 }
@@ -68,8 +75,8 @@ func (s State) GetAppsForUser(userID string) ([]*AppInstallationState, error) {
 	return apps, nil
 }
 
-func (s State) GetProcessesForUser(userID string) ([]*ProcessState, error) {
-	procs := make([]*ProcessState, 0)
+func (s State) GetProcessesForUser(userID string) ([]*Process, error) {
+	procs := make([]*Process, 0)
 	for _, proc := range s.Processes {
 		if proc.UserID == userID {
 			procs = append(procs, proc)
@@ -140,7 +147,6 @@ func (s *NodeSchema) Name() string {
 }
 
 func (s *NodeSchema) EmptyState() (hdb.State, error) {
-
 	return GetEmptyStateForVersion(CurrentVersion)
 
 }

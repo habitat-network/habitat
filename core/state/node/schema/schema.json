@@ -68,12 +68,10 @@
                         "type": "string",
                         "enum": [ "docker", "web" ]
                     },
-                    "created": { "type": "string" },
-                    "state": { "type": "string" },
-                    "ext_driver_id": { "type": "string" }
+                    "created": { "type": "string" }
                 },
                 "additionalProperties": false,
-                "required": [ "id", "app_id", "driver", "ext_driver_id", "user_id", "state", "created" ]
+                "required": [ "id", "app_id", "driver", "user_id", "created" ]
             }
         },
         "reverse_proxy_rules": {

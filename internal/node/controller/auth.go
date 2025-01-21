@@ -1,4 +1,4 @@
-package api
+package controller
 
 import (
 	"context"
@@ -10,17 +10,24 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
-	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/rs/zerolog/log"
 )
 
-type authenticationMiddleware struct {
-	nodeController controller.NodeController
+type AuthenticationMiddleware struct {
+	nodeController NodeController
 	useTLS         bool
 	rootUserCert   *x509.Certificate
 }
 
-func (amw *authenticationMiddleware) Middleware(next http.Handler) http.Handler {
+func NewAuthenticationMiddleware(ctrl NodeController, useTLS bool, rootUserCert *x509.Certificate) *AuthenticationMiddleware {
+	return &AuthenticationMiddleware{
+		nodeController: ctrl,
+		useTLS:         useTLS,
+		rootUserCert:   rootUserCert,
+	}
+}
+
+func (amw *AuthenticationMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 
@@ -73,7 +80,7 @@ func (amw *authenticationMiddleware) Middleware(next http.Handler) http.Handler 
 	})
 }
 
-func getUserCertAndInfo(controller controller.NodeController, username string) (*x509.Certificate, *node.User, error) {
+func getUserCertAndInfo(controller NodeController, username string) (*x509.Certificate, *node.User, error) {
 	// Look up the user in the node's user list
 	user, err := controller.GetUserByUsername(username)
 	if err != nil {

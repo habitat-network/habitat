@@ -368,8 +368,7 @@ func TestAppInstallReverseProxyRules(t *testing.T) {
 }
 
 func TestProcesses(t *testing.T) {
-
-	transitions := []hdb.Transition{
+	init := []hdb.Transition{
 		&InitalizationTransition{
 			InitState: &State{
 				NodeID:        "abc",
@@ -403,12 +402,14 @@ func TestProcesses(t *testing.T) {
 				},
 			},
 		},
-		&ProcessStartTransition{
-			AppID: "App1",
-		},
 	}
+	oldState, err := testTransitions(nil, init)
+	require.NoError(t, err)
 
-	newState, err := testTransitions(nil, transitions)
+	startTransition, err := GenProcessStartTransition("App1", oldState)
+	require.NoError(t, err)
+
+	newState, err := testTransitions(oldState, []hdb.Transition{startTransition})
 	require.Nil(t, err)
 	require.NotNil(t, newState)
 	assert.Equal(t, "abc", newState.NodeID)
@@ -426,42 +427,24 @@ func TestProcesses(t *testing.T) {
 
 	proc := procs[0]
 	assert.NotEmpty(t, proc.ID)
-	assert.Equal(t, ProcessStateStarting, proc.State)
 	assert.Equal(t, "App1", proc.AppID)
 	assert.Equal(t, "123", proc.UserID)
 
-	// The app moves to running state
-
-	testProcessRunning := []hdb.Transition{
-		&ProcessRunningTransition{
-			ProcessID: proc.ID,
-		},
-	}
-
-	newState, err = testTransitionsOnCopy(newState, testProcessRunning)
-	assert.Nil(t, err)
-	assert.Equal(t, ProcessStateRunning, newState.Processes[proc.ID].State)
-
 	testProcessRunningNoMatchingID := []hdb.Transition{
-		&ProcessRunningTransition{
-			ProcessID: "proc2",
+		&ProcessStartTransition{
+			Process: &Process{
+				AppID: proc.AppID,
+			},
 		},
 	}
 	_, err = testTransitionsOnCopy(newState, testProcessRunningNoMatchingID)
 	assert.NotNil(t, err)
 
-	testProcessAlreadyRunning := []hdb.Transition{
-		&ProcessRunningTransition{
-			ProcessID: "proc1",
-		},
-	}
-
-	_, err = testTransitionsOnCopy(newState, testProcessAlreadyRunning)
-	assert.NotNil(t, err)
-
 	testAppIDConflict := []hdb.Transition{
 		&ProcessStartTransition{
-			AppID: "App1",
+			Process: &Process{
+				AppID: "App1",
+			},
 		},
 	}
 
@@ -480,27 +463,10 @@ func TestProcesses(t *testing.T) {
 
 	testUserDoesntExist := []hdb.Transition{
 		&ProcessStartTransition{
-			EnrichedData: &ProcessStartTransitionEnrichedData{
-				Process: &ProcessState{
-					Process: &Process{
-						ID:     "proc2",
-						AppID:  "App1",
-						UserID: "456",
-					},
-				},
-				App: &AppInstallationState{
-					AppInstallation: &AppInstallation{
-						ID:      "App1",
-						Name:    "app_name1",
-						Version: "1",
-						Package: Package{
-							Driver:             "docker",
-							RegistryURLBase:    "https://registry.com",
-							RegistryPackageID:  "app_name1",
-							RegistryPackageTag: "v1",
-						},
-					},
-				},
+			Process: &Process{
+				ID:     "proc2",
+				AppID:  "App1",
+				UserID: "456",
 			},
 		},
 	}
@@ -510,27 +476,10 @@ func TestProcesses(t *testing.T) {
 
 	testAppDoesntExist := []hdb.Transition{
 		&ProcessStartTransition{
-			EnrichedData: &ProcessStartTransitionEnrichedData{
-				Process: &ProcessState{
-					Process: &Process{
-						ID:     "proc3",
-						AppID:  "App2",
-						UserID: "123",
-					},
-				},
-				App: &AppInstallationState{
-					AppInstallation: &AppInstallation{
-						ID:      "App2",
-						Name:    "app_name1",
-						Version: "1",
-						Package: Package{
-							Driver:             "docker",
-							RegistryURLBase:    "https://registry.com",
-							RegistryPackageID:  "app_name1",
-							RegistryPackageTag: "v1",
-						},
-					},
-				},
+			Process: &Process{
+				ID:     "proc3",
+				AppID:  "App2",
+				UserID: "123",
 			},
 		},
 	}

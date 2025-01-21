@@ -22,7 +22,7 @@ type StateUpdate interface {
 	// This data is schema specific.
 	NewState() State
 	Transition() []byte
-	TransitionType() string
+	TransitionType() TransitionType
 }
 
 type StateUpdateMetadata struct {
@@ -64,7 +64,7 @@ func (m *StateUpdateMetadata) IsRestore() bool {
 // if the desired external system state is already achieved before executing the action described
 // by the state transition.
 type IdempotentStateUpdateExecutor interface {
-	TransitionType() string
+	TransitionType() TransitionType
 
 	// ShouldExecute returns true if the state update should be executed.
 	ShouldExecute(StateUpdate) (bool, error)
@@ -89,7 +89,7 @@ type StateUpdateSubscriber interface {
 type IdempotentStateUpdateSubscriber struct {
 	name       string
 	schemaName string
-	executors  map[string]IdempotentStateUpdateExecutor
+	executors  map[TransitionType]IdempotentStateUpdateExecutor
 	StateRestorer
 }
 
@@ -98,7 +98,7 @@ func NewIdempotentStateUpdateSubscriber(name, schemaName string, executors []Ide
 	res := &IdempotentStateUpdateSubscriber{
 		name:          name,
 		schemaName:    schemaName,
-		executors:     make(map[string]IdempotentStateUpdateExecutor),
+		executors:     make(map[TransitionType]IdempotentStateUpdateExecutor),
 		StateRestorer: stateRestorer,
 	}
 
@@ -116,7 +116,7 @@ func (s *IdempotentStateUpdateSubscriber) Name() string {
 	return s.name
 }
 
-func (s *IdempotentStateUpdateSubscriber) GetExecutor(transitionType string) (IdempotentStateUpdateExecutor, error) {
+func (s *IdempotentStateUpdateSubscriber) GetExecutor(transitionType TransitionType) (IdempotentStateUpdateExecutor, error) {
 	if _, ok := s.executors[transitionType]; !ok {
 		return nil, fmt.Errorf("executor with transition type %s not found", transitionType)
 	}

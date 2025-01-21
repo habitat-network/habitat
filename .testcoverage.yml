@@ -38,5 +38,6 @@ exclude:
     - ^internal/node/server/server.go
     - ^internal/frontend
     - ^internal/node/controller/pds.go
+    - ^internal/node/controller/auth.go
     - ^internal/docker
     - ^internal/web

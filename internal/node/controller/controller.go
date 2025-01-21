@@ -12,9 +12,7 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// NodeController is an interface to manage common admin actions on a Habitat node.
-// For example, installing apps or adding users. This will likely expand to be a much bigger API as we move forward.
-
+// implements nodeServerInner
 type NodeController interface {
 	InitializeNodeDB(transitions []hdb.Transition) error
 	MigrateNodeDB(targetVersion string) error
@@ -27,13 +25,19 @@ type NodeController interface {
 	GetAppByID(appID string) (*node.AppInstallation, error)
 
 	StartProcess(appID string) error
-	SetProcessRunning(processID string) error
-	StopProcess(processID string) error
 }
 
 type BaseNodeController struct {
 	databaseManager hdb.HDBManager
 	pdsClient       PDSClientI
+
+	// TODO: eventually BaseNodeController will be fully replaced with controller2 and renamed aptly.
+	// However, until a final migration, there are still some state update subscribers that call the NodeController interface.
+	// This will not be possible after the refactor but during the migration, mux these calls out with the new controller under
+	// the hood.
+	//
+	// See StartProcess() for an example of this.
+	ctrl2 *controller2
 }
 
 func NewNodeController(habitatDBManager hdb.HDBManager, pds PDSClientI) (*BaseNodeController, error) {
@@ -42,6 +46,15 @@ func NewNodeController(habitatDBManager hdb.HDBManager, pds PDSClientI) (*BaseNo
 		pdsClient:       pds,
 	}
 	return controller, nil
+}
+
+// TODO: Eventually BaseNodeController will be removed completely and replaced with controller2,
+// so not thinking about this too hard right now. But I had to add a mock call in 50+ callsites as an alternative
+// to doing this, so it was the best path forward.
+//
+// As a consequence, any users of ctrl2 need to check if it is nil first.
+func (c *BaseNodeController) SetCtrl2(c2 *controller2) {
+	c.ctrl2 = c2
 }
 
 // InitializeNodeDB tries initializing the database; it is a noop if a database with the same name already exists
@@ -144,64 +157,12 @@ func (c *BaseNodeController) GetAppByID(appID string) (*node.AppInstallation, er
 	return app.AppInstallation, nil
 }
 
+// TODO: Delete once usages of StartProcess() are deleted
 func (c *BaseNodeController) StartProcess(appID string) error {
-	dbClient, err := c.databaseManager.GetDatabaseClientByName(constants.NodeDBDefaultName)
-	if err != nil {
-		return err
+	if c.ctrl2 == nil {
+		return fmt.Errorf("BaseNodeController.ctrl2 field is nil, unable to fulfill request")
 	}
-
-	var nodeState node.State
-	err = json.Unmarshal(dbClient.Bytes(), &nodeState)
-	if err != nil {
-		return nil
-	}
-
-	_, err = dbClient.ProposeTransitions([]hdb.Transition{
-		&node.ProcessStartTransition{
-			AppID: appID,
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *BaseNodeController) SetProcessRunning(processID string) error {
-	dbClient, err := c.databaseManager.GetDatabaseClientByName(constants.NodeDBDefaultName)
-	if err != nil {
-		return err
-	}
-
-	_, err = dbClient.ProposeTransitions([]hdb.Transition{
-		&node.ProcessRunningTransition{
-			ProcessID: processID,
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *BaseNodeController) StopProcess(processID string) error {
-	dbClient, err := c.databaseManager.GetDatabaseClientByName(constants.NodeDBDefaultName)
-	if err != nil {
-		return err
-	}
-
-	_, err = dbClient.ProposeTransitions([]hdb.Transition{
-		&node.ProcessStopTransition{
-			ProcessID: processID,
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.ctrl2.startProcess(appID)
 }
 
 func (c *BaseNodeController) AddUser(userID, email, handle, password, certificate string) (types.PDSCreateAccountResponse, error) {

@@ -1,11 +1,5 @@
 package node
 
-// Core structs for the node state. These are intended to be embedable in other structs
-// throughout the application. That way, it's easy to modify the core struct, while having
-// the component specific structs to be decoupled. Fields in these structs should be immutable.
-
-// TODO to make these truly immutable, only methods should be exported, all fields should be private.
-
 // ReverseProxyRule matches a URL path to a target of the given type.
 // There are two types of rules currently:
 //  1. File server: serves files from a given directory (useful for serving websites from Habitat)

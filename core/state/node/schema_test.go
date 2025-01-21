@@ -82,18 +82,14 @@ func TestGetReverseProxyRulesForProcess(t *testing.T) {
 				},
 			},
 		},
-		Processes: map[string]*ProcessState{
-			"process1": {
-				Process: &Process{
-					ID:    "process1",
-					AppID: "app1",
-				},
+		Processes: map[string]*Process{
+			"process1": &Process{
+				ID:    "process1",
+				AppID: "app1",
 			},
-			"process2": {
-				Process: &Process{
-					ID:    "process2",
-					AppID: "non-existant-this-shouldn'thappen",
-				},
+			"process2": &Process{
+				ID:    "process2",
+				AppID: "non-existant-this-shouldn'thappen",
 			},
 		},
 		ReverseProxyRules: &map[string]*ReverseProxyRule{

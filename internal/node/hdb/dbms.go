@@ -5,7 +5,6 @@ type HDBManager interface {
 	Stop()
 	RestartDBs() error
 	CreateDatabase(name, schemaType string, initialTransitions []Transition) (Client, error)
-	GetDatabaseClient(id string) (Client, error)
 	GetDatabaseClientByName(name string) (Client, error)
 }
 

@@ -17,14 +17,28 @@ type Schema interface {
 }
 
 type TransitionWrapper struct {
-	Type       string `json:"type"`
-	Patch      []byte `json:"patch"`      // The JSON patch generated from the transition struct
-	Transition []byte `json:"transition"` // JSON encoded transition struct
+	Type       TransitionType `json:"type"`
+	Patch      []byte         `json:"patch"`      // The JSON patch generated from the transition struct
+	Transition []byte         `json:"transition"` // JSON encoded transition struct
 }
+
+type TransitionType string
+
+const (
+	TransitionInitialize          TransitionType = "initialize"
+	TransitionMigrationUp         TransitionType = "migration_up"
+	TransitionAddUser             TransitionType = "add_user"
+	TransitionStartInstallation   TransitionType = "start_installation"
+	TransitionFinishInstallation  TransitionType = "finish_installation"
+	TransitionStartUninstallation TransitionType = "start_uninstallation"
+	TransitionStartProcess        TransitionType = "process_start"
+	TransitionStopProcess         TransitionType = "process_stop"
+	TransitionAddReverseProxyRule TransitionType = "add_reverse_proxy_rule"
+)
 
 type Transition interface {
 	// Type returns a string constant identifying the type of state transition. Currently these are in snake case.
-	Type() string
+	Type() TransitionType
 
 	// Patch takes the old state and returns a JSON patch to apply to the old state to get the new state.
 	Patch(oldState SerializedState) (SerializedState, error)

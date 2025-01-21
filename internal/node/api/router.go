@@ -1,11 +1,9 @@
 package api
 
 import (
-	"crypto/x509"
 	"fmt"
 	"net/http"
 
-	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/rs/zerolog"
 )
 
@@ -40,9 +38,7 @@ func (p processedRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func NewRouter(
 	routes []Route,
 	logger *zerolog.Logger,
-	nodeController controller.NodeController,
-	useTLS bool,
-	rootUserCert *x509.Certificate,
+	middlewares ...func(http.Handler) http.Handler,
 ) http.Handler {
 	router := http.NewServeMux()
 	for _, route := range routes {
@@ -50,11 +46,10 @@ func NewRouter(
 		router.Handle(route.Pattern(), processRoute(route))
 	}
 
-	authMiddleware := &authenticationMiddleware{
-		nodeController: nodeController,
-		useTLS:         useTLS,
-		rootUserCert:   rootUserCert,
+	var routerWithMiddleWare http.Handler = router
+	for _, mw := range middlewares {
+		routerWithMiddleWare = mw(routerWithMiddleWare)
 	}
 
-	return authMiddleware.Middleware(router)
+	return routerWithMiddleWare
 }

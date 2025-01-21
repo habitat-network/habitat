@@ -11,7 +11,6 @@ import (
 
 	types "github.com/eagraf/habitat-new/core/api"
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/api/test_helpers"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller/mocks"
 	hdb_mocks "github.com/eagraf/habitat-new/internal/node/hdb/mocks"
@@ -128,71 +127,6 @@ func TestInstallAppHandler(t *testing.T) {
 	handler.ServeHTTP(
 		resp,
 		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader([]byte("invalid"))),
-	)
-	assert.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
-}
-
-func TestStartProcessHandler(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	m := mocks.NewMockNodeController(ctrl)
-
-	middleware := &test_helpers.TestAuthMiddleware{UserID: "user_1"}
-	startProcessHandler := NewStartProcessHandler(m)
-	handler := middleware.Middleware(startProcessHandler)
-
-	b, err := json.Marshal(types.PostProcessRequest{
-		AppInstallationID: "app_1",
-	})
-	if err != nil {
-		t.Error(err)
-	}
-
-	m.EXPECT().GetAppByID("app_1").Return(&node.AppInstallation{
-		ID:      "app_1",
-		Package: node.Package{Driver: "docker"},
-	}, nil).Times(1)
-
-	m.EXPECT().StartProcess(
-		"app_1",
-	).Times(1)
-
-	// Test the happy path
-	resp := httptest.NewRecorder()
-	handler.ServeHTTP(
-		resp,
-		httptest.NewRequest(http.MethodPost, startProcessHandler.Pattern(), bytes.NewReader(b)),
-	)
-	require.Equal(t, http.StatusCreated, resp.Result().StatusCode)
-
-	respBody, err := io.ReadAll(resp.Result().Body)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(respBody))
-
-	// Test an error returned by the controller
-	m.EXPECT().GetAppByID("app_1").Return(&node.AppInstallation{
-		ID:      "app_1",
-		Package: node.Package{Driver: "docker"},
-	}, nil).Times(1)
-	m.EXPECT().StartProcess(gomock.Any()).Return(errors.New("Couldn't install app")).Times(1)
-	resp = httptest.NewRecorder()
-	handler.ServeHTTP(
-		resp,
-		httptest.NewRequest(http.MethodPost, startProcessHandler.Pattern(), bytes.NewReader(b)),
-	)
-	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
-
-	// Test invalid request
-	m.EXPECT().GetAppByID(gomock.Any()).Times(0)
-	m.EXPECT().StartProcess(gomock.Any()).Times(0)
-	resp = httptest.NewRecorder()
-	handler.ServeHTTP(
-		resp,
-		httptest.NewRequest(
-			http.MethodPost,
-			startProcessHandler.Pattern(),
-			bytes.NewReader([]byte("invalid")),
-		),
 	)
 	assert.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
 }

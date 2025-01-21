@@ -95,47 +95,6 @@ func (h *InstallAppRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-type StartProcessHandler struct {
-	nodeController NodeController
-}
-
-func NewStartProcessHandler(nodeController NodeController) *StartProcessHandler {
-	return &StartProcessHandler{
-		nodeController: nodeController,
-	}
-}
-
-func (h *StartProcessHandler) Pattern() string {
-	return "/node/processes"
-}
-
-func (h *StartProcessHandler) Method() string {
-	return http.MethodPost
-}
-
-func (h *StartProcessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var req types.PostProcessRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	app, err := h.nodeController.GetAppByID(req.AppInstallationID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	err = h.nodeController.StartProcess(app.ID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-}
-
 // GetNodeRoute gets the node's database and returns its state map.
 type GetNodeRoute struct {
 	dbManager hdb.HDBManager

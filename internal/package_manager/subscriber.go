@@ -14,8 +14,8 @@ type InstallAppExecutor struct {
 	nodeController  controller.NodeController
 }
 
-func (e *InstallAppExecutor) TransitionType() string {
-	return node.TransitionStartInstallation
+func (e *InstallAppExecutor) TransitionType() hdb.TransitionType {
+	return hdb.TransitionStartInstallation
 }
 
 func (e *InstallAppExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {
@@ -93,8 +93,8 @@ type FinishInstallExecutor struct {
 	nodeController controller.NodeController
 }
 
-func (e *FinishInstallExecutor) TransitionType() string {
-	return node.TransitionFinishInstallation
+func (e *FinishInstallExecutor) TransitionType() hdb.TransitionType {
+	return hdb.TransitionFinishInstallation
 }
 
 func (e *FinishInstallExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {

@@ -32,8 +32,8 @@ type ProcessProxyRulesExecutor struct {
 	RuleSet *RuleSet
 }
 
-func (e *ProcessProxyRulesExecutor) TransitionType() string {
-	return node.TransitionStartProcess
+func (e *ProcessProxyRulesExecutor) TransitionType() hdb.TransitionType {
+	return hdb.TransitionStartProcess
 }
 
 func (e *ProcessProxyRulesExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {
@@ -50,7 +50,7 @@ func (e *ProcessProxyRulesExecutor) Execute(update hdb.StateUpdate) error {
 
 	nodeState := update.NewState().(*node.State)
 	for _, rule := range *nodeState.ReverseProxyRules {
-		if rule.AppID == processStartTransition.AppID {
+		if rule.AppID == processStartTransition.Process.AppID {
 			log.Info().Msgf("Adding reverse proxy rule %v", rule)
 			err = e.RuleSet.AddRule(rule)
 			if err != nil {
@@ -72,8 +72,8 @@ type AddProxyRulesExecutor struct {
 	RuleSet *RuleSet
 }
 
-func (e *AddProxyRulesExecutor) TransitionType() string {
-	return node.TransitionAddReverseProxyRule
+func (e *AddProxyRulesExecutor) TransitionType() hdb.TransitionType {
+	return hdb.TransitionAddReverseProxyRule
 }
 
 func (e *AddProxyRulesExecutor) ShouldExecute(update hdb.StateUpdate) (bool, error) {

@@ -1,0 +1,40 @@
+{
+    "old_version": "v0.0.6",
+    "new_version": "v0.0.7",
+    "up": [
+        {
+            "op": "remove",
+            "path": "/properties/processes/additionalProperties/properties/state"
+        },
+        {
+            "op": "remove",
+            "path": "/properties/processes/additionalProperties/properties/ext_driver_id"
+        },
+        {
+            "op": "replace",
+            "path": "/properties/processes/additionalProperties/required",
+            "value": [ "id", "app_id", "driver", "user_id", "created" ]
+        }
+    ],
+    "down": [
+        {
+            "op": "add",
+            "path": "/properties/processes/additionalProperties/properties/state",
+            "value": {
+                "type": "string"
+            }
+        },
+        {
+            "op": "add",
+            "path": "/properties/processes/additionalProperties/properties/ext_driver_id",
+            "value": {
+                "type": "string"
+            }            
+        },
+        {
+            "op": "replace",
+            "path": "/properties/processes/additionalProperties/required",
+            "value": [ "id", "app_id", "driver", "ext_driver_id", "user_id", "state", "created" ]
+        }
+    ]
+}

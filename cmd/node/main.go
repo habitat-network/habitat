@@ -52,15 +52,16 @@ func main() {
 	}
 	defer dbClose()
 
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create docker client")
+	}
+	pm := process.NewProcessManager([]process.Driver{docker.NewDriver(dockerClient), web.NewDriver()})
+
 	pdsClient := controller.NewPDSClient(nodeConfig.PDSAdminUsername(), nodeConfig.PDSAdminPassword())
 	nodeCtrl, err := controller.NewNodeController(db.Manager, pdsClient)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node controller")
-	}
-
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create docker client")
 	}
 
 	// Initialize package managers
@@ -74,11 +75,6 @@ func main() {
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating app lifecycle subscriber")
-	}
-	pm := process.NewProcessManager([]process.Driver{docker.NewDriver(dockerClient), web.NewDriver()})
-	pmSub, err := process.NewProcessManagerStateUpdateSubscriber(pm, nodeCtrl)
-	if err != nil {
-		log.Fatal().Err(err).Msg("error creating process manager state update subscriber")
 	}
 
 	// ctx.Done() returns when SIGINT is called or cancel() is called.
@@ -102,7 +98,6 @@ func main() {
 		[]pubsub.Subscriber[hdb.StateUpdate]{
 			stateLogger,
 			appLifecycleSubscriber,
-			pmSub,
 			proxyRuleStateUpdateSubscriber,
 		},
 	)
@@ -168,6 +163,15 @@ func main() {
 		server.WithListener(ln),
 	))
 
+	dbClient, err := db.Manager.GetDatabaseClientByName(constants.NodeDBDefaultName)
+	if err != nil {
+		log.Fatal().Err(err).Msg("error getting default HDB client")
+	}
+
+	ctrlServer, err := controller.NewCtrlServer(nodeCtrl, pm, dbClient)
+	if err != nil {
+		log.Fatal().Err(err).Msg("error creating node control server")
+	}
 	// Set up the main API server
 	// TODO: create a less tedious way to register all the routes in the future. It might be as simple
 	// as having a dedicated file to list these, instead of putting them all in main.
@@ -178,15 +182,20 @@ func main() {
 		controller.NewLoginRoute(pdsClient),
 		controller.NewAddUserRoute(nodeCtrl),
 		controller.NewInstallAppRoute(nodeCtrl),
-		controller.NewStartProcessHandler(nodeCtrl),
 		controller.NewMigrationRoute(nodeCtrl),
 	}
+	routes = append(routes, ctrlServer.GetRoutes()...)
 	if nodeConfig.Environment() == constants.EnvironmentDev {
 		// App store is unimplemented in production
 		routes = append(routes, appstore.NewAvailableAppsRoute(nodeConfig.HabitatPath()))
 	}
 
-	router := api.NewRouter(routes, logger, nodeCtrl, nodeConfig.UseTLS(), nodeConfig.RootUserCert)
+	authMiddleware := controller.NewAuthenticationMiddleware(
+		nodeCtrl,
+		nodeConfig.UseTLS(),
+		nodeConfig.RootUserCert,
+	)
+	router := api.NewRouter(routes, logger, authMiddleware.Middleware)
 	apiServer := &http.Server{
 		Addr:    fmt.Sprintf(":%s", constants.DefaultPortHabitatAPI),
 		Handler: router,

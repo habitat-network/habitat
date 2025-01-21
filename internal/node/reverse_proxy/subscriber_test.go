@@ -5,6 +5,7 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/core/state/node/test_helpers"
+	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,9 +17,7 @@ func TestStartProcessExecutor(t *testing.T) {
 		},
 	}
 
-	startProcessStateUpdate, err := test_helpers.StateUpdateTestHelper(&node.ProcessStartTransition{
-		AppID: "app1",
-	}, &node.State{
+	state := &node.State{
 		AppInstallations: map[string]*node.AppInstallationState{
 			"app1": {
 				AppInstallation: &node.AppInstallation{
@@ -46,17 +45,21 @@ func TestStartProcessExecutor(t *testing.T) {
 				Target:  "http://localhost:8080",
 			},
 		},
-		Processes: map[string]*node.ProcessState{},
-	})
-	assert.Nil(t, err)
+		Processes: map[string]*node.Process{},
+	}
+
+	trans, err := node.GenProcessStartTransition("app1", state)
+	require.NoError(t, err)
+	startProcessStateUpdate, err := test_helpers.StateUpdateTestHelper(trans, state)
+	require.NoError(t, err)
 
 	shouldExecute, err := executor.ShouldExecute(startProcessStateUpdate)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, true, shouldExecute)
 	assert.Equal(t, 0, len(executor.RuleSet.rules))
 
 	err = executor.Execute(startProcessStateUpdate)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1, len(executor.RuleSet.rules))
 }
 
@@ -67,9 +70,7 @@ func TestBrokenRule(t *testing.T) {
 		},
 	}
 
-	startProcessStateUpdate, err := test_helpers.StateUpdateTestHelper(&node.ProcessStartTransition{
-		AppID: "app1",
-	}, &node.State{
+	state := &node.State{
 		AppInstallations: map[string]*node.AppInstallationState{
 			"app1": {
 				AppInstallation: &node.AppInstallation{
@@ -90,12 +91,17 @@ func TestBrokenRule(t *testing.T) {
 				Target:  "http://localhost:8080",
 			},
 		},
-		Processes: map[string]*node.ProcessState{},
-	})
-	assert.Nil(t, err)
+		Processes: map[string]*node.Process{},
+	}
+
+	trans, err := node.GenProcessStartTransition("app1", state)
+	require.NoError(t, err)
+
+	startProcessStateUpdate, err := test_helpers.StateUpdateTestHelper(trans, state)
+	require.NoError(t, err)
 
 	err = executor.Execute(startProcessStateUpdate)
-	assert.NotNil(t, err)
+	require.ErrorContains(t, err, "rule type unknown is not supported")
 	assert.Equal(t, 0, len(executor.RuleSet.rules))
 }
 
@@ -107,7 +113,7 @@ func TestAddRuleExecutor(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	exec, err := subscriber.GetExecutor(node.TransitionAddReverseProxyRule)
+	exec, err := subscriber.GetExecutor(hdb.TransitionAddReverseProxyRule)
 	require.Nil(t, err)
 	executor, _ := exec.(*AddProxyRulesExecutor)
 

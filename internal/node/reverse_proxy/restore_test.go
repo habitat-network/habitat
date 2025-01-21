@@ -34,13 +34,10 @@ func TestProcessRestorer(t *testing.T) {
 				},
 			},
 		},
-		Processes: map[string]*node.ProcessState{
-			"proc1": {
-				Process: &node.Process{
-					ID:    "proc1",
-					AppID: "app1",
-				},
-				State: node.ProcessStateRunning,
+		Processes: map[string]*node.Process{
+			"proc1": &node.Process{
+				ID:    "proc1",
+				AppID: "app1",
 			},
 		},
 		ReverseProxyRules: &map[string]*node.ReverseProxyRule{

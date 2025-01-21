@@ -282,7 +282,7 @@ var NodeDataMigrations = MigrationsList{
 			return &State{
 				SchemaVersion:    "v0.0.1",
 				Users:            make(map[string]*User),
-				Processes:        make(map[string]*ProcessState),
+				Processes:        make(map[string]*Process),
 				AppInstallations: make(map[string]*AppInstallationState),
 			}, nil
 		},
@@ -394,6 +394,24 @@ var NodeDataMigrations = MigrationsList{
 			return newState, nil
 		},
 	},
+	&basicDataMigration{
+		upVersion:   "v0.0.7",
+		downVersion: "v0.0.6",
+		up: func(state *State) (*State, error) {
+			newState, err := state.Copy()
+			if err != nil {
+				return nil, err
+			}
+			return newState, nil
+		},
+		down: func(state *State) (*State, error) {
+			newState, err := state.Copy()
+			if err != nil {
+				return nil, err
+			}
+			return newState, nil
+		},
+	},
 }
 
 func applyPatchToState(diffPatch jsondiff.Patch, state *State) (*State, error) {
@@ -427,7 +445,6 @@ func applyPatchToState(diffPatch jsondiff.Patch, state *State) (*State, error) {
 }
 
 func GetEmptyStateForVersion(version string) (*State, error) {
-
 	emptyState := &State{}
 
 	diffPatch, err := NodeDataMigrations.GetMigrationPatch("v0.0.0", version, emptyState)

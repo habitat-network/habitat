@@ -145,27 +145,21 @@ func TestBackwardsCompatibility(t *testing.T) {
 				State: AppLifecycleStateInstalled,
 			},
 		},
-		Processes: map[string]*ProcessState{
-			"proc1": {
-				Process: &Process{
-					ID:      "proc1",
-					AppID:   "app1",
-					UserID:  "user1",
-					Created: "now",
-					Driver:  "docker",
-				},
-				State: ProcessStateRunning,
+		Processes: map[string]*Process{
+			"proc1": &Process{
+				ID:      "proc1",
+				AppID:   "app1",
+				UserID:  "user1",
+				Created: "now",
+				Driver:  "docker",
 			},
 			// This process was not in a running state, but should be started
-			"proc2": {
-				Process: &Process{
-					ID:      "proc2",
-					AppID:   "app2",
-					UserID:  "user1",
-					Created: "now",
-					Driver:  "docker",
-				},
-				State: ProcessStateStarting,
+			"proc2": &Process{
+				ID:      "proc2",
+				AppID:   "app2",
+				UserID:  "user1",
+				Created: "now",
+				Driver:  "docker",
 			},
 		},
 	}

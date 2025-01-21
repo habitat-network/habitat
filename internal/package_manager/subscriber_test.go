@@ -6,6 +6,7 @@ import (
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/core/state/node/test_helpers"
 	controller_mocks "github.com/eagraf/habitat-new/internal/node/controller/mocks"
+	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -95,7 +96,7 @@ func TestAppInstallSubscriber(t *testing.T) {
 	err = installAppExecutor.Execute(stateUpdate)
 	assert.NotNil(t, err)
 
-	assert.Equal(t, node.TransitionStartInstallation, installAppExecutor.TransitionType())
+	assert.Equal(t, hdb.TransitionStartInstallation, installAppExecutor.TransitionType())
 	require.NoError(t, lifeCycleSubscriber.ConsumeEvent(stateUpdate))
 }
 

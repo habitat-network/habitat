@@ -50,7 +50,7 @@ func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (NodeController, *mo
 			require.Equal(t, 1, len(initTransitions))
 
 			initStateTransition := initTransitions[0]
-			require.Equal(t, node.TransitionInitialize, initStateTransition.Type())
+			require.Equal(t, hdb.TransitionInitialize, initStateTransition.Type())
 
 			state := initStateTransition.(*node.InitalizationTransition).InitState
 
@@ -232,53 +232,6 @@ func TestGetAppByID(t *testing.T) {
 	app, err = controller.GetAppByID("app_2")
 	assert.NotNil(t, err)
 	assert.Nil(t, app)
-}
-
-func TestStartProcessController(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	controller, _, mockedManager, mockedClient := setupNodeDBTest(ctrl, t)
-
-	marshaledNodeState, err := json.Marshal(nodeState)
-	if err != nil {
-		t.Error(err)
-	}
-
-	mockedClient.EXPECT().Bytes().Return(marshaledNodeState).Times(1)
-
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockedClient, nil).Times(3)
-	mockedClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			&node.ProcessStartTransition{
-				AppID: "app_1",
-			},
-		},
-	)).Return(nil, nil).Times(1)
-	mockedClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			&node.ProcessRunningTransition{
-				ProcessID: "process_1",
-			},
-		},
-	)).Return(nil, nil).Times(1)
-
-	mockedClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			&node.ProcessStopTransition{
-				ProcessID: "process_1",
-			},
-		},
-	)).Return(nil, nil).Times(1)
-
-	err = controller.StartProcess("app_1")
-	assert.Nil(t, err)
-
-	// Test setting the process to running, and then stopping it.
-	err = controller.SetProcessRunning("process_1")
-	assert.Nil(t, err)
-
-	err = controller.StopProcess("process_1")
-	assert.Nil(t, err)
 }
 
 func TestAddUser(t *testing.T) {
