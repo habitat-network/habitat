@@ -82,7 +82,7 @@ func TestGetReverseProxyRulesForProcess(t *testing.T) {
 				},
 			},
 		},
-		Processes: map[string]*Process{
+		Processes: map[ProcessID]*Process{
 			"process1": &Process{
 				ID:    "process1",
 				AppID: "app1",

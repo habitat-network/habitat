@@ -45,7 +45,7 @@ func TestStartProcessExecutor(t *testing.T) {
 				Target:  "http://localhost:8080",
 			},
 		},
-		Processes: map[string]*node.Process{},
+		Processes: map[node.ProcessID]*node.Process{},
 	}
 
 	trans, err := node.GenProcessStartTransition("app1", state)
@@ -91,7 +91,7 @@ func TestBrokenRule(t *testing.T) {
 				Target:  "http://localhost:8080",
 			},
 		},
-		Processes: map[string]*node.Process{},
+		Processes: map[node.ProcessID]*node.Process{},
 	}
 
 	trans, err := node.GenProcessStartTransition("app1", state)

@@ -282,7 +282,7 @@ var NodeDataMigrations = MigrationsList{
 			return &State{
 				SchemaVersion:    "v0.0.1",
 				Users:            make(map[string]*User),
-				Processes:        make(map[string]*Process),
+				Processes:        make(map[ProcessID]*Process),
 				AppInstallations: make(map[string]*AppInstallationState),
 			}, nil
 		},

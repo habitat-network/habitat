@@ -14,3 +14,6 @@ packages:
     include_files:
       - schema.go
       - core.go
+      - app_installation.go
+      - process.go
+      - reverse_proxy.go

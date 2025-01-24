@@ -34,7 +34,7 @@ func TestProcessRestorer(t *testing.T) {
 				},
 			},
 		},
-		Processes: map[string]*node.Process{
+		Processes: map[node.ProcessID]*node.Process{
 			"proc1": &node.Process{
 				ID:    "proc1",
 				AppID: "app1",

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -11,11 +12,12 @@ import (
 )
 
 type controller2 struct {
+	ctx            context.Context
 	db             hdb.Client
 	processManager process.ProcessManager
 }
 
-func newController2(pm process.ProcessManager, db hdb.Client) (*controller2, error) {
+func newController2(ctx context.Context, pm process.ProcessManager, db hdb.Client) (*controller2, error) {
 	// Validate types of all input components
 	_, ok := pm.(node.Component[process.RestoreInfo])
 	if !ok {
@@ -23,6 +25,7 @@ func newController2(pm process.ProcessManager, db hdb.Client) (*controller2, err
 	}
 
 	ctrl := &controller2{
+		ctx:            ctx,
 		processManager: pm,
 		db:             db,
 	}
@@ -62,15 +65,21 @@ func (c *controller2) startProcess(installationID string) error {
 	}
 
 	proc := transition.Process
-	err = c.processManager.StartProcess(proc, app.AppInstallation)
+	err = c.processManager.StartProcess(c.ctx, proc, app.AppInstallation)
 	if err != nil {
 		return errors.Wrap(err, "error starting process")
 	}
 	return nil
 }
 
-func (c *controller2) stopProcess(processID string) error {
-	_, err := c.db.ProposeTransitions([]hdb.Transition{
+func (c *controller2) stopProcess(processID node.ProcessID) error {
+	err := c.processManager.StopProcess(c.ctx, processID)
+	if err != nil {
+		return errors.Wrap(err, "error stopping process")
+	}
+
+	// Only propose transitions if stopping the process succeeded
+	_, err = c.db.ProposeTransitions([]hdb.Transition{
 		&node.ProcessStopTransition{
 			ProcessID: processID,
 		},
@@ -79,16 +88,12 @@ func (c *controller2) stopProcess(processID string) error {
 		return err
 	}
 
-	err = c.processManager.StopProcess(processID)
-	if err != nil {
-		return errors.Wrap(err, "error stopping process")
-	}
 	return nil
 }
 
 func (c *controller2) restore(state *node.State) error {
 	// Restore processes to the current state
-	err := c.processManager.RestoreFromState(process.RestoreInfo{Procs: state.Processes, Apps: state.AppInstallations})
+	err := c.processManager.RestoreFromState(c.ctx, process.RestoreInfo{Procs: state.Processes, Apps: state.AppInstallations})
 	if err != nil {
 		return err
 	}

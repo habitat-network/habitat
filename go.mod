@@ -23,6 +23,12 @@ require (
 )
 
 require (
+	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
+)
+
+require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
@@ -123,6 +129,7 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e // indirect
+	github.com/urfave/cli/v2 v2.27.5
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

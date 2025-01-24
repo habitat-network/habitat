@@ -145,7 +145,7 @@ func TestBackwardsCompatibility(t *testing.T) {
 				State: AppLifecycleStateInstalled,
 			},
 		},
-		Processes: map[string]*Process{
+		Processes: map[ProcessID]*Process{
 			"proc1": &Process{
 				ID:      "proc1",
 				AppID:   "app1",

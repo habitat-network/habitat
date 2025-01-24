@@ -36,7 +36,7 @@ type State struct {
 	TestField     string           `json:"test_field,omitempty"`
 	Users         map[string]*User `json:"users"`
 	// A set of running processes that a node can restore to on startup.
-	Processes         map[string]*Process              `json:"processes"`
+	Processes         map[ProcessID]*Process           `json:"processes"`
 	AppInstallations  map[string]*AppInstallationState `json:"app_installations"`
 	ReverseProxyRules *map[string]*ReverseProxyRule    `json:"reverse_proxy_rules,omitempty"`
 }
@@ -86,7 +86,7 @@ func (s State) GetProcessesForUser(userID string) ([]*Process, error) {
 }
 
 func (s State) GetReverseProxyRulesForProcess(processID string) ([]*ReverseProxyRule, error) {
-	process, ok := s.Processes[processID]
+	process, ok := s.Processes[ProcessID(processID)]
 	if !ok {
 		return nil, fmt.Errorf("process with ID %s not found", processID)
 	}

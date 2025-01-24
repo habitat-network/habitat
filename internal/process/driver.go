@@ -1,11 +1,15 @@
 package process
 
-import "github.com/eagraf/habitat-new/core/state/node"
+import (
+	"context"
+
+	"github.com/eagraf/habitat-new/core/state/node"
+)
 
 type Driver interface {
 	Type() string
-	StartProcess(*node.Process, *node.AppInstallation) (string, error)
-	StopProcess(extProcessID string) error
+	StartProcess(context.Context, *node.Process, *node.AppInstallation) error
+	StopProcess(context.Context, node.ProcessID) error
 }
 
 type noopDriver struct {
@@ -20,10 +24,10 @@ func (d *noopDriver) Type() string {
 	return d.driverType
 }
 
-func (d *noopDriver) StartProcess(*node.Process, *node.AppInstallation) (string, error) {
-	return "", nil
+func (d *noopDriver) StartProcess(context.Context, *node.Process, *node.AppInstallation) error {
+	return nil
 }
 
-func (d *noopDriver) StopProcess(extProcessID string) error {
+func (d *noopDriver) StopProcess(context.Context, node.ProcessID) error {
 	return nil
 }

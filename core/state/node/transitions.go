@@ -28,7 +28,7 @@ func (t *InitalizationTransition) Patch(oldState hdb.SerializedState) (hdb.Seria
 	}
 
 	if t.InitState.Processes == nil {
-		t.InitState.Processes = make(map[string]*Process)
+		t.InitState.Processes = make(map[ProcessID]*Process)
 	}
 
 	marshaled, err := json.Marshal(t.InitState)
@@ -383,7 +383,7 @@ func GenProcessStartTransition(appID string, oldState *State) (*ProcessStartTran
 		Driver: app.Driver,
 		AppID:  app.ID,
 	}
-	proc.ID = uuid.New().String()
+	proc.ID = ProcessID(uuid.New().String())
 	proc.Created = time.Now().Format(time.RFC3339)
 	return &ProcessStartTransition{
 		Process: proc,
@@ -464,7 +464,7 @@ func (t *ProcessStartTransition) Validate(oldState hdb.SerializedState) error {
 }
 
 type ProcessStopTransition struct {
-	ProcessID string `json:"process_id"`
+	ProcessID ProcessID `json:"process_id"`
 }
 
 func (t *ProcessStopTransition) Type() hdb.TransitionType {

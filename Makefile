@@ -24,7 +24,19 @@ PDS_BLOB_DIR = $(PDS_DIR)/blocks
 
 GOBIN ?= $$(go env GOPATH)/bin
 
-build: $(TOPDIR)/bin/amd64-linux/habitat $(TOPDIR)/bin/amd64-darwin/habitat
+build: $(TOPDIR)/bin/amd64-linux/habitat $(TOPDIR)/bin/amd64-darwin/habitat build-ctrl
+
+# Build the CLI program for the node controller
+.PHONY: build-ctrl
+
+build-ctrl: clean-build-ctrl $(TOPDIR)/bin/node-ctrl
+
+clean-build-ctrl: 
+	rm -rf $(TOPDIR)/bin/node-ctrl
+
+build-ctrl: $(TOPDIR)/bin/node-ctrl
+
+# ===============================================================================
 
 archive: $(TOPDIR)/bin/amd64-linux/habitat-amd64-linux.tar.gz $(TOPDIR)/bin/amd64-darwin/habitat-amd64-darwin.tar.gz
 
@@ -109,6 +121,10 @@ $(CERT_DIR)/dev_root_user_cert.pem: $(CERT_DIR)
 
 $(TOPDIR)/bin: $(TOPDIR)
 	mkdir -p $(TOPDIR)/bin
+
+
+$(TOPDIR)/bin/node-ctrl: 
+	go build -o $(TOPDIR)/bin/node-ctrl $(TOPDIR)/cmd/node_ctrl/main.go
 
 # Linux AMD64 Builds
 $(TOPDIR)/bin/amd64-linux/habitat: $(TOPDIR)/bin frontend_server/build

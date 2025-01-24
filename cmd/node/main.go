@@ -168,7 +168,7 @@ func main() {
 		log.Fatal().Err(err).Msg("error getting default HDB client")
 	}
 
-	ctrlServer, err := controller.NewCtrlServer(nodeCtrl, pm, dbClient)
+	ctrlServer, err := controller.NewCtrlServer(ctx, nodeCtrl, pm, dbClient)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node control server")
 	}

@@ -24,9 +24,6 @@ export interface PostAppRequest {
   app_installation?: node.AppInstallation;
   reverse_proxy_rules: (node.ReverseProxyRule | undefined)[];
 }
-export interface PostProcessRequest {
-  app_id: string;
-}
 
 //////////
 // source: pds.go

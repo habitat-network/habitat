@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
+	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/eagraf/habitat-new/internal/process"
@@ -14,8 +16,8 @@ type CtrlServer struct {
 	inner *controller2
 }
 
-func NewCtrlServer(b *BaseNodeController, pm process.ProcessManager, db hdb.Client) (*CtrlServer, error) {
-	inner, err := newController2(pm, db)
+func NewCtrlServer(ctx context.Context, b *BaseNodeController, pm process.ProcessManager, db hdb.Client) (*CtrlServer, error) {
+	inner, err := newController2(ctx, pm, db)
 	if err != nil {
 		return nil, errors.Wrap(err, "error initializing controller")
 	}
@@ -69,7 +71,29 @@ func (s *CtrlServer) StopProcess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.inner.stopProcess(req.ProcessID)
+	err = s.inner.stopProcess(node.ProcessID(req.ProcessID))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *CtrlServer) ListProcesses(w http.ResponseWriter, r *http.Request) {
+	procs, err := s.inner.processManager.ListProcesses()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	bytes, err := json.Marshal(procs)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(bytes)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -106,7 +130,8 @@ var _ api.Route = &route{}
 
 func (s *CtrlServer) GetRoutes() []api.Route {
 	return []api.Route{
-		newRoute(http.MethodPost, "/node/processes", s.StartProcess),
-		newRoute(http.MethodGet, "/node/processes/stop", s.StopProcess),
+		newRoute(http.MethodPost, "/node/processes/start", s.StartProcess),
+		newRoute(http.MethodPost, "/node/processes/stop", s.StopProcess),
+		newRoute(http.MethodGet, "/node/processes/list", s.ListProcesses),
 	}
 }

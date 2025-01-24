@@ -1,10 +1,10 @@
 import React from 'react';
-import { AppInstallation, AppInstallationState, ProcessState, ReverseProxyRule } from '../types/node';
+import { AppInstallationState, Process, ReverseProxyRule } from '../types/node';
 
 
 interface AppListProps {
   apps: AppInstallationState[];
-  processes: ProcessState[];
+  processes: Process[];
   reverseProxyRules: ReverseProxyRule[];
 }
 
@@ -17,8 +17,8 @@ const AppList: React.FC<AppListProps> = ({ apps, processes, reverseProxyRules })
       ) : (
         <ul className="space-y-4">
           {apps.map((app: AppInstallationState) => {
-            const matchingProcess = processes.find((processState: ProcessState) => processState.app_id === app.id);
-            const state = matchingProcess ? matchingProcess.state : app.state;
+            const matchingProcess = processes.find((process: Process) => process.app_id === app.id);
+            const state = matchingProcess ? "running" : app.state;
             
             const matchingRules = reverseProxyRules.filter(rule => rule.app_id === app.id);
             

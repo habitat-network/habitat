@@ -8,7 +8,7 @@ import { getNode } from '@/api/node';
 import { GetNodeResponse } from '@/types/api';
 import ReverseProxyRuleList from '@/components/reverseProxyRuleList';
 import AppList from '@/components/appList';
-import { AppInstallationState, ProcessState, ReverseProxyRule } from '@/types/node';
+import { AppInstallationState, Process, ReverseProxyRule } from '@/types/node';
 
 const ServerPageInternal: React.FC = () => {
     const router = useRouter();
@@ -45,7 +45,7 @@ const ServerPageInternal: React.FC = () => {
     }, []);
 
     const renderTabContent = () => {
-        const processesArray = Object.values(nodeData!.state.processes).filter(process => process !== undefined) as ProcessState[];
+        const processesArray = Object.values(nodeData!.state.processes).filter(process => process !== undefined) as Process[];
         const appsArray = Object.values(nodeData!.state.app_installations).filter(app => app !== undefined) as AppInstallationState[];
         const proxyRulesArray = Object.values(nodeData!.state.reverse_proxy_rules || {}).filter(rule => rule !== undefined) as ReverseProxyRule[];
         switch (activeTab) {
