@@ -10,11 +10,16 @@ import (
 )
 
 func TestNoopDriver(t *testing.T) {
-	driver := process.NewNoopDriver("my_type")
-	require.Equal(t, "my_type", driver.Type())
-	err := driver.StartProcess(context.Background(), &node.Process{
-		ID: "my-id",
-	}, nil)
+	driver := process.NewNoopDriver(node.DriverTypeNoop)
+	require.Equal(t, node.DriverTypeNoop, driver.Type())
+	err := driver.StartProcess(context.Background(), "my-id", nil)
 	require.NoError(t, err)
-	require.NoError(t, driver.StopProcess(context.Background(), "my-id"))
+	err = driver.StopProcess(context.Background(), "my-id")
+	require.NoError(t, err)
+	ok, err := driver.IsRunning(context.Background(), "any-id")
+	require.NoError(t, err)
+	require.False(t, ok, "always returns false")
+	procs, err := driver.ListRunningProcesses(context.Background())
+	require.NoError(t, err)
+	require.Len(t, procs, 0, "doesn't keep track of anything, so no running processes")
 }

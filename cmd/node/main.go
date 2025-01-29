@@ -67,9 +67,9 @@ func main() {
 	// Initialize package managers
 	stateLogger := hdbms.NewStateUpdateLogger(logger)
 	appLifecycleSubscriber, err := package_manager.NewAppLifecycleSubscriber(
-		map[string]package_manager.PackageManager{
-			constants.AppDriverDocker: docker.NewPackageManager(dockerClient),
-			constants.AppDriverWeb:    web.NewPackageManager(nodeConfig.WebBundlePath()),
+		map[node.DriverType]package_manager.PackageManager{
+			node.DriverTypeDocker: docker.NewPackageManager(dockerClient),
+			node.DriverTypeWeb:    web.NewPackageManager(nodeConfig.WebBundlePath()),
 		},
 		nodeCtrl,
 	)
@@ -250,7 +250,7 @@ func generatePDSAppConfig(nodeConfig *config.NodeConfig) *types.PostAppRequest {
 			Version: "1",
 			UserID:  constants.RootUserID,
 			Package: node.Package{
-				Driver: "docker",
+				Driver: node.DriverTypeDocker,
 				DriverConfig: map[string]interface{}{
 					"env": []string{
 						fmt.Sprintf("PDS_HOSTNAME=%s", nodeConfig.Domain()),

@@ -14,8 +14,8 @@ import (
 )
 
 const SchemaName = "node"
-const CurrentVersion = "v0.0.7"
-const LatestVersion = "v0.0.7"
+const CurrentVersion = "v0.0.8"
+const LatestVersion = "v0.0.8"
 
 // This paackage contains core structs for the node state. These are intended to be embedable in other structs
 // throughout the application. That way, it's easy to modify the core struct, while having
@@ -85,7 +85,7 @@ func (s State) GetProcessesForUser(userID string) ([]*Process, error) {
 	return procs, nil
 }
 
-func (s State) GetReverseProxyRulesForProcess(processID string) ([]*ReverseProxyRule, error) {
+func (s State) GetReverseProxyRulesForProcess(processID ProcessID) ([]*ReverseProxyRule, error) {
 	process, ok := s.Processes[ProcessID(processID)]
 	if !ok {
 		return nil, fmt.Errorf("process with ID %s not found", processID)

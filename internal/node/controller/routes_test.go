@@ -77,7 +77,7 @@ func TestInstallAppHandler(t *testing.T) {
 			Name:    "app_name1",
 			Version: "1",
 			Package: node.Package{
-				Driver:             "docker",
+				Driver:             node.DriverTypeDocker,
 				RegistryURLBase:    "https://registry.com",
 				RegistryPackageID:  "app_name1",
 				RegistryPackageTag: "v1",

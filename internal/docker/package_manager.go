@@ -8,7 +8,6 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/rs/zerolog/log"
 )
@@ -53,8 +52,8 @@ func NewPackageManager(client *client.Client) package_manager.PackageManager {
 	}
 }
 
-func (d *dockerPackageManager) Driver() string {
-	return constants.AppDriverDocker
+func (d *dockerPackageManager) Driver() node.DriverType {
+	return node.DriverTypeDocker
 }
 
 func repoURLFromPackage(packageSpec *node.Package) string {
@@ -77,7 +76,7 @@ func (d *dockerPackageManager) IsInstalled(packageSpec *node.Package, version st
 
 // Implement the package manager interface
 func (d *dockerPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
-	if packageSpec.Driver != constants.AppDriverDocker {
+	if packageSpec.Driver != node.DriverTypeDocker {
 		return fmt.Errorf("invalid package driver: %s, expected docker", packageSpec.Driver)
 	}
 

@@ -21,7 +21,7 @@ func TestAppInstallSubscriber(t *testing.T) {
 				Name:    "appname1",
 				Version: "v1",
 				Package: node.Package{
-					Driver:            "test",
+					Driver:            node.DriverTypeNoop,
 					RegistryURLBase:   "registry.com",
 					RegistryPackageID: "package1",
 				},
@@ -42,18 +42,18 @@ func TestAppInstallSubscriber(t *testing.T) {
 	pm := newMockManager()
 	nc := controller_mocks.NewMockNodeController(ctrl)
 
-	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[node.DriverType]PackageManager{node.DriverTypeNoop: pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
 	require.Nil(t, err)
 
 	installAppExecutor := &InstallAppExecutor{
-		packageManagers: map[string]PackageManager{"test": pm},
+		packageManagers: map[node.DriverType]PackageManager{node.DriverTypeNoop: pm},
 		nodeController:  nc,
 	}
 
 	// Test not installed
 	installed, err := pm.IsInstalled(&node.Package{
-		Driver:            "test",
+		Driver:            node.DriverTypeNoop,
 		RegistryURLBase:   "registry.com",
 		RegistryPackageID: "package1",
 	}, "v1")
@@ -66,7 +66,7 @@ func TestAppInstallSubscriber(t *testing.T) {
 
 	// Test that ShouldExecute returns false when it is installed
 	require.NoError(t, pm.InstallPackage(&node.Package{
-		Driver:            "test",
+		Driver:            node.DriverTypeNoop,
 		RegistryURLBase:   "registry.com",
 		RegistryPackageID: "package1",
 	}, "v1"))
@@ -88,7 +88,7 @@ func TestAppInstallSubscriber(t *testing.T) {
 
 	// Test installation failure from driver
 	require.ErrorIs(t, pm.InstallPackage(&node.Package{
-		Driver:            "test",
+		Driver:            node.DriverTypeNoop,
 		RegistryURLBase:   "registry.com",
 		RegistryPackageID: "package1",
 	}, "v1"), errDuplicate)
@@ -122,7 +122,7 @@ func TestFinishInstallSubscriber(t *testing.T) {
 						Name:    "appname1",
 						Version: "v1",
 						Package: node.Package{
-							Driver:            "test",
+							Driver:            node.DriverTypeNoop,
 							RegistryURLBase:   "registry.com",
 							RegistryPackageID: "package1",
 						},
@@ -138,7 +138,7 @@ func TestFinishInstallSubscriber(t *testing.T) {
 	nc := controller_mocks.NewMockNodeController(ctrl)
 	pm := newMockManager()
 
-	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[node.DriverType]PackageManager{node.DriverTypeNoop: pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
 	require.Nil(t, err)
 
@@ -181,7 +181,7 @@ func TestFinishInstallSubscriberNoAutoStart(t *testing.T) {
 						Name:    "appname1",
 						Version: "v1",
 						Package: node.Package{
-							Driver:            "test",
+							Driver:            node.DriverTypeNoop,
 							RegistryURLBase:   "registry.com",
 							RegistryPackageID: "package1",
 						},
@@ -197,7 +197,7 @@ func TestFinishInstallSubscriberNoAutoStart(t *testing.T) {
 	nc := controller_mocks.NewMockNodeController(ctrl)
 	pm := newMockManager()
 
-	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[string]PackageManager{"test": pm}, nc)
+	lifeCycleSubscriber, err := NewAppLifecycleSubscriber(map[node.DriverType]PackageManager{node.DriverTypeNoop: pm}, nc)
 	require.Equal(t, lifeCycleSubscriber.Name(), "AppLifecycleSubscriber")
 	require.Nil(t, err)
 

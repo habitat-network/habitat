@@ -29,7 +29,7 @@ func TestProcessRestorer(t *testing.T) {
 					ID:   "app1",
 					Name: "appname1",
 					Package: node.Package{
-						Driver: "test",
+						Driver: node.DriverTypeNoop,
 					},
 				},
 			},

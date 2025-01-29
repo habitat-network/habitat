@@ -197,7 +197,7 @@ func TestAppLifecycle(t *testing.T) {
 				Name:    "app_name1",
 				Version: "1",
 				Package: Package{
-					Driver:             "docker",
+					Driver:             DriverTypeDocker,
 					RegistryURLBase:    "https://registry.com",
 					RegistryPackageID:  "app_name1",
 					RegistryPackageTag: "v1",
@@ -233,7 +233,7 @@ func TestAppLifecycle(t *testing.T) {
 			AppInstallation: &AppInstallation{
 				Version: "1",
 				Package: Package{
-					Driver:             "docker",
+					Driver:             DriverTypeDocker,
 					RegistryURLBase:    "https://registry.com",
 					RegistryPackageID:  "app_name1",
 					RegistryPackageTag: "v1",
@@ -276,7 +276,7 @@ func TestAppLifecycle(t *testing.T) {
 				Name:    "app_name1",
 				Version: "1",
 				Package: Package{
-					Driver:             "docker",
+					Driver:             DriverTypeDocker,
 					RegistryURLBase:    "https://registry.com",
 					RegistryPackageID:  "app_name1",
 					RegistryPackageTag: "v1",
@@ -296,7 +296,7 @@ func TestAppLifecycle(t *testing.T) {
 				Name:    "app_name1",
 				Version: "2",
 				Package: Package{
-					Driver:             "docker",
+					Driver:             DriverTypeDocker,
 					RegistryURLBase:    "https://registry.com",
 					RegistryPackageID:  "app_name1",
 					RegistryPackageTag: "v2",
@@ -344,7 +344,7 @@ func TestAppInstallReverseProxyRules(t *testing.T) {
 				Name:    "app_name1",
 				Version: "1",
 				Package: Package{
-					Driver:             "docker",
+					Driver:             DriverTypeDocker,
 					RegistryURLBase:    "https://registry.com",
 					RegistryPackageID:  "app_name1",
 					RegistryPackageTag: "v1",
@@ -390,7 +390,7 @@ func TestProcesses(t *testing.T) {
 							UserID:  "123",
 							Version: "1",
 							Package: Package{
-								Driver:             "docker",
+								Driver:             DriverTypeDocker,
 								RegistryURLBase:    "https://registry.com",
 								RegistryPackageID:  "app_name1",
 								RegistryPackageTag: "v1",

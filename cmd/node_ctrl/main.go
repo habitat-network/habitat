@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/urfave/cli/v2"
@@ -65,6 +66,7 @@ func startProcess() *cli.Command {
 }
 
 func stopProcess() *cli.Command {
+	var id string
 	var req controller.StopProcessRequest
 	return &cli.Command{
 		Name:  "stop",
@@ -73,12 +75,13 @@ func stopProcess() *cli.Command {
 			&cli.StringFlag{
 				Name:        "id",
 				Usage:       "The process ID for the desired process to stop.",
-				Destination: &req.ProcessID,
+				Destination: &id,
 				Required:    true,
 			},
 		},
 		Action: func(ctx *cli.Context) error {
 			url := fmt.Sprintf("http://localhost:%s/node/processes/stop", port)
+			req.ProcessID = node.ProcessID(id)
 			marshalled, err := json.Marshal(req)
 			if err != nil {
 				return err

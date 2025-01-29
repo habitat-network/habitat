@@ -36,7 +36,7 @@ type AppInstallationConfig struct {
 }
 
 type Package struct {
-	Driver             string                 `json:"driver" yaml:"driver"`
+	Driver             DriverType             `json:"driver" yaml:"driver"`
 	DriverConfig       map[string]interface{} `json:"driver_config" yaml:"driver_config"`
 	RegistryURLBase    string                 `json:"registry_url_base" yaml:"registry_url_base"`
 	RegistryPackageID  string                 `json:"registry_app_id" yaml:"registry_app_id"`

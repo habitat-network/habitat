@@ -2,6 +2,7 @@ package node
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -378,13 +379,13 @@ func GenProcessStartTransition(appID string, oldState *State) (*ProcessStartTran
 		return nil, err
 	}
 
+	id := NewProcessID(app.Driver)
 	proc := &Process{
-		UserID: app.UserID,
-		Driver: app.Driver,
-		AppID:  app.ID,
+		ID:      id,
+		UserID:  app.UserID,
+		AppID:   app.ID,
+		Created: time.Now().Format(time.RFC3339),
 	}
-	proc.ID = ProcessID(uuid.New().String())
-	proc.Created = time.Now().Format(time.RFC3339)
 	return &ProcessStartTransition{
 		Process: proc,
 	}, nil
@@ -456,7 +457,7 @@ func (t *ProcessStartTransition) Validate(oldState hdb.SerializedState) error {
 	for _, proc := range oldNode.Processes {
 		// Make sure that no app with the same ID has a process
 		if proc.AppID == t.Process.AppID {
-			return fmt.Errorf("app with id %s already has a process", t.Process.AppID)
+			return fmt.Errorf("app with id %s already has a process; multiple processes per app not supported at this time", t.Process.AppID)
 		}
 	}
 
@@ -471,6 +472,10 @@ func (t *ProcessStopTransition) Type() hdb.TransitionType {
 	return hdb.TransitionStopProcess
 }
 
+var (
+	ErrNoProcFound = errors.New("process with id not found")
+)
+
 func (t *ProcessStopTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
 	var oldNode State
 	err := json.Unmarshal(oldState, &oldNode)
@@ -480,7 +485,7 @@ func (t *ProcessStopTransition) Patch(oldState hdb.SerializedState) (hdb.Seriali
 
 	_, ok := oldNode.Processes[t.ProcessID]
 	if !ok {
-		return nil, fmt.Errorf("process with id %s not found", t.ProcessID)
+		return nil, fmt.Errorf("%w: %s", ErrNoProcFound, t.ProcessID)
 	}
 
 	return []byte(fmt.Sprintf(`[{

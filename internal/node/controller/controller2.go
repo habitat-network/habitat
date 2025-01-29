@@ -47,6 +47,7 @@ func (c *controller2) startProcess(installationID string) error {
 	if err != nil {
 		return err
 	}
+
 	app, ok := state.AppInstallations[installationID]
 	if !ok {
 		return fmt.Errorf("app with ID %s not found", installationID)
@@ -64,38 +65,47 @@ func (c *controller2) startProcess(installationID string) error {
 		return errors.Wrap(err, "error proposing transition")
 	}
 
-	proc := transition.Process
-	err = c.processManager.StartProcess(c.ctx, proc, app.AppInstallation)
+	err = c.processManager.StartProcess(c.ctx, transition.Process.ID, app.AppInstallation)
 	if err != nil {
+		// Rollback the state change if the process start failed
+		_, err = c.db.ProposeTransitions([]hdb.Transition{
+			&node.ProcessStopTransition{
+				ProcessID: transition.Process.ID,
+			},
+		})
 		return errors.Wrap(err, "error starting process")
 	}
 	return nil
 }
 
 func (c *controller2) stopProcess(processID node.ProcessID) error {
-	err := c.processManager.StopProcess(c.ctx, processID)
-	if err != nil {
-		return errors.Wrap(err, "error stopping process")
+	procErr := c.processManager.StopProcess(c.ctx, processID)
+	// If there was no process found with this ID, continue with the state transition
+	// Otherwise this action failed, return an error without the transition
+	if procErr != nil && !errors.Is(procErr, process.ErrNoProcFound) {
+		// process.ErrNoProcFound is sometimes expected. In this case, still
+		// attempt to remove the process from the node state.
+		return procErr
 	}
 
-	// Only propose transitions if stopping the process succeeded
-	_, err = c.db.ProposeTransitions([]hdb.Transition{
+	// Only propose transitions if the process exists in state
+	_, err := c.db.ProposeTransitions([]hdb.Transition{
 		&node.ProcessStopTransition{
 			ProcessID: processID,
 		},
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (c *controller2) restore(state *node.State) error {
 	// Restore processes to the current state
-	err := c.processManager.RestoreFromState(c.ctx, process.RestoreInfo{Procs: state.Processes, Apps: state.AppInstallations})
-	if err != nil {
-		return err
+	info := make(map[node.ProcessID]*node.AppInstallation)
+	for _, proc := range state.Processes {
+		app, ok := state.AppInstallations[proc.AppID]
+		if !ok {
+			return fmt.Errorf("no app installation found for desired process: ID=%s appID=%s", proc.ID, proc.AppID)
+		}
+		info[proc.ID] = app.AppInstallation
 	}
-	return nil
+	return c.processManager.RestoreFromState(c.ctx, info)
 }

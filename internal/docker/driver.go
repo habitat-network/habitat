@@ -5,19 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bradenaw/juniper/xslices"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/rs/zerolog/log"
 )
 
 const (
-	habitatLabel   = "habitat_proc_id"
-	errNoProcFound = "no container found with label %s"
+	habitatLabel = "habitat_proc_id"
 )
 
 type dockerDriver struct {
@@ -33,12 +33,11 @@ func NewDriver(client *client.Client) process.Driver {
 	}
 }
 
-func (d *dockerDriver) Type() string {
-	return constants.AppDriverDocker
+func (d *dockerDriver) Type() node.DriverType {
+	return node.DriverTypeDocker
 }
 
-// StartProcess helps implement dockerDriver
-func (d *dockerDriver) StartProcess(ctx context.Context, process *node.Process, app *node.AppInstallation) error {
+func (d *dockerDriver) StartProcess(ctx context.Context, processID node.ProcessID, app *node.AppInstallation) error {
 	var dockerConfig node.AppInstallationConfig
 	dockerConfigBytes, err := json.Marshal(app.DriverConfig)
 	if err != nil {
@@ -60,7 +59,7 @@ func (d *dockerDriver) StartProcess(ctx context.Context, process *node.Process, 
 		ExposedPorts: exposedPorts,
 		Env:          dockerConfig.Env,
 		Labels: map[string]string{
-			habitatLabel: string(process.ID),
+			habitatLabel: string(processID),
 		},
 	}, &container.HostConfig{
 		PortBindings: dockerConfig.PortBindings,
@@ -80,26 +79,55 @@ func (d *dockerDriver) StartProcess(ctx context.Context, process *node.Process, 
 	return nil
 }
 
-func (d *dockerDriver) StopProcess(ctx context.Context, processID node.ProcessID) error {
+func (d *dockerDriver) getContainerWithProcessID(ctx context.Context, processID node.ProcessID) (types.Container, bool, error) {
+	labelVal := habitatLabel + "=" + string(processID)
 	ctrs, err := d.client.ContainerList(ctx, container.ListOptions{
 		Filters: filters.NewArgs(
-			filters.Arg("label", habitatLabel+"="+string(processID)),
+			filters.Arg("label", labelVal),
 		),
 	})
 	if err != nil {
-		return err
+		return types.Container{}, false, err
 	}
 
 	if len(ctrs) > 1 {
-		return fmt.Errorf("Got multiple processes with label %s: %v", habitatLabel, ctrs)
+		return types.Container{}, false, fmt.Errorf("Found multiple containers with label=%s: %v", labelVal, ctrs)
 	} else if len(ctrs) == 0 {
-		return fmt.Errorf(errNoProcFound, habitatLabel)
+		return types.Container{}, false, nil
 	}
 
-	err = d.client.ContainerStop(ctx, ctrs[0].ID, container.StopOptions{})
+	return ctrs[0], true, nil
+}
+
+func (d *dockerDriver) StopProcess(ctx context.Context, processID node.ProcessID) error {
+	ctr, ok, err := d.getContainerWithProcessID(ctx, processID)
 	if err != nil {
 		return err
+	} else if !ok {
+		return fmt.Errorf("%w: %s", process.ErrNoProcFound, processID)
 	}
 
-	return nil
+	return d.client.ContainerStop(ctx, ctr.ID, container.StopOptions{})
+}
+
+func (d *dockerDriver) IsRunning(ctx context.Context, id node.ProcessID) (bool, error) {
+	_, ok, err := d.getContainerWithProcessID(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
+func (d *dockerDriver) ListRunningProcesses(ctx context.Context) ([]node.ProcessID, error) {
+	ctrs, err := d.client.ContainerList(ctx, container.ListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("label", habitatLabel),
+		),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return xslices.Map(ctrs, func(ctr types.Container) node.ProcessID {
+		return node.ProcessID(ctr.Labels[habitatLabel])
+	}), nil
 }

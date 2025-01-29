@@ -7,6 +7,7 @@ import (
 
 	"github.com/qri-io/jsonschema"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSchemaParsing(t *testing.T) {
@@ -121,4 +122,10 @@ func TestGetEmptyStateForVersion(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, state)
 	assert.NotNil(t, state.ReverseProxyRules)
+}
+
+func TestMalformedProcessID(t *testing.T) {
+	typ, err := DriverFromProcessID("malformed-id")
+	require.Error(t, err)
+	require.Equal(t, typ, DriverTypeUnknown)
 }

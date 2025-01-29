@@ -10,7 +10,7 @@ import (
 )
 
 type InstallAppExecutor struct {
-	packageManagers map[string]PackageManager
+	packageManagers map[node.DriverType]PackageManager
 	nodeController  controller.NodeController
 }
 
@@ -123,7 +123,7 @@ func (e *FinishInstallExecutor) PostHook(update hdb.StateUpdate) error {
 	return nil
 }
 
-func NewAppLifecycleSubscriber(packageManagers map[string]PackageManager, nodeController controller.NodeController) (*hdb.IdempotentStateUpdateSubscriber, error) {
+func NewAppLifecycleSubscriber(packageManagers map[node.DriverType]PackageManager, nodeController controller.NodeController) (*hdb.IdempotentStateUpdateSubscriber, error) {
 	// TODO this should have a fx cleanup hook to cleanly handle interrupted installs
 	// when the node shuts down.
 	pmRestorer := &PackageManagerRestorer{

@@ -15,10 +15,6 @@ const (
 	// Request context keys
 	ContextKeyUserID HabitatContextKey = "user_id"
 
-	// App driver names
-	AppDriverDocker = "docker"
-	AppDriverWeb    = "web"
-
 	// Default port values
 	DefaultPortHabitatAPI   = "3000"
 	DefaultPortReverseProxy = "3001"

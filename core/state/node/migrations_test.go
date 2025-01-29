@@ -122,7 +122,7 @@ func TestBackwardsCompatibility(t *testing.T) {
 					Name:    "appname1",
 					Version: "1.0.0",
 					Package: Package{
-						Driver:             "docker",
+						Driver:             DriverTypeDocker,
 						RegistryURLBase:    "https://registry.example.com",
 						RegistryPackageID:  "appname1",
 						RegistryPackageTag: "1.0.0",
@@ -136,7 +136,7 @@ func TestBackwardsCompatibility(t *testing.T) {
 					Name:    "appname2",
 					Version: "1.0.0",
 					Package: Package{
-						Driver:             "docker",
+						Driver:             DriverTypeDocker,
 						RegistryURLBase:    "https://registry.example.com",
 						RegistryPackageID:  "appname1",
 						RegistryPackageTag: "1.0.0",
@@ -151,7 +151,6 @@ func TestBackwardsCompatibility(t *testing.T) {
 				AppID:   "app1",
 				UserID:  "user1",
 				Created: "now",
-				Driver:  "docker",
 			},
 			// This process was not in a running state, but should be started
 			"proc2": &Process{
@@ -159,7 +158,6 @@ func TestBackwardsCompatibility(t *testing.T) {
 				AppID:   "app2",
 				UserID:  "user1",
 				Created: "now",
-				Driver:  "docker",
 			},
 		},
 	}
