@@ -83,7 +83,6 @@ func (pm *baseProcessManager) StartProcess(ctx context.Context, id node.ProcessI
 	} else if err != nil {
 		return err
 	}
-
 	return driver.StartProcess(ctx, id, app)
 }
 

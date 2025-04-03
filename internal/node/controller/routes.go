@@ -54,47 +54,6 @@ func (h *MigrationRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// InstallAppRoute calls nodeController.InstallApp()
-type InstallAppRoute struct {
-	nodeController NodeController
-}
-
-func NewInstallAppRoute(nodeController NodeController) *InstallAppRoute {
-	return &InstallAppRoute{
-		nodeController: nodeController,
-	}
-}
-
-func (h *InstallAppRoute) Pattern() string {
-	return "/node/users/{user_id}/apps"
-}
-
-func (h *InstallAppRoute) Method() string {
-	return http.MethodPost
-}
-
-func (h *InstallAppRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
-
-	var req types.PostAppRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	appInstallation := req.AppInstallation
-
-	err = h.nodeController.InstallApp(userID, appInstallation, req.ReverseProxyRules)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// TODO validate request
-	w.WriteHeader(http.StatusCreated)
-}
-
 // GetNodeRoute gets the node's database and returns its state map.
 type GetNodeRoute struct {
 	dbManager hdb.HDBManager

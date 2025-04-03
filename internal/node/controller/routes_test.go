@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller/mocks"
 	hdb_mocks "github.com/eagraf/habitat-new/internal/node/hdb/mocks"
+	"github.com/eagraf/habitat-new/internal/package_manager"
+	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,73 +65,6 @@ func TestMigrations(t *testing.T) {
 	)
 	assert.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
 
-}
-
-func TestInstallAppHandler(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	m := mocks.NewMockNodeController(ctrl)
-
-	handler := NewInstallAppRoute(m)
-
-	body := &types.PostAppRequest{
-		AppInstallation: &node.AppInstallation{
-			UserID:  "0",
-			Name:    "app_name1",
-			Version: "1",
-			Package: node.Package{
-				Driver:             node.DriverTypeDocker,
-				RegistryURLBase:    "https://registry.com",
-				RegistryPackageID:  "app_name1",
-				RegistryPackageTag: "v1",
-			},
-		},
-		ReverseProxyRules: []*node.ReverseProxyRule{},
-	}
-
-	b, err := json.Marshal(body)
-	require.NoError(t, err)
-
-	testAppInstallation := body.AppInstallation
-	testAppInstallation.UserID = "0"
-	m.EXPECT().InstallApp("0", testAppInstallation, []*node.ReverseProxyRule{}).Return(nil).Times(1)
-
-	// Test the happy path
-	req := httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b))
-	req.SetPathValue("user_id", "0")
-	resp := httptest.NewRecorder()
-	handler.ServeHTTP(
-		resp,
-		req,
-	)
-	require.Equal(t, http.StatusCreated, resp.Result().StatusCode)
-
-	respBody, err := io.ReadAll(resp.Result().Body)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(respBody))
-
-	// Test an error returned by the controller
-	m.EXPECT().
-		InstallApp("0", testAppInstallation, []*node.ReverseProxyRule{}).
-		Return(errors.New("Couldn't install app")).
-		Times(1)
-	req = httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader(b))
-	req.SetPathValue("user_id", "0")
-	resp = httptest.NewRecorder()
-	handler.ServeHTTP(
-		resp,
-		req,
-	)
-	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
-
-	// Test invalid request
-	m.EXPECT().StartProcess(body.AppInstallation).Times(0)
-	resp = httptest.NewRecorder()
-	handler.ServeHTTP(
-		resp,
-		httptest.NewRequest(http.MethodPost, handler.Pattern(), bytes.NewReader([]byte("invalid"))),
-	)
-	assert.Equal(t, http.StatusBadRequest, resp.Result().StatusCode)
 }
 
 func TestGetNodeHandler(t *testing.T) {
@@ -228,4 +164,35 @@ func TestLogin(t *testing.T) {
 	)
 	require.Equal(t, http.StatusOK, resp.Result().StatusCode)
 
+}
+
+func TestGetNodeState(t *testing.T) {
+	mockDriver := newMockDriver(node.DriverTypeDocker)
+	ctrl2, err := NewController2(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}),
+		map[node.DriverType]package_manager.PackageManager{
+			node.DriverTypeDocker: &mockPkgManager{
+				installs: make(map[*node.Package]struct{}),
+			},
+		},
+		&mockHDB{
+			schema:    state.Schema(),
+			jsonState: jsonStateFromNodeState(state),
+		}, nil)
+	require.NoError(t, err)
+	ctrlServer, err := NewCtrlServer(
+		context.Background(),
+		&BaseNodeController{},
+		ctrl2,
+		state,
+	)
+	require.NoError(t, err)
+
+	handler := http.HandlerFunc(ctrlServer.GetNodeState)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, httptest.NewRequest("get", "/test", nil))
+	bytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	sb, err := state.Bytes()
+	require.NoError(t, err)
+	require.Equal(t, bytes, sb)
 }

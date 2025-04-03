@@ -3,6 +3,7 @@ package web
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,14 +38,14 @@ func (d *webPackageManager) Driver() node.DriverType {
 	return node.DriverTypeWeb
 }
 
-func (d *webPackageManager) IsInstalled(pkg *node.Package, version string) (bool, error) {
+func (m *webPackageManager) IsInstalled(pkg *node.Package, version string) (bool, error) {
 	// Check for the existence of the bundle directory with the right version.
 	bundleConfig, err := getWebBundleConfigFromPackage(pkg)
 	if err != nil {
 		return false, err
 	}
 	log.Info().Msgf("Installing web package %s@%s", bundleConfig.DownloadURL, version)
-	bundlePath := d.getBundlePath(bundleConfig, version)
+	bundlePath := m.getBundlePath(bundleConfig, version)
 
 	if _, err := os.Stat(bundlePath); os.IsNotExist(err) {
 		return false, nil
@@ -57,13 +58,14 @@ func (d *webPackageManager) IsInstalled(pkg *node.Package, version string) (bool
 }
 
 // Implement the package manager interface
-func (d *webPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
+
+func (m *webPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
 	if packageSpec.Driver != node.DriverTypeWeb {
 		return fmt.Errorf("invalid package driver: %s, expected 'web' driver", packageSpec.Driver)
 	}
 
 	// Make sure the $HABITAT_PATH/web/ directory is created
-	err := os.MkdirAll(d.webBundlePath, 0755)
+	err := os.MkdirAll(m.webBundlePath, 0755)
 	if err != nil {
 		return err
 	}
@@ -76,7 +78,7 @@ func (d *webPackageManager) InstallPackage(packageSpec *node.Package, version st
 
 	log.Info().Msgf("Installing web package %s@%s", bundleConfig.DownloadURL, version)
 
-	bundlePath := d.getBundlePath(bundleConfig, version)
+	bundlePath := m.getBundlePath(bundleConfig, version)
 	err = downloadAndExtractWebBundle(bundleConfig.DownloadURL, bundlePath)
 	if err != nil {
 		return err
@@ -85,12 +87,12 @@ func (d *webPackageManager) InstallPackage(packageSpec *node.Package, version st
 	return nil
 }
 
-func (d *webPackageManager) UninstallPackage(pkg *node.Package, version string) error {
+func (m *webPackageManager) UninstallPackage(pkg *node.Package, version string) error {
 	bundleConfig, err := getWebBundleConfigFromPackage(pkg)
 	if err != nil {
 		return err
 	}
-	bundlePath := d.getBundlePath(bundleConfig, version)
+	bundlePath := m.getBundlePath(bundleConfig, version)
 
 	if _, err := os.Stat(bundlePath); os.IsNotExist(err) {
 		return nil
@@ -99,8 +101,22 @@ func (d *webPackageManager) UninstallPackage(pkg *node.Package, version string) 
 	return os.RemoveAll(bundlePath)
 }
 
-func (d *webPackageManager) getBundlePath(bundleConfig *BundleInstallationConfig, version string) string {
-	return filepath.Join(d.webBundlePath, bundleConfig.BundleDirectoryName, version)
+func (m *webPackageManager) RestoreFromState(ctx context.Context, apps map[string]*node.AppInstallation) error {
+	var err error
+	for _, app := range apps {
+		if app.Driver == m.Driver() {
+			perr := m.InstallPackage(app.Package, app.Version)
+			if perr != nil {
+				// Set the returned error to the last one we run into, but keep iterating
+				err = perr
+			}
+		}
+	}
+	return err
+}
+
+func (m *webPackageManager) getBundlePath(bundleConfig *BundleInstallationConfig, version string) string {
+	return filepath.Join(m.webBundlePath, bundleConfig.BundleDirectoryName, version)
 }
 
 func getWebBundleConfigFromPackage(pkg *node.Package) (*BundleInstallationConfig, error) {

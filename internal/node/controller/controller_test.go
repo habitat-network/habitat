@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -44,9 +45,9 @@ func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (NodeController, *mo
 	}
 
 	// Check that fakeInitState is based off of the config we pass in
-	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		// signature of anonymous function must have the same number of input and output arguments as the mocked method.
-		func(nodeName, schemaName string, initTransitions []hdb.Transition) (hdb.Client, error) {
+		func(ctx context.Context, nodeName, schemaName string, initTransitions []hdb.Transition) (hdb.Client, error) {
 			require.Equal(t, 1, len(initTransitions))
 
 			initStateTransition := initTransitions[0]
@@ -64,7 +65,7 @@ func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (NodeController, *mo
 
 	controller, err := NewNodeController(mockedManager, mockedPDSClient)
 	require.Nil(t, err)
-	err = controller.InitializeNodeDB(transitions)
+	err = controller.InitializeNodeDB(context.Background(), transitions)
 	require.Nil(t, err)
 
 	return controller, mockedPDSClient, mockedManager, mockedClient
@@ -75,12 +76,12 @@ func TestInitializeNodeDB(t *testing.T) {
 
 	controller, _, mockedManager, _ := setupNodeDBTest(ctrl, t)
 
-	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
-	err := controller.InitializeNodeDB(nil)
+	mockedManager.EXPECT().CreateDatabase(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
+	err := controller.InitializeNodeDB(context.Background(), nil)
 	require.NotNil(t, err)
 
-	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, &hdb.DatabaseAlreadyExistsError{}).Times(1)
-	err = controller.InitializeNodeDB(nil)
+	mockedManager.EXPECT().CreateDatabase(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, &hdb.DatabaseAlreadyExistsError{}).Times(1)
+	err = controller.InitializeNodeDB(context.Background(), nil)
 	require.Nil(t, err)
 }
 
@@ -132,45 +133,6 @@ func TestMigrationController(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestInstallAppController(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	controller, _, mockedManager, mockedClient := setupNodeDBTest(ctrl, t)
-
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockedClient, nil).Times(1)
-	mockedClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			&node.StartInstallationTransition{
-				UserID: "0",
-				AppInstallation: &node.AppInstallation{
-					Name:    "app_name1",
-					Version: "1",
-					Package: node.Package{
-						Driver:             node.DriverTypeDocker,
-						RegistryURLBase:    "https://registry.com",
-						RegistryPackageID:  "app_name1",
-						RegistryPackageTag: "v1",
-					},
-				},
-				NewProxyRules:          []*node.ReverseProxyRule{},
-				StartAfterInstallation: true,
-			},
-		},
-	)).Return(nil, nil).Times(1)
-
-	err := controller.InstallApp("0", &node.AppInstallation{
-		Name:    "app_name1",
-		Version: "1",
-		Package: node.Package{
-			Driver:             node.DriverTypeDocker,
-			RegistryURLBase:    "https://registry.com",
-			RegistryPackageID:  "app_name1",
-			RegistryPackageTag: "v1",
-		},
-	}, []*node.ReverseProxyRule{})
-	assert.Nil(t, err)
-}
-
 var nodeState = &node.State{
 	Users: map[string]*node.User{
 		"user_1": {
@@ -178,60 +140,12 @@ var nodeState = &node.State{
 			Username: "username_1",
 		},
 	},
-	AppInstallations: map[string]*node.AppInstallationState{
+	AppInstallations: map[string]*node.AppInstallation{
 		"app_1": {
-			AppInstallation: &node.AppInstallation{
-				ID:     "app_1",
-				UserID: "0",
-			},
-			State: node.AppLifecycleStateInstalled,
+			ID:     "app_1",
+			UserID: "0",
 		},
 	},
-}
-
-func TestFinishAppInstallationController(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	controller, _, mockedManager, mockedClient := setupNodeDBTest(ctrl, t)
-
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockedClient, nil).Times(1)
-	mockedClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			&node.FinishInstallationTransition{
-				AppID:           "app1",
-				UserID:          "user_1",
-				RegistryURLBase: "https://registry.com",
-				RegistryAppID:   "app_1",
-			},
-		},
-	)).Return(nil, nil).Times(1)
-
-	err := controller.FinishAppInstallation("user_1", "app1", "https://registry.com", "app_1", false)
-	assert.Nil(t, err)
-}
-
-func TestGetAppByID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	controller, _, mockedManager, mockedClient := setupNodeDBTest(ctrl, t)
-
-	marshaledNodeState, err := json.Marshal(nodeState)
-	if err != nil {
-		t.Error(err)
-	}
-
-	mockedClient.EXPECT().Bytes().Return(marshaledNodeState).Times(2)
-
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockedClient, nil).Times(2)
-
-	app, err := controller.GetAppByID("app_1")
-	assert.Nil(t, err)
-	assert.Equal(t, "app_1", app.ID)
-
-	// Test username not found
-	app, err = controller.GetAppByID("app_2")
-	assert.NotNil(t, err)
-	assert.Nil(t, app)
 }
 
 func TestAddUser(t *testing.T) {

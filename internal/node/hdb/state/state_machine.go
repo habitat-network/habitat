@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -18,7 +19,7 @@ type Replicator interface {
 }
 
 type StateMachineController interface {
-	StartListening()
+	StartListening(context.Context)
 	StopListening()
 	DatabaseID() string
 	Bytes() []byte
@@ -59,48 +60,48 @@ func NewStateMachine(databaseID string, schema hdb.Schema, initRawState []byte, 
 	}, nil
 }
 
-func (sm *StateMachine) StartListening() {
-	go func() {
-		for {
-			select {
-			// TODO this bit of code should be well tested
-			case stateUpdate := <-sm.updateChan:
+func (sm *StateMachine) StartListening(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		// TODO this bit of code should be well tested
+		case stateUpdate := <-sm.updateChan:
 
-				// Only publish state updates if this node is the leader node.
-				if sm.replicator.IsLeader() {
-					// Only apply state updates if the update index is greater than the restart index.
-					// If the update index is equal to the restart index, then the state update is a
-					// restore message which tells the subscribers to restore everything from the most up to date state.
-					if sm.restartIndex > stateUpdate.Index() {
-						continue
-					}
-
-					// execute state update
-					stateBytes, err := stateUpdate.NewState().Bytes()
-					if err != nil {
-						log.Error().Err(err).Msgf("error getting new state bytes from state update chan")
-					}
-					jsonState, err := hdb.NewJSONState(sm.schema, stateBytes)
-					if err != nil {
-						log.Error().Err(err).Msgf("error getting new state from state update chan")
-					}
-					sm.jsonState = jsonState
-
-					if sm.restartIndex == stateUpdate.Index() {
-						log.Info().Msgf("Restoring node state")
-						stateUpdate.SetRestore()
-					}
-
-					err = sm.publisher.PublishEvent(stateUpdate)
-					if err != nil {
-						log.Error().Err(err).Msgf("error publishing state update")
-					}
+			// Only publish state updates if this node is the leader node.
+			if sm.replicator.IsLeader() {
+				// Only apply state updates if the update index is greater than the restart index.
+				// If the update index is equal to the restart index, then the state update is a
+				// restore message which tells the subscribers to restore everything from the most up to date state.
+				if sm.restartIndex > stateUpdate.Index() {
+					continue
 				}
-			case <-sm.doneChan:
-				return
+
+				// execute state update
+				stateBytes, err := stateUpdate.NewState().Bytes()
+				if err != nil {
+					log.Error().Err(err).Msgf("error getting new state bytes from state update chan")
+				}
+				jsonState, err := hdb.NewJSONState(sm.schema, stateBytes)
+				if err != nil {
+					log.Error().Err(err).Msgf("error getting new state from state update chan")
+				}
+				sm.jsonState = jsonState
+
+				if sm.restartIndex == stateUpdate.Index() {
+					log.Info().Msgf("Restoring node state")
+					stateUpdate.SetRestore()
+				}
+
+				err = sm.publisher.PublishEvent(stateUpdate)
+				if err != nil {
+					log.Error().Err(err).Msgf("error publishing state update")
+				}
 			}
+		case <-sm.doneChan:
+			return
 		}
-	}()
+	}
 }
 
 func (sm *StateMachine) StopListening() {
@@ -119,7 +120,6 @@ func (sm *StateMachine) Bytes() []byte {
 // The hypothetical new state is returned. Importantly, this does not block until the state
 // is "officially updated".
 func (sm *StateMachine) ProposeTransitions(transitions []hdb.Transition) (*hdb.JSONState, error) {
-
 	jsonStateBranch, err := sm.jsonState.Copy()
 	if err != nil {
 		return nil, err
@@ -128,7 +128,6 @@ func (sm *StateMachine) ProposeTransitions(transitions []hdb.Transition) (*hdb.J
 	wrappers := make([]*hdb.TransitionWrapper, 0)
 
 	for _, t := range transitions {
-
 		err = t.Enrich(sm.jsonState.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("transition enrichment failed: %s", err)

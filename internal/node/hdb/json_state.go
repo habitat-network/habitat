@@ -12,8 +12,6 @@ type JSONState struct {
 	schema Schema
 	state  []byte
 
-	// TODO: Don't embed this type -- callers shouldn't be locking/unlocking this
-	// Concurrent-safe management of inner state should be handled inside this type
 	mu *sync.Mutex
 }
 
@@ -59,6 +57,7 @@ func (s *JSONState) applyImpl(patchJSON []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid JSON patch: %s", err)
 	}
+
 	updated, err := patch.Apply(s.state)
 	if err != nil {
 		return nil, fmt.Errorf("error applying patch to current state: %s", err)

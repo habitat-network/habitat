@@ -17,7 +17,8 @@ export interface AppInstallation {
   user_id: string;
   name: string;
   version: string;
-  Package: Package;
+  state: AppLifecycleStateType;
+  Package?: Package;
 }
 /**
  * AppInstallationConfig is a struct to hold the configuration for a docker container
@@ -42,20 +43,22 @@ export interface AppInstallationConfig {
   mounts: any /* mount.Mount */[];
 }
 export interface Package {
-  driver: string;
+  driver: DriverType;
   driver_config: { [key: string]: any};
   registry_url_base: string;
   registry_app_id: string;
   registry_tag: string;
-}
-export interface AppInstallationState extends AppInstallation {
-  state: AppLifecycleStateType;
 }
 
 //////////
 // source: process.go
 
 export type ProcessID = string;
+export type DriverType = string;
+export const DriverTypeUnknown: DriverType = "unknown";
+export const DriverTypeNoop: DriverType = "noop";
+export const DriverTypeDocker: DriverType = "docker";
+export const DriverTypeWeb: DriverType = "web";
 /**
  * Types related to running processes, mostly used by internal/process
  */
@@ -64,7 +67,6 @@ export interface Process {
   app_id: string;
   user_id: string;
   created: string;
-  driver: string;
 }
 
 //////////
@@ -95,8 +97,8 @@ export const ProxyRuleEmbeddedFrontend: ReverseProxyRuleType = "embedded_fronten
 // source: schema.go
 
 export const SchemaName = "node";
-export const CurrentVersion = "v0.0.7";
-export const LatestVersion = "v0.0.7";
+export const CurrentVersion = "v0.0.8";
+export const LatestVersion = "v0.0.8";
 export interface State {
   node_id: string;
   name: string;
@@ -108,8 +110,8 @@ export interface State {
    * A set of running processes that a node can restore to on startup.
    */
   processes: { [key: ProcessID]: Process | undefined};
-  app_installations: { [key: string]: AppInstallationState | undefined};
-  reverse_proxy_rules?: { [key: string]: ReverseProxyRule | undefined};
+  app_installations: { [key: string]: AppInstallation | undefined};
+  reverse_proxy_rules: { [key: string]: ReverseProxyRule | undefined};
 }
 export interface User {
   id: string;

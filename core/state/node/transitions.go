@@ -25,17 +25,22 @@ func (t *InitalizationTransition) Patch(oldState hdb.SerializedState) (hdb.Seria
 	}
 
 	if t.InitState.AppInstallations == nil {
-		t.InitState.AppInstallations = make(map[string]*AppInstallationState)
+		t.InitState.AppInstallations = make(map[string]*AppInstallation)
 	}
 
 	if t.InitState.Processes == nil {
 		t.InitState.Processes = make(map[ProcessID]*Process)
 	}
 
+	if t.InitState.ReverseProxyRules == nil {
+		t.InitState.ReverseProxyRules = make(map[string]*ReverseProxyRule)
+	}
+
 	marshaled, err := json.Marshal(t.InitState)
 	if err != nil {
 		return nil, err
 	}
+
 	return []byte(fmt.Sprintf(`[{
 		"op": "add",
 		"path": "",
@@ -174,17 +179,8 @@ func (t *AddUserTransition) Validate(oldState hdb.SerializedState) error {
 }
 
 type StartInstallationTransition struct {
-	UserID                 string `json:"user_id"`
-	StartAfterInstallation bool   `json:"start_after_installation"`
-
 	*AppInstallation
-	NewProxyRules []*ReverseProxyRule                      `json:"new_proxy_rules"`
-	EnrichedData  *StartInstallationTransitionEnrichedData `json:"enriched_data"`
-}
-
-type StartInstallationTransitionEnrichedData struct {
-	AppState      *AppInstallationState `json:"app_state"`
-	NewProxyRules []*ReverseProxyRule   `json:"new_proxy_rules"`
+	NewProxyRules []*ReverseProxyRule `json:"new_proxy_rules"`
 }
 
 func (t *StartInstallationTransition) Type() hdb.TransitionType {
@@ -198,7 +194,7 @@ func (t *StartInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.S
 		return nil, err
 	}
 
-	marshalledApp, err := json.Marshal(t.EnrichedData.AppState)
+	marshalledApp, err := json.Marshal(t.AppInstallation)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +205,7 @@ func (t *StartInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.S
 	}
 
 	marshaledRules := make([]string, 0)
-	for _, rule := range t.EnrichedData.NewProxyRules {
+	for _, rule := range t.NewProxyRules {
 		marshaled, err := json.Marshal(rule)
 		if err != nil {
 			return nil, err
@@ -233,40 +229,10 @@ func (t *StartInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.S
 			"path": "/app_installations/%s",
 			"value": %s
 		}%s
-	]`, t.EnrichedData.AppState.ID, string(marshalledApp), rules)), nil
+	]`, t.AppInstallation.ID, string(marshalledApp), rules)), nil
 }
 
 func (t *StartInstallationTransition) Enrich(oldState hdb.SerializedState) error {
-	id := uuid.New().String()
-	appInstallState := &AppInstallationState{
-		AppInstallation: &AppInstallation{
-			ID:      id,
-			UserID:  t.UserID,
-			Name:    t.Name,
-			Version: t.Version,
-			Package: t.Package,
-		},
-		State: AppLifecycleStateInstalling,
-	}
-
-	enrichedRules := make([]*ReverseProxyRule, 0)
-
-	for _, rule := range t.NewProxyRules {
-		enrichedRules = append(enrichedRules, &ReverseProxyRule{
-			ID:      uuid.New().String(),
-			AppID:   appInstallState.ID,
-			Type:    rule.Type,
-			Matcher: rule.Matcher,
-			Target:  rule.Target,
-		})
-		rule.ID = uuid.New().String()
-		rule.AppID = appInstallState.ID
-	}
-
-	t.EnrichedData = &StartInstallationTransitionEnrichedData{
-		AppState:      appInstallState,
-		NewProxyRules: enrichedRules,
-	}
 	return nil
 }
 
@@ -282,10 +248,10 @@ func (t *StartInstallationTransition) Validate(oldState hdb.SerializedState) err
 		return fmt.Errorf("user with id %s not found", t.UserID)
 	}
 
-	app, ok := oldNode.AppInstallations[t.EnrichedData.AppState.ID]
+	app, ok := oldNode.AppInstallations[t.AppInstallation.ID]
 	if ok {
 		if app.Version == t.Version {
-			return fmt.Errorf("app %s version %s for user %s found in state %s", t.Name, t.Version, t.UserID, app.State)
+			return fmt.Errorf("app %s version %s for user %s found", t.Name, t.Version, t.UserID)
 		} else {
 			// TODO eventually this will be part of an upgrade flow
 			return fmt.Errorf("app %s for user %s found in state with different version %s", t.Name, t.UserID, app.Version)
@@ -307,66 +273,90 @@ func (t *StartInstallationTransition) Validate(oldState hdb.SerializedState) err
 	return nil
 }
 
-type FinishInstallationTransition struct {
-	UserID          string `json:"user_id"`
-	AppID           string `json:"app_id"`
-	RegistryURLBase string `json:"registry_url_base"`
-	RegistryAppID   string `json:"registry_app_id"`
+func GenStartInstallationTransition(userID string, pkg *Package, version string, name string, proxyRules []*ReverseProxyRule) *StartInstallationTransition {
+	transition := &StartInstallationTransition{
+		AppInstallation: &AppInstallation{
+			ID:      uuid.NewString(),
+			UserID:  userID,
+			Name:    name,
+			Version: version,
+			State:   AppLifecycleStateInstalling,
+			Package: pkg,
+		},
+		NewProxyRules: proxyRules,
+	}
+	return transition
+}
 
-	StartAfterInstallation bool `json:"start_after_installation"`
+type FinishInstallationTransition struct {
+	AppID string `json:"app_id"`
 }
 
 func (t *FinishInstallationTransition) Type() hdb.TransitionType {
 	return hdb.TransitionFinishInstallation
 }
-
 func (t *FinishInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
 	var oldNode State
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return nil, err
 	}
-
 	return []byte(fmt.Sprintf(`[{
 		"op": "replace",
 		"path": "/app_installations/%s/state",
 		"value": "%s"
 	}]`, t.AppID, AppLifecycleStateInstalled)), nil
 }
-
 func (t *FinishInstallationTransition) Enrich(oldState hdb.SerializedState) error {
 	return nil
 }
-
 func (t *FinishInstallationTransition) Validate(oldState hdb.SerializedState) error {
 	var oldNode State
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
 	}
-
 	app, ok := oldNode.AppInstallations[t.AppID]
 	if !ok {
 		return fmt.Errorf("app with id %s not found", t.AppID)
 	}
 
-	_, ok = oldNode.Users[t.UserID]
-	if !ok {
-		return fmt.Errorf("user with id %s not found", t.UserID)
-	}
-
-	if app.RegistryURLBase != t.RegistryURLBase || app.RegistryPackageID != t.RegistryAppID {
-		return fmt.Errorf("app %s for user %s found in state with different registry url %s and package id %s", app.Name, t.UserID, app.RegistryURLBase, app.RegistryPackageID)
-	}
-
 	if app.State != "installing" {
-		return fmt.Errorf("app %s for user %s is in state %s", app.Name, t.UserID, app.State)
+		return fmt.Errorf("app %s is in state %s", app.Name, app.State)
 	}
-
 	return nil
 }
 
 // TODO handle uninstallation
+
+type UninstallTransition struct {
+	AppID string `json:"app_id"`
+}
+
+func (t *UninstallTransition) Type() hdb.TransitionType {
+	return hdb.TransitionStartUninstallation
+}
+func (t *UninstallTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
+	return []byte(fmt.Sprintf(`[{
+		"op": "remove",
+		"path": "/app_installations/%s"
+	}]`, t.AppID)), nil
+}
+func (t *UninstallTransition) Enrich(oldState hdb.SerializedState) error {
+	return nil
+}
+func (t *UninstallTransition) Validate(oldState hdb.SerializedState) error {
+	var oldNode State
+	err := json.Unmarshal(oldState, &oldNode)
+	if err != nil {
+		return err
+	}
+	_, ok := oldNode.AppInstallations[t.AppID]
+	if !ok {
+		return fmt.Errorf("app with id %s not found", t.AppID)
+	}
+	return nil
+}
 
 type ProcessStartTransition struct {
 	// Requested data
@@ -393,7 +383,7 @@ func GenProcessStartTransition(appID string, oldState *State) (*ProcessStartTran
 
 type ProcessStartTransitionEnrichedData struct {
 	Process *Process
-	App     *AppInstallationState
+	App     *AppInstallation
 }
 
 func (t *ProcessStartTransition) Type() hdb.TransitionType {
@@ -442,7 +432,7 @@ func (t *ProcessStartTransition) Validate(oldState hdb.SerializedState) error {
 		return err
 	}
 	if app.State != AppLifecycleStateInstalled {
-		return fmt.Errorf("app with id %s for user %s is not in state %s", t.Process.AppID, userID, AppLifecycleStateInstalled)
+		return fmt.Errorf("app with id %s is not in state %s", t.Process.AppID, AppLifecycleStateInstalled)
 	}
 
 	// Check user exists
@@ -522,12 +512,10 @@ func (t *AddReverseProxyRuleTransition) Type() hdb.TransitionType {
 }
 
 func (t *AddReverseProxyRuleTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
-
 	marshaledRule, err := json.Marshal(t.Rule)
 	if err != nil {
 		return nil, err
 	}
-
 	return []byte(fmt.Sprintf(`[{
 		"op": "add",
 		"path": "/reverse_proxy_rules/%s",
@@ -550,7 +538,7 @@ func (t *AddReverseProxyRuleTransition) Validate(oldState hdb.SerializedState) e
 		return err
 	}
 
-	for _, rule := range *oldNode.ReverseProxyRules {
+	for _, rule := range oldNode.ReverseProxyRules {
 		if rule.ID == t.Rule.ID {
 			return fmt.Errorf("reverse proxy rule with id %s already exists", t.Rule.ID)
 		}

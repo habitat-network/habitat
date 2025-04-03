@@ -88,7 +88,14 @@ func TestValidationFailure(t *testing.T) {
 	state, err := nodeSchema.EmptyState()
 	assert.Nil(t, err)
 
-	state.(*State).TestField = "test"
+	// Users is a required field, but has "omitempty" on it
+	state.(*State).Users = make(map[string]*User)
+	// Validation succeeds
+	err = state.Validate()
+	assert.Nil(t, err)
+
+	state.(*State).Users = nil
+	// Validation fails
 	err = state.Validate()
 	assert.NotNil(t, err)
 }
@@ -115,45 +122,41 @@ func TestBackwardsCompatibility(t *testing.T) {
 				Certificate: "fake user certificate",
 			},
 		},
-		AppInstallations: map[string]*AppInstallationState{
+		AppInstallations: map[string]*AppInstallation{
 			"app1": {
-				AppInstallation: &AppInstallation{
-					ID:      "app1",
-					Name:    "appname1",
-					Version: "1.0.0",
-					Package: Package{
-						Driver:             DriverTypeDocker,
-						RegistryURLBase:    "https://registry.example.com",
-						RegistryPackageID:  "appname1",
-						RegistryPackageTag: "1.0.0",
-					},
+				ID:      "app1",
+				Name:    "appname1",
+				Version: "1.0.0",
+				State:   AppLifecycleStateInstalled,
+				Package: &Package{
+					Driver:             DriverTypeDocker,
+					RegistryURLBase:    "https://registry.example.com",
+					RegistryPackageID:  "appname1",
+					RegistryPackageTag: "1.0.0",
 				},
-				State: AppLifecycleStateInstalled,
 			},
 			"app2": {
-				AppInstallation: &AppInstallation{
-					ID:      "app2",
-					Name:    "appname2",
-					Version: "1.0.0",
-					Package: Package{
-						Driver:             DriverTypeDocker,
-						RegistryURLBase:    "https://registry.example.com",
-						RegistryPackageID:  "appname1",
-						RegistryPackageTag: "1.0.0",
-					},
+				ID:      "app2",
+				Name:    "appname2",
+				Version: "1.0.0",
+				State:   AppLifecycleStateInstalled,
+				Package: &Package{
+					Driver:             DriverTypeDocker,
+					RegistryURLBase:    "https://registry.example.com",
+					RegistryPackageID:  "appname1",
+					RegistryPackageTag: "1.0.0",
 				},
-				State: AppLifecycleStateInstalled,
 			},
 		},
 		Processes: map[ProcessID]*Process{
-			"proc1": &Process{
+			"proc1": {
 				ID:      "proc1",
 				AppID:   "app1",
 				UserID:  "user1",
 				Created: "now",
 			},
 			// This process was not in a running state, but should be started
-			"proc2": &Process{
+			"proc2": {
 				ID:      "proc2",
 				AppID:   "app2",
 				UserID:  "user1",

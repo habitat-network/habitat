@@ -36,9 +36,18 @@ type State struct {
 	TestField     string           `json:"test_field,omitempty"`
 	Users         map[string]*User `json:"users"`
 	// A set of running processes that a node can restore to on startup.
-	Processes         map[ProcessID]*Process           `json:"processes"`
-	AppInstallations  map[string]*AppInstallationState `json:"app_installations"`
-	ReverseProxyRules *map[string]*ReverseProxyRule    `json:"reverse_proxy_rules,omitempty"`
+	Processes         map[ProcessID]*Process       `json:"processes"`
+	AppInstallations  map[string]*AppInstallation  `json:"app_installations"`
+	ReverseProxyRules map[string]*ReverseProxyRule `json:"reverse_proxy_rules"`
+}
+
+func NewStateForLatestVersion() (*State, error) {
+	initState, err := GetEmptyStateForVersion(LatestVersion)
+	if err != nil {
+		return nil, err
+	}
+	initState.NodeID = uuid.New().String()
+	return initState, nil
 }
 
 type User struct {
@@ -48,16 +57,24 @@ type User struct {
 	AtprotoDID  string `json:"atproto_did,omitempty"`
 }
 
-func (s State) Schema() hdb.Schema {
+func (s *State) Schema() hdb.Schema {
 	ns := &NodeSchema{}
 	return ns
 }
 
-func (s State) Bytes() ([]byte, error) {
+func (s *State) Bytes() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-func (s State) GetAppByID(appID string) (*AppInstallationState, error) {
+func (s *State) String() string {
+	bytes, err := s.Bytes()
+	if err != nil {
+		return "Error in s.Bytes()"
+	}
+	return string(bytes)
+}
+
+func (s *State) GetAppByID(appID string) (*AppInstallation, error) {
 	app, ok := s.AppInstallations[appID]
 	if !ok {
 		return nil, fmt.Errorf("app with ID %s not found", appID)
@@ -65,8 +82,8 @@ func (s State) GetAppByID(appID string) (*AppInstallationState, error) {
 	return app, nil
 }
 
-func (s State) GetAppsForUser(userID string) ([]*AppInstallationState, error) {
-	apps := make([]*AppInstallationState, 0)
+func (s *State) GetAppsForUser(userID string) ([]*AppInstallation, error) {
+	apps := make([]*AppInstallation, 0)
 	for _, app := range s.AppInstallations {
 		if app.UserID == userID {
 			apps = append(apps, app)
@@ -75,7 +92,7 @@ func (s State) GetAppsForUser(userID string) ([]*AppInstallationState, error) {
 	return apps, nil
 }
 
-func (s State) GetProcessesForUser(userID string) ([]*Process, error) {
+func (s *State) GetProcessesForUser(userID string) ([]*Process, error) {
 	procs := make([]*Process, 0)
 	for _, proc := range s.Processes {
 		if proc.UserID == userID {
@@ -95,7 +112,7 @@ func (s State) GetReverseProxyRulesForProcess(processID ProcessID) ([]*ReversePr
 		return nil, fmt.Errorf("app with ID %s not found", process.AppID)
 	}
 	rules := make([]*ReverseProxyRule, 0)
-	for _, rule := range *s.ReverseProxyRules {
+	for _, rule := range s.ReverseProxyRules {
 		if rule.AppID == app.ID {
 			rules = append(rules, rule)
 		}
@@ -103,7 +120,17 @@ func (s State) GetReverseProxyRulesForProcess(processID ProcessID) ([]*ReversePr
 	return rules, nil
 }
 
-func (s State) Copy() (*State, error) {
+func (s *State) SetRootUserCert(rootUserCert string) {
+	// TODO this is basically a placeholder until we actually have a way of generating
+	// the certificate for the node.
+	s.Users[constants.RootUserID] = &User{
+		ID:          constants.RootUserID,
+		Username:    constants.RootUsername,
+		Certificate: rootUserCert,
+	}
+}
+
+func (s *State) Copy() (*State, error) {
 	marshaled, err := s.Bytes()
 	if err != nil {
 		return nil, err
@@ -116,7 +143,7 @@ func (s State) Copy() (*State, error) {
 	return &copy, nil
 }
 
-func (s State) Validate() error {
+func (s *State) Validate() error {
 	schemaVersion := s.SchemaVersion
 
 	ns := &NodeSchema{}
@@ -178,7 +205,6 @@ func (s *NodeSchema) JSONSchemaForVersion(version string) (*jsonschema.Schema, e
 	if err != nil {
 		return nil, err
 	}
-
 	rs := &jsonschema.Schema{}
 	err = json.Unmarshal([]byte(schema), rs)
 	if err != nil {
@@ -195,9 +221,7 @@ func (s *NodeSchema) ValidateState(state []byte) error {
 		return err
 	}
 
-	version := stateObj.SchemaVersion
-
-	jsonSchema, err := s.JSONSchemaForVersion(version)
+	jsonSchema, err := s.JSONSchemaForVersion(stateObj.SchemaVersion)
 	if err != nil {
 		return err
 	}
@@ -210,25 +234,4 @@ func (s *NodeSchema) ValidateState(state []byte) error {
 		return keyErrs[0]
 	}
 	return nil
-}
-
-func InitRootState(rootUserCert string) (*State, error) {
-	// TODO this is basically a placeholder until we actually have a way of generating
-	// the certificate for the node.
-	nodeUUID := uuid.New().String()
-	rootCert := rootUserCert
-
-	initState, err := GetEmptyStateForVersion(LatestVersion)
-	if err != nil {
-		return nil, err
-	}
-
-	initState.NodeID = nodeUUID
-	initState.Users[constants.RootUserID] = &User{
-		ID:          constants.RootUserID,
-		Username:    constants.RootUsername,
-		Certificate: rootCert,
-	}
-
-	return initState, nil
 }

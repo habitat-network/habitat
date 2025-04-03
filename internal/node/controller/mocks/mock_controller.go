@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	types "github.com/eagraf/habitat-new/core/api"
@@ -57,35 +58,6 @@ func (mr *MockNodeControllerMockRecorder) AddUser(userID, email, handle, passwor
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddUser", reflect.TypeOf((*MockNodeController)(nil).AddUser), userID, email, handle, password, certificate)
 }
 
-// FinishAppInstallation mocks base method.
-func (m *MockNodeController) FinishAppInstallation(userID, appID, registryURLBase, registryPackageID string, startAfterInstall bool) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FinishAppInstallation", userID, appID, registryURLBase, registryPackageID, startAfterInstall)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// FinishAppInstallation indicates an expected call of FinishAppInstallation.
-func (mr *MockNodeControllerMockRecorder) FinishAppInstallation(userID, appID, registryURLBase, registryPackageID, startAfterInstall any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishAppInstallation", reflect.TypeOf((*MockNodeController)(nil).FinishAppInstallation), userID, appID, registryURLBase, registryPackageID, startAfterInstall)
-}
-
-// GetAppByID mocks base method.
-func (m *MockNodeController) GetAppByID(appID string) (*node.AppInstallation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAppByID", appID)
-	ret0, _ := ret[0].(*node.AppInstallation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAppByID indicates an expected call of GetAppByID.
-func (mr *MockNodeControllerMockRecorder) GetAppByID(appID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppByID", reflect.TypeOf((*MockNodeController)(nil).GetAppByID), appID)
-}
-
 // GetUserByUsername mocks base method.
 func (m *MockNodeController) GetUserByUsername(username string) (*node.User, error) {
 	m.ctrl.T.Helper()
@@ -102,31 +74,17 @@ func (mr *MockNodeControllerMockRecorder) GetUserByUsername(username any) *gomoc
 }
 
 // InitializeNodeDB mocks base method.
-func (m *MockNodeController) InitializeNodeDB(transitions []hdb.Transition) error {
+func (m *MockNodeController) InitializeNodeDB(ctx context.Context, transitions []hdb.Transition) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InitializeNodeDB", transitions)
+	ret := m.ctrl.Call(m, "InitializeNodeDB", ctx, transitions)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InitializeNodeDB indicates an expected call of InitializeNodeDB.
-func (mr *MockNodeControllerMockRecorder) InitializeNodeDB(transitions any) *gomock.Call {
+func (mr *MockNodeControllerMockRecorder) InitializeNodeDB(ctx, transitions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeNodeDB", reflect.TypeOf((*MockNodeController)(nil).InitializeNodeDB), transitions)
-}
-
-// InstallApp mocks base method.
-func (m *MockNodeController) InstallApp(userID string, newApp *node.AppInstallation, newProxyRules []*node.ReverseProxyRule) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InstallApp", userID, newApp, newProxyRules)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InstallApp indicates an expected call of InstallApp.
-func (mr *MockNodeControllerMockRecorder) InstallApp(userID, newApp, newProxyRules any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallApp", reflect.TypeOf((*MockNodeController)(nil).InstallApp), userID, newApp, newProxyRules)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeNodeDB", reflect.TypeOf((*MockNodeController)(nil).InitializeNodeDB), ctx, transitions)
 }
 
 // MigrateNodeDB mocks base method.
@@ -141,46 +99,4 @@ func (m *MockNodeController) MigrateNodeDB(targetVersion string) error {
 func (mr *MockNodeControllerMockRecorder) MigrateNodeDB(targetVersion any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MigrateNodeDB", reflect.TypeOf((*MockNodeController)(nil).MigrateNodeDB), targetVersion)
-}
-
-// SetProcessRunning mocks base method.
-func (m *MockNodeController) SetProcessRunning(processID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetProcessRunning", processID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetProcessRunning indicates an expected call of SetProcessRunning.
-func (mr *MockNodeControllerMockRecorder) SetProcessRunning(processID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetProcessRunning", reflect.TypeOf((*MockNodeController)(nil).SetProcessRunning), processID)
-}
-
-// StartProcess mocks base method.
-func (m *MockNodeController) StartProcess(appID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StartProcess", appID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// StartProcess indicates an expected call of StartProcess.
-func (mr *MockNodeControllerMockRecorder) StartProcess(appID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartProcess", reflect.TypeOf((*MockNodeController)(nil).StartProcess), appID)
-}
-
-// StopProcess mocks base method.
-func (m *MockNodeController) StopProcess(processID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StopProcess", processID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// StopProcess indicates an expected call of StopProcess.
-func (mr *MockNodeControllerMockRecorder) StopProcess(processID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopProcess", reflect.TypeOf((*MockNodeController)(nil).StopProcess), processID)
 }

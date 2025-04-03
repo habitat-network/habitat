@@ -80,7 +80,7 @@
                         }
                     }
                 },
-                "additionalProperties": false,
+                "additionalProperties": true,
                 "required": [ "node_id", "name", "certificate", "users" ]
             }
         }

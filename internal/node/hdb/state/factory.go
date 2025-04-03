@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/core/state/node/test_helpers"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/eagraf/habitat-new/internal/pubsub"
 )
@@ -61,7 +62,7 @@ func StateUpdateInternalFactory(
 		if err != nil {
 			return nil, err
 		}
-		return node.NewNodeStateUpdate(&state, transitionWrapper, metadata), nil
+		return test_helpers.NewNodeStateUpdate(&state, transitionWrapper, metadata), nil
 	default:
 		return nil, fmt.Errorf("schema type %s not found", schemaType)
 	}

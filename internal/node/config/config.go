@@ -10,8 +10,9 @@ import (
 	"os/user"
 	"path/filepath"
 
-	types "github.com/eagraf/habitat-new/core/api"
+	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
+	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -350,8 +351,8 @@ func (n *NodeConfig) FrontendDev() bool {
 	return n.viper.GetBool("frontend_dev")
 }
 
-func (n *NodeConfig) DefaultApps() []*types.PostAppRequest {
-	var appRequestsMap map[string]*types.PostAppRequest
+func (n *NodeConfig) DefaultApps() ([]*node.AppInstallation, []*node.ReverseProxyRule, error) {
+	var appRequestsMap map[string]*controller.InstallAppRequest
 	err := n.viper.UnmarshalKey("default_apps", &appRequestsMap, viper.DecoderConfigOption(
 		func(decoderConfig *mapstructure.DecoderConfig) {
 			decoderConfig.TagName = "yaml"
@@ -360,13 +361,16 @@ func (n *NodeConfig) DefaultApps() []*types.PostAppRequest {
 	))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to unmarshal default apps")
-		return nil
+		return nil, nil, err
 	}
-	appRequests := make([]*types.PostAppRequest, 0, len(appRequestsMap))
+
+	apps := make([]*node.AppInstallation, 0)
+	rules := make([]*node.ReverseProxyRule, 0)
 	for _, appRequest := range appRequestsMap {
-		appRequests = append(appRequests, appRequest)
+		apps = append(apps, appRequest.AppInstallation)
+		rules = append(rules, appRequest.ReverseProxyRules...)
 	}
-	return appRequests
+	return apps, rules, nil
 }
 
 // Helper functions

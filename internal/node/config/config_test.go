@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testHabitatYaml = `
@@ -50,9 +51,10 @@ func TestLoadingDefaultApps(t *testing.T) {
 	testNodeConfig, err := NewNodeConfigFromViper(v)
 	assert.NoError(t, err)
 
-	defaultApps := testNodeConfig.DefaultApps()
+	defaultApps, defaultRules, err := testNodeConfig.DefaultApps()
+	require.NoError(t, err)
 	assert.Len(t, defaultApps, 1)
-	assert.Equal(t, "pouch_frontend", defaultApps[0].AppInstallation.Name)
-	assert.Equal(t, "pouch/3/dist", defaultApps[0].ReverseProxyRules[0].Target)
-	assert.Len(t, defaultApps[0].ReverseProxyRules, 3)
+	assert.Equal(t, "pouch_frontend", defaultApps[0].Name)
+	assert.Equal(t, "pouch/3/dist", defaultRules[0].Target)
+	assert.Len(t, defaultRules, 3)
 }

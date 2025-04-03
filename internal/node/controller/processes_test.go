@@ -104,7 +104,7 @@ func (db *mockHDB) ProposeTransitions(transitions []hdb.Transition) (*hdb.JSONSt
 }
 
 var (
-	testPkg = node.Package{
+	testPkg = &node.Package{
 		Driver:       node.DriverTypeDocker,
 		DriverConfig: map[string]interface{}{},
 	}
@@ -125,27 +125,24 @@ var (
 				ID: "user1",
 			},
 		},
-		AppInstallations: map[string]*node.AppInstallationState{
+		AppInstallations: map[string]*node.AppInstallation{
 			"app1": {
-				AppInstallation: &node.AppInstallation{
-					ID:      "app1",
-					UserID:  "user_1",
-					Name:    "appname1",
-					Package: testPkg,
-				},
-				State: node.AppLifecycleStateInstalled,
+				ID:      "app1",
+				UserID:  "user_1",
+				Name:    "appname1",
+				State:   node.AppLifecycleStateInstalled,
+				Package: testPkg,
 			},
 			"app2": {
-				AppInstallation: &node.AppInstallation{
-					ID:      "app2",
-					UserID:  "user_1",
-					Name:    "appname2",
-					Package: testPkg,
-				},
-				State: node.AppLifecycleStateInstalled,
+				ID:      "app2",
+				UserID:  "user_1",
+				Name:    "appname2",
+				State:   node.AppLifecycleStateInstalled,
+				Package: testPkg,
 			},
 		},
-		Processes: map[node.ProcessID]*node.Process{},
+		Processes:         map[node.ProcessID]*node.Process{},
+		ReverseProxyRules: map[string]*node.ReverseProxyRule{},
 	}
 )
 
@@ -160,7 +157,10 @@ func TestStartProcessHandler(t *testing.T) {
 	}
 
 	// NewCtrlServer restores the initial state
-	s, err := NewCtrlServer(context.Background(), &BaseNodeController{}, process.NewProcessManager([]process.Driver{mockDriver}), db)
+	ctrl2, err := NewController2(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}), nil, db, nil)
+	require.NoError(t, err)
+
+	s, err := NewCtrlServer(context.Background(), &BaseNodeController{}, ctrl2, state)
 	require.NoError(t, err)
 
 	// No processes running
@@ -183,8 +183,11 @@ func TestStartProcessHandler(t *testing.T) {
 	resp := httptest.NewRecorder()
 	handler.ServeHTTP(
 		resp,
-		httptest.NewRequest(http.MethodPost, startProcessRoute.Pattern(), bytes.NewReader(b)),
-	)
+		httptest.NewRequest(
+			startProcessRoute.Method(),
+			startProcessRoute.Pattern(),
+			bytes.NewReader(b),
+		))
 	require.Equal(t, http.StatusCreated, resp.Result().StatusCode)
 
 	respBody, err := io.ReadAll(resp.Result().Body)
@@ -201,8 +204,11 @@ func TestStartProcessHandler(t *testing.T) {
 	resp = httptest.NewRecorder()
 	handler.ServeHTTP(
 		resp,
-		httptest.NewRequest(http.MethodPost, startProcessRoute.Pattern(), bytes.NewReader(b)),
-	)
+		httptest.NewRequest(
+			startProcessRoute.Method(),
+			startProcessRoute.Pattern(),
+			bytes.NewReader(b),
+		))
 	require.Equal(t, http.StatusInternalServerError, resp.Result().StatusCode)
 
 	// Test invalid request
@@ -210,7 +216,7 @@ func TestStartProcessHandler(t *testing.T) {
 	handler.ServeHTTP(
 		resp,
 		httptest.NewRequest(
-			http.MethodPost,
+			startProcessRoute.Method(),
 			startProcessRoute.Pattern(),
 			bytes.NewReader([]byte("invalid")),
 		),
@@ -368,12 +374,10 @@ func TestControllerRestoreProcess(t *testing.T) {
 	mockDriver := newMockDriver(node.DriverTypeDocker)
 	pm := process.NewProcessManager([]process.Driver{mockDriver})
 
-	ctrl, err := newController2(
-		context.Background(),
-		pm, &mockHDB{
-			schema:    state.Schema(),
-			jsonState: jsonStateFromNodeState(state),
-		})
+	ctrl, err := NewController2(context.Background(), pm, nil, &mockHDB{
+		schema:    state.Schema(),
+		jsonState: jsonStateFromNodeState(state),
+	}, nil)
 	require.NoError(t, err)
 
 	// Restore

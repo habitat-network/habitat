@@ -11,6 +11,7 @@ import (
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -26,14 +27,24 @@ func printResponse(res *http.Response) error {
 	if err != nil {
 		return err
 	}
-	bytes, err := json.Marshal(msg{
+	// Kinda wack, but we want to embed this JSON response into the msg type
+	// So unmarshal it and then immediately marshal the whole thing
+	var body any
+	if res.StatusCode != int(http.StatusOK) {
+		body = string(slurp)
+	} else if len(slurp) > 0 {
+		err = json.Unmarshal(slurp, &body)
+		if err != nil {
+			return errors.Wrap(err, "error unmarshalling response body")
+		}
+	}
+	_, err = json.Marshal(msg{
 		Status: res.Status,
-		Body:   string(slurp),
+		Body:   body,
 	})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error marshalling response body into msg type")
 	}
-	fmt.Println(string(bytes))
 	return nil
 }
 
@@ -110,6 +121,56 @@ func listProcesses() *cli.Command {
 	}
 }
 
+func getState() *cli.Command {
+	return &cli.Command{
+		Name:  "state",
+		Usage: "Get node state",
+		Action: func(ctx *cli.Context) error {
+			url := fmt.Sprintf("http://localhost:%s/node/state", port)
+			res, err := http.Get(url)
+			if err != nil {
+				return err
+			}
+			return printResponse(res)
+		},
+	}
+}
+
+func listApps() *cli.Command {
+	return &cli.Command{
+		Name:  "list",
+		Usage: "Get list of installed apps.",
+		Action: func(ctx *cli.Context) error {
+			url := fmt.Sprintf("http://localhost:%s/node/apps/list", port)
+			res, err := http.Get(url)
+			if err != nil {
+				return err
+			}
+			return printResponse(res)
+		},
+	}
+}
+
+func installApp() *cli.Command {
+	return &cli.Command{
+		Name:  "install",
+		Usage: "Install an application.",
+		Action: func(ctx *cli.Context) error {
+			return fmt.Errorf("unimplemented")
+		},
+	}
+}
+
+func uninstallApp() *cli.Command {
+	return &cli.Command{
+		Name:  "uninstall",
+		Usage: "Uninstall an application",
+		Action: func(ctx *cli.Context) error {
+			return fmt.Errorf("unimplemented")
+		},
+	}
+}
+
 func main() {
 	app := &cli.App{
 		Name:  "node_ctl",
@@ -134,6 +195,22 @@ func main() {
 					startProcess(),
 					stopProcess(),
 					listProcesses(),
+				},
+			},
+			{
+				Name:  "node",
+				Usage: "Commands related to general node actions.",
+				Subcommands: []*cli.Command{
+					getState(),
+				},
+			},
+			{
+				Name:  "app",
+				Usage: "Commands related to app installations managed by the node.",
+				Subcommands: []*cli.Command{
+					listApps(),
+					installApp(),
+					uninstallApp(),
 				},
 			},
 		},

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	types "github.com/eagraf/habitat-new/core/api"
+	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,7 +77,7 @@ func TestAvailableAppsRouteDev(t *testing.T) {
 	bytes, err := io.ReadAll(resp.Result().Body)
 	require.NoError(t, err)
 
-	var respBody []*types.PostAppRequest
+	var respBody []*controller.InstallAppRequest
 	require.NoError(t, json.Unmarshal(bytes, &respBody))
 
 	require.Equal(t, 2, len(respBody))

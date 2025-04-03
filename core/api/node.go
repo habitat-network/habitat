@@ -21,8 +21,3 @@ type PostAddUserRequest struct {
 type PostAddUserResponse struct {
 	PDSCreateAccountResponse map[string]interface{} `json:"pds_create_account_response"`
 }
-
-type PostAppRequest struct {
-	AppInstallation   *node.AppInstallation    `json:"app_installation" yaml:"app_installation"`
-	ReverseProxyRules []*node.ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
-}

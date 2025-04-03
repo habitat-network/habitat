@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	hdb "github.com/eagraf/habitat-new/internal/node/hdb"
@@ -41,33 +42,18 @@ func (m *MockHDBManager) EXPECT() *MockHDBManagerMockRecorder {
 }
 
 // CreateDatabase mocks base method.
-func (m *MockHDBManager) CreateDatabase(name, schemaType string, initialTransitions []hdb.Transition) (hdb.Client, error) {
+func (m *MockHDBManager) CreateDatabase(ctx context.Context, name, schemaType string, initialTransitions []hdb.Transition) (hdb.Client, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateDatabase", name, schemaType, initialTransitions)
+	ret := m.ctrl.Call(m, "CreateDatabase", ctx, name, schemaType, initialTransitions)
 	ret0, _ := ret[0].(hdb.Client)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateDatabase indicates an expected call of CreateDatabase.
-func (mr *MockHDBManagerMockRecorder) CreateDatabase(name, schemaType, initialTransitions any) *gomock.Call {
+func (mr *MockHDBManagerMockRecorder) CreateDatabase(ctx, name, schemaType, initialTransitions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDatabase", reflect.TypeOf((*MockHDBManager)(nil).CreateDatabase), name, schemaType, initialTransitions)
-}
-
-// GetDatabaseClient mocks base method.
-func (m *MockHDBManager) GetDatabaseClient(id string) (hdb.Client, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDatabaseClient", id)
-	ret0, _ := ret[0].(hdb.Client)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetDatabaseClient indicates an expected call of GetDatabaseClient.
-func (mr *MockHDBManagerMockRecorder) GetDatabaseClient(id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabaseClient", reflect.TypeOf((*MockHDBManager)(nil).GetDatabaseClient), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDatabase", reflect.TypeOf((*MockHDBManager)(nil).CreateDatabase), ctx, name, schemaType, initialTransitions)
 }
 
 // GetDatabaseClientByName mocks base method.
@@ -86,29 +72,29 @@ func (mr *MockHDBManagerMockRecorder) GetDatabaseClientByName(name any) *gomock.
 }
 
 // RestartDBs mocks base method.
-func (m *MockHDBManager) RestartDBs() error {
+func (m *MockHDBManager) RestartDBs(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RestartDBs")
+	ret := m.ctrl.Call(m, "RestartDBs", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RestartDBs indicates an expected call of RestartDBs.
-func (mr *MockHDBManagerMockRecorder) RestartDBs() *gomock.Call {
+func (mr *MockHDBManagerMockRecorder) RestartDBs(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestartDBs", reflect.TypeOf((*MockHDBManager)(nil).RestartDBs))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestartDBs", reflect.TypeOf((*MockHDBManager)(nil).RestartDBs), arg0)
 }
 
 // Start mocks base method.
-func (m *MockHDBManager) Start() {
+func (m *MockHDBManager) Start(arg0 context.Context) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+	m.ctrl.Call(m, "Start", arg0)
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockHDBManagerMockRecorder) Start() *gomock.Call {
+func (mr *MockHDBManagerMockRecorder) Start(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockHDBManager)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockHDBManager)(nil).Start), arg0)
 }
 
 // Stop mocks base method.

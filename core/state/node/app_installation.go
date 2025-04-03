@@ -15,11 +15,12 @@ const (
 
 // TODO some fields should be ignored by the REST api
 type AppInstallation struct {
-	ID      string `json:"id" yaml:"id"`
-	UserID  string `json:"user_id" yaml:"user_id"`
-	Name    string `json:"name" yaml:"name"`
-	Version string `json:"version" yaml:"version"`
-	Package `yaml:",inline"`
+	ID       string                `json:"id" yaml:"id"`
+	UserID   string                `json:"user_id" yaml:"user_id"`
+	Name     string                `json:"name" yaml:"name"`
+	Version  string                `json:"version" yaml:"version"`
+	State    AppLifecycleStateType `json:"state"`
+	*Package `yaml:",inline"`
 }
 
 // AppInstallationConfig is a struct to hold the configuration for a docker container
@@ -41,9 +42,4 @@ type Package struct {
 	RegistryURLBase    string                 `json:"registry_url_base" yaml:"registry_url_base"`
 	RegistryPackageID  string                 `json:"registry_app_id" yaml:"registry_app_id"`
 	RegistryPackageTag string                 `json:"registry_tag" yaml:"registry_tag"`
-}
-
-type AppInstallationState struct {
-	*AppInstallation `tstype:",extends,required"`
-	State            AppLifecycleStateType `json:"state"`
 }

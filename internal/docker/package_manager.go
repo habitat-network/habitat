@@ -60,10 +60,10 @@ func repoURLFromPackage(packageSpec *node.Package) string {
 	return fmt.Sprintf("%s/%s:%s", packageSpec.RegistryURLBase, packageSpec.RegistryPackageID, packageSpec.RegistryPackageTag)
 }
 
-func (d *dockerPackageManager) IsInstalled(packageSpec *node.Package, version string) (bool, error) {
+func (m *dockerPackageManager) IsInstalled(packageSpec *node.Package, version string) (bool, error) {
 	// TODO review all contexts we create.
 	repoURL := repoURLFromPackage(packageSpec)
-	images, err := d.client.ImageList(context.Background(), types.ImageListOptions{
+	images, err := m.client.ImageList(context.Background(), types.ImageListOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("reference", repoURL),
 		),
@@ -74,14 +74,13 @@ func (d *dockerPackageManager) IsInstalled(packageSpec *node.Package, version st
 	return len(images) > 0, nil
 }
 
-// Implement the package manager interface
-func (d *dockerPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
+func (m *dockerPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
 	if packageSpec.Driver != node.DriverTypeDocker {
 		return fmt.Errorf("invalid package driver: %s, expected docker", packageSpec.Driver)
 	}
 
 	repoURL := repoURLFromPackage(packageSpec)
-	_, err := d.client.ImagePull(context.Background(), repoURL, types.ImagePullOptions{})
+	_, err := m.client.ImagePull(context.Background(), repoURL, types.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
@@ -90,11 +89,25 @@ func (d *dockerPackageManager) InstallPackage(packageSpec *node.Package, version
 	return nil
 }
 
-func (d *dockerPackageManager) UninstallPackage(packageURL *node.Package, version string) error {
+func (m *dockerPackageManager) UninstallPackage(packageURL *node.Package, version string) error {
 	repoURL := repoURLFromPackage(packageURL)
-	_, err := d.client.ImageRemove(context.Background(), repoURL, types.ImageRemoveOptions{})
+	_, err := m.client.ImageRemove(context.Background(), repoURL, types.ImageRemoveOptions{})
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (m *dockerPackageManager) RestoreFromState(ctx context.Context, apps map[string]*node.AppInstallation) error {
+	var err error
+	for _, app := range apps {
+		if app.Driver == m.Driver() {
+			perr := m.InstallPackage(app.Package, app.Version)
+			if perr != nil {
+				// Set the returned error to the last one we run into, but keep iterating
+				err = perr
+			}
+		}
+	}
+	return err
 }

@@ -9,7 +9,7 @@ import (
 
 	"text/template"
 
-	types "github.com/eagraf/habitat-new/core/api"
+	"github.com/eagraf/habitat-new/internal/node/controller"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -21,7 +21,7 @@ import (
 var appsDevYml embed.FS
 
 // getAppsList returns the contents of the embedded apps.dev.yml file
-func getDevAppsList(path string) ([]*types.PostAppRequest, error) {
+func getDevAppsList(path string) ([]*controller.InstallAppRequest, error) {
 	raw, err := fs.ReadFile(appsDevYml, "apps.dev.yml.tpl")
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func getDevAppsList(path string) ([]*types.PostAppRequest, error) {
 }
 
 // Render the template for the dev apps list. Only used in dev mode.
-func renderDevAppsList(path string, raw []byte) ([]*types.PostAppRequest, error) {
+func renderDevAppsList(path string, raw []byte) ([]*controller.InstallAppRequest, error) {
 	tmpl, err := template.New("apps").Parse(string(raw))
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func renderDevAppsList(path string, raw []byte) ([]*types.PostAppRequest, error)
 
 	yml := buf.Bytes()
 
-	var appsList []*types.PostAppRequest
+	var appsList []*controller.InstallAppRequest
 	err = yaml.Unmarshal(yml, &appsList)
 	if err != nil {
 		return nil, err

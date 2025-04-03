@@ -1,10 +1,12 @@
 package hdb
 
+import "context"
+
 type HDBManager interface {
-	Start()
+	Start(context.Context)
 	Stop()
-	RestartDBs() error
-	CreateDatabase(name, schemaType string, initialTransitions []Transition) (Client, error)
+	RestartDBs(context.Context) error
+	CreateDatabase(ctx context.Context, name, schemaType string, initialTransitions []Transition) (Client, error)
 	GetDatabaseClientByName(name string) (Client, error)
 }
 

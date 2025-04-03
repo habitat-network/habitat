@@ -20,10 +20,6 @@ export interface PostAddUserRequest {
 export interface PostAddUserResponse {
   pds_create_account_response: { [key: string]: any};
 }
-export interface PostAppRequest {
-  app_installation?: node.AppInstallation;
-  reverse_proxy_rules: (node.ReverseProxyRule | undefined)[];
-}
 
 //////////
 // source: pds.go

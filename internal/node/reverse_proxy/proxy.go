@@ -14,7 +14,7 @@ type RuleSet struct {
 // AddRule is a wrapper around Add for finding the correct rule handler type.
 func (rs RuleSet) AddRule(rule *node.ReverseProxyRule) error {
 	if _, ok := rs.rules[rule.ID]; ok {
-		return fmt.Errorf("reverse proxy rule with id %s is already present", rule.ID)
+		return fmt.Errorf("reverse proxy rule with id %s is already present, can't overwrite rule", rule.ID)
 	}
 
 	// Make sure the rule type is valid.

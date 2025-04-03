@@ -1,6 +1,7 @@
 package hdbms
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,9 +72,9 @@ func NewDatabaseManager(path string, publisher pubsub.Publisher[hdb.StateUpdate]
 	return dm, nil
 }
 
-func (dm *DatabaseManager) Start() {
+func (dm *DatabaseManager) Start(ctx context.Context) {
 	for _, db := range dm.databases {
-		db.StateMachineController.StartListening()
+		go db.StateMachineController.StartListening(ctx)
 	}
 }
 
@@ -83,7 +84,7 @@ func (dm *DatabaseManager) Stop() {
 	}
 }
 
-func (dm *DatabaseManager) RestartDBs() error {
+func (dm *DatabaseManager) RestartDBs(ctx context.Context) error {
 	dirs, err := os.ReadDir(dm.path)
 	if err != nil {
 		return fmt.Errorf("error reading existing databases : %s", err)
@@ -134,14 +135,14 @@ func (dm *DatabaseManager) RestartDBs() error {
 		db.StateMachineController = stateMachineController
 
 		dm.databases[dbID] = db
-		db.StateMachineController.StartListening()
+		go db.StateMachineController.StartListening(ctx)
 	}
 	return nil
 }
 
 // CreateDatabase creates a new database with the given name and schema type.
 // This is a no-op if a database with the same name already exists.
-func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initialTransitions []hdb.Transition) (hdb.Client, error) {
+func (dm *DatabaseManager) CreateDatabase(ctx context.Context, name string, schemaType string, initialTransitions []hdb.Transition) (hdb.Client, error) {
 	// First ensure that no db has the same name
 	err := dm.checkDatabaseExists(name)
 	if err != nil {
@@ -191,8 +192,7 @@ func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initia
 		return nil, err
 	}
 	db.StateMachineController = stateMachineController
-
-	db.StateMachineController.StartListening()
+	go db.StateMachineController.StartListening(ctx)
 
 	_, err = db.StateMachineController.ProposeTransitions(initialTransitions)
 	if err != nil {
@@ -200,7 +200,6 @@ func (dm *DatabaseManager) CreateDatabase(name string, schemaType string, initia
 	}
 
 	dm.databases[id] = db
-
 	return db, nil
 }
 
