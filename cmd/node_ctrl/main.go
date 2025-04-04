@@ -38,13 +38,14 @@ func printResponse(res *http.Response) error {
 			return errors.Wrap(err, "error unmarshalling response body")
 		}
 	}
-	_, err = json.Marshal(msg{
+	resp, err := json.Marshal(msg{
 		Status: res.Status,
 		Body:   body,
 	})
 	if err != nil {
 		return errors.Wrap(err, "error marshalling response body into msg type")
 	}
+	fmt.Println(string(resp))
 	return nil
 }
 
