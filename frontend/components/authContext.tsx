@@ -70,21 +70,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // Set the access token in a cookie
             Cookies.set('access_token', accessJwt, {
                 expires: 7,
-                ...(parentDomain != ".localhost" && { domain: parentDomain }),
+                ...(parentDomain != "localhost" && { domain: parentDomain }),
             });
             Cookies.set('refresh_token', refreshJwt, {
                 expires: 7,
-                ...(parentDomain != ".localhost" && { domain: parentDomain }),
+                ...(parentDomain != "localhost" && { domain: parentDomain }),
             });
             // The user's did
             Cookies.set('user_did', did, {
                 expires: 7,
-                ...(parentDomain != ".localhost" && { domain: parentDomain }),
+                ...(parentDomain != "localhost" && { domain: parentDomain }),
             });
 
             Cookies.set('handle', handle, {
                 expires: 7,
-                ...(parentDomain != ".localhost" && { domain: parentDomain }),
+                ...(parentDomain != "localhost" && { domain: parentDomain }),
             });
             // To help dev app frontends figure out where to make API requests.
             Cookies.set('habitat_domain', window.location.hostname, {
