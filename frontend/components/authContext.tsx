@@ -17,7 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
-        
+
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
 
     const [handle, setHandle] = useState<string | null>(null);
@@ -44,19 +44,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         source: string | null = null
     ) => {
         try {
-            const fullHandle = `${identifier}.${window.location.hostname}`;
-            const response = await axios.post(`${window.location.origin}/habitat/api/node/login`, {
-                password: password,
-                identifier: fullHandle,
-              }, {
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-            });
-            console.log(response.data);
-
-            const { accessJwt, refreshJwt, did, handle } = response.data;
-
             // If we are using a *ts.net domain, make sure the cookies are applied to all other subdomains on that TailNet.
             let parentDomain = window.location.hostname;
             if (window.location.hostname.endsWith(".ts.net")) {
@@ -66,28 +53,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
             }
 
+            const fullHandle = parentDomain == "localhost" ? `${identifier}` : `${identifier}.${window.location.hostname}`;
+            const response = await axios.post(`${window.location.origin}/habitat/api/node/login`, {
+                password: password,
+                identifier: fullHandle,
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            console.log(response.data);
+
+            const { accessJwt, refreshJwt, did, handle } = response.data;
+
+
             // Set the access token in a cookie
             Cookies.set('access_token', accessJwt, {
                 expires: 7,
-                domain: parentDomain,
+                ...(parentDomain != ".localhost" && { domain: parentDomain }),
             });
             Cookies.set('refresh_token', refreshJwt, {
                 expires: 7,
-                domain: parentDomain,
+                ...(parentDomain != ".localhost" && { domain: parentDomain }),
             });
-            // To help dev app frontends figure out where to make API requests.
-            Cookies.set('habitat_domain', window.location.hostname, {
-                expires: 7,
-                domain: parentDomain,
-            });
-
             // The user's did
             Cookies.set('user_did', did, {
                 expires: 7,
-                domain: parentDomain,
+                ...(parentDomain != ".localhost" && { domain: parentDomain }),
             });
-            
+
             Cookies.set('handle', handle, {
+                expires: 7,
+                ...(parentDomain != ".localhost" && { domain: parentDomain }),
+            });
+            // To help dev app frontends figure out where to make API requests.
+            Cookies.set('habitat_domain', window.location.hostname, {
                 expires: 7,
                 domain: parentDomain,
             });
@@ -115,11 +115,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const logout = () => {
         Cookies.remove('access_token');
         Cookies.remove('refresh_token');
-
         Cookies.remove('chrome_extension_user_id');
         Cookies.remove('chrome_extension_access_token');
         Cookies.remove('chrome_extension_refresh_token');
-
         Cookies.remove('handle');
 
         setIsAuthenticated(false);
