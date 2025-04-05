@@ -90,58 +90,6 @@ func (c *BaseNodeController) MigrateNodeDB(targetVersion string) error {
 	return err
 }
 
-/*
-// InstallApp attempts to install the given app installation, with the userID as the action initiato.
-func (c *BaseNodeController) InstallApp(userID string, newApp *node.AppInstallation, newProxyRules []*node.ReverseProxyRule) error {
-	dbClient, err := c.databaseManager.GetDatabaseClientByName(constants.NodeDBDefaultName)
-	if err != nil {
-		return err
-	}
-
-	_, err = dbClient.ProposeTransitions([]hdb.Transition{
-		&node.StartInstallationTransition{
-			UserID:                 userID,
-			AppInstallation:        newApp,
-			NewProxyRules:          newProxyRules,
-			StartAfterInstallation: true,
-		},
-	})
-	return err
-}
-
-// FinishAppInstallation marks the app lifecycle state as installed
-func (c *BaseNodeController) FinishAppInstallation(userID string, appID, registryURLBase, registryAppID string, startAfterInstall bool) error {
-	dbClient, err := c.databaseManager.GetDatabaseClientByName(constants.NodeDBDefaultName)
-	if err != nil {
-		return err
-	}
-
-	_, err = dbClient.ProposeTransitions([]hdb.Transition{
-		&node.FinishInstallationTransition{
-			UserID:          userID,
-			AppID:           appID,
-			RegistryURLBase: registryURLBase,
-			RegistryAppID:   registryAppID,
-
-			StartAfterInstallation: startAfterInstall,
-		},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-*/
-
-// TODO: Delete once usages of StartProcess() are deleted
-func (c *BaseNodeController) StartProcess(appID string) error {
-	if c.ctrl2 == nil {
-		return fmt.Errorf("BaseNodeController.ctrl2 field is nil, unable to fulfill request")
-	}
-	return c.ctrl2.startProcess(appID)
-}
-
 func (c *BaseNodeController) AddUser(userID, email, handle, password, certificate string) (types.PDSCreateAccountResponse, error) {
 	resp, err := c.pdsClient.CreateAccount(email, handle, password)
 	if err != nil {

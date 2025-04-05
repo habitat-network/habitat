@@ -309,10 +309,13 @@ func (n *NodeConfig) Hostname() string {
 // Domain name that hosts this Habitat node, if tailscale funnel is enabled.
 func (n *NodeConfig) Domain() string {
 	if n.TailScaleFunnelEnabled() {
-		return n.viper.GetString("domain")
-	} else {
-		return ""
+		domain := n.viper.GetString("domain")
+		if domain == "" {
+			return "localhost"
+		}
+		return domain
 	}
+	return ""
 }
 
 func (n *NodeConfig) ReverseProxyPort() string {

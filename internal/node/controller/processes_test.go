@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/api/test_helpers"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/eagraf/habitat-new/internal/process"
@@ -169,7 +170,7 @@ func TestStartProcessHandler(t *testing.T) {
 	require.Len(t, procs, 0)
 
 	startProcessHandler := http.HandlerFunc(s.StartProcess)
-	startProcessRoute := newRoute(http.MethodPost, "/node/processes", startProcessHandler)
+	startProcessRoute := api.NewBasicRoute(http.MethodPost, "/node/processes", startProcessHandler)
 	handler := middleware.Middleware(startProcessHandler)
 
 	b, err := json.Marshal(StartProcessRequest{
@@ -235,9 +236,10 @@ func TestStartProcessHandler(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, running)
 
-	listProcessRoute := newRoute(http.MethodGet, "/node/processes/list", http.HandlerFunc(s.ListProcesses))
+	listFn := http.HandlerFunc(s.ListProcesses)
+	listProcessRoute := api.NewBasicRoute(http.MethodGet, "/node/processes/list", listFn)
 	resp = httptest.NewRecorder()
-	handler = middleware.Middleware(listProcessRoute.fn)
+	handler = middleware.Middleware(listFn)
 	handler.ServeHTTP(
 		resp,
 		httptest.NewRequest(
@@ -255,8 +257,8 @@ func TestStartProcessHandler(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.Result().StatusCode)
 
 	// Test Stop Process
-	stopRoute := newRoute(http.MethodGet, "/node/processes/stop", http.HandlerFunc(s.StopProcess))
-	handler = middleware.Middleware(stopRoute.fn)
+	stopFn := http.HandlerFunc(s.StopProcess)
+	handler = middleware.Middleware(stopFn)
 
 	// Sad Path
 	mockDriver.returnErr = fmt.Errorf("my error")
@@ -269,7 +271,7 @@ func TestStartProcessHandler(t *testing.T) {
 		resp,
 		httptest.NewRequest(
 			http.MethodGet,
-			stopRoute.Pattern(),
+			"/node/processes/stop",
 			bytes.NewReader(b),
 		),
 	)
@@ -286,7 +288,7 @@ func TestStartProcessHandler(t *testing.T) {
 		resp,
 		httptest.NewRequest(
 			http.MethodGet,
-			stopRoute.Pattern(),
+			"/node/processes/stop",
 			bytes.NewReader(b),
 		),
 	)
@@ -298,7 +300,7 @@ func TestStartProcessHandler(t *testing.T) {
 		resp,
 		httptest.NewRequest(
 			http.MethodPost,
-			stopRoute.Pattern(),
+			"/node/processes/stop",
 			bytes.NewReader([]byte("invalid")),
 		),
 	)
@@ -329,7 +331,7 @@ func TestStartProcessHandler(t *testing.T) {
 		resp,
 		httptest.NewRequest(
 			http.MethodGet,
-			stopRoute.Pattern(),
+			"/node/processes/stop",
 			bytes.NewReader(b),
 		),
 	)
@@ -377,7 +379,9 @@ func TestControllerRestoreProcess(t *testing.T) {
 	ctrl, err := NewController2(context.Background(), pm, nil, &mockHDB{
 		schema:    state.Schema(),
 		jsonState: jsonStateFromNodeState(state),
-	}, nil)
+	},
+		nil,
+	)
 	require.NoError(t, err)
 
 	// Restore

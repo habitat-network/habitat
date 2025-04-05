@@ -19,12 +19,13 @@ type PDSClientI interface {
 var _ PDSClientI = &pdsClient{}
 
 type pdsClient struct {
+	host        string
 	pdsUsername string
 	pdsPassword string
 }
 
-func NewPDSClient(username string, password string) PDSClientI {
-	return &pdsClient{username, password}
+func NewPDSClient(host string, username string, password string) PDSClientI {
+	return &pdsClient{host, username, password}
 }
 
 func (p *pdsClient) CreateAccount(email, handle, password string) (types.PDSCreateAccountResponse, error) {
@@ -80,7 +81,7 @@ func (p *pdsClient) CreateSession(identifier, password string) (types.PDSCreateS
 
 // Helper function to make HTTP requests to PDS
 func (p *pdsClient) makePDSHttpReq(endpoint, method string, body []byte, isAdminReq bool) ([]byte, error) {
-	pdsURL := fmt.Sprintf("http://%s:%s/xrpc/%s", "host.docker.internal", "5001", endpoint)
+	pdsURL := fmt.Sprintf("http://%s/xrpc/%s", p.host, endpoint)
 
 	req, err := http.NewRequest(method, pdsURL, bytes.NewReader(body))
 	if err != nil {

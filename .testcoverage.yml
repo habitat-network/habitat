@@ -30,15 +30,14 @@ exclude:
     - \/fx\.go$
     - \/test_helpers
     - ^pkg\/raft\/transport
-    - ^pkg\/raft\/transport
     - ^internal/node/drivers
     - ^internal/node/api
     - ^cmd/node
-    - ^internal/node/reverse_proxy/server.go
-    - ^internal/node/server/server.go
     - ^internal/frontend
     - ^internal/node/controller/pds.go
     - ^internal/node/controller/auth.go
+    - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
+    - ^internal/privy/.*encrypt.* # This is is a noop thing.
     - ^internal/docker
     - ^internal/web
     - ^internal/bffauth/cmd

@@ -54,7 +54,7 @@ func NewRouter(
 	return routerWithMiddleWare
 }
 
-// Helper package to easily retur
+// Helper package to easily return structured routes given basic info.
 type basicRoute struct {
 	method  string
 	pattern string

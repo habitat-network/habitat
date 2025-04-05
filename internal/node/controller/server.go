@@ -159,39 +159,13 @@ func (s *CtrlServer) GetNodeState(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type route struct {
-	method  string
-	pattern string
-	fn      http.HandlerFunc
-}
-
-func newRoute(method, pattern string, fn http.HandlerFunc) *route {
-	return &route{
-		method, pattern, fn,
-	}
-}
-
-func (r *route) Method() string {
-	return r.method
-}
-
-func (r *route) Pattern() string {
-	return r.pattern
-}
-
-func (r *route) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	r.fn(w, req)
-}
-
-var _ api.Route = &route{}
-
 func (s *CtrlServer) GetRoutes() []api.Route {
 	return []api.Route{
-		newRoute(http.MethodGet, "/node/processes/list", s.ListProcesses),
-		newRoute(http.MethodPost, "/node/processes/start", s.StartProcess),
-		newRoute(http.MethodPost, "/node/processes/stop", s.StopProcess),
-		newRoute(http.MethodGet, "/node/state", s.GetNodeState),
-		newRoute(http.MethodPost, "/node/apps/{user_id}/install", s.InstallApp),
-		newRoute(http.MethodPost, "/node/apps/uninstall", s.UninstallApp),
+		api.NewBasicRoute(http.MethodGet, "/node/processes/list", s.ListProcesses),
+		api.NewBasicRoute(http.MethodPost, "/node/processes/start", s.StartProcess),
+		api.NewBasicRoute(http.MethodPost, "/node/processes/stop", s.StopProcess),
+		api.NewBasicRoute(http.MethodGet, "/node/state", s.GetNodeState),
+		api.NewBasicRoute(http.MethodPost, "/node/apps/{user_id}/install", s.InstallApp),
+		api.NewBasicRoute(http.MethodPost, "/node/apps/uninstall", s.UninstallApp),
 	}
 }
