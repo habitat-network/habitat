@@ -53,3 +53,28 @@ func NewRouter(
 
 	return routerWithMiddleWare
 }
+
+// Helper package to easily retur
+type basicRoute struct {
+	method  string
+	pattern string
+	fn      http.HandlerFunc
+}
+
+func NewBasicRoute(method, pattern string, fn http.HandlerFunc) Route {
+	return &basicRoute{
+		method, pattern, fn,
+	}
+}
+
+func (r *basicRoute) Method() string {
+	return r.method
+}
+
+func (r *basicRoute) Pattern() string {
+	return r.pattern
+}
+
+func (r *basicRoute) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.fn(w, req)
+}

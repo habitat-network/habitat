@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
@@ -292,7 +293,12 @@ func (n *NodeConfig) UseTLS() bool {
 func (n *NodeConfig) Hostname() string {
 	if n.TailscaleAuthkey() != "" {
 		if n.Environment() == constants.EnvironmentDev {
-			return constants.TSNetHostnameDev
+			parts := strings.Split(n.Domain(), ".")
+			if len(parts) > 0 {
+				return parts[0]
+			} else {
+				log.Fatal().Msgf("Failed to parse domain: %s", n.Domain())
+			}
 		} else {
 			return constants.TSNetHostnameDefault
 		}

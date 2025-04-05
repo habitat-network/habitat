@@ -41,3 +41,5 @@ exclude:
     - ^internal/node/controller/auth.go
     - ^internal/docker
     - ^internal/web
+    - ^internal/bffauth/cmd
+    - ^internal/bffauth/provider.go # File is too small :)
