@@ -5,7 +5,6 @@ go 1.23
 toolchain go1.23.4
 
 require (
-	github.com/agl/gcmsiv v0.0.0-20190418185415-e8dcd2f151dc
 	github.com/bluesky-social/indigo v0.0.0-20250401210623-bfc7f487e4ed
 	github.com/casbin/casbin/v2 v2.104.0
 	github.com/docker/docker v25.0.5+incompatible

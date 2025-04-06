@@ -25,6 +25,7 @@ type Server struct {
 
 func NewServer(pdsHost string, enc Encrypter) *Server {
 	return &Server{
+		pdsHost: pdsHost,
 		inner: &store{
 			e: enc,
 		},
@@ -97,25 +98,45 @@ func (s *Server) GetRecord(cli *xrpc.Client) http.HandlerFunc {
 // This would allow for requesting to any pds through these routes, not just the one tied to this habitat node.
 func (s *Server) pdsAuthMiddleware(next func(c *xrpc.Client) http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if len(authHeader) < 7 {
-			http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+		accessJwt, err := getAccessJwt(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
 			return
 		}
-		bearer := authHeader[7:]
 		c := &xrpc.Client{
 			Host: fmt.Sprintf("http://%s", s.pdsHost),
 			Auth: &xrpc.AuthInfo{
-				AccessJwt: bearer,
+				AccessJwt: accessJwt,
 			},
 		}
 		next(c).ServeHTTP(w, r)
 	})
 }
 
+func getAccessJwt(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if len(authHeader) > 7 {
+		return authHeader[7:], nil
+	}
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == "access_token" {
+			return cookie.Value, nil
+		}
+	}
+	return "", fmt.Errorf("missing auth info")
+}
+
 func (s *Server) GetRoutes() []api.Route {
 	return []api.Route{
-		api.NewBasicRoute(http.MethodPost, "/xrpc/com.habitat.putRecord", s.pdsAuthMiddleware(s.PutRecord)),
-		api.NewBasicRoute(http.MethodGet, "/xrpc/com.habitat.getRecord", s.pdsAuthMiddleware(s.GetRecord)),
+		api.NewBasicRoute(
+			http.MethodPost,
+			"/xrpc/com.habitat.putRecord",
+			s.pdsAuthMiddleware(s.PutRecord),
+		),
+		api.NewBasicRoute(
+			http.MethodGet,
+			"/xrpc/com.habitat.getRecord",
+			s.pdsAuthMiddleware(s.GetRecord),
+		),
 	}
 }
