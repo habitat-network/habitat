@@ -1,6 +1,8 @@
 package constants
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type HabitatContextKey string
 

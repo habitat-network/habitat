@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/data"
 	"github.com/bluesky-social/indigo/lex/util"
 	"github.com/bluesky-social/indigo/xrpc"
+	"github.com/eagraf/habitat-new/core/permissions"
 )
 
 // Privy is an ATProto PDS Wrapper which allows for storing & getting private data.
@@ -23,7 +24,8 @@ import (
 //
 // TODO: formally define the com.habitat.encryptedRecord and change it to a domain we actually own :)
 type store struct {
-	e Encrypter
+	e           Encrypter
+	permissions permissions.Store
 }
 
 const encryptedRecordNSID = "com.habitat.encryptedRecord"
@@ -41,6 +43,8 @@ var (
 	ErrNoPutsOnEncryptedRecord          = fmt.Errorf("directly put-ting to this lexicon is not valid")
 	ErrNoEncryptedGetsOnEncryptedRecord = fmt.Errorf("calling getEncryptedRecord on a %s is not supported", encryptedRecordNSID)
 	ErrEncryptedRecordNilValue          = fmt.Errorf("a %s record was found but it has a nil value", encryptedRecordNSID)
+	ErrNotLocalRepo                     = fmt.Errorf("the desired did does not live on this repo")
+	ErrUnauthorized                     = fmt.Errorf("unauthorized request")
 )
 
 // Returns true if err indicates the RecordNotFound error
@@ -100,7 +104,7 @@ type GetRecordResponse struct {
 //	   2c) if no corresponding record is found, attempt to decrypt the record a com.habitat.encryptedRecord would point to for that collection + rkey
 //
 // Keeping this API the same as com.atproto.getRecord
-func (p *store) getRecord(ctx context.Context, xrpc *xrpc.Client, cid string, collection string, did string, rkey string) (*agnostic.RepoGetRecord_Output, error) {
+func (p *store) getRecord(ctx context.Context, xrpc *xrpc.Client, cid string, collection string, did string, rkey string, callerDID string) (*agnostic.RepoGetRecord_Output, error) {
 	// Attempt to get a public record corresponding to the Collection + Repo + Rkey.
 	// If the given cid does not point to anything, the GetRecord endpoint returns an error.
 	// Record not found results in an error, as does any other non-200 response from the endpoint.
@@ -108,12 +112,13 @@ func (p *store) getRecord(ctx context.Context, xrpc *xrpc.Client, cid string, co
 	output, err := agnostic.RepoGetRecord(ctx, xrpc, cid, collection, did, rkey)
 	// If this is a cid lookup (cases 1a-1c) or the record was found (2a + 2b), simply return ()
 	if err == nil {
+		// If fails because the did does not exist return special err
 		return output, nil
 	}
 
 	// If the record with the given collection + rkey identifier was not found (case 2c), attempt to get a private record with permissions look up.
 	if strings.Contains(err.Error(), "RecordNotFound") || strings.Contains(err.Error(), "Could not locate record") {
-		return p.getEncryptedRecord(ctx, xrpc, cid, collection, did, rkey)
+		return p.getEncryptedRecord(ctx, xrpc, cid, collection, did, rkey, callerDID)
 	}
 	// Otherwise the lookup failed in some other way, return the error
 	return nil, err
@@ -121,7 +126,7 @@ func (p *store) getRecord(ctx context.Context, xrpc *xrpc.Client, cid string, co
 
 // getEncryptedRecord assumes that the record given by the cid + collection + rkey + did has been encrypted via putRecord and fetches it
 // Keeping this API the same as com.atproto.getRecord
-func (p *store) getEncryptedRecord(ctx context.Context, xrpc *xrpc.Client, cid string, collection string, did string, rkey string) (*agnostic.RepoGetRecord_Output, error) {
+func (p *store) getEncryptedRecord(ctx context.Context, xrpc *xrpc.Client, cid string, collection string, did string, rkey string, callerDID string) (*agnostic.RepoGetRecord_Output, error) {
 	if collection == encryptedRecordNSID {
 		return nil, ErrNoEncryptedGetsOnEncryptedRecord
 	}
@@ -141,7 +146,13 @@ func (p *store) getEncryptedRecord(ctx context.Context, xrpc *xrpc.Client, cid s
 	}
 
 	// Run permissions before returning to the user
-	// if HasAccess(did, collection, rkey) { .... }
+	authz, err := p.permissions.HasPermission(callerDID, collection, rkey, false)
+	if err != nil {
+		return nil, err
+	} else if !authz {
+		return nil, ErrUnauthorized
+	}
+
 	var record encryptedRecord
 	err = json.Unmarshal(bytes, &record)
 	// Unfortunate that we need to MarshalJSON to turn it back into bytes -- the RepoGetRecord function probably Unmarshals :/

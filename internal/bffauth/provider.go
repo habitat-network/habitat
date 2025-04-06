@@ -129,7 +129,7 @@ func (p *Provider) handleAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT
-	token, err := GenerateJWT(p.signingKey)
+	token, err := GenerateJWT(p.signingKey, session.DID)
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -175,4 +175,16 @@ func (p *Provider) handleTest(w http.ResponseWriter, r *http.Request) {
 		log.Err(err).Msgf("error sending response in handleTest")
 	}
 
+}
+
+func (p *Provider) ValidateToken(token string) (string, error) {
+	claims, err := ValidateJWT(token, p.signingKey)
+	if err != nil {
+		return "", err
+	}
+	dids := []string(claims.Audience)
+	if len(dids) > 1 || len(dids) <= 0 {
+		return "", fmt.Errorf("Invalidly formatted jwt claims audience")
+	}
+	return dids[0], nil
 }

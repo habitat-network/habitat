@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/eagraf/habitat-new/core/permissions"
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/bffauth"
 	"github.com/eagraf/habitat-new/internal/docker"
@@ -187,8 +188,22 @@ func main() {
 	)
 	routes = append(routes, bffProvider.GetRoutes()...)
 
+	// TODO: eventually we need a way given a did to resolve the habitat server host.
+	// This likely can go into the DID document services
+	// For now, hardcode it. This is used by the privyServer.
+	habitatResolver := func(did string) string {
+		panic("unimplemented")
+	}
+
 	// Add privy routes
-	privyServer := privy.NewServer(constants.DefaultPDSHostname, &privy.NoopEncrypter{} /* TODO: use actual encryption */)
+	privyServer := privy.NewServer(
+		constants.DefaultPDSHostname,
+		habitatResolver,
+		&privy.NoopEncrypter{}, /* TODO: use actual encryption */
+		bffauth.NewClient(),
+		bffProvider,
+		permissions.NewDummyStore(),
+	)
 	routes = append(routes, privyServer.GetRoutes()...)
 
 	authMiddleware := controller.NewAuthenticationMiddleware(

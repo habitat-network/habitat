@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/lex/util"
 	"github.com/bluesky-social/indigo/xrpc"
+	"github.com/eagraf/habitat-new/core/permissions"
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
@@ -128,7 +129,10 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 		Host: mockPDS.URL,
 	}
 
-	p := &store{e: encrypter}
+	p := &store{
+		e:           encrypter,
+		permissions: permissions.NewDummyStore(),
+	}
 	require.NoError(t, err)
 
 	// putRecord with encryption
@@ -143,7 +147,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.Equal(t, encRecordCid, out.Cid)
 	require.Equal(t, testUri, out.Uri)
 
-	got, err := p.getRecord(ctx, client, "", coll, "my-did", "my-rkey")
+	got, err := p.getRecord(ctx, client, "", coll, "my-did", "my-rkey", "")
 	require.NoError(t, err)
 	require.Equal(t, *got.Cid, encRecordCid)
 	require.Equal(t, got.Uri, testUri)
@@ -159,6 +163,6 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	}, true)
 	require.ErrorIs(t, err, ErrNoPutsOnEncryptedRecord)
 
-	_, err = p.getEncryptedRecord(ctx, client, "", encryptedRecordNSID, "my-did", "my-rkey")
+	_, err = p.getEncryptedRecord(ctx, client, "", encryptedRecordNSID, "my-did", "my-rkey", "")
 	require.ErrorIs(t, err, ErrNoEncryptedGetsOnEncryptedRecord)
 }

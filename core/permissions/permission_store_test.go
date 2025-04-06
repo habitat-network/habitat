@@ -10,7 +10,7 @@ import (
 
 func TestPermissionStore_TestPolicy1(t *testing.T) {
 	a := fileadapter.NewAdapter("test_policies/test_policy_1.csv")
-	ps, err := NewPermissionStore(a)
+	ps, err := NewStore(a)
 	require.NoError(t, err)
 
 	// inheritance

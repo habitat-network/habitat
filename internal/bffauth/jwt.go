@@ -11,10 +11,11 @@ import (
 
 // GenerateJWT creates a signed JWT token containing the provided claims
 // The claims are signed using HMAC with the provided signing key
-func GenerateJWT(signingKey []byte) (string, error) {
+func GenerateJWT(signingKey []byte, did string) (string, error) {
 	claims := jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Audience:  jwt.ClaimStrings([]string{did}),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

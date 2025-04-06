@@ -93,7 +93,7 @@ func (s *TestServer) authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT
-	token, err := bffauth.GenerateJWT(s.signingKey)
+	token, err := bffauth.GenerateJWT(s.signingKey, "test-did")
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return

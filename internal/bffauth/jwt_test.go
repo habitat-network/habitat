@@ -11,7 +11,7 @@ func TestJWTFlow(t *testing.T) {
 	signingKey := []byte("test-signing-key")
 
 	// Generate JWT with the challenge
-	token, err := GenerateJWT(signingKey)
+	token, err := GenerateJWT(signingKey, "test-did")
 	if err != nil {
 		t.Fatalf("Failed to generate JWT: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestValidateRequest(t *testing.T) {
 	signingKey := []byte("test-signing-key")
 
 	// Generate a valid JWT token
-	token, err := GenerateJWT(signingKey)
+	token, err := GenerateJWT(signingKey, "test-did")
 	if err != nil {
 		t.Fatalf("Failed to generate JWT: %v", err)
 	}
