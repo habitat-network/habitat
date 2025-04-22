@@ -107,13 +107,15 @@ func (s *Server) GetRecord(authInfo *xrpc.AuthInfo) http.HandlerFunc {
 		rkey := u.Query().Get("rkey")
 
 		// Try handling both handles and dids
-		id, err := s.dir.LookupHandle(r.Context(), syntax.Handle(repo))
+		atid, err := syntax.ParseAtIdentifier(repo)
 		if err != nil {
-			id, err = s.dir.LookupDID(r.Context(), syntax.DID(repo))
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		id, err := s.dir.Lookup(r.Context(), *atid)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
 		targetDID := id.DID.String()
