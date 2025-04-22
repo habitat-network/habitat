@@ -21,11 +21,10 @@
                 "properties": {
                     "id": { "type": "string" },
                     "username": { "type": "string" },
-                    "certificate": { "type": "string" },
                     "atproto_did": { "type": "string" }
                 },
                 "additionalProperties": false,
-                "required": [ "id", "username", "certificate" ]
+                "required": [ "id", "username"]
             }
         },
         "app_installations": {

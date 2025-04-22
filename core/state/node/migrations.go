@@ -369,7 +369,7 @@ var NodeDataMigrations = MigrationsList{
 				return nil, err
 			}
 			for _, user := range newState.Users {
-				user.AtprotoDID = ""
+				user.DID = ""
 			}
 			return newState, nil
 		},

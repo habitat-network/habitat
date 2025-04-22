@@ -51,11 +51,10 @@ func TestInstallAppController(t *testing.T) {
 		&mockHDB{
 			schema:    state.Schema(),
 			jsonState: jsonStateFromNodeState(state),
-		}, nil)
+		}, nil, "fake-pds")
 	require.NoError(t, err)
 	ctrlServer, err := NewCtrlServer(
 		context.Background(),
-		&BaseNodeController{},
 		ctrl2,
 		state,
 	)

@@ -42,7 +42,7 @@ func TestInitializationTransition(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Test that the initialization transition works
-	it, err := ns.InitializationTransition(initStateBytes)
+	it, err := ns.Initialize(initStateBytes)
 	assert.Nil(t, err)
 
 	// Test that the transition is valid

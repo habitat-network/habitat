@@ -36,12 +36,7 @@ func testTransitions(oldState *State, transitions []hdb.Transition) (*State, err
 			return nil, fmt.Errorf("transition type is empty")
 		}
 
-		err := t.Enrich(oldJSONState.Bytes())
-		if err != nil {
-			return nil, fmt.Errorf("transition enrichment failed: %s", err)
-		}
-
-		err = t.Validate(oldJSONState.Bytes())
+		err := t.Validate(oldJSONState.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("transition validation failed: %s", err)
 		}
@@ -80,7 +75,7 @@ func TestFrontendDevMode(t *testing.T) {
 	require.NoError(t, err)
 	state.SetRootUserCert("fake_user_cert")
 	newState, err := testTransitions(state, []hdb.Transition{
-		&AddReverseProxyRuleTransition{
+		&addReverseProxyRuleTransition{
 			Rule: &ReverseProxyRule{
 				Type:    ProxyRuleRedirect,
 				ID:      "default-rule-frontend",
@@ -113,7 +108,7 @@ func testTransitionsOnCopy(oldState *State, transitions []hdb.Transition) (*Stat
 
 func TestNodeInitialization(t *testing.T) {
 	transitions := []hdb.Transition{
-		&InitalizationTransition{
+		&initalizationTransition{
 			InitState: &State{
 				NodeID:        "abc",
 				Certificate:   "123",
@@ -133,7 +128,7 @@ func TestNodeInitialization(t *testing.T) {
 	assert.Equal(t, 0, len(state.Processes))
 
 	_, err = testTransitions(nil, []hdb.Transition{
-		&InitalizationTransition{
+		&initalizationTransition{
 			InitState: nil,
 		},
 	})
@@ -142,7 +137,7 @@ func TestNodeInitialization(t *testing.T) {
 
 func TestAddingUsers(t *testing.T) {
 	transitions := []hdb.Transition{
-		&InitalizationTransition{
+		&initalizationTransition{
 			InitState: &State{
 				NodeID:        "abc",
 				Certificate:   "123",
@@ -150,10 +145,7 @@ func TestAddingUsers(t *testing.T) {
 				SchemaVersion: CurrentVersion,
 			},
 		},
-		&AddUserTransition{
-			Username:    "eagraf",
-			Certificate: "placeholder",
-		},
+		CreateAddUserTransition("eagraf", "fake-did"),
 	}
 
 	newState, err := testTransitions(nil, transitions)
@@ -165,18 +157,28 @@ func TestAddingUsers(t *testing.T) {
 	assert.Equal(t, 1, len(newState.Users))
 
 	testSecondUserConflictOnUsername := []hdb.Transition{
-		&AddUserTransition{
-			Username:    "eagraf",
-			Certificate: "placeholder",
-		},
+		CreateAddUserTransition("eagraf", "fake-did"),
 	}
 
 	_, err = testTransitionsOnCopy(newState, testSecondUserConflictOnUsername)
 	assert.NotNil(t, err)
 }
 func TestAppLifecycle(t *testing.T) {
+	createTransition, _ := CreateStartInstallationTransition(
+		"123",
+		&Package{
+			Driver:             DriverTypeDocker,
+			RegistryURLBase:    "https://registry.com",
+			RegistryPackageID:  "app_name1",
+			RegistryPackageTag: "v1",
+			DriverConfig:       map[string]interface{}{},
+		},
+		"1",
+		"app_name1",
+		[]*ReverseProxyRule{},
+	)
 	transitions := []hdb.Transition{
-		&InitalizationTransition{
+		&initalizationTransition{
 			InitState: &State{
 				NodeID:        "abc",
 				Certificate:   "123",
@@ -184,26 +186,13 @@ func TestAppLifecycle(t *testing.T) {
 				SchemaVersion: LatestVersion,
 				Users: map[string]*User{
 					"123": {
-						ID:          "123",
-						Username:    "eagraf",
-						Certificate: "placeholder",
+						ID:       "123",
+						Username: "eagraf",
 					},
 				},
 			},
 		},
-		GenStartInstallationTransition(
-			"123",
-			&Package{
-				Driver:             DriverTypeDocker,
-				RegistryURLBase:    "https://registry.com",
-				RegistryPackageID:  "app_name1",
-				RegistryPackageTag: "v1",
-				DriverConfig:       map[string]interface{}{},
-			},
-			"1",
-			"app_name1",
-			[]*ReverseProxyRule{},
-		),
+		createTransition,
 	}
 
 	newState, err := testTransitions(nil, transitions)
@@ -225,27 +214,28 @@ func TestAppLifecycle(t *testing.T) {
 	assert.Equal(t, "app_name1", app.Name)
 	assert.Equal(t, AppLifecycleStateInstalling, app.State)
 
+	transition, _ := CreateStartInstallationTransition(
+		"123",
+		&Package{
+			Driver:             DriverTypeDocker,
+			RegistryURLBase:    "https://registry.com",
+			RegistryPackageID:  "app_name1",
+			RegistryPackageTag: "v1",
+			DriverConfig:       map[string]interface{}{},
+		},
+		"1",
+		"app_name1",
+		[]*ReverseProxyRule{},
+	)
 	testSecondAppConflict := []hdb.Transition{
-		GenStartInstallationTransition(
-			"123",
-			&Package{
-				Driver:             DriverTypeDocker,
-				RegistryURLBase:    "https://registry.com",
-				RegistryPackageID:  "app_name1",
-				RegistryPackageTag: "v1",
-				DriverConfig:       map[string]interface{}{},
-			},
-			"1",
-			"app_name1",
-			[]*ReverseProxyRule{},
-		),
+		transition,
 	}
 
 	_, err = testTransitionsOnCopy(newState, testSecondAppConflict)
 	assert.NotNil(t, err)
 
 	testInstallationCompleted := []hdb.Transition{
-		&FinishInstallationTransition{
+		&finishInstallationTransition{
 			AppID: app.ID,
 		},
 	}
@@ -255,7 +245,7 @@ func TestAppLifecycle(t *testing.T) {
 	assert.Equal(t, AppLifecycleStateInstalled, newState.AppInstallations[app.ID].State)
 
 	testUserDoesntExist := []hdb.Transition{
-		&StartInstallationTransition{
+		&startInstallationTransition{
 			AppInstallation: &AppInstallation{
 				UserID:  "456",
 				Name:    "app_name1",
@@ -273,26 +263,27 @@ func TestAppLifecycle(t *testing.T) {
 	_, err = testTransitionsOnCopy(newState, testUserDoesntExist)
 	assert.NotNil(t, err)
 
+	trns, _ := CreateStartInstallationTransition(
+		"123",
+		&Package{
+			Driver:             DriverTypeDocker,
+			RegistryURLBase:    "https://registry.com",
+			RegistryPackageID:  "app_name1",
+			RegistryPackageTag: "v2",
+			DriverConfig:       map[string]interface{}{},
+		},
+		"2",
+		"app_name1",
+		[]*ReverseProxyRule{},
+	)
 	testDifferentVersion := []hdb.Transition{
-		GenStartInstallationTransition(
-			"123",
-			&Package{
-				Driver:             DriverTypeDocker,
-				RegistryURLBase:    "https://registry.com",
-				RegistryPackageID:  "app_name1",
-				RegistryPackageTag: "v2",
-				DriverConfig:       map[string]interface{}{},
-			},
-			"2",
-			"app_name1",
-			[]*ReverseProxyRule{},
-		),
+		trns,
 	}
 	_, err = testTransitionsOnCopy(newState, testDifferentVersion)
 	assert.NotNil(t, err)
 
 	testFinishOnAppThatsNotInstalling := []hdb.Transition{
-		&FinishInstallationTransition{
+		&finishInstallationTransition{
 			AppID: "app_name1", // already installed
 		},
 	}
@@ -304,7 +295,7 @@ func TestAppLifecycle(t *testing.T) {
 func TestAppInstallReverseProxyRules(t *testing.T) {
 	proxyRules := make(map[string]*ReverseProxyRule)
 	transitions := []hdb.Transition{
-		&InitalizationTransition{
+		&initalizationTransition{
 			InitState: &State{
 				NodeID:        "abc",
 				Certificate:   "123",
@@ -312,14 +303,13 @@ func TestAppInstallReverseProxyRules(t *testing.T) {
 				SchemaVersion: LatestVersion,
 				Users: map[string]*User{
 					"123": &User{
-						Username:    "eagraf",
-						Certificate: "placeholder",
+						Username: "eagraf",
 					},
 				},
 				ReverseProxyRules: proxyRules,
 			},
 		},
-		&StartInstallationTransition{
+		&startInstallationTransition{
 			AppInstallation: &AppInstallation{
 				UserID:  "123",
 				Name:    "app_name1",
@@ -351,7 +341,7 @@ func TestAppInstallReverseProxyRules(t *testing.T) {
 
 func TestProcesses(t *testing.T) {
 	init := []hdb.Transition{
-		&InitalizationTransition{
+		&initalizationTransition{
 			InitState: &State{
 				NodeID:        "abc",
 				Certificate:   "123",
@@ -359,9 +349,8 @@ func TestProcesses(t *testing.T) {
 				SchemaVersion: LatestVersion,
 				Users: map[string]*User{
 					"123": {
-						ID:          "123",
-						Username:    "eagraf",
-						Certificate: "placeholder",
+						ID:       "123",
+						Username: "eagraf",
 					},
 				},
 				AppInstallations: map[string]*AppInstallation{
@@ -386,7 +375,7 @@ func TestProcesses(t *testing.T) {
 	oldState, err := testTransitions(nil, init)
 	require.NoError(t, err)
 
-	startTransition, err := GenProcessStartTransition("App1", oldState)
+	startTransition, id, err := CreateProcessStartTransition("App1", oldState)
 	require.NoError(t, err)
 
 	newState, err := testTransitions(oldState, []hdb.Transition{startTransition})
@@ -405,12 +394,12 @@ func TestProcesses(t *testing.T) {
 	assert.Equal(t, 1, len(procs))
 
 	proc := procs[0]
-	assert.NotEmpty(t, proc.ID)
+	assert.Equal(t, proc.ID, id)
 	assert.Equal(t, "App1", proc.AppID)
 	assert.Equal(t, "123", proc.UserID)
 
 	testProcessRunningNoMatchingID := []hdb.Transition{
-		&ProcessStartTransition{
+		&processStartTransition{
 			Process: &Process{
 				AppID: proc.AppID,
 			},
@@ -420,7 +409,7 @@ func TestProcesses(t *testing.T) {
 	assert.NotNil(t, err)
 
 	testAppIDConflict := []hdb.Transition{
-		&ProcessStartTransition{
+		&processStartTransition{
 			Process: &Process{
 				AppID: "App1",
 			},
@@ -432,7 +421,7 @@ func TestProcesses(t *testing.T) {
 
 	// Test stopping the app
 	newState, err = testTransitionsOnCopy(newState, []hdb.Transition{
-		&ProcessStopTransition{
+		&processStopTransition{
 			ProcessID: proc.ID,
 		},
 	})
@@ -441,7 +430,7 @@ func TestProcesses(t *testing.T) {
 	assert.Equal(t, 0, len(newState.Processes))
 
 	testUserDoesntExist := []hdb.Transition{
-		&ProcessStartTransition{
+		&processStartTransition{
 			Process: &Process{
 				ID:     "proc2",
 				AppID:  "App1",
@@ -454,7 +443,7 @@ func TestProcesses(t *testing.T) {
 	assert.NotNil(t, err)
 
 	testAppDoesntExist := []hdb.Transition{
-		&ProcessStartTransition{
+		&processStartTransition{
 			Process: &Process{
 				ID:     "proc3",
 				AppID:  "App2",
@@ -467,7 +456,7 @@ func TestProcesses(t *testing.T) {
 	assert.NotNil(t, err)
 
 	testProcessStopNoMatchingID := []hdb.Transition{
-		&ProcessStopTransition{
+		&processStopTransition{
 			ProcessID: "proc500",
 		},
 	}
@@ -477,7 +466,7 @@ func TestProcesses(t *testing.T) {
 
 func TestMigrationsTransition(t *testing.T) {
 	transitions := []hdb.Transition{
-		&InitalizationTransition{
+		&initalizationTransition{
 			InitState: &State{
 				NodeID:        "abc",
 				Certificate:   "123",
@@ -485,14 +474,13 @@ func TestMigrationsTransition(t *testing.T) {
 				SchemaVersion: "v0.0.1",
 				Users: map[string]*User{
 					"123": {
-						ID:          "123",
-						Username:    "eagraf",
-						Certificate: "placeholder",
+						ID:       "123",
+						Username: "eagraf",
 					},
 				},
 			},
 		},
-		&MigrationTransition{
+		&migrationTransition{
 			TargetVersion: "v0.0.2",
 		},
 	}
@@ -503,7 +491,7 @@ func TestMigrationsTransition(t *testing.T) {
 	assert.Equal(t, "test", newState.TestField)
 
 	testRemovingField := []hdb.Transition{
-		&MigrationTransition{
+		&migrationTransition{
 			TargetVersion: "v0.0.3",
 		},
 	}
@@ -515,7 +503,7 @@ func TestMigrationsTransition(t *testing.T) {
 
 	// Test migrating down
 	testDown := []hdb.Transition{
-		&MigrationTransition{
+		&migrationTransition{
 			TargetVersion: "v0.0.1",
 		},
 	}

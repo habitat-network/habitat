@@ -60,12 +60,6 @@ func main() {
 	}
 	pm := process.NewProcessManager([]process.Driver{docker.NewDriver(dockerClient), web.NewDriver()})
 
-	pdsClient := controller.NewPDSClient(constants.DefaultPDSHostname, nodeConfig.PDSAdminUsername(), nodeConfig.PDSAdminPassword())
-	nodeCtrl, err := controller.NewNodeController(db.Manager, pdsClient)
-	if err != nil {
-		log.Fatal().Err(err).Msg("error creating node controller")
-	}
-
 	// Initialize package managers
 	stateLogger := hdbms.NewStateUpdateLogger(logger)
 	pkgManagers := map[node.DriverType]package_manager.PackageManager{
@@ -115,7 +109,7 @@ func main() {
 		log.Fatal().Err(err).Msg("unable to do initial node transitions")
 	}
 
-	err = nodeCtrl.InitializeNodeDB(egCtx, initialTransitions)
+	err = controller.InitializeNodeDB(egCtx, db.Manager, initialTransitions)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error initializing node db")
 	}
@@ -156,11 +150,11 @@ func main() {
 		log.Fatal().Err(err).Msg("error getting default HDB client")
 	}
 
-	ctrl2, err := controller.NewController2(ctx, pm, pkgManagers, dbClient, proxy)
+	ctrl2, err := controller.NewController2(ctx, pm, pkgManagers, dbClient, proxy, constants.DefaultPDSHostname)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node Controller2")
 	}
-	ctrlServer, err := controller.NewCtrlServer(ctx, nodeCtrl, ctrl2, initState)
+	ctrlServer, err := controller.NewCtrlServer(ctx, ctrl2, initState)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node control server")
 	}
@@ -170,10 +164,6 @@ func main() {
 	routes := []api.Route{
 		// Node routes
 		api.NewVersionHandler(),
-		controller.NewGetNodeRoute(db.Manager),
-		controller.NewLoginRoute(pdsClient),
-		controller.NewAddUserRoute(nodeCtrl),
-		controller.NewMigrationRoute(nodeCtrl),
 	}
 	routes = append(routes, ctrlServer.GetRoutes()...)
 	if nodeConfig.Environment() == constants.EnvironmentDev {
@@ -206,12 +196,7 @@ func main() {
 	)
 	routes = append(routes, privyServer.GetRoutes()...)
 
-	authMiddleware := controller.NewAuthenticationMiddleware(
-		nodeCtrl,
-		nodeConfig.UseTLS(),
-		nodeConfig.RootUserCert,
-	)
-	router := api.NewRouter(routes, logger, authMiddleware.Middleware)
+	router := api.NewRouter(routes, logger)
 	apiServer := &http.Server{
 		Addr:    fmt.Sprintf(":%s", constants.DefaultPortHabitatAPI),
 		Handler: router,
@@ -283,7 +268,7 @@ func generatePDSAppConfig(nodeConfig *config.NodeConfig) (*node.AppInstallation,
 						"PDS_INVITE_REQUIRED=false",
 						"PDS_REPORT_SERVICE_DID=did:plc:ar7c4by46qjdydhdevvrndac",
 						"PDS_CRAWLERS=https://bsky.network",
-						"DEBUG=t",
+						"DEBUG=true",
 					},
 					"mounts": []mount.Mount{
 						{
@@ -377,10 +362,9 @@ func initialState(rootUserCert string, startApps []*node.AppInstallation, proxyR
 	}
 
 	// A list of transitions to apply when the node starts up for the first time.
+	init := node.CreateInitializationTransition(state)
 	transitions := []hdb.Transition{
-		&node.InitalizationTransition{
-			InitState: state,
-		},
+		init,
 	}
 	return state, transitions, nil
 }

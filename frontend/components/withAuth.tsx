@@ -10,7 +10,6 @@ const withAuth = (WrappedComponent: React.FC) => {
         const router = useRouter();
 
         useEffect(() => {
-            console.log(isAuthenticated);
             if (!isAuthenticated) {
                 router.push('/login');
             }

@@ -20,17 +20,20 @@ const Register: React.FC = () => {
         }
 
         try {
-            const response = await axios.post(`${window.location.origin}/habitat/api/node/users`, {
-                email,
-                handle,
-                password
-            }, {
+            // TODO: this should just pass through to the PDS xrpc endpoint -- unfortunately there's a bit more node setup that happens.
+            const response = await fetch(`${window.location.origin}/habitat/api/node/users`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    email,
+                    handle,
+                    password
+                }),
                 headers: {
                     'Content-Type': 'application/json',
-                },
-            });
+                }
+            })
 
-            const { access_token } = response.data;
+            const { access_token } = await response.json();
 
             // Set the access token in a cookie
             Cookies.set('access_token', access_token, { expires: 7 });

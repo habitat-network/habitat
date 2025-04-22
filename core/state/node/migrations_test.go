@@ -117,9 +117,8 @@ func TestBackwardsCompatibility(t *testing.T) {
 		SchemaVersion: "v0.0.1",
 		Users: map[string]*User{
 			"user1": {
-				ID:          "user1",
-				Username:    "username1",
-				Certificate: "fake user certificate",
+				ID:       "user1",
+				Username: "username1",
 			},
 		},
 		AppInstallations: map[string]*AppInstallation{

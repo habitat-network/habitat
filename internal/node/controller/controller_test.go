@@ -1,16 +1,20 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
-	"github.com/eagraf/habitat-new/internal/node/controller/mocks"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	hdb_mocks "github.com/eagraf/habitat-new/internal/node/hdb/mocks"
+	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -23,25 +27,21 @@ func fakeInitState(rootUserCert, rootUserID, rootUsername string) *node.State {
 	}
 
 	initState.Users[rootUserID] = &node.User{
-		ID:          rootUserID,
-		Username:    rootUsername,
-		Certificate: rootUserCert,
+		ID:       rootUserID,
+		Username: rootUsername,
 	}
 
 	return initState
 }
 
-func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (NodeController, *mocks.MockPDSClientI, *hdb_mocks.MockHDBManager, *hdb_mocks.MockClient) {
+func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (*hdb_mocks.MockHDBManager, *hdb_mocks.MockClient) {
 
-	mockedPDSClient := mocks.NewMockPDSClientI(ctrl)
 	mockedManager := hdb_mocks.NewMockHDBManager(ctrl)
 	mockedClient := hdb_mocks.NewMockClient(ctrl)
 
 	initState := fakeInitState("fake_cert", "fake_user_id", "fake_username")
 	transitions := []hdb.Transition{
-		&node.InitalizationTransition{
-			InitState: initState,
-		},
+		node.CreateInitializationTransition(initState),
 	}
 
 	// Check that fakeInitState is based off of the config we pass in
@@ -53,42 +53,33 @@ func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (NodeController, *mo
 			initStateTransition := initTransitions[0]
 			require.Equal(t, hdb.TransitionInitialize, initStateTransition.Type())
 
-			state := initStateTransition.(*node.InitalizationTransition).InitState
-
-			assert.Equal(t, 1, len(state.Users))
-			assert.Equal(t, "fake_username", state.Users["fake_user_id"].Username)
-			assert.Equal(t, "fake_user_id", state.Users["fake_user_id"].ID)
-			assert.Equal(t, "fake_cert", state.Users["fake_user_id"].Certificate)
-
 			return mockedClient, nil
 		}).Times(1)
 
-	controller, err := NewNodeController(mockedManager, mockedPDSClient)
-	require.Nil(t, err)
-	err = controller.InitializeNodeDB(context.Background(), transitions)
-	require.Nil(t, err)
+	err := InitializeNodeDB(context.Background(), mockedManager, transitions)
+	require.NoError(t, err)
 
-	return controller, mockedPDSClient, mockedManager, mockedClient
+	return mockedManager, mockedClient
 }
 
 func TestInitializeNodeDB(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	controller, _, mockedManager, _ := setupNodeDBTest(ctrl, t)
+	mockedManager, _ := setupNodeDBTest(ctrl, t)
 
 	mockedManager.EXPECT().CreateDatabase(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
-	err := controller.InitializeNodeDB(context.Background(), nil)
+	err := InitializeNodeDB(context.Background(), mockedManager, nil)
 	require.NotNil(t, err)
 
 	mockedManager.EXPECT().CreateDatabase(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, &hdb.DatabaseAlreadyExistsError{}).Times(1)
-	err = controller.InitializeNodeDB(context.Background(), nil)
+	err = InitializeNodeDB(context.Background(), mockedManager, nil)
 	require.Nil(t, err)
 }
 
 func TestMigrationController(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	controller, _, mockedManager, mockClient := setupNodeDBTest(ctrl, t)
+	mockedManager, mockClient := setupNodeDBTest(ctrl, t)
 
 	nodeState := &node.State{
 		SchemaVersion: "v0.0.2",
@@ -100,13 +91,11 @@ func TestMigrationController(t *testing.T) {
 	mockClient.EXPECT().Bytes().Return(marshaled).Times(1)
 	mockClient.EXPECT().ProposeTransitions(gomock.Eq(
 		[]hdb.Transition{
-			&node.MigrationTransition{
-				TargetVersion: "v0.0.3",
-			},
+			node.CreateMigrationTransition("v0.0.3"),
 		},
 	)).Return(nil, nil).Times(1)
 
-	err = controller.MigrateNodeDB("v0.0.3")
+	err = MigrateNodeDB(mockedManager, "v0.0.3")
 	assert.Nil(t, err)
 
 	// Test no-op by migrating to the same version
@@ -114,7 +103,7 @@ func TestMigrationController(t *testing.T) {
 	mockClient.EXPECT().Bytes().Return(marshaled).Times(1)
 	mockClient.EXPECT().ProposeTransitions(gomock.Any()).Times(0)
 
-	err = controller.MigrateNodeDB("v0.0.2")
+	err = MigrateNodeDB(mockedManager, "v0.0.2")
 	assert.Nil(t, err)
 
 	// Test  migrating to a lower version
@@ -123,98 +112,109 @@ func TestMigrationController(t *testing.T) {
 	mockClient.EXPECT().Bytes().Return(marshaled).Times(1)
 	mockClient.EXPECT().ProposeTransitions(gomock.Eq(
 		[]hdb.Transition{
-			&node.MigrationTransition{
-				TargetVersion: "v0.0.1",
-			},
+			node.CreateMigrationTransition("v0.0.1"),
 		},
 	)).Times(1)
 
-	err = controller.MigrateNodeDB("v0.0.1")
+	err = MigrateNodeDB(mockedManager, "v0.0.1")
 	assert.Nil(t, err)
-}
-
-var nodeState = &node.State{
-	Users: map[string]*node.User{
-		"user_1": {
-			ID:       "user_1",
-			Username: "username_1",
-		},
-	},
-	AppInstallations: map[string]*node.AppInstallation{
-		"app_1": {
-			ID:     "app_1",
-			UserID: "0",
-		},
-	},
 }
 
 func TestAddUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	controller, mockedPDSClient, mockedManager, mockedClient := setupNodeDBTest(ctrl, t)
+	_, mockedClient := setupNodeDBTest(ctrl, t)
 
-	// Test successful add user
-
-	mockedPDSClient.EXPECT().CreateAccount("user@user.com", "username_1", "password").Return(map[string]interface{}{
-		"did": "did_1",
-	}, nil).Times(1)
-
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockedClient, nil).Times(1)
-	mockedClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			&node.AddUserTransition{
-				Username:    "username_1",
-				Certificate: "cert_1",
-				AtprotoDID:  "did_1",
+	did := "did"
+	mockPDS := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/com.atproto.server.createAccount", r.URL.String())
+		bytes, err := json.Marshal(
+			atproto.ServerCreateAccount_Output{
+				Did:    did,
+				Handle: "user-handle",
 			},
-		},
-	)).Return(nil, nil).Times(1)
+		)
+		require.NoError(t, err)
+		_, err = w.Write(bytes)
+		require.NoError(t, err)
+	}))
+	defer mockPDS.Close()
 
-	_, err := controller.AddUser("user_1", "user@user.com", "username_1", "password", "cert_1")
-	assert.Nil(t, err)
+	ctrl2, err := NewController2(context.Background(), fakeProcessManager(), nil, mockedClient, nil, mockPDS.URL)
+	require.NoError(t, err)
 
-	// Test error from empty did.
-	mockedPDSClient.EXPECT().CreateAccount("user@user.com", "username_1", "password").Return(map[string]interface{}{
-		"did": "",
-	}, nil).Times(1)
+	mockedClient.EXPECT().ProposeTransitions(gomock.Any()).Return(nil, nil).Times(1)
 
-	_, err = controller.AddUser("user_1", "user@user.com", "username_1", "password", "cert_1")
-	assert.NotNil(t, err)
-
-	mockedPDSClient.EXPECT().CreateAccount("user@user.com", "username_1", "password").Return(map[string]interface{}{}, nil).Times(1)
-
-	_, err = controller.AddUser("user_1", "user@user.com", "username_1", "password", "cert_1")
-	assert.NotNil(t, err)
-
-	// Test create account error
-	mockedPDSClient.EXPECT().CreateAccount("user@user.com", "username_1", "password").Return(nil, errors.New("failed to create account")).Times(1)
-
-	_, err = controller.AddUser("user_1", "user@user.com", "username_1", "password", "cert_1")
-	assert.NotNil(t, err)
-
-}
-
-func TestGetUserByUsername(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	controller, _, mockedManager, mockedClient := setupNodeDBTest(ctrl, t)
-
-	marshaledNodeState, err := json.Marshal(nodeState)
-	if err != nil {
-		t.Error(err)
+	email := "user@user.com"
+	pass := "pass"
+	input := &atproto.ServerCreateAccount_Input{
+		Did:      &did,
+		Email:    &email,
+		Handle:   "user-handle",
+		Password: &pass,
 	}
 
-	mockedClient.EXPECT().Bytes().Return(marshaledNodeState).Times(2)
+	out, err := ctrl2.addUser(context.Background(), input)
+	require.Nil(t, err)
+	require.Equal(t, out.Did, did)
+}
 
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockedClient, nil).Times(2)
+func TestMigrations(t *testing.T) {
+	fakestate := &node.State{
+		SchemaVersion:     "v0.0.1",
+		Users:             map[string]*node.User{},
+		AppInstallations:  map[string]*node.AppInstallation{},
+		Processes:         map[node.ProcessID]*node.Process{},
+		ReverseProxyRules: map[string]*node.ReverseProxyRule{},
+	}
+	db := &mockHDB{
+		schema:    fakestate.Schema(),
+		jsonState: jsonStateFromNodeState(fakestate),
+	}
+	ctrl2, err := NewController2(context.Background(), fakeProcessManager(), nil, db, nil, "fak-pds")
+	require.NoError(t, err)
+	s, err := NewCtrlServer(context.Background(), ctrl2, fakestate)
+	require.NoError(t, err)
+	handler := http.HandlerFunc(s.MigrateDB)
 
-	user, err := controller.GetUserByUsername("username_1")
-	assert.Nil(t, err)
-	assert.Equal(t, "user_1", user.ID)
-	assert.Equal(t, "username_1", user.Username)
+	b, err := json.Marshal(MigrateRequest{
+		TargetVersion: "v0.0.2",
+	})
+	require.NoError(t, err)
 
-	// Test username not found
-	user, err = controller.GetUserByUsername("username_2")
-	assert.NotNil(t, err)
-	assert.Nil(t, user)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(
+		resp,
+		httptest.NewRequest(http.MethodPost, "/doesntmatter", bytes.NewReader(b)),
+	)
+	require.Equal(t, http.StatusOK, resp.Result().StatusCode)
+}
+
+func TestGetNodeState(t *testing.T) {
+	ctrl2, err := NewController2(context.Background(), fakeProcessManager(),
+		map[node.DriverType]package_manager.PackageManager{
+			node.DriverTypeDocker: &mockPkgManager{
+				installs: make(map[*node.Package]struct{}),
+			},
+		},
+		&mockHDB{
+			schema:    state.Schema(),
+			jsonState: jsonStateFromNodeState(state),
+		}, nil, "fake-pds")
+	require.NoError(t, err)
+	ctrlServer, err := NewCtrlServer(
+		context.Background(),
+		ctrl2,
+		state,
+	)
+	require.NoError(t, err)
+
+	handler := http.HandlerFunc(ctrlServer.GetNodeState)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, httptest.NewRequest("get", "/test", nil))
+	bytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	sb, err := state.Bytes()
+	require.NoError(t, err)
+	require.Equal(t, bytes, sb)
 }
