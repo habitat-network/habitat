@@ -48,7 +48,12 @@ func main() {
 	zerolog.SetGlobalLevel(nodeConfig.LogLevel())
 
 	hdbPublisher := pubsub.NewSimplePublisher[hdb.StateUpdate]()
-	db, dbClose, err := hdbms.NewHabitatDB(context.Background(), logger, hdbPublisher, nodeConfig.HDBPath())
+	db, dbClose, err := hdbms.NewHabitatDB(
+		context.Background(),
+		logger,
+		hdbPublisher,
+		nodeConfig.HDBPath(),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating habitat db")
 	}
@@ -58,7 +63,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create docker client")
 	}
-	pm := process.NewProcessManager([]process.Driver{docker.NewDriver(dockerClient), web.NewDriver()})
+	pm := process.NewProcessManager(
+		[]process.Driver{docker.NewDriver(dockerClient), web.NewDriver()},
+	)
 
 	// Initialize package managers
 	stateLogger := hdbms.NewStateUpdateLogger(logger)
@@ -150,7 +157,14 @@ func main() {
 		log.Fatal().Err(err).Msg("error getting default HDB client")
 	}
 
-	ctrl2, err := controller.NewController2(ctx, pm, pkgManagers, dbClient, proxy, constants.DefaultPDSHostname)
+	ctrl2, err := controller.NewController2(
+		ctx,
+		pm,
+		pkgManagers,
+		dbClient,
+		proxy,
+		constants.DefaultPDSHostname,
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node Controller2")
 	}
@@ -241,7 +255,9 @@ func main() {
 	log.Info().Msg("Finished!")
 }
 
-func generatePDSAppConfig(nodeConfig *config.NodeConfig) (*node.AppInstallation, *node.ReverseProxyRule) {
+func generatePDSAppConfig(
+	nodeConfig *config.NodeConfig,
+) (*node.AppInstallation, *node.ReverseProxyRule) {
 	pdsMountDir := filepath.Join(nodeConfig.HabitatAppPath(), "pds")
 
 	// TODO @eagraf - unhardcode as much of this as possible
@@ -315,7 +331,7 @@ func generateDefaultReverseProxyRules(frontendDev bool) ([]*node.ReverseProxyRul
 		// In development mode, we run the frontend in a separate docker container with hot-reloading.
 		// As a result, all frontend requests must be forwarde to the frontend container.
 		frontendRule.Type = node.ProxyRuleRedirect
-		frontendRule.Target = "http://habitat_frontend:8000/"
+		frontendRule.Target = "http://habitat_frontend:5173/"
 	} else {
 		// In production mode, we embed the frontend into the node binary. That way, we can serve
 		// the frontend without needing to set it up on the host machine.
@@ -346,7 +362,11 @@ func generateDefaultReverseProxyRules(frontendDev bool) ([]*node.ReverseProxyRul
 	}, nil
 }
 
-func initialState(rootUserCert string, startApps []*node.AppInstallation, proxyRules []*node.ReverseProxyRule) (*node.State, []hdb.Transition, error) {
+func initialState(
+	rootUserCert string,
+	startApps []*node.AppInstallation,
+	proxyRules []*node.ReverseProxyRule,
+) (*node.State, []hdb.Transition, error) {
 	state, err := node.NewStateForLatestVersion()
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to generate initial node state")

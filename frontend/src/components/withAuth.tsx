@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from './authContext';
+import { useRouter } from '@tanstack/react-router';
 
 const withAuth = (WrappedComponent: React.FC) => {
     const ComponentWithAuth = (props: any) => {
@@ -11,7 +11,7 @@ const withAuth = (WrappedComponent: React.FC) => {
 
         useEffect(() => {
             if (!isAuthenticated) {
-                router.push('/login');
+                router.navigate({ to: '/login' });
             }
         }, [isAuthenticated, router]);
 

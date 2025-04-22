@@ -1,0 +1,7 @@
+body {
+    --pico-primary-background: #BCD979;
+    --pico-primary-border: #9DAD6F;
+    --pico-primary-inverse: #2D2925;
+    --pico-primary-hover-background: #9DAD6F;
+    --pico-primary-hover-border: #9DAD6F;
+}

@@ -63,7 +63,7 @@ install:: $(DEV_HABITAT_PATH)/habitat.yml $(CERT_DIR)/dev_node_cert.pem $(CERT_D
 	go install ./cmd/node
 
 docker-build:
-	docker build -t habitat_node -f ./build/node.dev.Dockerfile .
+	docker compose -f ./build/compose.yml build
 
 run-dev: $(PDS_BLOB_DIR) $(CERT_DIR)/dev_root_user_cert.pem $(CERT_DIR)/dev_node_cert.pem $(DEV_HABITAT_CONFIG_PATH) $(DEV_HABITAT_ENV_PATH)
 	TOPDIR=$(TOPDIR) \
@@ -158,4 +158,4 @@ PHONY += frontend-types
 frontend_server/build: frontend/types/api.ts
 	cd $(TOPDIR)/frontend && pnpm install && pnpm run build
 	mkdir -p $(TOPDIR)/frontend_server/build
-	cp -r $(TOPDIR)/frontend/out/* $(TOPDIR)/frontend_server/build
+	cp -r $(TOPDIR)/frontend/dist/* $(TOPDIR)/frontend_server/build

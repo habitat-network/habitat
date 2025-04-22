@@ -1,10 +1,8 @@
 'use client'
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, type ReactNode, useEffect } from 'react';
 import Cookies from 'js-cookie';
-import axios from 'axios';
-import { useRouter } from 'next/navigation';
-import Header from './header';
+import { useRouter } from '@tanstack/react-router';
 
 interface AuthContextType {
     isAuthenticated: boolean;
@@ -21,7 +19,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
 
     const [handle, setHandle] = useState<string | null>(null);
-    const router = useRouter();
 
     useEffect(() => {
         const token = Cookies.get('access_token');
@@ -36,6 +33,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, []);
 
+    const router = useRouter()
 
     const login = async (
         identifier: string,
@@ -106,7 +104,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (!redirectRoute) {
                 redirectRoute = '/';
             }
-            router.push(redirectRoute);
+
+            router.navigate({ to: redirectRoute });
 
         } catch (err) {
             throw new Error('Login failed');
@@ -122,19 +121,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         Cookies.remove('handle');
 
         setIsAuthenticated(false);
-        router.push('/login');
+        router.navigate({ to: '/login' });
     };
 
     return (
         <AuthContext.Provider value={{ isAuthenticated, handle, login, logout }}>
-            <div className="flex flex-col items-center justify-center w-full h-screen">
-                <div className="flex flex-col items-center justify-center w-full">
-                    <Header isAuthenticated={isAuthenticated} handle={handle} logout={logout} />
-                </div>
-                <div className="flex flex-col items-center justify-center w-full h-screen">
-                    {children}
-                </div>
-            </div>
+            {children}
         </AuthContext.Provider>
     );
 };

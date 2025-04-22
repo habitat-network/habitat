@@ -7,6 +7,7 @@ services:
       dockerfile: build/frontend.dev.Dockerfile
     volumes:
       - ${TOPDIR}/frontend:/app
+      - node_modules:/app/node_modules
     environment:
       - NODE_ENV=development
   habitat_node:
@@ -40,3 +41,5 @@ services:
       - habitat_frontend
     extra_hosts:
       - "host.docker.internal:host-gateway"
+volumes:
+  node_modules:
