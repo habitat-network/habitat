@@ -12,7 +12,7 @@ export const Route = createFileRoute('/add-user')({
         const handle = formData.get('handle') as string
         const password = formData.get('password') as string
 
-        return fetch('/habitat/api/node/users', {
+        const response = await fetch('/habitat/api/node/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -23,9 +23,15 @@ export const Route = createFileRoute('/add-user')({
             password,
           }),
         })
+        if (!response.ok) {
+          throw new Error(await response.text())
+        }
       },
       onSuccess() {
         alert('Registration successful')
+      },
+      onError(error) {
+        alert(`Registration failed: ${error.message}`)
       }
     })
     return <article>
