@@ -23,7 +23,7 @@ type Controller2 struct {
 	processManager process.ProcessManager
 	pkgManagers    map[node.DriverType]package_manager.PackageManager
 	proxyServer    *reverse_proxy.ProxyServer
-	pdsHost        string
+	pdsURL         string
 }
 
 func NewController2(
@@ -46,7 +46,7 @@ func NewController2(
 		pkgManagers:    pkgManagers,
 		db:             db,
 		proxyServer:    proxyServer,
-		pdsHost:        pdsHost,
+		pdsURL:         "http://" + pdsHost, // PDS expects http requests for now.
 	}
 
 	return ctrl, nil
@@ -168,7 +168,7 @@ func (c *Controller2) addUser(ctx context.Context, input *atproto.ServerCreateAc
 	output, err := atproto.ServerCreateAccount(
 		ctx,
 		&xrpc.Client{
-			Host: c.pdsHost,
+			Host: c.pdsURL, // xrpc.Client Host param expects url
 		},
 		input,
 	)

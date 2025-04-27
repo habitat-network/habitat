@@ -8,7 +8,6 @@ export const Route = createFileRoute('/login')({
     const { login } = useAuth()
     const { mutate: handleSubmit, isPending } = useMutation({
       mutationFn(e: FormEvent<HTMLFormElement>) {
-        console.log(e)
         e.preventDefault();
         const formData = new FormData(e.target as HTMLFormElement)
         const handle = formData.get('handle') as string

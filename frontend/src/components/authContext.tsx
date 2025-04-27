@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             const fullHandle = parentDomain == "localhost" ? `${identifier}` : `${identifier}.${window.location.hostname}`;
-            const response = await fetch(`${window.location.origin}/habitat/api/node/users`, {
+            const response = await fetch(`${window.location.origin}/xrpc/com.atproto.server.createSession`, {
                 method: 'POST',
                 body: JSON.stringify({
                     password: password,
@@ -63,7 +63,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
             })
 
-            const { accessJwt, refreshJwt, did, handle } = await response.json();
+            // TODO: handle 401 Unauthorized
+            const respBody = await response.json();
+
+            if (response.status != 200) {
+                throw new Error(respBody)
+            }
+            const { accessJwt, refreshJwt, did, handle } = respBody;
 
 
             // Set the access token in a cookie
