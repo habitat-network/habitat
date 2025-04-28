@@ -32,7 +32,7 @@ func NewController2(
 	pkgManagers map[node.DriverType]package_manager.PackageManager,
 	db hdb.Client,
 	proxyServer *reverse_proxy.ProxyServer,
-	pdsHost string,
+	pdsURL string,
 ) (*Controller2, error) {
 	// Validate types of all input components
 	_, ok := processManager.(node.Component[process.RestoreInfo])
@@ -46,7 +46,7 @@ func NewController2(
 		pkgManagers:    pkgManagers,
 		db:             db,
 		proxyServer:    proxyServer,
-		pdsURL:         "http://" + pdsHost, // PDS expects http requests for now.
+		pdsURL:         pdsURL,
 	}
 
 	return ctrl, nil

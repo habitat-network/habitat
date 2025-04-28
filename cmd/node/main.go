@@ -163,7 +163,7 @@ func main() {
 		pkgManagers,
 		dbClient,
 		proxy,
-		constants.DefaultPDSHostname,
+		"http://"+constants.DefaultPDSHostname,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node Controller2")
