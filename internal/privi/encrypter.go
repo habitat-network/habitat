@@ -1,4 +1,4 @@
-package privy
+package privi
 
 import (
 	"crypto/rand"

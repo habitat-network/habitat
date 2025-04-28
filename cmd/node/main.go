@@ -28,7 +28,7 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	"github.com/eagraf/habitat-new/internal/node/server"
 	"github.com/eagraf/habitat-new/internal/package_manager"
-	"github.com/eagraf/habitat-new/internal/privy"
+	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/eagraf/habitat-new/internal/pubsub"
 	"github.com/eagraf/habitat-new/internal/web"
@@ -194,21 +194,21 @@ func main() {
 
 	// TODO: eventually we need a way given a did to resolve the habitat server host.
 	// This likely can go into the DID document services
-	// For now, hardcode it. This is used by the privyServer.
+	// For now, hardcode it. This is used by the priviServer.
 	habitatResolver := func(did string) string {
 		panic("unimplemented")
 	}
 
-	// Add privy routes
-	privyServer := privy.NewServer(
+	// Add privi routes
+	priviServer := privi.NewServer(
 		constants.DefaultPDSHostname,
 		habitatResolver,
-		&privy.NoopEncrypter{}, /* TODO: use actual encryption */
+		&privi.NoopEncrypter{}, /* TODO: use actual encryption */
 		bffauth.NewClient(),
 		bffProvider,
 		permissions.NewDummyStore(),
 	)
-	routes = append(routes, privyServer.GetRoutes()...)
+	routes = append(routes, priviServer.GetRoutes()...)
 
 	router := api.NewRouter(routes, logger)
 	apiServer := &http.Server{

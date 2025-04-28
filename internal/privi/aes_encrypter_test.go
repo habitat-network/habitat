@@ -1,4 +1,4 @@
-package privy
+package privi
 
 /*
 // TODO: comment back in when using real encryption

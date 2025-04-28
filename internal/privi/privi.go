@@ -1,4 +1,4 @@
-package privy
+package privi
 
 import (
 	"bytes"
@@ -15,11 +15,11 @@ import (
 	"github.com/eagraf/habitat-new/core/permissions"
 )
 
-// Privy is an ATProto PDS Wrapper which allows for storing & getting private data.
+// Privi is an ATProto PDS Wrapper which allows for storing & getting private data.
 // It does this by encrypting data, then storing it in blob. A special lexicon for this purpose,
 // identified by com.habitat.encryptedRecord, points to the blob storing the actual data.
 //
-// This encryption layer is transparent to the caller -- Privy.PutRecord() and Privy.GetRecord() have
+// This encryption layer is transparent to the caller -- Privi.PutRecord() and Privi.GetRecord() have
 // the same API has com.atproto.putRecord and com.atproto.getRecord.
 //
 // TODO: formally define the com.habitat.encryptedRecord and change it to a domain we actually own :)

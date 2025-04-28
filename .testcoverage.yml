@@ -37,8 +37,8 @@ exclude:
     - ^internal/node/controller/pds.go
     - ^internal/node/controller/auth.go
     - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
-    - ^internal/privy/.*encrypt.* # This is is a noop thing.
-    - ^internal/privy/privy.go # TODO: remove!!
+    - ^internal/privi/.*encrypt.* # This is is a noop thing.
+    - ^internal/privi/privi.go # TODO: remove!!
     - internal/bffauth/client.go	# TODO: remove!!
     - ^internal/docker
     - ^internal/web

@@ -1,4 +1,4 @@
-package privy
+package privi
 
 import (
 	"encoding/json"
@@ -175,7 +175,7 @@ func (s *Server) GetRecord(authInfo *xrpc.AuthInfo) http.HandlerFunc {
 	}
 }
 
-// This creates the xrpc.Client to use in the inner privy requests
+// This creates the xrpc.Client to use in the inner privi requests
 // TODO: this should actually pull out the requested did from the url param or input and re-direct there. (Potentially move this lower into the fns themselves).
 // This would allow for requesting to any pds through these routes, not just the one tied to this habitat node.
 func (s *Server) pdsAuthMiddleware(next func(authInfo *xrpc.AuthInfo) http.HandlerFunc) http.HandlerFunc {
