@@ -96,7 +96,7 @@ func main() {
 	})
 
 	// Generate the list of default proxy rules to have available when the node first comes up
-	proxyRules, err := generateDefaultReverseProxyRules(nodeConfig.FrontendDev())
+	proxyRules, err := generateDefaultReverseProxyRules(nodeConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to generate proxy rules")
 	}
@@ -317,7 +317,7 @@ func generatePDSAppConfig(
 		}
 }
 
-func generateDefaultReverseProxyRules(frontendDev bool) ([]*node.ReverseProxyRule, error) {
+func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*node.ReverseProxyRule, error) {
 	apiURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", constants.DefaultPortHabitatAPI))
 	if err != nil {
 		return nil, err
@@ -327,7 +327,7 @@ func generateDefaultReverseProxyRules(frontendDev bool) ([]*node.ReverseProxyRul
 		ID:      "default-rule-frontend",
 		Matcher: "", // Root matcher
 	}
-	if frontendDev {
+	if config.FrontendDev() {
 		// In development mode, we run the frontend in a separate docker container with hot-reloading.
 		// As a result, all frontend requests must be forwarde to the frontend container.
 		frontendRule.Type = node.ProxyRuleRedirect
@@ -357,6 +357,13 @@ func generateDefaultReverseProxyRules(frontendDev bool) ([]*node.ReverseProxyRul
 			Type:    node.ProxyRuleRedirect,
 			Matcher: "/xrpc/com.habitat.getRecord",
 			Target:  apiURL.String() + "/xrpc/com.habitat.getRecord",
+		},
+		// Serve a DID document for habitat
+		{
+			ID:      "did-rule",
+			Type:    node.ProxyRuleFileServer,
+			Matcher: "/.well-known",
+			Target:  config.HabitatPath() + "/well-known",
 		},
 		frontendRule,
 	}, nil
