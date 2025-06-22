@@ -4,14 +4,8 @@ import * as node from '../../types/api';
 
 export const getNode = async (): Promise<node.GetNodeResponse> => {
   try {
-    const accessToken = Cookies.get('access_token');
-    if (!accessToken) {
-      throw new Error('No access token found');
-    }
-
     const response = await axios.get(`${window.location.origin}/habitat/api/node`, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
