@@ -55,14 +55,3 @@ func (p *permisionStoreImpl) HasPermission(
 func getObject(nsid string, rkey string) string {
 	return nsid + "." + rkey
 }
-
-type dummy struct{}
-
-func (d *dummy) HasPermission(didstr string, nsid string, rkey string, write bool) (bool, error) {
-	return true, nil
-}
-
-// NewDummyStore returns a permissions store that always returns true
-func NewDummyStore() Store {
-	return &dummy{}
-}

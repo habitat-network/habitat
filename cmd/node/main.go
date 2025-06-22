@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/eagraf/habitat-new/core/permissions"
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/bffauth"
 	"github.com/eagraf/habitat-new/internal/docker"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/appstore"
@@ -185,28 +185,21 @@ func main() {
 		routes = append(routes, appstore.NewAvailableAppsRoute(nodeConfig.HabitatPath()))
 	}
 
-	// Add BFF auth routes
-	bffProvider := bffauth.NewProvider(
-		bffauth.NewInMemorySessionPersister(),
-		[]byte("temp_signing_key"), // TODO @eagraf - use a real signing key
-	)
-	routes = append(routes, bffProvider.GetRoutes()...)
-
-	// TODO: eventually we need a way given a did to resolve the habitat server host.
-	// This likely can go into the DID document services
-	// For now, hardcode it. This is used by the priviServer.
-	habitatResolver := func(did string) string {
-		panic("unimplemented")
+	// TODO: read from persisted state about permissions.
+	perms := make(map[syntax.DID]permissions.Store)
+	for _, u := range initState.Users {
+		perms[syntax.DID(u.DID)] = permissions.NewDummyStore()
 	}
 
-	// Add privi routes
+  // FOR DEMO PURPOSES ONLY
+	sashankDID := "did:plc:v3amhno5wvyfams6aioqqj66"
+	sashankPerms := permissions.NewDummyStore()
+	sashankPerms.AddPermission("com.habitat.test", sashankDID)
+	perms[syntax.DID(sashankDID)] = sashankPerms
+
+	// Add privy routes
 	priviServer := privi.NewServer(
-		constants.DefaultPDSHostname,
-		habitatResolver,
-		&privi.NoopEncrypter{}, /* TODO: use actual encryption */
-		bffauth.NewClient(),
-		bffProvider,
-		permissions.NewDummyStore(),
+		perms,
 	)
 	routes = append(routes, priviServer.GetRoutes()...)
 

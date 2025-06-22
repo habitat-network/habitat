@@ -50,7 +50,6 @@ func NewRouter(
 	for _, mw := range middlewares {
 		routerWithMiddleWare = mw(routerWithMiddleWare)
 	}
-
 	return routerWithMiddleWare
 }
 
