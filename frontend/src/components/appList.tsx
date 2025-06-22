@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AppInstallation, Process, ReverseProxyRule } from '../../types/node';
+import { Link } from '@tanstack/react-router';
 
 
 interface AppListProps {
@@ -32,9 +33,9 @@ const AppList: React.FC<AppListProps> = ({ apps, processes, reverseProxyRules })
                     <ul className="list-disc list-inside">
                       {matchingRules.map((rule, index) => (
                         <li key={index}>
-                          <a href={`${window.location.origin}${rule.matcher}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                          <Link to={`${window.location.origin}${rule.matcher}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
                             {rule.matcher}
-                          </a>
+                          </Link>
                         </li>
                       ))}
                     </ul>
