@@ -18,8 +18,15 @@ import { Route as AppStoreImport } from './routes/app-store'
 import { Route as AddUserImport } from './routes/add-user'
 import { Route as RequireAuthImport } from './routes/_requireAuth'
 import { Route as IndexImport } from './routes/index'
+import { Route as RequireAuthPermissionsImport } from './routes/_requireAuth/permissions'
 import { Route as RequireAuthPriviTestIndexImport } from './routes/_requireAuth/privi-test/index'
+import { Route as RequireAuthPermissionsIndexImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthPriviTestViewImport } from './routes/_requireAuth/privi-test/view'
+import { Route as RequireAuthPermissionsPeopleImport } from './routes/_requireAuth/permissions/people'
+import { Route as RequireAuthPermissionsLexiconsImport } from './routes/_requireAuth/permissions/lexicons'
+import { Route as RequireAuthPermissionsLexiconsIndexImport } from './routes/_requireAuth/permissions/lexicons/index'
+import { Route as RequireAuthPermissionsGroupsIndexImport } from './routes/_requireAuth/permissions/groups/index'
+import { Route as RequireAuthPermissionsLexiconsLexiconIdImport } from './routes/_requireAuth/permissions/lexicons/$lexiconId'
 
 // Create/Update Routes
 
@@ -64,17 +71,65 @@ const IndexRoute = IndexImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const RequireAuthPermissionsRoute = RequireAuthPermissionsImport.update({
+  id: '/permissions',
+  path: '/permissions',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+
 const RequireAuthPriviTestIndexRoute = RequireAuthPriviTestIndexImport.update({
   id: '/privi-test/',
   path: '/privi-test/',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 
+const RequireAuthPermissionsIndexRoute =
+  RequireAuthPermissionsIndexImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => RequireAuthPermissionsRoute,
+  } as any)
+
 const RequireAuthPriviTestViewRoute = RequireAuthPriviTestViewImport.update({
   id: '/privi-test/view',
   path: '/privi-test/view',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+
+const RequireAuthPermissionsPeopleRoute =
+  RequireAuthPermissionsPeopleImport.update({
+    id: '/people',
+    path: '/people',
+    getParentRoute: () => RequireAuthPermissionsRoute,
+  } as any)
+
+const RequireAuthPermissionsLexiconsRoute =
+  RequireAuthPermissionsLexiconsImport.update({
+    id: '/lexicons',
+    path: '/lexicons',
+    getParentRoute: () => RequireAuthPermissionsRoute,
+  } as any)
+
+const RequireAuthPermissionsLexiconsIndexRoute =
+  RequireAuthPermissionsLexiconsIndexImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => RequireAuthPermissionsLexiconsRoute,
+  } as any)
+
+const RequireAuthPermissionsGroupsIndexRoute =
+  RequireAuthPermissionsGroupsIndexImport.update({
+    id: '/groups/',
+    path: '/groups/',
+    getParentRoute: () => RequireAuthPermissionsRoute,
+  } as any)
+
+const RequireAuthPermissionsLexiconsLexiconIdRoute =
+  RequireAuthPermissionsLexiconsLexiconIdImport.update({
+    id: '/$lexiconId',
+    path: '/$lexiconId',
+    getParentRoute: () => RequireAuthPermissionsLexiconsRoute,
+  } as any)
 
 // Populate the FileRoutesByPath interface
 
@@ -129,12 +184,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerImport
       parentRoute: typeof rootRoute
     }
+    '/_requireAuth/permissions': {
+      id: '/_requireAuth/permissions'
+      path: '/permissions'
+      fullPath: '/permissions'
+      preLoaderRoute: typeof RequireAuthPermissionsImport
+      parentRoute: typeof RequireAuthImport
+    }
+    '/_requireAuth/permissions/lexicons': {
+      id: '/_requireAuth/permissions/lexicons'
+      path: '/lexicons'
+      fullPath: '/permissions/lexicons'
+      preLoaderRoute: typeof RequireAuthPermissionsLexiconsImport
+      parentRoute: typeof RequireAuthPermissionsImport
+    }
+    '/_requireAuth/permissions/people': {
+      id: '/_requireAuth/permissions/people'
+      path: '/people'
+      fullPath: '/permissions/people'
+      preLoaderRoute: typeof RequireAuthPermissionsPeopleImport
+      parentRoute: typeof RequireAuthPermissionsImport
+    }
     '/_requireAuth/privi-test/view': {
       id: '/_requireAuth/privi-test/view'
       path: '/privi-test/view'
       fullPath: '/privi-test/view'
       preLoaderRoute: typeof RequireAuthPriviTestViewImport
       parentRoute: typeof RequireAuthImport
+    }
+    '/_requireAuth/permissions/': {
+      id: '/_requireAuth/permissions/'
+      path: '/'
+      fullPath: '/permissions/'
+      preLoaderRoute: typeof RequireAuthPermissionsIndexImport
+      parentRoute: typeof RequireAuthPermissionsImport
     }
     '/_requireAuth/privi-test/': {
       id: '/_requireAuth/privi-test/'
@@ -143,17 +226,80 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPriviTestIndexImport
       parentRoute: typeof RequireAuthImport
     }
+    '/_requireAuth/permissions/lexicons/$lexiconId': {
+      id: '/_requireAuth/permissions/lexicons/$lexiconId'
+      path: '/$lexiconId'
+      fullPath: '/permissions/lexicons/$lexiconId'
+      preLoaderRoute: typeof RequireAuthPermissionsLexiconsLexiconIdImport
+      parentRoute: typeof RequireAuthPermissionsLexiconsImport
+    }
+    '/_requireAuth/permissions/groups/': {
+      id: '/_requireAuth/permissions/groups/'
+      path: '/groups'
+      fullPath: '/permissions/groups'
+      preLoaderRoute: typeof RequireAuthPermissionsGroupsIndexImport
+      parentRoute: typeof RequireAuthPermissionsImport
+    }
+    '/_requireAuth/permissions/lexicons/': {
+      id: '/_requireAuth/permissions/lexicons/'
+      path: '/'
+      fullPath: '/permissions/lexicons/'
+      preLoaderRoute: typeof RequireAuthPermissionsLexiconsIndexImport
+      parentRoute: typeof RequireAuthPermissionsLexiconsImport
+    }
   }
 }
 
 // Create and export the route tree
 
+interface RequireAuthPermissionsLexiconsRouteChildren {
+  RequireAuthPermissionsLexiconsLexiconIdRoute: typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  RequireAuthPermissionsLexiconsIndexRoute: typeof RequireAuthPermissionsLexiconsIndexRoute
+}
+
+const RequireAuthPermissionsLexiconsRouteChildren: RequireAuthPermissionsLexiconsRouteChildren =
+  {
+    RequireAuthPermissionsLexiconsLexiconIdRoute:
+      RequireAuthPermissionsLexiconsLexiconIdRoute,
+    RequireAuthPermissionsLexiconsIndexRoute:
+      RequireAuthPermissionsLexiconsIndexRoute,
+  }
+
+const RequireAuthPermissionsLexiconsRouteWithChildren =
+  RequireAuthPermissionsLexiconsRoute._addFileChildren(
+    RequireAuthPermissionsLexiconsRouteChildren,
+  )
+
+interface RequireAuthPermissionsRouteChildren {
+  RequireAuthPermissionsLexiconsRoute: typeof RequireAuthPermissionsLexiconsRouteWithChildren
+  RequireAuthPermissionsPeopleRoute: typeof RequireAuthPermissionsPeopleRoute
+  RequireAuthPermissionsIndexRoute: typeof RequireAuthPermissionsIndexRoute
+  RequireAuthPermissionsGroupsIndexRoute: typeof RequireAuthPermissionsGroupsIndexRoute
+}
+
+const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
+  {
+    RequireAuthPermissionsLexiconsRoute:
+      RequireAuthPermissionsLexiconsRouteWithChildren,
+    RequireAuthPermissionsPeopleRoute: RequireAuthPermissionsPeopleRoute,
+    RequireAuthPermissionsIndexRoute: RequireAuthPermissionsIndexRoute,
+    RequireAuthPermissionsGroupsIndexRoute:
+      RequireAuthPermissionsGroupsIndexRoute,
+  }
+
+const RequireAuthPermissionsRouteWithChildren =
+  RequireAuthPermissionsRoute._addFileChildren(
+    RequireAuthPermissionsRouteChildren,
+  )
+
 interface RequireAuthRouteChildren {
+  RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthPriviTestViewRoute: typeof RequireAuthPriviTestViewRoute
   RequireAuthPriviTestIndexRoute: typeof RequireAuthPriviTestIndexRoute
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
+  RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthPriviTestViewRoute: RequireAuthPriviTestViewRoute,
   RequireAuthPriviTestIndexRoute: RequireAuthPriviTestIndexRoute,
 }
@@ -170,8 +316,15 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/oauth-login': typeof OauthLoginRoute
   '/server': typeof ServerRoute
+  '/permissions': typeof RequireAuthPermissionsRouteWithChildren
+  '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
+  '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
   '/privi-test/view': typeof RequireAuthPriviTestViewRoute
+  '/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/privi-test': typeof RequireAuthPriviTestIndexRoute
+  '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
+  '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 
 export interface FileRoutesByTo {
@@ -182,8 +335,13 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/oauth-login': typeof OauthLoginRoute
   '/server': typeof ServerRoute
+  '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
   '/privi-test/view': typeof RequireAuthPriviTestViewRoute
+  '/permissions': typeof RequireAuthPermissionsIndexRoute
   '/privi-test': typeof RequireAuthPriviTestIndexRoute
+  '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
+  '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 
 export interface FileRoutesById {
@@ -195,8 +353,15 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/oauth-login': typeof OauthLoginRoute
   '/server': typeof ServerRoute
+  '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
+  '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
+  '/_requireAuth/permissions/people': typeof RequireAuthPermissionsPeopleRoute
   '/_requireAuth/privi-test/view': typeof RequireAuthPriviTestViewRoute
+  '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/_requireAuth/privi-test/': typeof RequireAuthPriviTestIndexRoute
+  '/_requireAuth/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  '/_requireAuth/permissions/groups/': typeof RequireAuthPermissionsGroupsIndexRoute
+  '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 
 export interface FileRouteTypes {
@@ -209,8 +374,15 @@ export interface FileRouteTypes {
     | '/login'
     | '/oauth-login'
     | '/server'
+    | '/permissions'
+    | '/permissions/lexicons'
+    | '/permissions/people'
     | '/privi-test/view'
+    | '/permissions/'
     | '/privi-test'
+    | '/permissions/lexicons/$lexiconId'
+    | '/permissions/groups'
+    | '/permissions/lexicons/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -220,8 +392,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/oauth-login'
     | '/server'
+    | '/permissions/people'
     | '/privi-test/view'
+    | '/permissions'
     | '/privi-test'
+    | '/permissions/lexicons/$lexiconId'
+    | '/permissions/groups'
+    | '/permissions/lexicons'
   id:
     | '__root__'
     | '/'
@@ -231,8 +408,15 @@ export interface FileRouteTypes {
     | '/login'
     | '/oauth-login'
     | '/server'
+    | '/_requireAuth/permissions'
+    | '/_requireAuth/permissions/lexicons'
+    | '/_requireAuth/permissions/people'
     | '/_requireAuth/privi-test/view'
+    | '/_requireAuth/permissions/'
     | '/_requireAuth/privi-test/'
+    | '/_requireAuth/permissions/lexicons/$lexiconId'
+    | '/_requireAuth/permissions/groups/'
+    | '/_requireAuth/permissions/lexicons/'
   fileRoutesById: FileRoutesById
 }
 
@@ -281,6 +465,7 @@ export const routeTree = rootRoute
     "/_requireAuth": {
       "filePath": "_requireAuth.tsx",
       "children": [
+        "/_requireAuth/permissions",
         "/_requireAuth/privi-test/view",
         "/_requireAuth/privi-test/"
       ]
@@ -300,13 +485,51 @@ export const routeTree = rootRoute
     "/server": {
       "filePath": "server.tsx"
     },
+    "/_requireAuth/permissions": {
+      "filePath": "_requireAuth/permissions.tsx",
+      "parent": "/_requireAuth",
+      "children": [
+        "/_requireAuth/permissions/lexicons",
+        "/_requireAuth/permissions/people",
+        "/_requireAuth/permissions/",
+        "/_requireAuth/permissions/groups/"
+      ]
+    },
+    "/_requireAuth/permissions/lexicons": {
+      "filePath": "_requireAuth/permissions/lexicons.tsx",
+      "parent": "/_requireAuth/permissions",
+      "children": [
+        "/_requireAuth/permissions/lexicons/$lexiconId",
+        "/_requireAuth/permissions/lexicons/"
+      ]
+    },
+    "/_requireAuth/permissions/people": {
+      "filePath": "_requireAuth/permissions/people.tsx",
+      "parent": "/_requireAuth/permissions"
+    },
     "/_requireAuth/privi-test/view": {
       "filePath": "_requireAuth/privi-test/view.tsx",
       "parent": "/_requireAuth"
     },
+    "/_requireAuth/permissions/": {
+      "filePath": "_requireAuth/permissions/index.tsx",
+      "parent": "/_requireAuth/permissions"
+    },
     "/_requireAuth/privi-test/": {
       "filePath": "_requireAuth/privi-test/index.tsx",
       "parent": "/_requireAuth"
+    },
+    "/_requireAuth/permissions/lexicons/$lexiconId": {
+      "filePath": "_requireAuth/permissions/lexicons/$lexiconId.tsx",
+      "parent": "/_requireAuth/permissions/lexicons"
+    },
+    "/_requireAuth/permissions/groups/": {
+      "filePath": "_requireAuth/permissions/groups/index.tsx",
+      "parent": "/_requireAuth/permissions"
+    },
+    "/_requireAuth/permissions/lexicons/": {
+      "filePath": "_requireAuth/permissions/lexicons/index.tsx",
+      "parent": "/_requireAuth/permissions/lexicons"
     }
   }
 }

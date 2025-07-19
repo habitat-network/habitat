@@ -18,6 +18,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       authSession: result?.session,
     }
   },
+  staleTime: 1000 * 60 * 60,
   async loader({ context }) {
     if (!context.authSession) {
       return {}

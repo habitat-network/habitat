@@ -29,6 +29,13 @@ export const Route = createFileRoute('/')({
         icon: '🍎',
         link: '/app-store'
       },
+      {
+        id: 'permissions',
+        name: 'Permissions',
+        description: 'Manage permissions for privi',
+        icon: '🔑',
+        link: '/permissions'
+      },
       ...filteredWebApps
     ]
 
