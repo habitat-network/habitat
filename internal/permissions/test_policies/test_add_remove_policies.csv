@@ -1,0 +1,3 @@
+p, did:1,   app.bsky.likes.*,       read,   allow
+p, did:2,   app.bsky.*,             read,   allow
+p, did:2,   app.bsky.posts,         read,   deny

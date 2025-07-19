@@ -15,12 +15,13 @@ DOCKER_WORKDIR = /go/src/github.com/eagraf/habitat-new
 
 # Set up critical Habitat environment variables
 DEV_HABITAT_PATH = $(TOPDIR)/.habitat
-DEV_HABITAT_APP_PATH = $(TOPDIR)/.habitat/apps
-DEV_HABITAT_CONFIG_PATH = $(TOPDIR)/.habitat/habitat.yml
+DEV_HABITAT_APP_PATH = $(DEV_HABITAT_PATH)/apps
+DEV_HABITAT_CONFIG_PATH = $(DEV_HABITAT_PATH)/habitat.yml
 DEV_HABITAT_ENV_PATH = $(TOPDIR)/dev.env
 CERT_DIR = $(DEV_HABITAT_PATH)/certificates
 PDS_DIR = $(DEV_HABITAT_APP_PATH)/pds
 PDS_BLOB_DIR = $(PDS_DIR)/blocks
+PERMS_DIR = $(DEV_HABITAT_PATH)/permissions
 
 GOBIN ?= $$(go env GOPATH)/bin
 
@@ -65,11 +66,12 @@ install:: $(DEV_HABITAT_PATH)/habitat.yml $(CERT_DIR)/dev_node_cert.pem $(CERT_D
 docker-build:
 	docker compose -f ./build/compose.yml build
 
-run-dev: $(PDS_BLOB_DIR) $(CERT_DIR)/dev_root_user_cert.pem $(CERT_DIR)/dev_node_cert.pem $(DEV_HABITAT_CONFIG_PATH) $(DEV_HABITAT_ENV_PATH)
+run-dev: $(PDS_BLOB_DIR) $(CERT_DIR)/dev_root_user_cert.pem $(CERT_DIR)/dev_node_cert.pem $(DEV_HABITAT_CONFIG_PATH) $(PERMS_DIR) $(DEV_HABITAT_ENV_PATH)
 	TOPDIR=$(TOPDIR) \
 	DOCKER_WORKDIR=$(DOCKER_WORKDIR) \
 	DEV_HABITAT_PATH=$(DEV_HABITAT_PATH) \
 	DEV_HABITAT_APP_PATH=$(DEV_HABITAT_APP_PATH) \
+	PERMS_DIR=$(PERMS_DIR) \
 	docker-compose -f ./build/compose.yml up
 
 clear-volumes:
@@ -94,10 +96,13 @@ $(DEV_HABITAT_ENV_PATH):
 $(CERT_DIR): $(DEV_HABITAT_PATH)
 	mkdir -p $(CERT_DIR)
 
+$(PERMS_DIR): $(DEV_HABITAT_PATH)
+	mkdir -p $(PERMS_DIR)
+
 $(DEV_HABITAT_PATH)/habitat.yml: $(DEV_HABITAT_PATH)
 	cp $(TOPDIR)/config/habitat.dev.yml $(DEV_HABITAT_PATH)/habitat.yml
 
-$(PDS_BLOB_DIR):
+$(PDS_BLOB_DIR): $(PDS_DIR)
 	mkdir -p $(PDS_BLOB_DIR)
 
 $(CERT_DIR)/dev_node_cert.pem: $(CERT_DIR)

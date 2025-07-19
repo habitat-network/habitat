@@ -68,8 +68,8 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("------> Serving request for ", r.URL, " to ", bestMatch.Target)
 	// Serve the rule handler.
-	log.Info().Msgf("Serving request for URL %s to %s", r.URL, bestMatch.Matcher)
 	handler.ServeHTTP(w, r)
 }
 

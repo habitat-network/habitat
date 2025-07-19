@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/core/permissions"
+	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +33,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.Nil(t, got)
 	require.ErrorIs(t, ErrUnauthorized, err)
 
-	dummy.AddPermission(coll, "another-did")
+	require.NoError(t, dummy.AddLexiconReadPermission(coll, "another-did"))
 
 	got, err = p.getRecord(coll, "my-rkey", "another-did")
 	require.NoError(t, err)

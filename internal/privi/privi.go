@@ -6,7 +6,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/data"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/core/permissions"
+	"github.com/eagraf/habitat-new/internal/permissions"
 )
 
 type record map[string]any
@@ -103,7 +103,7 @@ type GetRecordResponse struct {
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
 func (p *store) getRecord(collection string, rkey string, callerDID syntax.DID) (json.RawMessage, error) {
 	// Run permissions before returning to the user
-	authz, err := p.permissions.HasPermission(callerDID.String(), collection, rkey, false)
+	authz, err := p.permissions.HasPermission(callerDID.String(), collection, rkey)
 	if err != nil {
 		return nil, err
 	}

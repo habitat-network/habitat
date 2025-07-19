@@ -116,7 +116,6 @@ export interface State {
 export interface User {
   id: string;
   username: string;
-  certificate: string; // TODO turn this into b64
   atproto_did?: string;
 }
 export interface NodeSchema {

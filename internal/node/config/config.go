@@ -79,7 +79,6 @@ func loadEnv(v *viper.Viper) error {
 		return err
 	}
 	v.SetDefault("frontend_dev", false)
-
 	return nil
 }
 
@@ -354,6 +353,11 @@ func (n *NodeConfig) PDSAdminUsername() string {
 
 func (n *NodeConfig) PDSAdminPassword() string {
 	return "password"
+}
+
+func (n *NodeConfig) PermissionPolicyFilesDir() string {
+	// TODO: make this not hacky >:( -- we should read from an environment variable otherwise this is one more place to keep in sync
+	return filepath.Join(n.HabitatPath(), "permissions")
 }
 
 func (n *NodeConfig) FrontendDev() bool {

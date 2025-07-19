@@ -53,7 +53,6 @@ func submitProof(sessionID string, proof string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error reading auth response: %w", err)
 	}
-	fmt.Println(string(respBody))
 
 	var result struct {
 		Token string `json:"token"`
