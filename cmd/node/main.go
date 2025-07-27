@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -287,6 +288,14 @@ func generatePDSAppConfig(
 ) (*node.AppInstallation, *node.ReverseProxyRule) {
 	pdsMountDir := filepath.Join(nodeConfig.HabitatAppPath(), "pds")
 
+	arch := runtime.GOARCH
+	var pdsTag string
+	if arch == "arm64" {
+		pdsTag = "arm-latest"
+	} else {
+		pdsTag = "latest"
+	}
+
 	// TODO @eagraf - unhardcode as much of this as possible
 	appID := "pds-default-app-ID"
 	return &node.AppInstallation{
@@ -311,7 +320,9 @@ func generatePDSAppConfig(
 						"PDS_INVITE_REQUIRED=false",
 						"PDS_REPORT_SERVICE_DID=did:plc:ar7c4by46qjdydhdevvrndac",
 						"PDS_CRAWLERS=https://bsky.network",
-						"DEBUG=true",
+						"DEBUG=1",
+						"LOG_LEVEL=debug",
+						"LOG_ENABLED=1",
 					},
 					"mounts": []mount.Mount{
 						{
@@ -332,7 +343,7 @@ func generatePDSAppConfig(
 				},
 				RegistryURLBase:    "registry.hub.docker.com",
 				RegistryPackageID:  "ethangraf/pds",
-				RegistryPackageTag: "latest",
+				RegistryPackageTag: pdsTag,
 			},
 		},
 		&node.ReverseProxyRule{
