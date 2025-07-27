@@ -21,3 +21,7 @@ next
 frontend/.next/
 frontend/next-env.d.ts
 frontend/out/
+
+# Ignore custom node config
+config/habitat.dev.yml
+

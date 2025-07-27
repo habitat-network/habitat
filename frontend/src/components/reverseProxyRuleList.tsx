@@ -15,7 +15,9 @@ const ReverseProxyRuleList: React.FC<ReverseProxyRuleListProps> = ({ rules }) =>
         <ul className="space-y-4">
           {Object.entries(rules).map(([key, rule]) => (
             <li key={key} className="bg-white p-4 rounded-lg shadow">
-              <div className="font-semibold">Rule: {key}</div>
+              <div className="font-semibold">
+                <a href={rule.matcher} className="text-blue-700">Rule: {key}</a>
+              </div>
               <div>Type: {rule.type}</div>
               <div>Target: {rule.target}</div>
               <div>Matcher: {rule.matcher}</div>

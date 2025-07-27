@@ -72,7 +72,7 @@ func TestInstallAppController(t *testing.T) {
 	middleware := &test_helpers.TestAuthMiddleware{UserID: "user_1"}
 	handler := middleware.Middleware(http.HandlerFunc(ctrlServer.InstallApp))
 	resp := httptest.NewRecorder()
-	b, err := json.Marshal(&InstallAppRequest{
+	b, err := json.Marshal(&node.InstallAppRequest{
 		AppInstallation: &node.AppInstallation{
 			Name:    "app_name1",
 			Version: "1",

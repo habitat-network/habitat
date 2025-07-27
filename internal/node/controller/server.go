@@ -91,17 +91,11 @@ func (s *CtrlServer) ListProcesses(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type InstallAppRequest struct {
-	AppInstallation   *node.AppInstallation    `json:"app_installation" yaml:"app_installation"`
-	ReverseProxyRules []*node.ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
-	StartAfterInstall bool
-}
-
 func (s *CtrlServer) InstallApp(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 	// TODO: authenticate user
 
-	var req InstallAppRequest
+	var req node.InstallAppRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

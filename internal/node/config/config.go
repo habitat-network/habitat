@@ -13,7 +13,6 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
-	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -365,7 +364,7 @@ func (n *NodeConfig) FrontendDev() bool {
 }
 
 func (n *NodeConfig) DefaultApps() ([]*node.AppInstallation, []*node.ReverseProxyRule, error) {
-	var appRequestsMap map[string]*controller.InstallAppRequest
+	var appRequestsMap map[string]*node.InstallAppRequest
 	err := n.viper.UnmarshalKey("default_apps", &appRequestsMap, viper.DecoderConfigOption(
 		func(decoderConfig *mapstructure.DecoderConfig) {
 			decoderConfig.TagName = "yaml"
@@ -384,6 +383,21 @@ func (n *NodeConfig) DefaultApps() ([]*node.AppInstallation, []*node.ReverseProx
 		rules = append(rules, appRequest.ReverseProxyRules...)
 	}
 	return apps, rules, nil
+}
+
+func (n *NodeConfig) ReverseProxyRules() ([]*node.ReverseProxyRule, error) {
+	var rules []*node.ReverseProxyRule
+	err := n.viper.UnmarshalKey("reverse_proxy_rules", &rules, viper.DecoderConfigOption(
+		func(decoderConfig *mapstructure.DecoderConfig) {
+			decoderConfig.TagName = "yaml"
+			decoderConfig.Squash = true
+		},
+	))
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to unmarshal default reverse proxy rules")
+		return nil, err
+	}
+	return rules, nil
 }
 
 // Helper functions
