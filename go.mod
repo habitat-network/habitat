@@ -13,6 +13,7 @@ require (
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.5.0
+	github.com/gorilla/sessions v1.4.0
 	github.com/hashicorp/raft v1.6.0
 	github.com/hashicorp/raft-boltdb v0.0.0-20231211162105-6c830fa4535e
 	github.com/joho/godotenv v1.5.1

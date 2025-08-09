@@ -24,7 +24,7 @@ type TestNonceProvider struct {
 	errorOnGet bool
 }
 
-func (t *TestNonceProvider) GetNonce() (string, bool, error) {
+func (t *TestNonceProvider) GetDpopNonce() (string, bool, error) {
 	if t.nonce == "" && !t.errorOnGet {
 		return "", false, nil
 	}
@@ -34,7 +34,7 @@ func (t *TestNonceProvider) GetNonce() (string, bool, error) {
 	return t.nonce, true, nil
 }
 
-func (t *TestNonceProvider) SetNonce(nonce string) error {
+func (t *TestNonceProvider) SetDpopNonce(nonce string) error {
 	t.nonce = nonce
 	return nil
 }
@@ -143,7 +143,7 @@ func TestDpopHttpClient_NoNonceAtBeginning(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Verify nonce was set
-	nonce, ok, err := nonceProvider.GetNonce()
+	nonce, ok, err := nonceProvider.GetDpopNonce()
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "new-nonce-456", nonce)
@@ -225,7 +225,7 @@ func TestDpopHttpClient_AuthorizationServerNonceError(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Verify nonce was set
-	nonce, ok, err := nonceProvider.GetNonce()
+	nonce, ok, err := nonceProvider.GetDpopNonce()
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "auth-server-nonce-789", nonce)

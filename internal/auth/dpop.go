@@ -17,10 +17,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// NonceProvider provides access to nonce management
-type NonceProvider interface {
-	GetNonce() (string, bool, error)
-	SetNonce(nonce string) error
+// DpopNonceProvider provides access to nonce management
+type DpopNonceProvider interface {
+	GetDpopNonce() (string, bool, error)
+	SetDpopNonce(nonce string) error
 }
 
 type dpopClaims struct {
@@ -66,7 +66,7 @@ func WithAccessToken(accessToken string) DpopOption {
 
 type DpopHttpClient struct {
 	key           *ecdsa.PrivateKey
-	nonceProvider NonceProvider
+	nonceProvider DpopNonceProvider
 	opts          *DpopOptions
 }
 
@@ -74,7 +74,7 @@ type DpopHttpClient struct {
 // for authentication at login.
 func NewDpopHttpClient(
 	key *ecdsa.PrivateKey,
-	nonceProvider NonceProvider,
+	nonceProvider DpopNonceProvider,
 	options ...DpopOption,
 ) *DpopHttpClient {
 	opts := &DpopOptions{}
@@ -111,7 +111,7 @@ func (s *DpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 		return resp, nil
 	}
 	if resp.Header.Get("DPoP-Nonce") != "" {
-		err := s.nonceProvider.SetNonce(resp.Header.Get("DPoP-Nonce"))
+		err := s.nonceProvider.SetDpopNonce(resp.Header.Get("DPoP-Nonce"))
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (s *DpopHttpClient) generateClaims(req *http.Request) (*dpopClaims, error) 
 		URL:    htu,
 	}
 
-	nonce, ok, err := s.nonceProvider.GetNonce()
+	nonce, ok, err := s.nonceProvider.GetDpopNonce()
 	if err != nil {
 		return nil, err
 	}
