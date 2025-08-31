@@ -456,8 +456,20 @@ func initialState(
 
 	// A list of transitions to apply when the node starts up for the first time.
 	init := node.CreateInitializationTransition(state)
+
 	transitions := []hdb.Transition{
 		init,
 	}
+
+	for _, app := range startApps {
+		if app.Driver == node.DriverTypeDocker {
+			startProcTransition, _, err := node.CreateProcessStartTransition(app.ID, state)
+			if err != nil {
+				return nil, nil, err
+			}
+			transitions = append(transitions, startProcTransition)
+		}
+	}
+
 	return state, transitions, nil
 }
