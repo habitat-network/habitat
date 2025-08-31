@@ -1,8 +1,8 @@
 module github.com/eagraf/habitat-new
 
-go 1.23
+go 1.23.0
 
-toolchain go1.23.4
+toolchain go1.24.2
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20250401210623-bfc7f487e4ed
@@ -25,6 +25,7 @@ require (
 	github.com/wI2L/jsondiff v0.5.1
 	go.uber.org/mock v0.4.0
 	golang.org/x/mod v0.17.0
+	golang.org/x/oauth2 v0.30.0
 	golang.org/x/sync v0.10.0
 	gopkg.in/yaml.v3 v3.0.1
 	tailscale.com v1.66.4

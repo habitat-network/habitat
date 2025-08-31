@@ -15,14 +15,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	Scope        string `json:"scope"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-}
-
 type Session interface {
 	GetDpopKey() (*ecdsa.PrivateKey, bool, error)
 	SetDpopKey(*ecdsa.PrivateKey) error
