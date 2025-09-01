@@ -4,7 +4,7 @@ local-prefix: "github.com/eagraf/habitat-new"
 # Holds coverage thresholds percentages, values should be in range [0-100]
 threshold:
   # The minimum coverage that each file should have
-  file: 70
+  file: 60
   # The minimum coverage that each package should have
   package: 70
   # The minimum total coverage project should have

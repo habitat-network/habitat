@@ -21,6 +21,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/auth"
 	"github.com/eagraf/habitat-new/internal/docker"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/appstore"
@@ -38,6 +39,7 @@ import (
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/eagraf/habitat-new/internal/pubsub"
 	"github.com/eagraf/habitat-new/internal/web"
+	"github.com/gorilla/sessions"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -108,14 +110,14 @@ func main() {
 	}
 
 	// Generate the list of apps to have installed and started when the node first comes up
-	pdsApp, pdsAppProxyRule := generatePDSAppConfig(nodeConfig)
+	pdsApp, pdsAppProxyRules := generatePDSAppConfig(nodeConfig)
 	defaultApps, defaultProxyRules, err := nodeConfig.DefaultApps()
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to generate proxy rules")
 	}
 
 	apps := append(defaultApps, pdsApp)
-	rules := append(append(defaultProxyRules, pdsAppProxyRule), proxyRules...)
+	rules := append(append(defaultProxyRules, pdsAppProxyRules...), proxyRules...)
 
 	initState, initialTransitions, err := initialState(nodeConfig.RootUserCertB64(), apps, rules)
 	if err != nil {
@@ -133,6 +135,10 @@ func main() {
 		log.Fatal().Err(err).Msg("error getting tls config")
 	}
 	addr := fmt.Sprintf(":%s", nodeConfig.ReverseProxyPort())
+
+	// Gorilla sessions persisted in the browser's cookies.
+	// TODO These need to actually be persisted somewhere
+	sessionStoreKey := []byte("FaKe_DeV-SeSsIoN-KeY")
 
 	proxy := reverse_proxy.NewProxyServer(logger, nodeConfig.WebBundlePath())
 	proxyServer := &http.Server{
@@ -178,6 +184,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("error creating node control server")
 	}
+
+	sessionStore := sessions.NewCookieStore(sessionStoreKey)
+
 	// Set up the main API server
 	// TODO: create a less tedious way to register all the routes in the future. It might be as simple
 	// as having a dedicated file to list these, instead of putting them all in main.
@@ -185,6 +194,11 @@ func main() {
 		// Node routes
 		api.NewVersionHandler(),
 	}
+	authRoutes, err := auth.GetRoutes(nodeConfig, sessionStore)
+	if err != nil {
+		log.Fatal().Err(err).Msg("error getting auth routes")
+	}
+	routes = append(routes, authRoutes...)
 	routes = append(routes, ctrlServer.GetRoutes()...)
 	if nodeConfig.Environment() == constants.EnvironmentDev {
 		// App store is unimplemented in production
@@ -286,7 +300,7 @@ func main() {
 
 func generatePDSAppConfig(
 	nodeConfig *config.NodeConfig,
-) (*node.AppInstallation, *node.ReverseProxyRule) {
+) (*node.AppInstallation, []*node.ReverseProxyRule) {
 	pdsMountDir := filepath.Join(nodeConfig.HabitatAppPath(), "pds")
 
 	arch := runtime.GOARCH
@@ -347,12 +361,32 @@ func generatePDSAppConfig(
 				RegistryPackageTag: pdsTag,
 			},
 		},
-		&node.ReverseProxyRule{
-			ID:      "pds-app-reverse-proxy-rule",
-			AppID:   appID,
-			Type:    "redirect",
-			Matcher: "/xrpc",
-			Target:  fmt.Sprintf("https://%s/xrpc", constants.DefaultPDSHostname),
+		[]*node.ReverseProxyRule{
+			{
+				ID:      "pds-app-reverse-proxy-rule",
+				AppID:   appID,
+				Type:    node.ProxyRuleRedirect,
+				Matcher: "/xrpc",
+				Target:  "http://host.docker.internal:3000/xrpc",
+			},
+			{
+				ID:      "default-rule-oauth-well-known",
+				Type:    "redirect",
+				Matcher: "/.well-known",
+				Target:  "http://host.docker.internal:5001/.well-known/",
+			},
+			{
+				ID:      "default-rule-oauth-login",
+				Type:    "redirect",
+				Matcher: "/oauth",
+				Target:  "http://host.docker.internal:5001/oauth/",
+			},
+			{
+				ID:      "default-rule-atproto",
+				Type:    "redirect",
+				Matcher: "/@atproto",
+				Target:  "http://host.docker.internal:5001/@atproto/",
+			},
 		}
 }
 
@@ -416,12 +450,12 @@ func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*node.Revers
 			Target:  apiURL.String() + "/xrpc/com.habitat.removePermission",
 		},
 		// Serve a DID document for habitat
-		{
-			ID:      "did-rule",
-			Type:    node.ProxyRuleFileServer,
-			Matcher: "/.well-known",
-			Target:  config.HabitatPath() + "/well-known",
-		},
+		//{
+		//ID:      "did-rule",
+		//Type:    node.ProxyRuleFileServer,
+		//Matcher: "/.well-known",
+		//Target:  config.HabitatPath() + "/well-known",
+		//},
 		frontendRule,
 	}
 

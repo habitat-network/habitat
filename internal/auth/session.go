@@ -15,6 +15,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const SessionKeyDpop = "dpop-session"
+const SessionKeyAuth = "auth-session"
+
 type Session interface {
 	GetDpopKey() (*ecdsa.PrivateKey, bool, error)
 	SetDpopKey(*ecdsa.PrivateKey) error
@@ -63,7 +66,7 @@ func newCookieSession(
 	id *identity.Identity,
 	pdsURL string,
 ) (*cookieSession, error) {
-	session, err := sessionStore.New(r, "dpop-session")
+	session, err := sessionStore.New(r, SessionKeyDpop)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +99,7 @@ func newCookieSession(
 }
 
 func getCookieSession(r *http.Request, sessionStore sessions.Store) (*cookieSession, error) {
-	session, err := sessionStore.Get(r, "dpop-session")
+	session, err := sessionStore.Get(r, SessionKeyDpop)
 	if err != nil {
 		return nil, err
 	}

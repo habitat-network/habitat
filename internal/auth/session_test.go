@@ -66,7 +66,7 @@ func TestSession(t *testing.T) {
 	// Step 4: Extract cookies from the response
 	cookies := w.Result().Cookies()
 	require.Len(t, cookies, 1)
-	require.Equal(t, "dpop-session", cookies[0].Name)
+	require.Equal(t, SessionKeyDpop, cookies[0].Name)
 
 	// Step 5: Create a new request with the session cookie
 	newReq := httptest.NewRequest("GET", "/test", nil)

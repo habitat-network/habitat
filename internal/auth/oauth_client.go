@@ -270,20 +270,19 @@ type oauthProtectedResource struct {
 }
 
 func fetchOAuthProtectedResource(i *identity.Identity) (*oauthProtectedResource, error) {
-	url, err := url.Parse(i.PDSEndpoint())
+	wellKnownURL, err := mapAuthServerURL(i.PDSEndpoint() + "/.well-known/oauth-protected-resource")
 	if err != nil {
 		return nil, err
 	}
-	if url.Host == "localhost:3000" {
-		url.Host = "host.docker.internal:3000"
-	}
+
 	resp, err := http.DefaultClient.Get(
-		url.JoinPath("/.well-known/oauth-protected-resource").String(),
+		wellKnownURL,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to fetch authorization server: %s", resp.Status)
 	}
@@ -378,12 +377,9 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 		return "", err
 	}
 
-	parUrl, err := url.Parse(as.PAREndpoint)
+	parUrl, err := mapAuthServerURL(as.PAREndpoint)
 	if err != nil {
 		return "", err
-	}
-	if parUrl.Host == "localhost:3000" {
-		parUrl.Host = "host.docker.internal:5001"
 	}
 
 	params := url.Values{
@@ -405,7 +401,7 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 
 	req, err := http.NewRequest(
 		http.MethodPost,
-		parUrl.String(),
+		parUrl,
 		strings.NewReader(params.Encode()),
 	)
 	if err != nil {
@@ -416,7 +412,7 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 	log.Debug().
 		Str("client assertion", clientAssertion).
 		Str("issuer", as.Issuer).
-		Str("par url", parUrl.String()).
+		Str("par url", parUrl).
 		Str("state", state).
 		Str("verifier", verifier).
 		Str("redirect uri", o.redirectUri)

@@ -221,5 +221,8 @@ func isUseDPopNonceError(resp *http.Response) bool {
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 	}
+
+	// TODO 200 OK responses can also specify a nonce to use as an optimization. So far it appears the Bluesky PDS doesn't do this.
+
 	return false
 }
