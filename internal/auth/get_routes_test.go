@@ -20,5 +20,5 @@ func TestGetRoutes(t *testing.T) {
 	routes, err := GetRoutes(testConfig, sessionStore)
 	require.NoError(t, err)
 
-	require.Len(t, routes, 3)
+	require.Len(t, routes, 4)
 }

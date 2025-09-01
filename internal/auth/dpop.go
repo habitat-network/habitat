@@ -119,6 +119,8 @@ func (s *DpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 
 	// retry with new nonce
 	req2 := req.Clone(req.Context())
+	req2.RequestURI = ""
+
 	req2.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	err = s.sign(req2)
 	if err != nil {
