@@ -1,8 +1,8 @@
 import { AuthProvider } from '@/components/authContext'
 import Header from '@/components/header'
 import type { BrowserOAuthClient, OAuthSession } from '@atproto/oauth-client-browser'
-import { useMutation, type QueryClient } from '@tanstack/react-query'
-import { Outlet, createRootRouteWithContext, useRouter } from '@tanstack/react-router'
+import { type QueryClient } from '@tanstack/react-query'
+import { Outlet, createRootRouteWithContext } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 
 interface RouterContext {
@@ -30,19 +30,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     }
   },
   component() {
-    const { invalidate } = useRouter()
-    const { authSession, oauthClient } = Route.useRouteContext()
-    const { handle } = Route.useLoaderData();
-    const { mutate: logout } = useMutation({
-      async mutationFn() {
-        if (!authSession) return
-        oauthClient.revoke(authSession.sub)
-        invalidate()
-      }
-    })
     return (
       <AuthProvider>
-        <Header isAuthenticated={!!authSession} handle={handle} onLogout={logout} />
+        <Header />
         <Outlet />
         <TanStackRouterDevtools />
       </AuthProvider>

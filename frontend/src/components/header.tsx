@@ -10,13 +10,7 @@ function formatHandle(handle: string | null) {
   return handle;
 }
 
-interface HeaderProps {
-  isAuthenticated: boolean
-  handle: string | undefined
-  onLogout: () => void
-}
-
-const Header = ({ isAuthenticated: isOauthAuthenticated, handle: oauthHandle, onLogout: onOauthLogout }: HeaderProps) => {
+const Header = () => {
   const { isAuthenticated, handle, logout } = useAuth();
   return (
     <header >
@@ -24,19 +18,6 @@ const Header = ({ isAuthenticated: isOauthAuthenticated, handle: oauthHandle, on
         <ul>
           <li><Link to="/">🌱 Habitat</Link></li>
         </ul>
-        {isOauthAuthenticated ? (
-          <ul>
-            <li>
-              <button onClick={onOauthLogout}>
-                OAuth Logout {oauthHandle && `(${formatHandle(oauthHandle)})`}
-              </button>
-            </li>
-          </ul>
-        ) : (
-          <ul>
-            <li><Link to="/oauth-login"><button>OAuth Login</button></Link></li>
-          </ul>
-        )}
         {isAuthenticated && (
           <ul >
             <li>

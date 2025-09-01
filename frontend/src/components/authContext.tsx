@@ -15,14 +15,21 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
+    const isAuthenticatedHelper = (): boolean => {
+        const token = Cookies.get('access_token');
+        const authed = token ? true : false;
+        console.log('authed', authed);
+        return authed;
+    }
 
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(isAuthenticatedHelper());
 
     const [handle, setHandle] = useState<string | null>(null);
 
     useEffect(() => {
-        const token = Cookies.get('access_token');
-        const authed = token ? true : false;
+        const did = Cookies.get('did');
+        const authed = did ? true : false;
         setIsAuthenticated(authed);
     }, []);
 
@@ -125,6 +132,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         Cookies.remove('chrome_extension_access_token');
         Cookies.remove('chrome_extension_refresh_token');
         Cookies.remove('handle');
+
+        // Oauth sessions
+        Cookies.remove('auth-session');
+        Cookies.remove('dpop-session');
 
         setIsAuthenticated(false);
         router.navigate({ to: '/login' });
