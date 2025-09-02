@@ -1,4 +1,4 @@
-package node
+package state
 
 import (
 	"encoding/json"
@@ -7,25 +7,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/google/uuid"
 )
 
 type initalizationTransition struct {
-	InitState *State `json:"init_state"`
+	InitState *NodeState `json:"init_state"`
 }
 
-func CreateInitializationTransition(state *State) hdb.Transition {
+func CreateInitializationTransition(state *NodeState) Transition {
 	return &initalizationTransition{
 		InitState: state,
 	}
 }
 
-func (t *initalizationTransition) Type() hdb.TransitionType {
-	return hdb.TransitionInitialize
+func (t *initalizationTransition) Type() TransitionType {
+	return TransitionInitialize
 }
 
-func (t *initalizationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
+func (t *initalizationTransition) Patch(oldState SerializedState) (SerializedState, error) {
 	if t.InitState.Users == nil {
 		t.InitState.Users = make(map[string]*User, 0)
 	}
@@ -54,7 +53,7 @@ func (t *initalizationTransition) Patch(oldState hdb.SerializedState) (hdb.Seria
 	}]`, marshaled)), nil
 }
 
-func (t *initalizationTransition) Validate(oldState hdb.SerializedState) error {
+func (t *initalizationTransition) Validate(oldState SerializedState) error {
 	if t.InitState == nil {
 		return fmt.Errorf("init state cannot be nil")
 	}
@@ -65,18 +64,18 @@ type migrationTransition struct {
 	TargetVersion string
 }
 
-func CreateMigrationTransition(targetVersion string) hdb.Transition {
+func CreateMigrationTransition(targetVersion string) Transition {
 	return &migrationTransition{
 		TargetVersion: targetVersion,
 	}
 }
 
-func (t *migrationTransition) Type() hdb.TransitionType {
-	return hdb.TransitionMigrationUp
+func (t *migrationTransition) Type() TransitionType {
+	return TransitionMigrationUp
 }
 
-func (t *migrationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
-	var oldNode State
+func (t *migrationTransition) Patch(oldState SerializedState) (SerializedState, error) {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return nil, err
@@ -90,8 +89,8 @@ func (t *migrationTransition) Patch(oldState hdb.SerializedState) (hdb.Serialize
 	return json.Marshal(patch)
 }
 
-func (t *migrationTransition) Validate(oldState hdb.SerializedState) error {
-	var oldNode State
+func (t *migrationTransition) Validate(oldState SerializedState) error {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
@@ -119,7 +118,7 @@ type addUserTransition struct {
 	User *User
 }
 
-func CreateAddUserTransition(username string, did string) hdb.Transition {
+func CreateAddUserTransition(username string, did string) Transition {
 	return &addUserTransition{
 		User: &User{
 			Username: username,
@@ -133,11 +132,11 @@ type AddUserTranstitionEnrichedData struct {
 	User *User `json:"user"`
 }
 
-func (t *addUserTransition) Type() hdb.TransitionType {
-	return hdb.TransitionAddUser
+func (t *addUserTransition) Type() TransitionType {
+	return TransitionAddUser
 }
 
-func (t *addUserTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
+func (t *addUserTransition) Patch(oldState SerializedState) (SerializedState, error) {
 
 	user, err := json.Marshal(t.User)
 	if err != nil {
@@ -151,9 +150,8 @@ func (t *addUserTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedS
 	}]`, t.User.ID, user)), nil
 }
 
-func (t *addUserTransition) Validate(oldState hdb.SerializedState) error {
-
-	var oldNode State
+func (t *addUserTransition) Validate(oldState SerializedState) error {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
@@ -178,12 +176,12 @@ type startInstallationTransition struct {
 	NewProxyRules []*ReverseProxyRule `json:"new_proxy_rules"`
 }
 
-func (t *startInstallationTransition) Type() hdb.TransitionType {
-	return hdb.TransitionStartInstallation
+func (t *startInstallationTransition) Type() TransitionType {
+	return TransitionStartInstallation
 }
 
-func (t *startInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
-	var oldNode State
+func (t *startInstallationTransition) Patch(oldState SerializedState) (SerializedState, error) {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return nil, err
@@ -227,8 +225,8 @@ func (t *startInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.S
 	]`, t.AppInstallation.ID, string(marshalledApp), rules)), nil
 }
 
-func (t *startInstallationTransition) Validate(oldState hdb.SerializedState) error {
-	var oldNode State
+func (t *startInstallationTransition) Validate(oldState SerializedState) error {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
@@ -264,7 +262,7 @@ func (t *startInstallationTransition) Validate(oldState hdb.SerializedState) err
 	return nil
 }
 
-func CreateStartInstallationTransition(userID string, pkg *Package, version string, name string, proxyRules []*ReverseProxyRule) (hdb.Transition, string) {
+func CreateStartInstallationTransition(userID string, pkg *Package, version string, name string, proxyRules []*ReverseProxyRule) (Transition, string) {
 	id := uuid.NewString()
 	transition := &startInstallationTransition{
 		AppInstallation: &AppInstallation{
@@ -284,17 +282,17 @@ type finishInstallationTransition struct {
 	AppID string `json:"app_id"`
 }
 
-func CreateFinishInstallationTransition(appID string) hdb.Transition {
+func CreateFinishInstallationTransition(appID string) Transition {
 	return &finishInstallationTransition{
 		AppID: appID,
 	}
 }
 
-func (t *finishInstallationTransition) Type() hdb.TransitionType {
-	return hdb.TransitionFinishInstallation
+func (t *finishInstallationTransition) Type() TransitionType {
+	return TransitionFinishInstallation
 }
-func (t *finishInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
-	var oldNode State
+func (t *finishInstallationTransition) Patch(oldState SerializedState) (SerializedState, error) {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return nil, err
@@ -306,8 +304,8 @@ func (t *finishInstallationTransition) Patch(oldState hdb.SerializedState) (hdb.
 	}]`, t.AppID, AppLifecycleStateInstalled)), nil
 }
 
-func (t *finishInstallationTransition) Validate(oldState hdb.SerializedState) error {
-	var oldNode State
+func (t *finishInstallationTransition) Validate(oldState SerializedState) error {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
@@ -329,24 +327,24 @@ type uninstallTransition struct {
 	AppID string `json:"app_id"`
 }
 
-func CreateUninstallAppTransition(appID string) hdb.Transition {
+func CreateUninstallAppTransition(appID string) Transition {
 	return &uninstallTransition{
 		AppID: appID,
 	}
 }
 
-func (t *uninstallTransition) Type() hdb.TransitionType {
-	return hdb.TransitionStartUninstallation
+func (t *uninstallTransition) Type() TransitionType {
+	return TransitionStartUninstallation
 }
-func (t *uninstallTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
+func (t *uninstallTransition) Patch(oldState SerializedState) (SerializedState, error) {
 	return []byte(fmt.Sprintf(`[{
 		"op": "remove",
 		"path": "/app_installations/%s"
 	}]`, t.AppID)), nil
 }
 
-func (t *uninstallTransition) Validate(oldState hdb.SerializedState) error {
-	var oldNode State
+func (t *uninstallTransition) Validate(oldState SerializedState) error {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
@@ -363,7 +361,7 @@ type processStartTransition struct {
 	Process *Process
 }
 
-func CreateProcessStartTransition(appID string, oldState *State) (hdb.Transition, ProcessID, error) {
+func CreateProcessStartTransition(appID string, oldState *NodeState) (Transition, ProcessID, error) {
 	app, err := oldState.GetAppByID(appID)
 	if err != nil {
 		return nil, "", err
@@ -381,12 +379,12 @@ func CreateProcessStartTransition(appID string, oldState *State) (hdb.Transition
 	}, id, nil
 }
 
-func (t *processStartTransition) Type() hdb.TransitionType {
-	return hdb.TransitionStartProcess
+func (t *processStartTransition) Type() TransitionType {
+	return TransitionStartProcess
 }
 
-func (t *processStartTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
-	var oldNode State
+func (t *processStartTransition) Patch(oldState SerializedState) (SerializedState, error) {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return nil, err
@@ -404,9 +402,9 @@ func (t *processStartTransition) Patch(oldState hdb.SerializedState) (hdb.Serial
 		}]`, t.Process.ID, marshaled)), nil
 }
 
-func (t *processStartTransition) Validate(oldState hdb.SerializedState) error {
+func (t *processStartTransition) Validate(oldState SerializedState) error {
 
-	var oldNode State
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
@@ -449,22 +447,22 @@ type processStopTransition struct {
 	ProcessID ProcessID `json:"process_id"`
 }
 
-func CreateProcessStopTransition(id ProcessID) hdb.Transition {
+func CreateProcessStopTransition(id ProcessID) Transition {
 	return &processStopTransition{
 		ProcessID: id,
 	}
 }
 
-func (t *processStopTransition) Type() hdb.TransitionType {
-	return hdb.TransitionStopProcess
+func (t *processStopTransition) Type() TransitionType {
+	return TransitionStopProcess
 }
 
 var (
 	ErrNoProcFound = errors.New("process with id not found")
 )
 
-func (t *processStopTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
-	var oldNode State
+func (t *processStopTransition) Patch(oldState SerializedState) (SerializedState, error) {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return nil, err
@@ -481,8 +479,8 @@ func (t *processStopTransition) Patch(oldState hdb.SerializedState) (hdb.Seriali
 	}]`, t.ProcessID)), nil
 }
 
-func (t *processStopTransition) Validate(oldState hdb.SerializedState) error {
-	var oldNode State
+func (t *processStopTransition) Validate(oldState SerializedState) error {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err
@@ -500,7 +498,7 @@ type addReverseProxyRuleTransition struct {
 	Rule *ReverseProxyRule `json:"rule"`
 }
 
-func CreateAddReverseProxyRuleTransition(t ReverseProxyRuleType, matcher string, target string, appID string) hdb.Transition {
+func CreateAddReverseProxyRuleTransition(t ReverseProxyRuleType, matcher string, target string, appID string) Transition {
 	return &addReverseProxyRuleTransition{
 		Rule: &ReverseProxyRule{
 			Type:    t,
@@ -512,11 +510,11 @@ func CreateAddReverseProxyRuleTransition(t ReverseProxyRuleType, matcher string,
 	}
 }
 
-func (t *addReverseProxyRuleTransition) Type() hdb.TransitionType {
-	return hdb.TransitionAddReverseProxyRule
+func (t *addReverseProxyRuleTransition) Type() TransitionType {
+	return TransitionAddReverseProxyRule
 }
 
-func (t *addReverseProxyRuleTransition) Patch(oldState hdb.SerializedState) (hdb.SerializedState, error) {
+func (t *addReverseProxyRuleTransition) Patch(oldState SerializedState) (SerializedState, error) {
 	marshaledRule, err := json.Marshal(t.Rule)
 	if err != nil {
 		return nil, err
@@ -528,8 +526,8 @@ func (t *addReverseProxyRuleTransition) Patch(oldState hdb.SerializedState) (hdb
 	}]`, t.Rule.ID, string(marshaledRule))), nil
 }
 
-func (t *addReverseProxyRuleTransition) Validate(oldState hdb.SerializedState) error {
-	var oldNode State
+func (t *addReverseProxyRuleTransition) Validate(oldState SerializedState) error {
+	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
 		return err

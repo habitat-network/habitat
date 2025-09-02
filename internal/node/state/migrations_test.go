@@ -1,4 +1,4 @@
-package node
+package state
 
 import (
 	"encoding/json"
@@ -84,17 +84,17 @@ func TestDataMigrations(t *testing.T) {
 
 func TestValidationFailure(t *testing.T) {
 	// Test that validation fails when the state is invalid
-	nodeSchema := &NodeSchema{}
+	nodeSchema := Schema
 	state, err := nodeSchema.EmptyState()
 	assert.Nil(t, err)
 
 	// Users is a required field, but has "omitempty" on it
-	state.(*State).Users = make(map[string]*User)
+	state.Users = make(map[string]*User)
 	// Validation succeeds
 	err = state.Validate()
 	assert.Nil(t, err)
 
-	state.(*State).Users = nil
+	state.Users = nil
 	// Validation fails
 	err = state.Validate()
 	assert.NotNil(t, err)
@@ -110,7 +110,7 @@ func TestBackwardsCompatibility(t *testing.T) {
 	// changing this test to make your code pass.
 
 	// NodeSchema in v0.0.1
-	nodeState := &State{
+	nodeState := &NodeState{
 		NodeID:        "node1",
 		Name:          "My Node",
 		Certificate:   "Fake certificate",

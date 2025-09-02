@@ -3,22 +3,22 @@ package reverse_proxy
 import (
 	"fmt"
 
-	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/node/state"
 )
 
 type RuleSet struct {
-	rules        map[string]*node.ReverseProxyRule
+	rules        map[string]*state.ReverseProxyRule
 	baseFilePath string // Optional, if set, all file server rules will be relative to this path
 }
 
 // AddRule is a wrapper around Add for finding the correct rule handler type.
-func (rs RuleSet) AddRule(rule *node.ReverseProxyRule) error {
+func (rs RuleSet) AddRule(rule *state.ReverseProxyRule) error {
 	if _, ok := rs.rules[rule.ID]; ok {
 		return fmt.Errorf("reverse proxy rule with id %s is already present, can't overwrite rule", rule.ID)
 	}
 
 	// Make sure the rule type is valid.
-	if rule.Type != node.ProxyRuleRedirect && rule.Type != node.ProxyRuleFileServer && rule.Type != node.ProxyRuleEmbeddedFrontend {
+	if rule.Type != state.ProxyRuleRedirect && rule.Type != state.ProxyRuleFileServer && rule.Type != state.ProxyRuleEmbeddedFrontend {
 		return fmt.Errorf("rule type %s is not supported", rule.Type)
 	}
 

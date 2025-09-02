@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/node/state"
 )
 
 var (
@@ -16,43 +16,43 @@ var (
 // For example, web / docker processes will have different contracts to start and stop processes
 // but these can all be implemented behind the Driver interface for easy interaction at the node controller level.
 type Driver interface {
-	Type() node.DriverType
+	Type() state.DriverType
 	// Start a process for the given AppInstallation tagged with the given ID
-	StartProcess(context.Context, node.ProcessID, *node.AppInstallation) error
+	StartProcess(context.Context, state.ProcessID, *state.AppInstallation) error
 	// Stop the process according to the given ID
-	StopProcess(context.Context, node.ProcessID) error
+	StopProcess(context.Context, state.ProcessID) error
 	// Returns whether the given process is currently running and a non-nil error if that cannot be determined
-	IsRunning(context.Context, node.ProcessID) (bool, error)
+	IsRunning(context.Context, state.ProcessID) (bool, error)
 	// Returns all running process or a non-nil error if that information cannot be extracted
-	ListRunningProcesses(context.Context) ([]node.ProcessID, error)
+	ListRunningProcesses(context.Context) ([]state.ProcessID, error)
 }
 
 type noopDriver struct {
-	driverType node.DriverType
+	driverType state.DriverType
 }
 
-func NewNoopDriver(driverType node.DriverType) Driver {
+func NewNoopDriver(driverType state.DriverType) Driver {
 	return &noopDriver{driverType: driverType}
 }
 
-func (d *noopDriver) Type() node.DriverType {
-	return node.DriverTypeNoop
+func (d *noopDriver) Type() state.DriverType {
+	return state.DriverTypeNoop
 }
 
-func (d *noopDriver) StartProcess(context.Context, node.ProcessID, *node.AppInstallation) error {
+func (d *noopDriver) StartProcess(context.Context, state.ProcessID, *state.AppInstallation) error {
 	return nil
 }
 
-func (d *noopDriver) StopProcess(context.Context, node.ProcessID) error {
+func (d *noopDriver) StopProcess(context.Context, state.ProcessID) error {
 	return nil
 }
 
-func (d *noopDriver) IsRunning(context.Context, node.ProcessID) (bool, error) {
+func (d *noopDriver) IsRunning(context.Context, state.ProcessID) (bool, error) {
 	// No-op driver doesn't do anything so any given process ID is "never running" from its perspective
 	return false, nil
 }
 
-func (d *noopDriver) ListRunningProcesses(context.Context) ([]node.ProcessID, error) {
+func (d *noopDriver) ListRunningProcesses(context.Context) ([]state.ProcessID, error) {
 	// No-op driver doesn't do anything so there are no "running" processes from its perspective
-	return []node.ProcessID{}, nil
+	return []state.ProcessID{}, nil
 }

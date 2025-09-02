@@ -7,7 +7,8 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/eagraf/habitat-new/core/state/node"
+	node_state "github.com/eagraf/habitat-new/internal/node/state"
+
 	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/rs/zerolog/log"
 )
@@ -52,15 +53,15 @@ func NewPackageManager(client *client.Client) package_manager.PackageManager {
 	}
 }
 
-func (d *dockerPackageManager) Driver() node.DriverType {
-	return node.DriverTypeDocker
+func (d *dockerPackageManager) Driver() node_state.DriverType {
+	return node_state.DriverTypeDocker
 }
 
-func repoURLFromPackage(packageSpec *node.Package) string {
+func repoURLFromPackage(packageSpec *node_state.Package) string {
 	return fmt.Sprintf("%s/%s:%s", packageSpec.RegistryURLBase, packageSpec.RegistryPackageID, packageSpec.RegistryPackageTag)
 }
 
-func (m *dockerPackageManager) IsInstalled(packageSpec *node.Package, version string) (bool, error) {
+func (m *dockerPackageManager) IsInstalled(packageSpec *node_state.Package, version string) (bool, error) {
 	// TODO review all contexts we create.
 	repoURL := repoURLFromPackage(packageSpec)
 	images, err := m.client.ImageList(context.Background(), types.ImageListOptions{
@@ -74,8 +75,8 @@ func (m *dockerPackageManager) IsInstalled(packageSpec *node.Package, version st
 	return len(images) > 0, nil
 }
 
-func (m *dockerPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
-	if packageSpec.Driver != node.DriverTypeDocker {
+func (m *dockerPackageManager) InstallPackage(packageSpec *node_state.Package, version string) error {
+	if packageSpec.Driver != node_state.DriverTypeDocker {
 		return fmt.Errorf("invalid package driver: %s, expected docker", packageSpec.Driver)
 	}
 
@@ -89,7 +90,7 @@ func (m *dockerPackageManager) InstallPackage(packageSpec *node.Package, version
 	return nil
 }
 
-func (m *dockerPackageManager) UninstallPackage(packageURL *node.Package, version string) error {
+func (m *dockerPackageManager) UninstallPackage(packageURL *node_state.Package, version string) error {
 	repoURL := repoURLFromPackage(packageURL)
 	_, err := m.client.ImageRemove(context.Background(), repoURL, types.ImageRemoveOptions{})
 	if err != nil {
@@ -98,7 +99,7 @@ func (m *dockerPackageManager) UninstallPackage(packageURL *node.Package, versio
 	return nil
 }
 
-func (m *dockerPackageManager) RestoreFromState(ctx context.Context, apps map[string]*node.AppInstallation) error {
+func (m *dockerPackageManager) RestoreFromState(ctx context.Context, apps map[string]*node_state.AppInstallation) error {
 	var err error
 	for _, app := range apps {
 		if app.Driver == m.Driver() {

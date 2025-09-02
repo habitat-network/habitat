@@ -4,14 +4,14 @@ import (
 	"net/http/httputil"
 	"testing"
 
-	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/node/state"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetHandlerFromRule(t *testing.T) {
-	redirectRule := &node.ReverseProxyRule{
+	redirectRule := &state.ReverseProxyRule{
 		ID:     "redirect1",
-		Type:   node.ProxyRuleRedirect,
+		Type:   state.ProxyRuleRedirect,
 		Target: "http://fake-target/api",
 	}
 

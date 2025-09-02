@@ -1,34 +1,16 @@
-package node
+package state
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/eagraf/habitat-new/internal/node/constants"
-	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/google/uuid"
-	"github.com/qri-io/jsonschema"
 )
 
-const SchemaName = "node"
-const CurrentVersion = "v0.0.8"
-const LatestVersion = "v0.0.8"
-
-// This paackage contains core structs for the node state. These are intended to be embedable in other structs
-// throughout the application. That way, it's easy to modify the core struct, while having
-// the component specific structs to be decoupled. Fields in these structs should be immutable.
-
-// TODO to make these truly immutable, only methods should be exported, all fields should be private.
-
-//go:embed schema/schema.json
-var nodeSchemaRaw string
-
 // TODO structs defined here can embed the immutable structs, but also include mutable fields.
-
-type State struct {
+type NodeState struct {
 	NodeID        string           `json:"node_id"`
 	Name          string           `json:"name"`
 	Certificate   string           `json:"certificate"` // TODO turn this into b64
@@ -41,7 +23,7 @@ type State struct {
 	ReverseProxyRules map[string]*ReverseProxyRule `json:"reverse_proxy_rules"`
 }
 
-func NewStateForLatestVersion() (*State, error) {
+func NewStateForLatestVersion() (*NodeState, error) {
 	initState, err := GetEmptyStateForVersion(LatestVersion)
 	if err != nil {
 		return nil, err
@@ -56,16 +38,11 @@ type User struct {
 	DID      string `json:"atproto_did,omitempty"`
 }
 
-func (s *State) Schema() hdb.Schema {
-	ns := &NodeSchema{}
-	return ns
-}
-
-func (s *State) Bytes() ([]byte, error) {
+func (s *NodeState) Bytes() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-func (s *State) String() string {
+func (s *NodeState) String() string {
 	bytes, err := s.Bytes()
 	if err != nil {
 		return "Error in s.Bytes()"
@@ -73,7 +50,7 @@ func (s *State) String() string {
 	return string(bytes)
 }
 
-func (s *State) GetAppByID(appID string) (*AppInstallation, error) {
+func (s *NodeState) GetAppByID(appID string) (*AppInstallation, error) {
 	app, ok := s.AppInstallations[appID]
 	if !ok {
 		return nil, fmt.Errorf("app with ID %s not found", appID)
@@ -81,7 +58,7 @@ func (s *State) GetAppByID(appID string) (*AppInstallation, error) {
 	return app, nil
 }
 
-func (s *State) GetAppsForUser(userID string) ([]*AppInstallation, error) {
+func (s *NodeState) GetAppsForUser(userID string) ([]*AppInstallation, error) {
 	apps := make([]*AppInstallation, 0)
 	for _, app := range s.AppInstallations {
 		if app.UserID == userID {
@@ -91,7 +68,7 @@ func (s *State) GetAppsForUser(userID string) ([]*AppInstallation, error) {
 	return apps, nil
 }
 
-func (s *State) GetProcessesForUser(userID string) ([]*Process, error) {
+func (s *NodeState) GetProcessesForUser(userID string) ([]*Process, error) {
 	procs := make([]*Process, 0)
 	for _, proc := range s.Processes {
 		if proc.UserID == userID {
@@ -101,7 +78,7 @@ func (s *State) GetProcessesForUser(userID string) ([]*Process, error) {
 	return procs, nil
 }
 
-func (s State) GetReverseProxyRulesForProcess(processID ProcessID) ([]*ReverseProxyRule, error) {
+func (s *NodeState) GetReverseProxyRulesForProcess(processID ProcessID) ([]*ReverseProxyRule, error) {
 	process, ok := s.Processes[ProcessID(processID)]
 	if !ok {
 		return nil, fmt.Errorf("process with ID %s not found", processID)
@@ -119,7 +96,7 @@ func (s State) GetReverseProxyRulesForProcess(processID ProcessID) ([]*ReversePr
 	return rules, nil
 }
 
-func (s *State) SetRootUserCert(rootUserCert string) {
+func (s *NodeState) SetRootUserCert(rootUserCert string) {
 	// TODO this is basically a placeholder until we actually have a way of generating
 	// the certificate for the node.
 	s.Users[constants.RootUserID] = &User{
@@ -128,12 +105,12 @@ func (s *State) SetRootUserCert(rootUserCert string) {
 	}
 }
 
-func (s *State) Copy() (*State, error) {
+func (s *NodeState) Copy() (*NodeState, error) {
 	marshaled, err := s.Bytes()
 	if err != nil {
 		return nil, err
 	}
-	var copy State
+	var copy NodeState
 	err = json.Unmarshal(marshaled, &copy)
 	if err != nil {
 		return nil, err
@@ -141,11 +118,10 @@ func (s *State) Copy() (*State, error) {
 	return &copy, nil
 }
 
-func (s *State) Validate() error {
+func (s *NodeState) Validate() error {
 	schemaVersion := s.SchemaVersion
 
-	ns := &NodeSchema{}
-	jsonSchema, err := ns.JSONSchemaForVersion(schemaVersion)
+	jsonSchema, err := Schema.JSONSchemaForVersion(schemaVersion)
 	if err != nil {
 		return err
 	}
@@ -165,69 +141,8 @@ func (s *State) Validate() error {
 	return nil
 }
 
-type NodeSchema struct{}
-
-func (s *NodeSchema) Name() string {
-	return SchemaName
-}
-
-func (s *NodeSchema) EmptyState() (hdb.State, error) {
-	return GetEmptyStateForVersion(CurrentVersion)
-
-}
-
-func (s *NodeSchema) Type() reflect.Type {
-	return reflect.TypeOf(&State{})
-}
-
-func (s *NodeSchema) Initialize(initState []byte) (hdb.Transition, error) {
-	var is *State
-	err := json.Unmarshal(initState, &is)
-	if err != nil {
-		return nil, err
-	}
-	is.SchemaVersion = CurrentVersion
-	return CreateInitializationTransition(is), nil
-}
-
-func (s *NodeSchema) JSONSchemaForVersion(version string) (*jsonschema.Schema, error) {
-
-	migrations, err := readSchemaMigrationFiles()
-	if err != nil {
-		return nil, err
-	}
-
-	schema, err := getSchemaVersion(migrations, version)
-	if err != nil {
-		return nil, err
-	}
-	rs := &jsonschema.Schema{}
-	err = json.Unmarshal([]byte(schema), rs)
-	if err != nil {
-		return nil, fmt.Errorf("invalid JSON schema: %s", err)
-	}
-
-	return rs, nil
-}
-
-func (s *NodeSchema) ValidateState(state []byte) error {
-	var stateObj State
-	err := json.Unmarshal(state, &stateObj)
-	if err != nil {
-		return err
-	}
-
-	jsonSchema, err := s.JSONSchemaForVersion(stateObj.SchemaVersion)
-	if err != nil {
-		return err
-	}
-
-	keyErrs, err := jsonSchema.ValidateBytes(context.Background(), state)
-	if err != nil {
-		return err
-	}
-	if len(keyErrs) > 0 {
-		return keyErrs[0]
-	}
-	return nil
+func FromBytes(bytes []byte) (*NodeState, error) {
+	var state NodeState
+	err := json.Unmarshal(bytes, &state)
+	return &state, err
 }

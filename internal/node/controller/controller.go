@@ -2,14 +2,12 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/xrpc"
-	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/hdb"
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
+	node_state "github.com/eagraf/habitat-new/internal/node/state"
 	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/pkg/errors"
@@ -19,9 +17,9 @@ import (
 
 type Controller struct {
 	ctx            context.Context
-	db             hdb.Client
+	db             node_state.Client
 	processManager process.ProcessManager
-	pkgManagers    map[node.DriverType]package_manager.PackageManager
+	pkgManagers    map[node_state.DriverType]package_manager.PackageManager
 	proxyServer    *reverse_proxy.ProxyServer
 	pdsURL         string
 }
@@ -29,15 +27,15 @@ type Controller struct {
 func NewController(
 	ctx context.Context,
 	processManager process.ProcessManager,
-	pkgManagers map[node.DriverType]package_manager.PackageManager,
-	db hdb.Client,
+	pkgManagers map[node_state.DriverType]package_manager.PackageManager,
+	db node_state.Client,
 	proxyServer *reverse_proxy.ProxyServer,
 	pdsURL string,
 ) (*Controller, error) {
 	// Validate types of all input components
-	_, ok := processManager.(node.Component[process.RestoreInfo])
+	_, ok := processManager.(node_state.Component[process.RestoreInfo])
 	if !ok {
-		return nil, fmt.Errorf("Process manager of type %T does not implement Component[*node.Process]", processManager)
+		return nil, fmt.Errorf("Process manager of type %T does not implement Component[*node_state.Process]", processManager)
 	}
 
 	ctrl := &Controller{
@@ -52,13 +50,8 @@ func NewController(
 	return ctrl, nil
 }
 
-func (c *Controller) getNodeState() (*node.State, error) {
-	var nodeState node.State
-	err := json.Unmarshal(c.db.Bytes(), &nodeState)
-	if err != nil {
-		return nil, err
-	}
-	return &nodeState, nil
+func (c *Controller) getNodeState() (*node_state.NodeState, error) {
+	return c.db.State()
 }
 
 func (c *Controller) startProcess(installationID string) error {
@@ -72,29 +65,28 @@ func (c *Controller) startProcess(installationID string) error {
 		return fmt.Errorf("app with ID %s not found", installationID)
 	}
 
-	transition, id, err := node.CreateProcessStartTransition(installationID, state)
+	transition, id, err := node_state.CreateProcessStartTransition(installationID, state)
 	if err != nil {
 		return errors.Wrap(err, "error creating transition")
 	}
 
-	newJSONState, err := c.db.ProposeTransitions([]hdb.Transition{transition})
+	_, err = c.db.ProposeTransitions([]node_state.Transition{transition})
 	if err != nil {
 		return errors.Wrap(err, "error proposing transition")
-	}
-
-	var newState node.State
-	err = newJSONState.Unmarshal(&newState)
-	if err != nil {
-		return errors.Wrap(err, "error getting new state")
 	}
 
 	err = c.processManager.StartProcess(c.ctx, id, app)
 	if err != nil {
 		// Rollback the state change if the process start failed
-		_, err = c.db.ProposeTransitions([]hdb.Transition{
-			node.CreateProcessStopTransition(id),
+		_, err = c.db.ProposeTransitions([]node_state.Transition{
+			node_state.CreateProcessStopTransition(id),
 		})
 		return errors.Wrap(err, "error starting process")
+	}
+
+	newState, err := c.db.State()
+	if err != nil {
+		return err
 	}
 
 	// Register with reverse proxy server
@@ -109,31 +101,31 @@ func (c *Controller) startProcess(installationID string) error {
 	return nil
 }
 
-func (c *Controller) stopProcess(processID node.ProcessID) error {
+func (c *Controller) stopProcess(processID node_state.ProcessID) error {
 	procErr := c.processManager.StopProcess(c.ctx, processID)
 	// If there was no process found with this ID, continue with the state transition
 	// Otherwise this action failed, return an error without the transition
 	if procErr != nil && !errors.Is(procErr, process.ErrNoProcFound) {
 		// process.ErrNoProcFound is sometimes expected. In this case, still
-		// attempt to remove the process from the node state.
+		// attempt to remove the process from the node node_state.
 		return procErr
 	}
 
 	// Only propose transitions if the process exists in state
-	_, err := c.db.ProposeTransitions([]hdb.Transition{
-		node.CreateProcessStopTransition(processID),
+	_, err := c.db.ProposeTransitions([]node_state.Transition{
+		node_state.CreateProcessStopTransition(processID),
 	})
 	return err
 }
 
-func (c *Controller) installApp(userID string, pkg *node.Package, version string, name string, proxyRules []*node.ReverseProxyRule, start bool) error {
+func (c *Controller) installApp(userID string, pkg *node_state.Package, version string, name string, proxyRules []*node_state.ReverseProxyRule, start bool) error {
 	installer, ok := c.pkgManagers[pkg.Driver]
 	if !ok {
 		return fmt.Errorf("No driver %s found for app installation [name: %s, version: %s, package: %v]", pkg.Driver, name, version, pkg)
 	}
 
-	transition, id := node.CreateStartInstallationTransition(userID, pkg, version, name, proxyRules)
-	_, err := c.db.ProposeTransitions([]hdb.Transition{
+	transition, id := node_state.CreateStartInstallationTransition(userID, pkg, version, name, proxyRules)
+	_, err := c.db.ProposeTransitions([]node_state.Transition{
 		transition,
 	})
 	if err != nil {
@@ -144,8 +136,8 @@ func (c *Controller) installApp(userID string, pkg *node.Package, version string
 	if err != nil {
 		return err
 	}
-	_, err = c.db.ProposeTransitions([]hdb.Transition{
-		node.CreateFinishInstallationTransition(id),
+	_, err = c.db.ProposeTransitions([]node_state.Transition{
+		node_state.CreateFinishInstallationTransition(id),
 	})
 	if err != nil {
 		return err
@@ -158,8 +150,8 @@ func (c *Controller) installApp(userID string, pkg *node.Package, version string
 }
 
 func (c *Controller) uninstallApp(appID string) error {
-	_, err := c.db.ProposeTransitions([]hdb.Transition{
-		node.CreateUninstallAppTransition(appID),
+	_, err := c.db.ProposeTransitions([]node_state.Transition{
+		node_state.CreateUninstallAppTransition(appID),
 	})
 	return err
 }
@@ -176,8 +168,8 @@ func (c *Controller) addUser(ctx context.Context, input *atproto.ServerCreateAcc
 		return nil, err
 	}
 
-	_, err = c.db.ProposeTransitions([]hdb.Transition{
-		node.CreateAddUserTransition(output.Handle, output.Did),
+	_, err = c.db.ProposeTransitions([]node_state.Transition{
+		node_state.CreateAddUserTransition(output.Handle, output.Did),
 	})
 	if err != nil {
 		return nil, err
@@ -186,23 +178,22 @@ func (c *Controller) addUser(ctx context.Context, input *atproto.ServerCreateAcc
 }
 
 func (c *Controller) migrateDB(targetVersion string) error {
-	var nodeState node.State
-	err := json.Unmarshal(c.db.Bytes(), &nodeState)
+	nodeState, err := c.db.State()
 	if err != nil {
-		return nil
+		return err
 	}
 	// No-op if version is already the target
 	if semver.Compare(nodeState.SchemaVersion, targetVersion) == 0 {
 		return nil
 	}
 
-	_, err = c.db.ProposeTransitions([]hdb.Transition{
-		node.CreateMigrationTransition(targetVersion),
+	_, err = c.db.ProposeTransitions([]node_state.Transition{
+		node_state.CreateMigrationTransition(targetVersion),
 	})
 	return err
 }
 
-func (c *Controller) restore(state *node.State) error {
+func (c *Controller) restore(state *node_state.NodeState) error {
 	// Restore app installations to desired state
 	for _, pkgManager := range c.pkgManagers {
 		err := pkgManager.RestoreFromState(c.ctx, state.AppInstallations)
@@ -214,14 +205,13 @@ func (c *Controller) restore(state *node.State) error {
 	// Restore reverse proxy rules to the desired state
 	for _, rule := range state.ReverseProxyRules {
 		log.Info().Msgf("Restoring rule %s, matcher: %s", rule.ID, rule.Matcher)
-		err := c.proxyServer.RuleSet.AddRule(rule)
-		if err != nil {
+		if err := c.proxyServer.RuleSet.AddRule(rule); err != nil {
 			log.Error().Msgf("error restoring rule: %s", err)
 		}
 	}
 
 	// Restore processes to the current state
-	info := make(map[node.ProcessID]*node.AppInstallation)
+	info := make(map[node_state.ProcessID]*node_state.AppInstallation)
 	for _, proc := range state.Processes {
 		app, ok := state.AppInstallations[proc.AppID]
 		if !ok {

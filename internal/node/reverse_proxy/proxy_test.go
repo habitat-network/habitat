@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/logging"
+	"github.com/eagraf/habitat-new/internal/node/state"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,26 +40,26 @@ func TestProxy(t *testing.T) {
 
 	// Create proxy server
 	proxy := NewProxyServer(logging.NewLogger(), "default/path")
-	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&state.ReverseProxyRule{
 		ID:      "backend1",
-		Type:    node.ProxyRuleRedirect,
+		Type:    state.ProxyRuleRedirect,
 		Matcher: "/backend1",
 		Target:  redirectedServerURL.String(),
 	})
 	require.Nil(t, err)
 
 	// Test adding naming conflict
-	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&state.ReverseProxyRule{
 		ID:      "backend1",
-		Type:    node.ProxyRuleRedirect,
+		Type:    state.ProxyRuleRedirect,
 		Matcher: "/backend1",
 		Target:  redirectedServerURL.String(),
 	})
 	require.NotNil(t, err)
 
-	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&state.ReverseProxyRule{
 		ID:      "fileserver",
-		Type:    node.ProxyRuleFileServer,
+		Type:    state.ProxyRuleFileServer,
 		Matcher: "/fileserver",
 		Target:  fileDir,
 	})
@@ -115,9 +115,9 @@ func TestProxy(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	// Test the embedded frontend
-	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&state.ReverseProxyRule{
 		ID:      "frontend-rule",
-		Type:    node.ProxyRuleEmbeddedFrontend,
+		Type:    state.ProxyRuleEmbeddedFrontend,
 		Matcher: "",
 	})
 	require.Nil(t, err)
@@ -145,11 +145,11 @@ func TestProxy(t *testing.T) {
 func TestAddRule(t *testing.T) {
 	proxy := &ProxyServer{
 		RuleSet: &RuleSet{
-			rules: make(map[string]*node.ReverseProxyRule),
+			rules: make(map[string]*state.ReverseProxyRule),
 		},
 	}
 
-	err := proxy.RuleSet.AddRule(&node.ReverseProxyRule{
+	err := proxy.RuleSet.AddRule(&state.ReverseProxyRule{
 		ID:      "backend1",
 		Type:    "redirect",
 		Matcher: "/backend1",
@@ -157,9 +157,9 @@ func TestAddRule(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 1, len(proxy.RuleSet.rules))
-	require.Equal(t, node.ProxyRuleRedirect, proxy.RuleSet.rules["backend1"].Type)
+	require.Equal(t, state.ProxyRuleRedirect, proxy.RuleSet.rules["backend1"].Type)
 
-	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&state.ReverseProxyRule{
 		ID:      "backend2",
 		Type:    "file",
 		Matcher: "/backend2",
@@ -167,10 +167,10 @@ func TestAddRule(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 2, len(proxy.RuleSet.rules))
-	require.Equal(t, node.ProxyRuleFileServer, proxy.RuleSet.rules["backend2"].Type)
+	require.Equal(t, state.ProxyRuleFileServer, proxy.RuleSet.rules["backend2"].Type)
 
 	// Test unknown rule
-	err = proxy.RuleSet.AddRule(&node.ReverseProxyRule{
+	err = proxy.RuleSet.AddRule(&state.ReverseProxyRule{
 		ID:      "backend3",
 		Type:    "unknown",
 		Matcher: "/backend3",

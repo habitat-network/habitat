@@ -1,4 +1,4 @@
-package node
+package state
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// TODO: move these types to internal/process
 type ProcessID string
 
 func NewProcessID(driver DriverType) ProcessID {

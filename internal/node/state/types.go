@@ -1,20 +1,11 @@
-package hdb
+package state
 
 import (
 	"encoding/json"
-	"reflect"
 )
 
 // Aliases for serialized types.
 type SerializedState []byte
-
-type Schema interface {
-	Name() string
-	EmptyState() (State, error)
-	Type() reflect.Type
-	Initialize(initState []byte) (Transition, error)
-	ValidateState(state []byte) error
-}
 
 type TransitionWrapper struct {
 	Type       TransitionType `json:"type"`
@@ -61,27 +52,9 @@ func WrapTransition(t Transition, patch []byte, oldState SerializedState) (*Tran
 	}, nil
 }
 
-type State interface {
-	Schema() Schema
-	Bytes() ([]byte, error)
-	Validate() error
-}
-
-func StateToJSONState(state State) (*JSONState, error) {
-	stateBytes, err := state.Bytes()
-	if err != nil {
-		return nil, err
-	}
-	jsonState, err := NewJSONState(state.Schema(), stateBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return jsonState, nil
-}
-
-// An hdb.Client can transition a CRDT JSONState to a new result and also get the current state via Bytes()
+// An state.Client can transition a CRDT JSONState to a new result and also get the current state via Bytes()
 type Client interface {
-	ProposeTransitions(transitions []Transition) (*JSONState, error)
-	Bytes() []byte
+	ProposeTransitions(transitions []Transition) (SerializedState, error)
+	State() (*NodeState, error)
+	Bytes() (SerializedState, error)
 }

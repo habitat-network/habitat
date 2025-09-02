@@ -3,13 +3,14 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/api/atproto"
-	types "github.com/eagraf/habitat-new/core/api"
-	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/api"
+	node_state "github.com/eagraf/habitat-new/internal/node/state"
+
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -21,7 +22,7 @@ type CtrlServer struct {
 func NewCtrlServer(
 	ctx context.Context,
 	inner *Controller,
-	state *node.State,
+	state *node_state.NodeState,
 ) (*CtrlServer, error) {
 	err := inner.restore(state)
 	if err != nil {
@@ -47,6 +48,7 @@ func (s *CtrlServer) StartProcess(w http.ResponseWriter, r *http.Request) {
 
 	err = s.inner.startProcess(req.AppInstallationID)
 	if err != nil {
+		fmt.Println("Got error", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -55,7 +57,7 @@ func (s *CtrlServer) StartProcess(w http.ResponseWriter, r *http.Request) {
 }
 
 type StopProcessRequest struct {
-	ProcessID node.ProcessID `json:"process_id"`
+	ProcessID node_state.ProcessID `json:"process_id"`
 }
 
 func (s *CtrlServer) StopProcess(w http.ResponseWriter, r *http.Request) {
@@ -92,8 +94,8 @@ func (s *CtrlServer) ListProcesses(w http.ResponseWriter, r *http.Request) {
 }
 
 type InstallAppRequest struct {
-	AppInstallation   *node.AppInstallation    `json:"app_installation" yaml:"app_installation"`
-	ReverseProxyRules []*node.ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
+	AppInstallation   *node_state.AppInstallation    `json:"app_installation" yaml:"app_installation"`
+	ReverseProxyRules []*node_state.ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
 	StartAfterInstall bool
 }
 
@@ -221,15 +223,20 @@ type GetDatabaseResponse struct {
 
 func (s *CtrlServer) GetNode(w http.ResponseWriter, r *http.Request) {
 	db := s.inner.db
-	stateBytes := db.Bytes()
+	stateBytes, err := db.Bytes()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	var stateMap map[string]interface{}
-	err := json.Unmarshal(stateBytes, &stateMap)
+	err = json.Unmarshal(stateBytes, &stateMap)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	resp := types.GetDatabaseResponse{
+	resp := GetDatabaseResponse{
 		State: stateMap,
 	}
 

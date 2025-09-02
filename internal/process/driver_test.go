@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/node/state"
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNoopDriver(t *testing.T) {
-	driver := process.NewNoopDriver(node.DriverTypeNoop)
-	require.Equal(t, node.DriverTypeNoop, driver.Type())
+	driver := process.NewNoopDriver(state.DriverTypeNoop)
+	require.Equal(t, state.DriverTypeNoop, driver.Type())
 	err := driver.StartProcess(context.Background(), "my-id", nil)
 	require.NoError(t, err)
 	err = driver.StopProcess(context.Background(), "my-id")

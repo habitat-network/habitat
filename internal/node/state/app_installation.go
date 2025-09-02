@@ -1,4 +1,4 @@
-package node
+package state
 
 import (
 	"github.com/docker/docker/api/types/mount"

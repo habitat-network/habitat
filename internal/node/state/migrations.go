@@ -1,4 +1,4 @@
-package node
+package state
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 
 // TODO factor this out to be reusable across schemas
 
-//go:embed migrations/*
+//go:embed *
 var migrationsDir embed.FS
 
 type JSONPatch struct {
@@ -199,7 +199,7 @@ func (m MigrationsList) GetNeededMigrations(currentVersion, targetVersion string
 	return migrations, nil
 }
 
-func (m MigrationsList) GetMigrationPatch(currentVersion, targetVersion string, startState *State) (jsondiff.Patch, error) {
+func (m MigrationsList) GetMigrationPatch(currentVersion, targetVersion string, startState *NodeState) (jsondiff.Patch, error) {
 	migrations, err := m.GetNeededMigrations(currentVersion, targetVersion)
 	if err != nil {
 		return nil, err
@@ -241,8 +241,8 @@ func (m MigrationsList) GetMigrationPatch(currentVersion, targetVersion string, 
 type DataMigration interface {
 	UpVersion() string
 	DownVersion() string
-	Up(*State) (*State, error)
-	Down(*State) (*State, error)
+	Up(*NodeState) (*NodeState, error)
+	Down(*NodeState) (*NodeState, error)
 }
 
 // basicDataMigration is a simple implementation of DataMigration with some basic helpers.
@@ -251,8 +251,8 @@ type basicDataMigration struct {
 	downVersion string
 
 	// Functions for moving data up and down a version
-	up   func(*State) (*State, error)
-	down func(*State) (*State, error)
+	up   func(*NodeState) (*NodeState, error)
+	down func(*NodeState) (*NodeState, error)
 }
 
 func (m *basicDataMigration) UpVersion() string {
@@ -263,11 +263,11 @@ func (m *basicDataMigration) DownVersion() string {
 	return m.downVersion
 }
 
-func (m *basicDataMigration) Up(state *State) (*State, error) {
+func (m *basicDataMigration) Up(state *NodeState) (*NodeState, error) {
 	return m.up(state)
 }
 
-func (m *basicDataMigration) Down(state *State) (*State, error) {
+func (m *basicDataMigration) Down(state *NodeState) (*NodeState, error) {
 	return m.down(state)
 }
 
@@ -278,15 +278,15 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.1",
 		downVersion: "v0.0.0",
-		up: func(state *State) (*State, error) {
-			return &State{
+		up: func(state *NodeState) (*NodeState, error) {
+			return &NodeState{
 				SchemaVersion:    "v0.0.1",
 				Users:            make(map[string]*User),
 				Processes:        make(map[ProcessID]*Process),
 				AppInstallations: make(map[string]*AppInstallation),
 			}, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			// The first down migration can never be run
 			return nil, nil
 		},
@@ -294,7 +294,7 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.2",
 		downVersion: "v0.0.1",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -302,7 +302,7 @@ var NodeDataMigrations = MigrationsList{
 			newState.TestField = "test"
 			return newState, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -314,7 +314,7 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.3",
 		downVersion: "v0.0.2",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -322,7 +322,7 @@ var NodeDataMigrations = MigrationsList{
 			newState.TestField = ""
 			return newState, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -334,7 +334,7 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.4",
 		downVersion: "v0.0.3",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -345,7 +345,7 @@ var NodeDataMigrations = MigrationsList{
 			newState.ReverseProxyRules = make(map[string]*ReverseProxyRule)
 			return newState, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -360,10 +360,10 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.5",
 		downVersion: "v0.0.4",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			return state, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -377,14 +377,14 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.6",
 		downVersion: "v0.0.5",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
 			}
 			return newState, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -396,14 +396,14 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.7",
 		downVersion: "v0.0.6",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
 			}
 			return newState, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -414,14 +414,14 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.8",
 		downVersion: "v0.0.7",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
 			}
 			return newState, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -432,14 +432,14 @@ var NodeDataMigrations = MigrationsList{
 	&basicDataMigration{
 		upVersion:   "v0.0.9",
 		downVersion: "v0.0.8",
-		up: func(state *State) (*State, error) {
+		up: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
 			}
 			return newState, nil
 		},
-		down: func(state *State) (*State, error) {
+		down: func(state *NodeState) (*NodeState, error) {
 			newState, err := state.Copy()
 			if err != nil {
 				return nil, err
@@ -449,7 +449,7 @@ var NodeDataMigrations = MigrationsList{
 	},
 }
 
-func applyPatchToState(diffPatch jsondiff.Patch, state *State) (*State, error) {
+func applyPatchToState(diffPatch jsondiff.Patch, state *NodeState) (*NodeState, error) {
 	stateBytes, err := state.Bytes()
 	if err != nil {
 		return nil, err
@@ -470,7 +470,7 @@ func applyPatchToState(diffPatch jsondiff.Patch, state *State) (*State, error) {
 		return nil, err
 	}
 
-	var updatedNodeState *State
+	var updatedNodeState *NodeState
 	err = json.Unmarshal(updated, &updatedNodeState)
 	if err != nil {
 		return nil, err
@@ -479,8 +479,8 @@ func applyPatchToState(diffPatch jsondiff.Patch, state *State) (*State, error) {
 	return updatedNodeState, nil
 }
 
-func GetEmptyStateForVersion(version string) (*State, error) {
-	emptyState := &State{}
+func GetEmptyStateForVersion(version string) (*NodeState, error) {
+	emptyState := &NodeState{}
 
 	diffPatch, err := NodeDataMigrations.GetMigrationPatch("v0.0.0", version, emptyState)
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/eagraf/habitat-new/core/state/node"
+	"github.com/eagraf/habitat-new/internal/node/state"
 	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/rs/zerolog/log"
 )
@@ -34,11 +34,11 @@ type BundleInstallationConfig struct {
 	BundleDirectoryName string `json:"bundle_directory_name"` // The directory under $HABITAT_PATH/web/ where the bundle will be extracted into.
 }
 
-func (d *webPackageManager) Driver() node.DriverType {
-	return node.DriverTypeWeb
+func (d *webPackageManager) Driver() state.DriverType {
+	return state.DriverTypeWeb
 }
 
-func (m *webPackageManager) IsInstalled(pkg *node.Package, version string) (bool, error) {
+func (m *webPackageManager) IsInstalled(pkg *state.Package, version string) (bool, error) {
 	// Check for the existence of the bundle directory with the right version.
 	bundleConfig, err := getWebBundleConfigFromPackage(pkg)
 	if err != nil {
@@ -59,8 +59,8 @@ func (m *webPackageManager) IsInstalled(pkg *node.Package, version string) (bool
 
 // Implement the package manager interface
 
-func (m *webPackageManager) InstallPackage(packageSpec *node.Package, version string) error {
-	if packageSpec.Driver != node.DriverTypeWeb {
+func (m *webPackageManager) InstallPackage(packageSpec *state.Package, version string) error {
+	if packageSpec.Driver != state.DriverTypeWeb {
 		return fmt.Errorf("invalid package driver: %s, expected 'web' driver", packageSpec.Driver)
 	}
 
@@ -87,7 +87,7 @@ func (m *webPackageManager) InstallPackage(packageSpec *node.Package, version st
 	return nil
 }
 
-func (m *webPackageManager) UninstallPackage(pkg *node.Package, version string) error {
+func (m *webPackageManager) UninstallPackage(pkg *state.Package, version string) error {
 	bundleConfig, err := getWebBundleConfigFromPackage(pkg)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (m *webPackageManager) UninstallPackage(pkg *node.Package, version string) 
 	return os.RemoveAll(bundlePath)
 }
 
-func (m *webPackageManager) RestoreFromState(ctx context.Context, apps map[string]*node.AppInstallation) error {
+func (m *webPackageManager) RestoreFromState(ctx context.Context, apps map[string]*state.AppInstallation) error {
 	var err error
 	for _, app := range apps {
 		if app.Driver == m.Driver() {
@@ -119,7 +119,7 @@ func (m *webPackageManager) getBundlePath(bundleConfig *BundleInstallationConfig
 	return filepath.Join(m.webBundlePath, bundleConfig.BundleDirectoryName, version)
 }
 
-func getWebBundleConfigFromPackage(pkg *node.Package) (*BundleInstallationConfig, error) {
+func getWebBundleConfigFromPackage(pkg *state.Package) (*BundleInstallationConfig, error) {
 	configBytes, err := json.Marshal(pkg.DriverConfig)
 	if err != nil {
 		return nil, err
