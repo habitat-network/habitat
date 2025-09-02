@@ -12,10 +12,8 @@ const (
 	EnvironmentProd = "prod"
 
 	// Default values
-	RootUsername      = "root"
-	RootUserID        = "0"
-	NodeDBDefaultName = "node"
-
+	RootUsername = "root"
+	RootUserID   = "0"
 	// Request context keys
 	ContextKeyUserID HabitatContextKey = "user_id"
 

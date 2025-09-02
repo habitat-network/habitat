@@ -15,12 +15,12 @@ import (
 )
 
 type CtrlServer struct {
-	inner *Controller2
+	inner *Controller
 }
 
 func NewCtrlServer(
 	ctx context.Context,
-	inner *Controller2,
+	inner *Controller,
 	state *node.State,
 ) (*CtrlServer, error) {
 	err := inner.restore(state)
@@ -87,15 +87,21 @@ func (s *CtrlServer) ListProcesses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := w.Write(bytes); err != nil {
-		log.Err(err).Msgf("error sending response in for ListProcesses request")
+		log.Err(err).Msgf("error sending response in for GetNodeState request")
 	}
+}
+
+type InstallAppRequest struct {
+	AppInstallation   *node.AppInstallation    `json:"app_installation" yaml:"app_installation"`
+	ReverseProxyRules []*node.ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
+	StartAfterInstall bool
 }
 
 func (s *CtrlServer) InstallApp(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 	// TODO: authenticate user
 
-	var req node.InstallAppRequest
+	var req InstallAppRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -224,8 +230,7 @@ func (s *CtrlServer) GetNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := types.GetDatabaseResponse{
-		DatabaseID: db.DatabaseID(),
-		State:      stateMap,
+		State: stateMap,
 	}
 
 	respBody, err := json.Marshal(resp)

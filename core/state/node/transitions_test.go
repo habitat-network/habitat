@@ -302,7 +302,7 @@ func TestAppInstallReverseProxyRules(t *testing.T) {
 				Name:          "New Node",
 				SchemaVersion: LatestVersion,
 				Users: map[string]*User{
-					"123": &User{
+					"123": {
 						Username: "eagraf",
 					},
 				},

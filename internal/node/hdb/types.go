@@ -79,3 +79,9 @@ func StateToJSONState(state State) (*JSONState, error) {
 
 	return jsonState, nil
 }
+
+// An hdb.Client can transition a CRDT JSONState to a new result and also get the current state via Bytes()
+type Client interface {
+	ProposeTransitions(transitions []Transition) (*JSONState, error)
+	Bytes() []byte
+}

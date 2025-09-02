@@ -11,11 +11,9 @@ import (
 
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/eagraf/habitat-new/core/state/node"
-	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/hdb"
 	hdb_mocks "github.com/eagraf/habitat-new/internal/node/hdb/mocks"
 	"github.com/eagraf/habitat-new/internal/package_manager"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -34,9 +32,7 @@ func fakeInitState(rootUserCert, rootUserID, rootUsername string) *node.State {
 	return initState
 }
 
-func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (*hdb_mocks.MockHDBManager, *hdb_mocks.MockClient) {
-
-	mockedManager := hdb_mocks.NewMockHDBManager(ctrl)
+func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) *hdb_mocks.MockClient {
 	mockedClient := hdb_mocks.NewMockClient(ctrl)
 
 	initState := fakeInitState("fake_cert", "fake_user_id", "fake_username")
@@ -44,86 +40,18 @@ func setupNodeDBTest(ctrl *gomock.Controller, t *testing.T) (*hdb_mocks.MockHDBM
 		node.CreateInitializationTransition(initState),
 	}
 
-	// Check that fakeInitState is based off of the config we pass in
-	mockedManager.EXPECT().CreateDatabase(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		// signature of anonymous function must have the same number of input and output arguments as the mocked method.
-		func(ctx context.Context, nodeName, schemaName string, initTransitions []hdb.Transition) (hdb.Client, error) {
-			require.Equal(t, 1, len(initTransitions))
-
-			initStateTransition := initTransitions[0]
-			require.Equal(t, hdb.TransitionInitialize, initStateTransition.Type())
-
-			return mockedClient, nil
-		}).Times(1)
-
-	err := InitializeNodeDB(context.Background(), mockedManager, transitions)
-	require.NoError(t, err)
-
-	return mockedManager, mockedClient
-}
-
-func TestInitializeNodeDB(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	mockedManager, _ := setupNodeDBTest(ctrl, t)
-
-	mockedManager.EXPECT().CreateDatabase(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
-	err := InitializeNodeDB(context.Background(), mockedManager, nil)
-	require.NotNil(t, err)
-
-	mockedManager.EXPECT().CreateDatabase(context.Background(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, &hdb.DatabaseAlreadyExistsError{}).Times(1)
-	err = InitializeNodeDB(context.Background(), mockedManager, nil)
-	require.Nil(t, err)
-}
-
-func TestMigrationController(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	mockedManager, mockClient := setupNodeDBTest(ctrl, t)
-
-	nodeState := &node.State{
-		SchemaVersion: "v0.0.2",
+	mockedClient.EXPECT().ProposeTransitions(transitions)
+	_, err := mockedClient.ProposeTransitions(transitions)
+	if err != nil {
+		t.Fatal(err)
 	}
-	marshaled, err := nodeState.Bytes()
-	assert.Equal(t, nil, err)
-
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockClient, nil).Times(1)
-	mockClient.EXPECT().Bytes().Return(marshaled).Times(1)
-	mockClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			node.CreateMigrationTransition("v0.0.3"),
-		},
-	)).Return(nil, nil).Times(1)
-
-	err = MigrateNodeDB(mockedManager, "v0.0.3")
-	assert.Nil(t, err)
-
-	// Test no-op by migrating to the same version
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockClient, nil).Times(1)
-	mockClient.EXPECT().Bytes().Return(marshaled).Times(1)
-	mockClient.EXPECT().ProposeTransitions(gomock.Any()).Times(0)
-
-	err = MigrateNodeDB(mockedManager, "v0.0.2")
-	assert.Nil(t, err)
-
-	// Test  migrating to a lower version
-
-	mockedManager.EXPECT().GetDatabaseClientByName(constants.NodeDBDefaultName).Return(mockClient, nil).Times(1)
-	mockClient.EXPECT().Bytes().Return(marshaled).Times(1)
-	mockClient.EXPECT().ProposeTransitions(gomock.Eq(
-		[]hdb.Transition{
-			node.CreateMigrationTransition("v0.0.1"),
-		},
-	)).Times(1)
-
-	err = MigrateNodeDB(mockedManager, "v0.0.1")
-	assert.Nil(t, err)
+	return mockedClient
 }
 
 func TestAddUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	_, mockedClient := setupNodeDBTest(ctrl, t)
+	mockedClient := setupNodeDBTest(ctrl, t)
 
 	did := "did"
 	mockPDS := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +68,7 @@ func TestAddUser(t *testing.T) {
 	}))
 	defer mockPDS.Close()
 
-	ctrl2, err := NewController2(context.Background(), fakeProcessManager(), nil, mockedClient, nil, mockPDS.URL)
+	ctrl2, err := NewController(context.Background(), fakeProcessManager(), nil, mockedClient, nil, mockPDS.URL)
 	require.NoError(t, err)
 
 	mockedClient.EXPECT().ProposeTransitions(gomock.Any()).Return(nil, nil).Times(1)
@@ -171,7 +99,7 @@ func TestMigrations(t *testing.T) {
 		schema:    fakestate.Schema(),
 		jsonState: jsonStateFromNodeState(fakestate),
 	}
-	ctrl2, err := NewController2(context.Background(), fakeProcessManager(), nil, db, nil, "fak-pds")
+	ctrl2, err := NewController(context.Background(), fakeProcessManager(), nil, db, nil, "fak-pds")
 	require.NoError(t, err)
 	s, err := NewCtrlServer(context.Background(), ctrl2, fakestate)
 	require.NoError(t, err)
@@ -191,7 +119,7 @@ func TestMigrations(t *testing.T) {
 }
 
 func TestGetNodeState(t *testing.T) {
-	ctrl2, err := NewController2(context.Background(), fakeProcessManager(),
+	ctrl2, err := NewController(context.Background(), fakeProcessManager(),
 		map[node.DriverType]package_manager.PackageManager{
 			node.DriverTypeDocker: &mockPkgManager{
 				installs: make(map[*node.Package]struct{}),

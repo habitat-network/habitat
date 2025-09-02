@@ -54,20 +54,6 @@ func (mr *MockClientMockRecorder) Bytes() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockClient)(nil).Bytes))
 }
 
-// DatabaseID mocks base method.
-func (m *MockClient) DatabaseID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DatabaseID")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// DatabaseID indicates an expected call of DatabaseID.
-func (mr *MockClientMockRecorder) DatabaseID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseID", reflect.TypeOf((*MockClient)(nil).DatabaseID))
-}
-
 // ProposeTransitions mocks base method.
 func (m *MockClient) ProposeTransitions(transitions []hdb.Transition) (*hdb.JSONState, error) {
 	m.ctrl.T.Helper()

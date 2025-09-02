@@ -14,6 +14,7 @@ import (
 
 	"github.com/eagraf/habitat-new/core/state/node"
 	"github.com/eagraf/habitat-new/internal/node/constants"
+	"github.com/eagraf/habitat-new/internal/node/controller"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -233,7 +234,7 @@ func (n *NodeConfig) HabitatAppPath() string {
 }
 
 func (n *NodeConfig) HDBPath() string {
-	return filepath.Join(n.HabitatPath(), "hdb")
+	return filepath.Join(n.HabitatPath(), "hdb", "state")
 }
 
 // WebBundlePath returns the path to the directory where web bundles for various applications are stored.
@@ -379,7 +380,7 @@ func (n *NodeConfig) FrontendDev() bool {
 }
 
 func (n *NodeConfig) DefaultApps() ([]*node.AppInstallation, []*node.ReverseProxyRule, error) {
-	var appRequestsMap map[string]*node.InstallAppRequest
+	var appRequestsMap map[string]*controller.InstallAppRequest
 	err := n.viper.UnmarshalKey("default_apps", &appRequestsMap, viper.DecoderConfigOption(
 		func(decoderConfig *mapstructure.DecoderConfig) {
 			decoderConfig.TagName = "yaml"

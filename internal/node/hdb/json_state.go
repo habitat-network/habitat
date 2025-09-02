@@ -3,16 +3,14 @@ package hdb
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
 )
 
+// JSONState
 type JSONState struct {
 	schema Schema
 	state  []byte
-
-	mu *sync.Mutex
 }
 
 func NewJSONState(schema Schema, initState []byte) (*JSONState, error) {
@@ -24,7 +22,6 @@ func NewJSONState(schema Schema, initState []byte) (*JSONState, error) {
 	return &JSONState{
 		schema: schema,
 		state:  initState,
-		mu:     &sync.Mutex{},
 	}, nil
 }
 
@@ -34,12 +31,7 @@ func (s *JSONState) ApplyPatch(patchJSON []byte) error {
 		return err
 	}
 
-	// only update state if everything worked out
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.state = updated
-
 	return nil
 }
 

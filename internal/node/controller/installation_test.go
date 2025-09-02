@@ -42,7 +42,7 @@ func (m *mockPkgManager) RestoreFromState(context.Context, map[string]*node.AppI
 
 func TestInstallAppController(t *testing.T) {
 	mockDriver := newMockDriver(node.DriverTypeDocker)
-	ctrl2, err := NewController2(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}),
+	ctrl2, err := NewController(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}),
 		map[node.DriverType]package_manager.PackageManager{
 			node.DriverTypeDocker: &mockPkgManager{
 				installs: make(map[*node.Package]struct{}),
@@ -72,7 +72,7 @@ func TestInstallAppController(t *testing.T) {
 	middleware := &test_helpers.TestAuthMiddleware{UserID: "user_1"}
 	handler := middleware.Middleware(http.HandlerFunc(ctrlServer.InstallApp))
 	resp := httptest.NewRecorder()
-	b, err := json.Marshal(&node.InstallAppRequest{
+	b, err := json.Marshal(&InstallAppRequest{
 		AppInstallation: &node.AppInstallation{
 			Name:    "app_name1",
 			Version: "1",

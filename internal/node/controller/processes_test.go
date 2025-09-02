@@ -163,7 +163,7 @@ func TestStartProcessHandler(t *testing.T) {
 	}
 
 	// NewCtrlServer restores the initial state
-	ctrl2, err := NewController2(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}), nil, db, nil, "fake-pds")
+	ctrl2, err := NewController(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}), nil, db, nil, "fake-pds")
 	require.NoError(t, err)
 
 	s, err := NewCtrlServer(context.Background(), ctrl2, state)
@@ -381,7 +381,7 @@ func TestControllerRestoreProcess(t *testing.T) {
 	mockDriver := newMockDriver(node.DriverTypeDocker)
 	pm := process.NewProcessManager([]process.Driver{mockDriver})
 
-	ctrl, err := NewController2(context.Background(), pm, nil, &mockHDB{
+	ctrl, err := NewController(context.Background(), pm, nil, &mockHDB{
 		schema:    state.Schema(),
 		jsonState: jsonStateFromNodeState(state),
 	},

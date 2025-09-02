@@ -37,7 +37,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/eagraf/habitat-new/internal/process"
-	"github.com/eagraf/habitat-new/internal/pubsub"
 	"github.com/eagraf/habitat-new/internal/web"
 	"github.com/gorilla/sessions"
 
@@ -55,18 +54,6 @@ func main() {
 	logger := logging.NewLogger()
 	zerolog.SetGlobalLevel(nodeConfig.LogLevel())
 
-	hdbPublisher := pubsub.NewSimplePublisher[hdb.StateUpdate]()
-	db, dbClose, err := hdbms.NewHabitatDB(
-		context.Background(),
-		logger,
-		hdbPublisher,
-		nodeConfig.HDBPath(),
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msg("error creating habitat db")
-	}
-	defer dbClose()
-
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create docker client")
@@ -76,7 +63,6 @@ func main() {
 	)
 
 	// Initialize package managers
-	stateLogger := hdbms.NewStateUpdateLogger(logger)
 	pkgManagers := map[node.DriverType]package_manager.PackageManager{
 		node.DriverTypeDocker: docker.NewPackageManager(dockerClient),
 		node.DriverTypeWeb:    web.NewPackageManager(nodeConfig.WebBundlePath()),
@@ -93,15 +79,6 @@ func main() {
 
 	// egCtx is cancelled if any function called with eg.Go() returns an error.
 	eg, egCtx := errgroup.WithContext(ctx)
-
-	stateUpdates := pubsub.NewSimpleChannel(
-		[]pubsub.Publisher[hdb.StateUpdate]{hdbPublisher},
-		[]pubsub.Subscriber[hdb.StateUpdate]{stateLogger},
-	)
-
-	eg.Go(func() error {
-		return stateUpdates.Listen()
-	})
 
 	// Generate the list of default proxy rules to have available when the node first comes up
 	proxyRules, err := generateDefaultReverseProxyRules(nodeConfig)
@@ -124,9 +101,9 @@ func main() {
 		log.Fatal().Err(err).Msg("unable to do initial node transitions")
 	}
 
-	err = controller.InitializeNodeDB(egCtx, db.Manager, initialTransitions)
+	db, err := hdbms.NewHabitatDB(nodeConfig.HDBPath(), initialTransitions)
 	if err != nil {
-		log.Fatal().Err(err).Msg("error initializing node db")
+		log.Fatal().Err(err).Msg("error creating habitat db")
 	}
 
 	// Set up the reverse proxy server
@@ -164,21 +141,16 @@ func main() {
 		server.WithListener(ln),
 	))
 
-	dbClient, err := db.Manager.GetDatabaseClientByName(constants.NodeDBDefaultName)
-	if err != nil {
-		log.Fatal().Err(err).Msg("error getting default HDB client")
-	}
-
-	ctrl2, err := controller.NewController2(
+	ctrl2, err := controller.NewController(
 		ctx,
 		pm,
 		pkgManagers,
-		dbClient,
+		db,
 		proxy,
 		"http://"+constants.DefaultPDSHostname,
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msg("error creating node Controller2")
+		log.Fatal().Err(err).Msg("error creating node controller")
 	}
 	ctrlServer, err := controller.NewCtrlServer(ctx, ctrl2, initState)
 	if err != nil {

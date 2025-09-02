@@ -23,13 +23,6 @@ type AppInstallation struct {
 	*Package `yaml:",inline"`
 }
 
-// InstallAppRequest represents a request to install an application
-type InstallAppRequest struct {
-	AppInstallation   *AppInstallation    `json:"app_installation" yaml:"app_installation"`
-	ReverseProxyRules []*ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
-	StartAfterInstall bool
-}
-
 // AppInstallationConfig is a struct to hold the configuration for a docker container
 // Most of these types are taken directly from the Docker Go SDK
 type AppInstallationConfig struct {

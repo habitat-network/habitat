@@ -17,7 +17,7 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-type Controller2 struct {
+type Controller struct {
 	ctx            context.Context
 	db             hdb.Client
 	processManager process.ProcessManager
@@ -26,21 +26,21 @@ type Controller2 struct {
 	pdsURL         string
 }
 
-func NewController2(
+func NewController(
 	ctx context.Context,
 	processManager process.ProcessManager,
 	pkgManagers map[node.DriverType]package_manager.PackageManager,
 	db hdb.Client,
 	proxyServer *reverse_proxy.ProxyServer,
 	pdsURL string,
-) (*Controller2, error) {
+) (*Controller, error) {
 	// Validate types of all input components
 	_, ok := processManager.(node.Component[process.RestoreInfo])
 	if !ok {
 		return nil, fmt.Errorf("Process manager of type %T does not implement Component[*node.Process]", processManager)
 	}
 
-	ctrl := &Controller2{
+	ctrl := &Controller{
 		ctx:            ctx,
 		processManager: processManager,
 		pkgManagers:    pkgManagers,
@@ -52,7 +52,7 @@ func NewController2(
 	return ctrl, nil
 }
 
-func (c *Controller2) getNodeState() (*node.State, error) {
+func (c *Controller) getNodeState() (*node.State, error) {
 	var nodeState node.State
 	err := json.Unmarshal(c.db.Bytes(), &nodeState)
 	if err != nil {
@@ -61,7 +61,7 @@ func (c *Controller2) getNodeState() (*node.State, error) {
 	return &nodeState, nil
 }
 
-func (c *Controller2) startProcess(installationID string) error {
+func (c *Controller) startProcess(installationID string) error {
 	state, err := c.getNodeState()
 	if err != nil {
 		return fmt.Errorf("error getting node state: %s", err.Error())
@@ -109,7 +109,7 @@ func (c *Controller2) startProcess(installationID string) error {
 	return nil
 }
 
-func (c *Controller2) stopProcess(processID node.ProcessID) error {
+func (c *Controller) stopProcess(processID node.ProcessID) error {
 	procErr := c.processManager.StopProcess(c.ctx, processID)
 	// If there was no process found with this ID, continue with the state transition
 	// Otherwise this action failed, return an error without the transition
@@ -126,7 +126,7 @@ func (c *Controller2) stopProcess(processID node.ProcessID) error {
 	return err
 }
 
-func (c *Controller2) installApp(userID string, pkg *node.Package, version string, name string, proxyRules []*node.ReverseProxyRule, start bool) error {
+func (c *Controller) installApp(userID string, pkg *node.Package, version string, name string, proxyRules []*node.ReverseProxyRule, start bool) error {
 	installer, ok := c.pkgManagers[pkg.Driver]
 	if !ok {
 		return fmt.Errorf("No driver %s found for app installation [name: %s, version: %s, package: %v]", pkg.Driver, name, version, pkg)
@@ -157,14 +157,14 @@ func (c *Controller2) installApp(userID string, pkg *node.Package, version strin
 	return nil
 }
 
-func (c *Controller2) uninstallApp(appID string) error {
+func (c *Controller) uninstallApp(appID string) error {
 	_, err := c.db.ProposeTransitions([]hdb.Transition{
 		node.CreateUninstallAppTransition(appID),
 	})
 	return err
 }
 
-func (c *Controller2) addUser(ctx context.Context, input *atproto.ServerCreateAccount_Input) (*atproto.ServerCreateAccount_Output, error) {
+func (c *Controller) addUser(ctx context.Context, input *atproto.ServerCreateAccount_Input) (*atproto.ServerCreateAccount_Output, error) {
 	output, err := atproto.ServerCreateAccount(
 		ctx,
 		&xrpc.Client{
@@ -185,7 +185,7 @@ func (c *Controller2) addUser(ctx context.Context, input *atproto.ServerCreateAc
 	return output, nil
 }
 
-func (c *Controller2) migrateDB(targetVersion string) error {
+func (c *Controller) migrateDB(targetVersion string) error {
 	var nodeState node.State
 	err := json.Unmarshal(c.db.Bytes(), &nodeState)
 	if err != nil {
@@ -202,7 +202,7 @@ func (c *Controller2) migrateDB(targetVersion string) error {
 	return err
 }
 
-func (c *Controller2) restore(state *node.State) error {
+func (c *Controller) restore(state *node.State) error {
 	// Restore app installations to desired state
 	for _, pkgManager := range c.pkgManagers {
 		err := pkgManager.RestoreFromState(c.ctx, state.AppInstallations)
