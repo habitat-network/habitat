@@ -6,10 +6,11 @@ import (
 
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/xrpc"
+	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	node_state "github.com/eagraf/habitat-new/internal/node/state"
-	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/eagraf/habitat-new/internal/process"
+	"github.com/eagraf/habitat-new/internal/types"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/mod/semver"
@@ -19,7 +20,7 @@ type Controller struct {
 	ctx            context.Context
 	db             node_state.Client
 	processManager process.ProcessManager
-	pkgManagers    map[node_state.DriverType]package_manager.PackageManager
+	pkgManagers    map[app.DriverType]app.PackageManager
 	proxyServer    *reverse_proxy.ProxyServer
 	pdsURL         string
 }
@@ -27,15 +28,15 @@ type Controller struct {
 func NewController(
 	ctx context.Context,
 	processManager process.ProcessManager,
-	pkgManagers map[node_state.DriverType]package_manager.PackageManager,
+	pkgManagers map[app.DriverType]app.PackageManager,
 	db node_state.Client,
 	proxyServer *reverse_proxy.ProxyServer,
 	pdsURL string,
 ) (*Controller, error) {
 	// Validate types of all input components
-	_, ok := processManager.(node_state.Component[process.RestoreInfo])
+	_, ok := processManager.(types.Component[process.RestoreInfo])
 	if !ok {
-		return nil, fmt.Errorf("Process manager of type %T does not implement Component[*node_state.Process]", processManager)
+		return nil, fmt.Errorf("Process manager of type %T does not implement Component[*process.]", processManager)
 	}
 
 	ctrl := &Controller{
@@ -101,7 +102,7 @@ func (c *Controller) startProcess(installationID string) error {
 	return nil
 }
 
-func (c *Controller) stopProcess(processID node_state.ProcessID) error {
+func (c *Controller) stopProcess(processID process.ID) error {
 	procErr := c.processManager.StopProcess(c.ctx, processID)
 	// If there was no process found with this ID, continue with the state transition
 	// Otherwise this action failed, return an error without the transition
@@ -118,7 +119,7 @@ func (c *Controller) stopProcess(processID node_state.ProcessID) error {
 	return err
 }
 
-func (c *Controller) installApp(userID string, pkg *node_state.Package, version string, name string, proxyRules []*node_state.ReverseProxyRule, start bool) error {
+func (c *Controller) installApp(userID string, pkg *app.Package, version string, name string, proxyRules []*reverse_proxy.Rule, start bool) error {
 	installer, ok := c.pkgManagers[pkg.Driver]
 	if !ok {
 		return fmt.Errorf("No driver %s found for app installation [name: %s, version: %s, package: %v]", pkg.Driver, name, version, pkg)
@@ -211,7 +212,7 @@ func (c *Controller) restore(state *node_state.NodeState) error {
 	}
 
 	// Restore processes to the current state
-	info := make(map[node_state.ProcessID]*node_state.AppInstallation)
+	info := make(map[process.ID]*app.Installation)
 	for _, proc := range state.Processes {
 		app, ok := state.AppInstallations[proc.AppID]
 		if !ok {

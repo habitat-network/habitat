@@ -10,7 +10,7 @@ import (
 
 	"github.com/eagraf/habitat-new/internal/node/constants"
 	"github.com/eagraf/habitat-new/internal/node/controller"
-	node_state "github.com/eagraf/habitat-new/internal/node/state"
+	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -93,7 +93,7 @@ func stopProcess() *cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			url := fmt.Sprintf("http://localhost:%s/node/processes/stop", port)
-			req.ProcessID = node_state.ProcessID(id)
+			req.ProcessID = process.ID(id)
 			marshalled, err := json.Marshal(req)
 			if err != nil {
 				return err

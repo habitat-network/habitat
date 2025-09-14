@@ -12,7 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/node/api"
+	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	node_state "github.com/eagraf/habitat-new/internal/node/state"
 
 	"github.com/eagraf/habitat-new/internal/node/api/test_helpers"
@@ -25,35 +27,35 @@ import (
 // mock process driver for tests
 type entry struct {
 	isStart bool
-	id      node_state.ProcessID
+	id      process.ID
 }
 
 type mockDriver struct {
 	returnErr error
 	log       []entry
-	running   map[node_state.ProcessID]struct{} // presence indicates process is running
-	name      node_state.DriverType
+	running   map[process.ID]struct{} // presence indicates process is running
+	name      app.DriverType
 }
 
 var _ process.Driver = &mockDriver{}
 
-func newMockDriver(driver node_state.DriverType) *mockDriver {
+func newMockDriver(driver app.DriverType) *mockDriver {
 	return &mockDriver{
 		name:    driver,
-		running: make(map[node_state.ProcessID]struct{}),
+		running: make(map[process.ID]struct{}),
 	}
 }
 
-func (d *mockDriver) Type() node_state.DriverType {
+func (d *mockDriver) Type() app.DriverType {
 	return d.name
 }
 
 func fakeProcessManager() process.ProcessManager {
-	mockDriver := newMockDriver(node_state.DriverTypeDocker)
+	mockDriver := newMockDriver(app.DriverTypeDocker)
 	return process.NewProcessManager([]process.Driver{mockDriver})
 }
 
-func (d *mockDriver) StartProcess(ctx context.Context, processID node_state.ProcessID, app *node_state.AppInstallation) error {
+func (d *mockDriver) StartProcess(ctx context.Context, processID process.ID, app *app.Installation) error {
 	if d.returnErr != nil {
 		return d.returnErr
 	}
@@ -62,7 +64,7 @@ func (d *mockDriver) StartProcess(ctx context.Context, processID node_state.Proc
 	return nil
 }
 
-func (d *mockDriver) StopProcess(ctx context.Context, processID node_state.ProcessID) error {
+func (d *mockDriver) StopProcess(ctx context.Context, processID process.ID) error {
 	if d.returnErr != nil {
 		return d.returnErr
 	}
@@ -71,30 +73,30 @@ func (d *mockDriver) StopProcess(ctx context.Context, processID node_state.Proce
 	return nil
 }
 
-func (d *mockDriver) IsRunning(ctx context.Context, id node_state.ProcessID) (bool, error) {
+func (d *mockDriver) IsRunning(ctx context.Context, id process.ID) (bool, error) {
 	_, ok := d.running[id]
 	return ok, nil
 }
 
 // Returns all running process or a non-nil error if that information cannot be extracted
-func (d *mockDriver) ListRunningProcesses(context.Context) ([]node_state.ProcessID, error) {
+func (d *mockDriver) ListRunningProcesses(context.Context) ([]process.ID, error) {
 	return maps.Keys(d.running), nil
 }
 
 var (
-	proc1 = &node_state.Process{
+	proc1 = &process.Process{
 		ID:    "proc1",
 		AppID: "app1",
 	}
-	proc2 = &node_state.Process{
+	proc2 = &process.Process{
 		ID:    "proc2",
 		AppID: "app2",
 	}
 )
 
 func fakeState() *node_state.NodeState {
-	testPkg := &node_state.Package{
-		Driver:       node_state.DriverTypeDocker,
+	testPkg := &app.Package{
+		Driver:       app.DriverTypeDocker,
 		DriverConfig: map[string]interface{}{},
 	}
 
@@ -105,24 +107,24 @@ func fakeState() *node_state.NodeState {
 				ID: "user1",
 			},
 		},
-		AppInstallations: map[string]*node_state.AppInstallation{
+		AppInstallations: map[string]*app.Installation{
 			"app1": {
 				ID:      "app1",
 				UserID:  "user1",
 				Name:    "appname1",
-				State:   node_state.AppLifecycleStateInstalled,
+				State:   app.LifecycleStateInstalled,
 				Package: testPkg,
 			},
 			"app2": {
 				ID:      "app2",
 				UserID:  "user1",
 				Name:    "appname2",
-				State:   node_state.AppLifecycleStateInstalled,
+				State:   app.LifecycleStateInstalled,
 				Package: testPkg,
 			},
 		},
-		Processes:         map[node_state.ProcessID]*node_state.Process{},
-		ReverseProxyRules: map[string]*node_state.ReverseProxyRule{},
+		Processes:         map[process.ID]*process.Process{},
+		ReverseProxyRules: map[string]*reverse_proxy.Rule{},
 	}
 }
 
@@ -130,7 +132,7 @@ func TestStartProcessHandler(t *testing.T) {
 	// For this test don't add any running processes to the initial state
 	middleware := &test_helpers.TestAuthMiddleware{UserID: "user1"}
 
-	mockDriver := newMockDriver(node_state.DriverTypeDocker)
+	mockDriver := newMockDriver(app.DriverTypeDocker)
 	state := fakeState()
 	db := testDB(state)
 
@@ -227,7 +229,7 @@ func TestStartProcessHandler(t *testing.T) {
 		),
 	)
 
-	var listed []node_state.ProcessID
+	var listed []process.ID
 	err = json.Unmarshal(resp.Body.Bytes(), &listed)
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
@@ -327,7 +329,7 @@ func TestControllerRestoreProcess(t *testing.T) {
 	state.Processes["proc1"] = proc1
 	state.Processes["proc2"] = proc2
 
-	mockDriver := newMockDriver(node_state.DriverTypeDocker)
+	mockDriver := newMockDriver(app.DriverTypeDocker)
 	pm := process.NewProcessManager([]process.Driver{mockDriver})
 	db := testDB(state)
 
@@ -342,7 +344,7 @@ func TestControllerRestoreProcess(t *testing.T) {
 
 	// Sort by procID so we can assert on the states
 	require.Len(t, procs, 2)
-	slices.SortFunc(procs, func(a, b node_state.ProcessID) int {
+	slices.SortFunc(procs, func(a, b process.ID) int {
 		return strings.Compare(string(a), string(b))
 	})
 

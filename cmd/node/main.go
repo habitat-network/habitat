@@ -20,6 +20,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/auth"
 	"github.com/eagraf/habitat-new/internal/docker"
 	"github.com/eagraf/habitat-new/internal/node/api"
@@ -31,7 +32,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	"github.com/eagraf/habitat-new/internal/node/server"
 	"github.com/eagraf/habitat-new/internal/node/state"
-	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/eagraf/habitat-new/internal/process"
@@ -61,9 +61,9 @@ func main() {
 	)
 
 	// Initialize package managers
-	pkgManagers := map[state.DriverType]package_manager.PackageManager{
-		state.DriverTypeDocker: docker.NewPackageManager(dockerClient),
-		state.DriverTypeWeb:    web.NewPackageManager(nodeConfig.WebBundlePath()),
+	pkgManagers := map[app.DriverType]app.PackageManager{
+		app.DriverTypeDocker: docker.NewPackageManager(dockerClient),
+		app.DriverTypeWeb:    web.NewPackageManager(nodeConfig.WebBundlePath()),
 	}
 
 	if err != nil {
@@ -270,7 +270,7 @@ func main() {
 
 func generatePDSAppConfig(
 	nodeConfig *config.NodeConfig,
-) (*state.AppInstallation, []*state.ReverseProxyRule) {
+) (*app.Installation, []*reverse_proxy.Rule) {
 	pdsMountDir := filepath.Join(nodeConfig.HabitatAppPath(), "pds")
 
 	arch := runtime.GOARCH
@@ -283,13 +283,13 @@ func generatePDSAppConfig(
 
 	// TODO @eagraf - unhardcode as much of this as possible
 	appID := "pds-default-app-ID"
-	return &state.AppInstallation{
+	return &app.Installation{
 			ID:      appID,
 			Name:    "pds",
 			Version: "1",
 			UserID:  constants.RootUserID,
-			Package: &state.Package{
-				Driver: state.DriverTypeDocker,
+			Package: &app.Package{
+				Driver: app.DriverTypeDocker,
 				DriverConfig: map[string]interface{}{
 					"env": []string{
 						fmt.Sprintf("PDS_HOSTNAME=%s", nodeConfig.Domain()),
@@ -331,11 +331,11 @@ func generatePDSAppConfig(
 				RegistryPackageTag: pdsTag,
 			},
 		},
-		[]*state.ReverseProxyRule{
+		[]*reverse_proxy.Rule{
 			{
 				ID:      "pds-app-reverse-proxy-rule",
 				AppID:   appID,
-				Type:    state.ProxyRuleRedirect,
+				Type:    reverse_proxy.ProxyRuleRedirect,
 				Matcher: "/xrpc",
 				Target:  "http://host.docker.internal:3000/xrpc",
 			},
@@ -360,21 +360,21 @@ func generatePDSAppConfig(
 		}
 }
 
-func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*state.ReverseProxyRule, error) {
-	frontendRule := &state.ReverseProxyRule{
+func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*reverse_proxy.Rule, error) {
+	frontendRule := &reverse_proxy.Rule{
 		ID:      "default-rule-frontend",
 		Matcher: "", // Root matcher
 	}
 	if config.FrontendDev() {
 		// In development mode, we run the frontend in a separate docker container with hot-reloading.
 		// As a result, all frontend requests must be forwarde to the frontend container.
-		frontendRule.Type = state.ProxyRuleRedirect
+		frontendRule.Type = reverse_proxy.ProxyRuleRedirect
 		frontendRule.Target = "http://habitat_frontend:5173/"
 	} else {
 		// In production mode, we embed the frontend into the node binary. That way, we can serve
 		// the frontend without needing to set it up on the host machine.
 		// TODO @eagraf - evaluate the performance implications of this.
-		frontendRule.Type = state.ProxyRuleEmbeddedFrontend
+		frontendRule.Type = reverse_proxy.ProxyRuleEmbeddedFrontend
 	}
 
 	apiURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", constants.DefaultPortHabitatAPI))
@@ -382,47 +382,47 @@ func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*state.Rever
 		return nil, err
 	}
 
-	res := []*state.ReverseProxyRule{
+	res := []*reverse_proxy.Rule{
 		{
 			ID:      "default-rule-api",
-			Type:    state.ProxyRuleRedirect,
+			Type:    reverse_proxy.ProxyRuleRedirect,
 			Matcher: "/habitat/api",
 			Target:  apiURL.String(),
 		},
 		{
 			ID:      "habitat-put-record",
-			Type:    state.ProxyRuleRedirect,
+			Type:    reverse_proxy.ProxyRuleRedirect,
 			Matcher: "/xrpc/com.habitat.putRecord",
 			Target:  apiURL.String() + "/xrpc/com.habitat.putRecord",
 		},
 		{
 			ID:      "habitat-get-record",
-			Type:    state.ProxyRuleRedirect,
+			Type:    reverse_proxy.ProxyRuleRedirect,
 			Matcher: "/xrpc/com.habitat.getRecord",
 			Target:  apiURL.String() + "/xrpc/com.habitat.getRecord",
 		},
 		{
 			ID:      "habitat-list-permissions",
-			Type:    state.ProxyRuleRedirect,
+			Type:    reverse_proxy.ProxyRuleRedirect,
 			Matcher: "/xrpc/com.habitat.listPermissions",
 			Target:  apiURL.String() + "/xrpc/com.habitat.listPermissions",
 		},
 		{
 			ID:      "habitat-add-permissions",
-			Type:    state.ProxyRuleRedirect,
+			Type:    reverse_proxy.ProxyRuleRedirect,
 			Matcher: "/xrpc/com.habitat.addPermission",
 			Target:  apiURL.String() + "/xrpc/com.habitat.addPermission",
 		},
 		{
 			ID:      "habitat-remove-permissions",
-			Type:    state.ProxyRuleRedirect,
+			Type:    reverse_proxy.ProxyRuleRedirect,
 			Matcher: "/xrpc/com.habitat.removePermission",
 			Target:  apiURL.String() + "/xrpc/com.habitat.removePermission",
 		},
 		// Serve a DID document for habitat
 		{
 			ID:      "did-rule",
-			Type:    state.ProxyRuleFileServer,
+			Type:    reverse_proxy.ProxyRuleFileServer,
 			Matcher: "/.well-known",
 			Target:  config.HabitatPath() + "/well-known",
 		},
@@ -442,8 +442,8 @@ func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*state.Rever
 
 func initialState(
 	rootUserCert string,
-	startApps []*state.AppInstallation,
-	proxyRules []*state.ReverseProxyRule,
+	startApps []*app.Installation,
+	proxyRules []*reverse_proxy.Rule,
 ) (*state.NodeState, []state.Transition, error) {
 	init, err := state.NewStateForLatestVersion()
 	if err != nil {
@@ -451,14 +451,14 @@ func initialState(
 	}
 	init.SetRootUserCert(rootUserCert)
 
-	for _, app := range startApps {
-		init.AppInstallations[app.ID] = app
-		init.AppInstallations[app.ID].State = state.AppLifecycleStateInstalled
+	for _, install := range startApps {
+		init.AppInstallations[install.ID] = install
+		init.AppInstallations[install.ID].State = app.LifecycleStateInstalled
 
-		procID := state.NewProcessID(app.Driver)
-		init.Processes[procID] = &state.Process{
+		procID := process.NewID(install.Driver)
+		init.Processes[procID] = &process.Process{
 			ID:      procID,
-			AppID:   app.ID,
+			AppID:   install.ID,
 			UserID:  constants.RootUserID,
 			Created: time.Now().Format(time.RFC3339),
 		}

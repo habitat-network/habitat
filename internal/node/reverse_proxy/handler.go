@@ -14,25 +14,24 @@ import (
 	"time"
 
 	frontend "github.com/eagraf/habitat-new/frontend_server"
-	"github.com/eagraf/habitat-new/internal/node/state"
 	"github.com/rs/zerolog/log"
 )
 
-func getHandlerFromRule(rule *state.ReverseProxyRule, webBundlePath string) (http.Handler, error) {
+func getHandlerFromRule(rule *Rule, webBundlePath string) (http.Handler, error) {
 	switch rule.Type {
 
 	// The reverse proxy will forward the traffic to another service.
-	case state.ProxyRuleRedirect:
+	case ProxyRuleRedirect:
 		return getRedirectHandler(rule)
 
 	// The reverse proxy will serve files directly from the host system.
-	case state.ProxyRuleFileServer:
+	case ProxyRuleFileServer:
 		return getFileServerHandler(rule, WithBasePath(webBundlePath))
 
 	// The reverse proxy will serve the node frontend.
 	// The frontend's bundle is embedded directly into this processes binary, so we can serve it without
 	// needing to access the host filesystem.
-	case state.ProxyRuleEmbeddedFrontend:
+	case ProxyRuleEmbeddedFrontend:
 		fSys, err := fs.Sub(frontend.EmbeddedFrontendBundle, "build")
 		if err != nil {
 			return nil, err
@@ -44,7 +43,7 @@ func getHandlerFromRule(rule *state.ReverseProxyRule, webBundlePath string) (htt
 	}
 }
 
-func getRedirectHandler(rule *state.ReverseProxyRule) (http.Handler, error) {
+func getRedirectHandler(rule *Rule) (http.Handler, error) {
 	forwardURL, err := url.Parse(rule.Target)
 	if err != nil {
 		return nil, err
@@ -79,7 +78,7 @@ func getRedirectHandler(rule *state.ReverseProxyRule) (http.Handler, error) {
 	}, nil
 }
 
-func getFileServerHandler(rule *state.ReverseProxyRule, options ...Option) (http.Handler, error) {
+func getFileServerHandler(rule *Rule, options ...Option) (http.Handler, error) {
 
 	opts := &FileServerOptions{}
 	for _, o := range options {

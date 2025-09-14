@@ -8,8 +8,11 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/api/atproto"
+	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/node/api"
+	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	node_state "github.com/eagraf/habitat-new/internal/node/state"
+	"github.com/eagraf/habitat-new/internal/process"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -57,7 +60,7 @@ func (s *CtrlServer) StartProcess(w http.ResponseWriter, r *http.Request) {
 }
 
 type StopProcessRequest struct {
-	ProcessID node_state.ProcessID `json:"process_id"`
+	ProcessID process.ID `json:"process_id"`
 }
 
 func (s *CtrlServer) StopProcess(w http.ResponseWriter, r *http.Request) {
@@ -94,8 +97,8 @@ func (s *CtrlServer) ListProcesses(w http.ResponseWriter, r *http.Request) {
 }
 
 type InstallAppRequest struct {
-	AppInstallation   *node_state.AppInstallation    `json:"app_installation" yaml:"app_installation"`
-	ReverseProxyRules []*node_state.ReverseProxyRule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
+	AppInstallation   *app.Installation     `json:"app_installation" yaml:"app_installation"`
+	ReverseProxyRules []*reverse_proxy.Rule `json:"reverse_proxy_rules" yaml:"reverse_proxy_rules"`
 	StartAfterInstall bool
 }
 

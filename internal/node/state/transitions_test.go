@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/eagraf/habitat-new/internal/app"
+	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
+	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,8 +45,8 @@ func TestFrontendDevMode(t *testing.T) {
 	state.SetRootUserCert("fake_user_cert")
 	newState, err := testTransitions(state, []Transition{
 		&addReverseProxyRuleTransition{
-			Rule: &ReverseProxyRule{
-				Type:    ProxyRuleRedirect,
+			Rule: &reverse_proxy.Rule{
+				Type:    reverse_proxy.ProxyRuleRedirect,
 				ID:      "default-rule-frontend",
 				Matcher: "", // Root matcher
 			},
@@ -53,7 +56,7 @@ func TestFrontendDevMode(t *testing.T) {
 
 	frontendRule, ok := (newState.ReverseProxyRules)["default-rule-frontend"]
 	require.Equal(t, true, ok)
-	require.Equal(t, ProxyRuleRedirect, frontendRule.Type)
+	require.Equal(t, reverse_proxy.ProxyRuleRedirect, frontendRule.Type)
 }
 
 // use this if you expect the transitions to cause an error
@@ -132,8 +135,8 @@ func TestAddingUsers(t *testing.T) {
 func TestAppLifecycle(t *testing.T) {
 	createTransition, _ := CreateStartInstallationTransition(
 		"123",
-		&Package{
-			Driver:             DriverTypeDocker,
+		&app.Package{
+			Driver:             app.DriverTypeDocker,
 			RegistryURLBase:    "https://registry.com",
 			RegistryPackageID:  "app_name1",
 			RegistryPackageTag: "v1",
@@ -141,7 +144,7 @@ func TestAppLifecycle(t *testing.T) {
 		},
 		"1",
 		"app_name1",
-		[]*ReverseProxyRule{},
+		[]*reverse_proxy.Rule{},
 	)
 	transitions := []Transition{
 		&initalizationTransition{
@@ -173,17 +176,17 @@ func TestAppLifecycle(t *testing.T) {
 	apps, err := newState.GetAppsForUser("123")
 	assert.Nil(t, err)
 
-	app := apps[0]
-	_, ok := newState.AppInstallations[app.ID]
+	appInstall := apps[0]
+	_, ok := newState.AppInstallations[appInstall.ID]
 	assert.Equal(t, ok, true)
-	assert.NotEmpty(t, app.ID)
-	assert.Equal(t, "app_name1", app.Name)
-	assert.Equal(t, AppLifecycleStateInstalling, app.State)
+	assert.NotEmpty(t, appInstall.ID)
+	assert.Equal(t, "app_name1", appInstall.Name)
+	assert.Equal(t, app.LifecycleStateInstalling, appInstall.State)
 
 	transition, _ := CreateStartInstallationTransition(
 		"123",
-		&Package{
-			Driver:             DriverTypeDocker,
+		&app.Package{
+			Driver:             app.DriverTypeDocker,
 			RegistryURLBase:    "https://registry.com",
 			RegistryPackageID:  "app_name1",
 			RegistryPackageTag: "v1",
@@ -191,7 +194,7 @@ func TestAppLifecycle(t *testing.T) {
 		},
 		"1",
 		"app_name1",
-		[]*ReverseProxyRule{},
+		[]*reverse_proxy.Rule{},
 	)
 	testSecondAppConflict := []Transition{
 		transition,
@@ -202,22 +205,22 @@ func TestAppLifecycle(t *testing.T) {
 
 	testInstallationCompleted := []Transition{
 		&finishInstallationTransition{
-			AppID: app.ID,
+			AppID: appInstall.ID,
 		},
 	}
 
 	newState, err = testTransitionsOnCopy(newState, testInstallationCompleted)
 	assert.Nil(t, err)
-	assert.Equal(t, AppLifecycleStateInstalled, newState.AppInstallations[app.ID].State)
+	assert.Equal(t, app.LifecycleStateInstalled, newState.AppInstallations[appInstall.ID].State)
 
 	testUserDoesntExist := []Transition{
 		&startInstallationTransition{
-			AppInstallation: &AppInstallation{
+			appInstallation: &app.Installation{
 				UserID:  "456",
 				Name:    "app_name1",
 				Version: "1",
-				Package: &Package{
-					Driver:             DriverTypeDocker,
+				Package: &app.Package{
+					Driver:             app.DriverTypeDocker,
 					RegistryURLBase:    "https://registry.com",
 					RegistryPackageID:  "app_name1",
 					RegistryPackageTag: "v1",
@@ -231,8 +234,8 @@ func TestAppLifecycle(t *testing.T) {
 
 	trns, _ := CreateStartInstallationTransition(
 		"123",
-		&Package{
-			Driver:             DriverTypeDocker,
+		&app.Package{
+			Driver:             app.DriverTypeDocker,
 			RegistryURLBase:    "https://registry.com",
 			RegistryPackageID:  "app_name1",
 			RegistryPackageTag: "v2",
@@ -240,7 +243,7 @@ func TestAppLifecycle(t *testing.T) {
 		},
 		"2",
 		"app_name1",
-		[]*ReverseProxyRule{},
+		[]*reverse_proxy.Rule{},
 	)
 	testDifferentVersion := []Transition{
 		trns,
@@ -259,7 +262,7 @@ func TestAppLifecycle(t *testing.T) {
 }
 
 func TestAppInstallReverseProxyRules(t *testing.T) {
-	proxyRules := make(map[string]*ReverseProxyRule)
+	proxyRules := make(map[string]*reverse_proxy.Rule)
 	transitions := []Transition{
 		&initalizationTransition{
 			InitState: &NodeState{
@@ -276,20 +279,20 @@ func TestAppInstallReverseProxyRules(t *testing.T) {
 			},
 		},
 		&startInstallationTransition{
-			AppInstallation: &AppInstallation{
+			appInstallation: &app.Installation{
 				UserID:  "123",
 				Name:    "app_name1",
 				Version: "1",
-				State:   AppLifecycleStateInstalled,
-				Package: &Package{
-					Driver:             DriverTypeDocker,
+				State:   app.LifecycleStateInstalled,
+				Package: &app.Package{
+					Driver:             app.DriverTypeDocker,
 					RegistryURLBase:    "https://registry.com",
 					RegistryPackageID:  "app_name1",
 					RegistryPackageTag: "v1",
 					DriverConfig:       map[string]interface{}{},
 				},
 			},
-			NewProxyRules: []*ReverseProxyRule{
+			NewProxyRules: []*reverse_proxy.Rule{
 				{
 					AppID:   "app1",
 					Matcher: "/path",
@@ -319,15 +322,15 @@ func TestProcesses(t *testing.T) {
 						Username: "eagraf",
 					},
 				},
-				AppInstallations: map[string]*AppInstallation{
+				AppInstallations: map[string]*app.Installation{
 					"App1": {
 						ID:      "App1",
 						Name:    "app_name1",
 						UserID:  "123",
 						Version: "1",
-						State:   AppLifecycleStateInstalled,
-						Package: &Package{
-							Driver:             DriverTypeDocker,
+						State:   app.LifecycleStateInstalled,
+						Package: &app.Package{
+							Driver:             app.DriverTypeDocker,
 							RegistryURLBase:    "https://registry.com",
 							RegistryPackageID:  "app_name1",
 							RegistryPackageTag: "v1",
@@ -366,7 +369,7 @@ func TestProcesses(t *testing.T) {
 
 	testProcessRunningNoMatchingID := []Transition{
 		&processStartTransition{
-			Process: &Process{
+			Process: &process.Process{
 				AppID: proc.AppID,
 			},
 		},
@@ -376,7 +379,7 @@ func TestProcesses(t *testing.T) {
 
 	testAppIDConflict := []Transition{
 		&processStartTransition{
-			Process: &Process{
+			Process: &process.Process{
 				AppID: "App1",
 			},
 		},
@@ -397,7 +400,7 @@ func TestProcesses(t *testing.T) {
 
 	testUserDoesntExist := []Transition{
 		&processStartTransition{
-			Process: &Process{
+			Process: &process.Process{
 				ID:     "proc2",
 				AppID:  "App1",
 				UserID: "456",
@@ -410,7 +413,7 @@ func TestProcesses(t *testing.T) {
 
 	testAppDoesntExist := []Transition{
 		&processStartTransition{
-			Process: &Process{
+			Process: &process.Process{
 				ID:     "proc3",
 				AppID:  "App2",
 				UserID: "123",

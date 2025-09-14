@@ -9,10 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eagraf/habitat-new/internal/app"
+	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	node_state "github.com/eagraf/habitat-new/internal/node/state"
+	"github.com/eagraf/habitat-new/internal/process"
 
 	"github.com/bluesky-social/indigo/api/atproto"
-	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/stretchr/testify/require"
 )
 
@@ -103,9 +105,9 @@ func TestMigrations(t *testing.T) {
 	fakestate := &node_state.NodeState{
 		SchemaVersion:     "v0.0.1",
 		Users:             map[string]*node_state.User{},
-		AppInstallations:  map[string]*node_state.AppInstallation{},
-		Processes:         map[node_state.ProcessID]*node_state.Process{},
-		ReverseProxyRules: map[string]*node_state.ReverseProxyRule{},
+		AppInstallations:  map[string]*app.Installation{},
+		Processes:         map[process.ID]*process.Process{},
+		ReverseProxyRules: map[string]*reverse_proxy.Rule{},
 	}
 	db := testDB(fakestate)
 
@@ -133,9 +135,9 @@ func TestGetNodeState(t *testing.T) {
 	db := testDB(state)
 
 	ctrl2, err := NewController(context.Background(), fakeProcessManager(),
-		map[node_state.DriverType]package_manager.PackageManager{
-			node_state.DriverTypeDocker: &mockPkgManager{
-				installs: make(map[*node_state.Package]struct{}),
+		map[app.DriverType]app.PackageManager{
+			app.DriverTypeDocker: &mockPkgManager{
+				installs: make(map[*app.Package]struct{}),
 			},
 		},
 		db, nil, "fake-pds")

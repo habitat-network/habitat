@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/eagraf/habitat-new/internal/app"
+	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
+	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/qri-io/jsonschema"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSchemaParsing(t *testing.T) {
@@ -35,7 +37,7 @@ func TestSchemaParsing(t *testing.T) {
 
 func TestGetAppByID(t *testing.T) {
 	state := &NodeState{
-		AppInstallations: map[string]*AppInstallation{
+		AppInstallations: map[string]*app.Installation{
 			"app1": {
 				ID: "app1",
 			},
@@ -53,12 +55,12 @@ func TestGetAppByID(t *testing.T) {
 func TestGetReverseProxyRulesForProcess(t *testing.T) {
 
 	state := &NodeState{
-		AppInstallations: map[string]*AppInstallation{
+		AppInstallations: map[string]*app.Installation{
 			"app1": {
 				ID: "app1",
 			},
 		},
-		Processes: map[ProcessID]*Process{
+		Processes: map[process.ID]*process.Process{
 			"process1": {
 				ID:    "process1",
 				AppID: "app1",
@@ -68,7 +70,7 @@ func TestGetReverseProxyRulesForProcess(t *testing.T) {
 				AppID: "non-existant-this-shouldn'thappen",
 			},
 		},
-		ReverseProxyRules: map[string]*ReverseProxyRule{
+		ReverseProxyRules: map[string]*reverse_proxy.Rule{
 			"rule1": {
 				ID:    "rule1",
 				AppID: "app1",
@@ -96,10 +98,4 @@ func TestGetEmptyStateForVersion(t *testing.T) {
 	state, err = GetEmptyStateForVersion("v0.0.4")
 	assert.Nil(t, err)
 	assert.NotNil(t, state)
-}
-
-func TestMalformedProcessID(t *testing.T) {
-	typ, err := DriverFromProcessID("malformed-id")
-	require.Error(t, err)
-	require.Equal(t, typ, DriverTypeUnknown)
 }

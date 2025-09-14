@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
-	node_state "github.com/eagraf/habitat-new/internal/node/state"
+	"github.com/eagraf/habitat-new/internal/app"
 
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/rs/zerolog/log"
@@ -34,13 +34,13 @@ func NewDriver(client *client.Client) process.Driver {
 	}
 }
 
-func (d *dockerDriver) Type() node_state.DriverType {
-	return node_state.DriverTypeDocker
+func (d *dockerDriver) Type() app.DriverType {
+	return app.DriverTypeDocker
 }
 
-func (d *dockerDriver) StartProcess(ctx context.Context, processID node_state.ProcessID, app *node_state.AppInstallation) error {
-	var dockerConfig node_state.AppInstallationConfig
-	dockerConfigBytes, err := json.Marshal(app.DriverConfig)
+func (d *dockerDriver) StartProcess(ctx context.Context, processID process.ID, install *app.Installation) error {
+	var dockerConfig app.InstallationConfig
+	dockerConfigBytes, err := json.Marshal(install.DriverConfig)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (d *dockerDriver) StartProcess(ctx context.Context, processID node_state.Pr
 	}
 
 	createResp, err := d.client.ContainerCreate(ctx, &container.Config{
-		Image:        fmt.Sprintf("%s/%s:%s", app.RegistryURLBase, app.RegistryPackageID, app.RegistryPackageTag),
+		Image:        fmt.Sprintf("%s/%s:%s", install.RegistryURLBase, install.RegistryPackageID, install.RegistryPackageTag),
 		ExposedPorts: exposedPorts,
 		Env:          dockerConfig.Env,
 		Labels: map[string]string{
@@ -80,7 +80,7 @@ func (d *dockerDriver) StartProcess(ctx context.Context, processID node_state.Pr
 	return nil
 }
 
-func (d *dockerDriver) getContainerWithProcessID(ctx context.Context, processID node_state.ProcessID) (types.Container, bool, error) {
+func (d *dockerDriver) getContainerWithProcessID(ctx context.Context, processID process.ID) (types.Container, bool, error) {
 	labelVal := habitatLabel + "=" + string(processID)
 	ctrs, err := d.client.ContainerList(ctx, container.ListOptions{
 		Filters: filters.NewArgs(
@@ -100,7 +100,7 @@ func (d *dockerDriver) getContainerWithProcessID(ctx context.Context, processID 
 	return ctrs[0], true, nil
 }
 
-func (d *dockerDriver) StopProcess(ctx context.Context, processID node_state.ProcessID) error {
+func (d *dockerDriver) StopProcess(ctx context.Context, processID process.ID) error {
 	ctr, ok, err := d.getContainerWithProcessID(ctx, processID)
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func (d *dockerDriver) StopProcess(ctx context.Context, processID node_state.Pro
 	return d.client.ContainerStop(ctx, ctr.ID, container.StopOptions{})
 }
 
-func (d *dockerDriver) IsRunning(ctx context.Context, id node_state.ProcessID) (bool, error) {
+func (d *dockerDriver) IsRunning(ctx context.Context, id process.ID) (bool, error) {
 	_, ok, err := d.getContainerWithProcessID(ctx, id)
 	if err != nil {
 		return false, err
@@ -119,7 +119,7 @@ func (d *dockerDriver) IsRunning(ctx context.Context, id node_state.ProcessID) (
 	return ok, nil
 }
 
-func (d *dockerDriver) ListRunningProcesses(ctx context.Context) ([]node_state.ProcessID, error) {
+func (d *dockerDriver) ListRunningProcesses(ctx context.Context) ([]process.ID, error) {
 	ctrs, err := d.client.ContainerList(ctx, container.ListOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("label", habitatLabel),
@@ -128,7 +128,7 @@ func (d *dockerDriver) ListRunningProcesses(ctx context.Context) ([]node_state.P
 	if err != nil {
 		return nil, err
 	}
-	return xslices.Map(ctrs, func(ctr types.Container) node_state.ProcessID {
-		return node_state.ProcessID(ctr.Labels[habitatLabel])
+	return xslices.Map(ctrs, func(ctr types.Container) process.ID {
+		return process.ID(ctr.Labels[habitatLabel])
 	}), nil
 }

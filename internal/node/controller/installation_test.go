@@ -9,48 +9,47 @@ import (
 	"strings"
 	"testing"
 
-	node_state "github.com/eagraf/habitat-new/internal/node/state"
+	"github.com/eagraf/habitat-new/internal/app"
 
 	"github.com/eagraf/habitat-new/internal/node/api/test_helpers"
-	"github.com/eagraf/habitat-new/internal/package_manager"
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/stretchr/testify/require"
 )
 
 type mockPkgManager struct {
-	installs map[*node_state.Package]struct{}
+	installs map[*app.Package]struct{}
 }
 
-func (m *mockPkgManager) Driver() node_state.DriverType {
-	return node_state.DriverTypeUnknown
+func (m *mockPkgManager) Driver() app.DriverType {
+	return app.DriverTypeUnknown
 }
-func (m *mockPkgManager) IsInstalled(packageSpec *node_state.Package, version string) (bool, error) {
+func (m *mockPkgManager) IsInstalled(packageSpec *app.Package, version string) (bool, error) {
 	_, ok := m.installs[packageSpec]
 	return ok, nil
 }
-func (m *mockPkgManager) InstallPackage(packageSpec *node_state.Package, version string) error {
+func (m *mockPkgManager) InstallPackage(packageSpec *app.Package, version string) error {
 	m.installs[packageSpec] = struct{}{}
 	return nil
 }
-func (m *mockPkgManager) UninstallPackage(packageSpec *node_state.Package, version string) error {
+func (m *mockPkgManager) UninstallPackage(packageSpec *app.Package, version string) error {
 	delete(m.installs, packageSpec)
 	return nil
 }
 
-func (m *mockPkgManager) RestoreFromState(context.Context, map[string]*node_state.AppInstallation) error {
+func (m *mockPkgManager) RestoreFromState(context.Context, map[string]*app.Installation) error {
 	return nil
 }
 
 func TestInstallAppController(t *testing.T) {
-	mockDriver := newMockDriver(node_state.DriverTypeDocker)
+	mockDriver := newMockDriver(app.DriverTypeDocker)
 
 	state := fakeState()
 	db := testDB(state)
 
 	ctrl2, err := NewController(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}),
-		map[node_state.DriverType]package_manager.PackageManager{
-			node_state.DriverTypeDocker: &mockPkgManager{
-				installs: make(map[*node_state.Package]struct{}),
+		map[app.DriverType]app.PackageManager{
+			app.DriverTypeDocker: &mockPkgManager{
+				installs: make(map[*app.Package]struct{}),
 			},
 		},
 		db,
@@ -64,9 +63,9 @@ func TestInstallAppController(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	pkg := &node_state.Package{
+	pkg := &app.Package{
 		DriverConfig:       make(map[string]interface{}),
-		Driver:             node_state.DriverTypeDocker,
+		Driver:             app.DriverTypeDocker,
 		RegistryURLBase:    "https://registry.com",
 		RegistryPackageID:  "app_name1",
 		RegistryPackageTag: "v1",
@@ -77,7 +76,7 @@ func TestInstallAppController(t *testing.T) {
 	handler := middleware.Middleware(http.HandlerFunc(ctrlServer.InstallApp))
 	resp := httptest.NewRecorder()
 	b, err := json.Marshal(&InstallAppRequest{
-		AppInstallation: &node_state.AppInstallation{
+		AppInstallation: &app.Installation{
 			Name:    "app_name1",
 			Version: "1",
 			Package: pkg,

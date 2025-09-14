@@ -7,6 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eagraf/habitat-new/internal/app"
+	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
+	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/google/uuid"
 )
 
@@ -30,15 +33,15 @@ func (t *initalizationTransition) Patch(oldState SerializedState) (SerializedSta
 	}
 
 	if t.InitState.AppInstallations == nil {
-		t.InitState.AppInstallations = make(map[string]*AppInstallation)
+		t.InitState.AppInstallations = make(map[string]*app.Installation)
 	}
 
 	if t.InitState.Processes == nil {
-		t.InitState.Processes = make(map[ProcessID]*Process)
+		t.InitState.Processes = make(map[process.ID]*process.Process)
 	}
 
 	if t.InitState.ReverseProxyRules == nil {
-		t.InitState.ReverseProxyRules = make(map[string]*ReverseProxyRule)
+		t.InitState.ReverseProxyRules = make(map[string]*reverse_proxy.Rule)
 	}
 
 	marshaled, err := json.Marshal(t.InitState)
@@ -172,8 +175,8 @@ func (t *addUserTransition) Validate(oldState SerializedState) error {
 }
 
 type startInstallationTransition struct {
-	*AppInstallation
-	NewProxyRules []*ReverseProxyRule `json:"new_proxy_rules"`
+	appInstallation *app.Installation
+	NewProxyRules   []*reverse_proxy.Rule `json:"new_proxy_rules"`
 }
 
 func (t *startInstallationTransition) Type() TransitionType {
@@ -187,14 +190,15 @@ func (t *startInstallationTransition) Patch(oldState SerializedState) (Serialize
 		return nil, err
 	}
 
-	marshalledApp, err := json.Marshal(t.AppInstallation)
+	marshalledApp, err := json.Marshal(t.appInstallation)
 	if err != nil {
 		return nil, err
 	}
 
-	_, ok := oldNode.Users[t.UserID]
+	userID := t.appInstallation.UserID
+	_, ok := oldNode.Users[userID]
 	if !ok {
-		return nil, fmt.Errorf("user with id %s not found", t.UserID)
+		return nil, fmt.Errorf("user with id %s not found", userID)
 	}
 
 	marshaledRules := make([]string, 0)
@@ -222,7 +226,7 @@ func (t *startInstallationTransition) Patch(oldState SerializedState) (Serialize
 			"path": "/app_installations/%s",
 			"value": %s
 		}%s
-	]`, t.AppInstallation.ID, string(marshalledApp), rules)), nil
+	]`, t.appInstallation.ID, string(marshalledApp), rules)), nil
 }
 
 func (t *startInstallationTransition) Validate(oldState SerializedState) error {
@@ -232,45 +236,46 @@ func (t *startInstallationTransition) Validate(oldState SerializedState) error {
 		return err
 	}
 
-	_, ok := oldNode.Users[t.UserID]
+	userID := t.appInstallation.UserID
+	_, ok := oldNode.Users[userID]
 	if !ok {
-		return fmt.Errorf("user with id %s not found", t.UserID)
+		return fmt.Errorf("user with id %s not found", userID)
 	}
 
-	app, ok := oldNode.AppInstallations[t.AppInstallation.ID]
+	app, ok := oldNode.AppInstallations[t.appInstallation.ID]
 	if ok {
-		if app.Version == t.Version {
-			return fmt.Errorf("app %s version %s for user %s found", t.Name, t.Version, t.UserID)
+		if app.Version == t.appInstallation.Version {
+			return fmt.Errorf("app %s version %s for user %s found", t.appInstallation.Name, t.appInstallation.Version, userID)
 		} else {
 			// TODO eventually this will be part of an upgrade flow
-			return fmt.Errorf("app %s for user %s found in state with different version %s", t.Name, t.UserID, app.Version)
+			return fmt.Errorf("app %s for user %s found in state with different version %s", t.appInstallation.Name, userID, app.Version)
 		}
 	}
 
 	// Look for matching registry URL and package ID
 	// TODO @eagraf - we need a way to update apps
 	for _, app := range oldNode.AppInstallations {
-		if app.RegistryURLBase == t.RegistryURLBase && app.RegistryPackageID == t.RegistryPackageID {
-			return fmt.Errorf("app %s for user %s found in state with different version %s", app.Name, t.UserID, app.Version)
+		if app.RegistryURLBase == t.appInstallation.RegistryURLBase && app.RegistryPackageID == t.appInstallation.RegistryPackageID {
+			return fmt.Errorf("app %s for user %s found in state with different version %s", app.Name, userID, app.Version)
 		}
 	}
 
-	if t.AppInstallation.DriverConfig == nil {
+	if t.appInstallation.DriverConfig == nil {
 		return fmt.Errorf("driver config is required for starting an installation")
 	}
 
 	return nil
 }
 
-func CreateStartInstallationTransition(userID string, pkg *Package, version string, name string, proxyRules []*ReverseProxyRule) (Transition, string) {
+func CreateStartInstallationTransition(userID string, pkg *app.Package, version string, name string, proxyRules []*reverse_proxy.Rule) (Transition, string) {
 	id := uuid.NewString()
 	transition := &startInstallationTransition{
-		AppInstallation: &AppInstallation{
+		appInstallation: &app.Installation{
 			ID:      id,
 			UserID:  userID,
 			Name:    name,
 			Version: version,
-			State:   AppLifecycleStateInstalling,
+			State:   app.LifecycleStateInstalling,
 			Package: pkg,
 		},
 		NewProxyRules: proxyRules,
@@ -301,7 +306,7 @@ func (t *finishInstallationTransition) Patch(oldState SerializedState) (Serializ
 		"op": "replace",
 		"path": "/app_installations/%s/state",
 		"value": "%s"
-	}]`, t.AppID, AppLifecycleStateInstalled)), nil
+	}]`, t.AppID, app.LifecycleStateInstalled)), nil
 }
 
 func (t *finishInstallationTransition) Validate(oldState SerializedState) error {
@@ -358,17 +363,17 @@ func (t *uninstallTransition) Validate(oldState SerializedState) error {
 
 type processStartTransition struct {
 	// Requested data
-	Process *Process
+	Process *process.Process
 }
 
-func CreateProcessStartTransition(appID string, oldState *NodeState) (Transition, ProcessID, error) {
+func CreateProcessStartTransition(appID string, oldState *NodeState) (Transition, process.ID, error) {
 	app, err := oldState.GetAppByID(appID)
 	if err != nil {
 		return nil, "", err
 	}
 
-	id := NewProcessID(app.Driver)
-	proc := &Process{
+	id := process.NewID(app.Driver)
+	proc := &process.Process{
 		ID:      id,
 		UserID:  app.UserID,
 		AppID:   app.ID,
@@ -416,12 +421,12 @@ func (t *processStartTransition) Validate(oldState SerializedState) error {
 
 	// Make sure the app installation is in the installed state
 	userID := t.Process.UserID
-	app, err := oldNode.GetAppByID(t.Process.AppID)
+	appInstall, err := oldNode.GetAppByID(t.Process.AppID)
 	if err != nil {
 		return err
 	}
-	if app.State != AppLifecycleStateInstalled {
-		return fmt.Errorf("app with id %s is not in state %s", t.Process.AppID, AppLifecycleStateInstalled)
+	if appInstall.State != app.LifecycleStateInstalled {
+		return fmt.Errorf("app with id %s is not in state %s", t.Process.AppID, app.LifecycleStateInstalled)
 	}
 
 	// Check user exists
@@ -444,10 +449,10 @@ func (t *processStartTransition) Validate(oldState SerializedState) error {
 }
 
 type processStopTransition struct {
-	ProcessID ProcessID `json:"process_id"`
+	ProcessID process.ID `json:"process_id"`
 }
 
-func CreateProcessStopTransition(id ProcessID) Transition {
+func CreateProcessStopTransition(id process.ID) Transition {
 	return &processStopTransition{
 		ProcessID: id,
 	}
@@ -495,12 +500,12 @@ func (t *processStopTransition) Validate(oldState SerializedState) error {
 }
 
 type addReverseProxyRuleTransition struct {
-	Rule *ReverseProxyRule `json:"rule"`
+	Rule *reverse_proxy.Rule `json:"rule"`
 }
 
-func CreateAddReverseProxyRuleTransition(t ReverseProxyRuleType, matcher string, target string, appID string) Transition {
+func CreateAddReverseProxyRuleTransition(t reverse_proxy.RuleType, matcher string, target string, appID string) Transition {
 	return &addReverseProxyRuleTransition{
-		Rule: &ReverseProxyRule{
+		Rule: &reverse_proxy.Rule{
 			Type:    t,
 			Matcher: matcher,
 			Target:  target,

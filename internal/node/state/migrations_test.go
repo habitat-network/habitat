@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eagraf/habitat-new/internal/app"
+	"github.com/eagraf/habitat-new/internal/process"
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/stretchr/testify/assert"
 )
@@ -121,14 +123,14 @@ func TestBackwardsCompatibility(t *testing.T) {
 				Username: "username1",
 			},
 		},
-		AppInstallations: map[string]*AppInstallation{
+		AppInstallations: map[string]*app.Installation{
 			"app1": {
 				ID:      "app1",
 				Name:    "appname1",
 				Version: "1.0.0",
-				State:   AppLifecycleStateInstalled,
-				Package: &Package{
-					Driver:             DriverTypeDocker,
+				State:   app.LifecycleStateInstalled,
+				Package: &app.Package{
+					Driver:             app.DriverTypeDocker,
 					RegistryURLBase:    "https://registry.example.com",
 					RegistryPackageID:  "appname1",
 					RegistryPackageTag: "1.0.0",
@@ -138,16 +140,16 @@ func TestBackwardsCompatibility(t *testing.T) {
 				ID:      "app2",
 				Name:    "appname2",
 				Version: "1.0.0",
-				State:   AppLifecycleStateInstalled,
-				Package: &Package{
-					Driver:             DriverTypeDocker,
+				State:   app.LifecycleStateInstalled,
+				Package: &app.Package{
+					Driver:             app.DriverTypeDocker,
 					RegistryURLBase:    "https://registry.example.com",
 					RegistryPackageID:  "appname1",
 					RegistryPackageTag: "1.0.0",
 				},
 			},
 		},
-		Processes: map[ProcessID]*Process{
+		Processes: map[process.ID]*process.Process{
 			"proc1": {
 				ID:      "proc1",
 				AppID:   "app1",

@@ -1,7 +1,7 @@
 package web
 
 import (
-	"github.com/eagraf/habitat-new/internal/node/state"
+	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/process"
 )
 
@@ -9,5 +9,5 @@ import (
 // to mark the process as started or stopped, in order for files from the web bundle to be
 // served.
 func NewDriver() process.Driver {
-	return process.NewNoopDriver(state.DriverTypeWeb)
+	return process.NewNoopDriver(app.DriverTypeWeb)
 }

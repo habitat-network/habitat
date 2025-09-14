@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/eagraf/habitat-new/internal/node/state"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -24,7 +23,7 @@ func NewProxyServer(logger *zerolog.Logger, defaultServePath string) *ProxyServe
 	return &ProxyServer{
 		logger: logger,
 		RuleSet: &RuleSet{
-			rules:        make(map[string]*state.ReverseProxyRule),
+			rules:        make(map[string]*Rule),
 			baseFilePath: defaultServePath,
 		},
 		defaultServePath: defaultServePath,
@@ -32,7 +31,7 @@ func NewProxyServer(logger *zerolog.Logger, defaultServePath string) *ProxyServe
 }
 
 func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var bestMatch *state.ReverseProxyRule = nil
+	var bestMatch *Rule = nil
 	// Find the matching rule with the highest "rank", aka the most slashes '/' in the URL path.
 	highestRank := -1
 	for _, rule := range s.RuleSet.rules {
@@ -104,7 +103,7 @@ func (s *ProxyServer) Listener(addr string) (net.Listener, error) {
 }
 
 // Determine whether a rule matches a URL
-func matchRule(requestURL *url.URL, rule *state.ReverseProxyRule) bool {
+func matchRule(requestURL *url.URL, rule *Rule) bool {
 	// TODO make this work with actual glob strings
 	// For now, just match based off of base path
 	if strings.HasPrefix(requestURL.Path, rule.Matcher) {
@@ -119,6 +118,6 @@ func matchRule(requestURL *url.URL, rule *state.ReverseProxyRule) bool {
 }
 
 // Find the rank of a match, given a requestURL and a rule
-func rankMatch(rule *state.ReverseProxyRule) int {
+func rankMatch(rule *Rule) int {
 	return strings.Count(rule.Matcher, "/")
 }

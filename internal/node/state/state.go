@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/node/constants"
+	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
+	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/google/uuid"
 )
 
@@ -18,9 +21,9 @@ type NodeState struct {
 	TestField     string           `json:"test_field,omitempty"`
 	Users         map[string]*User `json:"users"`
 	// A set of running processes that a node can restore to on startup.
-	Processes         map[ProcessID]*Process       `json:"processes"`
-	AppInstallations  map[string]*AppInstallation  `json:"app_installations"`
-	ReverseProxyRules map[string]*ReverseProxyRule `json:"reverse_proxy_rules"`
+	Processes         map[process.ID]*process.Process `json:"processes"`
+	AppInstallations  map[string]*app.Installation    `json:"app_installations"`
+	ReverseProxyRules map[string]*reverse_proxy.Rule  `json:"reverse_proxy_rules"`
 }
 
 func NewStateForLatestVersion() (*NodeState, error) {
@@ -50,7 +53,7 @@ func (s *NodeState) String() string {
 	return string(bytes)
 }
 
-func (s *NodeState) GetAppByID(appID string) (*AppInstallation, error) {
+func (s *NodeState) GetAppByID(appID string) (*app.Installation, error) {
 	app, ok := s.AppInstallations[appID]
 	if !ok {
 		return nil, fmt.Errorf("app with ID %s not found", appID)
@@ -58,8 +61,8 @@ func (s *NodeState) GetAppByID(appID string) (*AppInstallation, error) {
 	return app, nil
 }
 
-func (s *NodeState) GetAppsForUser(userID string) ([]*AppInstallation, error) {
-	apps := make([]*AppInstallation, 0)
+func (s *NodeState) GetAppsForUser(userID string) ([]*app.Installation, error) {
+	apps := make([]*app.Installation, 0)
 	for _, app := range s.AppInstallations {
 		if app.UserID == userID {
 			apps = append(apps, app)
@@ -68,8 +71,8 @@ func (s *NodeState) GetAppsForUser(userID string) ([]*AppInstallation, error) {
 	return apps, nil
 }
 
-func (s *NodeState) GetProcessesForUser(userID string) ([]*Process, error) {
-	procs := make([]*Process, 0)
+func (s *NodeState) GetProcessesForUser(userID string) ([]*process.Process, error) {
+	procs := make([]*process.Process, 0)
 	for _, proc := range s.Processes {
 		if proc.UserID == userID {
 			procs = append(procs, proc)
@@ -78,8 +81,8 @@ func (s *NodeState) GetProcessesForUser(userID string) ([]*Process, error) {
 	return procs, nil
 }
 
-func (s *NodeState) GetReverseProxyRulesForProcess(processID ProcessID) ([]*ReverseProxyRule, error) {
-	process, ok := s.Processes[ProcessID(processID)]
+func (s *NodeState) GetReverseProxyRulesForProcess(processID process.ID) ([]*reverse_proxy.Rule, error) {
+	process, ok := s.Processes[process.ID(processID)]
 	if !ok {
 		return nil, fmt.Errorf("process with ID %s not found", processID)
 	}
@@ -87,7 +90,7 @@ func (s *NodeState) GetReverseProxyRulesForProcess(processID ProcessID) ([]*Reve
 	if !ok {
 		return nil, fmt.Errorf("app with ID %s not found", process.AppID)
 	}
-	rules := make([]*ReverseProxyRule, 0)
+	rules := make([]*reverse_proxy.Rule, 0)
 	for _, rule := range s.ReverseProxyRules {
 		if rule.AppID == app.ID {
 			rules = append(rules, rule)
