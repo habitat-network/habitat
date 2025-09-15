@@ -17,10 +17,6 @@ func mapAuthServerURL(oldURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Exception for PDS running in docker container
-	if newURL.Host == "localhost:3000" {
-		newURL.Host = "host.docker.internal:5001"
-	}
 
 	return newURL.String(), nil
 }

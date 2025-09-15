@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bluesky-social/indigo/api/atproto"
-	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	node_state "github.com/eagraf/habitat-new/internal/node/state"
@@ -22,7 +20,6 @@ type Controller struct {
 	processManager process.ProcessManager
 	pkgManagers    map[app.DriverType]app.PackageManager
 	proxyServer    *reverse_proxy.ProxyServer
-	pdsURL         string
 }
 
 func NewController(
@@ -31,7 +28,6 @@ func NewController(
 	pkgManagers map[app.DriverType]app.PackageManager,
 	db node_state.Client,
 	proxyServer *reverse_proxy.ProxyServer,
-	pdsURL string,
 ) (*Controller, error) {
 	// Validate types of all input components
 	_, ok := processManager.(types.Component[process.RestoreInfo])
@@ -45,7 +41,6 @@ func NewController(
 		pkgManagers:    pkgManagers,
 		db:             db,
 		proxyServer:    proxyServer,
-		pdsURL:         pdsURL,
 	}
 
 	return ctrl, nil
@@ -157,25 +152,11 @@ func (c *Controller) uninstallApp(appID string) error {
 	return err
 }
 
-func (c *Controller) addUser(ctx context.Context, input *atproto.ServerCreateAccount_Input) (*atproto.ServerCreateAccount_Output, error) {
-	output, err := atproto.ServerCreateAccount(
-		ctx,
-		&xrpc.Client{
-			Host: c.pdsURL, // xrpc.Client Host param expects url
-		},
-		input,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = c.db.ProposeTransitions([]node_state.Transition{
-		node_state.CreateAddUserTransition(output.Handle, output.Did),
+func (c *Controller) addUser(handle string, did string) error {
+	_, err := c.db.ProposeTransitions([]node_state.Transition{
+		node_state.CreateAddUserTransition(handle, did),
 	})
-	if err != nil {
-		return nil, err
-	}
-	return output, nil
+	return err
 }
 
 func (c *Controller) migrateDB(targetVersion string) error {

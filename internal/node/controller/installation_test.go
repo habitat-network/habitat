@@ -11,7 +11,6 @@ import (
 
 	"github.com/eagraf/habitat-new/internal/app"
 
-	"github.com/eagraf/habitat-new/internal/node/api/test_helpers"
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/stretchr/testify/require"
 )
@@ -53,8 +52,7 @@ func TestInstallAppController(t *testing.T) {
 			},
 		},
 		db,
-		nil,
-		"fake-pds")
+		nil)
 	require.NoError(t, err)
 	ctrlServer, err := NewCtrlServer(
 		context.Background(),
@@ -72,8 +70,7 @@ func TestInstallAppController(t *testing.T) {
 	}
 
 	// Same thing but with the server
-	middleware := &test_helpers.TestAuthMiddleware{UserID: "user_1"}
-	handler := middleware.Middleware(http.HandlerFunc(ctrlServer.InstallApp))
+	handler := http.HandlerFunc(ctrlServer.InstallApp)
 	resp := httptest.NewRecorder()
 	b, err := json.Marshal(&InstallAppRequest{
 		AppInstallation: &app.Installation{
@@ -104,7 +101,7 @@ func TestInstallAppController(t *testing.T) {
 	}
 
 	// Uninstall app unit test
-	handler = middleware.Middleware(http.HandlerFunc(ctrlServer.UninstallApp))
+	handler = http.HandlerFunc(ctrlServer.UninstallApp)
 	b, err = json.Marshal(&UninstallAppRequest{
 		AppID: appID,
 	})

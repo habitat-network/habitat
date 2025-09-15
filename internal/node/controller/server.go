@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
@@ -165,8 +164,18 @@ func (s *CtrlServer) GetNodeState(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type AddUserRequest struct {
+	Did    string `json:"did"`
+	Handle string `json:"handle"`
+}
+
+// TODO: this does no permissioning / verification, simply adds the handle + user to node state
+// which is pretty meaningless. We don't do anything with node state atm either, so it's fine, but wack.
+//
+// We need to think about what it means to add "users".
+// In the future this could be used to create a PDS on behalf of the user if they are new to at proto.
 func (s *CtrlServer) AddUser(w http.ResponseWriter, r *http.Request) {
-	var req atproto.ServerCreateAccount_Input
+	var req AddUserRequest
 	slurp, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -179,17 +188,13 @@ func (s *CtrlServer) AddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := s.inner.addUser(r.Context(), &req)
+	err = s.inner.addUser(req.Handle, req.Did)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	bytes, err := json.Marshal(out)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if _, err := w.Write(bytes); err != nil {
+
+	if _, err := w.Write([]byte("success!")); err != nil {
 		log.Err(err).Msgf("error sending response in for AddUser request")
 	}
 }

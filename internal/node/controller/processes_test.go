@@ -17,7 +17,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/reverse_proxy"
 	node_state "github.com/eagraf/habitat-new/internal/node/state"
 
-	"github.com/eagraf/habitat-new/internal/node/api/test_helpers"
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,14 +129,12 @@ func fakeState() *node_state.NodeState {
 
 func TestStartProcessHandler(t *testing.T) {
 	// For this test don't add any running processes to the initial state
-	middleware := &test_helpers.TestAuthMiddleware{UserID: "user1"}
-
 	mockDriver := newMockDriver(app.DriverTypeDocker)
 	state := fakeState()
 	db := testDB(state)
 
 	// NewCtrlServer restores the initial state
-	ctrl2, err := NewController(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}), nil, db, nil, "fake-pds")
+	ctrl2, err := NewController(context.Background(), process.NewProcessManager([]process.Driver{mockDriver}), nil, db, nil)
 	require.NoError(t, err)
 
 	s, err := NewCtrlServer(context.Background(), ctrl2, state)
@@ -150,7 +147,7 @@ func TestStartProcessHandler(t *testing.T) {
 
 	startProcessHandler := http.HandlerFunc(s.StartProcess)
 	startProcessRoute := api.NewBasicRoute(http.MethodPost, "/node/processes", startProcessHandler)
-	handler := middleware.Middleware(startProcessHandler)
+	handler := startProcessHandler
 
 	b, err := json.Marshal(StartProcessRequest{
 		AppInstallationID: "app1",
@@ -219,7 +216,7 @@ func TestStartProcessHandler(t *testing.T) {
 	listFn := http.HandlerFunc(s.ListProcesses)
 	listProcessRoute := api.NewBasicRoute(http.MethodGet, "/node/processes/list", listFn)
 	resp = httptest.NewRecorder()
-	handler = middleware.Middleware(listFn)
+	handler = listFn
 	handler.ServeHTTP(
 		resp,
 		httptest.NewRequest(
@@ -238,7 +235,7 @@ func TestStartProcessHandler(t *testing.T) {
 
 	// Test Stop Process
 	stopFn := http.HandlerFunc(s.StopProcess)
-	handler = middleware.Middleware(stopFn)
+	handler = stopFn
 
 	// Sad Path
 	mockDriver.returnErr = fmt.Errorf("my error")
@@ -333,7 +330,7 @@ func TestControllerRestoreProcess(t *testing.T) {
 	pm := process.NewProcessManager([]process.Driver{mockDriver})
 	db := testDB(state)
 
-	ctrl, err := NewController(context.Background(), pm, nil, db, nil, "fake-pds")
+	ctrl, err := NewController(context.Background(), pm, nil, db, nil)
 	require.NoError(t, err)
 
 	// Restore

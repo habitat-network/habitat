@@ -9,10 +9,8 @@ import (
 
 	"context"
 
-	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/node/config"
 	jose "github.com/go-jose/go-jose/v3"
@@ -24,9 +22,7 @@ type loginHandler struct {
 	sessionStore      sessions.Store
 	habitatNodeDomain string
 
-	// Optional. If set, the DID will be resolved by calling
-	// com.atproto.identity.resolveHandle on the PDS at this URL.
-	pdsURL string
+	identityDir identity.Directory
 }
 
 type metadataHandler struct {
@@ -73,10 +69,10 @@ func GetRoutes(
 
 	return []api.Route{
 		&loginHandler{
-			pdsURL:            nodeConfig.InternalPDSURL(),
 			oauthClient:       oauthClient,
 			sessionStore:      sessionStore,
 			habitatNodeDomain: nodeConfig.Domain(),
+			identityDir:       identity.DefaultDirectory(),
 		}, &metadataHandler{
 			oauthClient: oauthClient,
 		}, &callbackHandler{
@@ -116,7 +112,7 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, loginHint, err := l.resolveIdentity(r.Context(), atid, handle)
+	id, loginHint, err := l.resolveIdentity(r.Context(), atid)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -171,38 +167,12 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
-func (l *loginHandler) resolveIdentity(ctx context.Context, atID *syntax.AtIdentifier, handle string) (*identity.Identity, *string, error) {
-	pdsOnHabitat := doesHandleBelongToDomain(handle, l.habitatNodeDomain)
-	if pdsOnHabitat {
-		client := &xrpc.Client{
-			Host: l.pdsURL,
-		}
-		loginHint := &handle
-		resp, err := atproto.IdentityResolveHandle(ctx, client, handle)
-		if err != nil {
-			return nil, nil, err
-		}
-		did, err := syntax.ParseDID(resp.Did)
-		if err != nil {
-			return nil, nil, err
-		}
-		return &identity.Identity{
-			DID:    did,
-			Handle: syntax.Handle(handle),
-			Services: map[string]identity.Service{
-				"atproto_pds": {
-					URL: l.pdsURL,
-				},
-			},
-		}, loginHint, nil
-	} else {
-		id, err := identity.DefaultDirectory().Lookup(ctx, *atID)
-		if err != nil {
-			return nil, nil, err
-		}
-		return id, nil, nil
+func (l *loginHandler) resolveIdentity(ctx context.Context, atID *syntax.AtIdentifier) (*identity.Identity, *string, error) {
+	id, err := l.identityDir.Lookup(ctx, *atID)
+	if err != nil {
+		return nil, nil, err
 	}
-
+	return id, nil, nil
 }
 
 // Method implements api.Route.
