@@ -2,6 +2,8 @@ import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 
+import clientMetadata from '../client-metadata'
+
 // Import the generated route tree
 import { routeTree } from './routeTree.gen'
 
@@ -12,12 +14,14 @@ import { BrowserOAuthClient } from '@atproto/oauth-client-browser'
 
 export const oauthClient = new BrowserOAuthClient({
   handleResolver: 'https://bsky.social',
-  clientMetadata: {
-    client_id: 'http://localhost?scope=atproto%20transition%3Ageneric',
-    redirect_uris: ['http://127.0.0.1:3001/'],
-    scope: 'atproto transition:generic',
-    token_endpoint_auth_method: 'none'
-  },
+  clientMetadata: __DOMAIN__ ?
+    clientMetadata(__DOMAIN__) :
+    {
+      client_id: 'http://localhost?scope=atproto%20transition%3Ageneric',
+      redirect_uris: ['http://127.0.0.1:3001/'],
+      scope: 'atproto transition:generic',
+      token_endpoint_auth_method: 'none'
+    },
   allowHttp: true
 })
 
