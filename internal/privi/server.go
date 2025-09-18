@@ -198,7 +198,7 @@ func (s *Server) GetRecord(callerDID syntax.DID) http.HandlerFunc {
 // This creates the xrpc.Client to use in the inner privi requests
 // TODO: this should actually pull out the requested did from the url param or input and re-direct there. (Potentially move this lower into the fns themselves).
 // This would allow for requesting to any pds through these routes, not just the one tied to this habitat node.
-func (s *Server) pdsAuthMiddleware(next func(syntax.DID) http.HandlerFunc) http.HandlerFunc {
+func (s *Server) PdsAuthMiddleware(next func(syntax.DID) http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		did, err := s.getCaller(r)
 		if err != nil {
@@ -329,7 +329,7 @@ func (s *Server) GetRoutes() []api.Route {
 		api.NewBasicRoute(
 			http.MethodGet,
 			"/xrpc/com.habitat.getRecord",
-			s.pdsAuthMiddleware(s.GetRecord),
+			s.PdsAuthMiddleware(s.GetRecord),
 		),
 		api.NewBasicRoute(http.MethodPost, "/xrpc/com.habitat.addPermission", s.AddPermission),
 		api.NewBasicRoute(

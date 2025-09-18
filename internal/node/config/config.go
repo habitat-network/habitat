@@ -39,11 +39,7 @@ func loadEnv(v *viper.Viper) error {
 	if err != nil {
 		return err
 	}
-	homedir, err := homedir()
-	if err != nil {
-		return err
-	}
-	v.SetDefault("habitat_path", filepath.Join(homedir, ".habitat"))
+	v.SetDefault("habitat_path", ".habitat")
 
 	err = v.BindEnv("habitat_app_path", "HABITAT_APP_PATH")
 	if err != nil {

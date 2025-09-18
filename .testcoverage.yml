@@ -32,7 +32,7 @@ exclude:
     - ^pkg\/raft\/transport
     - ^internal/node/drivers
     - ^internal/node/api
-    - ^cmd/node
+    - ^cmd # main.go's don't need to be tested
     - ^internal/frontend
     - ^internal/node/controller/pds.go
     - ^internal/node/controller/auth.go
