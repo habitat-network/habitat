@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/permissions"
@@ -22,7 +23,7 @@ import (
 type PutRecordRequest struct {
 	Collection string         `json:"collection"`
 	Repo       string         `json:"repo"`
-	Rkey       string         `json:"rkey"`
+	Rkey       *string        `json:"rkey,omitempty"`
 	Record     map[string]any `json:"record"`
 }
 
@@ -31,13 +32,16 @@ type Server struct {
 	stores map[syntax.DID]*store
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
+	// TODO: should this really live here?
+	repo repo
 }
 
 // NewServer returns a privi server.
-func NewServer(didToStores map[syntax.DID]permissions.Store) *Server {
+func NewServer(didToStores map[syntax.DID]permissions.Store, repo repo) *Server {
 	server := &Server{
 		stores: make(map[syntax.DID]*store),
 		dir:    identity.DefaultDirectory(),
+		repo:   repo,
 	}
 	for did, perms := range didToStores {
 		err := server.Register(did, perms)
@@ -54,7 +58,7 @@ func (s *Server) Register(did syntax.DID, perms permissions.Store) error {
 		return fmt.Errorf("existing privi store for this did: %s", did.String())
 	}
 
-	s.stores[did] = newStore(did, perms)
+	s.stores[did] = newStore(did, perms, s.repo)
 	return nil
 }
 
@@ -100,7 +104,15 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	err = inner.putRecord(req.Collection, req.Record, req.Rkey, &v)
+
+	var rkey string
+	if req.Rkey == nil {
+		rkey = uuid.NewString()
+	} else {
+		rkey = *req.Rkey
+	}
+
+	err = inner.putRecord(did, req.Collection, req.Record, rkey, &v)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -165,8 +177,7 @@ func (s *Server) GetRecord(callerDID syntax.DID) http.HandlerFunc {
 			return
 		}
 
-		out, err := inner.getRecord(collection, rkey, callerDID)
-
+		out, err := inner.getRecord(collection, rkey, targetDID, callerDID)
 		if errors.Is(err, ErrUnauthorized) {
 			http.Error(w, ErrUnauthorized.Error(), http.StatusForbidden)
 			return

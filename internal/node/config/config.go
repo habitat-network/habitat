@@ -363,6 +363,10 @@ func (n *NodeConfig) PermissionPolicyFilesDir() string {
 	return filepath.Join(n.HabitatPath(), "permissions")
 }
 
+func (n *NodeConfig) PriviRepoFile() string {
+	return filepath.Join(n.HabitatPath(), "privi-repo.db")
+}
+
 func (n *NodeConfig) FrontendDev() bool {
 	return n.viper.GetBool("frontend_dev")
 }

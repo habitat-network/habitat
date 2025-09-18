@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -50,7 +49,6 @@ func (s *CtrlServer) StartProcess(w http.ResponseWriter, r *http.Request) {
 
 	err = s.inner.startProcess(req.AppInstallationID)
 	if err != nil {
-		fmt.Println("Got error", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
