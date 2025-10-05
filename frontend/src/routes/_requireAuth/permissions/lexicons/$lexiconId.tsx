@@ -1,3 +1,4 @@
+import { habitatProxy } from "@/constants";
 import { listPermissions } from "@/queries/permissions";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
@@ -29,7 +30,7 @@ export const Route = createFileRoute('/_requireAuth/permissions/lexicons/$lexico
                         lexicon: params.lexiconId
                     }),
                     headers: {
-                        'atproto-proxy': 'did:web:localhost-0.taile529e.ts.net#privi'
+                        'atproto-proxy': habitatProxy
                     }
                 })
                 form.reset()
@@ -50,7 +51,7 @@ export const Route = createFileRoute('/_requireAuth/permissions/lexicons/$lexico
                         lexicon: params.lexiconId
                     }),
                     headers: {
-                        'atproto-proxy': 'did:web:localhost-0.taile529e.ts.net#privi'
+                        'atproto-proxy': habitatProxy,
                     }
                 })
                 router.invalidate()

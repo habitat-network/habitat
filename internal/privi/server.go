@@ -76,6 +76,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	v := true
 	err = s.store.putRecord(ownerId.DID.String(), req.Collection, req.Record, rkey, &v)
 	if err != nil {
+		log.Err(err).Msgf("error putting record for did %s", ownerId.DID.String())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

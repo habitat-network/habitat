@@ -1,3 +1,4 @@
+import {  habitatProxy } from "@/constants";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute('/_requireAuth/privi-test/view')({
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/_requireAuth/privi-test/view')({
     params.set('collection', 'com.habitat.test')
     const response = await context.authSession?.fetchHandler(`/xrpc/com.habitat.getRecord?${params.toString()}`, {
       headers: {
-        'atproto-proxy': 'did:web:localhost-0.taile529e.ts.net#privi'
+        'atproto-proxy': habitatProxy,
       }
     });
     const json = await response?.json()

@@ -1,3 +1,4 @@
+import {  habitatProxy } from "@/constants";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -17,7 +18,7 @@ export const Route = createFileRoute('/_requireAuth/privi-test/')({
             rkey: 'testRecord'
           }),
           headers: {
-            'atproto-proxy': 'did:web:localhost-0.taile529e.ts.net#privi'
+            'atproto-proxy': habitatProxy,
           }
         })
         console.log(response)
