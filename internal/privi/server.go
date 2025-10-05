@@ -16,6 +16,7 @@ import (
 
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/permissions"
+	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/rs/zerolog/log"
 )
 
@@ -50,19 +51,19 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	var req PutRecordRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	atid, err := syntax.ParseAtIdentifier(req.Repo)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "unmarshalling request", http.StatusBadRequest)
 		return
 	}
 
 	ownerId, err := s.dir.Lookup(r.Context(), *atid)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
@@ -76,8 +77,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	v := true
 	err = s.store.putRecord(ownerId.DID.String(), req.Collection, req.Record, rkey, &v)
 	if err != nil {
-		log.Err(err).Msgf("error putting record for did %s", ownerId.DID.String())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, fmt.Sprintf("putting record for did %s", ownerId.DID.String()), http.StatusInternalServerError)
 		return
 	}
 
@@ -97,7 +97,7 @@ func (s *Server) GetRecord(callerDID syntax.DID) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, err := url.Parse(r.URL.String())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
 			return
 		}
 
@@ -109,27 +109,27 @@ func (s *Server) GetRecord(callerDID syntax.DID) http.HandlerFunc {
 		atid, err := syntax.ParseAtIdentifier(repo)
 		if err != nil {
 			// TODO: write helpful message
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
 			return
 		}
 
 		id, err := s.dir.Lookup(r.Context(), *atid)
 		if err != nil {
 			// TODO: write helpful message
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
 			return
 		}
 
 		targetDID := id.DID
-		out, err := s.store.getRecord(collection, rkey, targetDID, callerDID)
-		if errors.Is(err, ErrUnauthorized) {
-			http.Error(w, ErrUnauthorized.Error(), http.StatusForbidden)
+		record, err := s.store.getRecord(collection, rkey, targetDID, callerDID)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
 			return
-		} else if errors.Is(err, ErrRecordNotFound) {
-			http.Error(w, ErrRecordNotFound.Error(), http.StatusNotFound)
-			return
-		} else if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		out, err := json.Marshal(record)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "marshalling response", http.StatusInternalServerError)
 			return
 		}
 
@@ -146,7 +146,7 @@ func (s *Server) PdsAuthMiddleware(next func(syntax.DID) http.HandlerFunc) http.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		did, err := s.getCaller(r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusForbidden)
+			utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
 			return
 		}
 		next(did).ServeHTTP(w, r)
@@ -192,19 +192,19 @@ func (s *Server) getCaller(r *http.Request) (syntax.DID, error) {
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	callerDID, err := s.getCaller(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
 		return
 	}
 
 	permissions, err := s.store.permissions.ListReadPermissionsByLexicon(callerDID.String())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
 		return
 	}
 
 	err = json.NewEncoder(w).Encode(permissions)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "json marshal response", http.StatusInternalServerError)
 		log.Err(err).Msgf("error sending response for ListPermissions request")
 		return
 	}
@@ -219,18 +219,18 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	req := &editPermissionRequest{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 	callerDID, err := s.getCaller(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
 		return
 	}
 
 	err = s.store.permissions.AddLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
 		return
 	}
 }
@@ -239,18 +239,18 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	req := &editPermissionRequest{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 	callerDID, err := s.getCaller(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
 		return
 	}
 
 	err = s.store.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
 	}
 }

@@ -36,7 +36,10 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 
 	got, err = p.getRecord(coll, "my-rkey", "my-did", "another-did")
 	require.NoError(t, err)
-	require.Equal(t, []byte(got), marshalledVal)
+
+	marshalled, err := json.Marshal(got)
+	require.NoError(t, err)
+	require.Equal(t, []byte(marshalled), marshalledVal)
 
 	err = p.putRecord("my-did", coll, val, rkey, &validate)
 	require.NoError(t, err)

@@ -1,7 +1,6 @@
 package privi
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -59,19 +58,13 @@ func (p *store) putRecord(
 	return p.repo.putRecord(did, rkey, record, validate)
 }
 
-type GetRecordResponse struct {
-	Cid   *string `json:"cid"`
-	Uri   string  `json:"uri"`
-	Value any     `json:"value"`
-}
-
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
 func (p *store) getRecord(
 	collection string,
 	rkey string,
 	targetDID syntax.DID,
 	callerDID syntax.DID,
-) (json.RawMessage, error) {
+) (record, error) {
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
 		callerDID.String(),
@@ -87,14 +80,5 @@ func (p *store) getRecord(
 		return nil, ErrUnauthorized
 	}
 
-	record, err := p.repo.getRecord(targetDID.String(), rkey)
-	if err != nil {
-		return nil, err
-	}
-
-	raw, err := json.Marshal(record)
-	if err != nil {
-		return nil, err
-	}
-	return raw, nil
+	return p.repo.getRecord(string(targetDID), rkey)
 }

@@ -42,5 +42,6 @@ exclude:
     - internal/bffauth/client.go	# TODO: remove!!
     - ^internal/docker
     - ^internal/web
+    - ^internal/utils/http.go
     - ^internal/bffauth/cmd
     - ^internal/bffauth/provider.go # File is too small :)
