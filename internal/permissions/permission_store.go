@@ -3,49 +3,31 @@ package permissions
 import (
 	_ "embed"
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 
-	"github.com/bradenaw/juniper/xmaps"
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 )
 
-// enum defining the possible actions a user has permission to do on an object.
-// an object is either a lexicon or a lexicon + record key
-type Action int
-
-const (
-	// We do not support Write permissions at this time. The PDS already enforces that only the logged-in user associated with a
-	// DID can write data to the repo.
-	Read Action = iota
-)
-
-var actionNames = map[Action]string{
-	Read: "read",
-}
-
-func (a Action) String() string {
-	return actionNames[a]
-}
-
 type Store interface {
 	HasPermission(
-		didstr string,
+		requester string,
+		owner string,
 		nsid string,
 		rkey string,
 	) (bool, error)
 	AddLexiconReadPermission(
-		didstr string,
+		grantee string,
+		owner string,
 		nsid string,
 	) error
 	RemoveLexiconReadPermission(
-		didstr string,
+		grantee string,
+		owner string,
 		nsid string,
 	) error
-	ListReadPermissionsByLexicon() (map[string][]string, error)
+	ListReadPermissionsByLexicon(owner string) (map[string][]string, error)
 }
 
 type casbinStore struct {
@@ -77,21 +59,23 @@ func NewStore(adapter persist.Adapter, autoSave bool) (Store, error) {
 // HasPermission implements PermissionStore.
 // TODO: implement record key granularity for permissions
 func (p *casbinStore) HasPermission(
-	didstr string,
+	requester string,
+	owner string,
 	nsid string,
 	rkey string,
 ) (bool, error) {
-	return p.enforcer.Enforce(didstr, getCasbinObjectFromRecord(nsid, rkey), Read.String())
+	return p.enforcer.Enforce(requester, owner, getCasbinObjectFromRecord(nsid, rkey))
 }
 
 // TODO: do some validation on input, possible cases:
 // - duplicate policies
 // - conflicting policies
 func (p *casbinStore) AddLexiconReadPermission(
-	didstr string,
+	requester string,
+	owner string,
 	nsid string,
 ) error {
-	_, err := p.enforcer.AddPolicy(didstr, getCasbinObjectFromLexicon(nsid), Read.String(), "allow")
+	_, err := p.enforcer.AddPolicy(requester, owner, getCasbinObjectFromLexicon(nsid), "allow")
 	if err != nil {
 		return err
 	}
@@ -100,37 +84,36 @@ func (p *casbinStore) AddLexiconReadPermission(
 
 // TODO: do some validation on input
 func (p *casbinStore) RemoveLexiconReadPermission(
-	didstr string,
+	requester string,
+	owner string,
 	nsid string,
 ) error {
 	// TODO: should we actually be adding a deny here instead of just removing allow?
-	_, err := p.enforcer.RemovePolicy(didstr, getCasbinObjectFromLexicon(nsid), Read.String(), "allow")
+	_, err := p.enforcer.RemovePolicy(
+		requester,
+		owner,
+		getCasbinObjectFromLexicon(nsid),
+		"allow",
+	)
 	if err != nil {
 		return err
 	}
 	return p.adapter.SavePolicy(p.enforcer.GetModel())
 }
 
-func (p *casbinStore) ListReadPermissionsByLexicon() (map[string][]string, error) {
-	objs, err := p.enforcer.GetAllObjects()
+func (p *casbinStore) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
+	policies, err := p.enforcer.GetFilteredPolicy(1, owner)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make(map[string][]string)
-	for _, obj := range objs {
-		perms, err := p.enforcer.GetImplicitUsersForResource(obj)
-		if err != nil {
-			return nil, err
+	for _, policy := range policies {
+		lexicon := strings.TrimSuffix(policy[2], ".*")
+		// ignore denies for now
+		if policy[3] == "allow" {
+			res[lexicon] = append(res[lexicon], policy[0])
 		}
-		users := make(xmaps.Set[string], 0)
-		for _, perm := range perms {
-			// Format of perms is [[bob data2 write] [alice data2 read] [alice data2 write]]
-			if perm[2] == Read.String() {
-				users.Add(perm[0])
-			}
-		}
-		res[strings.TrimSuffix(obj, ".*")] = slices.Collect(maps.Keys(users))
 	}
 
 	return res, nil

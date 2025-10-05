@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 
+	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/logging"
+	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 )
 
@@ -41,7 +43,11 @@ func main() {
 		logger.Fatal().Err(err).Msg("unable to setup privi sqlite db")
 	}
 
-	priviServer := privi.NewServer(nil, privi.NewSQLiteRepo(priviDB))
+	adapter, err := permissions.NewStore(fileadapter.NewAdapter("policies.csv"), true)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("unable to setup permissions store")
+	}
+	priviServer := privi.NewServer(adapter, privi.NewSQLiteRepo(priviDB))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/xrpc/com.habitat.putRecord", priviServer.PutRecord)
