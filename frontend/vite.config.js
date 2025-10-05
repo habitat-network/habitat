@@ -11,7 +11,7 @@ const domain = process.env.DOMAIN
 // https://vitejs.dev/config/
 export default defineConfig({
   define: {
-    __DOMAIN__: `'${domain}'`
+    __DOMAIN__: domain ? `'${domain}'` : 'undefined',
   },
   plugins: [
     TanStackRouterVite({ autoCodeSplitting: true }),

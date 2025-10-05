@@ -10,7 +10,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/logging"
 	"github.com/eagraf/habitat-new/internal/privi"
-	"tailscale.com/tsnet"
 )
 
 func main() {
@@ -30,7 +29,6 @@ func main() {
 		}
 	} else if err != nil {
 		logger.Err(err).Msgf("error finding privi repo file")
-
 	}
 
 	priviDB, err := sql.Open("sqlite3", priviRepoPath)
@@ -80,24 +78,9 @@ func main() {
 		}
 	})
 
-	tsnet := &tsnet.Server{
-		Hostname: "privi",
-		Dir:      nodeConfig.TailScaleStatePath(),
-		Logf: func(msg string, args ...any) {
-			logger.Debug().Msgf(msg, args...)
-		},
-		AuthKey: nodeConfig.TailscaleAuthkey(),
-	}
-	defer tsnet.Close()
-
-	ln, err := tsnet.ListenFunnel("tcp", ":443")
+	logger.Info().Msg("starting privi server")
+	err = http.ListenAndServe(":8080", mux)
 	if err != nil {
-		logger.Panic().Err(err).Msg("error creating listener")
-	}
-	defer ln.Close()
-
-	err = http.Serve(ln, mux)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("error serving http")
+		logger.Fatal().Err(err).Msg("error starting privi server")
 	}
 }

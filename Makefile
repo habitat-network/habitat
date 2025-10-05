@@ -159,3 +159,8 @@ frontend_server/build: frontend/types/api.ts
 	cd $(TOPDIR)/frontend && pnpm install && pnpm run build
 	mkdir -p $(TOPDIR)/frontend_server/build
 	cp -r $(TOPDIR)/frontend/dist/* $(TOPDIR)/frontend_server/build
+
+# ===================== Privi build rules =====================
+
+privi-dev: 
+	foreman start -f privi.Procfile

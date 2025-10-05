@@ -37,6 +37,11 @@ make run-dev-fresh
 ```
 You should now see a bunch of logs indicating the node has come up.
 
+```
+make privi-dev
+```
+Will run funneled privi and the habitat frontend locally (see privi.Procfile). Requires foreman
+
 ### Configuration for Local Development
 In development, the node can be configured using environment variables or through the `habitat.yml` file in the `.habitat` directory at the root of your repository. For a full list of configuration options, check out the `internal/node/config/config.go` file. When developing Habitat apps, it is often helpful to configure the `default_apps` field in the `habitat.yml` file. Doing so will automatically install the app for you and start the app when the node starts, which will save you a lot of clicking around. Here's an example of what setting the `default_apps` field could look like:
 
