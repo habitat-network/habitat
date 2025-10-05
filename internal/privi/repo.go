@@ -137,8 +137,8 @@ func (r *sqliteRepo) getRecord(did string, rkey string) (record, error) {
 
 func CreateTableSQL() string {
 	return `CREATE TABLE IF NOT EXISTS records (
-		did TEXT,
-		rkey TEXT NOT NULL UNIQUE,
+		did TEXT NOT NULL,
+		rkey TEXT NOT NULL,
 		record BLOB,
 		PRIMARY KEY(did, rkey)
 	);`
