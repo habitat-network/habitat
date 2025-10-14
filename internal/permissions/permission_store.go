@@ -64,6 +64,9 @@ func (p *casbinStore) HasPermission(
 	nsid string,
 	rkey string,
 ) (bool, error) {
+	if requester == owner {
+		return true, nil
+	}
 	return p.enforcer.Enforce(requester, owner, getCasbinObjectFromRecord(nsid, rkey))
 }
 
