@@ -254,7 +254,7 @@ func setupPrivi(nodeConfig *config.NodeConfig) (*privi.Server, func()) {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
 
-	_, err = priviDB.Exec(privi.CreateTableSQL())
+	repo, err := privi.NewSQLiteRepo(priviDB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
 	}
@@ -262,7 +262,7 @@ func setupPrivi(nodeConfig *config.NodeConfig) (*privi.Server, func()) {
 	// Add privy routes
 	priviServer := privi.NewServer(
 		perms,
-		privi.NewSQLiteRepo(priviDB),
+		repo,
 	)
 	return priviServer, func() { priviDB.Close() }
 }

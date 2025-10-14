@@ -86,10 +86,19 @@ type row struct {
 }
 
 // TODO: create table etc.
-func NewSQLiteRepo(db *sql.DB) repo {
+func NewSQLiteRepo(db *sql.DB) (repo, error) {
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS records (
+		did TEXT NOT NULL,
+		rkey TEXT NOT NULL,
+		record BLOB,
+		PRIMARY KEY(did, rkey)
+	);`)
+	if err != nil {
+		return nil, err
+	}
 	return &sqliteRepo{
 		db: db,
-	}
+	}, nil
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
@@ -106,7 +115,12 @@ func (r *sqliteRepo) putRecord(did string, rkey string, rec record, validate *bo
 		return err
 	}
 	// Always put (even if something exists).
-	_, err = r.db.Exec("insert into records(did, rkey, record) values(?, ?, jsonb(?));", did, rkey, bytes)
+	_, err = r.db.Exec(
+		"insert into records(did, rkey, record) values(?, ?, jsonb(?));",
+		did,
+		rkey,
+		bytes,
+	)
 	return err
 }
 
@@ -116,7 +130,11 @@ var (
 )
 
 func (r *sqliteRepo) getRecord(did string, rkey string) (record, error) {
-	queried := r.db.QueryRow("select did, rkey, json(record) from records where rkey = ? and did = ?", rkey, did)
+	queried := r.db.QueryRow(
+		"select did, rkey, json(record) from records where rkey = ? and did = ?",
+		rkey,
+		did,
+	)
 
 	var row row
 	err := queried.Scan(&row.did, &row.rkey, &row.rec)
@@ -133,13 +151,4 @@ func (r *sqliteRepo) getRecord(did string, rkey string) (record, error) {
 	}
 
 	return record, nil
-}
-
-func CreateTableSQL() string {
-	return `CREATE TABLE IF NOT EXISTS records (
-		did TEXT NOT NULL,
-		rkey TEXT NOT NULL,
-		record BLOB,
-		PRIMARY KEY(did, rkey)
-	);`
 }

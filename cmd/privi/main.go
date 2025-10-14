@@ -20,11 +20,27 @@ const (
 )
 
 var (
-	domainPtr    = flag.String("domain", "", "The publicly available domain at which the server can be found")
-	repoPathPtr  = flag.String("path", "./repo.db", "The path to the sqlite file to use as the backing database for this server")
-	portPtr      = flag.String("port", defaultPort, "The port on which to run the server. Default 9000")
-	certsFilePtr = flag.String("certs", "/etc/letsencrypt/live/habitat.network/", "The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem")
-	helpFlag     = flag.Bool("help", false, "Display this menu.")
+	domainPtr = flag.String(
+		"domain",
+		"",
+		"The publicly available domain at which the server can be found",
+	)
+	repoPathPtr = flag.String(
+		"path",
+		"./repo.db",
+		"The path to the sqlite file to use as the backing database for this server",
+	)
+	portPtr = flag.String(
+		"port",
+		defaultPort,
+		"The port on which to run the server. Default 9000",
+	)
+	certsFilePtr = flag.String(
+		"certs",
+		"/etc/letsencrypt/live/habitat.network/",
+		"The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem",
+	)
+	helpFlag = flag.Bool("help", false, "Display this menu.")
 )
 
 func main() {
@@ -45,7 +61,11 @@ func main() {
 		*portPtr = defaultPort
 	}
 
-	fmt.Printf("Using %s as domain and %s as repo path; starting private data server\n", *domainPtr, *repoPathPtr)
+	fmt.Printf(
+		"Using %s as domain and %s as repo path; starting private data server\n",
+		*domainPtr,
+		*repoPathPtr,
+	)
 	logger := logging.NewLogger()
 
 	// Create database file if it does not exist
@@ -67,7 +87,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
 
-	_, err = priviDB.Exec(privi.CreateTableSQL())
+	repo, err := privi.NewSQLiteRepo(priviDB)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("unable to setup privi sqlite db")
 	}
@@ -76,7 +96,7 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
-	priviServer := privi.NewServer(adapter, privi.NewSQLiteRepo(priviDB))
+	priviServer := privi.NewServer(adapter, repo)
 
 	mux := http.NewServeMux()
 
@@ -131,7 +151,10 @@ func main() {
 	}
 
 	fmt.Println("Starting server on port :" + *portPtr)
-	err = s.ListenAndServeTLS(fmt.Sprintf("%s%s", *certsFilePtr, "fullchain.pem"), fmt.Sprintf("%s%s", *certsFilePtr, "privkey.pem"))
+	err = s.ListenAndServeTLS(
+		fmt.Sprintf("%s%s", *certsFilePtr, "fullchain.pem"),
+		fmt.Sprintf("%s%s", *certsFilePtr, "privkey.pem"),
+	)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("error serving http")
 	}

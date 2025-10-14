@@ -1,7 +1,6 @@
 package privi
 
 import (
-	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -17,9 +16,8 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	priviDB, err := sql.Open("sqlite3", testDBPath)
 	require.NoError(t, err)
 
-	_, err = priviDB.ExecContext(context.Background(), CreateTableSQL())
+	repo, err := NewSQLiteRepo(priviDB)
 	require.NoError(t, err)
-	repo := NewSQLiteRepo(priviDB)
 
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
