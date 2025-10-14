@@ -20,8 +20,7 @@ func TestOAuthClient_Authorize_Success(t *testing.T) {
 	dpopClient := testDpopClient(t, identity)
 
 	// Use empty string instead of nil to avoid nil pointer dereference in logging
-	emptyHint := ""
-	redirectURL, state, err := client.Authorize(dpopClient, identity, &emptyHint)
+	redirectURL, state, err := client.Authorize(dpopClient, identity)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, redirectURL)
@@ -44,9 +43,8 @@ func TestOAuthClient_Authorize_WithLoginHint(t *testing.T) {
 	client := testOAuthClient(t)
 	identity := testIdentity(server.URL)
 	dpopClient := testDpopClient(t, identity)
-	loginHint := "test.bsky.app"
 
-	redirectURL, state, err := client.Authorize(dpopClient, identity, &loginHint)
+	redirectURL, state, err := client.Authorize(dpopClient, identity)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, redirectURL)
@@ -68,8 +66,7 @@ func TestOAuthClient_Authorize_ProtectedResourceError(t *testing.T) {
 	identity := testIdentity(server.URL)
 	dpopClient := testDpopClient(t, identity)
 
-	emptyHint := ""
-	_, _, err := client.Authorize(dpopClient, identity, &emptyHint)
+	_, _, err := client.Authorize(dpopClient, identity)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to fetch authorization server")
@@ -87,8 +84,7 @@ func TestOAuthClient_Authorize_NoAuthorizationServers(t *testing.T) {
 	identity := testIdentity(server.URL)
 	dpopClient := testDpopClient(t, identity)
 
-	emptyHint := ""
-	_, _, err := client.Authorize(dpopClient, identity, &emptyHint)
+	_, _, err := client.Authorize(dpopClient, identity)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no authorization server found")
@@ -106,7 +102,9 @@ func TestOAuthClient_Authorize_AuthServerError(t *testing.T) {
 	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/oauth-protected-resource" {
 			err := json.NewEncoder(w).Encode(oauthProtectedResource{
-				AuthorizationServers: []string{"http://" + r.Host + "/.well-known/oauth-authorization-server"},
+				AuthorizationServers: []string{
+					"http://" + r.Host + "/.well-known/oauth-authorization-server",
+				},
 			})
 			if err != nil {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -125,8 +123,7 @@ func TestOAuthClient_Authorize_AuthServerError(t *testing.T) {
 	identity := testIdentity(server.URL)
 	dpopClient := testDpopClient(t, identity)
 
-	emptyHint := ""
-	_, _, err := client.Authorize(dpopClient, identity, &emptyHint)
+	_, _, err := client.Authorize(dpopClient, identity)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to fetch authorization server")
@@ -143,8 +140,7 @@ func TestOAuthClient_Authorize_PARError(t *testing.T) {
 	identity := testIdentity(server.URL)
 	dpopClient := testDpopClient(t, identity)
 
-	emptyHint := ""
-	_, _, err := client.Authorize(dpopClient, identity, &emptyHint)
+	_, _, err := client.Authorize(dpopClient, identity)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to make pushed authorization request")
@@ -155,7 +151,9 @@ func TestOAuthClient_Authorize_LocalhostHostMapping(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/oauth-protected-resource" {
 			err := json.NewEncoder(w).Encode(oauthProtectedResource{
-				AuthorizationServers: []string{"http://localhost:3000/.well-known/oauth-authorization-server"},
+				AuthorizationServers: []string{
+					"http://localhost:3000/.well-known/oauth-authorization-server",
+				},
 			})
 			if err != nil {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -171,8 +169,7 @@ func TestOAuthClient_Authorize_LocalhostHostMapping(t *testing.T) {
 	identity := testIdentity(server.URL)
 	dpopClient := testDpopClient(t, identity)
 
-	emptyHint := ""
-	_, _, err := client.Authorize(dpopClient, identity, &emptyHint)
+	_, _, err := client.Authorize(dpopClient, identity)
 
 	// Should fail because the mapped host doesn't exist, but we're testing the mapping logic
 	require.Error(t, err)
@@ -191,11 +188,10 @@ func TestOAuthClient_Authorize_StateAndVerifierGeneration(t *testing.T) {
 	dpopClient1 := testDpopClient(t, identity1)
 	dpopClient2 := testDpopClient(t, identity2)
 
-	emptyHint := ""
-	redirectURL1, state1, err1 := client.Authorize(dpopClient1, identity1, &emptyHint)
+	redirectURL1, state1, err1 := client.Authorize(dpopClient1, identity1)
 	require.NoError(t, err1)
 
-	redirectURL2, state2, err2 := client.Authorize(dpopClient2, identity2, &emptyHint)
+	redirectURL2, state2, err2 := client.Authorize(dpopClient2, identity2)
 	require.NoError(t, err2)
 
 	// Each call should generate unique state and verifier
@@ -219,8 +215,7 @@ func TestOAuthClient_Authorize_RedirectURLFormat(t *testing.T) {
 	identity := testIdentity(server.URL)
 	dpopClient := testDpopClient(t, identity)
 
-	emptyHint := ""
-	redirectURL, _, err := client.Authorize(dpopClient, identity, &emptyHint)
+	redirectURL, _, err := client.Authorize(dpopClient, identity)
 	require.NoError(t, err)
 
 	parsedURL, err := url.Parse(redirectURL)

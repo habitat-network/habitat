@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"context"
-
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/eagraf/habitat-new/internal/node/api"
@@ -112,7 +110,7 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, loginHint, err := l.resolveIdentity(r.Context(), atid)
+	id, err := l.identityDir.Lookup(r.Context(), *atid)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -143,7 +141,7 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	dpopClient := NewDpopHttpClient(key, dpopSession)
 
-	redirect, state, err := l.oauthClient.Authorize(dpopClient, id, loginHint)
+	redirect, state, err := l.oauthClient.Authorize(dpopClient, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -165,14 +163,6 @@ func (l *loginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
-}
-
-func (l *loginHandler) resolveIdentity(ctx context.Context, atID *syntax.AtIdentifier) (*identity.Identity, *string, error) {
-	id, err := l.identityDir.Lookup(ctx, *atID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return id, nil, nil
 }
 
 // Method implements api.Route.
@@ -248,7 +238,7 @@ func (c *callbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	//defer dpopSession.Save(r, w)
+	// defer dpopSession.Save(r, w)
 
 	// Get the key from the session
 	key, ok, err := dpopSession.GetDpopKey()

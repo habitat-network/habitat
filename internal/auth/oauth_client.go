@@ -37,14 +37,19 @@ type ClientMetadata struct {
 
 type OAuthClient interface {
 	ClientMetadata() *ClientMetadata
-	Authorize(dpopClient *DpopHttpClient, i *identity.Identity, loginHint *string) (string, *AuthorizeState, error)
+	Authorize(dpopClient *DpopHttpClient, i *identity.Identity) (string, *AuthorizeState, error)
 	ExchangeCode(
 		dpopClient *DpopHttpClient,
 		code string,
 		issuer string,
 		state *AuthorizeState,
 	) (*TokenResponse, error)
-	RefreshToken(dpopClient *DpopHttpClient, identity *identity.Identity, issuer string, refreshToken string) (*TokenResponse, error)
+	RefreshToken(
+		dpopClient *DpopHttpClient,
+		identity *identity.Identity,
+		issuer string,
+		refreshToken string,
+	) (*TokenResponse, error)
 }
 
 type oauthClientImpl struct {
@@ -54,7 +59,12 @@ type oauthClientImpl struct {
 	secretJwk   jose.JSONWebKey
 }
 
-func NewOAuthClient(clientId string, clientUri string, redirectUri string, secretJwk []byte) (OAuthClient, error) {
+func NewOAuthClient(
+	clientId string,
+	clientUri string,
+	redirectUri string,
+	secretJwk []byte,
+) (OAuthClient, error) {
 	var secret jose.JSONWebKey
 	err := json.Unmarshal(secretJwk, &secret)
 	if err != nil {
@@ -97,7 +107,6 @@ type AuthorizeState struct {
 func (o *oauthClientImpl) Authorize(
 	dpopClient *DpopHttpClient,
 	i *identity.Identity,
-	loginHint *string,
 ) (string, *AuthorizeState, error) {
 	pr, err := fetchOAuthProtectedResource(i)
 	if err != nil {
@@ -120,7 +129,7 @@ func (o *oauthClientImpl) Authorize(
 
 	requestUri, err := o.makePushedAuthorizationRequest(
 		dpopClient,
-		loginHint,
+		i,
 		serverMetadata,
 		state,
 		verifier,
@@ -172,8 +181,10 @@ func (o *oauthClientImpl) ExchangeCode(
 			"code":          []string{code},
 			"code_verifier": []string{state.Verifier},
 
-			"client_assertion_type": []string{"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
-			"client_assertion":      []string{clientAssertion},
+			"client_assertion_type": []string{
+				"urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+			},
+			"client_assertion": []string{clientAssertion},
 		}.Encode()),
 	)
 	if err != nil {
@@ -207,8 +218,12 @@ func (o *oauthClientImpl) ExchangeCode(
 	return &tokenResp, nil
 }
 
-func (o *oauthClientImpl) RefreshToken(dpopClient *DpopHttpClient, identity *identity.Identity, issuer string, refreshToken string) (*TokenResponse, error) {
-
+func (o *oauthClientImpl) RefreshToken(
+	dpopClient *DpopHttpClient,
+	identity *identity.Identity,
+	issuer string,
+	refreshToken string,
+) (*TokenResponse, error) {
 	pr, err := fetchOAuthProtectedResource(identity)
 	if err != nil {
 		return nil, err
@@ -230,11 +245,13 @@ func (o *oauthClientImpl) RefreshToken(dpopClient *DpopHttpClient, identity *ide
 		http.MethodPost,
 		tokenEndpoint,
 		strings.NewReader(url.Values{
-			"client_id":             []string{o.clientId},
-			"grant_type":            []string{"refresh_token"},
-			"refresh_token":         []string{refreshToken},
-			"client_assertion_type": []string{"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
-			"client_assertion":      []string{clientAssertion},
+			"client_id":     []string{o.clientId},
+			"grant_type":    []string{"refresh_token"},
+			"refresh_token": []string{refreshToken},
+			"client_assertion_type": []string{
+				"urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+			},
+			"client_assertion": []string{clientAssertion},
 		}.Encode()),
 	)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -367,7 +384,7 @@ func (o *oauthClientImpl) getClientAssertion(audience string) (string, error) {
 
 func (o *oauthClientImpl) makePushedAuthorizationRequest(
 	dpopClient *DpopHttpClient,
-	loginHint *string,
+	id *identity.Identity,
 	as *oauthAuthorizationServer,
 	state string,
 	verifier string,
@@ -393,10 +410,7 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 		"scope":                 {"atproto transition:generic"},
 		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
 		"client_assertion":      {clientAssertion},
-	}
-
-	if loginHint != nil {
-		params.Add("login_hint", *loginHint)
+		"login_hint":            {id.Handle.String()},
 	}
 
 	req, err := http.NewRequest(
@@ -425,7 +439,11 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 
 	if resp.StatusCode != http.StatusCreated {
 		errMsg, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("failed to make pushed authorization request: %s - %s", resp.Status, string(errMsg))
+		return "", fmt.Errorf(
+			"failed to make pushed authorization request: %s - %s",
+			resp.Status,
+			string(errMsg),
+		)
 	}
 
 	var respBody parResponse
