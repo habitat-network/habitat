@@ -59,7 +59,7 @@ export const getAvailableApps = async (): Promise<any[]> => {
 export const getWebApps = async (): Promise<any[]> => {
   try {
     const nodeState = await getNode();
-    const appInstallations = Object.values(nodeState.state.app_installations || {});
+    const appInstallations = Object.values(nodeState?.state?.app_installations || {});
 
     const webApps = appInstallations
       .filter((app: any) => app.driver === 'web')
@@ -69,7 +69,7 @@ export const getWebApps = async (): Promise<any[]> => {
         driver: app.driver,
       }));
 
-    const reverseProxyRules = nodeState.state.reverse_proxy_rules || {};
+    const reverseProxyRules = nodeState?.state?.reverse_proxy_rules || {};
 
     return webApps.map(app => {
       const appRules = Object.values(reverseProxyRules).filter((rule: any) => rule.app_id === app.id);
