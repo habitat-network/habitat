@@ -164,3 +164,6 @@ frontend_server/build: frontend/types/api.ts
 
 privi-dev: 
 	foreman start -f privi.Procfile
+
+lexgen:
+	go run cmd/lexgen/main.go

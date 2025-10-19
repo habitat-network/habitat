@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -14,18 +13,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
+	"github.com/eagraf/habitat-new/api/habitat"
 	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/utils"
+	"github.com/gorilla/schema"
 	"github.com/rs/zerolog/log"
 )
-
-type PutRecordRequest struct {
-	Collection string         `json:"collection"`
-	Repo       string         `json:"repo"`
-	Rkey       string         `json:"rkey,omitempty"`
-	Record     map[string]any `json:"record"`
-}
 
 type Server struct {
 	// TODO: allow privy server to serve many stores, not just one user
@@ -46,9 +40,11 @@ func NewServer(perms permissions.Store, repo repo) *Server {
 	return server
 }
 
+var formDecoder = schema.NewDecoder()
+
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	var req PutRecordRequest
+	var req habitat.NetworkHabitatRepoPutRecordInput
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
@@ -77,7 +73,12 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	v := true
 	err = s.store.putRecord(ownerId.DID.String(), req.Collection, req.Record, rkey, &v)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, fmt.Sprintf("putting record for did %s", ownerId.DID.String()), http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("putting record for did %s", ownerId.DID.String()),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -95,18 +96,15 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(callerDID syntax.DID) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, err := url.Parse(r.URL.String())
+		var params habitat.NetworkHabitatRepoGetRecordParams
+		err := formDecoder.Decode(&params, r.URL.Query())
 		if err != nil {
 			utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
 			return
 		}
 
-		collection := u.Query().Get("collection")
-		repo := u.Query().Get("repo")
-		rkey := u.Query().Get("rkey")
-
 		// Try handling both handles and dids
-		atid, err := syntax.ParseAtIdentifier(repo)
+		atid, err := syntax.ParseAtIdentifier(params.Repo)
 		if err != nil {
 			// TODO: write helpful message
 			utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
@@ -121,20 +119,15 @@ func (s *Server) GetRecord(callerDID syntax.DID) http.HandlerFunc {
 		}
 
 		targetDID := id.DID
-		record, err := s.store.getRecord(collection, rkey, targetDID, callerDID)
+		record, err := s.store.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
 		if err != nil {
 			utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
 			return
 		}
 
-		out, err := json.Marshal(record)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "marshalling response", http.StatusInternalServerError)
+		if json.NewEncoder(w).Encode(record) != nil {
+			utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 			return
-		}
-
-		if _, err := w.Write(out); err != nil {
-			log.Err(err).Msgf("error sending response for GetRecord request")
 		}
 	}
 }
