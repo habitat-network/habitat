@@ -219,7 +219,7 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		os.Stderr.WriteString(err.Error())
+		_, _ = os.Stderr.WriteString(err.Error())
 		os.Exit(1)
 	}
 }

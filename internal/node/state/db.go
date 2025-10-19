@@ -10,9 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var (
-	DatabaseAlreadyExistsError = errors.New("database already exists")
-)
+var ErrDatabaseAlreadyExists = errors.New("database already exists")
 
 // TODO: this should really be a struct that is NodeState or something similar with a Persist()
 // function to write it. Then we can have many implementations of NodeState where Persist() can persist
@@ -35,7 +33,7 @@ func (db *fileDB) Path() string {
 
 // Helper function to write byte state to a file
 func writeState(path string, bytes []byte) error {
-	return os.WriteFile(path, bytes, 0600)
+	return os.WriteFile(path, bytes, 0o600)
 }
 
 func NewHabitatDB(path string, initialTransitions []Transition) (Client, error) {

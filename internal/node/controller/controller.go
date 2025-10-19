@@ -32,7 +32,10 @@ func NewController(
 	// Validate types of all input components
 	_, ok := processManager.(types.Component[process.RestoreInfo])
 	if !ok {
-		return nil, fmt.Errorf("Process manager of type %T does not implement Component[*process.]", processManager)
+		return nil, fmt.Errorf(
+			"process manager of type %T does not implement Component[*process.]",
+			processManager,
+		)
 	}
 
 	ctrl := &Controller{
@@ -114,13 +117,32 @@ func (c *Controller) stopProcess(processID process.ID) error {
 	return err
 }
 
-func (c *Controller) installApp(userID string, pkg *app.Package, version string, name string, proxyRules []*reverse_proxy.Rule, start bool) error {
+func (c *Controller) installApp(
+	userID string,
+	pkg *app.Package,
+	version string,
+	name string,
+	proxyRules []*reverse_proxy.Rule,
+	start bool,
+) error {
 	installer, ok := c.pkgManagers[pkg.Driver]
 	if !ok {
-		return fmt.Errorf("No driver %s found for app installation [name: %s, version: %s, package: %v]", pkg.Driver, name, version, pkg)
+		return fmt.Errorf(
+			"no driver %s found for app installation [name: %s, version: %s, package: %v]",
+			pkg.Driver,
+			name,
+			version,
+			pkg,
+		)
 	}
 
-	transition, id := node_state.CreateStartInstallationTransition(userID, pkg, version, name, proxyRules)
+	transition, id := node_state.CreateStartInstallationTransition(
+		userID,
+		pkg,
+		version,
+		name,
+		proxyRules,
+	)
 	_, err := c.db.ProposeTransitions([]node_state.Transition{
 		transition,
 	})
@@ -197,7 +219,11 @@ func (c *Controller) restore(state *node_state.NodeState) error {
 	for _, proc := range state.Processes {
 		app, ok := state.AppInstallations[proc.AppID]
 		if !ok {
-			return fmt.Errorf("no app installation found for desired process: ID=%s appID=%s", proc.ID, proc.AppID)
+			return fmt.Errorf(
+				"no app installation found for desired process: ID=%s appID=%s",
+				proc.ID,
+				proc.AppID,
+			)
 		}
 		info[proc.ID] = app
 	}

@@ -38,7 +38,11 @@ func (d *dockerDriver) Type() app.DriverType {
 	return app.DriverTypeDocker
 }
 
-func (d *dockerDriver) StartProcess(ctx context.Context, processID process.ID, install *app.Installation) error {
+func (d *dockerDriver) StartProcess(
+	ctx context.Context,
+	processID process.ID,
+	install *app.Installation,
+) error {
 	var dockerConfig app.InstallationConfig
 	dockerConfigBytes, err := json.Marshal(install.DriverConfig)
 	if err != nil {
@@ -56,7 +60,12 @@ func (d *dockerDriver) StartProcess(ctx context.Context, processID process.ID, i
 	}
 
 	createResp, err := d.client.ContainerCreate(ctx, &container.Config{
-		Image:        fmt.Sprintf("%s/%s:%s", install.RegistryURLBase, install.RegistryPackageID, install.RegistryPackageTag),
+		Image: fmt.Sprintf(
+			"%s/%s:%s",
+			install.RegistryURLBase,
+			install.RegistryPackageID,
+			install.RegistryPackageTag,
+		),
 		ExposedPorts: exposedPorts,
 		Env:          dockerConfig.Env,
 		Labels: map[string]string{
@@ -80,7 +89,10 @@ func (d *dockerDriver) StartProcess(ctx context.Context, processID process.ID, i
 	return nil
 }
 
-func (d *dockerDriver) getContainerWithProcessID(ctx context.Context, processID process.ID) (types.Container, bool, error) {
+func (d *dockerDriver) getContainerWithProcessID(
+	ctx context.Context,
+	processID process.ID,
+) (types.Container, bool, error) {
 	labelVal := habitatLabel + "=" + string(processID)
 	ctrs, err := d.client.ContainerList(ctx, container.ListOptions{
 		Filters: filters.NewArgs(
@@ -92,7 +104,11 @@ func (d *dockerDriver) getContainerWithProcessID(ctx context.Context, processID 
 	}
 
 	if len(ctrs) > 1 {
-		return types.Container{}, false, fmt.Errorf("Found multiple containers with label=%s: %v", labelVal, ctrs)
+		return types.Container{}, false, fmt.Errorf(
+			"found multiple containers with label=%s: %v",
+			labelVal,
+			ctrs,
+		)
 	} else if len(ctrs) == 0 {
 		return types.Container{}, false, nil
 	}

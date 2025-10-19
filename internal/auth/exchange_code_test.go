@@ -44,7 +44,12 @@ func TestOAuthClient_ExchangeCode_Success(t *testing.T) {
 func TestOAuthClient_ExchangeCode_ClientAssertionError(t *testing.T) {
 	// Create a client with invalid JWK to trigger client assertion error
 	invalidJwk := []byte(`{"invalid": "jwk"}`)
-	_, err := NewOAuthClient("test-client", "https://test.com", "https://test.com/callback", invalidJwk)
+	_, err := NewOAuthClient(
+		"test-client",
+		"https://test.com",
+		"https://test.com/callback",
+		invalidJwk,
+	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unknown json web key type")
 }
@@ -56,7 +61,7 @@ func TestOAuthClient_ExchangeCode_HTTPRequestError(t *testing.T) {
 		hj, ok := w.(http.Hijacker)
 		if ok {
 			conn, _, _ := hj.Hijack()
-			conn.Close()
+			require.NoError(t, conn.Close())
 		}
 	}))
 	defer server.Close()
@@ -112,7 +117,15 @@ func TestOAuthClient_ExchangeCode_RequestParameters(t *testing.T) {
 		}
 
 		// Verify required parameters are present
-		requiredParams := []string{"client_id", "grant_type", "redirect_uri", "code", "code_verifier", "client_assertion_type", "client_assertion"}
+		requiredParams := []string{
+			"client_id",
+			"grant_type",
+			"redirect_uri",
+			"code",
+			"code_verifier",
+			"client_assertion_type",
+			"client_assertion",
+		}
 		for _, param := range requiredParams {
 			if r.FormValue(param) == "" {
 				http.Error(w, "missing parameter: "+param, http.StatusBadRequest)
@@ -141,7 +154,9 @@ func TestOAuthClient_ExchangeCode_RequestParameters(t *testing.T) {
 			http.Error(w, "invalid code_verifier", http.StatusBadRequest)
 			return
 		}
-		if r.FormValue("client_assertion_type") != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" {
+		if r.FormValue(
+			"client_assertion_type",
+		) != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" {
 			http.Error(w, "invalid client_assertion_type", http.StatusBadRequest)
 			return
 		}
@@ -179,6 +194,10 @@ func TestOAuthClient_ExchangeCode_RequestParameters(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tokenResp)
 	require.NotNil(t, capturedRequest)
-	require.Equal(t, "application/x-www-form-urlencoded", capturedRequest.Header.Get("Content-Type"))
+	require.Equal(
+		t,
+		"application/x-www-form-urlencoded",
+		capturedRequest.Header.Get("Content-Type"),
+	)
 	require.Equal(t, "POST", capturedRequest.Method)
 }

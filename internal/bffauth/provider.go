@@ -174,7 +174,6 @@ func (p *Provider) handleTest(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Err(err).Msgf("error sending response in handleTest")
 	}
-
 }
 
 func (p *Provider) ValidateToken(token string) (string, error) {
@@ -184,7 +183,7 @@ func (p *Provider) ValidateToken(token string) (string, error) {
 	}
 	dids := []string(claims.Audience)
 	if len(dids) > 1 || len(dids) <= 0 {
-		return "", fmt.Errorf("Invalidly formatted jwt claims audience")
+		return "", fmt.Errorf("invalidly formatted jwt claims audience")
 	}
 	return dids[0], nil
 }

@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/eagraf/habitat-new/util"
 	"github.com/rs/zerolog/log"
 )
 
@@ -57,7 +58,7 @@ func ServeFn(srv *http.Server, name string, opts ...Option) func() error {
 			}
 			options.listener = ln
 		}
-		defer options.listener.Close()
+		defer util.Close(options.listener)
 
 		if options.tlsConfig != nil && options.tlsConfig.config != nil {
 			srv.TLSConfig = options.tlsConfig.config
@@ -66,7 +67,11 @@ func ServeFn(srv *http.Server, name string, opts ...Option) func() error {
 		var err error
 		if srv.TLSConfig != nil && options.tlsConfig != nil {
 			log.Info().Msgf("Starting Habitat server[%s] at %s over TLS", name, srv.Addr)
-			err = srv.ServeTLS(options.listener, options.tlsConfig.certFile, options.tlsConfig.keyFile)
+			err = srv.ServeTLS(
+				options.listener,
+				options.tlsConfig.certFile,
+				options.tlsConfig.keyFile,
+			)
 		} else {
 			log.Warn().Msgf("No TLS config found: starting Habitat server[%s] at %s without TLS enabled", name, srv.Addr)
 			err = srv.Serve(options.listener)

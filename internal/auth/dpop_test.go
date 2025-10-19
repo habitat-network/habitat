@@ -73,7 +73,7 @@ func TestDpopHttpClient_InitialValidNonce(t *testing.T) {
 	// Execute request
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	// Verify response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -137,7 +137,7 @@ func TestDpopHttpClient_NoNonceAtBeginning(t *testing.T) {
 	// Execute request
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	// Verify response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -219,7 +219,7 @@ func TestDpopHttpClient_AuthorizationServerNonceError(t *testing.T) {
 	// Execute request
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	// Verify response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -252,7 +252,12 @@ func TestDpopHttpClient_WithAccessToken(t *testing.T) {
 
 		// Verify authorization header is present
 		require.NotEmpty(t, r.Header.Get("Authorization"), "Authorization header should be present")
-		require.Equal(t, "DPoP test-access-token", r.Header.Get("Authorization"), "Authorization header should be DPoP")
+		require.Equal(
+			t,
+			"DPoP test-access-token",
+			r.Header.Get("Authorization"),
+			"Authorization header should be DPoP",
+		)
 
 		// Verify the hash matches the token
 		expectedToken := "test-access-token"
@@ -284,7 +289,7 @@ func TestDpopHttpClient_WithAccessToken(t *testing.T) {
 	// Execute request
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	// Verify response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -329,7 +334,7 @@ func TestDpopHttpClient_RequestFormat(t *testing.T) {
 	// Execute request
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	// Verify response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -360,7 +365,6 @@ func TestDpopHttpClient_NonceProviderError(t *testing.T) {
 	resp, err := client.Do(req)
 	require.Error(t, err)
 	require.Nil(t, resp)
-
 }
 
 func TestDpopHttpClient_ErrorHandling(t *testing.T) {
@@ -389,7 +393,7 @@ func TestDpopHttpClient_ErrorHandling(t *testing.T) {
 	// Execute request
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	// Verify response status
 	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)

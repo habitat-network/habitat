@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestServerFn(t *testing.T) {
-
 	mockServer := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "Hello, World!")
+			_, err := fmt.Fprint(w, "Hello, World!")
+			require.NoError(t, err)
 		}),
 	}
 	ServeFn(
@@ -19,5 +21,4 @@ func TestServerFn(t *testing.T) {
 		"test-server",
 		WithTLSConfig(&tls.Config{}, "cert-path", "key-path"),
 	)
-
 }

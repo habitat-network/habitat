@@ -85,8 +85,8 @@ func TestSession(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, retrievedKey)
 	require.Equal(t, originalKey.D, retrievedKey.D)
-	require.Equal(t, originalKey.PublicKey.X, retrievedKey.PublicKey.X)
-	require.Equal(t, originalKey.PublicKey.Y, retrievedKey.PublicKey.Y)
+	require.Equal(t, originalKey.X, retrievedKey.X)
+	require.Equal(t, originalKey.Y, retrievedKey.Y)
 
 	// Verify identity
 	retrievedIdentity, ok, err := retrievedSession.GetIdentity()
@@ -95,7 +95,11 @@ func TestSession(t *testing.T) {
 	require.NotNil(t, retrievedIdentity)
 	require.Equal(t, testIdentity.DID, retrievedIdentity.DID)
 	require.Equal(t, testIdentity.Handle, retrievedIdentity.Handle)
-	require.Equal(t, testIdentity.Services["atproto_pds"].URL, retrievedIdentity.Services["atproto_pds"].URL)
+	require.Equal(
+		t,
+		testIdentity.Services["atproto_pds"].URL,
+		retrievedIdentity.Services["atproto_pds"].URL,
+	)
 
 	// Verify PDS URL
 	retrievedPDSURL, ok, err := retrievedSession.GetPDSURL()

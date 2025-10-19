@@ -30,9 +30,7 @@ type ProcessManager interface {
 	types.Component[RestoreInfo]
 }
 
-var (
-	ErrDriverNotFound = errors.New("no driver found")
-)
+var ErrDriverNotFound = errors.New("no driver found")
 
 type baseProcessManager struct {
 	drivers map[app.DriverType]Driver
@@ -72,7 +70,11 @@ func (pm *baseProcessManager) IsRunning(ctx context.Context, id ID) (bool, error
 	return driver.IsRunning(ctx, id)
 }
 
-func (pm *baseProcessManager) StartProcess(ctx context.Context, id ID, app *app.Installation) error {
+func (pm *baseProcessManager) StartProcess(
+	ctx context.Context,
+	id ID,
+	app *app.Installation,
+) error {
 	driver, ok := pm.drivers[app.Driver]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrDriverNotFound, app.Driver)
@@ -102,7 +104,7 @@ func (pm *baseProcessManager) RestoreFromState(ctx context.Context, state Restor
 	for id, app := range state {
 		err := pm.StartProcess(ctx, id, app)
 		if err != nil {
-			return fmt.Errorf("Error starting process %s: %s", id, err)
+			return fmt.Errorf("error starting process %s: %s", id, err)
 		}
 	}
 	return nil

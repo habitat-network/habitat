@@ -150,7 +150,9 @@ func TestOAuthClient_RefreshToken_AuthServerError(t *testing.T) {
 	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/oauth-protected-resource" {
 			_ = json.NewEncoder(w).Encode(oauthProtectedResource{
-				AuthorizationServers: []string{"http://" + r.Host + "/.well-known/oauth-authorization-server"},
+				AuthorizationServers: []string{
+					"http://" + r.Host + "/.well-known/oauth-authorization-server",
+				},
 			})
 			return
 		}
@@ -199,7 +201,7 @@ func TestOAuthClient_RefreshToken_HTTPRequestError(t *testing.T) {
 		hj, ok := w.(http.Hijacker)
 		if ok {
 			conn, _, _ := hj.Hijack()
-			conn.Close()
+			require.NoError(t, conn.Close())
 		}
 	}))
 	defer server.Close()
@@ -315,7 +317,13 @@ func TestOAuthClient_RefreshToken_RequestParameters(t *testing.T) {
 			}
 
 			// Verify required parameters are present
-			requiredParams := []string{"client_id", "grant_type", "refresh_token", "client_assertion_type", "client_assertion"}
+			requiredParams := []string{
+				"client_id",
+				"grant_type",
+				"refresh_token",
+				"client_assertion_type",
+				"client_assertion",
+			}
 			for _, param := range requiredParams {
 				if r.FormValue(param) == "" {
 					http.Error(w, "missing parameter: "+param, http.StatusBadRequest)
@@ -336,7 +344,9 @@ func TestOAuthClient_RefreshToken_RequestParameters(t *testing.T) {
 				http.Error(w, "invalid refresh_token", http.StatusBadRequest)
 				return
 			}
-			if r.FormValue("client_assertion_type") != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" {
+			if r.FormValue(
+				"client_assertion_type",
+			) != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" {
 				http.Error(w, "invalid client_assertion_type", http.StatusBadRequest)
 				return
 			}
@@ -389,6 +399,10 @@ func TestOAuthClient_RefreshToken_RequestParameters(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tokenResp)
 	require.NotNil(t, capturedRequest)
-	require.Equal(t, "application/x-www-form-urlencoded", capturedRequest.Header.Get("Content-Type"))
+	require.Equal(
+		t,
+		"application/x-www-form-urlencoded",
+		capturedRequest.Header.Get("Content-Type"),
+	)
 	require.Equal(t, "POST", capturedRequest.Method)
 }

@@ -24,7 +24,7 @@ func TestJWTFlow(t *testing.T) {
 
 	// Verify expiration time is set correctly (15 minutes from now)
 	expectedExpiry := time.Now().Add(15 * time.Minute)
-	if claims.ExpiresAt.Time.Sub(expectedExpiry) > time.Second {
+	if claims.ExpiresAt.Sub(expectedExpiry) > time.Second {
 		t.Errorf("Unexpected expiration time. Got %v, want approximately %v",
 			claims.ExpiresAt.Time, expectedExpiry)
 	}

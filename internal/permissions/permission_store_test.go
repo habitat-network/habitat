@@ -35,7 +35,7 @@ func TestAddRemovePolicies(t *testing.T) {
 	require.NoError(t, err)
 	tmp, err := os.CreateTemp("test_policies", "test-tmp")
 	require.NoError(t, err)
-	defer os.Remove(tmp.Name())
+	defer func() { require.NoError(t, os.Remove(tmp.Name())) }()
 	_, err = tmp.Write(inner)
 	require.NoError(t, err)
 

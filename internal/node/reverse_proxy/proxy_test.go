@@ -19,7 +19,8 @@ func TestProxy(t *testing.T) {
 	// Simulate a server sitting behind the reverse proxy
 	redirectedServer := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "Hello, World!")
+			_, err := fmt.Fprint(w, "Hello, World!")
+			require.NoError(t, err)
 		}),
 	)
 	defer redirectedServer.Close()
@@ -29,13 +30,13 @@ func TestProxy(t *testing.T) {
 
 	// Simulate a static file dir to be served
 	fileDir := t.TempDir()
-	defer os.RemoveAll(fileDir)
+	defer func() { require.NoError(t, os.RemoveAll(fileDir)) }()
 
 	file, err := os.CreateTemp(fileDir, "file")
 	require.NoError(t, err)
 
 	_, _ = file.Write([]byte("Hello, World!"))
-	file.Close()
+	require.NoError(t, file.Close())
 
 	// Create proxy server
 	proxy := NewProxyServer(logging.NewLogger(), "default/path")

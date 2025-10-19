@@ -138,7 +138,7 @@ func main() {
   ]
 }`
 		domain := *domainPtr
-		_, err := w.Write([]byte(fmt.Sprintf(template, domain, domain)))
+		_, err := fmt.Fprintf(w, template, domain, domain)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

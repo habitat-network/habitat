@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/eagraf/habitat-new/internal/app"
+	"github.com/eagraf/habitat-new/util"
 	"github.com/rs/zerolog/log"
 )
 
@@ -64,7 +65,7 @@ func (m *webPackageManager) InstallPackage(packageSpec *app.Package, version str
 	}
 
 	// Make sure the $HABITAT_PATH/web/ directory is created
-	err := os.MkdirAll(m.webBundlePath, 0755)
+	err := os.MkdirAll(m.webBundlePath, 0o755)
 	if err != nil {
 		return err
 	}
@@ -100,7 +101,10 @@ func (m *webPackageManager) UninstallPackage(pkg *app.Package, version string) e
 	return os.RemoveAll(bundlePath)
 }
 
-func (m *webPackageManager) RestoreFromState(ctx context.Context, apps map[string]*app.Installation) error {
+func (m *webPackageManager) RestoreFromState(
+	ctx context.Context,
+	apps map[string]*app.Installation,
+) error {
 	var err error
 	for _, app := range apps {
 		if app.Driver == m.Driver() {
@@ -114,7 +118,10 @@ func (m *webPackageManager) RestoreFromState(ctx context.Context, apps map[strin
 	return err
 }
 
-func (m *webPackageManager) getBundlePath(bundleConfig *BundleInstallationConfig, version string) string {
+func (m *webPackageManager) getBundlePath(
+	bundleConfig *BundleInstallationConfig,
+	version string,
+) string {
 	return filepath.Join(m.webBundlePath, bundleConfig.BundleDirectoryName, version)
 }
 
@@ -139,13 +146,13 @@ func downloadAndExtractWebBundle(downloadURL string, bundlePath string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Path to temporary file we download.
 	tmpFile := filepath.Join(tempDir, "bundle.tar.gz")
 
 	// Create the destination directory
-	err = os.MkdirAll(bundlePath, 0755)
+	err = os.MkdirAll(bundlePath, 0o755)
 	if err != nil {
 		return err
 	}
@@ -172,14 +179,14 @@ func downloadWebBundle(downloadURL string, tmpFile string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer util.Close(resp.Body)
 
 	// Create a file to save the downloaded bundle
 	bundleFile, err := os.Create(tmpFile)
 	if err != nil {
 		return err
 	}
-	defer bundleFile.Close()
+	defer util.Close(bundleFile)
 
 	// Copy the downloaded bundle to the file
 	_, err = io.Copy(bundleFile, resp.Body)
@@ -195,13 +202,13 @@ func extractTarGz(tarPath, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer util.Close(r)
 
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
 		return err
 	}
-	defer gzr.Close()
+	defer util.Close(gzr)
 
 	tr := tar.NewReader(gzr)
 
@@ -236,7 +243,7 @@ func extractTarGz(tarPath, destPath string) error {
 		// if its a dir and it doesn't exist create it
 		case tar.TypeDir:
 			if _, err := os.Stat(target); err != nil {
-				if err := os.MkdirAll(target, 0755); err != nil {
+				if err := os.MkdirAll(target, 0o755); err != nil {
 					return err
 				}
 			}
@@ -255,7 +262,10 @@ func extractTarGz(tarPath, destPath string) error {
 
 			// manually close here after each file operation; defering would cause each file close
 			// to wait until all operations have completed.
-			f.Close()
+			err = f.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
 }

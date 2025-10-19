@@ -264,7 +264,7 @@ func setupPrivi(nodeConfig *config.NodeConfig) (*privi.Server, func()) {
 		perms,
 		repo,
 	)
-	return priviServer, func() { priviDB.Close() }
+	return priviServer, func() { _ = priviDB.Close() }
 }
 
 func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*reverse_proxy.Rule, error) {

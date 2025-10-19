@@ -84,7 +84,11 @@ func (t *migrationTransition) Patch(oldState SerializedState) (SerializedState, 
 		return nil, err
 	}
 
-	patch, err := NodeDataMigrations.GetMigrationPatch(oldNode.SchemaVersion, t.TargetVersion, &oldNode)
+	patch, err := NodeDataMigrations.GetMigrationPatch(
+		oldNode.SchemaVersion,
+		t.TargetVersion,
+		&oldNode,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +103,11 @@ func (t *migrationTransition) Validate(oldState SerializedState) error {
 		return err
 	}
 
-	patch, err := NodeDataMigrations.GetMigrationPatch(oldNode.SchemaVersion, t.TargetVersion, &oldNode)
+	patch, err := NodeDataMigrations.GetMigrationPatch(
+		oldNode.SchemaVersion,
+		t.TargetVersion,
+		&oldNode,
+	)
 	if err != nil {
 		return err
 	}
@@ -140,7 +148,6 @@ func (t *addUserTransition) Type() TransitionType {
 }
 
 func (t *addUserTransition) Patch(oldState SerializedState) (SerializedState, error) {
-
 	user, err := json.Marshal(t.User)
 	if err != nil {
 		return nil, err
@@ -245,7 +252,12 @@ func (t *startInstallationTransition) Validate(oldState SerializedState) error {
 	app, ok := oldNode.AppInstallations[t.appInstallation.ID]
 	if ok {
 		if app.Version == t.appInstallation.Version {
-			return fmt.Errorf("app %s version %s for user %s found", t.appInstallation.Name, t.appInstallation.Version, userID)
+			return fmt.Errorf(
+				"app %s version %s for user %s found",
+				t.appInstallation.Name,
+				t.appInstallation.Version,
+				userID,
+			)
 		} else {
 			// TODO eventually this will be part of an upgrade flow
 			return fmt.Errorf("app %s for user %s found in state with different version %s", t.appInstallation.Name, userID, app.Version)
@@ -255,8 +267,14 @@ func (t *startInstallationTransition) Validate(oldState SerializedState) error {
 	// Look for matching registry URL and package ID
 	// TODO @eagraf - we need a way to update apps
 	for _, app := range oldNode.AppInstallations {
-		if app.RegistryURLBase == t.appInstallation.RegistryURLBase && app.RegistryPackageID == t.appInstallation.RegistryPackageID {
-			return fmt.Errorf("app %s for user %s found in state with different version %s", app.Name, userID, app.Version)
+		if app.RegistryURLBase == t.appInstallation.RegistryURLBase &&
+			app.RegistryPackageID == t.appInstallation.RegistryPackageID {
+			return fmt.Errorf(
+				"app %s for user %s found in state with different version %s",
+				app.Name,
+				userID,
+				app.Version,
+			)
 		}
 	}
 
@@ -267,7 +285,13 @@ func (t *startInstallationTransition) Validate(oldState SerializedState) error {
 	return nil
 }
 
-func CreateStartInstallationTransition(userID string, pkg *app.Package, version string, name string, proxyRules []*reverse_proxy.Rule) (Transition, string) {
+func CreateStartInstallationTransition(
+	userID string,
+	pkg *app.Package,
+	version string,
+	name string,
+	proxyRules []*reverse_proxy.Rule,
+) (Transition, string) {
 	id := uuid.NewString()
 	transition := &startInstallationTransition{
 		appInstallation: &app.Installation{
@@ -296,6 +320,7 @@ func CreateFinishInstallationTransition(appID string) Transition {
 func (t *finishInstallationTransition) Type() TransitionType {
 	return TransitionFinishInstallation
 }
+
 func (t *finishInstallationTransition) Patch(oldState SerializedState) (SerializedState, error) {
 	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
@@ -341,6 +366,7 @@ func CreateUninstallAppTransition(appID string) Transition {
 func (t *uninstallTransition) Type() TransitionType {
 	return TransitionStartUninstallation
 }
+
 func (t *uninstallTransition) Patch(oldState SerializedState) (SerializedState, error) {
 	return []byte(fmt.Sprintf(`[{
 		"op": "remove",
@@ -366,7 +392,10 @@ type processStartTransition struct {
 	Process *process.Process
 }
 
-func CreateProcessStartTransition(appID string, oldState *NodeState) (Transition, process.ID, error) {
+func CreateProcessStartTransition(
+	appID string,
+	oldState *NodeState,
+) (Transition, process.ID, error) {
 	app, err := oldState.GetAppByID(appID)
 	if err != nil {
 		return nil, "", err
@@ -408,7 +437,6 @@ func (t *processStartTransition) Patch(oldState SerializedState) (SerializedStat
 }
 
 func (t *processStartTransition) Validate(oldState SerializedState) error {
-
 	var oldNode NodeState
 	err := json.Unmarshal(oldState, &oldNode)
 	if err != nil {
@@ -426,7 +454,11 @@ func (t *processStartTransition) Validate(oldState SerializedState) error {
 		return err
 	}
 	if appInstall.State != app.LifecycleStateInstalled {
-		return fmt.Errorf("app with id %s is not in state %s", t.Process.AppID, app.LifecycleStateInstalled)
+		return fmt.Errorf(
+			"app with id %s is not in state %s",
+			t.Process.AppID,
+			app.LifecycleStateInstalled,
+		)
 	}
 
 	// Check user exists
@@ -435,13 +467,16 @@ func (t *processStartTransition) Validate(oldState SerializedState) error {
 		return fmt.Errorf("user with id %s does not exist", userID)
 	}
 	if _, ok := oldNode.Processes[t.Process.ID]; ok {
-		return fmt.Errorf("Process with id %s already exists", t.Process.ID)
+		return fmt.Errorf("process with id %s already exists", t.Process.ID)
 	}
 
 	for _, proc := range oldNode.Processes {
 		// Make sure that no app with the same ID has a process
 		if proc.AppID == t.Process.AppID {
-			return fmt.Errorf("app with id %s already has a process; multiple processes per app not supported at this time", t.Process.AppID)
+			return fmt.Errorf(
+				"app with id %s already has a process; multiple processes per app not supported at this time",
+				t.Process.AppID,
+			)
 		}
 	}
 
@@ -462,9 +497,7 @@ func (t *processStopTransition) Type() TransitionType {
 	return TransitionStopProcess
 }
 
-var (
-	ErrNoProcFound = errors.New("process with id not found")
-)
+var ErrNoProcFound = errors.New("process with id not found")
 
 func (t *processStopTransition) Patch(oldState SerializedState) (SerializedState, error) {
 	var oldNode NodeState
@@ -503,7 +536,12 @@ type addReverseProxyRuleTransition struct {
 	Rule *reverse_proxy.Rule `json:"rule"`
 }
 
-func CreateAddReverseProxyRuleTransition(t reverse_proxy.RuleType, matcher string, target string, appID string) Transition {
+func CreateAddReverseProxyRuleTransition(
+	t reverse_proxy.RuleType,
+	matcher string,
+	target string,
+	appID string,
+) Transition {
 	return &addReverseProxyRuleTransition{
 		Rule: &reverse_proxy.Rule{
 			Type:    t,

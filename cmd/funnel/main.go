@@ -8,6 +8,7 @@ import (
 
 	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/eagraf/habitat-new/internal/node/logging"
+	"github.com/eagraf/habitat-new/util"
 	"tailscale.com/tsnet"
 )
 
@@ -23,11 +24,11 @@ func main() {
 		logger.Fatal().Err(err).Msg("error loading node config")
 	}
 
-	server := tsnet.Server{
+	server := &tsnet.Server{
 		Hostname: hostName,
 		AuthKey:  nodeConfig.TailscaleAuthkey(),
 	}
-	defer server.Close()
+	defer util.Close(server)
 
 	ln, err := server.ListenFunnel("tcp", ":443")
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 
 func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	testDBPath := filepath.Join(os.TempDir(), "test_privi.db")
-	defer os.Remove(testDBPath)
+	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
 
 	priviDB, err := sql.Open("sqlite3", testDBPath)
 	require.NoError(t, err)
