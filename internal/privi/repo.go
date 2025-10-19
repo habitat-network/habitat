@@ -9,7 +9,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/bluesky-social/indigo/atproto/data"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 // Persist private data within repos that mirror public repos.
@@ -19,52 +18,6 @@ import (
 type repo interface {
 	putRecord(did string, rkey string, rec record, validate *bool) error
 	getRecord(did string, rkey string) (record, error)
-}
-
-// Lexicon NSID -> records for that lexicon.
-// A record is stored as raw bytes and keyed by its record key (rkey).
-//
-// TODO: the internal store should be an MST for portability / compatiblity with conventional atproto  methods.
-type inMemoryRepo map[syntax.DID]map[recordKey]record
-
-// inMemoryRepo implements repo
-var _ repo = &inMemoryRepo{}
-
-func newInMemoryRepo() inMemoryRepo {
-	return make(inMemoryRepo)
-}
-
-// putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r inMemoryRepo) putRecord(did string, rkey string, rec record, validate *bool) error {
-	if validate != nil && *validate {
-		err := data.Validate(rec)
-		if err != nil {
-			return err
-		}
-	}
-
-	coll, ok := r[syntax.DID(did)]
-	if !ok {
-		coll = make(map[recordKey]record)
-		r[syntax.DID(did)] = coll
-	}
-
-	// Always put (even if something exists).
-	coll[recordKey(rkey)] = rec
-	return nil
-}
-
-func (r inMemoryRepo) getRecord(did string, rkey string) (record, error) {
-	coll, ok := r[syntax.DID(did)]
-	if !ok {
-		return nil, ErrRecordNotFound
-	}
-
-	record, ok := coll[recordKey(rkey)]
-	if !ok {
-		return nil, ErrRecordNotFound
-	}
-	return record, nil
 }
 
 // A sqlite-backed repo per user contains the following two columns:
@@ -116,7 +69,7 @@ func (r *sqliteRepo) putRecord(did string, rkey string, rec record, validate *bo
 	}
 	// Always put (even if something exists).
 	_, err = r.db.Exec(
-		"insert into records(did, rkey, record) values(?, ?, jsonb(?));",
+		"insert or replace into records(did, rkey, record) values(?, ?, jsonb(?));",
 		did,
 		rkey,
 		bytes,

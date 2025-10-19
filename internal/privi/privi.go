@@ -9,9 +9,6 @@ import (
 
 type record map[string]any
 
-// A record key is a string
-type recordKey string
-
 // Privi is an ATProto PDS Wrapper which allows for storing & getting private data.
 // It does this by encrypting data, then storing it in blob. A special lexicon for this purpose,
 // identified by com.habitat.encryptedRecord, points to the blob storing the actual data.
