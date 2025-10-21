@@ -72,6 +72,7 @@ func startProcess() *cli.Command {
 			if err != nil {
 				return err
 			}
+			defer func() { _ = res.Body.Close() }()
 			return printResponse(res)
 		},
 	}
@@ -102,6 +103,7 @@ func stopProcess() *cli.Command {
 			if err != nil {
 				return err
 			}
+			defer func() { _ = res.Body.Close() }()
 			return printResponse(res)
 		},
 	}
@@ -117,6 +119,7 @@ func listProcesses() *cli.Command {
 			if err != nil {
 				return err
 			}
+			defer func() { _ = res.Body.Close() }()
 			return printResponse(res)
 		},
 	}
@@ -132,6 +135,7 @@ func getState() *cli.Command {
 			if err != nil {
 				return err
 			}
+			defer func() { _ = res.Body.Close() }()
 			return printResponse(res)
 		},
 	}
@@ -147,6 +151,7 @@ func listApps() *cli.Command {
 			if err != nil {
 				return err
 			}
+			defer func() { _ = res.Body.Close() }()
 			return printResponse(res)
 		},
 	}

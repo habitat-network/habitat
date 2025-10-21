@@ -179,7 +179,7 @@ func downloadWebBundle(downloadURL string, tmpFile string) error {
 	if err != nil {
 		return err
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	// Create a file to save the downloaded bundle
 	bundleFile, err := os.Create(tmpFile)

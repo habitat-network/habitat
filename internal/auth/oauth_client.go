@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/eagraf/habitat-new/util"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/rs/zerolog/log"
@@ -197,7 +196,7 @@ func (o *oauthClientImpl) ExchangeCode(
 	if err != nil {
 		return nil, err
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		var errMsg json.RawMessage
@@ -261,7 +260,7 @@ func (o *oauthClientImpl) RefreshToken(
 	if err != nil {
 		return nil, err
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		var errMsg json.RawMessage
@@ -299,7 +298,7 @@ func fetchOAuthProtectedResource(i *identity.Identity) (*oauthProtectedResource,
 	if err != nil {
 		return nil, err
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to fetch authorization server: %s", resp.Status)
@@ -342,7 +341,7 @@ func fetchOauthAuthorizationServer(
 	if err != nil {
 		return nil, err
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to fetch authorization server: %s", resp.Status)
 	}
@@ -436,7 +435,7 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 	if err != nil {
 		return "", err
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		errMsg, _ := io.ReadAll(resp.Body)

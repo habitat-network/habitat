@@ -363,6 +363,9 @@ func TestDpopHttpClient_NonceProviderError(t *testing.T) {
 
 	// Execute request - should succeed even without nonce
 	resp, err := client.Do(req)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	require.Error(t, err)
 	require.Nil(t, resp)
 }

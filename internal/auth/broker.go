@@ -65,10 +65,11 @@ func (h *xrpcBrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer util.Close(resp.Body)
 
 	// Check if we need to refresh the token
 	if resp.StatusCode == http.StatusUnauthorized {
+		util.Close(resp.Body) // Close first response before retry
+
 		err = h.refreshSession(dpopSession)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -95,8 +96,10 @@ func (h *xrpcBrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer util.Close(resp.Body)
+		defer func() { _ = resp.Body.Close() }()
 		dpopSession.Save(r, w)
+	} else {
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	// Writing out the response as we got it.

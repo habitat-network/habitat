@@ -11,7 +11,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/crypto"
 	"github.com/eagraf/habitat-new/internal/bffauth"
-	"github.com/eagraf/habitat-new/util"
 	"github.com/joho/godotenv"
 )
 
@@ -20,7 +19,7 @@ func getChallenge() (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("error getting challenge: %w", err)
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Challenge string `json:"challenge"`
@@ -50,7 +49,7 @@ func submitProof(sessionID string, proof string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error submitting proof: %w", err)
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read the entire response body first
 	respBody, err := io.ReadAll(resp.Body)
@@ -79,7 +78,7 @@ func getHelloWorld(token string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error making authenticated request: %w", err)
 	}
-	defer util.Close(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Message string `json:"message"`

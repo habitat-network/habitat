@@ -81,6 +81,7 @@ func TestProxy(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -96,6 +97,7 @@ func TestProxy(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
