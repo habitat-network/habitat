@@ -11,6 +11,6 @@ type NetworkHabitatRepoGetRecordParams struct {
 
 // NetworkHabitatRepoGetRecordOutput represents the output for network.habitat.repo.getRecord
 type NetworkHabitatRepoGetRecordOutput struct {
-	Uri   string      `json:"uri"`
 	Value interface{} `json:"value"`
+	Uri   string      `json:"uri"`
 }

@@ -117,6 +117,7 @@ func main() {
 		"/xrpc/com.habitat.getRecord",
 		priviServer.PdsAuthMiddleware(priviServer.GetRecord),
 	)
+	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", priviServer.PdsAuthMiddleware(priviServer.UploadBlob))
 	mux.HandleFunc("/xrpc/com.habitat.listPermissions", priviServer.ListPermissions)
 	mux.HandleFunc("/xrpc/com.habitat.addPermission", priviServer.AddPermission)
 	mux.HandleFunc("/xrpc/com.habitat.removePermission", priviServer.RemovePermission)

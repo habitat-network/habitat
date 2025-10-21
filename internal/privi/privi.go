@@ -23,7 +23,7 @@ type store struct {
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
-	repo repo
+	repo *sqliteRepo
 }
 
 var (
@@ -34,7 +34,7 @@ var (
 )
 
 // TODO: take in a carfile/sqlite where user's did is persisted
-func newStore(perms permissions.Store, repo repo) *store {
+func newStore(perms permissions.Store, repo *sqliteRepo) *store {
 	return &store{
 		permissions: perms,
 		repo:        repo,

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -27,11 +28,11 @@ type Server struct {
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 	// TODO: should this really live here?
-	repo repo
+	repo *sqliteRepo
 }
 
 // NewServer returns a privi server.
-func NewServer(perms permissions.Store, repo repo) *Server {
+func NewServer(perms permissions.Store, repo *sqliteRepo) *Server {
 	server := &Server{
 		store: newStore(perms, repo),
 		dir:   identity.DefaultDirectory(),
@@ -127,6 +128,37 @@ func (s *Server) GetRecord(callerDID syntax.DID) http.HandlerFunc {
 
 		if json.NewEncoder(w).Encode(record) != nil {
 			utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func (s *Server) UploadBlob(callerDID syntax.DID) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mimeType := r.Header.Get("Content-Type")
+		if mimeType == "" {
+			utils.LogAndHTTPError(w, fmt.Errorf("no mimetype specified"), "no mimetype specified", http.StatusInternalServerError)
+			return
+		}
+
+		bytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "reading request body", http.StatusInternalServerError)
+			return
+		}
+
+		blob, err := s.repo.uploadBlob(string(callerDID), bytes, mimeType)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "error in repo.uploadBlob", http.StatusInternalServerError)
+			return
+		}
+
+		out := habitat.NetworkHabitatRepoUploadBlobOutput{
+			Blob: blob,
+		}
+		err = json.NewEncoder(w).Encode(out)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "error encoding json output", http.StatusInternalServerError)
 			return
 		}
 	}
