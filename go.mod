@@ -3,7 +3,6 @@ module github.com/eagraf/habitat-new
 go 1.25.1
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20250401210623-bfc7f487e4ed
 	github.com/casbin/casbin/v2 v2.104.0
 	github.com/docker/docker v25.0.5+incompatible
 	github.com/docker/go-connections v0.5.0
@@ -17,7 +16,7 @@ require (
 	github.com/qri-io/jsonschema v0.2.1
 	github.com/rs/zerolog v1.31.0
 	github.com/spf13/viper v1.18.2
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.11.1
 	github.com/wI2L/jsondiff v0.5.1
 	golang.org/x/mod v0.17.0
 	golang.org/x/oauth2 v0.30.0
@@ -28,11 +27,13 @@ require (
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bluesky-social/indigo v0.0.0-20251020231157-aa7fd7f7a301 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/carlmjohnson/versioninfo v0.22.5 // indirect
 	github.com/casbin/govaluate v1.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
+	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
 	github.com/gorilla/schema v1.4.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/ipfs/go-block-format v0.2.0 // indirect

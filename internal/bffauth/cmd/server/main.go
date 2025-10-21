@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/eagraf/habitat-new/internal/bffauth"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -22,7 +22,7 @@ type TestServer struct {
 
 	// This is a toy example. In the real world there would be a mapping of
 	// DIDs to public keys.
-	publicKey crypto.PublicKey
+	publicKey atcrypto.PublicKey
 }
 
 func (s *TestServer) challengeHandler(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +140,7 @@ func main() {
 
 	publicKeyMultibase := os.Getenv("ALICE_PUBLIC_KEY_MULTIBASE")
 
-	publicKey, err := crypto.ParsePublicMultibase(publicKeyMultibase)
+	publicKey, err := atcrypto.ParsePublicMultibase(publicKeyMultibase)
 	if err != nil {
 		log.Fatalf("failed to parse public key: %v", err)
 	}

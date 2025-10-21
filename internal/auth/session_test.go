@@ -23,7 +23,7 @@ func TestSession(t *testing.T) {
 	testIdentity := &identity.Identity{
 		DID:    "did:plc:test123",
 		Handle: "test.bsky.app",
-		Services: map[string]identity.Service{
+		Services: map[string]identity.ServiceEndpoint{
 			"atproto_pds": {
 				Type: "AtprotoPersonalDataServer",
 				URL:  "https://test.pds.com",

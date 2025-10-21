@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 )
 
 type ChallengeSessionPersister interface {
@@ -50,7 +50,7 @@ func (p *InMemoryChallengeSessionPersister) DeleteSession(sessionID string) erro
 type ChallengeSession struct {
 	SessionID string
 	DID       string
-	PublicKey crypto.PublicKey
+	PublicKey atcrypto.PublicKey
 	Challenge string
 	ExpiresAt time.Time
 }

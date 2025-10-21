@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 )
 
 func main() {
 	// Use indigo's crypto package to generate a P-256 key pair
-	privateKey, err := crypto.GeneratePrivateKeyP256()
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
 	if err != nil {
 		log.Fatalf("failed to generate key: %v", err)
 	}

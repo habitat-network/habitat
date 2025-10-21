@@ -1,10 +1,10 @@
 package bffauth
 
-import "github.com/bluesky-social/indigo/atproto/crypto"
+import "github.com/bluesky-social/indigo/atproto/atcrypto"
 
 type ExternalHabitatUser struct {
 	DID       string
-	PublicKey crypto.PublicKey
+	PublicKey atcrypto.PublicKey
 	Host      string
 }
 

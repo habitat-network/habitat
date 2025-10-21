@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/eagraf/habitat-new/internal/bffauth"
 	"github.com/joho/godotenv"
 )
@@ -101,7 +101,7 @@ func main() {
 		log.Fatalf("ALICE_PRIVATE_KEY_MULTIBASE is not set")
 	}
 
-	privateKey, err := crypto.ParsePrivateMultibase(alicePrivateKey)
+	privateKey, err := atcrypto.ParsePrivateMultibase(alicePrivateKey)
 	if err != nil {
 		log.Fatalf("error parsing alice private key: %v", err)
 	}

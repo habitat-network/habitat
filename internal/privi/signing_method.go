@@ -12,7 +12,7 @@ import (
 	"crypto"
 	"errors"
 
-	atprotocrypto "github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 )
 
 // SigningMethodSecp256k1 is the implementation of jwt.SigningMethod.
@@ -42,7 +42,7 @@ var (
 // Verify it is a secp256k1 key before passing, otherwise it will validate with
 // that type of key instead. This can be done using ethereum's crypto package.
 func (sm *SigningMethodSecp256k1) Verify(signingString string, signature []byte, key interface{}) error {
-	pub, ok := key.(*atprotocrypto.PublicKeyK256)
+	pub, ok := key.(*atcrypto.PublicKeyK256)
 	if !ok {
 		return ErrWrongKeyFormat
 	}

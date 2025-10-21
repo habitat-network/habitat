@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +19,7 @@ func TestBffProvider(t *testing.T) {
 	p := NewProvider(persister, signingKey)
 
 	// The caller of the provider (i.e. another PDS) has its own set of keys
-	privateKey, err := crypto.GeneratePrivateKeyP256()
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
 	publicKey, err := privateKey.PublicKey()
 	require.NoError(t, err)

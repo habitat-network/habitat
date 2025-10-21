@@ -3,13 +3,13 @@ package bffauth
 import (
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChallengeProofFlow(t *testing.T) {
 	// Generate a test key pair
-	privateKey, err := crypto.GeneratePrivateKeyP256()
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err, "failed to generate key pair")
 
 	publicKey, err := privateKey.PublicKey()

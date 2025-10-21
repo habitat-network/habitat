@@ -6,9 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/bluesky-social/indigo/atproto/data"
 )
 
 // Persist private data within repos that mirror public repos.
@@ -57,7 +56,7 @@ func NewSQLiteRepo(db *sql.DB) (repo, error) {
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
 func (r *sqliteRepo) putRecord(did string, rkey string, rec record, validate *bool) error {
 	if validate != nil && *validate {
-		err := data.Validate(rec)
+		err := atdata.Validate(rec)
 		if err != nil {
 			return err
 		}

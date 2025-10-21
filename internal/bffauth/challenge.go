@@ -3,7 +3,7 @@ package bffauth
 import (
 	"encoding/base64"
 
-	"github.com/bluesky-social/indigo/atproto/crypto"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/google/uuid"
 )
 
@@ -14,7 +14,7 @@ func GenerateChallenge() (string, error) {
 
 // GenerateProof creates a proof of possession using a private key.
 // It signs the challenge with the provided private key to prove ownership.
-func GenerateProof(challenge string, privateKey crypto.PrivateKey) (string, error) {
+func GenerateProof(challenge string, privateKey atcrypto.PrivateKey) (string, error) {
 	// Sign the challenge bytes with the private key using ECDSA in ASN.1 format
 	sig, err := privateKey.HashAndSign([]byte(challenge))
 	if err != nil {
@@ -28,7 +28,7 @@ func GenerateProof(challenge string, privateKey crypto.PrivateKey) (string, erro
 
 // VerifyProof checks if a proof is valid for a given challenge and public key.
 // It verifies that the proof was generated using the corresponding private key.
-func VerifyProof(challenge string, proof string, publicKey crypto.PublicKey) (bool, error) {
+func VerifyProof(challenge string, proof string, publicKey atcrypto.PublicKey) (bool, error) {
 	// Decode the proof signature from base64
 	signatureBytes, err := base64.StdEncoding.DecodeString(proof)
 	if err != nil {

@@ -28,7 +28,7 @@ func (d *testDirectory) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*
 	did := atid.String()
 	return &identity.Identity{
 		DID: syntax.DID(did),
-		Services: map[string]identity.Service{
+		Services: map[string]identity.ServiceEndpoint{
 			"atproto_pds": {
 				URL: d.url,
 			},
