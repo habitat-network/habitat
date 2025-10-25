@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/eagraf/habitat-new/internal/app"
 
@@ -57,13 +57,18 @@ func (d *dockerPackageManager) Driver() app.DriverType {
 }
 
 func repoURLFromPackage(packageSpec *app.Package) string {
-	return fmt.Sprintf("%s/%s:%s", packageSpec.RegistryURLBase, packageSpec.RegistryPackageID, packageSpec.RegistryPackageTag)
+	return fmt.Sprintf(
+		"%s/%s:%s",
+		packageSpec.RegistryURLBase,
+		packageSpec.RegistryPackageID,
+		packageSpec.RegistryPackageTag,
+	)
 }
 
 func (m *dockerPackageManager) IsInstalled(packageSpec *app.Package, version string) (bool, error) {
 	// TODO review all contexts we create.
 	repoURL := repoURLFromPackage(packageSpec)
-	images, err := m.client.ImageList(context.Background(), types.ImageListOptions{
+	images, err := m.client.ImageList(context.Background(), image.ListOptions{
 		Filters: filters.NewArgs(
 			filters.Arg("reference", repoURL),
 		),
@@ -80,7 +85,7 @@ func (m *dockerPackageManager) InstallPackage(packageSpec *app.Package, version 
 	}
 
 	repoURL := repoURLFromPackage(packageSpec)
-	_, err := m.client.ImagePull(context.Background(), repoURL, types.ImagePullOptions{})
+	_, err := m.client.ImagePull(context.Background(), repoURL, image.PullOptions{})
 	if err != nil {
 		return err
 	}
@@ -91,14 +96,17 @@ func (m *dockerPackageManager) InstallPackage(packageSpec *app.Package, version 
 
 func (m *dockerPackageManager) UninstallPackage(packageURL *app.Package, version string) error {
 	repoURL := repoURLFromPackage(packageURL)
-	_, err := m.client.ImageRemove(context.Background(), repoURL, types.ImageRemoveOptions{})
+	_, err := m.client.ImageRemove(context.Background(), repoURL, image.RemoveOptions{})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *dockerPackageManager) RestoreFromState(ctx context.Context, apps map[string]*app.Installation) error {
+func (m *dockerPackageManager) RestoreFromState(
+	ctx context.Context,
+	apps map[string]*app.Installation,
+) error {
 	var err error
 	for _, app := range apps {
 		if app.Driver == m.Driver() {
