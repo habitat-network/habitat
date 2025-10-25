@@ -10,9 +10,9 @@ import (
 	"os"
 
 	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
-	"github.com/eagraf/habitat-new/internal/node/logging"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -66,7 +66,6 @@ func main() {
 		*domainPtr,
 		*repoPathPtr,
 	)
-	logger := logging.NewLogger()
 
 	// Create database file if it does not exist
 	// TODO: this should really be taken in as an argument or env variable
@@ -76,25 +75,25 @@ func main() {
 		fmt.Println("Privi repo file does not exist; creating...")
 		_, err := os.Create(priviRepoPath)
 		if err != nil {
-			logger.Err(err).Msgf("unable to create privi repo file at %s", priviRepoPath)
+			log.Err(err).Msgf("unable to create privi repo file at %s", priviRepoPath)
 		}
 	} else if err != nil {
-		logger.Err(err).Msgf("error finding privi repo file")
+		log.Err(err).Msgf("error finding privi repo file")
 	}
 
 	priviDB, err := sql.Open("sqlite3", priviRepoPath)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
+		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
 
 	repo, err := privi.NewSQLiteRepo(priviDB)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("unable to setup privi sqlite db")
+		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
 	}
 
 	adapter, err := permissions.NewStore(fileadapter.NewAdapter("policies.csv"), true)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("unable to setup permissions store")
+		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
 	priviServer := privi.NewServer(adapter, repo)
 
@@ -117,7 +116,10 @@ func main() {
 		"/xrpc/com.habitat.getRecord",
 		priviServer.PdsAuthMiddleware(priviServer.GetRecord),
 	)
-	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", priviServer.PdsAuthMiddleware(priviServer.UploadBlob))
+	mux.HandleFunc(
+		"/xrpc/network.habitat.uploadBlob",
+		priviServer.PdsAuthMiddleware(priviServer.UploadBlob),
+	)
 	mux.HandleFunc("/xrpc/com.habitat.listPermissions", priviServer.ListPermissions)
 	mux.HandleFunc("/xrpc/com.habitat.addPermission", priviServer.AddPermission)
 	mux.HandleFunc("/xrpc/com.habitat.removePermission", priviServer.RemovePermission)
@@ -157,6 +159,6 @@ func main() {
 		fmt.Sprintf("%s%s", *certsFilePtr, "privkey.pem"),
 	)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("error serving http")
+		log.Fatal().Err(err).Msg("error serving http")
 	}
 }
