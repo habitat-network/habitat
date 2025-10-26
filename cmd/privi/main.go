@@ -9,7 +9,6 @@ import (
 	"net/http/httputil"
 	"os"
 
-	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/rs/zerolog/log"
@@ -91,7 +90,7 @@ func main() {
 		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
 	}
 
-	adapter, err := permissions.NewStore(fileadapter.NewAdapter("policies.csv"), true)
+	adapter, err := permissions.NewSQLiteStore(priviDB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
