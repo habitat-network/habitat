@@ -37,7 +37,10 @@ type ClientMetadata struct {
 
 type OAuthClient interface {
 	ClientMetadata() *ClientMetadata
-	Authorize(dpopClient *DpopHttpClient, i *identity.Identity) (string, *AuthorizeState, error)
+	Authorize(
+		dpopClient *DpopHttpClient,
+		i *identity.Identity,
+	) (redirectUri string, state *AuthorizeState, err error)
 	ExchangeCode(
 		dpopClient *DpopHttpClient,
 		code string,

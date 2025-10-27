@@ -1,44 +1,14 @@
 package auth
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/testify/require"
 )
-
-type testDirectory struct {
-	url string
-}
-
-func (d *testDirectory) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-func (d *testDirectory) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
-	return nil, fmt.Errorf("unimplemented")
-}
-func (d *testDirectory) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.Identity, error) {
-	did := atid.String()
-	return &identity.Identity{
-		DID: syntax.DID(did),
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {
-				URL: d.url,
-			},
-		},
-	}, nil
-}
-
-func (d *testDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
-	return fmt.Errorf("unimplemented")
-}
 
 // setupTestLoginHandler creates a loginHandler with test dependencies
 func setupTestLoginHandler(oauthClient OAuthClient, fakeOAuthServerURL string) *loginHandler {
@@ -47,9 +17,7 @@ func setupTestLoginHandler(oauthClient OAuthClient, fakeOAuthServerURL string) *
 		oauthClient:       oauthClient,
 		sessionStore:      sessionStore,
 		habitatNodeDomain: "bsky.app",
-		identityDir: &testDirectory{
-			url: fakeOAuthServerURL,
-		},
+		identityDir:       NewDummyDirectory(fakeOAuthServerURL),
 	}
 }
 
@@ -153,6 +121,7 @@ func TestLoginHandler_MissingHandle(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
+
 func TestLoginHandler_OAuthAuthorizeError(t *testing.T) {
 	// Setup fake OAuth server that returns error for protected resource
 	fakeOAuthServer := fakeAuthServer(t, map[string]interface{}{
@@ -258,7 +227,15 @@ func TestLoginHandler_DefaultDirectoryLookup(t *testing.T) {
 		for _, cookie := range cookies {
 			sessionNames[cookie.Name] = true
 		}
-		require.True(t, sessionNames[SessionKeyDpop], "DPoP session should be created with default directory")
-		require.True(t, sessionNames[SessionKeyAuth], "Auth session should be created with default directory")
+		require.True(
+			t,
+			sessionNames[SessionKeyDpop],
+			"DPoP session should be created with default directory",
+		)
+		require.True(
+			t,
+			sessionNames[SessionKeyAuth],
+			"Auth session should be created with default directory",
+		)
 	}
 }

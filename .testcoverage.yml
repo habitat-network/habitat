@@ -45,3 +45,5 @@ exclude:
     - ^internal/utils/http.go
     - ^internal/bffauth/cmd
     - ^internal/bffauth/provider.go # File is too small :)
+    - dummy_.*\.go
+    - ^internal/oauthserver # TODO: should be able to remove once refresh tokens are implemented
