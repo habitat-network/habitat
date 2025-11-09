@@ -3,11 +3,8 @@ package permissions
 import (
 	_ "embed"
 	"fmt"
-	"strings"
 
-	"github.com/casbin/casbin/v2"
-	"github.com/casbin/casbin/v2/model"
-	"github.com/casbin/casbin/v2/persist"
+	"gorm.io/gorm"
 )
 
 type Store interface {
@@ -30,110 +27,176 @@ type Store interface {
 	ListReadPermissionsByLexicon(owner string) (map[string][]string, error)
 }
 
-type casbinStore struct {
-	enforcer *casbin.Enforcer
-	adapter  persist.Adapter
+type sqliteStore struct {
+	db *gorm.DB
 }
 
-//go:embed model.conf
-var modelStr string
+var _ Store = (*sqliteStore)(nil)
 
-func NewStore(adapter persist.Adapter, autoSave bool) (Store, error) {
-	m, err := model.NewModelFromString(modelStr)
-	if err != nil {
-		return nil, err
-	}
-	enforcer, err := casbin.NewEnforcer(m, adapter)
-	if err != nil {
-		return nil, err
-	}
-	// Auto-Save allows for single policy updates to take effect dynamically.
-	// https://casbin.org/docs/adapters/#autosave
-	enforcer.EnableAutoSave(autoSave)
-	return &casbinStore{
-		enforcer: enforcer,
-		adapter:  adapter,
-	}, nil
+// Permission represents a permission entry in the database
+type Permission struct {
+	gorm.Model
+	Grantee string `gorm:"not null;index:idx_permissions_grantee_owner,priority:1;uniqueIndex:idx_grantee_owner_object"`
+	Owner   string `gorm:"not null;index:idx_permissions_owner;index:idx_permissions_grantee_owner,priority:2;uniqueIndex:idx_grantee_owner_object"`
+	Object  string `gorm:"not null;uniqueIndex:idx_grantee_owner_object"`
+	Effect  string `gorm:"not null;check:effect IN ('allow', 'deny')"`
 }
 
-// HasPermission implements PermissionStore.
-// TODO: implement record key granularity for permissions
-func (p *casbinStore) HasPermission(
+// NewSQLiteStore creates a new SQLite-backed permission store.
+// The store manages permissions at different granularities:
+// - Whole NSID prefixes: "com.habitat.*"
+// - Specific NSIDs: "com.habitat.collection"
+// - Specific records: "com.habitat.collection.recordKey"
+func NewSQLiteStore(db *gorm.DB) (*sqliteStore, error) {
+	// AutoMigrate will create the table with all indexes defined in the Permission struct
+	err := db.AutoMigrate(&Permission{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
+	}
+
+	return &sqliteStore{db: db}, nil
+}
+
+// HasPermission checks if a requester has permission to access a specific record.
+// It checks permissions in the following order:
+// 1. Owner always has access
+// 2. Specific record permissions (exact match)
+// 3. NSID-level permissions (prefix match with .*)
+// 4. Wildcard prefix permissions (e.g., "com.habitat.*")
+func (s *sqliteStore) HasPermission(
 	requester string,
 	owner string,
 	nsid string,
 	rkey string,
 ) (bool, error) {
+	// Owner always has permission
 	if requester == owner {
 		return true, nil
 	}
-	return p.enforcer.Enforce(requester, owner, getCasbinObjectFromRecord(nsid, rkey))
+
+	// Build the full object path
+	object := nsid
+	if rkey != "" {
+		object = fmt.Sprintf("%s.%s", nsid, rkey)
+	}
+
+	// Check for permissions using a single query that matches:
+	// 1. Exact object match: object = "com.habitat.posts.record1"
+	// 2. Prefix matches for parent NSIDs:
+	//    For object = "com.habitat.posts.record1", match stored permissions:
+	//    - "com.habitat.posts" (the NSID itself)
+	//    - "com.habitat"
+	//    - "com"
+	//    This works by checking if the object LIKE the stored permission + ".%"
+	var permission Permission
+	err := s.db.Where("grantee = ? AND owner = ? AND (object = ? OR ? LIKE object || '.%')",
+		requester, owner, object, object).
+		Order("LENGTH(object) DESC, effect DESC").
+		Limit(1).
+		First(&permission).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// No permission found, deny by default
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("failed to query permission: %w", err)
+	}
+
+	return permission.Effect == "allow", nil
 }
 
-// TODO: do some validation on input, possible cases:
-// - duplicate policies
-// - conflicting policies
-func (p *casbinStore) AddLexiconReadPermission(
-	requester string,
+// AddLexiconReadPermission grants read permission for an entire lexicon (NSID).
+// The permission is stored as just the NSID (e.g., "com.habitat.posts").
+// The HasPermission method will automatically check for both exact matches and wildcard patterns.
+func (s *sqliteStore) AddLexiconReadPermission(
+	grantee string,
 	owner string,
 	nsid string,
 ) error {
-	_, err := p.enforcer.AddPolicy(requester, owner, getCasbinObjectFromLexicon(nsid), "allow")
-	if err != nil {
-		return err
+	permission := Permission{
+		Grantee: grantee,
+		Owner:   owner,
+		Object:  nsid,
+		Effect:  "allow",
 	}
-	return p.adapter.SavePolicy(p.enforcer.GetModel())
+
+	// Use gorm.G for the generic GORM wrapper if available, or direct DB methods
+	result := s.db.Where("grantee = ? AND owner = ? AND object = ?", grantee, owner, nsid).
+		Assign(Permission{Effect: "allow"}).
+		FirstOrCreate(&permission)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to add lexicon permission: %w", result.Error)
+	}
+	return nil
 }
 
-// TODO: do some validation on input
-func (p *casbinStore) RemoveLexiconReadPermission(
-	requester string,
+// RemoveLexiconReadPermission removes read permission for an entire lexicon.
+func (s *sqliteStore) RemoveLexiconReadPermission(
+	grantee string,
 	owner string,
 	nsid string,
 ) error {
-	// TODO: should we actually be adding a deny here instead of just removing allow?
-	_, err := p.enforcer.RemovePolicy(
-		requester,
-		owner,
-		getCasbinObjectFromLexicon(nsid),
-		"allow",
-	)
-	if err != nil {
-		return err
+	result := s.db.Where("grantee = ? AND owner = ? AND object = ?", grantee, owner, nsid).
+		Delete(&Permission{})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to remove lexicon permission: %w", result.Error)
 	}
-	return p.adapter.SavePolicy(p.enforcer.GetModel())
+	return nil
 }
 
-func (p *casbinStore) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
-	policies, err := p.enforcer.GetFilteredPolicy(1, owner)
+// ListReadPermissionsByLexicon returns a map of lexicon NSIDs to lists of grantees
+// who have permission to read that lexicon.
+func (s *sqliteStore) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
+	var permissions []Permission
+	err := s.db.Where("owner = ? AND effect = ?", owner, "allow").
+		Find(&permissions).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query permissions: %w", err)
 	}
 
-	res := make(map[string][]string)
-	for _, policy := range policies {
-		lexicon := strings.TrimSuffix(policy[2], ".*")
-		// ignore denies for now
-		if policy[3] == "allow" {
-			res[lexicon] = append(res[lexicon], policy[0])
+	result := make(map[string][]string)
+	for _, perm := range permissions {
+		// The object is stored as the NSID itself (e.g., "com.habitat.posts")
+		// So we can use it directly as the lexicon
+		result[perm.Object] = append(result[perm.Object], perm.Grantee)
+	}
+
+	return result, nil
+}
+
+// ListReadPermissionsByUser returns the allow and deny lists for a specific user
+// for a given NSID. This is used to filter records when querying.
+func (s *sqliteStore) ListReadPermissionsByUser(
+	owner string,
+	requester string,
+	nsid string,
+) ([]string, []string, error) {
+	// Query all permissions for this grantee/owner combination
+	// that could match the given NSID
+	// We need to check:
+	// 1. Exact match: object = "nsid"
+	// 2. Parent prefix that matches: nsid LIKE object || ".%"
+	var permissions []Permission
+	err := s.db.Where("grantee = ? AND owner = ? AND (object = ? OR ? LIKE object || '.%')",
+		requester, owner, nsid, nsid).
+		Find(&permissions).Error
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query permissions: %w", err)
+	}
+
+	allows := []string{}
+	denies := []string{}
+
+	for _, perm := range permissions {
+		switch perm.Effect {
+		case "allow":
+			allows = append(allows, perm.Object)
+		case "deny":
+			denies = append(denies, perm.Object)
 		}
 	}
 
-	return res, nil
+	return allows, denies, nil
 }
-
-// Helpers to translate lexicon + record references into object type required by casbin
-func getCasbinObjectFromRecord(lex string, rkey string) string {
-	if rkey == "" {
-		rkey = "*"
-	}
-	return fmt.Sprintf("%s.%s", lex, rkey)
-}
-
-func getCasbinObjectFromLexicon(lex string) string {
-	return fmt.Sprintf("%s.*", lex)
-}
-
-// List all permissions (lexicon -> [](users | groups))
-// Add a permission on a lexicon for a user or group
-// Remove a permission on a lexicon for a user or group

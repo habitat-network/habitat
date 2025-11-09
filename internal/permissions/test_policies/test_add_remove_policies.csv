@@ -1,3 +1,0 @@
-p, did:requester1,  did:owner,  app.bsky.likes.*,   allow
-p, did:requester2,  did:owner,  app.bsky.*,         allow
-p, did:requester2,  did:owner,  app.bsky.posts,     deny

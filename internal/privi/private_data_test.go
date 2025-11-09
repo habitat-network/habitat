@@ -20,8 +20,9 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	marshalledVal, err := json.Marshal(val)
 	require.NoError(t, err)
 
-	dummy := permissions.NewDummyStore()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	dummy, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)

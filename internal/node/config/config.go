@@ -168,13 +168,13 @@ func NewNodeConfig() (*NodeConfig, error) {
 		config.NodeCert = nodeCert
 	}
 
-	log.Debug().Msgf("Loaded node config: node cert: %s root cert: %s node key: %s", config.NodeCertPath(), config.RootUserCertPath(), config.NodeKeyPath())
+	log.Debug().
+		Msgf("Loaded node config: node cert: %s root cert: %s node key: %s", config.NodeCertPath(), config.RootUserCertPath(), config.NodeKeyPath())
 
 	return config, nil
 }
 
 func NewNodeConfigFromViper(v *viper.Viper) (*NodeConfig, error) {
-
 	var config NodeConfig
 	err := v.Unmarshal(&config)
 	if err != nil {
@@ -188,7 +188,6 @@ func NewNodeConfigFromViper(v *viper.Viper) (*NodeConfig, error) {
 // NewTestNodeConfig returns a NodeConfig suitable for testing.
 // Besides setting up the Viper instance, it also sets a fake root user cert.
 func NewTestNodeConfig(optionalViper *viper.Viper) (*NodeConfig, error) {
-
 	// Create a new Viper instance if none was provided
 	v := optionalViper
 	if v == nil {
@@ -352,11 +351,6 @@ func (n *NodeConfig) TailScaleFunnelEnabled() bool {
 	} else {
 		return false
 	}
-}
-
-func (n *NodeConfig) PermissionPolicyFilesDir() string {
-	// TODO: make this not hacky >:( -- we should read from an environment variable otherwise this is one more place to keep in sync
-	return filepath.Join(n.HabitatPath(), "permissions")
 }
 
 func (n *NodeConfig) PriviRepoFile() string {

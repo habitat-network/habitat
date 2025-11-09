@@ -9,11 +9,9 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
-	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
 	"github.com/docker/docker/client"
 	"github.com/eagraf/habitat-new/internal/app"
 	"github.com/eagraf/habitat-new/internal/auth"
@@ -220,26 +218,9 @@ func main() {
 }
 
 func setupPrivi(nodeConfig *config.NodeConfig) *privi.Server {
-	policiesDirPath := nodeConfig.PermissionPolicyFilesDir()
-	perms, err := permissions.NewStore(
-		fileadapter.NewAdapter(filepath.Join(policiesDirPath, "policies.csv")),
-		true,
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("error creating permission store")
-	}
-
-	// FOR DEMO PURPOSES ONLY
-	sashankDID := "did:plc:v3amhno5wvyfams6aioqqj66"
-	arushiDID := "did:plc:l3k2mbu6qa6rxjej5tvjj7zz"
-	err = perms.AddLexiconReadPermission(arushiDID, sashankDID, "com.habitat.test")
-	if err != nil {
-		log.Fatal().Err(err).Msgf("error adding test lexicon for sashank demo")
-	}
-
 	// Create database file if it does not exist
 	priviRepoPath := nodeConfig.PriviRepoFile()
-	_, err = os.Stat(priviRepoPath)
+	_, err := os.Stat(priviRepoPath)
 	if errors.Is(err, os.ErrNotExist) {
 		_, err := os.Create(priviRepoPath)
 		if err != nil {
@@ -252,6 +233,18 @@ func setupPrivi(nodeConfig *config.NodeConfig) *privi.Server {
 	priviDB, err := gorm.Open(sqlite.Open(priviRepoPath), &gorm.Config{})
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
+	}
+	perms, err := permissions.NewSQLiteStore(priviDB)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("error creating permission store")
+	}
+
+	// FOR DEMO PURPOSES ONLY
+	sashankDID := "did:plc:v3amhno5wvyfams6aioqqj66"
+	arushiDID := "did:plc:l3k2mbu6qa6rxjej5tvjj7zz"
+	err = perms.AddLexiconReadPermission(arushiDID, sashankDID, "com.habitat.test")
+	if err != nil {
+		log.Fatal().Err(err).Msgf("error adding test lexicon for sashank demo")
 	}
 
 	repo, err := privi.NewSQLiteRepo(priviDB)
