@@ -1,5 +1,8 @@
 .habitat
 
+# pnpm workspace
+node_modules/
+
 #  Random files that can end up in the index
 **/__debug_bin*
 **/.DS_Store
@@ -15,11 +18,8 @@ dev.env
 
 # Ignore frontend build
 frontend_server/build
-next
 
 # Ignore old frontend build pre-Tanstack
-frontend/.next/
-frontend/next-env.d.ts
 frontend/out/
 
 # Ignore custom node config

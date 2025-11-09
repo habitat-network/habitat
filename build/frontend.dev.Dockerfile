@@ -10,7 +10,7 @@ ENV PATH ./node_modules/.bin:$PATH
 RUN npm install -g pnpm
 
 # Copy package.json and other related files
-COPY ./frontend/package.json ./frontend/pnpm-lock.yaml ./
+COPY ./frontend/package.json ./pnpm-lock.yaml ./
 
 # Install dependencies
 RUN pnpm install
