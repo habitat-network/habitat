@@ -4,9 +4,15 @@ package habitat
 
 // NetworkHabitatRepoPutRecordInput represents the input for network.habitat.repo.putRecord
 type NetworkHabitatRepoPutRecordInput struct {
-	Repo       string                 `json:"repo"`
 	Collection string                 `json:"collection"`
+	Record     map[string]interface{} `json:"record"`
+	Repo       string                 `json:"repo"`
 	Rkey       string                 `json:"rkey"`
 	Validate   bool                   `json:"validate,omitempty"`
-	Record     map[string]interface{} `json:"record"`
+}
+
+// NetworkHabitatRepoPutRecordOutput represents the output for network.habitat.repo.putRecord
+type NetworkHabitatRepoPutRecordOutput struct {
+	Uri              string `json:"uri"`
+	ValidationStatus string `json:"validationStatus,omitempty"`
 }

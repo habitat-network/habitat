@@ -4,13 +4,13 @@ package habitat
 
 // NetworkHabitatRepoGetRecordParams represents the input parameters for network.habitat.repo.getRecord
 type NetworkHabitatRepoGetRecordParams struct {
-	Repo       string `json:"repo"`
 	Collection string `json:"collection"`
+	Repo       string `json:"repo"`
 	Rkey       string `json:"rkey"`
 }
 
 // NetworkHabitatRepoGetRecordOutput represents the output for network.habitat.repo.getRecord
 type NetworkHabitatRepoGetRecordOutput struct {
-	Value interface{} `json:"value"`
 	Uri   string      `json:"uri"`
+	Value interface{} `json:"value"`
 }

@@ -5,4 +5,5 @@ package habitat
 // NetworkHabitatRepoUploadBlobOutput represents the output for network.habitat.repo.uploadBlob
 type NetworkHabitatRepoUploadBlobOutput struct {
 	Blob interface{} `json:"blob"`
+	Cid  string      `json:"cid,omitempty"`
 }
