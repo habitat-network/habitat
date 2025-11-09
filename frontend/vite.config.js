@@ -12,6 +12,7 @@ const domain = process.env.DOMAIN
 export default defineConfig({
   define: {
     __DOMAIN__: domain ? `'${domain}'` : 'undefined',
+    __HASH_ROUTING__: process.env.HASH_ROUTING ? 'true' : 'false',
   },
   plugins: [
     TanStackRouterVite({ autoCodeSplitting: true }),
@@ -34,4 +35,5 @@ export default defineConfig({
     host: true,
     allowedHosts: [".ts.net"]
   },
+  base: domain ? `https://${domain}/` : "/",
 });

@@ -1,6 +1,10 @@
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
-import { RouterProvider, createRouter } from "@tanstack/react-router";
+import {
+  RouterProvider,
+  createHashHistory,
+  createRouter,
+} from "@tanstack/react-router";
 import clientMetadata from "../client-metadata";
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
@@ -23,6 +27,8 @@ export const oauthClient = new BrowserOAuthClient({
 
 const queryClient = new QueryClient();
 
+const domainUrl = new URL(`https://${__DOMAIN__}`);
+
 // Create a new router instance
 const router = createRouter({
   routeTree,
@@ -34,6 +40,8 @@ const router = createRouter({
   scrollRestoration: true,
   defaultStructuralSharing: true,
   defaultPreloadStaleTime: 0,
+  basepath: __HASH_ROUTING__ ? undefined : domainUrl.pathname,
+  history: __HASH_ROUTING__ ? createHashHistory() : undefined,
 });
 
 // Register the router instance for type safety
