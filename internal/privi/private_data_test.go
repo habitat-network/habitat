@@ -1,12 +1,13 @@
 package privi
 
 import (
-	"database/sql"
 	"encoding/json"
 	"testing"
 
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // A unit test testing putRecord and getRecord with one basic permission.
@@ -20,7 +21,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 
 	dummy := permissions.NewDummyStore()
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)

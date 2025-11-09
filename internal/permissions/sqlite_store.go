@@ -1,55 +1,36 @@
 package permissions
 
 import (
-	"database/sql"
 	"fmt"
 
-	sq "github.com/Masterminds/squirrel"
-	"github.com/eagraf/habitat-new/util"
-	_ "github.com/mattn/go-sqlite3"
+	"gorm.io/gorm"
 )
 
 type sqliteStore struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 var _ Store = (*sqliteStore)(nil)
+
+// Permission represents a permission entry in the database
+type Permission struct {
+	gorm.Model
+	Grantee string `gorm:"not null;index:idx_permissions_grantee_owner,priority:1;uniqueIndex:idx_grantee_owner_object"`
+	Owner   string `gorm:"not null;index:idx_permissions_owner;index:idx_permissions_grantee_owner,priority:2;uniqueIndex:idx_grantee_owner_object"`
+	Object  string `gorm:"not null;uniqueIndex:idx_grantee_owner_object"`
+	Effect  string `gorm:"not null;check:effect IN ('allow', 'deny')"`
+}
 
 // NewSQLiteStore creates a new SQLite-backed permission store.
 // The store manages permissions at different granularities:
 // - Whole NSID prefixes: "com.habitat.*"
 // - Specific NSIDs: "com.habitat.collection"
 // - Specific records: "com.habitat.collection.recordKey"
-func NewSQLiteStore(db *sql.DB) (*sqliteStore, error) {
-	// Create permissions table if it doesn't exist
-	// Schema: (grantee, owner, object, effect)
-	// - grantee: user/group being granted permission
-	// - owner: owner of the resource
-	// - object: the resource pattern (NSID or NSID.recordKey)
-	// - effect: "allow" or "deny"
-	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS permissions (
-		grantee TEXT NOT NULL,
-		owner TEXT NOT NULL,
-		object TEXT NOT NULL,
-		effect TEXT NOT NULL CHECK(effect IN ('allow', 'deny')),
-		PRIMARY KEY(grantee, owner, object)
-	);`)
+func NewSQLiteStore(db *gorm.DB) (*sqliteStore, error) {
+	// AutoMigrate will create the table with all indexes defined in the Permission struct
+	err := db.AutoMigrate(&Permission{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create permissions table: %w", err)
-	}
-
-	// Create index for faster lookups by owner
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_permissions_owner
-		ON permissions(owner);`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create owner index: %w", err)
-	}
-
-	// Create index for faster lookups by grantee+owner
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_permissions_grantee_owner
-		ON permissions(grantee, owner);`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create grantee_owner index: %w", err)
+		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
 	}
 
 	return &sqliteStore{db: db}, nil
@@ -86,29 +67,21 @@ func (s *sqliteStore) HasPermission(
 	//    - "com.habitat"
 	//    - "com"
 	//    This works by checking if the object LIKE the stored permission + ".%"
-	var effect string
-	query := sq.Select("effect").
-		From("permissions").
-		Where(sq.And{
-			sq.Eq{"grantee": requester},
-			sq.Eq{"owner": owner},
-			sq.Or{
-				sq.Eq{"object": object},
-				sq.Expr("? LIKE object || '.%'", object),
-			},
-		}).
-		OrderBy("LENGTH(object) DESC, effect DESC").
-		Limit(1)
+	var permission Permission
+	err := s.db.Where("grantee = ? AND owner = ? AND (object = ? OR ? LIKE object || '.%')",
+		requester, owner, object, object).
+		Order("LENGTH(object) DESC, effect DESC").
+		Limit(1).
+		First(&permission).Error
 
-	err := query.RunWith(s.db).QueryRow().Scan(&effect)
-	if err == sql.ErrNoRows {
+	if err == gorm.ErrRecordNotFound {
 		// No permission found, deny by default
 		return false, nil
 	} else if err != nil {
 		return false, fmt.Errorf("failed to query permission: %w", err)
 	}
 
-	return effect == "allow", nil
+	return permission.Effect == "allow", nil
 }
 
 // AddLexiconReadPermission grants read permission for an entire lexicon (NSID).
@@ -119,14 +92,20 @@ func (s *sqliteStore) AddLexiconReadPermission(
 	owner string,
 	nsid string,
 ) error {
-	_, err := sq.Insert("permissions").
-		Columns("grantee", "owner", "object", "effect").
-		Values(grantee, owner, nsid, "allow").
-		Suffix("ON CONFLICT(grantee, owner, object) DO UPDATE SET effect = 'allow'").
-		RunWith(s.db).
-		Exec()
-	if err != nil {
-		return fmt.Errorf("failed to add lexicon permission: %w", err)
+	permission := Permission{
+		Grantee: grantee,
+		Owner:   owner,
+		Object:  nsid,
+		Effect:  "allow",
+	}
+
+	// Use gorm.G for the generic GORM wrapper if available, or direct DB methods
+	result := s.db.Where("grantee = ? AND owner = ? AND object = ?", grantee, owner, nsid).
+		Assign(Permission{Effect: "allow"}).
+		FirstOrCreate(&permission)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to add lexicon permission: %w", result.Error)
 	}
 	return nil
 }
@@ -137,16 +116,11 @@ func (s *sqliteStore) RemoveLexiconReadPermission(
 	owner string,
 	nsid string,
 ) error {
-	_, err := sq.Delete("permissions").
-		Where(sq.Eq{
-			"grantee": grantee,
-			"owner":   owner,
-			"object":  nsid,
-		}).
-		RunWith(s.db).
-		Exec()
-	if err != nil {
-		return fmt.Errorf("failed to remove lexicon permission: %w", err)
+	result := s.db.Where("grantee = ? AND owner = ? AND object = ?", grantee, owner, nsid).
+		Delete(&Permission{})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to remove lexicon permission: %w", result.Error)
 	}
 	return nil
 }
@@ -154,33 +128,18 @@ func (s *sqliteStore) RemoveLexiconReadPermission(
 // ListReadPermissionsByLexicon returns a map of lexicon NSIDs to lists of grantees
 // who have permission to read that lexicon.
 func (s *sqliteStore) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
-	rows, err := sq.Select("object", "grantee").
-		From("permissions").
-		Where(sq.Eq{
-			"owner":  owner,
-			"effect": "allow",
-		}).
-		RunWith(s.db).
-		Query()
+	var permissions []Permission
+	err := s.db.Where("owner = ? AND effect = ?", owner, "allow").
+		Find(&permissions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query permissions: %w", err)
 	}
-	defer util.Close(rows)
 
 	result := make(map[string][]string)
-	for rows.Next() {
-		var object, grantee string
-		if err := rows.Scan(&object, &grantee); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
-		}
-
+	for _, perm := range permissions {
 		// The object is stored as the NSID itself (e.g., "com.habitat.posts")
 		// So we can use it directly as the lexicon
-		result[object] = append(result[object], grantee)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
+		result[perm.Object] = append(result[perm.Object], perm.Grantee)
 	}
 
 	return result, nil
@@ -198,42 +157,24 @@ func (s *sqliteStore) ListReadPermissionsByUser(
 	// We need to check:
 	// 1. Exact match: object = "nsid"
 	// 2. Parent prefix that matches: nsid LIKE object || ".%"
-	query := sq.Select("object", "effect").
-		From("permissions").
-		Where(sq.And{
-			sq.Eq{"grantee": requester},
-			sq.Eq{"owner": owner},
-			sq.Or{
-				sq.Eq{"object": nsid},
-				sq.Expr("? LIKE object || '.%'", nsid),
-			},
-		})
-
-	rows, err := query.RunWith(s.db).Query()
+	var permissions []Permission
+	err := s.db.Where("grantee = ? AND owner = ? AND (object = ? OR ? LIKE object || '.%')",
+		requester, owner, nsid, nsid).
+		Find(&permissions).Error
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query permissions: %w", err)
 	}
-	defer util.Close(rows)
 
 	allows := []string{}
 	denies := []string{}
 
-	for rows.Next() {
-		var object, effect string
-		if err := rows.Scan(&object, &effect); err != nil {
-			return nil, nil, fmt.Errorf("failed to scan row: %w", err)
-		}
-
-		switch effect {
+	for _, perm := range permissions {
+		switch perm.Effect {
 		case "allow":
-			allows = append(allows, object)
+			allows = append(allows, perm.Object)
 		case "deny":
-			denies = append(denies, object)
+			denies = append(denies, perm.Object)
 		}
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
 	return allows, denies, nil

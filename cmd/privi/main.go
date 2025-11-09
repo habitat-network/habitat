@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/rs/zerolog/log"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 const (
@@ -80,7 +81,7 @@ func main() {
 		log.Err(err).Msgf("error finding privi repo file")
 	}
 
-	priviDB, err := sql.Open("sqlite3", priviRepoPath)
+	priviDB, err := gorm.Open(sqlite.Open(priviRepoPath), &gorm.Config{})
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}

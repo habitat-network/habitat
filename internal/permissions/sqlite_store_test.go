@@ -1,17 +1,16 @@
 package permissions
 
 import (
-	"database/sql"
 	"testing"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestSQLiteStoreBasicPermissions(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -54,9 +53,8 @@ func TestSQLiteStoreBasicPermissions(t *testing.T) {
 }
 
 func TestSQLiteStorePrefixPermissions(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -85,9 +83,8 @@ func TestSQLiteStorePrefixPermissions(t *testing.T) {
 }
 
 func TestSQLiteStoreMultipleGrantees(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -113,9 +110,8 @@ func TestSQLiteStoreMultipleGrantees(t *testing.T) {
 }
 
 func TestSQLiteStoreListByUser(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -139,9 +135,8 @@ func TestSQLiteStoreListByUser(t *testing.T) {
 }
 
 func TestSQLiteStorePermissionHierarchy(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -174,9 +169,8 @@ func TestSQLiteStorePermissionHierarchy(t *testing.T) {
 }
 
 func TestSQLiteStoreEmptyRecordKey(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -192,9 +186,8 @@ func TestSQLiteStoreEmptyRecordKey(t *testing.T) {
 }
 
 func TestSQLiteStoreMultipleOwners(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -236,9 +229,8 @@ func TestSQLiteStoreMultipleOwners(t *testing.T) {
 }
 
 func TestSQLiteStoreDenyOverridesAllow(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer func() { require.NoError(t, db.Close(), "failed to close db") }()
 
 	store, err := NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -257,12 +249,14 @@ func TestSQLiteStoreDenyOverridesAllow(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, hasPermission)
 
-	// Now add a deny rule for likes specifically
-	_, err = sq.Insert("permissions").
-		Columns("grantee", "owner", "object", "effect").
-		Values("bob", "alice", "com.habitat.likes", "deny").
-		RunWith(db).
-		Exec()
+	// Now add a deny rule for likes specifically using GORM
+	denyPermission := Permission{
+		Grantee: "bob",
+		Owner:   "alice",
+		Object:  "com.habitat.likes",
+		Effect:  "deny",
+	}
+	err = db.Create(&denyPermission).Error
 	require.NoError(t, err)
 
 	// Bob should still have access to posts

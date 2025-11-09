@@ -1,21 +1,20 @@
 package privi
 
 import (
-	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/eagraf/habitat-new/util"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	testDBPath := filepath.Join(os.TempDir(), "test_privi.db")
 	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
 
-	priviDB, err := sql.Open("sqlite3", testDBPath)
+	priviDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
 	repo, err := NewSQLiteRepo(priviDB)
@@ -38,9 +37,8 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 }
 
 func TestUploadAndGetBlob(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	defer util.Close(db)
 
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)

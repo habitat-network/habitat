@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -33,6 +32,8 @@ import (
 	"github.com/eagraf/habitat-new/internal/process"
 	"github.com/eagraf/habitat-new/internal/web"
 	"github.com/gorilla/sessions"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -170,8 +171,7 @@ func main() {
 		routes = append(routes, appstore.NewAvailableAppsRoute(nodeConfig.HabitatPath()))
 	}
 
-	priviServer, priviClose := setupPrivi(nodeConfig)
-	defer priviClose()
+	priviServer := setupPrivi(nodeConfig)
 	routes = append(routes, priviServer.GetRoutes()...)
 
 	router := api.NewRouter(routes, logger)
@@ -219,7 +219,7 @@ func main() {
 	log.Info().Msg("Finished!")
 }
 
-func setupPrivi(nodeConfig *config.NodeConfig) (*privi.Server, func()) {
+func setupPrivi(nodeConfig *config.NodeConfig) *privi.Server {
 	policiesDirPath := nodeConfig.PermissionPolicyFilesDir()
 	perms, err := permissions.NewStore(
 		fileadapter.NewAdapter(filepath.Join(policiesDirPath, "policies.csv")),
@@ -249,7 +249,7 @@ func setupPrivi(nodeConfig *config.NodeConfig) (*privi.Server, func()) {
 		log.Fatal().Err(err).Msgf("error finding privi repo file")
 	}
 
-	priviDB, err := sql.Open("sqlite3", priviRepoPath)
+	priviDB, err := gorm.Open(sqlite.Open(priviRepoPath), &gorm.Config{})
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
@@ -264,7 +264,7 @@ func setupPrivi(nodeConfig *config.NodeConfig) (*privi.Server, func()) {
 		perms,
 		repo,
 	)
-	return priviServer, func() { _ = priviDB.Close() }
+	return priviServer
 }
 
 func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*reverse_proxy.Rule, error) {
