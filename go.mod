@@ -21,6 +21,8 @@ require (
 	github.com/rs/zerolog v1.31.0
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.11.1
+	github.com/urfave/cli-altsrc/v3 v3.1.0
+	github.com/urfave/cli/v3 v3.4.1
 	github.com/wI2L/jsondiff v0.5.1
 	golang.org/x/mod v0.28.0
 	golang.org/x/oauth2 v0.30.0

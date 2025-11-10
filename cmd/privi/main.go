@@ -1,8 +1,8 @@
 package main
 
 import (
+	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -11,89 +11,54 @@ import (
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/rs/zerolog/log"
+	"github.com/urfave/cli/v3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-const (
-	defaultPort = "443"
-)
-
-var (
-	domainPtr = flag.String(
-		"domain",
-		"",
-		"The publicly available domain at which the server can be found",
-	)
-	repoPathPtr = flag.String(
-		"path",
-		"./repo.db",
-		"The path to the sqlite file to use as the backing database for this server",
-	)
-	portPtr = flag.String(
-		"port",
-		defaultPort,
-		"The port on which to run the server. Default 9000",
-	)
-	certsFilePtr = flag.String(
-		"certs",
-		"/etc/letsencrypt/live/habitat.network/",
-		"The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem",
-	)
-	helpFlag = flag.Bool("help", false, "Display this menu.")
-)
-
 func main() {
-	flag.Parse()
-
-	if helpFlag != nil && *helpFlag {
-		flag.PrintDefaults()
-		os.Exit(0)
+	flags, mutuallyExclusiveFlags := getFlags()
+	cmd := &cli.Command{
+		Flags:                  flags,
+		MutuallyExclusiveFlags: mutuallyExclusiveFlags,
+		Action:                 run,
 	}
-
-	if domainPtr == nil || *domainPtr == "" {
-		fmt.Println("domain flag is required; -h to see help menu")
-		os.Exit(1)
-	} else if repoPathPtr == nil || *repoPathPtr == "" {
-		fmt.Println("No repo path specifiedl using default value ./repo.db")
-	} else if portPtr == nil || *portPtr == "" {
-		fmt.Printf("No port specified; using default %s\n", defaultPort)
-		*portPtr = defaultPort
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		log.Fatal().Err(err).Msg("error running command")
 	}
+}
 
-	fmt.Printf(
-		"Using %s as domain and %s as repo path; starting private data server\n",
-		*domainPtr,
-		*repoPathPtr,
-	)
-
+func run(_ context.Context, cmd *cli.Command) error {
+	log.Info().Msgf("running with flags: ")
+	for _, flag := range cmd.FlagNames() {
+		log.Info().Msgf("%s: %v", flag, cmd.Value(flag))
+	}
+	dbPath := cmd.String(fDb)
 	// Create database file if it does not exist
-	// TODO: this should really be taken in as an argument or env variable
-	priviRepoPath := *repoPathPtr
-	_, err := os.Stat(priviRepoPath)
+	_, err := os.Stat(dbPath)
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Println("Privi repo file does not exist; creating...")
-		_, err := os.Create(priviRepoPath)
+		_, err := os.Create(dbPath)
 		if err != nil {
-			log.Err(err).Msgf("unable to create privi repo file at %s", priviRepoPath)
+			return fmt.Errorf("unable to create privi repo file at %s: %w", dbPath, err)
 		}
 	} else if err != nil {
-		log.Err(err).Msgf("error finding privi repo file")
+		return fmt.Errorf("error finding privi repo file: %w", err)
 	}
 
-	priviDB, err := gorm.Open(sqlite.Open(priviRepoPath), &gorm.Config{})
+	priviDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
+		return fmt.Errorf("unable to open sqlite file backing privi server: %w", err)
 	}
 
 	repo, err := privi.NewSQLiteRepo(priviDB)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
+		return fmt.Errorf("unable to setup privi repo: %w", err)
 	}
 
 	adapter, err := permissions.NewSQLiteStore(priviDB)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup permissions store")
+		return fmt.Errorf("unable to setup permissions store: %w", err)
 	}
 	priviServer := privi.NewServer(adapter, repo)
 
@@ -134,7 +99,7 @@ func main() {
     }
   ]
 }`
-		domain := *domainPtr
+		domain := cmd.String(fDomain)
 		_, err := fmt.Fprintf(w, template, domain, domain)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -142,17 +107,19 @@ func main() {
 		}
 	})
 
+	port := cmd.String(fPort)
 	s := &http.Server{
 		Handler: loggingMiddleware(mux),
-		Addr:    fmt.Sprintf(":%s", *portPtr),
+		Addr:    fmt.Sprintf(":%s", port),
 	}
 
-	fmt.Println("Starting server on port :" + *portPtr)
-	err = s.ListenAndServeTLS(
-		fmt.Sprintf("%s%s", *certsFilePtr, "fullchain.pem"),
-		fmt.Sprintf("%s%s", *certsFilePtr, "privkey.pem"),
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msg("error serving http")
+	fmt.Println("Starting server on port :" + port)
+	certs := cmd.String(fHttpsCerts)
+	if certs == "" {
+		return s.ListenAndServe()
 	}
+	return s.ListenAndServeTLS(
+		fmt.Sprintf("%s%s", certs, "fullchain.pem"),
+		fmt.Sprintf("%s%s", certs, "privkey.pem"),
+	)
 }

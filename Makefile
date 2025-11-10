@@ -163,7 +163,7 @@ frontend_server/build: frontend/types/api.ts
 # ===================== Privi build rules =====================
 
 privi-dev: 
-	foreman start -f privi.Procfile
+	foreman start -f privi.Procfile -e $(DEV_HABITAT_ENV_PATH)
 
 lexgen:
 	go run cmd/lexgen/main.go

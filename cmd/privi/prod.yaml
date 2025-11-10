@@ -1,0 +1,3 @@
+httpscerts: "/etc/letsencrypt/live/habitat.network/"
+port: 443
+debug: false
