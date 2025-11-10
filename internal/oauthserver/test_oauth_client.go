@@ -69,6 +69,9 @@ func (d *dummyOAuthClient) ExchangeCode(
 	issuer string,
 	state *auth.AuthorizeState,
 ) (*auth.TokenResponse, error) {
+	require.Equal(d.t, "dummyCode", code)
+	require.Equal(d.t, "dummyState", state.State)
+	require.Equal(d.t, "dummyVerifier", state.Verifier)
 	return &auth.TokenResponse{
 		AccessToken:  "dummy_access_token",
 		RefreshToken: "dummy_refresh_token",

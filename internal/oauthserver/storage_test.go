@@ -11,8 +11,7 @@ import (
 )
 
 func TestGetClient(t *testing.T) {
-	store := newStore()
-
+	store := newStore(newStrategy([]byte("test-secret")))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("url: %s", r.Host)
 		if r.URL.Path == "/client-metadata.json" && r.Method == http.MethodGet {

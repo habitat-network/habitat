@@ -15,6 +15,7 @@ var (
 	fDb         = "db"
 	fPort       = "port"
 	fHttpsCerts = "httpscerts"
+	fKeyFile    = "keyfile"
 )
 var profiles []string
 
@@ -53,6 +54,13 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 			Name:    fHttpsCerts,
 			Usage:   "The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem",
 			Sources: getSources(fHttpsCerts),
+		},
+		&cli.StringFlag{
+			Name:      fKeyFile,
+			Usage:     "The path to the key file to use for OAuth client metadata",
+			Value:     "./key.jwk",
+			TakesFile: true,
+			Sources:   getSources(fKeyFile),
 		},
 	}, []cli.MutuallyExclusiveFlags{}
 }

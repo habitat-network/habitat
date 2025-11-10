@@ -256,6 +256,7 @@ func setupPrivi(nodeConfig *config.NodeConfig) *privi.Server {
 	priviServer := privi.NewServer(
 		perms,
 		repo,
+		nil,
 	)
 	return priviServer
 }

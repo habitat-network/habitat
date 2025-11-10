@@ -7,6 +7,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/gob"
+	"encoding/json"
 	"net/http"
 	"net/url"
 
@@ -20,7 +21,8 @@ import (
 )
 
 const (
-	// sessionName is the name used for storing authorization session data.
+	// this is the cookie name.
+	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
 )
 
@@ -28,13 +30,8 @@ const (
 // This data is temporarily stored during the OAuth authorization flow to preserve
 // request context across redirects.
 type authRequestFlash struct {
-	ClientID       string               // OAuth client identifier
-	RedirectURI    *url.URL             // Client's registered redirect URI
-	State          string               // OAuth state parameter for CSRF protection
-	Scopes         []string             // Requested OAuth scopes
-	ResponseTypes  []string             // OAuth response types (e.g., "code")
-	Form           url.Values           // Original authorization request form data
-	Session        *session             // User session containing DPoP key and token info
+	Form           url.Values // Original authorization request form data
+	DpopKey        []byte
 	AuthorizeState *auth.AuthorizeState // AT Protocol authorization state
 }
 
@@ -42,11 +39,10 @@ type authRequestFlash struct {
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
 // for proof-of-possession token binding.
 type OAuthServer struct {
-	storage      *store                // Token and authorization code storage
-	provider     fosite.OAuth2Provider // Underlying OAuth 2.0 provider implementation
-	sessionStore sessions.Store        // Session storage for authorization flow state
-	oauthClient  auth.OAuthClient      // Client for communicating with AT Protocol services
-	directory    identity.Directory    // AT Protocol identity directory for handle resolution
+	provider     fosite.OAuth2Provider
+	sessionStore sessions.Store     // Session storage for authorization flow state
+	oauthClient  auth.OAuthClient   // Client for communicating with AT Protocol services
+	directory    identity.Directory // AT Protocol identity directory for handle resolution
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -68,25 +64,26 @@ func NewOAuthServer(
 	sessionStore sessions.Store,
 	directory identity.Directory,
 ) *OAuthServer {
-	storage := newStore()
+	secret := []byte("my super secret signing password")
 	config := &fosite.Config{
-		GlobalSecret:               []byte("my super secret signing password"),
+		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 	}
-	provider := compose.Compose(
-		config,
-		storage,
-		compose.NewOAuth2HMACStrategy(config),
-		compose.OAuth2AuthorizeExplicitFactory,
-		compose.OAuth2RefreshTokenGrantFactory,
-		compose.OAuth2PKCEFactory,
-	)
+	strategy := newStrategy(secret)
+	storage := newStore(strategy)
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
 	gob.Register(auth.AuthorizeState{})
 	return &OAuthServer{
-		storage:      storage,
-		provider:     provider,
+		provider: compose.Compose(
+			config,
+			storage,
+			strategy,
+			compose.OAuth2AuthorizeExplicitFactory,
+			compose.OAuth2RefreshTokenGrantFactory,
+			compose.OAuth2PKCEFactory,
+			compose.OAuth2TokenIntrospectionFactory,
+		),
 		oauthClient:  oauthClient,
 		sessionStore: sessionStore,
 		directory:    directory,
@@ -149,16 +146,16 @@ func (o *OAuthServer) HandleAuthorize(
 		)
 		return
 	}
+	dpopKeyBytes, err := dpopKey.Bytes()
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "failed to serialize key", http.StatusInternalServerError)
+		return
+	}
 	authorizeSession, _ := o.sessionStore.New(r, sessionName)
 	authorizeSession.AddFlash(&authRequestFlash{
-		ClientID:       requester.GetClient().GetID(),
-		RedirectURI:    requester.GetRedirectURI(),
-		State:          requester.GetState(),
-		Scopes:         requester.GetRequestedScopes(),
-		ResponseTypes:  requester.GetResponseTypes(),
 		Form:           requester.GetRequestForm(),
 		AuthorizeState: state,
-		Session:        newSession(handle, dpopKey),
+		DpopKey:        dpopKeyBytes,
 	})
 	if err := authorizeSession.Save(r, w); err != nil {
 		utils.LogAndHTTPError(w, err, "failed to save session", http.StatusInternalServerError)
@@ -204,21 +201,22 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to parse auth request flash", http.StatusBadRequest)
 		return
 	}
-	authRequest := &fosite.AuthorizeRequest{
-		Request: fosite.Request{
-			Form: arf.Form,
-			Client: &client{
-				ClientMetadata: auth.ClientMetadata{
-					ClientId: arf.ClientID,
-				},
-			},
-			RequestedScope: arf.Scopes,
-		},
-		RedirectURI:   arf.RedirectURI,
-		State:         arf.State,
-		ResponseTypes: arf.ResponseTypes,
+	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
+		return
 	}
-	dpopClient := auth.NewDpopHttpClient(arf.Session.DpopKey, &nonceProvider{})
+	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
+		return
+	}
+	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), arf.DpopKey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
+		return
+	}
+	dpopClient := auth.NewDpopHttpClient(dpopKey, &nonceProvider{})
 	tokenInfo, err := o.oauthClient.ExchangeCode(
 		dpopClient,
 		r.URL.Query().Get("code"),
@@ -229,8 +227,11 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to exchange code", http.StatusInternalServerError)
 		return
 	}
-	arf.Session.SetTokenInfo(tokenInfo)
-	resp, err := o.provider.NewAuthorizeResponse(ctx, authRequest, arf.Session)
+	resp, err := o.provider.NewAuthorizeResponse(
+		ctx,
+		authRequest,
+		newAuthorizeSession(authRequest, arf.DpopKey, tokenInfo),
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to create response", http.StatusInternalServerError)
 		return
@@ -256,8 +257,7 @@ func (o *OAuthServer) HandleCallback(
 func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	ctx := r.Context()
-	var session session
-	req, err := o.provider.NewAccessRequest(ctx, r, &session)
+	req, err := o.provider.NewAccessRequest(ctx, r, &fosite.DefaultSession{})
 	if err != nil {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
@@ -268,6 +268,51 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
+}
+
+func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	err := json.NewEncoder(w).Encode(o.oauthClient.ClientMetadata())
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"failed to encode client metadata",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+}
+
+func (o *OAuthServer) Validate(
+	w http.ResponseWriter,
+	r *http.Request,
+	scopes ...string,
+) (did string, client *auth.DpopHttpClient, ok bool) {
+	ctx := r.Context()
+	_, ar, err := o.provider.IntrospectToken(
+		r.Context(),
+		fosite.AccessTokenFromRequest(r),
+		fosite.AccessToken,
+		nil,
+		scopes...,
+	)
+	if err != nil {
+		o.provider.WriteIntrospectionError(ctx, w, err)
+		return "", nil, false
+	}
+	session := ar.GetSession().(*authSession)
+	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), session.DpopKey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
+		return
+	}
+
+	return session.Subject, auth.NewDpopHttpClient(
+		dpopKey,
+		&nonceProvider{},
+		auth.WithAccessToken(session.TokenInfo.AccessToken),
+	), true
 }
 
 // This simple implementation stores a single nonce value in memory.
