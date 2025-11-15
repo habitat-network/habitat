@@ -2,7 +2,7 @@ version: "3.3"
 services:
   habitat_frontend:
     image: habitat_frontend
-    build: 
+    build:
       context: ..
       dockerfile: build/frontend.dev.Dockerfile
     volumes:
@@ -14,18 +14,18 @@ services:
     command: sh -c "pnpm install && pnpm start"
   habitat_node:
     volumes:
-        - ${TOPDIR}/core:${DOCKER_WORKDIR}/core
-        - ${TOPDIR}/frontend_server:${DOCKER_WORKDIR}/frontend_server
-        - ${TOPDIR}/cmd:${DOCKER_WORKDIR}/cmd
-        - ${TOPDIR}/internal:${DOCKER_WORKDIR}/internal
-        - ${TOPDIR}/pkg:${DOCKER_WORKDIR}/pkg
-        - ${TOPDIR}/.habitat:/.habitat
-        - /var/run/docker.sock:/var/run/docker.sock
+      - ${TOPDIR}/core:${DOCKER_WORKDIR}/core
+      - ${TOPDIR}/frontend_server:${DOCKER_WORKDIR}/frontend_server
+      - ${TOPDIR}/cmd:${DOCKER_WORKDIR}/cmd
+      - ${TOPDIR}/internal:${DOCKER_WORKDIR}/internal
+      - ${TOPDIR}/pkg:${DOCKER_WORKDIR}/pkg
+      - ${TOPDIR}/.habitat:/.habitat
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-        - HABITAT_PATH=/.habitat
-        - HABITAT_APP_PATH=${DEV_HABITAT_APP_PATH}
-        - PERMS_DIR=${PERMS_DIR}
-        - FRONTEND_DEV=1
+      - HABITAT_PATH=/.habitat
+      - HABITAT_APP_PATH=${DEV_HABITAT_APP_PATH}
+      - PERMS_DIR=${PERMS_DIR}
+      - FRONTEND_DEV=1
     ports:
       # Standard API port
       - 3000:3000
@@ -36,7 +36,7 @@ services:
       # Debugger port
       - 4000:4000
     image: habitat_node
-    build: 
+    build:
       context: ..
       dockerfile: build/node.dev.Dockerfile
     env_file: ../dev.env

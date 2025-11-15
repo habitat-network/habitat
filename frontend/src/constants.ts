@@ -1,1 +1,1 @@
-export const habitatProxy = "did:web:habitat.network#habitat"
+export const habitatProxy = "did:web:habitat.network#habitat";

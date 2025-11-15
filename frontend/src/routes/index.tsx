@@ -6,7 +6,7 @@ export const Route = createFileRoute("/")({
     let webAppInstallations: any[] = [];
     try {
       webAppInstallations = await getWebApps();
-    } catch { }
+    } catch {}
     const filteredWebApps = webAppInstallations
       .filter((app: any) => app.driver === "web")
       .map((app: any) => ({

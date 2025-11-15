@@ -1,30 +1,30 @@
 {
-    "old_version": "v0.0.7",
-    "new_version": "v0.0.8",
-    "up": [
-        {
-            "op": "remove",
-            "path": "/properties/processes/additionalProperties/properties/driver"
-        },
-        {
-            "op": "replace",
-            "path": "/properties/processes/additionalProperties/required",
-            "value": [ "id", "app_id", "user_id", "created" ]
-        }
-    ],
-    "down": [
-        {
-            "op": "add",
-            "path": "/properties/processes/additionalProperties/properties/driver",
-            "value": {
-                "type": "string",
-                "enum": [ "docker", "web" ]
-            }
-        },
-        {
-            "op": "replace",
-            "path": "/properties/processes/additionalProperties/required",
-            "value": [ "id", "app_id", "driver", "user_id", "created" ]
-        }
-    ]
+  "old_version": "v0.0.7",
+  "new_version": "v0.0.8",
+  "up": [
+    {
+      "op": "remove",
+      "path": "/properties/processes/additionalProperties/properties/driver"
+    },
+    {
+      "op": "replace",
+      "path": "/properties/processes/additionalProperties/required",
+      "value": ["id", "app_id", "user_id", "created"]
+    }
+  ],
+  "down": [
+    {
+      "op": "add",
+      "path": "/properties/processes/additionalProperties/properties/driver",
+      "value": {
+        "type": "string",
+        "enum": ["docker", "web"]
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/properties/processes/additionalProperties/required",
+      "value": ["id", "app_id", "driver", "user_id", "created"]
+    }
+  ]
 }

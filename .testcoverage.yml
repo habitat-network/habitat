@@ -12,8 +12,8 @@ threshold:
 
 # Holds regexp rules which will override thresholds for matched files or packages using their paths.
 #
-# First rule from this list that matches file or package is going to apply new threshold to it. 
-# If project has multiple rules that match same path, override rules should be listed in order from 
+# First rule from this list that matches file or package is going to apply new threshold to it.
+# If project has multiple rules that match same path, override rules should be listed in order from
 # specific to more general rules.
 override:
   # Increase coverage threshold to 100% for `foo` package (default is 80, as configured above)
@@ -39,7 +39,7 @@ exclude:
     - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
     - ^internal/privi/.*encrypt.* # This is is a noop thing.
     - ^internal/privi/signing_method.go # TODO: remove!! this was copy-pasted code.
-    - internal/bffauth/client.go	# TODO: remove!!
+    - internal/bffauth/client.go # TODO: remove!!
     - ^internal/docker
     - ^internal/web
     - ^internal/utils/http.go
