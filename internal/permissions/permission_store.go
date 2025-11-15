@@ -1,7 +1,6 @@
 package permissions
 
 import (
-	_ "embed"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -25,6 +24,11 @@ type Store interface {
 		nsid string,
 	) error
 	ListReadPermissionsByLexicon(owner string) (map[string][]string, error)
+	ListReadPermissionsByUser(
+		owner string,
+		requester string,
+		nsid string,
+	) (allow []string, deny []string, err error)
 }
 
 type sqliteStore struct {
@@ -173,15 +177,20 @@ func (s *sqliteStore) ListReadPermissionsByUser(
 	requester string,
 	nsid string,
 ) ([]string, []string, error) {
+	if requester == owner {
+		return []string{fmt.Sprintf("%s.*", nsid)}, []string{}, nil
+	}
 	// Query all permissions for this grantee/owner combination
 	// that could match the given NSID
-	// We need to check:
-	// 1. Exact match: object = "nsid"
-	// 2. Parent prefix that matches: nsid LIKE object || ".%"
+	// object = nsid OR object = nsid.*
 	var permissions []Permission
-	err := s.db.Where("grantee = ? AND owner = ? AND (object = ? OR ? LIKE object || '.%')",
-		requester, owner, nsid, nsid).
-		Find(&permissions).Error
+	err := s.db.Where("grantee = ?", requester).
+		Where("owner = ?", owner).
+		Where(
+			s.db.Where("object = ?", nsid).Or("object LIKE ? || '.%'", nsid),
+		).
+		Find(&permissions).
+		Error
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query permissions: %w", err)
 	}

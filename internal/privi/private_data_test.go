@@ -2,8 +2,10 @@ package privi
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
+	"github.com/eagraf/habitat-new/api/habitat"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -17,10 +19,8 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	val := map[string]any{
 		"someKey": "someVal",
 	}
-	marshalledVal, err := json.Marshal(val)
-	require.NoError(t, err)
 
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(":memory:"))
 	require.NoError(t, err)
 	dummy, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
@@ -44,10 +44,77 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	got, err = p.getRecord(coll, "my-rkey", "my-did", "another-did")
 	require.NoError(t, err)
 
-	marshalled, err := json.Marshal(got)
+	var unmarshalled map[string]any
+	err = json.Unmarshal([]byte(got.Rec), &unmarshalled)
 	require.NoError(t, err)
-	require.Equal(t, []byte(marshalled), marshalledVal)
+	require.Equal(t, val, unmarshalled)
 
 	err = p.putRecord("my-did", coll, val, rkey, &validate)
 	require.NoError(t, err)
+}
+
+func TestListOwnRecords(t *testing.T) {
+	val := map[string]any{
+		"someKey": "someVal",
+	}
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	dummy, err := permissions.NewSQLiteStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db)
+	require.NoError(t, err)
+	p := newStore(dummy, repo)
+
+	// putRecord
+	coll := "my.fake.collection"
+	rkey := "my-rkey"
+	validate := true
+	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	require.NoError(t, err)
+
+	records, err := p.listRecords(
+		&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll, Repo: "my-did"},
+		"my-did",
+	)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+}
+
+func TestListRecords(t *testing.T) {
+	val := map[string]any{
+		"someKey": "someVal",
+	}
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	dummy, err := permissions.NewSQLiteStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db)
+	require.NoError(t, err)
+	p := newStore(dummy, repo)
+
+	// putRecord
+	coll := "my.fake.collection"
+	rkey := "my-rkey"
+	validate := true
+	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	require.NoError(t, err)
+
+	records, err := p.listRecords(
+		&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll, Repo: "my-did"},
+		"your-did",
+	)
+	require.NoError(t, err)
+	require.Empty(t, records)
+
+	require.NoError(
+		t,
+		dummy.AddLexiconReadPermission("your-did", "my-did", fmt.Sprintf("%s.*", coll)),
+	)
+
+	records, err = p.listRecords(
+		&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll, Repo: "my-did"},
+		"your-did",
+	)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
 }
