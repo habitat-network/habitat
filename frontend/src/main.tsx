@@ -5,26 +5,15 @@ import {
   createHashHistory,
   createRouter,
 } from "@tanstack/react-router";
-import clientMetadata from "../client-metadata";
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import reportWebVitals from "./reportWebVitals.ts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserOAuthClient } from "@atproto/oauth-client-browser";
+import { AuthManager } from "./auth.ts";
 
-export const oauthClient = new BrowserOAuthClient({
-  handleResolver: "https://bsky.social",
-  clientMetadata: __DOMAIN__
-    ? clientMetadata(__DOMAIN__)
-    : {
-      client_id: "http://localhost?scope=atproto%20transition%3Ageneric",
-      redirect_uris: ["http://127.0.0.1:5173/"],
-      scope: "atproto transition:generic",
-      token_endpoint_auth_method: "none",
-    },
-  allowHttp: true,
+const authManager = new AuthManager("privi.dwelf-mirzam.ts.net", () => {
+  router.navigate({ to: "/oauth-login" });
 });
-
 const queryClient = new QueryClient();
 
 const domainUrl = new URL(`https://${__DOMAIN__}`);
@@ -34,7 +23,7 @@ const router = createRouter({
   routeTree,
   context: {
     queryClient,
-    oauthClient,
+    authManager,
   },
   defaultPreload: "intent",
   scrollRestoration: true,

@@ -39,6 +39,13 @@ export const Route = createFileRoute("/")({
         icon: "🔑",
         link: "/permissions",
       },
+      {
+        id: "privi-test",
+        name: "Privi Test",
+        description: "Privi Test for getting and putting records",
+        icon: "💿",
+        link: "/privi-test",
+      },
       ...filteredWebApps,
     ];
   },
@@ -55,7 +62,7 @@ export const Route = createFileRoute("/")({
             </tr>
           </thead>
           <tbody>
-            {data.map(({ id, name, description, icon, link }: any) => (
+            {data.map(({ id, name, description, icon, link }) => (
               <tr key={id}>
                 <td>
                   <Link to={link}>
