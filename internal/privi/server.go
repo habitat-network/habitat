@@ -327,12 +327,10 @@ func (s *Server) getCaller(r *http.Request) (syntax.DID, error) {
 }
 
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	callerDID, err := s.getCaller(r)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
+	callerDID, ok := s.getAuthedUser(w, r)
+	if !ok {
 		return
 	}
-
 	permissions, err := s.store.permissions.ListReadPermissionsByLexicon(callerDID.String())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
@@ -353,18 +351,16 @@ type editPermissionRequest struct {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := s.getAuthedUser(w, r)
+	if !ok {
+		return
+	}
 	req := &editPermissionRequest{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	callerDID, err := s.getCaller(r)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
-		return
-	}
-
 	err = s.store.permissions.AddLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
@@ -373,18 +369,16 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := s.getAuthedUser(w, r)
+	if !ok {
+		return
+	}
 	req := &editPermissionRequest{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	callerDID, err := s.getCaller(r)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
-		return
-	}
-
 	err = s.store.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
