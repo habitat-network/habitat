@@ -1,26 +1,26 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Habitat Node Debugging",
-      "type": "go",
-      "request": "attach",
-      "mode": "remote",
-      "substitutePath": [
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
         {
-          "from": "${workspaceFolder}",
-          "to": "/go/src/github.com/eagraf/habitat-new"
-        }
-      ],
-      "port": 4000,
-      "cwd": "${workspaceFolder}",
-      "host": "127.0.0.1",
-      "showLog": true,
-      "apiVersion": 2,
-      "trace": "verbose"
-    }
-  ]
+            "name": "Habitat Node Debugging",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "substitutePath": [
+                {
+                    "from": "${workspaceFolder}",
+                    "to": "/go/src/github.com/eagraf/habitat-new",
+                },
+            ],
+            "port": 4000,
+            "cwd": "${workspaceFolder}",
+            "host": "127.0.0.1",
+            "showLog": true,
+            "apiVersion": 2,
+            "trace": "verbose"
+        },
+    ]
 }

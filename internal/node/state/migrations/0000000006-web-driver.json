@@ -1,26 +1,26 @@
 {
-  "old_version": "v0.0.5",
-  "new_version": "v0.0.6",
-  "up": [
-    {
-      "op": "add",
-      "path": "/properties/app_installations/additionalProperties/properties/driver/enum/1",
-      "value": "web"
-    },
-    {
-      "op": "add",
-      "path": "/properties/processes/additionalProperties/properties/driver/enum/1",
-      "value": "web"
-    }
-  ],
-  "down": [
-    {
-      "op": "remove",
-      "path": "/properties/app_installations/additionalProperties/properties/driver/enum/1"
-    },
-    {
-      "op": "remove",
-      "path": "/properties/processes/additionalProperties/properties/driver/enum/1"
-    }
-  ]
+    "old_version": "v0.0.5",
+    "new_version": "v0.0.6",
+    "up": [
+        {
+            "op": "add",
+            "path": "/properties/app_installations/additionalProperties/properties/driver/enum/1",
+            "value": "web"
+        },
+        {
+            "op": "add",
+            "path": "/properties/processes/additionalProperties/properties/driver/enum/1",
+            "value": "web"
+        }
+    ],
+    "down": [
+        {
+            "op": "remove",
+            "path": "/properties/app_installations/additionalProperties/properties/driver/enum/1"
+        },
+        {
+            "op": "remove",
+            "path": "/properties/processes/additionalProperties/properties/driver/enum/1"
+        }
+    ]
 }

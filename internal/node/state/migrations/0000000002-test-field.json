@@ -1,19 +1,19 @@
 {
-  "old_version": "v0.0.1",
-  "new_version": "v0.0.2",
-  "up": [
-    {
-      "op": "add",
-      "path": "/properties/test_field",
-      "value": {
-        "type": "string"
-      }
-    }
-  ],
-  "down": [
-    {
-      "op": "remove",
-      "path": "/properties/test_field"
-    }
-  ]
+    "old_version": "v0.0.1",
+    "new_version": "v0.0.2",
+    "up": [
+        {
+            "op": "add",
+            "path": "/properties/test_field",
+            "value": {
+                "type": "string"
+            }
+        }
+    ],
+    "down": [
+        {
+            "op": "remove",
+            "path": "/properties/test_field"
+        }
+    ]
 }

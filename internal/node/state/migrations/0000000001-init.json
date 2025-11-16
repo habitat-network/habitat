@@ -1,112 +1,94 @@
 {
-  "old_version": "v0.0.0",
-  "new_version": "v0.0.1",
-  "up": [
-    {
-      "op": "add",
-      "path": "",
-      "value": {
-        "title": "Habitat Node State",
-        "type": "object",
-        "properties": {
-          "schema_version": {
-            "type": "string"
-          },
-          "node_id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "certificate": {
-            "type": "string"
-          },
-          "users": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "username": { "type": "string" }
-              },
-              "additionalProperties": false,
-              "required": ["id", "username"]
-            }
-          },
-          "app_installations": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "name": { "type": "string" },
-                "user_id": { "type": "string" },
-                "version": { "type": "string" },
-                "driver": {
-                  "type": "string",
-                  "enum": ["docker"]
+    "old_version": "v0.0.0",
+    "new_version": "v0.0.1",
+    "up": [
+        {
+            "op": "add",
+            "path": "",
+            "value": {
+                "title": "Habitat Node State",
+                "type": "object",
+                "properties": {
+                    "schema_version": {
+                        "type": "string"
+                    },
+                    "node_id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "certificate": {
+                        "type": "string"
+                    },
+                    "users": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string" },
+                                "username": { "type": "string" }
+                            },
+                            "additionalProperties": false,
+                            "required": [ "id", "username" ]
+                        }
+                    },
+                    "app_installations": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string" },
+                                "name": { "type": "string" },
+                                "user_id": { "type": "string" },
+                                "version": { "type": "string" },
+                                "driver": {
+                                    "type": "string",
+                                    "enum": [ "docker" ]
+                                },
+                                "registry_url_base": { "type": "string" },
+                                "registry_app_id": { "type": "string" },
+                                "registry_tag": { "type": "string" },
+                                "state": {
+                                    "type": "string",
+                                    "enum": [ "installing", "installed", "uninstalled" ]
+                                }
+                            },
+                            "additionalProperties": false,
+                            "required": [ "id", "name", "user_id", "version", "driver", "registry_url_base", "registry_app_id", "registry_tag", "state" ]
+                        }
+                    },
+                    "processes": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "app_id": { "type": "string" },
+                                "user_id": { "type": "string" },
+                                "driver": {
+                                    "type": "string",
+                                    "enum": [ "docker" ]
+                                },
+                                "created": { "type": "string" },
+                                "state": { "type": "string" },
+                                "ext_driver_id": { "type": "string" }
+                            },
+                            "additionalProperties": false,
+                            "required": [ "id", "app_id", "driver", "ext_driver_id", "user_id", "state", "created" ]
+                        }
+                    }
                 },
-                "registry_url_base": { "type": "string" },
-                "registry_app_id": { "type": "string" },
-                "registry_tag": { "type": "string" },
-                "state": {
-                  "type": "string",
-                  "enum": ["installing", "installed", "uninstalled"]
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "name",
-                "user_id",
-                "version",
-                "driver",
-                "registry_url_base",
-                "registry_app_id",
-                "registry_tag",
-                "state"
-              ]
+                "additionalProperties": true,
+                "required": [ "node_id", "name", "certificate", "users" ]
             }
-          },
-          "processes": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "app_id": { "type": "string" },
-                "user_id": { "type": "string" },
-                "driver": {
-                  "type": "string",
-                  "enum": ["docker"]
-                },
-                "created": { "type": "string" },
-                "state": { "type": "string" },
-                "ext_driver_id": { "type": "string" }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "app_id",
-                "driver",
-                "ext_driver_id",
-                "user_id",
-                "state",
-                "created"
-              ]
-            }
-          }
-        },
-        "additionalProperties": true,
-        "required": ["node_id", "name", "certificate", "users"]
-      }
-    }
-  ],
-  "down": [
-    {
-      "op": "replace",
-      "path": "",
-      "value": {}
-    }
-  ]
+        }
+    ],
+    "down": [
+        {
+            "op": "replace",
+            "path": "",
+            "value": {}
+        }
+    ]
 }

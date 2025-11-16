@@ -2,25 +2,25 @@ import { defineConfig } from "vite";
 import viteReact from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import { resolve } from "node:path";
-import generateFile from "vite-plugin-generate-file";
+import generateFile from 'vite-plugin-generate-file'
 
-import clientMetadata from "./client-metadata";
+import clientMetadata from './client-metadata'
 
-const domain = process.env.DOMAIN;
+const domain = process.env.DOMAIN
 
 // https://vitejs.dev/config/
 export default defineConfig({
   define: {
-    __DOMAIN__: domain ? `'${domain}'` : "undefined",
-    __HASH_ROUTING__: process.env.HASH_ROUTING ? "true" : "false",
+    __DOMAIN__: domain ? `'${domain}'` : 'undefined',
+    __HASH_ROUTING__: process.env.HASH_ROUTING ? 'true' : 'false',
   },
   plugins: [
     TanStackRouterVite({ autoCodeSplitting: true }),
     viteReact(),
     generateFile({
       data: clientMetadata(domain),
-      output: "client-metadata.json",
-    }),
+      output: 'client-metadata.json'
+    })
   ],
   test: {
     globals: true,
@@ -28,12 +28,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": resolve(__dirname, "./src"),
+      '@': resolve(__dirname, './src'),
     },
   },
   server: {
     host: true,
-    allowedHosts: [".ts.net"],
+    allowedHosts: [".ts.net"]
   },
   base: domain ? `https://${domain}/` : "/",
 });

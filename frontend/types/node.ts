@@ -44,7 +44,7 @@ export interface AppInstallationConfig {
 }
 export interface Package {
   driver: DriverType;
-  driver_config: { [key: string]: any };
+  driver_config: { [key: string]: any};
   registry_url_base: string;
   registry_app_id: string;
   registry_tag: string;
@@ -91,8 +91,7 @@ export interface ReverseProxyRule {
 export type ReverseProxyRuleType = string;
 export const ProxyRuleFileServer: ReverseProxyRuleType = "file";
 export const ProxyRuleRedirect: ReverseProxyRuleType = "redirect";
-export const ProxyRuleEmbeddedFrontend: ReverseProxyRuleType =
-  "embedded_frontend";
+export const ProxyRuleEmbeddedFrontend: ReverseProxyRuleType = "embedded_frontend";
 
 //////////
 // source: schema.go
@@ -106,17 +105,18 @@ export interface State {
   certificate: string; // TODO turn this into b64
   schema_version: string;
   test_field?: string;
-  users: { [key: string]: User | undefined };
+  users: { [key: string]: User | undefined};
   /**
    * A set of running processes that a node can restore to on startup.
    */
-  processes: { [key: ProcessID]: Process | undefined };
-  app_installations: { [key: string]: AppInstallation | undefined };
-  reverse_proxy_rules: { [key: string]: ReverseProxyRule | undefined };
+  processes: { [key: ProcessID]: Process | undefined};
+  app_installations: { [key: string]: AppInstallation | undefined};
+  reverse_proxy_rules: { [key: string]: ReverseProxyRule | undefined};
 }
 export interface User {
   id: string;
   username: string;
   atproto_did?: string;
 }
-export interface NodeSchema {}
+export interface NodeSchema {
+}

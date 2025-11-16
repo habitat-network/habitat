@@ -1,11 +1,11 @@
-import { Link } from "@tanstack/react-router";
-import { useAuth } from "./authContext";
+import { Link } from '@tanstack/react-router';
+import { useAuth } from './authContext';
 
 function formatHandle(handle: string | null) {
-  if (!handle) return "";
-  const parts = handle.split(".");
+  if (!handle) return '';
+  const parts = handle.split('.');
   if (parts.length > 1) {
-    return `${parts[0]}@${parts.slice(1).join(".")}`;
+    return `${parts[0]}@${parts.slice(1).join('.')}`;
   }
   return handle;
 }
@@ -13,19 +13,19 @@ function formatHandle(handle: string | null) {
 const Header = () => {
   const { isAuthenticated, handle, logout } = useAuth();
   return (
-    <header>
+    <header >
       <nav>
         <ul>
-          <li>
-            <Link to="/">🌱 Habitat</Link>
-          </li>
+          <li><Link to="/">🌱 Habitat</Link></li>
         </ul>
         {isAuthenticated && (
-          <ul>
-            <li>{handle && formatHandle(handle)}</li>
+          <ul >
             <li>
-              <button onClick={logout}>Logout</button>
+              {handle && formatHandle(handle)}
             </li>
+            <li><button onClick={logout}>
+              Logout
+            </button></li>
           </ul>
         )}
       </nav>
