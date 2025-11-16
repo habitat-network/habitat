@@ -1,0 +1,12 @@
+name: Deploy to Render
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        run: curl ${{ secrets.RenderDeployHook }}
+
