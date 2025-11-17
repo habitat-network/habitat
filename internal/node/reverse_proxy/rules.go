@@ -9,17 +9,16 @@ package reverse_proxy
 // The semantics of the target field changes depending on the type. For file servers, it represents the
 // path to the directory to serve files from. For redirects, it represents the URL to redirect to.
 type Rule struct {
-	ID      string   `json:"id" yaml:"id"`
-	Type    RuleType `json:"type" yaml:"type"`
+	ID      string   `json:"id"      yaml:"id"`
+	Type    RuleType `json:"type"    yaml:"type"`
 	Matcher string   `json:"matcher" yaml:"matcher"`
-	Target  string   `json:"target" yaml:"target"`
-	AppID   string   `json:"app_id" yaml:"app_id"`
+	Target  string   `json:"target"  yaml:"target"`
+	AppID   string   `json:"app_id"  yaml:"app_id"`
 }
 
 type RuleType = string
 
 const (
-	ProxyRuleFileServer       RuleType = "file"
-	ProxyRuleRedirect         RuleType = "redirect"
-	ProxyRuleEmbeddedFrontend RuleType = "embedded_frontend"
+	ProxyRuleFileServer RuleType = "file"
+	ProxyRuleRedirect   RuleType = "redirect"
 )

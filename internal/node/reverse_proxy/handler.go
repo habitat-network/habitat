@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	frontend "github.com/eagraf/habitat-new/frontend_server"
 	"github.com/rs/zerolog/log"
 )
 
@@ -28,16 +27,6 @@ func getHandlerFromRule(rule *Rule, webBundlePath string) (http.Handler, error) 
 	case ProxyRuleFileServer:
 		return getFileServerHandler(rule, WithBasePath(webBundlePath))
 
-	// The reverse proxy will serve the node frontend.
-	// The frontend's bundle is embedded directly into this processes binary, so we can serve it without
-	// needing to access the host filesystem.
-	case ProxyRuleEmbeddedFrontend:
-		fSys, err := fs.Sub(frontend.EmbeddedFrontendBundle, "build")
-		if err != nil {
-			return nil, err
-		}
-
-		return getFileServerHandler(rule, WithFS(fSys))
 	default:
 		return nil, fmt.Errorf("unknown rule type %s", rule.Type)
 	}
@@ -79,7 +68,6 @@ func getRedirectHandler(rule *Rule) (http.Handler, error) {
 }
 
 func getFileServerHandler(rule *Rule, options ...Option) (http.Handler, error) {
-
 	opts := &FileServerOptions{}
 	for _, o := range options {
 		o(opts)
@@ -108,7 +96,6 @@ func (h *fileServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// This path is used when we serve from an embedded filesystem
 
 		http.FileServer(http.FS(h.options.EmbeddedFS)).ServeHTTP(w, r)
-
 	} else {
 		// Default path: serve files from a directory.
 

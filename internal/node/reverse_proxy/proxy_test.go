@@ -116,32 +116,19 @@ func TestProxy(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	// Test the embedded frontend
-	err = proxy.RuleSet.AddRule(&Rule{
-		ID:      "frontend-rule",
-		Type:    ProxyRuleEmbeddedFrontend,
-		Matcher: "",
-	})
-	require.Nil(t, err)
-	resp, err = http.Get(url)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
 	// Test removing a rule
 	err = proxy.RuleSet.Remove("fileserver")
 	require.Nil(t, err)
 	resp, err = http.Get(fmt.Sprintf("%s/fileserver/%s", url, "nonexistentfile"))
 	require.Nil(t, err)
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
-	require.Equal(t, 2, len(proxy.RuleSet.rules))
+	require.Equal(t, 1, len(proxy.RuleSet.rules))
 
 	// Removing it again should fail
 	err = proxy.RuleSet.Remove("fileserver")
 	require.NotNil(t, err)
 
-	require.Equal(t, 2, len(proxy.RuleSet.rules))
+	require.Equal(t, 1, len(proxy.RuleSet.rules))
 }
 
 func TestAddRule(t *testing.T) {

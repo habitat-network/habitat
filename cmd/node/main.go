@@ -271,11 +271,6 @@ func generateDefaultReverseProxyRules(config *config.NodeConfig) ([]*reverse_pro
 		// As a result, all frontend requests must be forwarde to the frontend container.
 		frontendRule.Type = reverse_proxy.ProxyRuleRedirect
 		frontendRule.Target = "http://habitat_frontend:5173/"
-	} else {
-		// In production mode, we embed the frontend into the node binary. That way, we can serve
-		// the frontend without needing to set it up on the host machine.
-		// TODO @eagraf - evaluate the performance implications of this.
-		frontendRule.Type = reverse_proxy.ProxyRuleEmbeddedFrontend
 	}
 
 	apiURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", constants.DefaultPortHabitatAPI))
