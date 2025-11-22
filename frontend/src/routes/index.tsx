@@ -52,6 +52,13 @@ export const Route = createFileRoute("/")({
         icon: "💿",
         link: "/privi-test",
       },
+      {
+        id: "blob-test",
+        name: "Blob Test",
+        description: "Test uploading / getting blobs",
+        icon: "📸",
+        link: "/blob-test",
+      },
       ...filteredWebApps,
     ];
   },

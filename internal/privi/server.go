@@ -232,6 +232,46 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
+	/*
+		// TODO: implement permissions over getBlob
+		callerDID, ok := s.getAuthedUser(w, r)
+		if !ok {
+			return
+		}
+	*/
+
+	var params habitat.NetworkHabitatRepoGetBlobParams
+	err := formDecoder.Decode(&params, r.URL.Query())
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
+		return
+	}
+
+	mimeType, blob, err := s.repo.getBlob(params.Did, params.Cid)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"error in repo.getBlob",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", mimeType)
+	_, err = w.Write(blob)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"error writing getBlob response",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+}
+
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {

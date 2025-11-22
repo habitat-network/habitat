@@ -67,6 +67,7 @@ type Record struct {
 	Rkey string `gorm:"primaryKey"`
 	Rec  string
 }
+
 type Blob struct {
 	gorm.Model
 	Did      string
