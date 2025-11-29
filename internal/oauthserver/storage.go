@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/eagraf/habitat-new/internal/oauthclient"
@@ -43,11 +44,24 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 // GetClient implements fosite.Storage.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
 	// TODO: consider caching
-	resp, err := http.Get(id)
+
+	// For localhost development, try HTTP if HTTPS is specified
+	// This allows dev servers running on HTTP to work
+	fetchURL := id
+	if strings.Contains(id, "://localhost:") {
+		fetchURL = strings.Replace(id, "https://", "http://", 1)
+	}
+
+	resp, err := http.Get(fetchURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch client metadata: status %d", resp.StatusCode)
+	}
+
 	var metadata oauthclient.ClientMetadata
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {

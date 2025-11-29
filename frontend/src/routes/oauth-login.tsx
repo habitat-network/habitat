@@ -10,7 +10,9 @@ export const Route = createFileRoute("/oauth-login")({
         e.preventDefault();
         const formData = new FormData(e.target as HTMLFormElement);
         const handle = formData.get("handle") as string;
-        const url = authManager.loginUrl(handle, `https://${__DOMAIN__}`);
+        // Use http:// for localhost, https:// for production
+        const protocol = __DOMAIN__.includes('localhost') ? 'http' : 'https';
+        const url = authManager.loginUrl(handle, `${protocol}://${__DOMAIN__}`);
         window.location.href = url.toString();
       },
       onError(e) {
