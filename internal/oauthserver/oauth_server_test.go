@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eagraf/habitat-new/internal/auth"
+	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -19,14 +19,14 @@ import (
 
 func TestOAuthServerE2E(t *testing.T) {
 	// setup oauth server
-	serverMetadata := &auth.ClientMetadata{}
-	oauthClient := oauthserver.NewDummyOAuthClient(t, serverMetadata)
+	clientMetadata := &oauthclient.ClientMetadata{}
+	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 
 	oauthServer := oauthserver.NewOAuthServer(
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
-		auth.NewDummyDirectory("http://pds.url"),
+		oauthclient.NewDummyDirectory("http://pds.url"),
 	)
 
 	// setup http server oauth client to make requests to
@@ -55,7 +55,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to create cookie jar")
 	server.Client().Jar = jar
 	// set the server's oauthClient redirectUri now that we know the url
-	serverMetadata.RedirectUris = []string{server.URL + "/callback"}
+	clientMetadata.RedirectUris = []string{server.URL + "/callback"}
 
 	// setup client app that oauth server can make requests to
 	verifier := oauth2.GenerateVerifier()
@@ -70,7 +70,7 @@ func TestOAuthServerE2E(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&auth.ClientMetadata{
+				err := json.NewEncoder(w).Encode(&oauthclient.ClientMetadata{
 					ClientId:      "http://" + r.Host + "/client-metadata.json",
 					RedirectUris:  []string{"http://" + r.Host + "/callback"},
 					ResponseTypes: []string{"code"},

@@ -17,7 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/eagraf/habitat-new/internal/auth"
+	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
@@ -166,7 +166,7 @@ func setupOAuthServer(cmd *cli.Command) *oauthserver.OAuthServer {
 	}
 
 	domain := cmd.String(fDomain)
-	oauthClient, err := auth.NewOAuthClient(
+	oauthClient, err := oauthclient.NewOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
 		"https://"+domain+"/oauth-callback",       /*redirectUri*/

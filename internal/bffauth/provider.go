@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
@@ -22,14 +21,6 @@ func NewProvider(challengePersister ChallengeSessionPersister, signingKey []byte
 	return &Provider{
 		challengePersister: challengePersister,
 		signingKey:         signingKey,
-	}
-}
-
-func (p *Provider) GetRoutes() []api.Route {
-	return []api.Route{
-		api.NewBasicRoute(http.MethodPost, "/node/bff/challenge", p.handleChallenge),
-		api.NewBasicRoute(http.MethodPost, "/node/bff/auth", p.handleAuth),
-		api.NewBasicRoute(http.MethodGet, "/node/bff/test", p.handleTest),
 	}
 }
 

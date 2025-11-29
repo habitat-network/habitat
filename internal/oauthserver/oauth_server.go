@@ -13,7 +13,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/internal/auth"
+	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/gorilla/sessions"
 	"github.com/ory/fosite"
@@ -32,7 +32,7 @@ const (
 type authRequestFlash struct {
 	Form           url.Values // Original authorization request form data
 	DpopKey        []byte
-	AuthorizeState *auth.AuthorizeState // AT Protocol authorization state
+	AuthorizeState *oauthclient.AuthorizeState // AT Protocol authorization state
 }
 
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
@@ -40,9 +40,9 @@ type authRequestFlash struct {
 // for proof-of-possession token binding.
 type OAuthServer struct {
 	provider     fosite.OAuth2Provider
-	sessionStore sessions.Store     // Session storage for authorization flow state
-	oauthClient  auth.OAuthClient   // Client for communicating with AT Protocol services
-	directory    identity.Directory // AT Protocol identity directory for handle resolution
+	sessionStore sessions.Store          // Session storage for authorization flow state
+	oauthClient  oauthclient.OAuthClient // Client for communicating with AT Protocol services
+	directory    identity.Directory      // AT Protocol identity directory for handle resolution
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -60,7 +60,7 @@ type OAuthServer struct {
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
-	oauthClient auth.OAuthClient,
+	oauthClient oauthclient.OAuthClient,
 	sessionStore sessions.Store,
 	directory identity.Directory,
 ) *OAuthServer {
@@ -73,7 +73,7 @@ func NewOAuthServer(
 	storage := newStore(strategy)
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
-	gob.Register(auth.AuthorizeState{})
+	gob.Register(oauthclient.AuthorizeState{})
 	return &OAuthServer{
 		provider: compose.Compose(
 			config,
@@ -135,7 +135,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to generate key", http.StatusInternalServerError)
 		return
 	}
-	dpopClient := auth.NewDpopHttpClient(dpopKey, &nonceProvider{})
+	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &nonceProvider{})
 	redirect, state, err := o.oauthClient.Authorize(dpopClient, id)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -216,7 +216,7 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
 		return
 	}
-	dpopClient := auth.NewDpopHttpClient(dpopKey, &nonceProvider{})
+	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &nonceProvider{})
 	tokenInfo, err := o.oauthClient.ExchangeCode(
 		dpopClient,
 		r.URL.Query().Get("code"),
@@ -288,7 +288,7 @@ func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (did string, client *auth.DpopHttpClient, ok bool) {
+) (did string, client *oauthclient.DpopHttpClient, ok bool) {
 	ctx := r.Context()
 	_, ar, err := o.provider.IntrospectToken(
 		r.Context(),
@@ -308,17 +308,17 @@ func (o *OAuthServer) Validate(
 		return
 	}
 
-	return session.Subject, auth.NewDpopHttpClient(
+	return session.Subject, oauthclient.NewDpopHttpClient(
 		dpopKey,
 		&nonceProvider{},
-		auth.WithAccessToken(session.TokenInfo.AccessToken),
+		oauthclient.WithAccessToken(session.TokenInfo.AccessToken),
 	), true
 }
 
 // This simple implementation stores a single nonce value in memory.
 type nonceProvider struct{ nonce string }
 
-var _ auth.DpopNonceProvider = (*nonceProvider)(nil)
+var _ oauthclient.DpopNonceProvider = (*nonceProvider)(nil)
 
 // GetDpopNonce retrieves the current DPoP nonce.
 // Returns the nonce value, whether a nonce is available, and any error.

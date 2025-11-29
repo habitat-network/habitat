@@ -10,9 +10,9 @@ export const Route = createFileRoute("/_requireAuth/privi-test/view")({
   loaderDeps: ({ search }) => search,
   async loader({ deps: { did, rkey }, context }) {
     const params = new URLSearchParams();
-    params.set("repo", did || "did:plc:v3amhno5wvyfams6aioqqj66");
-    params.set("rkey", rkey || "testRecord");
-    params.set("collection", "com.habitat.test");
+    params.set("repo", params.get("repo") || did);
+    params.set("rkey", params.get("rkey") || rkey);
+    params.set("collection", params.get("collection") || "com.habitat.test");
     const response = await context.authManager?.fetch(
       `/xrpc/com.habitat.getRecord?${params.toString()}`,
     );

@@ -1,9 +1,8 @@
 package privi
 
 import (
-	"crypto"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,11 +10,9 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	"github.com/eagraf/habitat-new/api/habitat"
-	"github.com/eagraf/habitat-new/internal/node/api"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/utils"
@@ -63,19 +60,13 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	atid, err := syntax.ParseAtIdentifier(req.Repo)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "unmarshalling request", http.StatusBadRequest)
-		return
-	}
-
-	ownerId, err := s.dir.Lookup(r.Context(), *atid)
+	ownerDID, err := s.fetchDID(r.Context(), req.Repo)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
-	if ownerId.DID.String() != callerDID.String() {
+	if ownerDID.String() != callerDID.String() {
 		utils.LogAndHTTPError(
 			w,
 			fmt.Errorf("only owner can put record"),
@@ -93,23 +84,37 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	err = s.store.putRecord(ownerId.DID.String(), req.Collection, req.Record, rkey, &v)
+	err = s.store.putRecord(ownerDID.String(), req.Collection, req.Record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
 			err,
-			fmt.Sprintf("putting record for did %s", ownerId.DID.String()),
+			fmt.Sprintf("putting record for did %s", ownerDID.String()),
 			http.StatusInternalServerError,
 		)
 		return
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
-		Uri: fmt.Sprintf("habitat://%s/%s/%s", ownerId.DID.String(), req.Collection, rkey),
+		Uri: fmt.Sprintf("habitat://%s/%s/%s", ownerDID.String(), req.Collection, rkey),
 	}); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, error) {
+	// Try handling both handles and dids
+	atid, err := syntax.ParseAtIdentifier(didOrHandle)
+	if err != nil {
+		return "", err
+	}
+
+	id, err := s.dir.Lookup(ctx, *atid)
+	if err != nil {
+		return "", err
+	}
+	return id.DID, nil
 }
 
 // Find desired did
@@ -131,22 +136,13 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try handling both handles and dids
-	atid, err := syntax.ParseAtIdentifier(params.Repo)
-	if err != nil {
-		// TODO: write helpful message
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
-		return
-	}
-
-	id, err := s.dir.Lookup(r.Context(), *atid)
+	targetDID, err := s.fetchDID(r.Context(), params.Repo)
 	if err != nil {
 		// TODO: write helpful message
 		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
 		return
 	}
 
-	targetDID := id.DID
 	record, err := s.store.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
@@ -170,18 +166,21 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (did syntax.DID, ok bool) {
+func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
 	if r.Header.Get("Habitat-Auth-Method") == "oauth" {
-		did, _, ok := s.oauthServer.Validate(w, r)
-		return syntax.DID(did), ok
-	}
-	did, err := s.getCaller(r)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting caller did", http.StatusForbidden)
-		return "", false
-	}
+		didOrHandle, _, ok := s.oauthServer.Validate(w, r)
+		if !ok {
+			return "", false
+		}
 
-	return did, true
+		did, err := s.fetchDID(r.Context(), didOrHandle)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+			return "", false
+		}
+		return did, true
+	}
+	return "", false
 }
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
@@ -284,20 +283,14 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try handling both handles and dids
-	atid, err := syntax.ParseAtIdentifier(params.Repo)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
-		return
-	}
-
-	id, err := s.dir.Lookup(r.Context(), *atid)
+	// Handle both @handles and dids
+	did, err := s.fetchDID(r.Context(), params.Repo)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
 		return
 	}
 
-	params.Repo = id.DID.String()
+	params.Repo = did.String()
 	records, err := s.store.listRecords(&params, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "listing records", http.StatusInternalServerError)
@@ -328,42 +321,6 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
-}
-
-// HACK: trust did
-func (s *Server) getCaller(r *http.Request) (syntax.DID, error) {
-	authHeader := r.Header.Get("Authorization")
-	token := strings.Split(authHeader, "Bearer ")[1]
-	jwt.RegisterSigningMethod("ES256K", func() jwt.SigningMethod {
-		return &SigningMethodSecp256k1{
-			alg:      "ES256K",
-			hash:     crypto.SHA256,
-			toOutSig: toES256K, // R || S
-			sigLen:   64,
-		}
-	})
-	jwtToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
-		did, err := t.Claims.GetIssuer()
-		if err != nil {
-			return nil, err
-		}
-		id, err := s.dir.LookupDID(r.Context(), syntax.DID(did))
-		if err != nil {
-			return "", errors.Join(errors.New("failed to lookup identity"), err)
-		}
-		return id.PublicKey()
-	}, jwt.WithValidMethods([]string{"ES256K"}), jwt.WithoutClaimsValidation())
-	if err != nil {
-		return "", err
-	}
-	if jwtToken == nil {
-		return "", fmt.Errorf("jwtToken is nil")
-	}
-	did, err := jwtToken.Claims.GetIssuer()
-	if err != nil {
-		return "", err
-	}
-	return syntax.DID(did), err
 }
 
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
@@ -423,27 +380,5 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
-	}
-}
-
-func (s *Server) GetRoutes() []api.Route {
-	return []api.Route{
-		api.NewBasicRoute(
-			http.MethodPost,
-			"/xrpc/com.habitat.putRecord",
-			s.PutRecord,
-		),
-		api.NewBasicRoute(
-			http.MethodGet,
-			"/xrpc/com.habitat.getRecord",
-			s.GetRecord,
-		),
-		api.NewBasicRoute(http.MethodPost, "/xrpc/com.habitat.addPermission", s.AddPermission),
-		api.NewBasicRoute(
-			http.MethodPost,
-			"/xrpc/com.habitat.removePermission",
-			s.RemovePermission,
-		),
-		api.NewBasicRoute(http.MethodGet, "/xrpc/com.habitat.listPermissions", s.ListPermissions),
 	}
 }
