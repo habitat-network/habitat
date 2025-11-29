@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"os"
 
 	jose "github.com/go-jose/go-jose/v3"
@@ -194,12 +193,6 @@ func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		x, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
-			return
-		}
-		fmt.Println("Got a request: ", string(x))
 		next.ServeHTTP(w, r)
 	})
 }
