@@ -37,6 +37,7 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 			Usage:       "The publicly available domain at which the server can be found",
 			Sources:     getSources(fDomain),
 			DefaultText: "localhost",
+			Required:    true,
 		},
 		&cli.StringFlag{
 			Name:    fDb,
