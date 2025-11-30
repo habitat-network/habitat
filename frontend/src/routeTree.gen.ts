@@ -13,6 +13,7 @@ import { Route as OauthLoginRouteImport } from './routes/oauth-login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
+import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/forwarding-test'
 import { Route as RequireAuthPriviTestIndexRouteImport } from './routes/_requireAuth/privi-test/index'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
@@ -42,6 +43,12 @@ const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   path: '/permissions',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthForwardingTestRoute =
+  RequireAuthForwardingTestRouteImport.update({
+    id: '/forwarding-test',
+    path: '/forwarding-test',
+    getParentRoute: () => RequireAuthRoute,
+  } as any)
 const RequireAuthPriviTestIndexRoute =
   RequireAuthPriviTestIndexRouteImport.update({
     id: '/privi-test/',
@@ -100,6 +107,7 @@ const RequireAuthPermissionsLexiconsLexiconIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
+  '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
@@ -114,6 +122,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
+  '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
   '/privi-test/view': typeof RequireAuthPriviTestViewRoute
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
@@ -128,6 +137,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
+  '/_requireAuth/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/_requireAuth/permissions/people': typeof RequireAuthPermissionsPeopleRoute
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/oauth-login'
+    | '/forwarding-test'
     | '/permissions'
     | '/permissions/lexicons'
     | '/permissions/people'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/oauth-login'
+    | '/forwarding-test'
     | '/permissions/people'
     | '/privi-test/view'
     | '/blob-test'
@@ -171,6 +183,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_requireAuth'
     | '/oauth-login'
+    | '/_requireAuth/forwarding-test'
     | '/_requireAuth/permissions'
     | '/_requireAuth/permissions/lexicons'
     | '/_requireAuth/permissions/people'
@@ -217,6 +230,13 @@ declare module '@tanstack/react-router' {
       path: '/permissions'
       fullPath: '/permissions'
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/forwarding-test': {
+      id: '/_requireAuth/forwarding-test'
+      path: '/forwarding-test'
+      fullPath: '/forwarding-test'
+      preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/privi-test/': {
@@ -326,6 +346,7 @@ const RequireAuthPermissionsRouteWithChildren =
   )
 
 interface RequireAuthRouteChildren {
+  RequireAuthForwardingTestRoute: typeof RequireAuthForwardingTestRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthPriviTestViewRoute: typeof RequireAuthPriviTestViewRoute
   RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
@@ -333,6 +354,7 @@ interface RequireAuthRouteChildren {
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
+  RequireAuthForwardingTestRoute: RequireAuthForwardingTestRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthPriviTestViewRoute: RequireAuthPriviTestViewRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
