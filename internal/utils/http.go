@@ -3,7 +3,7 @@ package utils
 import (
 	"net/http"
 
-	"github.com/eagraf/habitat-new/internal/node/logging"
+	"github.com/eagraf/habitat-new/internal/logging"
 )
 
 var (

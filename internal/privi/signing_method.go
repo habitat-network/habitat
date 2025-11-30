@@ -17,15 +17,9 @@ import (
 
 // SigningMethodSecp256k1 is the implementation of jwt.SigningMethod.
 type SigningMethodSecp256k1 struct {
-	alg      string
-	hash     crypto.Hash
-	toOutSig toOutSig
-	sigLen   int
+	alg  string
+	hash crypto.Hash
 }
-
-// encodes a produced signature to the correct output - either in R || S or
-// R || S || V format.
-type toOutSig func(sig []byte) []byte
 
 // Errors returned on different problems.
 var (
@@ -64,8 +58,4 @@ func (sm *SigningMethodSecp256k1) Sign(signingString string, key interface{}) ([
 // Alg returns the algorithm name.
 func (sm *SigningMethodSecp256k1) Alg() string {
 	return sm.alg
-}
-
-func toES256K(sig []byte) []byte {
-	return sig[:64]
 }

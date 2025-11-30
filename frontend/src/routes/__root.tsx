@@ -1,5 +1,4 @@
 import type { AuthManager } from "@/auth";
-import { AuthProvider } from "@/components/authContext";
 import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
@@ -13,12 +12,12 @@ interface RouterContext {
 export const Route = createRootRouteWithContext<RouterContext>()({
   staleTime: 1000 * 60 * 60,
   component() {
-    return (
-      <AuthProvider>
-        <Header />
-        <Outlet />
-        <TanStackRouterDevtools />
-      </AuthProvider>
+    const { authManager } = Route.useRouteContext()
+    return (<>
+      <Header authManager={authManager} />
+      <Outlet />
+      <TanStackRouterDevtools />
+    </>
     );
   },
 });

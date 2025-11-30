@@ -3,19 +3,19 @@ package oauthserver
 import (
 	"time"
 
-	"github.com/eagraf/habitat-new/internal/auth"
+	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/ory/fosite"
 )
 
 type authSession struct {
-	Subject       string              `cbor:"1,keyasint"`
-	ExpiresAt     time.Time           `cbor:"2,keyasint"`
-	DpopKey       []byte              `cbor:"3,keyasint"`
-	TokenInfo     *auth.TokenResponse `cbor:"4,keyasint"`
-	ClientID      string              `cbor:"5,keyasint"`
-	Scopes        []string            `cbor:"7,keyasint"`
-	State         string              `cbor:"8,keyasint"`
-	PKCEChallenge string              `cbor:"9,keyasint"`
+	Subject       string                     `cbor:"1,keyasint"`
+	ExpiresAt     time.Time                  `cbor:"2,keyasint"`
+	DpopKey       []byte                     `cbor:"3,keyasint"`
+	TokenInfo     *oauthclient.TokenResponse `cbor:"4,keyasint"`
+	ClientID      string                     `cbor:"5,keyasint"`
+	Scopes        []string                   `cbor:"7,keyasint"`
+	State         string                     `cbor:"8,keyasint"`
+	PKCEChallenge string                     `cbor:"9,keyasint"`
 }
 
 var _ fosite.Session = (*authSession)(nil)
@@ -23,7 +23,7 @@ var _ fosite.Session = (*authSession)(nil)
 func newAuthorizeSession(
 	req fosite.AuthorizeRequester,
 	dpopKey []byte,
-	tokenInfo *auth.TokenResponse,
+	tokenInfo *oauthclient.TokenResponse,
 ) *authSession {
 	return &authSession{
 		Subject:       req.GetRequestForm().Get("handle"),

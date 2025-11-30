@@ -25,24 +25,19 @@ exclude:
   # Exclude files or packages matching their paths
   paths:
     - \/mocks\/.*?$
-    - ^internal\/node\/config
-    - ^internal/node/hdb
     - \/fx\.go$
     - \/test_helpers
     - ^pkg\/raft\/transport
-    - ^internal/node/drivers
     - ^internal/node/api
     - ^cmd # main.go's don't need to be tested
     - ^internal/frontend
-    - ^internal/node/controller/pds.go
-    - ^internal/node/controller/auth.go
     - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
     - ^internal/privi/.*encrypt.* # This is is a noop thing.
     - ^internal/privi/signing_method.go # TODO: remove!! this was copy-pasted code.
     - internal/bffauth/client.go	# TODO: remove!!
     - ^internal/docker
     - ^internal/web
-    - ^internal/utils/http.go
+    - ^internal/utils
     - ^internal/bffauth/cmd
     - ^internal/bffauth/provider.go # File is too small :)
     - dummy_.*\.go

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/eagraf/habitat-new/internal/auth"
+	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -64,7 +64,7 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	var metadata auth.ClientMetadata
+	var metadata oauthclient.ClientMetadata
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode client metadata: %w", err)

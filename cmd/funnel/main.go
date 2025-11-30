@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/eagraf/habitat-new/internal/node/config"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"tailscale.com/tsnet"
@@ -29,14 +28,8 @@ func main() {
 	})
 	flag.Parse()
 
-	nodeConfig, err := config.NewNodeConfig()
-	if err != nil {
-		log.Fatal().Err(err).Msg("error loading node config")
-	}
-
 	server := &tsnet.Server{
 		Hostname: hostName,
-		AuthKey:  nodeConfig.TailscaleAuthkey(),
 		Logf: func(format string, args ...any) {
 			log.Debug().Msgf(format, args...)
 		},
