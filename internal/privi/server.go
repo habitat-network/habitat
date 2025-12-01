@@ -34,10 +34,11 @@ type Server struct {
 func NewServer(
 	perms permissions.Store,
 	repo *sqliteRepo,
+	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 ) *Server {
 	server := &Server{
-		store:       newStore(perms, repo),
+		store:       newStore(perms, repo, inbox),
 		dir:         identity.DefaultDirectory(),
 		repo:        repo,
 		oauthServer: oauthServer,
@@ -384,5 +385,61 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := s.getAuthedUser(w, r)
+	if !ok {
+		return
+	}
+	log.Info().Msgf("Caller %+v", callerDID)
+	notifications, err := s.store.listNotifications(callerDID.String())
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting notifications", http.StatusInternalServerError)
+		return
+	}
+
+	resp := habitat.NetworkHabitatNotificationListNotificationsOutput{
+		Records: []habitat.NetworkHabitatNotificationListNotificationsRecord{},
+	}
+	// TODO: properly fill in the CID
+	for _, notification := range notifications {
+		resp.Records = append(resp.Records, habitat.NetworkHabitatNotificationListNotificationsRecord{
+			Uri: fmt.Sprintf("habitat://%s/%s/%s", notification.OriginDid, notification.Collection, notification.Rkey),
+			Value: habitat.NetworkHabitatNotificationListNotificationsNotification{
+				OriginDid:  notification.OriginDid,
+				Collection: notification.Collection,
+				Rkey:       notification.Rkey,
+			},
+		})
+	}
+	err = json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) GetRoutes() []api.Route {
+	return []api.Route{
+		api.NewBasicRoute(
+			http.MethodPost,
+			"/xrpc/com.habitat.putRecord",
+			s.PutRecord,
+		),
+		api.NewBasicRoute(
+			http.MethodGet,
+			"/xrpc/com.habitat.getRecord",
+			s.GetRecord,
+		),
+		api.NewBasicRoute(http.MethodPost, "/xrpc/com.habitat.addPermission", s.AddPermission),
+		api.NewBasicRoute(
+			http.MethodPost,
+			"/xrpc/com.habitat.removePermission",
+			s.RemovePermission,
+		),
+		api.NewBasicRoute(http.MethodGet, "/xrpc/com.habitat.listPermissions", s.ListPermissions),
+		api.NewBasicRoute(http.MethodGet, "/xrpc/network.habitat.notification.listNotifications", s.ListNotifications),
 	}
 }
