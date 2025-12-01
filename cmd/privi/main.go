@@ -46,6 +46,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	db := setupDB(cmd)
 	oauthServer := setupOAuthServer(cmd)
 	priviServer := setupPriviServer(db, oauthServer)
+	pdsForwarding := newPDSForwarding(oauthServer)
 
 	mux := http.NewServeMux()
 
@@ -87,6 +88,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 			return
 		}
 	})
+
+	mux.Handle("/xrpc/", pdsForwarding)
 
 	port := cmd.String(fPort)
 	s := &http.Server{

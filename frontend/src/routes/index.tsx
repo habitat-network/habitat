@@ -37,6 +37,13 @@ export const Route = createFileRoute("/")({
         icon: "📸",
         link: "/blob-test",
       },
+      {
+        id: "forwarding-test",
+        name: "Forwarding Test",
+        description: "Test forwarding",
+        icon: "🦋",
+        link: "/forwarding-test",
+      },
     ];
   },
   component: Wrapper,
