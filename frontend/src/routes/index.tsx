@@ -40,7 +40,7 @@ export const Route = createFileRoute("/")({
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
         window.history.replaceState({}, "", url.toString());
-      } catch (error) {
+      } catch {
         window.location.search = "";
       }
     }

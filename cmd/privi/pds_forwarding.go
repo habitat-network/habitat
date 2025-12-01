@@ -87,7 +87,8 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to forward request", http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+
 	// Set the status code
 	w.WriteHeader(resp.StatusCode)
 	// Copy response body

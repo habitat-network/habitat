@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
         let recordObj;
         try {
           recordObj = JSON.parse(data.record);
-        } catch (e) {
+        } catch {
           alert("Record must be valid JSON");
           return;
         }
