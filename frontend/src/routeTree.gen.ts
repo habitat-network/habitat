@@ -142,45 +142,45 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-  | '/'
-  | '/oauth-login'
-  | '/permissions'
-  | '/permissions/lexicons'
-  | '/permissions/people'
-  | '/privi-test/view'
-  | '/blob-test'
-  | '/permissions/'
-  | '/privi-test'
-  | '/permissions/lexicons/$lexiconId'
-  | '/permissions/groups'
-  | '/permissions/lexicons/'
+    | '/'
+    | '/oauth-login'
+    | '/permissions'
+    | '/permissions/lexicons'
+    | '/permissions/people'
+    | '/privi-test/view'
+    | '/blob-test'
+    | '/permissions/'
+    | '/privi-test'
+    | '/permissions/lexicons/$lexiconId'
+    | '/permissions/groups'
+    | '/permissions/lexicons/'
   fileRoutesByTo: FileRoutesByTo
   to:
-  | '/'
-  | '/oauth-login'
-  | '/permissions/people'
-  | '/privi-test/view'
-  | '/blob-test'
-  | '/permissions'
-  | '/privi-test'
-  | '/permissions/lexicons/$lexiconId'
-  | '/permissions/groups'
-  | '/permissions/lexicons'
+    | '/'
+    | '/oauth-login'
+    | '/permissions/people'
+    | '/privi-test/view'
+    | '/blob-test'
+    | '/permissions'
+    | '/privi-test'
+    | '/permissions/lexicons/$lexiconId'
+    | '/permissions/groups'
+    | '/permissions/lexicons'
   id:
-  | '__root__'
-  | '/'
-  | '/_requireAuth'
-  | '/oauth-login'
-  | '/_requireAuth/permissions'
-  | '/_requireAuth/permissions/lexicons'
-  | '/_requireAuth/permissions/people'
-  | '/_requireAuth/privi-test/view'
-  | '/_requireAuth/blob-test/'
-  | '/_requireAuth/permissions/'
-  | '/_requireAuth/privi-test/'
-  | '/_requireAuth/permissions/lexicons/$lexiconId'
-  | '/_requireAuth/permissions/groups/'
-  | '/_requireAuth/permissions/lexicons/'
+    | '__root__'
+    | '/'
+    | '/_requireAuth'
+    | '/oauth-login'
+    | '/_requireAuth/permissions'
+    | '/_requireAuth/permissions/lexicons'
+    | '/_requireAuth/permissions/people'
+    | '/_requireAuth/privi-test/view'
+    | '/_requireAuth/blob-test/'
+    | '/_requireAuth/permissions/'
+    | '/_requireAuth/privi-test/'
+    | '/_requireAuth/permissions/lexicons/$lexiconId'
+    | '/_requireAuth/permissions/groups/'
+    | '/_requireAuth/permissions/lexicons/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -291,12 +291,12 @@ interface RequireAuthPermissionsLexiconsRouteChildren {
 }
 
 const RequireAuthPermissionsLexiconsRouteChildren: RequireAuthPermissionsLexiconsRouteChildren =
-{
-  RequireAuthPermissionsLexiconsLexiconIdRoute:
-    RequireAuthPermissionsLexiconsLexiconIdRoute,
-  RequireAuthPermissionsLexiconsIndexRoute:
-    RequireAuthPermissionsLexiconsIndexRoute,
-}
+  {
+    RequireAuthPermissionsLexiconsLexiconIdRoute:
+      RequireAuthPermissionsLexiconsLexiconIdRoute,
+    RequireAuthPermissionsLexiconsIndexRoute:
+      RequireAuthPermissionsLexiconsIndexRoute,
+  }
 
 const RequireAuthPermissionsLexiconsRouteWithChildren =
   RequireAuthPermissionsLexiconsRoute._addFileChildren(
@@ -311,14 +311,14 @@ interface RequireAuthPermissionsRouteChildren {
 }
 
 const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
-{
-  RequireAuthPermissionsLexiconsRoute:
-    RequireAuthPermissionsLexiconsRouteWithChildren,
-  RequireAuthPermissionsPeopleRoute: RequireAuthPermissionsPeopleRoute,
-  RequireAuthPermissionsIndexRoute: RequireAuthPermissionsIndexRoute,
-  RequireAuthPermissionsGroupsIndexRoute:
-    RequireAuthPermissionsGroupsIndexRoute,
-}
+  {
+    RequireAuthPermissionsLexiconsRoute:
+      RequireAuthPermissionsLexiconsRouteWithChildren,
+    RequireAuthPermissionsPeopleRoute: RequireAuthPermissionsPeopleRoute,
+    RequireAuthPermissionsIndexRoute: RequireAuthPermissionsIndexRoute,
+    RequireAuthPermissionsGroupsIndexRoute:
+      RequireAuthPermissionsGroupsIndexRoute,
+  }
 
 const RequireAuthPermissionsRouteWithChildren =
   RequireAuthPermissionsRoute._addFileChildren(
