@@ -11,8 +11,7 @@ import reportWebVitals from "./reportWebVitals.ts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthManager } from "./auth.ts";
 
-const habitatDomain = "privi.dwelf-mirzam.ts.net";
-const authManager = new AuthManager(habitatDomain, () => {
+const authManager = new AuthManager(__HABITAT_DOMAIN__, () => {
   router.navigate({ to: "/oauth-login" });
 });
 const queryClient = new QueryClient();
