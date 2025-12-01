@@ -6,7 +6,6 @@ import generateFile from "vite-plugin-generate-file";
 
 import clientMetadata from "./client-metadata";
 
-// In local, these are running on two different servers
 const domain = process.env.DOMAIN
 const habitatDomain = process.env.HABITAT_DOMAIN
 
