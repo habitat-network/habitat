@@ -10,12 +10,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	jose "github.com/go-jose/go-jose/v3"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/permissions"
@@ -23,6 +27,11 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
+)
+
+const (
+	JetstreamURL       = "wss://jetstream2.us-east.bsky.network/subscribe"
+	JetstreamUserAgent = "habitat-jetstream-client/v0.0.1"
 )
 
 func main() {
@@ -56,6 +65,30 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer := setupOAuthServer(keyFile, domain)
 	priviServer := setupPriviServer(db, oauthServer)
 	pdsForwarding := newPDSForwarding(oauthServer)
+
+	// Setup context with signal handling for graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Create error group for managing goroutines
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	// Start the notification listener in a separate goroutine
+	eg.Go(func() error {
+		config := &client.ClientConfig{
+			Compress:          true,
+			WebsocketURL:      "wss://jetstream2.us-east.bsky.network/subscribe",
+			WantedDids:        []string{},
+			WantedCollections: []string{"network.habitat.notification"},
+			MaxSize:           0,
+			ExtraHeaders: map[string]string{
+				"User-Agent": "habitat-jetstream-client/v0.0.1",
+			},
+		}
+
+		log.Info().Msg("starting notification listener")
+		return privi.StartNotificationListener(egCtx, config, nil, privi.ProcessNotification)
+	})
 
 	mux := http.NewServeMux()
 
@@ -106,14 +139,27 @@ func run(_ context.Context, cmd *cli.Command) error {
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
-	fmt.Println("Starting server on port :" + port)
-	if httpsCerts == "" {
-		return s.ListenAndServe()
-	}
-	return s.ListenAndServeTLS(
-		fmt.Sprintf("%s%s", httpsCerts, "fullchain.pem"),
-		fmt.Sprintf("%s%s", httpsCerts, "privkey.pem"),
-	)
+	// Start the HTTP server in a goroutine
+	eg.Go(func() error {
+		log.Info().Msgf("starting server on port :%s", port)
+		if httpsCerts == "" {
+			return s.ListenAndServe()
+		}
+		return s.ListenAndServeTLS(
+			fmt.Sprintf("%s%s", httpsCerts, "fullchain.pem"),
+			fmt.Sprintf("%s%s", httpsCerts, "privkey.pem"),
+		)
+	})
+
+	// Gracefully shutdown server when context is cancelled
+	eg.Go(func() error {
+		<-egCtx.Done()
+		log.Info().Msg("shutting down server")
+		return s.Shutdown(context.Background())
+	})
+
+	// Wait for all goroutines to finish
+	return eg.Wait()
 }
 
 func setupDB(dbPath string) *gorm.DB {
