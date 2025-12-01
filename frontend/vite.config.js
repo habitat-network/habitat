@@ -6,12 +6,15 @@ import generateFile from "vite-plugin-generate-file";
 
 import clientMetadata from "./client-metadata";
 
-const domain = process.env.DOMAIN;
+// In local, these are running on two different servers
+const domain = process.env.DOMAIN
+const habitatDomain = process.env.HABITAT_DOMAIN
 
 // https://vitejs.dev/config/
 export default defineConfig({
   define: {
     __DOMAIN__: domain ? `'${domain}'` : "undefined",
+    __HABITAT_DOMAIN__: habitatDomain ? `'${habitatDomain}'` : "undefined",
     __HASH_ROUTING__: process.env.HASH_ROUTING ? "true" : "false",
   },
   plugins: [
