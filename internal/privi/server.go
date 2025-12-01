@@ -51,7 +51,6 @@ var formDecoder = schema.NewDecoder()
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
-		utils.LogAndHTTPError(w, fmt.Errorf("no authed user"), "s.getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 
@@ -188,7 +187,6 @@ func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.D
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
-		utils.LogAndHTTPError(w, fmt.Errorf("no authed user"), "s.getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 
@@ -279,7 +277,6 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
-		utils.LogAndHTTPError(w, fmt.Errorf("no authed user"), "s.getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 
