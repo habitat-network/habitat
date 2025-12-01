@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"encoding/gob"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -110,12 +109,9 @@ func (o *OAuthServer) HandleAuthorize(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	fmt.Println("i'm here!!!!", r.PathValue("client_id"), r.PathValue("redirect_uri"))
 	ctx := r.Context()
 	requester, err := o.provider.NewAuthorizeRequest(ctx, r)
-	fmt.Println("new auth request")
 	if err != nil {
-		fmt.Println("Err:", err.Error())
 		o.provider.WriteAuthorizeError(ctx, w, requester, err)
 		return
 	}
@@ -141,7 +137,6 @@ func (o *OAuthServer) HandleAuthorize(
 	}
 	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &nonceProvider{})
 	redirect, state, err := o.oauthClient.Authorize(dpopClient, id)
-	fmt.Println("Called authorize")
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -152,7 +147,6 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 	dpopKeyBytes, err := dpopKey.Bytes()
-	fmt.Println("Called dbpopokey")
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to serialize key", http.StatusInternalServerError)
 		return
@@ -167,6 +161,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to save session", http.StatusInternalServerError)
 		return
 	}
+
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 

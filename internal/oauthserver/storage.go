@@ -22,23 +22,8 @@ type store struct {
 }
 
 func newStore(strat *strategy) *store {
-	mem := storage.NewMemoryStore()
-	clientId := "https://sashankg.github.io/client-metadata.json"
-	mem.Clients[clientId] = &fosite.DefaultClient{
-		ID: clientId, // must match client_id sent by React app
-		RedirectURIs: []string{
-			"habitat.camera://redirect", // exact Expo redirect URI
-			"exp://127.0.0.1:8081",      // optional for simulator
-			"exp://10.0.0.86:8081",      // optional for LAN
-			"http://localhost:8081",     // optional for web dev
-		},
-		GrantTypes:    fosite.Arguments{"authorization_code"},
-		ResponseTypes: fosite.Arguments{"code"},
-		Scopes:        []string{},
-	}
-
 	return &store{
-		memoryStore: mem,
+		memoryStore: storage.NewMemoryStore(),
 		strategy:    strat,
 	}
 }
@@ -58,7 +43,6 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 // GetClient implements fosite.Storage.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
 	// TODO: consider caching
-	fmt.Println("GetClient called on id", id)
 	resp, err := http.Get(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)

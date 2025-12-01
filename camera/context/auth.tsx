@@ -3,12 +3,12 @@ import {
     loadAsync,
     makeRedirectUri,
 } from "expo-auth-session";
-import { createContext, PropsWithChildren, useContext, useMemo } from "react";
+import { createContext, PropsWithChildren, useContext, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const clientId = "https://sashankg.github.io/client-metadata.json"; // fake for now
-const domain = "privi.dwelf-mirzam.ts.net";
+export const domain = "privi.taile529e.ts.net";
 const redirectUri = makeRedirectUri({
     scheme: "habitat.camera",
     path: "oauth",
@@ -19,7 +19,8 @@ const issuer = {
     tokenEndpoint: `https://${domain}/oauth/token`,
 };
 
-const secureStoreKey = "token";
+const secureStoreKeyToken = "token";
+const secureStoreKeyDID = "did";
 
 export type FetchWithAuth = (
     url: string,
@@ -32,6 +33,7 @@ interface AuthContextData {
     token: string | null;
     isLoading: boolean;
     fetchWithAuth: FetchWithAuth;
+    did: string | null;
 }
 
 const AuthContext = createContext<AuthContextData>({
@@ -40,27 +42,36 @@ const AuthContext = createContext<AuthContextData>({
     token: null,
     isLoading: false,
     fetchWithAuth: fetch,
+    did: null,
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
+    const resolveHandle = async (handle: string) => {
+        const resp = await fetch(`https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=${handle}`)
+        const did = (await resp.json())["did"]
+        return did
+    }
     const queryClient = useQueryClient();
-    const { data: token, isLoading } = useQuery({
+    const { data: info, isLoading } = useQuery({
         queryKey: ["token"],
         queryFn: async () => {
-            const token = await SecureStore.getItemAsync(secureStoreKey);
+            const token = await SecureStore.getItemAsync(secureStoreKeyToken);
+            const did = await SecureStore.getItemAsync(secureStoreKeyDID);
             if (!token) return null;
-            return token;
+            return {
+                token, did
+            };
         },
     });
     const value = useMemo<AuthContextData>(
         () => ({
-            signIn: async (handle: string) => {
+            signIn: async (newHandle: string) => {
                 const authRequest = await loadAsync(
                     {
                         extraParams: {
-                            handle,
+                            handle: newHandle,
                         },
                         clientId: clientId,
                         scopes: [],
@@ -82,14 +93,21 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
                     issuer,
                 );
                 await SecureStore.setItemAsync(
-                    secureStoreKey,
+                    secureStoreKeyToken,
                     tokenResponse.accessToken,
+                );
+                const did = await resolveHandle(newHandle)
+                await SecureStore.setItemAsync(
+                    secureStoreKeyDID,
+                    did,
                 );
                 await queryClient.invalidateQueries({ queryKey: ["token"] });
             },
-            token: token ?? null,
+            token: info?.token ?? null,
+            did: info?.did ?? null,
             signOut: () => {
-                SecureStore.deleteItemAsync(secureStoreKey);
+                SecureStore.deleteItemAsync(secureStoreKeyToken);
+                SecureStore.deleteItemAsync(secureStoreKeyDID);
                 queryClient.invalidateQueries({ queryKey: ["token"] });
             },
             isLoading,
@@ -97,14 +115,14 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
                 return fetch(new URL(url, `https://${domain}`), {
                     ...options,
                     headers: {
-                        Authorization: `Bearer ${token}`,
+                        Authorization: `Bearer ${info?.token}`,
                         "Habitat-Auth-Method": "oauth",
                         ...options?.headers,
                     },
                 });
             },
         }),
-        [token, isLoading, queryClient],
+        [info, isLoading, queryClient],
     );
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

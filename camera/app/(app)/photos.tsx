@@ -1,21 +1,48 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { useAuth } from "@/context/auth";
+import { domain, useAuth } from "@/context/auth";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Image, Platform, useWindowDimensions } from "react-native";
+import { Image, ImageSourcePropType, Platform, useWindowDimensions } from "react-native";
 
 const Tile = ({ cid, size }: { cid: string, size: number }) => {
-    const { token } = useAuth()
-    const src = `https://privi.dwelf-mirzam.ts.net/xrpc/network.habitat.getBlob?cid=${cid}&did=test`
+    const { token, fetchWithAuth, did } = useAuth()
+    const src = `https://${domain}/xrpc/network.habitat.getBlob?cid=${cid}&did=${did}`
+    const headers = {
+        Authorization: `Bearer ${token}`,
+        "Habitat-Auth-Method": "oauth",
+    }
+
+    const [imgSrc, setImgSrc] = useState<ImageSourcePropType>();
+    useEffect(() => {
+        let cancelled = false;
+        if (Platform.OS === "web") {
+            fetchWithAuth(src, { headers })
+                .then(res => res.blob())
+                .then(blob => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        if (!cancelled && reader.result) {
+                            const uri = reader.result.toString()
+                            setImgSrc({uri: uri})
+                        };
+                    };
+                    reader.readAsDataURL(blob);
+                });
+            return () => { cancelled = true; };
+        } else {
+            // Native can use the src directly
+            setImgSrc({
+                uri: src,
+                headers: headers,
+            }); // Native can use the URL directly
+        }
+    }, [src, headers]);
+
+    if (!imgSrc) return null; // or a loading spinner
+
     return <Image
-        source={{
-            uri: src,
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Habitat-Auth-Method": "oauth",
-            }
-        }}
+        source={imgSrc}
         style={{
             width: size,
             height: size,
@@ -25,12 +52,12 @@ const Tile = ({ cid, size }: { cid: string, size: number }) => {
 }
 
 const Photos = () => {
-    const { fetchWithAuth } = useAuth()
+    const { fetchWithAuth, did } = useAuth()
     const { isLoading, data: photos, error } = useQuery({
         queryKey: ["photos"],
         queryFn: async () => {
             const res = await fetchWithAuth(
-                `/xrpc/network.habitat.listRecords?collection=network.habitat.photo&repo=test` // TODO: repo
+                `/xrpc/network.habitat.listRecords?collection=network.habitat.photo&repo=${did}` // TODO: repo
             )
             if (!res || !res.ok) {
                 throw new Error("fetching photos: " + res.statusText + await res.text())

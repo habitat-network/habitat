@@ -13,67 +13,66 @@ const cleanBase64 = (data: string) => {
   return data;
 }
 
-// Can't use form data because we are uploading directly to uploadBlob, not a special endpoint for photos
-const uploadPhoto = async (photo: CameraCapturedPicture, fetchWithAuth: FetchWithAuth) => {
-  // Convert base64 to binary
-  try {
-    const base64 = cleanBase64(photo.base64!)
-    const binary = atob(base64)
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    // Upload without FormData
-    const res = await fetchWithAuth("/xrpc/network.habitat.uploadBlob", {
-      method: "POST",
-      headers: {
-        "Content-Type": `image/jpeg`,
-      },
-      body: bytes,   // raw jpeg bytes
-    });
-
-    if (!res || !res.ok) {
-      throw new Error("uploading photo blob: " + res.statusText + await res.text())
-    }
-
-    const upload = await res.json()
-    console.log(upload)
-    const cid = upload["blob"]["cid"]["$link"]
-
-    if (cid === "") {
-      throw new Error("upload blob returned empty cid")
-    }
-
-    const res2 = await fetchWithAuth(
-      "/xrpc/network.habitat.putRecord",
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          collection: "network.habitat.photo",
-          record: {
-            ref: cid,
-          },
-          repo: "test"
-        }),
-      }
-    )
-
-    if (!res2 || !res2.ok) {
-      throw new Error("uploading photo record")
-    }
-    console.log('sucessful upload')
-  } catch (e) {
-    console.error("Unable to upload photo because: ", e)
-  }
-}
-
 const Home = () => {
   const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
-  const { fetchWithAuth } = useAuth()
+  const { fetchWithAuth, did } = useAuth()
+
+
+  // Can't use form data because we are uploading directly to uploadBlob, not a special endpoint for photos
+  const uploadPhoto = async (photo: CameraCapturedPicture) => {
+    // Convert base64 to binary
+    try {
+      const base64 = cleanBase64(photo.base64!)
+      const binary = atob(base64)
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      // Upload without FormData
+      const res = await fetchWithAuth("/xrpc/network.habitat.uploadBlob", {
+        method: "POST",
+        headers: {
+          "Content-Type": `image/jpeg`,
+        },
+        body: bytes,   // raw jpeg bytes
+      });
+
+      if (!res || !res.ok) {
+        throw new Error("uploading photo blob: " + res.statusText + await res.text())
+      }
+
+      const upload = await res.json()
+      const cid = upload["blob"]["cid"]["$link"]
+
+      if (cid === "") {
+        throw new Error("upload blob returned empty cid")
+      }
+
+      const res2 = await fetchWithAuth(
+        "/xrpc/network.habitat.putRecord",
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            collection: "network.habitat.photo",
+            record: {
+              ref: cid,
+            },
+            repo: did,
+          }),
+        }
+      )
+
+      if (!res2 || !res2.ok) {
+        throw new Error("uploading photo record")
+      }
+    } catch (e) {
+      console.error("Unable to upload photo because: ", e)
+    }
+  }
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -93,6 +92,7 @@ const Home = () => {
           title: "Camera",
           headerLeft: () => <TouchableHighlight onPress={() => router.navigate('/photos')}
           ><ThemedText>My Photos</ThemedText></TouchableHighlight>,
+          
           headerRight: () =>
             <TouchableHighlight onPress={() => router.navigate('/signin')}
             ><ThemedText>Sign in</ThemedText></TouchableHighlight>
@@ -109,7 +109,7 @@ const Home = () => {
           if (!photo) {
             console.error("camera.takePictureAsync returned undefined")
           } else {
-            uploadPhoto(photo, fetchWithAuth)
+            uploadPhoto(photo)
           }
         }}
         style={{ padding: 8 }}
