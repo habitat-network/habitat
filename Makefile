@@ -38,8 +38,9 @@ test-coverage:
 	go tool cover -html=coverage.out
 
 lint::
-# To install: https://golangci-lint.run/usage/install/#local-installation
+	# To install: https://golangci-lint.run/usage/install/#local-installation
 	CGO_ENABLED=0 golangci-lint run ./...
+	pnpm lint
 
 $(DEV_HABITAT_PATH):
 	mkdir -p $(DEV_HABITAT_PATH)

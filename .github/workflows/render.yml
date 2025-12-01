@@ -9,4 +9,3 @@ jobs:
     steps:
       - name: Deploy
         run: curl ${{ secrets.RenderDeployHook }}
-

@@ -8,286 +8,366 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as OauthLoginRouteImport } from './routes/oauth-login'
-import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
-import { Route as RequireAuthPriviTestIndexRouteImport } from './routes/_requireAuth/privi-test/index'
-import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
-import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
-import { Route as RequireAuthPriviTestViewRouteImport } from './routes/_requireAuth/privi-test/view'
-import { Route as RequireAuthPermissionsPeopleRouteImport } from './routes/_requireAuth/permissions/people'
-import { Route as RequireAuthPermissionsLexiconsRouteImport } from './routes/_requireAuth/permissions/lexicons'
-import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './routes/_requireAuth/permissions/lexicons/index'
-import { Route as RequireAuthPermissionsGroupsIndexRouteImport } from './routes/_requireAuth/permissions/groups/index'
-import { Route as RequireAuthPermissionsLexiconsLexiconIdRouteImport } from './routes/_requireAuth/permissions/lexicons/$lexiconId'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as ServerRouteImport } from "./routes/server";
+import { Route as OauthLoginRouteImport } from "./routes/oauth-login";
+import { Route as LoginRouteImport } from "./routes/login";
+import { Route as AppStoreRouteImport } from "./routes/app-store";
+import { Route as AddUserRouteImport } from "./routes/add-user";
+import { Route as RequireAuthRouteImport } from "./routes/_requireAuth";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as RequireAuthPermissionsRouteImport } from "./routes/_requireAuth/permissions";
+import { Route as RequireAuthPriviTestIndexRouteImport } from "./routes/_requireAuth/privi-test/index";
+import { Route as RequireAuthPermissionsIndexRouteImport } from "./routes/_requireAuth/permissions/index";
+import { Route as RequireAuthBlobTestIndexRouteImport } from "./routes/_requireAuth/blob-test/index";
+import { Route as RequireAuthPriviTestViewRouteImport } from "./routes/_requireAuth/privi-test/view";
+import { Route as RequireAuthPermissionsPeopleRouteImport } from "./routes/_requireAuth/permissions/people";
+import { Route as RequireAuthPermissionsLexiconsRouteImport } from "./routes/_requireAuth/permissions/lexicons";
+import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from "./routes/_requireAuth/permissions/lexicons/index";
+import { Route as RequireAuthPermissionsGroupsIndexRouteImport } from "./routes/_requireAuth/permissions/groups/index";
+import { Route as RequireAuthPermissionsLexiconsLexiconIdRouteImport } from "./routes/_requireAuth/permissions/lexicons/$lexiconId";
 
+const ServerRoute = ServerRouteImport.update({
+  id: "/server",
+  path: "/server",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const OauthLoginRoute = OauthLoginRouteImport.update({
-  id: '/oauth-login',
-  path: '/oauth-login',
+  id: "/oauth-login",
+  path: "/oauth-login",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
+const LoginRoute = LoginRouteImport.update({
+  id: "/login",
+  path: "/login",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AppStoreRoute = AppStoreRouteImport.update({
+  id: "/app-store",
+  path: "/app-store",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AddUserRoute = AddUserRouteImport.update({
+  id: "/add-user",
+  path: "/add-user",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const RequireAuthRoute = RequireAuthRouteImport.update({
-  id: '/_requireAuth',
+  id: "/_requireAuth",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
-  id: '/permissions',
-  path: '/permissions',
+  id: "/permissions",
+  path: "/permissions",
   getParentRoute: () => RequireAuthRoute,
-} as any)
+} as any);
 const RequireAuthPriviTestIndexRoute =
   RequireAuthPriviTestIndexRouteImport.update({
-    id: '/privi-test/',
-    path: '/privi-test/',
+    id: "/privi-test/",
+    path: "/privi-test/",
     getParentRoute: () => RequireAuthRoute,
-  } as any)
+  } as any);
 const RequireAuthPermissionsIndexRoute =
   RequireAuthPermissionsIndexRouteImport.update({
-    id: '/',
-    path: '/',
+    id: "/",
+    path: "/",
     getParentRoute: () => RequireAuthPermissionsRoute,
-  } as any)
+  } as any);
 const RequireAuthBlobTestIndexRoute =
   RequireAuthBlobTestIndexRouteImport.update({
-    id: '/blob-test/',
-    path: '/blob-test/',
+    id: "/blob-test/",
+    path: "/blob-test/",
     getParentRoute: () => RequireAuthRoute,
-  } as any)
+  } as any);
 const RequireAuthPriviTestViewRoute =
   RequireAuthPriviTestViewRouteImport.update({
-    id: '/privi-test/view',
-    path: '/privi-test/view',
+    id: "/privi-test/view",
+    path: "/privi-test/view",
     getParentRoute: () => RequireAuthRoute,
-  } as any)
+  } as any);
 const RequireAuthPermissionsPeopleRoute =
   RequireAuthPermissionsPeopleRouteImport.update({
-    id: '/people',
-    path: '/people',
+    id: "/people",
+    path: "/people",
     getParentRoute: () => RequireAuthPermissionsRoute,
-  } as any)
+  } as any);
 const RequireAuthPermissionsLexiconsRoute =
   RequireAuthPermissionsLexiconsRouteImport.update({
-    id: '/lexicons',
-    path: '/lexicons',
+    id: "/lexicons",
+    path: "/lexicons",
     getParentRoute: () => RequireAuthPermissionsRoute,
-  } as any)
+  } as any);
 const RequireAuthPermissionsLexiconsIndexRoute =
   RequireAuthPermissionsLexiconsIndexRouteImport.update({
-    id: '/',
-    path: '/',
+    id: "/",
+    path: "/",
     getParentRoute: () => RequireAuthPermissionsLexiconsRoute,
-  } as any)
+  } as any);
 const RequireAuthPermissionsGroupsIndexRoute =
   RequireAuthPermissionsGroupsIndexRouteImport.update({
-    id: '/groups/',
-    path: '/groups/',
+    id: "/groups/",
+    path: "/groups/",
     getParentRoute: () => RequireAuthPermissionsRoute,
-  } as any)
+  } as any);
 const RequireAuthPermissionsLexiconsLexiconIdRoute =
   RequireAuthPermissionsLexiconsLexiconIdRouteImport.update({
-    id: '/$lexiconId',
-    path: '/$lexiconId',
+    id: "/$lexiconId",
+    path: "/$lexiconId",
     getParentRoute: () => RequireAuthPermissionsLexiconsRoute,
-  } as any)
+  } as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/oauth-login': typeof OauthLoginRoute
-  '/permissions': typeof RequireAuthPermissionsRouteWithChildren
-  '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
-  '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
-  '/privi-test/view': typeof RequireAuthPriviTestViewRoute
-  '/blob-test': typeof RequireAuthBlobTestIndexRoute
-  '/permissions/': typeof RequireAuthPermissionsIndexRoute
-  '/privi-test': typeof RequireAuthPriviTestIndexRoute
-  '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
-  '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
+  "/": typeof IndexRoute;
+  "/add-user": typeof AddUserRoute;
+  "/app-store": typeof AppStoreRoute;
+  "/login": typeof LoginRoute;
+  "/oauth-login": typeof OauthLoginRoute;
+  "/server": typeof ServerRoute;
+  "/permissions": typeof RequireAuthPermissionsRouteWithChildren;
+  "/permissions/lexicons": typeof RequireAuthPermissionsLexiconsRouteWithChildren;
+  "/permissions/people": typeof RequireAuthPermissionsPeopleRoute;
+  "/privi-test/view": typeof RequireAuthPriviTestViewRoute;
+  "/blob-test": typeof RequireAuthBlobTestIndexRoute;
+  "/permissions/": typeof RequireAuthPermissionsIndexRoute;
+  "/privi-test": typeof RequireAuthPriviTestIndexRoute;
+  "/permissions/lexicons/$lexiconId": typeof RequireAuthPermissionsLexiconsLexiconIdRoute;
+  "/permissions/groups": typeof RequireAuthPermissionsGroupsIndexRoute;
+  "/permissions/lexicons/": typeof RequireAuthPermissionsLexiconsIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/oauth-login': typeof OauthLoginRoute
-  '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
-  '/privi-test/view': typeof RequireAuthPriviTestViewRoute
-  '/blob-test': typeof RequireAuthBlobTestIndexRoute
-  '/permissions': typeof RequireAuthPermissionsIndexRoute
-  '/privi-test': typeof RequireAuthPriviTestIndexRoute
-  '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
-  '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
+  "/": typeof IndexRoute;
+  "/add-user": typeof AddUserRoute;
+  "/app-store": typeof AppStoreRoute;
+  "/login": typeof LoginRoute;
+  "/oauth-login": typeof OauthLoginRoute;
+  "/server": typeof ServerRoute;
+  "/permissions/people": typeof RequireAuthPermissionsPeopleRoute;
+  "/privi-test/view": typeof RequireAuthPriviTestViewRoute;
+  "/blob-test": typeof RequireAuthBlobTestIndexRoute;
+  "/permissions": typeof RequireAuthPermissionsIndexRoute;
+  "/privi-test": typeof RequireAuthPriviTestIndexRoute;
+  "/permissions/lexicons/$lexiconId": typeof RequireAuthPermissionsLexiconsLexiconIdRoute;
+  "/permissions/groups": typeof RequireAuthPermissionsGroupsIndexRoute;
+  "/permissions/lexicons": typeof RequireAuthPermissionsLexiconsIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/_requireAuth': typeof RequireAuthRouteWithChildren
-  '/oauth-login': typeof OauthLoginRoute
-  '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
-  '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
-  '/_requireAuth/permissions/people': typeof RequireAuthPermissionsPeopleRoute
-  '/_requireAuth/privi-test/view': typeof RequireAuthPriviTestViewRoute
-  '/_requireAuth/blob-test/': typeof RequireAuthBlobTestIndexRoute
-  '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
-  '/_requireAuth/privi-test/': typeof RequireAuthPriviTestIndexRoute
-  '/_requireAuth/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/_requireAuth/permissions/groups/': typeof RequireAuthPermissionsGroupsIndexRoute
-  '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/_requireAuth": typeof RequireAuthRouteWithChildren;
+  "/add-user": typeof AddUserRoute;
+  "/app-store": typeof AppStoreRoute;
+  "/login": typeof LoginRoute;
+  "/oauth-login": typeof OauthLoginRoute;
+  "/server": typeof ServerRoute;
+  "/_requireAuth/permissions": typeof RequireAuthPermissionsRouteWithChildren;
+  "/_requireAuth/permissions/lexicons": typeof RequireAuthPermissionsLexiconsRouteWithChildren;
+  "/_requireAuth/permissions/people": typeof RequireAuthPermissionsPeopleRoute;
+  "/_requireAuth/privi-test/view": typeof RequireAuthPriviTestViewRoute;
+  "/_requireAuth/blob-test/": typeof RequireAuthBlobTestIndexRoute;
+  "/_requireAuth/permissions/": typeof RequireAuthPermissionsIndexRoute;
+  "/_requireAuth/privi-test/": typeof RequireAuthPriviTestIndexRoute;
+  "/_requireAuth/permissions/lexicons/$lexiconId": typeof RequireAuthPermissionsLexiconsLexiconIdRoute;
+  "/_requireAuth/permissions/groups/": typeof RequireAuthPermissionsGroupsIndexRoute;
+  "/_requireAuth/permissions/lexicons/": typeof RequireAuthPermissionsLexiconsIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/oauth-login'
-    | '/permissions'
-    | '/permissions/lexicons'
-    | '/permissions/people'
-    | '/privi-test/view'
-    | '/blob-test'
-    | '/permissions/'
-    | '/privi-test'
-    | '/permissions/lexicons/$lexiconId'
-    | '/permissions/groups'
-    | '/permissions/lexicons/'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/add-user"
+    | "/app-store"
+    | "/login"
+    | "/oauth-login"
+    | "/server"
+    | "/permissions"
+    | "/permissions/lexicons"
+    | "/permissions/people"
+    | "/privi-test/view"
+    | "/blob-test"
+    | "/permissions/"
+    | "/privi-test"
+    | "/permissions/lexicons/$lexiconId"
+    | "/permissions/groups"
+    | "/permissions/lexicons/";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/oauth-login'
-    | '/permissions/people'
-    | '/privi-test/view'
-    | '/blob-test'
-    | '/permissions'
-    | '/privi-test'
-    | '/permissions/lexicons/$lexiconId'
-    | '/permissions/groups'
-    | '/permissions/lexicons'
+    | "/"
+    | "/add-user"
+    | "/app-store"
+    | "/login"
+    | "/oauth-login"
+    | "/server"
+    | "/permissions/people"
+    | "/privi-test/view"
+    | "/blob-test"
+    | "/permissions"
+    | "/privi-test"
+    | "/permissions/lexicons/$lexiconId"
+    | "/permissions/groups"
+    | "/permissions/lexicons";
   id:
-    | '__root__'
-    | '/'
-    | '/_requireAuth'
-    | '/oauth-login'
-    | '/_requireAuth/permissions'
-    | '/_requireAuth/permissions/lexicons'
-    | '/_requireAuth/permissions/people'
-    | '/_requireAuth/privi-test/view'
-    | '/_requireAuth/blob-test/'
-    | '/_requireAuth/permissions/'
-    | '/_requireAuth/privi-test/'
-    | '/_requireAuth/permissions/lexicons/$lexiconId'
-    | '/_requireAuth/permissions/groups/'
-    | '/_requireAuth/permissions/lexicons/'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/_requireAuth"
+    | "/add-user"
+    | "/app-store"
+    | "/login"
+    | "/oauth-login"
+    | "/server"
+    | "/_requireAuth/permissions"
+    | "/_requireAuth/permissions/lexicons"
+    | "/_requireAuth/permissions/people"
+    | "/_requireAuth/privi-test/view"
+    | "/_requireAuth/blob-test/"
+    | "/_requireAuth/permissions/"
+    | "/_requireAuth/privi-test/"
+    | "/_requireAuth/permissions/lexicons/$lexiconId"
+    | "/_requireAuth/permissions/groups/"
+    | "/_requireAuth/permissions/lexicons/";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  RequireAuthRoute: typeof RequireAuthRouteWithChildren
-  OauthLoginRoute: typeof OauthLoginRoute
+  IndexRoute: typeof IndexRoute;
+  RequireAuthRoute: typeof RequireAuthRouteWithChildren;
+  AddUserRoute: typeof AddUserRoute;
+  AppStoreRoute: typeof AppStoreRoute;
+  LoginRoute: typeof LoginRoute;
+  OauthLoginRoute: typeof OauthLoginRoute;
+  ServerRoute: typeof ServerRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/oauth-login': {
-      id: '/oauth-login'
-      path: '/oauth-login'
-      fullPath: '/oauth-login'
-      preLoaderRoute: typeof OauthLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_requireAuth': {
-      id: '/_requireAuth'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof RequireAuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_requireAuth/permissions': {
-      id: '/_requireAuth/permissions'
-      path: '/permissions'
-      fullPath: '/permissions'
-      preLoaderRoute: typeof RequireAuthPermissionsRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/privi-test/': {
-      id: '/_requireAuth/privi-test/'
-      path: '/privi-test'
-      fullPath: '/privi-test'
-      preLoaderRoute: typeof RequireAuthPriviTestIndexRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/permissions/': {
-      id: '/_requireAuth/permissions/'
-      path: '/'
-      fullPath: '/permissions/'
-      preLoaderRoute: typeof RequireAuthPermissionsIndexRouteImport
-      parentRoute: typeof RequireAuthPermissionsRoute
-    }
-    '/_requireAuth/blob-test/': {
-      id: '/_requireAuth/blob-test/'
-      path: '/blob-test'
-      fullPath: '/blob-test'
-      preLoaderRoute: typeof RequireAuthBlobTestIndexRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/privi-test/view': {
-      id: '/_requireAuth/privi-test/view'
-      path: '/privi-test/view'
-      fullPath: '/privi-test/view'
-      preLoaderRoute: typeof RequireAuthPriviTestViewRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/permissions/people': {
-      id: '/_requireAuth/permissions/people'
-      path: '/people'
-      fullPath: '/permissions/people'
-      preLoaderRoute: typeof RequireAuthPermissionsPeopleRouteImport
-      parentRoute: typeof RequireAuthPermissionsRoute
-    }
-    '/_requireAuth/permissions/lexicons': {
-      id: '/_requireAuth/permissions/lexicons'
-      path: '/lexicons'
-      fullPath: '/permissions/lexicons'
-      preLoaderRoute: typeof RequireAuthPermissionsLexiconsRouteImport
-      parentRoute: typeof RequireAuthPermissionsRoute
-    }
-    '/_requireAuth/permissions/lexicons/': {
-      id: '/_requireAuth/permissions/lexicons/'
-      path: '/'
-      fullPath: '/permissions/lexicons/'
-      preLoaderRoute: typeof RequireAuthPermissionsLexiconsIndexRouteImport
-      parentRoute: typeof RequireAuthPermissionsLexiconsRoute
-    }
-    '/_requireAuth/permissions/groups/': {
-      id: '/_requireAuth/permissions/groups/'
-      path: '/groups'
-      fullPath: '/permissions/groups'
-      preLoaderRoute: typeof RequireAuthPermissionsGroupsIndexRouteImport
-      parentRoute: typeof RequireAuthPermissionsRoute
-    }
-    '/_requireAuth/permissions/lexicons/$lexiconId': {
-      id: '/_requireAuth/permissions/lexicons/$lexiconId'
-      path: '/$lexiconId'
-      fullPath: '/permissions/lexicons/$lexiconId'
-      preLoaderRoute: typeof RequireAuthPermissionsLexiconsLexiconIdRouteImport
-      parentRoute: typeof RequireAuthPermissionsLexiconsRoute
-    }
+    "/server": {
+      id: "/server";
+      path: "/server";
+      fullPath: "/server";
+      preLoaderRoute: typeof ServerRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/oauth-login": {
+      id: "/oauth-login";
+      path: "/oauth-login";
+      fullPath: "/oauth-login";
+      preLoaderRoute: typeof OauthLoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/login": {
+      id: "/login";
+      path: "/login";
+      fullPath: "/login";
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/app-store": {
+      id: "/app-store";
+      path: "/app-store";
+      fullPath: "/app-store";
+      preLoaderRoute: typeof AppStoreRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/add-user": {
+      id: "/add-user";
+      path: "/add-user";
+      fullPath: "/add-user";
+      preLoaderRoute: typeof AddUserRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_requireAuth": {
+      id: "/_requireAuth";
+      path: "";
+      fullPath: "";
+      preLoaderRoute: typeof RequireAuthRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_requireAuth/permissions": {
+      id: "/_requireAuth/permissions";
+      path: "/permissions";
+      fullPath: "/permissions";
+      preLoaderRoute: typeof RequireAuthPermissionsRouteImport;
+      parentRoute: typeof RequireAuthRoute;
+    };
+    "/_requireAuth/privi-test/": {
+      id: "/_requireAuth/privi-test/";
+      path: "/privi-test";
+      fullPath: "/privi-test";
+      preLoaderRoute: typeof RequireAuthPriviTestIndexRouteImport;
+      parentRoute: typeof RequireAuthRoute;
+    };
+    "/_requireAuth/permissions/": {
+      id: "/_requireAuth/permissions/";
+      path: "/";
+      fullPath: "/permissions/";
+      preLoaderRoute: typeof RequireAuthPermissionsIndexRouteImport;
+      parentRoute: typeof RequireAuthPermissionsRoute;
+    };
+    "/_requireAuth/blob-test/": {
+      id: "/_requireAuth/blob-test/";
+      path: "/blob-test";
+      fullPath: "/blob-test";
+      preLoaderRoute: typeof RequireAuthBlobTestIndexRouteImport;
+      parentRoute: typeof RequireAuthRoute;
+    };
+    "/_requireAuth/privi-test/view": {
+      id: "/_requireAuth/privi-test/view";
+      path: "/privi-test/view";
+      fullPath: "/privi-test/view";
+      preLoaderRoute: typeof RequireAuthPriviTestViewRouteImport;
+      parentRoute: typeof RequireAuthRoute;
+    };
+    "/_requireAuth/permissions/people": {
+      id: "/_requireAuth/permissions/people";
+      path: "/people";
+      fullPath: "/permissions/people";
+      preLoaderRoute: typeof RequireAuthPermissionsPeopleRouteImport;
+      parentRoute: typeof RequireAuthPermissionsRoute;
+    };
+    "/_requireAuth/permissions/lexicons": {
+      id: "/_requireAuth/permissions/lexicons";
+      path: "/lexicons";
+      fullPath: "/permissions/lexicons";
+      preLoaderRoute: typeof RequireAuthPermissionsLexiconsRouteImport;
+      parentRoute: typeof RequireAuthPermissionsRoute;
+    };
+    "/_requireAuth/permissions/lexicons/": {
+      id: "/_requireAuth/permissions/lexicons/";
+      path: "/";
+      fullPath: "/permissions/lexicons/";
+      preLoaderRoute: typeof RequireAuthPermissionsLexiconsIndexRouteImport;
+      parentRoute: typeof RequireAuthPermissionsLexiconsRoute;
+    };
+    "/_requireAuth/permissions/groups/": {
+      id: "/_requireAuth/permissions/groups/";
+      path: "/groups";
+      fullPath: "/permissions/groups";
+      preLoaderRoute: typeof RequireAuthPermissionsGroupsIndexRouteImport;
+      parentRoute: typeof RequireAuthPermissionsRoute;
+    };
+    "/_requireAuth/permissions/lexicons/$lexiconId": {
+      id: "/_requireAuth/permissions/lexicons/$lexiconId";
+      path: "/$lexiconId";
+      fullPath: "/permissions/lexicons/$lexiconId";
+      preLoaderRoute: typeof RequireAuthPermissionsLexiconsLexiconIdRouteImport;
+      parentRoute: typeof RequireAuthPermissionsLexiconsRoute;
+    };
   }
 }
 
 interface RequireAuthPermissionsLexiconsRouteChildren {
-  RequireAuthPermissionsLexiconsLexiconIdRoute: typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  RequireAuthPermissionsLexiconsIndexRoute: typeof RequireAuthPermissionsLexiconsIndexRoute
+  RequireAuthPermissionsLexiconsLexiconIdRoute: typeof RequireAuthPermissionsLexiconsLexiconIdRoute;
+  RequireAuthPermissionsLexiconsIndexRoute: typeof RequireAuthPermissionsLexiconsIndexRoute;
 }
 
 const RequireAuthPermissionsLexiconsRouteChildren: RequireAuthPermissionsLexiconsRouteChildren =
@@ -296,18 +376,18 @@ const RequireAuthPermissionsLexiconsRouteChildren: RequireAuthPermissionsLexicon
       RequireAuthPermissionsLexiconsLexiconIdRoute,
     RequireAuthPermissionsLexiconsIndexRoute:
       RequireAuthPermissionsLexiconsIndexRoute,
-  }
+  };
 
 const RequireAuthPermissionsLexiconsRouteWithChildren =
   RequireAuthPermissionsLexiconsRoute._addFileChildren(
     RequireAuthPermissionsLexiconsRouteChildren,
-  )
+  );
 
 interface RequireAuthPermissionsRouteChildren {
-  RequireAuthPermissionsLexiconsRoute: typeof RequireAuthPermissionsLexiconsRouteWithChildren
-  RequireAuthPermissionsPeopleRoute: typeof RequireAuthPermissionsPeopleRoute
-  RequireAuthPermissionsIndexRoute: typeof RequireAuthPermissionsIndexRoute
-  RequireAuthPermissionsGroupsIndexRoute: typeof RequireAuthPermissionsGroupsIndexRoute
+  RequireAuthPermissionsLexiconsRoute: typeof RequireAuthPermissionsLexiconsRouteWithChildren;
+  RequireAuthPermissionsPeopleRoute: typeof RequireAuthPermissionsPeopleRoute;
+  RequireAuthPermissionsIndexRoute: typeof RequireAuthPermissionsIndexRoute;
+  RequireAuthPermissionsGroupsIndexRoute: typeof RequireAuthPermissionsGroupsIndexRoute;
 }
 
 const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
@@ -318,18 +398,18 @@ const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
     RequireAuthPermissionsIndexRoute: RequireAuthPermissionsIndexRoute,
     RequireAuthPermissionsGroupsIndexRoute:
       RequireAuthPermissionsGroupsIndexRoute,
-  }
+  };
 
 const RequireAuthPermissionsRouteWithChildren =
   RequireAuthPermissionsRoute._addFileChildren(
     RequireAuthPermissionsRouteChildren,
-  )
+  );
 
 interface RequireAuthRouteChildren {
-  RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
-  RequireAuthPriviTestViewRoute: typeof RequireAuthPriviTestViewRoute
-  RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
-  RequireAuthPriviTestIndexRoute: typeof RequireAuthPriviTestIndexRoute
+  RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren;
+  RequireAuthPriviTestViewRoute: typeof RequireAuthPriviTestViewRoute;
+  RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute;
+  RequireAuthPriviTestIndexRoute: typeof RequireAuthPriviTestIndexRoute;
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
@@ -337,17 +417,21 @@ const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthPriviTestViewRoute: RequireAuthPriviTestViewRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
   RequireAuthPriviTestIndexRoute: RequireAuthPriviTestIndexRoute,
-}
+};
 
 const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
   RequireAuthRouteChildren,
-)
+);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RequireAuthRoute: RequireAuthRouteWithChildren,
+  AddUserRoute: AddUserRoute,
+  AppStoreRoute: AppStoreRoute,
+  LoginRoute: LoginRoute,
   OauthLoginRoute: OauthLoginRoute,
-}
+  ServerRoute: ServerRoute,
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();

@@ -12,12 +12,13 @@ interface RouterContext {
 export const Route = createRootRouteWithContext<RouterContext>()({
   staleTime: 1000 * 60 * 60,
   component() {
-    const { authManager } = Route.useRouteContext()
-    return (<>
-      <Header authManager={authManager} />
-      <Outlet />
-      <TanStackRouterDevtools />
-    </>
+    const { authManager } = Route.useRouteContext();
+    return (
+      <>
+        <Header authManager={authManager} />
+        <Outlet />
+        <TanStackRouterDevtools />
+      </>
     );
   },
 });

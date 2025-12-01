@@ -1,30 +1,31 @@
-import { Link } from '@tanstack/react-router';
-import type { AuthManager } from '@/auth';
+import { Link } from "@tanstack/react-router";
+import { useAuth } from "./authContext";
 
 function formatHandle(handle: string | null) {
-  if (!handle) return '';
-  const parts = handle.split('.');
+  if (!handle) return "";
+  const parts = handle.split(".");
   if (parts.length > 1) {
-    return `${parts[0]}@${parts.slice(1).join('.')}`;
+    return `${parts[0]}@${parts.slice(1).join(".")}`;
   }
   return handle;
 }
 
-const Header = ({ authManager }: { authManager: AuthManager} ) => {
+const Header = () => {
+  const { isAuthenticated, handle, logout } = useAuth();
   return (
-    <header >
+    <header>
       <nav>
         <ul>
-          <li><Link to="/">🌱 Habitat</Link></li>
+          <li>
+            <Link to="/">🌱 Habitat</Link>
+          </li>
         </ul>
-        {authManager.isAuthenticated() && (
-          <ul >
+        {isAuthenticated && (
+          <ul>
+            <li>{handle && formatHandle(handle)}</li>
             <li>
-              {authManager.handle && formatHandle(authManager.handle)}
+              <button onClick={logout}>Logout</button>
             </li>
-            <li><button onClick={authManager.logout}>
-              Logout [does nothing right now]
-            </button></li>
           </ul>
         )}
       </nav>
