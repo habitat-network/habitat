@@ -5,6 +5,12 @@
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "frontend:start": "pnpm --filter frontend start"
+    "frontend:start": "pnpm --filter frontend start",
+    "format": "prettier --write .",
+    "lint": "oxlint ."
+  },
+  "devDependencies": {
+    "oxlint": "^1.28.0",
+    "prettier": "3.6.2"
   }
 }

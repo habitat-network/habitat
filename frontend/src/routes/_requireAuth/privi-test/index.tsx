@@ -22,7 +22,11 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
     const putForm = useForm<putData>({});
     const getForm = useForm<getData>({});
 
-    const { mutate: put, isPending: putIsPending, status } = useMutation({
+    const {
+      mutate: put,
+      isPending: putIsPending,
+      status,
+    } = useMutation({
       async mutationFn(data: putData) {
         let recordObj;
         try {
@@ -45,42 +49,65 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
       },
     });
 
-    const [fetchedRecord, setFetchedRecord] = React.useState<string>("")
-    const { mutate: get, isPending: getIsPending} = useMutation({
+    const [fetchedRecord, setFetchedRecord] = React.useState<string>("");
+    const { mutate: get, isPending: getIsPending } = useMutation({
       async mutationFn(data: getData) {
         const params = new URLSearchParams();
-        params.set("collection", data.collection)
-        params.set("repo", data.repo)
-        params.set("rkey", data.rkey)
+        params.set("collection", data.collection);
+        params.set("repo", data.repo);
+        params.set("rkey", data.rkey);
         const response = await authManager?.fetch(
           `/xrpc/com.habitat.getRecord?${params.toString()}`,
         );
         const json = await response?.json();
-        const val = JSON.stringify(json.value)
-        setFetchedRecord(val)
+        const val = JSON.stringify(json.value);
+        setFetchedRecord(val);
       },
     });
 
     return (
-      <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+        }}
+      >
         <article>
           <h1>putRecord</h1>
           <form onSubmit={putForm.handleSubmit((data) => put(data))}>
             <label>
               collection:
-              <input type="text" defaultValue="com.habitat.test" {...putForm.register("collection")} />
+              <input
+                type="text"
+                defaultValue="com.habitat.test"
+                {...putForm.register("collection")}
+              />
             </label>
             <label>
               record (JSON):
-              <input type="text" defaultValue='{"foo":"bar"}'{...putForm.register("record")} />
+              <input
+                type="text"
+                defaultValue='{"foo":"bar"}'
+                {...putForm.register("record")}
+              />
             </label>
             <label>
               repo:
-              <input type="text" defaultValue={authManager.handle || ""} {...putForm.register("repo")} />
+              <input
+                type="text"
+                defaultValue={authManager.handle || ""}
+                {...putForm.register("repo")}
+              />
             </label>
             <label>
               rkey:
-              <input type="text" defaultValue="a-primary-key" {...putForm.register("rkey")} />
+              <input
+                type="text"
+                defaultValue="a-primary-key"
+                {...putForm.register("rkey")}
+              />
             </label>
             <button type="submit" aria-busy={putIsPending}>
               Put Record
@@ -94,15 +121,27 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
           <form onSubmit={getForm.handleSubmit((data) => get(data))}>
             <label>
               collection:
-              <input type="text" defaultValue="com.habitat.test" {...getForm.register("collection")} />
+              <input
+                type="text"
+                defaultValue="com.habitat.test"
+                {...getForm.register("collection")}
+              />
             </label>
             <label>
               repo:
-              <input type="text" defaultValue={authManager.handle || ""} {...getForm.register("repo")} />
+              <input
+                type="text"
+                defaultValue={authManager.handle || ""}
+                {...getForm.register("repo")}
+              />
             </label>
             <label>
               rkey:
-              <input type="text" defaultValue="a-primary-key" {...getForm.register("rkey")} />
+              <input
+                type="text"
+                defaultValue="a-primary-key"
+                {...getForm.register("rkey")}
+              />
             </label>
             <button type="submit" aria-busy={getIsPending}>
               Get Record
