@@ -32,22 +32,17 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	// Try handling both handles and dids
 	atid, err := syntax.ParseAtIdentifier(did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to parse at identifier", http.StatusBadRequest)
 		return
 	}
-
 	id, err := p.dir.Lookup(r.Context(), *atid)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
 		return
 	}
-
-	log.Info().Int("num services", len(id.Services)).Msg("identity services")
-
 	pdsUrl, ok := id.Services["atproto_pds"]
 	if !ok {
 		utils.LogAndHTTPError(
@@ -58,28 +53,21 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-
 	// Create a new request for forwarding
 	targetURL := pdsUrl.URL + r.URL.RequestURI()
-
-	log.Info().Str("target_url", targetURL).Msg("forwarding request")
-
 	// Only pass body for methods that support it
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
-
 	req, err := http.NewRequest(r.Method, targetURL, body)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create forwarding request")
 		http.Error(w, "failed to create forwarding request", http.StatusInternalServerError)
 		return
 	}
-
 	// Copy headers from original request
 	req.Header = r.Header.Clone()
-
 	// Forward the request using the dpopClient
 	resp, err := dpopClient.Do(req)
 	if err != nil {
@@ -88,7 +76,6 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
-
 	// Set the status code
 	w.WriteHeader(resp.StatusCode)
 	// Copy response body
