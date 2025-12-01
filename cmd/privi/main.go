@@ -57,13 +57,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 
 	// privi routes
-	mux.HandleFunc("/xrpc/com.habitat.putRecord", priviServer.PutRecord)
-	mux.HandleFunc("/xrpc/com.habitat.getRecord", priviServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.putRecord", priviServer.PutRecord)
+	mux.HandleFunc("/xrpc/network.habitat.getRecord", priviServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.listRecords", priviServer.ListRecords)
+
 	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", priviServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.getBlob", priviServer.GetBlob)
-	mux.HandleFunc("/xrpc/com.habitat.listPermissions", priviServer.ListPermissions)
-	mux.HandleFunc("/xrpc/com.habitat.addPermission", priviServer.AddPermission)
-	mux.HandleFunc("/xrpc/com.habitat.removePermission", priviServer.RemovePermission)
+	mux.HandleFunc("/xrpc/network.habitat.listPermissions", priviServer.ListPermissions)
+	mux.HandleFunc("/xrpc/network.habitat.addPermission", priviServer.AddPermission)
+	mux.HandleFunc("/xrpc/network.habitat.removePermission", priviServer.RemovePermission)
 
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
 		template := `{

@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
           return;
         }
         const response = await authManager.fetch(
-          "/xrpc/com.habitat.putRecord",
+          "/xrpc/network.habitat.putRecord",
           "POST",
           JSON.stringify({
             collection: data.collection,
@@ -57,7 +57,7 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
         params.set("repo", data.repo);
         params.set("rkey", data.rkey);
         const response = await authManager?.fetch(
-          `/xrpc/com.habitat.getRecord?${params.toString()}`,
+          `/xrpc/network.habitat.getRecord?${params.toString()}`,
         );
         const json = await response?.json();
         const val = JSON.stringify(json.value);
@@ -81,7 +81,7 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
               collection:
               <input
                 type="text"
-                defaultValue="com.habitat.test"
+                defaultValue="network.habitat.test"
                 {...putForm.register("collection")}
               />
             </label>
@@ -123,7 +123,7 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
               collection:
               <input
                 type="text"
-                defaultValue="com.habitat.test"
+                defaultValue="network.habitat.test"
                 {...getForm.register("collection")}
               />
             </label>

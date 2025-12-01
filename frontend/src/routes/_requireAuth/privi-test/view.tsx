@@ -12,9 +12,9 @@ export const Route = createFileRoute("/_requireAuth/privi-test/view")({
     const params = new URLSearchParams();
     params.set("repo", params.get("repo") || did);
     params.set("rkey", params.get("rkey") || rkey);
-    params.set("collection", params.get("collection") || "com.habitat.test");
+    params.set("collection", params.get("collection") || "network.habitat.test");
     const response = await context.authManager?.fetch(
-      `/xrpc/com.habitat.getRecord?${params.toString()}`,
+      `/xrpc/network.habitat.getRecord?${params.toString()}`,
     );
     const json = await response?.json();
     return json.foo;

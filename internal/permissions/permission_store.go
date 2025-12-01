@@ -48,9 +48,9 @@ type Permission struct {
 
 // NewSQLiteStore creates a new SQLite-backed permission store.
 // The store manages permissions at different granularities:
-// - Whole NSID prefixes: "com.habitat.*"
-// - Specific NSIDs: "com.habitat.collection"
-// - Specific records: "com.habitat.collection.recordKey"
+// - Whole NSID prefixes: "network.habitat.*"
+// - Specific NSIDs: "network.habitat.collection"
+// - Specific records: "network.habitat.collection.recordKey"
 func NewSQLiteStore(db *gorm.DB) (*sqliteStore, error) {
 	// AutoMigrate will create the table with all indexes defined in the Permission struct
 	err := db.AutoMigrate(&Permission{})
@@ -66,7 +66,7 @@ func NewSQLiteStore(db *gorm.DB) (*sqliteStore, error) {
 // 1. Owner always has access
 // 2. Specific record permissions (exact match)
 // 3. NSID-level permissions (prefix match with .*)
-// 4. Wildcard prefix permissions (e.g., "com.habitat.*")
+// 4. Wildcard prefix permissions (e.g., "network.habitat.*")
 func (s *sqliteStore) HasPermission(
 	requester string,
 	owner string,
@@ -85,11 +85,11 @@ func (s *sqliteStore) HasPermission(
 	}
 
 	// Check for permissions using a single query that matches:
-	// 1. Exact object match: object = "com.habitat.posts.record1"
+	// 1. Exact object match: object = "network.habitat.posts.record1"
 	// 2. Prefix matches for parent NSIDs:
-	//    For object = "com.habitat.posts.record1", match stored permissions:
-	//    - "com.habitat.posts" (the NSID itself)
-	//    - "com.habitat"
+	//    For object = "network.habitat.posts.record1", match stored permissions:
+	//    - "network.habitat.posts" (the NSID itself)
+	//    - "network.habitat"
 	//    - "com"
 	//    This works by checking if the object LIKE the stored permission + ".%"
 	var permission Permission
@@ -110,7 +110,7 @@ func (s *sqliteStore) HasPermission(
 }
 
 // AddLexiconReadPermission grants read permission for an entire lexicon (NSID).
-// The permission is stored as just the NSID (e.g., "com.habitat.posts").
+// The permission is stored as just the NSID (e.g., "network.habitat.posts").
 // The HasPermission method will automatically check for both exact matches and wildcard patterns.
 func (s *sqliteStore) AddLexiconReadPermission(
 	grantee string,
@@ -162,7 +162,7 @@ func (s *sqliteStore) ListReadPermissionsByLexicon(owner string) (map[string][]s
 
 	result := make(map[string][]string)
 	for _, perm := range permissions {
-		// The object is stored as the NSID itself (e.g., "com.habitat.posts")
+		// The object is stored as the NSID itself (e.g., "network.habitat.posts")
 		// So we can use it directly as the lexicon
 		result[perm.Object] = append(result[perm.Object], perm.Grantee)
 	}

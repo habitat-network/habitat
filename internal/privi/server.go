@@ -53,6 +53,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	var req habitat.NetworkHabitatRepoPutRecordInput
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -188,6 +189,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	mimeType := r.Header.Get("Content-Type")
 	if mimeType == "" {
 		utils.LogAndHTTPError(
@@ -259,6 +261,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("Content-Length", fmt.Sprint(len(blob)))
 	_, err = w.Write(blob)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -276,6 +279,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	var params habitat.NetworkHabitatRepoListRecordsParams
 	err := formDecoder.Decode(&params, r.URL.Query())
 	if err != nil {

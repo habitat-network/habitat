@@ -88,7 +88,7 @@ default_apps:
         fishtail_ingest_config:
           subscribed_collections:
             - lexicon: app.bsky.feed.like
-            - lexicon: com.habitat.pouch.link
+            - lexicon: network.habitat.pouch.link
 ```
 
 ### Setting up Postman

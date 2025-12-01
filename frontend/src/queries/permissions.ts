@@ -6,7 +6,7 @@ export function listPermissions(authManager: AuthManager) {
     queryKey: ["permissions"],
     queryFn: async () => {
       const response = await authManager?.fetch(
-        `/xrpc/com.habitat.listPermissions`,
+        `/xrpc/network.habitat.listPermissions`,
       );
       const json: Record<string, string[]> = await response?.json();
       return json;
