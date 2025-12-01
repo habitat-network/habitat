@@ -25,7 +25,7 @@ export const Route = createFileRoute(
     const { mutate: add, isPending: isAdding } = useMutation({
       async mutationFn(data: Data) {
         await authManager?.fetch(
-          `/xrpc/com.habitat.addPermission`,
+          `/xrpc/network.habitat.addPermission`,
           "POST",
           JSON.stringify({
             did: data.did,
@@ -44,7 +44,7 @@ export const Route = createFileRoute(
       async mutationFn(data: Data) {
         // remove permission
         await authManager?.fetch(
-          `/xrpc/com.habitat.removePermission`,
+          `/xrpc/network.habitat.removePermission`,
           "POST",
           JSON.stringify({
             did: data.did,
