@@ -13,8 +13,8 @@ import { Route as OauthLoginRouteImport } from './routes/oauth-login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
-import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/forwarding-test'
 import { Route as RequireAuthNotificationsRouteImport } from './routes/_requireAuth/notifications'
+import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/forwarding-test'
 import { Route as RequireAuthPriviTestIndexRouteImport } from './routes/_requireAuth/privi-test/index'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
@@ -44,16 +44,16 @@ const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   path: '/permissions',
   getParentRoute: () => RequireAuthRoute,
 } as any)
-const RequireAuthForwardingTestRoute =
-  RequireAuthForwardingTestRouteImport.update({
-    id: '/forwarding-test',
-    path: '/forwarding-test',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
 const RequireAuthNotificationsRoute =
   RequireAuthNotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
+    getParentRoute: () => RequireAuthRoute,
+  } as any)
+const RequireAuthForwardingTestRoute =
+  RequireAuthForwardingTestRouteImport.update({
+    id: '/forwarding-test',
+    path: '/forwarding-test',
     getParentRoute: () => RequireAuthRoute,
   } as any)
 const RequireAuthPriviTestIndexRoute =
@@ -115,7 +115,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
-  '/server': typeof ServerRoute
   '/notifications': typeof RequireAuthNotificationsRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
@@ -132,7 +131,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
-  '/server': typeof ServerRoute
   '/notifications': typeof RequireAuthNotificationsRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
   '/privi-test/view': typeof RequireAuthPriviTestViewRoute
@@ -149,7 +147,6 @@ export interface FileRoutesById {
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
   '/_requireAuth/forwarding-test': typeof RequireAuthForwardingTestRoute
-  '/server': typeof ServerRoute
   '/_requireAuth/notifications': typeof RequireAuthNotificationsRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
@@ -168,7 +165,6 @@ export interface FileRouteTypes {
     | '/'
     | '/oauth-login'
     | '/forwarding-test'
-    | '/server'
     | '/notifications'
     | '/permissions'
     | '/permissions/lexicons'
@@ -185,7 +181,6 @@ export interface FileRouteTypes {
     | '/'
     | '/oauth-login'
     | '/forwarding-test'
-    | '/server'
     | '/notifications'
     | '/permissions/people'
     | '/privi-test/view'
@@ -201,7 +196,6 @@ export interface FileRouteTypes {
     | '/_requireAuth'
     | '/oauth-login'
     | '/_requireAuth/forwarding-test'
-    | '/server'
     | '/_requireAuth/notifications'
     | '/_requireAuth/permissions'
     | '/_requireAuth/permissions/lexicons'
@@ -251,16 +245,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/forwarding-test': {
-      id: '/_requireAuth/forwarding-test'
-      path: '/forwarding-test'
-      fullPath: '/forwarding-test'
-      preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
     '/_requireAuth/notifications': {
       id: '/_requireAuth/notifications'
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof RequireAuthNotificationsRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/forwarding-test': {
+      id: '/_requireAuth/forwarding-test'
+      path: '/forwarding-test'
+      fullPath: '/forwarding-test'
+      preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/privi-test/': {
