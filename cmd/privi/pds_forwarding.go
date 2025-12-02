@@ -76,6 +76,12 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+	// Copy response headers
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Set(key, value)
+		}
+	}
 	// Set the status code
 	w.WriteHeader(resp.StatusCode)
 	// Copy response body
