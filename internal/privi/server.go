@@ -420,26 +420,3 @@ func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
-func (s *Server) GetRoutes() []api.Route {
-	return []api.Route{
-		api.NewBasicRoute(
-			http.MethodPost,
-			"/xrpc/com.habitat.putRecord",
-			s.PutRecord,
-		),
-		api.NewBasicRoute(
-			http.MethodGet,
-			"/xrpc/com.habitat.getRecord",
-			s.GetRecord,
-		),
-		api.NewBasicRoute(http.MethodPost, "/xrpc/com.habitat.addPermission", s.AddPermission),
-		api.NewBasicRoute(
-			http.MethodPost,
-			"/xrpc/com.habitat.removePermission",
-			s.RemovePermission,
-		),
-		api.NewBasicRoute(http.MethodGet, "/xrpc/com.habitat.listPermissions", s.ListPermissions),
-		api.NewBasicRoute(http.MethodGet, "/xrpc/network.habitat.notification.listNotifications", s.ListNotifications),
-	}
-}
