@@ -26,7 +26,8 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(dummy, repo)
+	inbox := NewInbox(db)
+	p := newStore(dummy, repo, inbox)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -63,7 +64,8 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(dummy, repo)
+	inbox := NewInbox(db)
+	p := newStore(dummy, repo, inbox)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -90,7 +92,8 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(dummy, repo)
+	inbox := NewInbox(db)
+	p := newStore(dummy, repo, inbox)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -117,4 +120,68 @@ func TestListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
+}
+
+func TestListNotifications(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+
+	perms, err := permissions.NewSQLiteStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db)
+	require.NoError(t, err)
+	inbox := NewInbox(db)
+	p := newStore(perms, repo, inbox)
+
+	// Migrate Notification table
+	err = db.AutoMigrate(&Notification{})
+	require.NoError(t, err)
+
+	t.Run("returns empty list when no notifications", func(t *testing.T) {
+		notifications, err := p.listNotifications("did:plc:alice")
+		require.NoError(t, err)
+		require.Empty(t, notifications)
+	})
+
+	t.Run("returns notifications for the requesting user", func(t *testing.T) {
+		// Create notifications for different users
+		db.Create(&Notification{
+			Did:        "did:plc:alice",
+			OriginDid:  "did:plc:bob",
+			Collection: "app.bsky.feed.like",
+			Rkey:       "like1",
+		})
+		db.Create(&Notification{
+			Did:        "did:plc:alice",
+			OriginDid:  "did:plc:carol",
+			Collection: "app.bsky.feed.repost",
+			Rkey:       "repost1",
+		})
+		db.Create(&Notification{
+			Did:        "did:plc:bob",
+			OriginDid:  "did:plc:alice",
+			Collection: "app.bsky.feed.follow",
+			Rkey:       "follow1",
+		})
+
+		// Alice should see her 2 notifications
+		aliceNotifications, err := p.listNotifications("did:plc:alice")
+		require.NoError(t, err)
+		require.Len(t, aliceNotifications, 2)
+		for _, n := range aliceNotifications {
+			require.Equal(t, "did:plc:alice", n.Did)
+		}
+
+		// Bob should see his 1 notification
+		bobNotifications, err := p.listNotifications("did:plc:bob")
+		require.NoError(t, err)
+		require.Len(t, bobNotifications, 1)
+		require.Equal(t, "did:plc:bob", bobNotifications[0].Did)
+		require.Equal(t, "did:plc:alice", bobNotifications[0].OriginDid)
+
+		// Carol has no notifications
+		carolNotifications, err := p.listNotifications("did:plc:carol")
+		require.NoError(t, err)
+		require.Empty(t, carolNotifications)
+	})
 }
