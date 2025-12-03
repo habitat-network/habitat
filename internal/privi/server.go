@@ -89,7 +89,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	err = s.store.putRecord(ownerDID.String(), req.Collection, req.Record, rkey, &v)
+	err = s.store.putRecord(ownerDID.String(), req.Collection, req.Value, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -425,4 +425,21 @@ func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := s.getAuthedUser(w, r)
+	if !ok {
+		return
+	}
+	req := &habitat.NetworkHabitatNotificationCreateNotificationInput{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		return
+	}
+
+	requestUri := fmt.Sprintf("/xrpc/com.atproto.repo.createRecord?collection=%s&repo=%s&rkey=%s", req.Collection, callerDID.String(), req.Rkey)
+
+	s.pdsForwarding.forwardRequest(w, r, requestUri)
 }
