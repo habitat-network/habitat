@@ -9,7 +9,7 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["repo", "collection", "rkey", "record"],
+          "required": ["repo", "collection", "rkey", "value"],
           "nullable": ["swapRecord"],
           "properties": {
             "repo": {
@@ -32,7 +32,7 @@
               "type": "boolean",
               "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
             },
-            "record": {
+            "value": {
               "type": "object",
               "description": "The record to write."
             }
