@@ -3,6 +3,7 @@ package privi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -149,6 +150,10 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	record, err := s.store.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
+		if errors.Is(err, ErrRecordNotFound) {
+			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
+			return
+		}
 		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
 		return
 	}
