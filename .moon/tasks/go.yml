@@ -13,9 +13,7 @@ tasks:
     command: "$workspaceRoot/bin/$project"
     deps:
       - '~:build'
+    local: true
     options:
       envFile:
         - '/dev.env'
-      persistent: true
-      outputStyle: 'stream'
-      runInCI: false
