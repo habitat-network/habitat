@@ -64,7 +64,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	db := setupDB(dbPath)
 	oauthServer := setupOAuthServer(keyFile, domain)
 	pdsForwarding := privi.NewPDSForwarding(oauthServer)
-	priviServer := setupPriviServer(db, oauthServer, pdsForwarding)
+	priviServer := setupPriviServer(db, oauthServer)
 
 	// Setup context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -190,7 +190,7 @@ func setupDB(dbPath string) *gorm.DB {
 	return priviDB
 }
 
-func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer, pdsForwarding *privi.PDSForwarding) *privi.Server {
+func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer) *privi.Server {
 	repo, err := privi.NewSQLiteRepo(db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
@@ -203,7 +203,7 @@ func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer, pdsForw
 
 	inbox := privi.NewInbox(db)
 
-	return privi.NewServer(adapter, repo, inbox, oauthServer, pdsForwarding)
+	return privi.NewServer(adapter, repo, inbox, oauthServer)
 }
 
 func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
