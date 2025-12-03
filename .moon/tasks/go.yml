@@ -1,0 +1,21 @@
+# https://moonrepo.dev/docs/config/tasks
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+# https://moonrepo.dev/docs/config/project#tasks
+tasks:
+  format:
+    command: "gofmt -w ."
+  build:
+    command: "go build -o @out(0)"
+    outputs:
+      - "/bin/$project"
+  run:
+    command: "$workspaceRoot/bin/$project"
+    deps:
+      - '~:build'
+    options:
+      envFile:
+        - '/dev.env'
+      persistent: true
+      outputStyle: 'stream'
+      runInCI: false

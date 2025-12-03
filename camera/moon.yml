@@ -1,0 +1,5 @@
+tasks:
+  build:
+    outputs: []
+    options:
+      mergeOutputs: "replace"

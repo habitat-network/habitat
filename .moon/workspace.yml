@@ -1,0 +1,13 @@
+# https://moonrepo.dev/docs/config/workspace
+$schema: "./cache/schemas/workspace.json"
+
+projects:
+  sources:
+    frontend: "frontend"
+    camera: "camera"
+  globs:
+    - "cmd/*"
+
+vcs:
+  manager: "git"
+  defaultBranch: "master"

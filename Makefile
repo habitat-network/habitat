@@ -89,7 +89,7 @@ PHONY += frontend-types
 # ===================== Privi build rules =====================
 
 privi-dev: 
-	foreman start -f privi.Procfile -e $(DEV_HABITAT_ENV_PATH)
+	moon privi:dev
 
 lexgen:
 	go run cmd/lexgen/main.go
