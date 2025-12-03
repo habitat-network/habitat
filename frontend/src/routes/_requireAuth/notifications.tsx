@@ -27,7 +27,7 @@ export const Route = createFileRoute("/_requireAuth/notifications")({
         params.set("limit", "50");
         
         const response = await authManager.fetch(
-          `https://${__PRIVI_URL__}/xrpc/network.habitat.notification.listNotifications?${params.toString()}`,
+          `https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.notification.listNotifications?${params.toString()}`,
           "GET"
         );
         
