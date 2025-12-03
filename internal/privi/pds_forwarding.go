@@ -1,4 +1,4 @@
-package main
+package privi
 
 import (
 	"fmt"
@@ -12,22 +12,27 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type pdsForwarding struct {
+type PDSForwarding struct {
 	oauthServer *oauthserver.OAuthServer
 	dir         identity.Directory
 }
 
-var _ http.Handler = (*pdsForwarding)(nil)
+var _ http.Handler = (*PDSForwarding)(nil)
 
-func newPDSForwarding(oauthServer *oauthserver.OAuthServer) *pdsForwarding {
-	return &pdsForwarding{
+func NewPDSForwarding(oauthServer *oauthserver.OAuthServer) *PDSForwarding {
+	return &PDSForwarding{
 		oauthServer: oauthServer,
 		dir:         identity.DefaultDirectory(),
 	}
 }
 
 // ServeHTTP implements http.Handler.
-func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *PDSForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	requestUri := r.URL.RequestURI()
+	p.forwardRequest(w, r, requestUri)
+}
+
+func (p *PDSForwarding) forwardRequest(w http.ResponseWriter, r *http.Request, requestUri string) {
 	did, dpopClient, ok := p.oauthServer.Validate(w, r)
 	if !ok {
 		return
@@ -54,7 +59,7 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Create a new request for forwarding
-	targetURL := pdsUrl.URL + r.URL.RequestURI()
+	targetURL := pdsUrl.URL + requestUri
 	// Only pass body for methods that support it
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
