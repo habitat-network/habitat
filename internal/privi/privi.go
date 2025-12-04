@@ -35,11 +35,10 @@ var (
 )
 
 // TODO: take in a carfile/sqlite where user's did is persisted
-func newStore(perms permissions.Store, repo *sqliteRepo, inbox *Inbox) *store {
+func newStore(perms permissions.Store, repo *sqliteRepo) *store {
 	return &store{
 		permissions: perms,
 		repo:        repo,
-		inbox:       inbox,
 	}
 }
 
@@ -96,11 +95,4 @@ func (p *store) listRecords(
 	}
 
 	return p.repo.listRecords(params, allow, deny)
-}
-
-// Notifications API
-// This is a separate API to give the notifications system the freedom to evolve independently of the rest of the system
-
-func (p *store) listNotifications(did string) ([]Notification, error) {
-	return p.inbox.getNotificationsByDid(did)
 }

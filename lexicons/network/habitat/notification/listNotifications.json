@@ -12,18 +12,6 @@
               "type": "string",
               "format": "nsid",
               "description": "The NSID of the record type."
-            },
-            "limit": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 50,
-              "description": "The number of records to return."
-            },
-            "cursor": { "type": "string" },
-            "reverse": {
-              "type": "boolean",
-              "description": "Flag to reverse the order of the returned records."
             }
           }
         },
