@@ -5,9 +5,6 @@ package habitat
 // NetworkHabitatNotificationListNotificationsParams represents the input parameters for network.habitat.notification.listNotifications
 type NetworkHabitatNotificationListNotificationsParams struct {
 	Collection string `json:"collection,omitempty"`
-	Cursor     string `json:"cursor,omitempty"`
-	Limit      int64  `json:"limit,omitempty"`
-	Reverse    bool   `json:"reverse,omitempty"`
 }
 
 // NetworkHabitatNotificationListNotificationsOutput represents the output for network.habitat.notification.listNotifications

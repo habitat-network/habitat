@@ -28,6 +28,7 @@ type Server struct {
 	// TODO: should this really live here?
 	repo        *sqliteRepo
 	oauthServer *oauthserver.OAuthServer
+	inbox       *Inbox
 }
 
 // NewServer returns a privi server.
@@ -38,10 +39,11 @@ func NewServer(
 	oauthServer *oauthserver.OAuthServer,
 ) *Server {
 	server := &Server{
-		store:       newStore(perms, repo, inbox),
+		store:       newStore(perms, repo),
 		dir:         identity.DefaultDirectory(),
 		repo:        repo,
 		oauthServer: oauthServer,
+		inbox:       inbox,
 	}
 	return server
 }
@@ -393,8 +395,7 @@ func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	log.Info().Msgf("Caller %+v", callerDID)
-	notifications, err := s.store.listNotifications(callerDID.String())
+	notifications, err := s.inbox.getNotificationsByDid(callerDID.String())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting notifications", http.StatusInternalServerError)
 		return
