@@ -171,9 +171,18 @@ func setupDB(dbPath string) *gorm.DB {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
 
-	priviDB.AutoMigrate(&privi.Notification{})
-	priviDB.AutoMigrate(&privi.Record{})
-	priviDB.AutoMigrate(&privi.Blob{})
+	err = priviDB.AutoMigrate(&privi.Notification{})
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to migrate privi notification table")
+	}
+	err = priviDB.AutoMigrate(&privi.Record{})
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to migrate privi record table")
+	}
+	err = priviDB.AutoMigrate(&privi.Blob{})
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to migrate privi blob table")
+	}
 
 	return priviDB
 }
