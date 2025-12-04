@@ -36,7 +36,7 @@ func main() {
 		Dir: ".habitat/funnel/" + hostName,
 	}
 
-	ln, err := server.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+	ln, err := server.ListenFunnel("tcp", ":443")
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to listen")
 	}

@@ -36,11 +36,7 @@ export const Route = createFileRoute("/_requireAuth/privi-test/")({
           return;
         }
         const response = await authManager.fetch(
-<<<<<<< HEAD
           "/xrpc/network.habitat.putRecord",
-=======
-          `https://${__PRIVI_URL__}/xrpc/com.habitat.putRecord`,
->>>>>>> ee5e64e (Configure Privi URL with PRIVI_URL env var)
           "POST",
           JSON.stringify({
             collection: data.collection,

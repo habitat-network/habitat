@@ -33,11 +33,10 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 			Destination: &profiles,
 		},
 		&cli.StringFlag{
-			Name:        fDomain,
-			Usage:       "The publicly available domain at which the server can be found",
-			Sources:     getSources(fDomain),
-			DefaultText: "localhost",
-			Required:    true,
+			Name:     fDomain,
+			Required: true,
+			Usage:    "The publicly available domain at which the server can be found",
+			Sources:  getSources(fDomain),
 		},
 		&cli.StringFlag{
 			Name:    fDb,
