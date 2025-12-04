@@ -21,8 +21,6 @@ type store struct {
 	// e           Encrypter
 	permissions permissions.Store
 
-	inbox *Inbox
-
 	// The backing store for the data. Should implement similar methods to public atproto repos
 	repo *sqliteRepo
 }
