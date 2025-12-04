@@ -9,10 +9,10 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["did", "collection", "rkey"],
+          "required": ["repo", "collection", "record"],
           "nullable": ["swapRecord"],
           "properties": {
-            "did": {
+            "repo": {
               "type": "string",
               "format": "did",
               "description": "The handle or DID of the repo (aka, current account)."
@@ -22,11 +22,10 @@
               "format": "nsid",
               "description": "The NSID of the record collection."
             },
-            "rkey": {
-              "type": "string",
-              "format": "record-key",
-              "description": "The Record Key.",
-              "maxLength": 512
+            "record": {
+              "type": "object",
+              "description": "The record to write.",
+              "ref": "#notification"
             }
           }
         }
@@ -43,6 +42,28 @@
               "knownValues": ["valid", "unknown"]
             }
           }
+        }
+      }
+    },
+    "notification": {
+      "type": "object",
+      "required": ["did", "originDid", "collection", "rkey"],
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did",
+          "description": "The handle or DID of the target of the notification."
+        },
+        "collection": {
+          "type": "string",
+          "format": "nsid",
+          "description": "The NSID of the record collection."
+        },
+        "rkey": {
+          "type": "string",
+          "format": "record-key",
+          "description": "The Record Key.",
+          "maxLength": 512
         }
       }
     }
