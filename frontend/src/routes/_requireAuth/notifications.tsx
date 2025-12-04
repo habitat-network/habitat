@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 interface Notification {
@@ -18,47 +17,33 @@ interface ListNotificationsResponse {
 
 export const Route = createFileRoute("/_requireAuth/notifications")({
   async loader({ context }) {
-    const { authManager } = Route.useRouteContext();
-    const { data, isLoading, error } = useQuery<ListNotificationsResponse>({
-      queryKey: ["notifications"],
-      queryFn: async () => {
-        const params = new URLSearchParams();
-        params.set("limit", "50");
-        
-        const response = await authManager.fetch(
-          `https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.notification.listNotifications?${params.toString()}`,
-          "GET"
-        );
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch notifications");
-        }
-        
-        return await response.json();
-      },
-    });
-    return { data, isLoading, error };
+    const params = new URLSearchParams();
+    params.set("limit", "50");
+
+    const response = await context.authManager.fetch(
+      `https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.notification.listNotifications?${params.toString()}`,
+      "GET"
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch notifications");
+    }
+
+    const data: ListNotificationsResponse = await response.json();
+    return { data };
   },
   component() {
-    const { data, isLoading, error } = Route.useLoaderData();
+    const { data } = Route.useLoaderData();
 
     return (
       <article>
         <h1>Notifications</h1>
-        
-        {isLoading && <p>Loading notifications...</p>}
-        
-        {error && (
-          <div style={{ color: "red" }}>
-            Error loading notifications: {error.message}
-          </div>
-        )}
-        
-        {data && data.records.length === 0 && (
+
+        {data.records.length === 0 && (
           <p>No notifications found.</p>
         )}
-        
-        {data && data.records.length > 0 && (
+
+        {data.records.length > 0 && (
           <table>
             <thead>
               <tr>
