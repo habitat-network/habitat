@@ -31,7 +31,7 @@ tasks:
       - '-o'
       - '@out(0)'
     outputs:
-      - '/bin/arm64-linux/habitat'
+      - '/bin/arm64-darwin/habitat'
     options:
       cache: false
     env:
