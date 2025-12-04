@@ -1,5 +1,3 @@
-language: "go"
-
 tasks:
   dev:
     command: 'noop'
