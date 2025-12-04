@@ -17,9 +17,8 @@ interface ListNotificationsResponse {
 }
 
 export const Route = createFileRoute("/_requireAuth/notifications")({
-  component() {
+  async loader({ context }) {
     const { authManager } = Route.useRouteContext();
-
     const { data, isLoading, error } = useQuery<ListNotificationsResponse>({
       queryKey: ["notifications"],
       queryFn: async () => {
@@ -38,6 +37,10 @@ export const Route = createFileRoute("/_requireAuth/notifications")({
         return await response.json();
       },
     });
+    return { data, isLoading, error };
+  },
+  component() {
+    const { data, isLoading, error } = Route.useLoaderData();
 
     return (
       <article>
