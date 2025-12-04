@@ -90,7 +90,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	err = s.store.putRecord(ownerDID.String(), req.Collection, req.Value, rkey, &v)
+	err = s.store.putRecord(ownerDID.String(), req.Collection, req.Record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
