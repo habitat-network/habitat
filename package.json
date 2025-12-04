@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "lint": "oxlint ."
+    "test": "pnpm -r test"
   },
   "devDependencies": {
     "oxlint": "^1.28.0",

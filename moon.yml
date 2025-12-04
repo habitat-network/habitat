@@ -1,0 +1,14 @@
+tasks:
+  format:
+    command: "gofmt -w ."
+    inputs:
+      - '/**/*.go'
+  lint:
+    command: "golangci-lint run"
+    inputs:
+      - '/**/*.go'
+  tidy-deps:
+    command: "go mod tidy"
+    options:
+      cache: false
+      runInCI: false

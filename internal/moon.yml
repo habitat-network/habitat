@@ -1,0 +1,7 @@
+language: go
+tasks:
+  build:
+    command: 'noop'
+    args: []
+    options:
+      merge: 'replace'

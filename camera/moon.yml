@@ -1,4 +1,6 @@
 tasks:
+  lint:
+    command: "pnpm lint"
   build:
     outputs: []
     options:

@@ -6,8 +6,6 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 
 # https://moonrepo.dev/docs/config/project#tasks
 tasks:
-  format:
-    command: "gofmt -w ."
   build:
     command: "go build"
     inputs:
