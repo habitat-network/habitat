@@ -1,6 +1,7 @@
 package privi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -425,21 +426,102 @@ func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	_, ok := s.getAuthedUser(w, r)
 	if !ok {
 		return
 	}
-	req := &habitat.NetworkHabitatNotificationCreateNotificationInput{}
-	err := json.NewDecoder(r.Body).Decode(req)
+	input := habitat.NetworkHabitatNotificationCreateNotificationInput{}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusInternalServerError)
+		return
+	}
+	log.Info().Msgf("body: %s", string(body))
+	err = json.Unmarshal(body, &input)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
-	requestUri := fmt.Sprintf("/xrpc/com.atproto.repo.createRecord?collection=%s&repo=%s&rkey=%s", req.Collection, callerDID.String(), req.Rkey)
+	log.Info().Msgf("input: %+v", input)
 
-	s.pdsForwarding.forwardRequest(w, r, requestUri)
+	body, err = json.Marshal(input)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "marshal json request", http.StatusInternalServerError)
+		return
+	}
+
+	did, dpopClient, ok := s.oauthServer.Validate(w, r)
+	if !ok {
+		return
+	}
+	// Try handling both handles and dids
+	atid, err := syntax.ParseAtIdentifier(did)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "failed to parse at identifier", http.StatusBadRequest)
+		return
+	}
+	id, err := s.dir.Lookup(r.Context(), *atid)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
+		return
+	}
+	pdsUrl, ok := id.Services["atproto_pds"]
+	if !ok {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("identity has no pds url"),
+			"identity has no pds url",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	requestUri := fmt.Sprintf("%s/xrpc/com.atproto.repo.createRecord", pdsUrl.URL)
+
+	log.Info().Msgf("requestUri: %s", requestUri)
+
+	req, err := http.NewRequest(http.MethodPost, requestUri, bytes.NewReader(body))
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "create request", http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := dpopClient.Do(req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "forward request", http.StatusInternalServerError)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "reading response body", http.StatusInternalServerError)
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		utils.LogAndHTTPError(w, fmt.Errorf("failed to create notification: %s: %s", resp.Status, string(respBody)), "create notification", resp.StatusCode)
+		return
+	}
+
+	log.Info().Msgf("response body: %s", string(respBody))
+
+	output := &habitat.NetworkHabitatNotificationCreateNotificationOutput{}
+	if err := json.Unmarshal(respBody, output); err != nil {
+		utils.LogAndHTTPError(w, err, "unmarshalling response", http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
 }
