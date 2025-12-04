@@ -11,3 +11,29 @@ tasks:
       - target: 'funnel:run'
         args: ['5173', 'frontend']
       - target: 'frontend:start'
+
+  build-makefile-linux:
+    command: 'go build'
+    args:
+      - '-o'
+      - '@out(0)'
+    outputs:
+      - '/bin/amd64-linux/habitat'
+    options:
+      cache: false
+    env:
+      GOOS: 'linux'
+      GOARCH: 'amd64'
+
+  build-makefile-darwin:
+    command: 'go build'
+    args:
+      - '-o'
+      - '@out(0)'
+    outputs:
+      - '/bin/arm64-linux/habitat'
+    options:
+      cache: false
+    env:
+      GOOS: 'darwin'
+      GOARCH: 'arm64'

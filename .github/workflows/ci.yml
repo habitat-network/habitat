@@ -28,6 +28,9 @@ jobs:
         with:
           version: 9
 
+      - name: Setup moon
+        uses: moonrepo/setup-toolchain@v0
+
       - name: Get dependencies
         run: |
           go get -v -t -d ./...
