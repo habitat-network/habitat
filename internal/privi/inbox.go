@@ -3,7 +3,6 @@ package privi
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/rs/zerolog/log"
@@ -24,8 +23,6 @@ type Notification struct {
 	OriginDid  string
 	Collection string
 	Rkey       string
-	CreatedAt  time.Time `gorm:"autoCreateTime"`
-	UpdatedAt  time.Time `gorm:"autoUpdateTime"`
 }
 
 // NotificationIngester handles the ingestion of notification events from Jetstream
