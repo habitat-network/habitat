@@ -33,6 +33,7 @@ type authRequestFlash struct {
 	Form           url.Values // Original authorization request form data
 	DpopKey        []byte
 	AuthorizeState *oauthclient.AuthorizeState // AT Protocol authorization state
+	Did            syntax.DID                  // DID of the user
 }
 
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
@@ -156,6 +157,7 @@ func (o *OAuthServer) HandleAuthorize(
 		Form:           requester.GetRequestForm(),
 		AuthorizeState: state,
 		DpopKey:        dpopKeyBytes,
+		Did:            id.DID,
 	})
 	if err := authorizeSession.Save(r, w); err != nil {
 		utils.LogAndHTTPError(w, err, "failed to save session", http.StatusInternalServerError)
@@ -230,7 +232,7 @@ func (o *OAuthServer) HandleCallback(
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
-		newAuthorizeSession(authRequest, arf.DpopKey, tokenInfo),
+		newAuthorizeSession(authRequest, arf.DpopKey, tokenInfo, arf.Did),
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to create response", http.StatusInternalServerError)
