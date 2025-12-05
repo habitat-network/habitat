@@ -22,6 +22,7 @@ tasks:
       - '/**/*.go'
     options:
       affectedFiles: true
+      cache: false
 
   lint:
     command: "golangci-lint run"

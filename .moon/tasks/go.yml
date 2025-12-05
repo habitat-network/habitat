@@ -3,6 +3,16 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 
 # https://moonrepo.dev/docs/config/project#tasks
 tasks:
+
+  format:
+    command: 'noop'
+    deps:
+      - 'root:format'
+
+  format-fix:
+    command: 'noop'
+    deps:
+      - 'root:format-fix'
   build:
     command: "go build"
     args:

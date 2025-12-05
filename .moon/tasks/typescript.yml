@@ -9,6 +9,7 @@ tasks:
     inputs:
       - "/.prettierignore"
       - ".gitignore"
+      - "**/*"
     options:
       internal: true
 
@@ -28,6 +29,7 @@ tasks:
       internal: false
       affectedFiles: true
       runInCI: false
+      cache: false
 
   lint:
     command: "npx oxlint ."
