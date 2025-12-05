@@ -8,21 +8,23 @@ import (
 	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/rs/zerolog/log"
+	"gorm.io/gorm"
 )
 
 // EventHandler is a function that processes Jetstream events
-type EventHandler func(ctx context.Context, event *models.Event) error
+type EventHandler func(ctx context.Context, event *models.Event, db *gorm.DB) error
 
 // simpleScheduler is a basic scheduler that immediately processes events
 type simpleScheduler struct {
 	handler EventHandler
 	ctx     context.Context
+	db      *gorm.DB
 }
 
 func (s *simpleScheduler) AddWork(ctx context.Context, repo string, evt *models.Event) error {
 	// Call the user-provided handler directly
 	if s.handler != nil {
-		return s.handler(s.ctx, evt)
+		return s.handler(s.ctx, evt, s.db)
 	}
 	return nil
 }
@@ -38,6 +40,7 @@ func StartNotificationListener(
 	config *client.ClientConfig,
 	cursor *int64,
 	handler EventHandler,
+	db *gorm.DB,
 ) error {
 	log.Info().
 		Str("url", config.WebsocketURL).
@@ -52,6 +55,7 @@ func StartNotificationListener(
 	scheduler := &simpleScheduler{
 		handler: handler,
 		ctx:     ctx,
+		db:      db,
 	}
 
 	// Create the Jetstream client
