@@ -29,15 +29,12 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 9
+          run_install: true
 
       - name: Setup moon
         uses: moonrepo/setup-toolchain@v0
 
-      - name: Get dependencies
-        run: |
-          go get -v -t -d ./...
-
-      - run: moon ci
+      - run: moon ci --color
 
       - name: check test coverage
         uses: vladopajic/go-test-coverage@v2.8.2
