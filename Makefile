@@ -93,3 +93,7 @@ privi-dev:
 
 lexgen:
 	go run cmd/lexgen/main.go
+
+apps-dev:
+	foreman start -f apps.Procfile
+

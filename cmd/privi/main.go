@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"os"
 
 	jose "github.com/go-jose/go-jose/v3"
@@ -39,12 +38,22 @@ func main() {
 }
 
 func run(_ context.Context, cmd *cli.Command) error {
+	// Parse all CLI arguments and options at the beginning
+	dbPath := cmd.String(fDb)
+	keyFile := cmd.String(fKeyFile)
+	domain := cmd.String(fDomain)
+	port := cmd.String(fPort)
+	httpsCerts := cmd.String(fHttpsCerts)
+
+	// Log the parsed flags
 	log.Info().Msgf("running with flags: ")
 	for _, flag := range cmd.FlagNames() {
 		log.Info().Msgf("%s: %v", flag, cmd.Value(flag))
 	}
-	db := setupDB(cmd)
-	oauthServer := setupOAuthServer(cmd)
+
+	// Setup components
+	db := setupDB(dbPath)
+	oauthServer := setupOAuthServer(keyFile, domain)
 	priviServer := setupPriviServer(db, oauthServer)
 	pdsForwarding := newPDSForwarding(oauthServer)
 
@@ -83,7 +92,6 @@ func run(_ context.Context, cmd *cli.Command) error {
     }
   ]
 }`
-		domain := cmd.String(fDomain)
 		_, err := fmt.Fprintf(w, template, domain, domain)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -93,25 +101,22 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.Handle("/xrpc/", pdsForwarding)
 
-	port := cmd.String(fPort)
 	s := &http.Server{
 		Handler: corsMiddleware(loggingMiddleware(mux)),
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
 	fmt.Println("Starting server on port :" + port)
-	certs := cmd.String(fHttpsCerts)
-	if certs == "" {
+	if httpsCerts == "" {
 		return s.ListenAndServe()
 	}
 	return s.ListenAndServeTLS(
-		fmt.Sprintf("%s%s", certs, "fullchain.pem"),
-		fmt.Sprintf("%s%s", certs, "privkey.pem"),
+		fmt.Sprintf("%s%s", httpsCerts, "fullchain.pem"),
+		fmt.Sprintf("%s%s", httpsCerts, "privkey.pem"),
 	)
 }
 
-func setupDB(cmd *cli.Command) *gorm.DB {
-	dbPath := cmd.String(fDb)
+func setupDB(dbPath string) *gorm.DB {
 	priviDB, err := gorm.Open(sqlite.Open(dbPath))
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
@@ -133,9 +138,7 @@ func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer) *privi.
 	return privi.NewServer(adapter, repo, oauthServer)
 }
 
-func setupOAuthServer(cmd *cli.Command) *oauthserver.OAuthServer {
-	keyFile := cmd.String(fKeyFile)
-
+func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
 	var jwkBytes []byte
 	_, err := os.Stat(keyFile)
 	if err != nil {
@@ -170,7 +173,6 @@ func setupOAuthServer(cmd *cli.Command) *oauthserver.OAuthServer {
 		}
 	}
 
-	domain := cmd.String(fDomain)
 	oauthClient, err := oauthclient.NewOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
@@ -191,12 +193,6 @@ func setupOAuthServer(cmd *cli.Command) *oauthserver.OAuthServer {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		x, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
-			return
-		}
-		fmt.Println("Got a request: ", string(x))
 		next.ServeHTTP(w, r)
 	})
 }
