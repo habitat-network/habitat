@@ -5,13 +5,13 @@ tasks:
   dev:
     command: 'noop'
     deps:
-      - target: 'privi:run'
+      - target: 'privi:start'
         env: 
           HABITAT_PORT: '8000'
           HABITAT_DEBUG: 'true'
-      - target: 'funnel:run'
+      - target: 'funnel:start'
         args: ['8000', 'privi']
-      - target: 'funnel:run'
+      - target: 'funnel:start'
         args: ['5173', 'frontend']
       - target: 'frontend:start'
 
