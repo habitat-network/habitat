@@ -35,16 +35,7 @@ jobs:
         run: |
           go get -v -t -d ./...
 
-      - name: Build
-        run: make build
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: v2.5.0
-
-      - name: Test
-        run: go test ./... -coverprofile=coverage.out -coverpkg=./...
+      - run: moon ci
 
       - name: check test coverage
         uses: vladopajic/go-test-coverage@v2.8.2
