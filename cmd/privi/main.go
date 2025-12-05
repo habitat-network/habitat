@@ -29,7 +29,8 @@ import (
 func main() {
 	flags, mutuallyExclusiveFlags := getFlags()
 	cmd := &cli.Command{
-		Flags:                  flags,
+		Flags: flags,
+
 		MutuallyExclusiveFlags: mutuallyExclusiveFlags,
 		Action:                 run,
 	}

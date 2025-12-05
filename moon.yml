@@ -1,8 +1,16 @@
 tasks:
   format:
-    command: "gofmt -w ."
+    command: "golangci-lint fmt -d"
     inputs:
       - '/**/*.go'
+    options:
+      affectedFiles: true
+  format-fix:
+    command: "golangci-lint fmt"
+    inputs:
+      - '/**/*.go'
+    options:
+      affectedFiles: true
   lint:
     command: "golangci-lint run"
     inputs:

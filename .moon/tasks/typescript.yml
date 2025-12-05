@@ -4,9 +4,17 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 # https://moonrepo.dev/docs/config/project#tasks
 tasks:
   format:
-    command: "npx prettier --ignore-path @in(0) --write ."
+    command: "npx prettier --ignore-path @in(0) --check"
     inputs:
       - "/.prettierignore"
+    options:
+      affectedFiles: true
+  format-fix:
+    command: "npx prettier --ignore-path @in(0) --write"
+    inputs:
+      - "/.prettierignore"
+    options:
+      affectedFiles: true
   lint:
     command: "npx oxlint ."
   build:
