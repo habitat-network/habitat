@@ -1,20 +1,33 @@
 tasks:
+  build:
+    command: "go build"
+    args: 
+      - './...'
+    inputs:
+      - '**/*.go'
+    outputs: []
+    options:
+      merge: 'replace'
+
   format:
     command: "golangci-lint fmt -d"
     inputs:
       - '/**/*.go'
     options:
       affectedFiles: true
+
   format-fix:
     command: "golangci-lint fmt"
     inputs:
       - '/**/*.go'
     options:
       affectedFiles: true
+
   lint:
     command: "golangci-lint run"
     inputs:
       - '/**/*.go'
+
   tidy-deps:
     command: "go mod tidy"
     options:

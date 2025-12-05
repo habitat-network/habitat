@@ -1,15 +1,10 @@
 # https://moonrepo.dev/docs/config/tasks
 $schema: "https://moonrepo.dev/schemas/tasks.json"
 
-# since we can import across modules, we set the inputs as all go files
-# children can list more specific inputs and override to get better caching
-
 # https://moonrepo.dev/docs/config/project#tasks
 tasks:
   build:
     command: "go build"
-    inputs:
-      - '/**/*.go'
     args:
       - '-o'
       - '@out(0)'
@@ -24,7 +19,7 @@ tasks:
     options:
       runInCI: false
       cache: false
-  run:
+  start:
     command: "$workspaceRoot/bin/$project"
     deps:
       - '~:build'

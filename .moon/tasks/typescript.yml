@@ -3,23 +3,39 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 
 # https://moonrepo.dev/docs/config/project#tasks
 tasks:
+
+  format-internal:
+    command: "npx prettier --ignore-path @in(0) --ignore-path @in(1)"
+    inputs:
+      - "/.prettierignore"
+      - ".gitignore"
+    options:
+      internal: true
+
   format:
-    command: "npx prettier --ignore-path @in(0) --check"
-    inputs:
-      - "/.prettierignore"
+    extends: "format-internal"
+    args:
+      - '--check'
     options:
+      internal: false
       affectedFiles: true
+
   format-fix:
-    command: "npx prettier --ignore-path @in(0) --write"
-    inputs:
-      - "/.prettierignore"
+    extends: "format-internal"
+    args:
+      - '--write'
     options:
+      internal: false
       affectedFiles: true
+      runInCI: false
+
   lint:
     command: "npx oxlint ."
+
   build:
     command: "pnpm build"
     outputs:
       - "dist/"
+
   start:
     command: "pnpm start"

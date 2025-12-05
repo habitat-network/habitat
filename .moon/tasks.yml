@@ -1,0 +1,4 @@
+tasks:
+  format-fix:
+    options:
+      runInCI: false

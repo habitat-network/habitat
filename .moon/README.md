@@ -26,7 +26,7 @@ These are tasks that are mostly common to all projects.
 You can run them on all projects at once or specifically on a project.
 
 ```
-moon :build :test :lint :format :run
+moon :build :test :lint :format :start
 ```
 
 ## Cheatsheet
