@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Moon help manage a repository with multiple "projects", each with their own language, dependencies, and "tasks".
+Moon helps manage a repository with multiple "projects" (app/service/tool/library), each with their own language, dependencies, and "tasks" (build/run/test).
 
 Projects are listed in [.moon/workspace.yml](./workspace.yml) and point to their directories.
 
