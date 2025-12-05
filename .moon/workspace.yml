@@ -5,7 +5,6 @@ projects:
   sources:
     frontend: "frontend"
     camera: "camera"
-    internal: "internal"
     root: "."
   globs:
     - "cmd/*"
