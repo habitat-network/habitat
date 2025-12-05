@@ -13,6 +13,8 @@ tasks:
     command: 'noop'
     deps:
       - 'root:format-fix'
+    options:
+      runInCI: false
   build:
     command: "go build"
     args:
