@@ -22,8 +22,8 @@ tasks:
   tidy-deps:
     command: "go mod tidy"
     options:
-      cache: false
       runInCI: false
+      cache: false
   run:
     command: "$workspaceRoot/bin/$project"
     deps:

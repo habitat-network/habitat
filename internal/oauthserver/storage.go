@@ -48,6 +48,11 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch client metadata: status %d", resp.StatusCode)
+	}
+
 	var metadata oauthclient.ClientMetadata
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {

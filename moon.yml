@@ -18,5 +18,6 @@ tasks:
   tidy-deps:
     command: "go mod tidy"
     options:
+      merge: 'replace'
       cache: false
       runInCI: false

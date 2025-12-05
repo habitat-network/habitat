@@ -9,14 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"os"
+	"os/signal"
+	"syscall"
 
 	jose "github.com/go-jose/go-jose/v3"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/permissions"
@@ -24,6 +27,11 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
+)
+
+const (
+	JetstreamURL       = "wss://jetstream2.us-east.bsky.network/subscribe"
+	JetstreamUserAgent = "habitat-jetstream-client/v0.0.1"
 )
 
 func main() {
@@ -40,14 +48,48 @@ func main() {
 }
 
 func run(_ context.Context, cmd *cli.Command) error {
+	// Parse all CLI arguments and options at the beginning
+	dbPath := cmd.String(fDb)
+	keyFile := cmd.String(fKeyFile)
+	domain := cmd.String(fDomain)
+	port := cmd.String(fPort)
+	httpsCerts := cmd.String(fHttpsCerts)
+
+	// Log the parsed flags
 	log.Info().Msgf("running with flags: ")
 	for _, flag := range cmd.FlagNames() {
 		log.Info().Msgf("%s: %v", flag, cmd.Value(flag))
 	}
-	db := setupDB(cmd)
-	oauthServer := setupOAuthServer(cmd)
+
+	// Setup components
+	db := setupDB(dbPath)
+	oauthServer := setupOAuthServer(keyFile, domain)
 	priviServer := setupPriviServer(db, oauthServer)
 	pdsForwarding := newPDSForwarding(oauthServer)
+
+	// Setup context with signal handling for graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Create error group for managing goroutines
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	// Start the notification listener in a separate goroutine
+	eg.Go(func() error {
+		config := &client.ClientConfig{
+			Compress:          true,
+			WebsocketURL:      "wss://jetstream2.us-east.bsky.network/subscribe",
+			WantedDids:        []string{},
+			WantedCollections: []string{"network.habitat.notification"},
+			MaxSize:           0,
+			ExtraHeaders: map[string]string{
+				"User-Agent": "habitat-jetstream-client/v0.0.1",
+			},
+		}
+
+		log.Info().Msg("starting notification listener")
+		return privi.StartNotificationListener(egCtx, config, nil, privi.ProcessNotification)
+	})
 
 	mux := http.NewServeMux()
 
@@ -84,7 +126,6 @@ func run(_ context.Context, cmd *cli.Command) error {
     }
   ]
 }`
-		domain := cmd.String(fDomain)
 		_, err := fmt.Fprintf(w, template, domain, domain)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -94,25 +135,35 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.Handle("/xrpc/", pdsForwarding)
 
-	port := cmd.String(fPort)
 	s := &http.Server{
 		Handler: corsMiddleware(loggingMiddleware(mux)),
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
-	fmt.Println("Starting server on port :" + port)
-	certs := cmd.String(fHttpsCerts)
-	if certs == "" {
-		return s.ListenAndServe()
-	}
-	return s.ListenAndServeTLS(
-		fmt.Sprintf("%s%s", certs, "fullchain.pem"),
-		fmt.Sprintf("%s%s", certs, "privkey.pem"),
-	)
+	// Start the HTTP server in a goroutine
+	eg.Go(func() error {
+		log.Info().Msgf("starting server on port :%s", port)
+		if httpsCerts == "" {
+			return s.ListenAndServe()
+		}
+		return s.ListenAndServeTLS(
+			fmt.Sprintf("%s%s", httpsCerts, "fullchain.pem"),
+			fmt.Sprintf("%s%s", httpsCerts, "privkey.pem"),
+		)
+	})
+
+	// Gracefully shutdown server when context is cancelled
+	eg.Go(func() error {
+		<-egCtx.Done()
+		log.Info().Msg("shutting down server")
+		return s.Shutdown(context.Background())
+	})
+
+	// Wait for all goroutines to finish
+	return eg.Wait()
 }
 
-func setupDB(cmd *cli.Command) *gorm.DB {
-	dbPath := cmd.String(fDb)
+func setupDB(dbPath string) *gorm.DB {
 	priviDB, err := gorm.Open(sqlite.Open(dbPath))
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
@@ -134,9 +185,7 @@ func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer) *privi.
 	return privi.NewServer(adapter, repo, oauthServer)
 }
 
-func setupOAuthServer(cmd *cli.Command) *oauthserver.OAuthServer {
-	keyFile := cmd.String(fKeyFile)
-
+func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
 	var jwkBytes []byte
 	_, err := os.Stat(keyFile)
 	if err != nil {
@@ -171,7 +220,6 @@ func setupOAuthServer(cmd *cli.Command) *oauthserver.OAuthServer {
 		}
 	}
 
-	domain := cmd.String(fDomain)
 	oauthClient, err := oauthclient.NewOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
@@ -192,12 +240,6 @@ func setupOAuthServer(cmd *cli.Command) *oauthserver.OAuthServer {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		x, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
-			return
-		}
-		fmt.Println("Got a request: ", string(x))
 		next.ServeHTTP(w, r)
 	})
 }

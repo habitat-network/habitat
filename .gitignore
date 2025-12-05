@@ -33,3 +33,5 @@ key.jwk
 repo.db
 
 .moon/cache
+
+/privi
