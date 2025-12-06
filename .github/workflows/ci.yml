@@ -29,6 +29,7 @@ jobs:
 
       - name: Setup moon
         uses: moonrepo/setup-toolchain@v0
+
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

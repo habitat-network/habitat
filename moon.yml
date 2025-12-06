@@ -3,14 +3,14 @@ tasks:
   format:
     command: "golangci-lint fmt -d"
     inputs:
-      - '/**/*.go'
+      - "/**/*.go"
     options:
       affectedFiles: true
 
   format-fix:
     command: "golangci-lint fmt"
     inputs:
-      - '/**/*.go'
+      - "/**/*.go"
     options:
       affectedFiles: true
       cache: false
@@ -18,4 +18,4 @@ tasks:
   lint:
     command: "golangci-lint run"
     inputs:
-      - '/**/*.go'
+      - "/**/*.go"

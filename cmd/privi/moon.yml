@@ -1,44 +1,44 @@
 tasks:
   build:
     deps:
-      - 'root:build'
+      - "root:build"
   dev:
-    command: 'noop'
+    command: "noop"
     deps:
-      - target: 'privi:start'
-        env: 
-          HABITAT_PORT: '8000'
-          HABITAT_DEBUG: 'true'
-      - target: 'funnel:start'
-        args: ['8000', 'privi']
-      - target: 'funnel:start'
-        args: ['5173', 'frontend']
-      - target: 'frontend:start'
+      - target: "privi:start"
+        env:
+          HABITAT_PORT: "8000"
+          HABITAT_DEBUG: "true"
+      - target: "funnel:start"
+        args: ["8000", "privi"]
+      - target: "funnel:start"
+        args: ["5173", "frontend"]
+      - target: "frontend:start"
 
   build-makefile-linux:
-    command: 'go build'
+    command: "go build"
     args:
-      - '-o'
-      - '@out(0)'
+      - "-o"
+      - "@out(0)"
     outputs:
-      - '/bin/amd64-linux/habitat'
+      - "/bin/amd64-linux/habitat"
     options:
       cache: false
       runInCI: false
     env:
-      GOOS: 'linux'
-      GOARCH: 'amd64'
+      GOOS: "linux"
+      GOARCH: "amd64"
 
   build-makefile-darwin:
-    command: 'go build'
+    command: "go build"
     args:
-      - '-o'
-      - '@out(0)'
+      - "-o"
+      - "@out(0)"
     outputs:
-      - '/bin/amd64-darwin/habitat'
+      - "/bin/amd64-darwin/habitat"
     options:
       cache: false
       runInCI: false
     env:
-      GOOS: 'darwin'
-      GOARCH: 'arm64'
+      GOOS: "darwin"
+      GOARCH: "arm64"

@@ -3,7 +3,6 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 
 # https://moonrepo.dev/docs/config/project#tasks
 tasks:
-
   format-internal:
     command: "npx prettier --ignore-path @in(0) --ignore-path @in(1)"
     inputs:
@@ -16,7 +15,7 @@ tasks:
   format:
     extends: "format-internal"
     args:
-      - '--check'
+      - "--check"
     options:
       internal: false
       affectedFiles: true
@@ -24,7 +23,7 @@ tasks:
   format-fix:
     extends: "format-internal"
     args:
-      - '--write'
+      - "--write"
     options:
       internal: false
       affectedFiles: true

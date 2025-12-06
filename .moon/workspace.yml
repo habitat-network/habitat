@@ -14,4 +14,4 @@ vcs:
   defaultBranch: "master"
   hooks:
     pre-commit:
-      - 'moon :format --affected --status=staged --no-bail'
+      - "moon :format --affected --status=staged --no-bail"
