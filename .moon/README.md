@@ -59,7 +59,7 @@ moon project [project-name]
 moon p [project-name]
 ```
 
-### Get info about a task like inputs, output, dependencies, and the actual command
+### Get info about a task like inputs, output, dependencies, and the actual command after inheritance resolution
 
 ```
 moon task [project-name]:[task-name]
