@@ -1,14 +1,5 @@
+layer: library
 tasks:
-  build:
-    command: "go build"
-    args: 
-      - './...'
-    inputs:
-      - '**/*.go'
-    outputs: []
-    options:
-      merge: 'replace'
-
   format:
     command: "golangci-lint fmt -d"
     inputs:
@@ -28,10 +19,3 @@ tasks:
     command: "golangci-lint run"
     inputs:
       - '/**/*.go'
-
-  tidy-deps:
-    command: "go mod tidy"
-    options:
-      merge: 'replace'
-      cache: false
-      runInCI: false

@@ -23,9 +23,9 @@ tasks:
     outputs:
       - "/bin/$project"
   test:
+    deps:
+      - '~:build'
     command: "go test ./..."
-    inputs:
-      - '/**/*.go'
   tidy-deps:
     command: "go mod tidy"
     options:
