@@ -1,0 +1,21 @@
+layer: library
+tasks:
+  format:
+    command: "golangci-lint fmt -d"
+    inputs:
+      - "/**/*.go"
+    options:
+      affectedFiles: true
+
+  format-fix:
+    command: "golangci-lint fmt"
+    inputs:
+      - "/**/*.go"
+    options:
+      affectedFiles: true
+      cache: false
+
+  lint:
+    command: "golangci-lint run"
+    inputs:
+      - "/**/*.go"

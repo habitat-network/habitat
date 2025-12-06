@@ -31,4 +31,7 @@ tmp/
 # currently these get added to root directory if you run gmake privi-dev
 key.jwk
 repo.db
+
+.moon/cache
+
 /privi
