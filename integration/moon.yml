@@ -1,0 +1,25 @@
+tasks:
+  didgen:
+    command: "noop"
+    deps:
+      - "didgen:build"
+      - target: "didgen:start"
+        args:
+          - "--pds-url"
+          - "https://pds.example.com"
+          - "--did-host"
+          - "sashankg.github.io"
+          - "--output"
+          - "$workspaceRoot/tmp/did.json"
+    local: true
+    outputs:
+      - "/tmp/did.json"
+    options:
+      runDepsInParallel: false
+  test:
+    args:
+      - "-v"
+    local: true
+    options:
+      envFile:
+        - "/dev.env"
