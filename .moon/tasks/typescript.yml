@@ -40,3 +40,6 @@ tasks:
 
   start:
     command: "pnpm start"
+    options:
+      envFile:
+        - "/dev.env"

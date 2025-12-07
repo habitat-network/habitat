@@ -3,12 +3,10 @@ tasks:
     deps:
       - "root:build"
   dev:
-    command: "noop"
+    env:
+      HABITAT_PORT: "8000"
+      HABITAT_DEBUG: "true"
     deps:
-      - target: "privi:start"
-        env:
-          HABITAT_PORT: "8000"
-          HABITAT_DEBUG: "true"
       - target: "funnel:start"
         args: ["8000", "privi"]
       - target: "funnel:start"

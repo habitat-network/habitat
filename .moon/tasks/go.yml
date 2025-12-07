@@ -38,3 +38,8 @@ tasks:
     options:
       envFile:
         - "/dev.env"
+  dev: 
+    command: "air"
+    options:
+      envFile:
+        - "/dev.env"
