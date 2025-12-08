@@ -22,8 +22,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/tebeka/selenium"
 	"golang.org/x/net/publicsuffix"
 )
@@ -67,7 +65,11 @@ func loadDIDKeyPairFromEnv() (*didKeyPair, error) {
 }
 
 // createAccountJWT creates a JWT signed by the DID's private key for account creation
-func createAccountJWT(privateKey *atcrypto.PrivateKeyK256, did string, pdsDID string) (string, error) {
+func createAccountJWT(
+	privateKey *atcrypto.PrivateKeyK256,
+	did string,
+	pdsDID string,
+) (string, error) {
 	// The auth package init() function registers ES256K and ES256 signing methods
 	// with the jwt library, so we can use them directly
 
@@ -106,10 +108,10 @@ func TestPriviOAuthFlow(t *testing.T) {
 
 	t.Logf("Privi URL: %s", env.PriviURL)
 	t.Logf("PDS URL (host): %s", env.PDSURL)
-	t.Logf("PDS URL (Docker network): http://pds.example.com:3000")
+	t.Logf("PDS URL (Docker network): https://pds.example.com")
 
 	// Load DID keypair from environment
-	// NOTE: The DID document at sashankg.github.io must have serviceEndpoint: "http://pds.example.com:3000"
+	// NOTE: The DID document at sashankg.github.io must have serviceEndpoint: "https://pds.example.com"
 	// for Privi (running in Docker) to reach the PDS container via Docker networking
 	keyPair, err := loadDIDKeyPairFromEnv()
 	require.NoError(t, err, "INTEGRATION_DID_PRIVKEY environment variable must be set")
@@ -157,15 +159,16 @@ func TestPriviOAuthFlow(t *testing.T) {
 		"handle":                {integrationDID},
 	}
 
-	authorizeURL := fmt.Sprintf("%s/oauth/authorize?%s", env.PriviURL, authParams.Encode())
-	t.Logf("Starting OAuth flow with: %s", authorizeURL)
-
-	// Create the browser-accessible URL (using Docker network alias)
-	browserAuthorizeURL := fmt.Sprintf("https://privi.local:8443/oauth/authorize?%s", authParams.Encode())
-	t.Logf("Browser will navigate to: %s", browserAuthorizeURL)
+	t.Logf("Starting OAuth flow")
 
 	// Step 4: Use Selenium to perform the OAuth login flow through a browser
-	authCode, redirectURL := performOAuthLoginWithBrowser(t, ctx, env.TestNetwork, browserAuthorizeURL, integrationDID, testPassword)
+	authCode, redirectURL := performOAuthLoginWithBrowser(
+		t,
+		env,
+		authParams,
+		integrationDID,
+		testPassword,
+	)
 	t.Logf("OAuth flow completed. Auth code: %s", authCode[:10]+"...")
 	t.Logf("Redirect URL: %s", redirectURL)
 
@@ -178,80 +181,6 @@ func TestPriviOAuthFlow(t *testing.T) {
 	assert.NotEmpty(t, tokenResp["refresh_token"], "Expected refresh token")
 	assert.Equal(t, "Bearer", tokenResp["token_type"], "Expected Bearer token type")
 }
-
-// func TestPriviClientMetadata(t *testing.T) {
-// 	if testing.Short() {
-// 		t.Skip("skipping integration test")
-// 	}
-//
-// 	ctx := context.Background()
-// 	env, err := NewTestEnvironment(ctx)
-// 	require.NoError(t, err)
-// 	defer env.Cleanup()
-//
-// 	client := &http.Client{
-// 		Transport: &http.Transport{
-// 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-// 		},
-// 	}
-//
-// 	// Test that the client metadata endpoint is accessible
-// 	resp, err := client.Get(env.PriviURL + "/client-metadata.json")
-// 	require.NoError(t, err)
-// 	defer resp.Body.Close()
-//
-// 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-// 	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-//
-// 	var metadata map[string]interface{}
-// 	err = json.NewDecoder(resp.Body).Decode(&metadata)
-// 	require.NoError(t, err)
-//
-// 	// Verify essential OAuth client metadata fields
-// 	assert.NotEmpty(t, metadata["client_id"])
-// 	assert.NotEmpty(t, metadata["client_name"])
-// 	assert.NotEmpty(t, metadata["redirect_uris"])
-// 	assert.Equal(t, "web", metadata["application_type"])
-// 	assert.Contains(t, metadata["grant_types"], "authorization_code")
-// 	assert.Contains(t, metadata["grant_types"], "refresh_token")
-//
-// 	t.Logf("Client metadata: %+v", metadata)
-// }
-
-// func TestPriviDIDDocument(t *testing.T) {
-// 	if testing.Short() {
-// 		t.Skip("skipping integration test")
-// 	}
-//
-// 	ctx := context.Background()
-// 	env, err := NewTestEnvironment(ctx)
-// 	require.NoError(t, err)
-// 	defer env.Cleanup()
-//
-// 	client := &http.Client{
-// 		Transport: &http.Transport{
-// 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-// 		},
-// 	}
-//
-// 	// Test the DID document endpoint
-// 	resp, err := client.Get(env.PriviURL + "/.well-known/did.json")
-// 	require.NoError(t, err)
-// 	defer resp.Body.Close()
-//
-// 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-//
-// 	var didDoc map[string]interface{}
-// 	err = json.NewDecoder(resp.Body).Decode(&didDoc)
-// 	require.NoError(t, err)
-//
-// 	// Verify DID document structure
-// 	assert.Contains(t, didDoc["id"], "did:web:")
-// 	assert.NotEmpty(t, didDoc["@context"])
-// 	assert.NotEmpty(t, didDoc["service"])
-//
-// 	t.Logf("DID document: %+v", didDoc)
-// }
 
 // startOAuthClientServer starts a test HTTP server that serves OAuth client metadata
 func startOAuthClientServer(t *testing.T) (*httptest.Server, string, string) {
@@ -286,7 +215,11 @@ func startOAuthClientServer(t *testing.T) (*httptest.Server, string, string) {
 		t.Logf("Received OAuth callback: code=%s, state=%s", authCodeReceived[:10]+"...", state)
 
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `<html><body><h1>Authorization Successful!</h1><p>Code: %s</p></body></html>`, authCodeReceived[:10]+"...")
+		fmt.Fprintf(
+			w,
+			`<html><body><h1>Authorization Successful!</h1><p>Code: %s</p></body></html>`,
+			authCodeReceived[:10]+"...",
+		)
 	})
 
 	server := httptest.NewServer(mux)
@@ -307,96 +240,71 @@ func startOAuthClientServer(t *testing.T) (*httptest.Server, string, string) {
 	return server, metadataURL, callbackURL
 }
 
-// performOAuthLoginWithBrowser uses Selenium in a Docker container to automate the OAuth login flow
-func performOAuthLoginWithBrowser(t *testing.T, ctx context.Context, testNetwork *testcontainers.DockerNetwork, authorizeURL, did, password string) (authCode string, redirectURL string) {
+// performOAuthLoginWithBrowser uses Selenium to automate the OAuth login flow
+func performOAuthLoginWithBrowser(
+	t *testing.T,
+	env *TestEnvironment,
+	authParams neturl.Values,
+	did, password string,
+) (authCode string, redirectURL string) {
 	t.Helper()
 
-	// Start Selenium Chrome container on the same network as PDS and Privi
-	// Use seleniarm for ARM64 support (Apple Silicon)
-	req := testcontainers.ContainerRequest{
-		Image:        "seleniarm/standalone-chromium:latest",
-		ExposedPorts: []string{"4444/tcp"},
-		Networks:     []string{testNetwork.Name},
-		WaitingFor:   wait.ForListeningPort("4444/tcp"),
-	}
-
-	seleniumContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err)
-	defer func() {
-		if err := seleniumContainer.Terminate(ctx); err != nil {
-			t.Logf("Failed to terminate Selenium container: %v", err)
-		}
-	}()
-
-	// Get the Selenium WebDriver URL
-	seleniumHost, err := seleniumContainer.Host(ctx)
-	require.NoError(t, err)
-	seleniumPort, err := seleniumContainer.MappedPort(ctx, "4444")
-	require.NoError(t, err)
-	seleniumURL := fmt.Sprintf("http://%s:%s/wd/hub", seleniumHost, seleniumPort.Port())
-
-	t.Logf("Selenium WebDriver URL: %s", seleniumURL)
-
-	// Connect to the Selenium WebDriver
+	// Connect to the Selenium container
 	caps := selenium.Capabilities{
 		"browserName": "chrome",
 		"goog:chromeOptions": map[string]interface{}{
 			"args": []string{
-				"--no-sandbox",
-				"--disable-dev-shm-usage",
-				"--ignore-certificate-errors", // Ignore self-signed certificate errors
+				"--ignore-certificate-errors",
+				"--disable-web-security",
 			},
 		},
+		"acceptInsecureCerts": true,
 	}
 
-	wd, err := selenium.NewRemote(caps, seleniumURL)
-	require.NoError(t, err)
+	wd, err := selenium.NewRemote(caps, env.SeleniumURL)
+	require.NoError(t, err, "Failed to connect to Selenium")
 	defer wd.Quit()
 
-	// Navigate to the OAuth authorization URL
+	// Build the authorize URL using Docker network address for Privi
+	authorizeURL := fmt.Sprintf(
+		"https://privi.habitat/oauth/authorize?%s",
+		authParams.Encode(),
+	)
 	t.Logf("Navigating to: %s", authorizeURL)
-	err = wd.Get(authorizeURL)
-	require.NoError(t, err)
 
-	// Wait for the redirect to PDS and the form to be ready
-	// Try multiple times with increasing waits to account for redirects
-	var identifierInput selenium.WebElement
-	maxAttempts := 10
-	for i := 0; i < maxAttempts; i++ {
-		currentURL, _ := wd.CurrentURL()
-		t.Logf("Attempt %d: Current URL: %s", i+1, currentURL)
-		
-		// Try to find the identifier input
-		identifierInput, err = wd.FindElement(selenium.ByName, "identifier")
-		if err == nil {
-			break
-		}
-		
-		// Log the page source for debugging
-		if i == maxAttempts-1 {
-			pageSource, _ := wd.PageSource()
-			t.Logf("Page source:\n%s", pageSource[:min(len(pageSource), 1000)])
-		}
-		
-		time.Sleep(time.Second)
-	}
-	require.NoError(t, err, "Failed to find identifier input after %d attempts", maxAttempts)
-	err = identifierInput.SendKeys(did)
+	err = wd.Get(authorizeURL)
+	require.NoError(t, err, "Failed to navigate to authorize URL")
+
+	// Wait a bit for the page to load
+	time.Sleep(2 * time.Second)
+
+	// Get current URL after redirect
+	currentURL, err := wd.CurrentURL()
 	require.NoError(t, err)
+	t.Logf("Current URL after redirect: %s", currentURL)
+
+	// Get page source to debug
+	pageSource, err := wd.PageSource()
+	require.NoError(t, err)
+	t.Logf("Page source:\n%s", pageSource)
+
+	// Fill in the PDS login form
+	// Look for identifier and password fields
+	identifierInput, err := wd.FindElement(selenium.ByName, "identifier")
+	require.NoError(t, err, "Failed to find identifier input")
+	err = identifierInput.SendKeys(did)
+	require.NoError(t, err, "Failed to enter identifier")
 
 	passwordInput, err := wd.FindElement(selenium.ByName, "password")
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to find password input")
 	err = passwordInput.SendKeys(password)
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to enter password")
 
 	// Submit the form
 	submitButton, err := wd.FindElement(selenium.ByCSSSelector, `button[type="submit"]`)
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to find submit button")
 	err = submitButton.Click()
-	require.NoError(t, err)
+	require.NoError(t, err, "Failed to click submit button")
 
 	// Wait for redirect back to the callback URL
 	time.Sleep(2 * time.Second)
@@ -417,7 +325,12 @@ func performOAuthLoginWithBrowser(t *testing.T, ctx context.Context, testNetwork
 }
 
 // exchangeAuthCodeForTokens exchanges the authorization code for access and refresh tokens
-func exchangeAuthCodeForTokens(t *testing.T, client *http.Client, priviURL, code string, originalParams neturl.Values) map[string]interface{} {
+func exchangeAuthCodeForTokens(
+	t *testing.T,
+	client *http.Client,
+	priviURL, code string,
+	originalParams neturl.Values,
+) map[string]interface{} {
 	t.Helper()
 
 	tokenRequest := neturl.Values{
@@ -442,10 +355,16 @@ func exchangeAuthCodeForTokens(t *testing.T, client *http.Client, priviURL, code
 }
 
 // createPDSAccount creates a test account on the PDS and returns the DID
-func createPDSAccount(t *testing.T, client *http.Client, pdsURL, handle, password string, keyPair *didKeyPair, env *TestEnvironment) string {
+func createPDSAccount(
+	t *testing.T,
+	client *http.Client,
+	pdsURL, handle, password string,
+	keyPair *didKeyPair,
+	env *TestEnvironment,
+) string {
 	t.Helper()
 
-	// For testing, the PDS DID is typically did:web:pds.example.com (based on PDS_HOSTNAME)
+	// For testing, the PDS DID is standard did:web (HTTPS on port 443 via nginx proxy)
 	pdsDID := "did:web:pds.example.com"
 
 	// Create a signed JWT to prove we control the DID
@@ -466,7 +385,11 @@ func createPDSAccount(t *testing.T, client *http.Client, pdsURL, handle, passwor
 	require.NoError(t, err)
 
 	// Create the request with Authorization header
-	req, err := http.NewRequest("POST", pdsURL+"/xrpc/com.atproto.server.createAccount", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest(
+		"POST",
+		pdsURL+"/xrpc/com.atproto.server.createAccount",
+		bytes.NewBuffer(reqBody),
+	)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+authJWT)
