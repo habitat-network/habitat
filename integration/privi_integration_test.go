@@ -20,6 +20,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"github.com/tebeka/selenium"
+	"github.com/testcontainers/testcontainers-go/network"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -100,26 +101,36 @@ func TestPriviOAuthFlow(t *testing.T) {
 
 	ctx := context.Background()
 
-	env := NewTestEnvironment(ctx, t, func(networkName, certDir string) []NamedContainerRequest {
-		return StandardIntegrationRequests(t, networkName, certDir)
+	certDir := t.TempDir()
+	generateSelfSignedCert(t, certDir)
+
+	testNetwork, err := network.New(ctx, network.WithDriver("bridge"))
+
+	require.NoError(t, err, "failed to create network")
+	t.Cleanup(func() {
+		if err := testNetwork.Remove(ctx); err != nil {
+			t.Logf("Failed to remove network: %v", err)
+		}
 	})
 
+	env := NewTestEnvironment(ctx, t, StandardIntegrationRequests(t, testNetwork.Name, certDir))
+
 	// Extract URLs from named containers
-	pdsProxyHost, err := env.Containers["pds-proxy"].Host(ctx)
+	pdsProxyHost, err := env.Get("pds-proxy").Host(ctx)
 	require.NoError(t, err)
-	pdsProxyPort, err := env.Containers["pds-proxy"].MappedPort(ctx, "443")
+	pdsProxyPort, err := env.Get("pds-proxy").MappedPort(ctx, "443")
 	require.NoError(t, err)
 	pdsURL := fmt.Sprintf("https://%s:%s", pdsProxyHost, pdsProxyPort.Port())
 
-	priviHost, err := env.Containers["privi"].Host(ctx)
+	priviHost, err := env.Get("privi").Host(ctx)
 	require.NoError(t, err)
-	priviPort, err := env.Containers["privi"].MappedPort(ctx, "443")
+	priviPort, err := env.Get("privi").MappedPort(ctx, "443")
 	require.NoError(t, err)
 	priviURL := fmt.Sprintf("https://%s:%s", priviHost, priviPort.Port())
 
-	seleniumHost, err := env.Containers["selenium"].Host(ctx)
+	seleniumHost, err := env.Get("selenium").Host(ctx)
 	require.NoError(t, err)
-	seleniumPort, err := env.Containers["selenium"].MappedPort(ctx, "4444")
+	seleniumPort, err := env.Get("selenium").MappedPort(ctx, "4444")
 	require.NoError(t, err)
 	seleniumURL := fmt.Sprintf("http://%s:%s/wd/hub", seleniumHost, seleniumPort.Port())
 
@@ -156,13 +167,13 @@ func TestPriviOAuthFlow(t *testing.T) {
 	// Use simple alphanumeric handle without hyphens (invalid for atproto handles)
 	testHandle := "testuser.pds.example.com"
 	testPassword := "test-password-123"
-	testDID := createPDSAccount(t, client, pdsURL, testHandle, testPassword, keyPair, env)
+	testDID := createPDSAccount(t, client, pdsURL, testHandle, testPassword, keyPair)
 	t.Logf("Created test user with DID: %s", testDID)
 
 	// Step 2: Get frontend container URL (using Docker network alias)
-	frontendHost, err := env.Containers["frontend"].Host(ctx)
+	frontendHost, err := env.Get("frontend").Host(ctx)
 	require.NoError(t, err)
-	frontendPort, err := env.Containers["frontend"].MappedPort(ctx, "443")
+	frontendPort, err := env.Get("frontend").MappedPort(ctx, "443")
 	require.NoError(t, err)
 	frontendURL := fmt.Sprintf("https://%s:%s", frontendHost, frontendPort.Port())
 
@@ -312,7 +323,6 @@ func createPDSAccount(
 	client *http.Client,
 	pdsURL, handle, password string,
 	keyPair *didKeyPair,
-	env *TestEnvironment,
 ) string {
 	t.Helper()
 
@@ -355,13 +365,14 @@ func createPDSAccount(
 
 	// Check if account creation was successful
 	if resp.StatusCode != http.StatusOK {
-		t.Logf("Failed to create account. Status: %d, Body: %s", resp.StatusCode, string(body))
-
-		// Get PDS logs to see what went wrong
-		env.LogContainerLogs("pds")
-
-		t.Fatalf("Account creation failed - cannot continue test")
-		return ""
+		require.Equal(
+			t,
+			http.StatusOK,
+			resp.StatusCode,
+			"Expected status code 200, got %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
 
 	var result map[string]interface{}
