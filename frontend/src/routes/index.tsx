@@ -44,6 +44,13 @@ export const Route = createFileRoute("/")({
         icon: "🦋",
         link: "/forwarding-test",
       },
+      {
+        id: "notifications",
+        name: "Notifications",
+        description: "View your notifications",
+        icon: "🔔",
+        link: "/notifications",
+      },
     ];
   },
   component: Wrapper,
