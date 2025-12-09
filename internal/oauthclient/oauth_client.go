@@ -155,11 +155,11 @@ func (o *oauthClientImpl) Authorize(
 }
 
 type TokenResponse struct {
-	AccessToken  string `json:"access_token" cbor:"1,keyasint"`
+	AccessToken  string `json:"access_token"  cbor:"1,keyasint"`
 	RefreshToken string `json:"refresh_token" cbor:"2,keyasint"`
-	Scope        string `json:"scope" cbor:"3,keyasint"`
-	TokenType    string `json:"token_type" cbor:"4,keyasint"`
-	ExpiresIn    int    `json:"expires_in" cbor:"5,keyasint"`
+	Scope        string `json:"scope"         cbor:"3,keyasint"`
+	TokenType    string `json:"token_type"    cbor:"4,keyasint"`
+	ExpiresIn    int    `json:"expires_in"    cbor:"5,keyasint"`
 }
 
 // ExchangeCode implements OAuthClient.
@@ -410,7 +410,7 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 		"scope":                 {"atproto transition:generic"},
 		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
 		"client_assertion":      {clientAssertion},
-		"login_hint":            {id.Handle.String()},
+		"login_hint":            {id.DID.String()},
 	}
 
 	req, err := http.NewRequest(

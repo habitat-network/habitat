@@ -166,7 +166,6 @@ func TestPriviOAuthFlow(t *testing.T) {
 		t,
 		env,
 		authParams,
-		integrationDID,
 		testPassword,
 	)
 	t.Logf("OAuth flow completed. Auth code: %s", authCode[:10]+"...")
@@ -245,7 +244,7 @@ func performOAuthLoginWithBrowser(
 	t *testing.T,
 	env *TestEnvironment,
 	authParams neturl.Values,
-	did, password string,
+	password string,
 ) (authCode string, redirectURL string) {
 	t.Helper()
 
@@ -288,13 +287,6 @@ func performOAuthLoginWithBrowser(
 	require.NoError(t, err)
 	t.Logf("Page source:\n%s", pageSource)
 
-	// Fill in the PDS login form
-	// Look for identifier and password fields
-	identifierInput, err := wd.FindElement(selenium.ByName, "identifier")
-	require.NoError(t, err, "Failed to find identifier input")
-	err = identifierInput.SendKeys(did)
-	require.NoError(t, err, "Failed to enter identifier")
-
 	passwordInput, err := wd.FindElement(selenium.ByName, "password")
 	require.NoError(t, err, "Failed to find password input")
 	err = passwordInput.SendKeys(password)
@@ -306,7 +298,25 @@ func performOAuthLoginWithBrowser(
 	err = submitButton.Click()
 	require.NoError(t, err, "Failed to click submit button")
 
-	// Wait for redirect back to the callback URL
+	// Wait for the page to process
+	time.Sleep(2 * time.Second)
+
+	// Check URL and page source after password submission
+	urlAfterPassword, err := wd.CurrentURL()
+	require.NoError(t, err)
+	t.Logf("URL after password submission: %s", urlAfterPassword)
+
+	pageAfterPassword, err := wd.PageSource()
+	require.NoError(t, err)
+	t.Logf("Page source after password submission:\n%s", pageAfterPassword)
+
+	// Submit the consent screen
+	submitButton, err = wd.FindElement(selenium.ByCSSSelector, `button[type="submit"]`)
+	require.NoError(t, err, "Failed to find submit button")
+	err = submitButton.Click()
+	require.NoError(t, err, "Failed to click submit button")
+
+	// Wait a bit more for any redirect
 	time.Sleep(2 * time.Second)
 
 	// The final URL should be the redirect_uri with code parameter
