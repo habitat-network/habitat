@@ -17,10 +17,8 @@ func TestNotificationIngester(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	err = db.AutoMigrate(&Notification{})
+	ingester, err := NewNotificationIngester(db)
 	require.NoError(t, err)
-
-	ingester := NewNotificationIngester(db)
 
 	t.Run("ignores non-commit events", func(t *testing.T) {
 		event := &models.Event{
