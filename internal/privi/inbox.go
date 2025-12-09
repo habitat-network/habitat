@@ -113,3 +113,26 @@ func (n *NotificationIngester) createNotification(did string, originDid string, 
 		},
 	)
 }
+
+type Inbox struct {
+	db *gorm.DB
+}
+
+func NewInbox(db *gorm.DB) *Inbox {
+	return &Inbox{
+		db: db,
+	}
+}
+
+func (i *Inbox) getNotificationsByDid(did string) ([]Notification, error) {
+	query := gorm.G[Notification](i.db).
+		Where("did = ?", did).
+		Order("created_at DESC")
+
+	rows, err := query.Find(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}

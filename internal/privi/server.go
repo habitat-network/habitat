@@ -28,12 +28,14 @@ type Server struct {
 	// TODO: should this really live here?
 	repo        *sqliteRepo
 	oauthServer *oauthserver.OAuthServer
+	inbox       *Inbox
 }
 
 // NewServer returns a privi server.
 func NewServer(
 	perms permissions.Store,
 	repo *sqliteRepo,
+	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 ) *Server {
 	server := &Server{
@@ -41,6 +43,7 @@ func NewServer(
 		dir:         identity.DefaultDirectory(),
 		repo:        repo,
 		oauthServer: oauthServer,
+		inbox:       inbox,
 	}
 	return server
 }
@@ -383,6 +386,38 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	err = s.store.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := s.getAuthedUser(w, r)
+	if !ok {
+		return
+	}
+	notifications, err := s.inbox.getNotificationsByDid(callerDID.String())
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting notifications", http.StatusInternalServerError)
+		return
+	}
+
+	resp := habitat.NetworkHabitatNotificationListNotificationsOutput{
+		Records: []habitat.NetworkHabitatNotificationListNotificationsRecord{},
+	}
+	// TODO: properly fill in the CID
+	for _, notification := range notifications {
+		resp.Records = append(resp.Records, habitat.NetworkHabitatNotificationListNotificationsRecord{
+			Uri: fmt.Sprintf("habitat://%s/%s/%s", notification.OriginDid, notification.Collection, notification.Rkey),
+			Value: habitat.NetworkHabitatNotificationListNotificationsNotification{
+				OriginDid:  notification.OriginDid,
+				Collection: notification.Collection,
+				Rkey:       notification.Rkey,
+			},
+		})
+	}
+	err = json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
 }

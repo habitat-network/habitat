@@ -111,9 +111,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", priviServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.getBlob", priviServer.GetBlob)
+
 	mux.HandleFunc("/xrpc/network.habitat.listPermissions", priviServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", priviServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", priviServer.RemovePermission)
+
+	mux.HandleFunc("/xrpc/network.habitat.notification.listNotifications", priviServer.ListNotifications)
 
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
 		template := `{
@@ -186,7 +189,10 @@ func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer) *privi.
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
-	return privi.NewServer(adapter, repo, oauthServer)
+
+	inbox := privi.NewInbox(db)
+
+	return privi.NewServer(adapter, repo, inbox, oauthServer)
 }
 
 func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {

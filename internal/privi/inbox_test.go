@@ -70,5 +70,59 @@ func TestNotificationIngester(t *testing.T) {
 		require.Equal(t, "app.bsky.feed.like", n.Collection)
 		require.Equal(t, "abc123", n.Rkey)
 	})
+}
 
+func TestInbox(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	err = db.AutoMigrate(&Notification{})
+	require.NoError(t, err)
+
+	inbox := NewInbox(db)
+
+	t.Run("returns empty list when no notifications exist", func(t *testing.T) {
+		notifications, err := inbox.getNotificationsByDid("did:plc:nonexistent")
+		require.NoError(t, err)
+		require.Empty(t, notifications)
+	})
+
+	t.Run("returns notifications for specific did", func(t *testing.T) {
+		// Create notifications for different DIDs
+		db.Create(&Notification{
+			Did:        "did:plc:alice",
+			OriginDid:  "did:plc:bob",
+			Collection: "app.bsky.feed.like",
+			Rkey:       "like1",
+		})
+		db.Create(&Notification{
+			Did:        "did:plc:alice",
+			OriginDid:  "did:plc:carol",
+			Collection: "app.bsky.feed.repost",
+			Rkey:       "repost1",
+		})
+		db.Create(&Notification{
+			Did:        "did:plc:bob",
+			OriginDid:  "did:plc:alice",
+			Collection: "app.bsky.feed.like",
+			Rkey:       "like2",
+		})
+
+		// Get notifications for alice
+		aliceNotifications, err := inbox.getNotificationsByDid("did:plc:alice")
+		require.NoError(t, err)
+		require.Len(t, aliceNotifications, 2)
+
+		// Verify both notifications belong to alice
+		for _, n := range aliceNotifications {
+			require.Equal(t, "did:plc:alice", n.Did)
+		}
+
+		// Get notifications for bob
+		bobNotifications, err := inbox.getNotificationsByDid("did:plc:bob")
+		require.NoError(t, err)
+		require.Len(t, bobNotifications, 1)
+		require.Equal(t, "did:plc:bob", bobNotifications[0].Did)
+		require.Equal(t, "did:plc:alice", bobNotifications[0].OriginDid)
+	})
 }
