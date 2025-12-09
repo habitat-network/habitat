@@ -1,0 +1,8 @@
+tasks:
+  docker-build:
+    command: "docker build -f @in(0) -t $project ."
+    inputs:
+      - "Dockerfile"
+    options:
+      internal: true
+      runFromWorkspaceRoot: true

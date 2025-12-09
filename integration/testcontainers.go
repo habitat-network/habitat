@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/mdelapenya/tlscert"
+	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -29,272 +29,243 @@ func init() {
 	}
 }
 
-// TestEnvironment holds all the containers and configuration for integration tests
+// TestEnvironment holds the containers and shared resources for integration tests
 type TestEnvironment struct {
-	PriviContainer    testcontainers.Container
-	PDSContainer      testcontainers.Container
-	PDSProxyContainer testcontainers.Container
-	SeleniumContainer testcontainers.Container
-	PriviURL          string
-	PDSURL            string
-	SeleniumURL       string
-	CertDir           string
-	network           *testcontainers.DockerNetwork
-	ctx               context.Context
+	Containers map[string]testcontainers.Container
+	CertDir    string
+	Network    *testcontainers.DockerNetwork
+	ctx        context.Context
+	t          *testing.T
 }
 
-// NewTestEnvironment creates a new test environment with all required containers
-func NewTestEnvironment(ctx context.Context, t *testing.T) (*TestEnvironment, error) {
-	env := &TestEnvironment{
-		ctx: ctx,
-	}
+// NamedContainerRequest pairs a container request with a name for identification
+type NamedContainerRequest struct {
+	Name    string
+	Request testcontainers.GenericContainerRequest
+}
+
+// ContainerRequestsFunc is a function that builds container requests given network name and cert directory
+type ContainerRequestsFunc func(networkName, certDir string) []NamedContainerRequest
+
+// NewTestEnvironment creates a new test environment with container requests built from the provided function
+// All containers will share the same network and certificate directory
+func NewTestEnvironment(
+	ctx context.Context,
+	t *testing.T,
+	buildRequests ContainerRequestsFunc,
+) *TestEnvironment {
+	t.Helper()
 
 	// Use testing.TempDir() for automatic cleanup
-	// Since we're passing cert contents as env vars, Docker doesn't need to mount this
 	certDir := t.TempDir()
-	env.CertDir = certDir
 
 	// Generate self-signed certificates
-	if err := generateSelfSignedCert(certDir); err != nil {
-		return nil, fmt.Errorf("failed to generate certificates: %w", err)
-	}
+	generateSelfSignedCert(t, certDir)
 
 	// Create a shared Docker network for container-to-container communication
 	testNetwork, err := network.New(ctx,
 		network.WithCheckDuplicate(),
 		network.WithDriver("bridge"),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create network: %w", err)
+	require.NoError(t, err, "failed to create network")
+	t.Cleanup(func() {
+		if err := testNetwork.Remove(ctx); err != nil {
+			t.Logf("Failed to remove network: %v", err)
+		}
+	})
+
+	// Build named container requests using the network and cert directory
+	namedRequests := buildRequests(testNetwork.Name, certDir)
+
+	// Start containers in two phases to handle dependencies:
+	// Phase 1: PDS, Privi, Selenium (can start in parallel)
+	// Phase 2: PDS Proxy (needs PDS to be ready so DNS resolves)
+
+	var phase1Named []NamedContainerRequest
+	var phase2Named []NamedContainerRequest
+
+	for _, nr := range namedRequests {
+		if nr.Name == "pds-proxy" {
+			phase2Named = append(phase2Named, nr)
+		} else {
+			phase1Named = append(phase1Named, nr)
+		}
 	}
-	env.network = testNetwork
 
-	// Start PDS container (HTTP only, no network alias)
-	pdsContainer, err := startPDSContainer(ctx, testNetwork)
-	if err != nil {
-		env.Cleanup()
-		return nil, fmt.Errorf("failed to start pds container: %w", err)
+	// Extract requests for parallel startup
+	phase1Requests := make(testcontainers.ParallelContainerRequest, len(phase1Named))
+	for i, nr := range phase1Named {
+		phase1Requests[i] = nr.Request
 	}
-	env.PDSContainer = pdsContainer
 
-	// Start nginx reverse proxy for PDS with TLS termination
-	pdsProxyContainer, pdsURL, err := startPDSProxyContainer(ctx, certDir, testNetwork)
+	// Start phase 1 containers in parallel
+	phase1Containers, err := testcontainers.ParallelContainers(
+		ctx,
+		phase1Requests,
+		testcontainers.ParallelContainersOptions{},
+	)
 	if err != nil {
-		env.Cleanup()
-		return nil, fmt.Errorf("failed to start pds proxy container: %w", err)
+		var pcErr testcontainers.ParallelContainersError
+		if errors, ok := err.(testcontainers.ParallelContainersError); ok {
+			pcErr = errors
+			for _, reqErr := range pcErr.Errors {
+				t.Logf("Container request failed: %v", reqErr.Error)
+			}
+		}
+		require.NoError(t, err, "failed to start phase 1 containers in parallel")
 	}
-	env.PDSProxyContainer = pdsProxyContainer
-	env.PDSURL = pdsURL
 
-	// Start Privi container with HTTPS on the same network
-	priviContainer, priviURL, priviNetworkURL, err := startPriviContainer(ctx, certDir, testNetwork)
-	if err != nil {
-		env.Cleanup()
-		return nil, fmt.Errorf("failed to start privi container: %w", err)
+	// Start phase 2 containers (nginx proxy now that PDS is ready)
+	var phase2Containers []testcontainers.Container
+	for _, nr := range phase2Named {
+		container, err := testcontainers.GenericContainer(ctx, nr.Request)
+		require.NoError(t, err, "failed to start %s container", nr.Name)
+		phase2Containers = append(phase2Containers, container)
 	}
-	env.PriviContainer = priviContainer
-	env.PriviURL = priviURL
 
-	// Start Selenium container on the same network
-	seleniumContainer, seleniumURL, err := startSeleniumContainer(ctx, testNetwork)
-	if err != nil {
-		env.Cleanup()
-		return nil, fmt.Errorf("failed to start selenium container: %w", err)
+	// Combine containers and named requests for mapping
+	allContainers := append(phase1Containers, phase2Containers...)
+	allNamed := append(phase1Named, phase2Named...)
+
+	// Map containers by their logical name (from allNamed)
+	// We need to inspect each container to find its actual name and match it back
+	containerMap := make(map[string]testcontainers.Container)
+
+	// Create a mapping from container name prefix to logical name
+	nameMapping := make(map[string]string)
+	for _, nr := range allNamed {
+		// Container names have a prefix like "integration-pds"
+		nameMapping[nr.Request.ContainerRequest.Name] = nr.Name
 	}
-	env.SeleniumContainer = seleniumContainer
-	env.SeleniumURL = seleniumURL
 
-	t.Logf("Privi URL (host): %s", priviURL)
-	t.Logf("Privi URL (Docker network): %s", priviNetworkURL)
-	t.Logf("Selenium URL: %s", seleniumURL)
+	for _, container := range allContainers {
+		// Inspect the container to get its name
+		inspect, err := container.Inspect(ctx)
+		require.NoError(t, err, "failed to inspect container")
 
-	return env, nil
+		// Container name from inspect starts with "/"
+		actualName := inspect.Name
+		if len(actualName) > 0 && actualName[0] == '/' {
+			actualName = actualName[1:]
+		}
+
+		// Find the logical name by finding the longest matching container name
+		// This handles cases like "integration-pds-proxy" vs "integration-pds"
+		var logicalName string
+		var longestMatch string
+		for containerName, name := range nameMapping {
+			// Check if actual name starts with container name
+			if len(actualName) >= len(containerName) &&
+				actualName[:len(containerName)] == containerName {
+				// If this is a longer match than what we found before, use it
+				if len(containerName) > len(longestMatch) {
+					longestMatch = containerName
+					logicalName = name
+				}
+			}
+		}
+
+		if logicalName == "" {
+			t.Logf("Warning: Could not map container %s to a logical name", actualName)
+			continue
+		}
+
+		containerMap[logicalName] = container
+
+		// Register cleanup
+		c := container
+		n := logicalName
+		t.Cleanup(func() {
+			if err := c.Terminate(ctx); err != nil {
+				t.Logf("Failed to terminate container %s: %v", n, err)
+			}
+		})
+
+		// Stream container logs to test output
+		go func(containerName string, cont testcontainers.Container) {
+			logs, err := cont.Logs(ctx)
+			if err != nil {
+				t.Logf("Failed to get logs for container %s: %v", containerName, err)
+				return
+			}
+			defer logs.Close()
+
+			buf := new(bytes.Buffer)
+			_, err = buf.ReadFrom(logs)
+			if err != nil {
+				t.Logf("Failed to read logs for container %s: %v", containerName, err)
+				return
+			}
+
+			t.Logf("Container %s logs:\n%s", containerName, buf.String())
+		}(logicalName, container)
+	}
+
+	return &TestEnvironment{
+		Containers: containerMap,
+		CertDir:    certDir,
+		Network:    testNetwork,
+		ctx:        ctx,
+		t:          t,
+	}
 }
 
-// Cleanup stops all containers and cleans up temporary files
-func (e *TestEnvironment) Cleanup() {
-	if e.SeleniumContainer != nil {
-		_ = e.SeleniumContainer.Terminate(e.ctx)
-	}
-	if e.PriviContainer != nil {
-		_ = e.PriviContainer.Terminate(e.ctx)
-	}
-	if e.PDSProxyContainer != nil {
-		_ = e.PDSProxyContainer.Terminate(e.ctx)
-	}
-	if e.PDSContainer != nil {
-		_ = e.PDSContainer.Terminate(e.ctx)
-	}
-	if e.network != nil {
-		_ = e.network.Remove(e.ctx)
-	}
-	if e.CertDir != "" {
-		_ = os.RemoveAll(e.CertDir)
-	}
-}
+// LogContainerLogs logs a container's logs using t.Logf
+func (e *TestEnvironment) LogContainerLogs(name string) {
+	e.t.Helper()
 
-// GetPDSLogs returns the logs from the PDS container
-func (e *TestEnvironment) GetPDSLogs() (string, error) {
-	if e.PDSContainer == nil {
-		return "", fmt.Errorf("PDS container not initialized")
+	container, ok := e.Containers[name]
+	if !ok {
+		e.t.Logf("Container %s not found", name)
+		return
 	}
 
-	logs, err := e.PDSContainer.Logs(e.ctx)
+	logs, err := container.Logs(e.ctx)
 	if err != nil {
-		return "", err
+		e.t.Logf("Failed to get %s logs: %v", name, err)
+		return
 	}
 	defer logs.Close()
 
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(logs)
 	if err != nil {
-		return "", err
+		e.t.Logf("Failed to read %s logs: %v", name, err)
+		return
 	}
 
-	return buf.String(), nil
-}
-
-func (e *TestEnvironment) GetPDSContainerID() (string, error) {
-	if e.PDSContainer == nil {
-		return "", fmt.Errorf("PDS container not initialized")
-	}
-	return e.PDSContainer.GetContainerID(), nil
+	e.t.Logf("%s Container Logs:\n%s", name, buf.String())
 }
 
 // generateSelfSignedCert creates a self-signed certificate for HTTPS testing using tlscert
-func generateSelfSignedCert(certDir string) error {
+func generateSelfSignedCert(t *testing.T, certDir string) {
+	t.Helper()
+
 	// Generate self-signed certificate using tlscert
-	// Include both privi.habitat and pds.example.com for both containers to use
+	// Include privi.habitat, pds.example.com, and frontend.habitat for all containers to use
 	cert := tlscert.SelfSignedFromRequest(tlscert.Request{
 		Name:      "integration-test",
-		Host:      "localhost,127.0.0.1,privi.habitat,pds.example.com",
+		Host:      "localhost,127.0.0.1,privi.habitat,pds.example.com,frontend.habitat",
 		ParentDir: certDir,
 	})
 
-	if cert == nil {
-		return fmt.Errorf("failed to generate certificate")
-	}
+	require.NotNil(t, cert, "failed to generate certificate")
 
 	// Rename the generated files to match the expected names
 	newCertPath := filepath.Join(certDir, "fullchain.pem")
 	newKeyPath := filepath.Join(certDir, "privkey.pem")
 
-	if err := os.Rename(cert.CertPath, newCertPath); err != nil {
-		return fmt.Errorf("failed to rename cert file: %w", err)
-	}
+	err := os.Rename(cert.CertPath, newCertPath)
+	require.NoError(t, err, "failed to rename cert file")
 
-	if err := os.Rename(cert.KeyPath, newKeyPath); err != nil {
-		return fmt.Errorf("failed to rename key file: %w", err)
-	}
-
-	return nil
+	err = os.Rename(cert.KeyPath, newKeyPath)
+	require.NoError(t, err, "failed to rename key file")
 }
 
-// startPriviContainer starts the Privi service container with HTTPS enabled
-func startPriviContainer(
-	ctx context.Context,
-	certDir string,
-	testNetwork *testcontainers.DockerNetwork,
-) (testcontainers.Container, string, string, error) {
-	req := testcontainers.ContainerRequest{
-		Image: "privi:latest",
-		Env: map[string]string{
-			"HABITAT_DB":         "/tmp/repo.db",
-			"HABITAT_KEYFILE":    "/tmp/key.jwk",
-			"HABITAT_DOMAIN":     "privi.habitat",
-			"HABITAT_PORT":       "443",
-			"HABITAT_HTTPSCERTS": "/certs/",
-			"SSL_CERT_FILE":      "/certs/fullchain.pem", // Trust self-signed certs for HTTPS requests
-		},
-		ExposedPorts:   []string{"443/tcp"},
-		Networks:       []string{testNetwork.Name},
-		NetworkAliases: map[string][]string{testNetwork.Name: {"privi.habitat"}},
-		HostConfigModifier: func(hc *container.HostConfig) {
-			hc.Mounts = append(hc.Mounts, mount.Mount{
-				Type:   mount.TypeBind,
-				Source: certDir,
-				Target: "/certs",
-			})
-		},
-		WaitingFor: wait.ForHTTP("/.well-known/did.json").
-			WithPort("443/tcp").
-			WithTLS(true, &tls.Config{InsecureSkipVerify: true}).
-			WithStartupTimeout(30 * time.Second),
-	}
+// createNginxConfig creates the nginx configuration file for the PDS proxy
+func createNginxConfig(t *testing.T, certDir string) string {
+	t.Helper()
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, "", "", err
-	}
-
-	host, err := container.Host(ctx)
-	if err != nil {
-		return nil, "", "", err
-	}
-
-	port, err := container.MappedPort(ctx, "443")
-	if err != nil {
-		return nil, "", "", err
-	}
-
-	hostURL := fmt.Sprintf("https://%s:%s", host, port.Port())
-	networkURL := "https://privi.habitat"
-	return container, hostURL, networkURL, nil
-}
-
-// startPDSContainer starts the Bluesky PDS container (HTTP only, behind reverse proxy)
-func startPDSContainer(
-	ctx context.Context,
-	testNetwork *testcontainers.DockerNetwork,
-) (testcontainers.Container, error) {
-	req := testcontainers.ContainerRequest{
-		Image: "ghcr.io/bluesky-social/pds:latest",
-		Env: map[string]string{
-			"PDS_HOSTNAME":                "pds.example.com",
-			"PDS_PORT":                    "3000",
-			"PDS_SERVICE_DID":             "did:web:pds.example.com",
-			"PDS_ADMIN_PASSWORD":          "password",
-			"PDS_JWT_SECRET":              "bd6df801372d7058e1ce472305d7fc2e",
-			"PDS_DATA_DIRECTORY":          "/pds",
-			"PDS_BLOBSTORE_DISK_LOCATION": "/pds/blocks",
-			"PDS_DID_PLC_URL":             "https://plc.directory",
-			"PDS_DEV_MODE":                "true",
-			"PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX": "5290bb1866a03fb23b09a6ffd64d21f6a4ebf624eaa301930eeb81740699239c",
-			"PDS_INVITE_REQUIRED":                       "false",
-			"DEBUG":                                     "1",
-			"LOG_LEVEL":                                 "debug",
-			"LOG_ENABLED":                               "1",
-			"NODE_TLS_REJECT_UNAUTHORIZED":              "0", // Accept self-signed certs in dev mode
-		},
-		Tmpfs: map[string]string{
-			"/pds": "rw,size=100m",
-		},
-		Networks:       []string{testNetwork.Name},
-		NetworkAliases: map[string][]string{testNetwork.Name: {"pds-backend"}},
-		WaitingFor:     wait.ForListeningPort("3000/tcp"),
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return container, nil
-}
-
-// startPDSProxyContainer starts an nginx reverse proxy for PDS with TLS termination
-func startPDSProxyContainer(
-	ctx context.Context,
-	certDir string,
-	testNetwork *testcontainers.DockerNetwork,
-) (testcontainers.Container, string, error) {
-	// Create nginx config for reverse proxy
 	nginxConfig := `
 events {
     worker_connections 1024;
@@ -319,94 +290,175 @@ http {
 }
 `
 
-	// Write nginx config to cert directory
 	nginxConfigPath := filepath.Join(certDir, "nginx.conf")
-	if err := os.WriteFile(nginxConfigPath, []byte(nginxConfig), 0644); err != nil {
-		return nil, "", fmt.Errorf("failed to write nginx config: %w", err)
-	}
+	err := os.WriteFile(nginxConfigPath, []byte(nginxConfig), 0o644)
+	require.NoError(t, err, "failed to write nginx config")
 
-	req := testcontainers.ContainerRequest{
-		Image:          "nginx:alpine",
-		ExposedPorts:   []string{"443/tcp"},
-		Networks:       []string{testNetwork.Name},
-		NetworkAliases: map[string][]string{testNetwork.Name: {"pds.example.com"}},
-		HostConfigModifier: func(hc *container.HostConfig) {
-			hc.Mounts = append(hc.Mounts,
-				mount.Mount{
+	return nginxConfigPath
+}
+
+// PDSContainerRequest creates a container request for the Bluesky PDS (HTTP only, behind reverse proxy)
+func PDSContainerRequest(networkName string) testcontainers.GenericContainerRequest {
+	return testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Name:  "integration-pds",
+			Image: "ghcr.io/bluesky-social/pds:latest",
+			Env: map[string]string{
+				"PDS_HOSTNAME":                "pds.example.com",
+				"PDS_PORT":                    "3000",
+				"PDS_SERVICE_DID":             "did:web:pds.example.com",
+				"PDS_ADMIN_PASSWORD":          "password",
+				"PDS_JWT_SECRET":              "bd6df801372d7058e1ce472305d7fc2e",
+				"PDS_DATA_DIRECTORY":          "/pds",
+				"PDS_BLOBSTORE_DISK_LOCATION": "/pds/blocks",
+				"PDS_DID_PLC_URL":             "https://plc.directory",
+				"PDS_DEV_MODE":                "true",
+				"PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX": "5290bb1866a03fb23b09a6ffd64d21f6a4ebf624eaa301930eeb81740699239c",
+				"PDS_INVITE_REQUIRED":                       "false",
+				"DEBUG":                                     "1",
+				"LOG_LEVEL":                                 "debug",
+				"LOG_ENABLED":                               "1",
+				"NODE_TLS_REJECT_UNAUTHORIZED":              "0",
+			},
+			Tmpfs: map[string]string{
+				"/pds": "rw,size=100m",
+			},
+			Networks:       []string{networkName},
+			NetworkAliases: map[string][]string{networkName: {"pds-backend"}},
+			WaitingFor:     wait.ForListeningPort("3000/tcp"),
+		},
+		Started: true,
+	}
+}
+
+// PDSProxyContainerRequest creates a container request for nginx reverse proxy with TLS termination
+func PDSProxyContainerRequest(
+	networkName, certDir, nginxConfigPath string,
+) testcontainers.GenericContainerRequest {
+	return testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Name:           "integration-pds-proxy",
+			Image:          "nginx:alpine",
+			ExposedPorts:   []string{"443/tcp"},
+			Networks:       []string{networkName},
+			NetworkAliases: map[string][]string{networkName: {"pds.example.com"}},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.Mounts = append(hc.Mounts,
+					mount.Mount{
+						Type:   mount.TypeBind,
+						Source: certDir,
+						Target: "/certs",
+					},
+					mount.Mount{
+						Type:     mount.TypeBind,
+						Source:   nginxConfigPath,
+						Target:   "/etc/nginx/nginx.conf",
+						ReadOnly: true,
+					},
+				)
+			},
+			WaitingFor:      wait.ForListeningPort("443/tcp"),
+			HostAccessPorts: []int{443},
+		},
+		Started: true,
+	}
+}
+
+// PriviContainerRequest creates a container request for the Privi service with HTTPS enabled
+func PriviContainerRequest(networkName, certDir string) testcontainers.GenericContainerRequest {
+	return testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Name:  "integration-privi",
+			Image: "privi:latest",
+			Env: map[string]string{
+				"HABITAT_DB":         "/tmp/repo.db",
+				"HABITAT_KEYFILE":    "/tmp/key.jwk",
+				"HABITAT_DOMAIN":     "privi.habitat",
+				"HABITAT_PORT":       "443",
+				"HABITAT_HTTPSCERTS": "/certs/",
+				"SSL_CERT_FILE":      "/certs/fullchain.pem",
+			},
+			ExposedPorts:   []string{"443/tcp"},
+			Networks:       []string{networkName},
+			NetworkAliases: map[string][]string{networkName: {"privi.habitat"}},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.Mounts = append(hc.Mounts, mount.Mount{
 					Type:   mount.TypeBind,
 					Source: certDir,
 					Target: "/certs",
-				},
-				mount.Mount{
-					Type:     mount.TypeBind,
-					Source:   nginxConfigPath,
-					Target:   "/etc/nginx/nginx.conf",
-					ReadOnly: true,
-				},
-			)
+				})
+			},
+			WaitingFor: wait.ForHTTP("/.well-known/did.json").
+				WithPort("443/tcp").
+				WithTLS(true, &tls.Config{InsecureSkipVerify: true}).
+				WithStartupTimeout(30 * time.Second),
 		},
-		WaitingFor:      wait.ForListeningPort("443/tcp"),
-		HostAccessPorts: []int{443},
+		Started: true,
 	}
-
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, "", err
-	}
-
-	host, err := container.Host(ctx)
-	if err != nil {
-		return nil, "", err
-	}
-
-	port, err := container.MappedPort(ctx, "443")
-	if err != nil {
-		return nil, "", err
-	}
-
-	url := fmt.Sprintf("https://%s:%s", host, port.Port())
-	return container, url, nil
 }
 
-// startSeleniumContainer starts a Selenium Standalone Chrome container
-func startSeleniumContainer(
-	ctx context.Context,
-	testNetwork *testcontainers.DockerNetwork,
-) (testcontainers.Container, string, error) {
-	req := testcontainers.ContainerRequest{
-		Image:        "seleniarm/standalone-chromium:latest", // ARM64-compatible image
-		ExposedPorts: []string{"4444/tcp"},
-		Networks:     []string{testNetwork.Name},
-		Env: map[string]string{
-			"SE_NODE_MAX_SESSIONS":    "5",
-			"SE_NODE_SESSION_TIMEOUT": "300",
+// SeleniumContainerRequest creates a container request for Selenium Standalone Chrome
+func SeleniumContainerRequest(networkName string) testcontainers.GenericContainerRequest {
+	return testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Name:         "integration-selenium",
+			Image:        "seleniarm/standalone-chromium:latest",
+			ExposedPorts: []string{"4444/tcp"},
+			Networks:     []string{networkName},
+			Env: map[string]string{
+				"SE_NODE_MAX_SESSIONS":    "5",
+				"SE_NODE_SESSION_TIMEOUT": "300",
+			},
+			WaitingFor: wait.ForHTTP("/wd/hub/status").
+				WithPort("4444/tcp").
+				WithStartupTimeout(60 * time.Second),
 		},
-		WaitingFor: wait.ForHTTP("/wd/hub/status").
-			WithPort("4444/tcp").
-			WithStartupTimeout(60 * time.Second),
+		Started: true,
 	}
+}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		return nil, "", err
+// StandardIntegrationRequests creates the standard set of named container requests for integration tests
+func StandardIntegrationRequests(
+	t *testing.T,
+	networkName, certDir string,
+) []NamedContainerRequest {
+	t.Helper()
+
+	nginxConfigPath := createNginxConfig(t, certDir)
+
+	return []NamedContainerRequest{
+		{Name: "pds", Request: PDSContainerRequest(networkName)},
+		{
+			Name:    "pds-proxy",
+			Request: PDSProxyContainerRequest(networkName, certDir, nginxConfigPath),
+		},
+		{Name: "privi", Request: PriviContainerRequest(networkName, certDir)},
+		{Name: "selenium", Request: SeleniumContainerRequest(networkName)},
+		{Name: "frontend", Request: FrontendContainerRequest(networkName, certDir)},
 	}
+}
 
-	host, err := container.Host(ctx)
-	if err != nil {
-		return nil, "", err
+func FrontendContainerRequest(networkName, certDir string) testcontainers.GenericContainerRequest {
+	return testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Name:           "integration-frontend",
+			Image:          "frontend:latest",
+			ExposedPorts:   []string{"443/tcp"},
+			Networks:       []string{networkName},
+			NetworkAliases: map[string][]string{networkName: {"frontend.habitat"}},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.Mounts = append(hc.Mounts, mount.Mount{
+					Type:   mount.TypeBind,
+					Source: certDir,
+					Target: "/certs",
+				})
+			},
+			WaitingFor: wait.ForHTTP("/").
+				WithPort("443/tcp").
+				WithTLS(true, &tls.Config{InsecureSkipVerify: true}).
+				WithStartupTimeout(30 * time.Second),
+			HostAccessPorts: []int{443},
+		},
+		Started: true,
 	}
-
-	port, err := container.MappedPort(ctx, "4444")
-	if err != nil {
-		return nil, "", err
-	}
-
-	url := fmt.Sprintf("http://%s:%s/wd/hub", host, port.Port())
-	return container, url, nil
 }

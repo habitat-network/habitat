@@ -41,11 +41,8 @@ tasks:
       GOOS: "darwin"
       GOARCH: "arm64"
   docker-build:
-    command: "docker build -f @in(0) -t $project ."
-    inputs:
-      - 'Dockerfile'
     options:
-      runFromWorkspaceRoot: true
+      internal: false
 
 
 docker:

@@ -17,6 +17,9 @@ tasks:
     options:
       runDepsInParallel: false
   test:
+    deps:
+      - "privi:docker-build"
+      - "frontend:docker-build"
     args:
       - '-v'
     local: true
