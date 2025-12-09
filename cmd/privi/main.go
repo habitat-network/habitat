@@ -89,7 +89,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 
 		log.Info().Msg("starting notification listener")
-		ingester := privi.NewNotificationIngester(db)
+		ingester, err := privi.NewNotificationIngester(db)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup notification ingester")
+		}
 		return privi.StartNotificationListener(egCtx, config, nil, ingester.GetEventHandler(), db)
 	})
 
@@ -170,20 +173,6 @@ func setupDB(dbPath string) *gorm.DB {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
-
-	err = priviDB.AutoMigrate(&privi.Notification{})
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to migrate privi notification table")
-	}
-	err = priviDB.AutoMigrate(&privi.Record{})
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to migrate privi record table")
-	}
-	err = priviDB.AutoMigrate(&privi.Blob{})
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to migrate privi blob table")
-	}
-
 	return priviDB
 }
 

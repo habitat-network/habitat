@@ -31,10 +31,15 @@ type NotificationIngester struct {
 }
 
 // NewNotificationIngester creates a new NotificationIngester instance
-func NewNotificationIngester(db *gorm.DB) *NotificationIngester {
+func NewNotificationIngester(db *gorm.DB) (*NotificationIngester, error) {
+
+	err := db.AutoMigrate(&Notification{})
+	if err != nil {
+		return nil, err
+	}
 	return &NotificationIngester{
 		db: db,
-	}
+	}, nil
 }
 
 // GetEventHandler returns an EventHandler that can be used to ingest notifications
