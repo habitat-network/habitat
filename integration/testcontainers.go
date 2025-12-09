@@ -18,17 +18,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func init() {
-	// Configure Docker host for Colima if DOCKER_HOST is not already set
-	if os.Getenv("DOCKER_HOST") == "" {
-		// Check if Colima socket exists
-		colimaSocket := filepath.Join(os.Getenv("HOME"), ".colima/default/docker.sock")
-		if _, err := os.Stat(colimaSocket); err == nil {
-			os.Setenv("DOCKER_HOST", "unix://"+colimaSocket)
-		}
-	}
-}
-
 // TestEnvironment holds the containers and shared resources for integration tests
 type TestEnvironment struct {
 	Containers map[string]testcontainers.Container
@@ -77,31 +66,16 @@ func NewTestEnvironment(
 	// Build named container requests using the network and cert directory
 	namedRequests := buildRequests(testNetwork.Name, certDir)
 
-	// Start containers in two phases to handle dependencies:
-	// Phase 1: PDS, Privi, Selenium (can start in parallel)
-	// Phase 2: PDS Proxy (needs PDS to be ready so DNS resolves)
-
-	var phase1Named []NamedContainerRequest
-	var phase2Named []NamedContainerRequest
-
-	for _, nr := range namedRequests {
-		if nr.Name == "pds-proxy" {
-			phase2Named = append(phase2Named, nr)
-		} else {
-			phase1Named = append(phase1Named, nr)
-		}
-	}
-
 	// Extract requests for parallel startup
-	phase1Requests := make(testcontainers.ParallelContainerRequest, len(phase1Named))
-	for i, nr := range phase1Named {
-		phase1Requests[i] = nr.Request
+	requests := make(testcontainers.ParallelContainerRequest, len(namedRequests))
+	for i, nr := range namedRequests {
+		requests[i] = nr.Request
 	}
 
-	// Start phase 1 containers in parallel
-	phase1Containers, err := testcontainers.ParallelContainers(
+	// Start all containers in parallel
+	allContainers, err := testcontainers.ParallelContainers(
 		ctx,
-		phase1Requests,
+		requests,
 		testcontainers.ParallelContainersOptions{},
 	)
 	if err != nil {
@@ -112,28 +86,16 @@ func NewTestEnvironment(
 				t.Logf("Container request failed: %v", reqErr.Error)
 			}
 		}
-		require.NoError(t, err, "failed to start phase 1 containers in parallel")
+		require.NoError(t, err, "failed to start containers in parallel")
 	}
 
-	// Start phase 2 containers (nginx proxy now that PDS is ready)
-	var phase2Containers []testcontainers.Container
-	for _, nr := range phase2Named {
-		container, err := testcontainers.GenericContainer(ctx, nr.Request)
-		require.NoError(t, err, "failed to start %s container", nr.Name)
-		phase2Containers = append(phase2Containers, container)
-	}
-
-	// Combine containers and named requests for mapping
-	allContainers := append(phase1Containers, phase2Containers...)
-	allNamed := append(phase1Named, phase2Named...)
-
-	// Map containers by their logical name (from allNamed)
+	// Map containers by their logical name (from namedRequests)
 	// We need to inspect each container to find its actual name and match it back
 	containerMap := make(map[string]testcontainers.Container)
 
 	// Create a mapping from container name prefix to logical name
 	nameMapping := make(map[string]string)
-	for _, nr := range allNamed {
+	for _, nr := range namedRequests {
 		// Container names have a prefix like "integration-pds"
 		nameMapping[nr.Request.ContainerRequest.Name] = nr.Name
 	}
@@ -272,6 +234,10 @@ events {
 }
 
 http {
+    # Use Docker's internal DNS resolver
+    resolver 127.0.0.11 valid=10s;
+    resolver_timeout 5s;
+
     server {
         listen 443 ssl;
         server_name pds.example.com;
@@ -280,7 +246,9 @@ http {
         ssl_certificate_key /certs/privkey.pem;
 
         location / {
-            proxy_pass http://pds-backend:3000;
+            # Use variable to force DNS resolution at request time
+            set $upstream http://pds-backend:3000;
+            proxy_pass $upstream;
             proxy_set_header Host pds.example.com;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
