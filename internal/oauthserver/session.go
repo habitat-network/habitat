@@ -3,6 +3,7 @@ package oauthserver
 import (
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/ory/fosite"
 )
@@ -24,9 +25,10 @@ func newAuthorizeSession(
 	req fosite.AuthorizeRequester,
 	dpopKey []byte,
 	tokenInfo *oauthclient.TokenResponse,
+	did syntax.DID,
 ) *authSession {
 	return &authSession{
-		Subject:       req.GetRequestForm().Get("handle"),
+		Subject:       did.String(),
 		Scopes:        req.GetRequestedScopes(),
 		DpopKey:       dpopKey,
 		TokenInfo:     tokenInfo,
