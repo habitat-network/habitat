@@ -75,6 +75,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Start the notification listener in a separate goroutine
 	eg.Go(func() error {
+		// Note that for now, we're ingesting all notifications in the entire system
+		// This can be reduced in the future to only listen for DIDs that the user is interested in.
 		config := &client.ClientConfig{
 			Compress:          true,
 			WebsocketURL:      "wss://jetstream2.us-east.bsky.network/subscribe",
@@ -87,7 +89,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 
 		log.Info().Msg("starting notification listener")
-		return privi.StartNotificationListener(egCtx, config, nil, privi.ProcessNotification)
+		ingester, err := privi.NewNotificationIngester(db)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup notification ingester")
+		}
+		return privi.StartNotificationListener(egCtx, config, nil, ingester.GetEventHandler(), db)
 	})
 
 	mux := http.NewServeMux()
@@ -167,7 +173,6 @@ func setupDB(dbPath string) *gorm.DB {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
-
 	return priviDB
 }
 
