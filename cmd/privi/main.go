@@ -76,6 +76,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Start the notification listener in a separate goroutine
 	eg.Go(func() error {
+		// Note that for now, we're ingesting all notifications in the entire system
+		// This can be reduced in the future to only listen for DIDs that the user is interested in.
 		config := &client.ClientConfig{
 			Compress:          true,
 			WebsocketURL:      "wss://jetstream2.us-east.bsky.network/subscribe",
@@ -88,7 +90,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 
 		log.Info().Msg("starting notification listener")
-		return privi.StartNotificationListener(egCtx, config, nil, privi.ProcessNotification)
+		ingester, err := privi.NewNotificationIngester(db)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup notification ingester")
+		}
+		return privi.StartNotificationListener(egCtx, config, nil, ingester.GetEventHandler(), db)
 	})
 
 	mux := http.NewServeMux()
@@ -106,9 +112,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", priviServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.getBlob", priviServer.GetBlob)
+
 	mux.HandleFunc("/xrpc/network.habitat.listPermissions", priviServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", priviServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", priviServer.RemovePermission)
+
+	mux.HandleFunc("/xrpc/network.habitat.notification.listNotifications", priviServer.ListNotifications)
 
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
 		template := `{
@@ -168,7 +177,6 @@ func setupDB(dbPath string) *gorm.DB {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}
-
 	return priviDB
 }
 
@@ -182,7 +190,10 @@ func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer) *privi.
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
-	return privi.NewServer(adapter, repo, oauthServer)
+
+	inbox := privi.NewInbox(db)
+
+	return privi.NewServer(adapter, repo, inbox, oauthServer)
 }
 
 func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
@@ -249,7 +260,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().
-			Set("Access-Control-Allow-Headers", "Content-Type, Authorization, habitat-auth-method, User-Agent")
+			Set("Access-Control-Allow-Headers", "Content-Type, Authorization, habitat-auth-method, User-Agent, atproto-accept-labelers")
 		w.Header().Set("Access-Control-Max-Age", "86400") // Cache preflight for 24 hours
 
 		// Handle preflight OPTIONS request
