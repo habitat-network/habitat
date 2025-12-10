@@ -12,7 +12,6 @@ tasks:
     inputs:
       - "/**/*.go"
     options:
-      affectedFiles: true
       cache: false
 
   lint:
