@@ -15,6 +15,7 @@ import (
 
 	jose "github.com/go-jose/go-jose/v3"
 	"golang.org/x/sync/errgroup"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -48,7 +49,6 @@ func main() {
 
 func run(_ context.Context, cmd *cli.Command) error {
 	// Parse all CLI arguments and options at the beginning
-	dbPath := cmd.String(fDb)
 	keyFile := cmd.String(fKeyFile)
 	domain := cmd.String(fDomain)
 	port := cmd.String(fPort)
@@ -61,7 +61,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Setup components
-	db := setupDB(dbPath)
+	db := setupDB(cmd)
 	oauthServer := setupOAuthServer(keyFile, domain)
 	priviServer := setupPriviServer(db, oauthServer)
 	pdsForwarding := newPDSForwarding(oauthServer)
@@ -116,7 +116,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", priviServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", priviServer.RemovePermission)
 
-	mux.HandleFunc("/xrpc/network.habitat.notification.listNotifications", priviServer.ListNotifications)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.notification.listNotifications",
+		priviServer.ListNotifications,
+	)
 
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
 		template := `{
@@ -171,8 +174,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 	return eg.Wait()
 }
 
-func setupDB(dbPath string) *gorm.DB {
-	priviDB, err := gorm.Open(sqlite.Open(dbPath))
+func setupDB(cmd *cli.Command) *gorm.DB {
+	postgresUrl := cmd.String(fPgUrl)
+	if postgresUrl != "" {
+		db, err := gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to open postgres db backing privi server")
+		}
+		return db
+	}
+	priviDB, err := gorm.Open(sqlite.Open(cmd.String(fDb)))
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
 	}

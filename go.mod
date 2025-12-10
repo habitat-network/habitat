@@ -20,6 +20,7 @@ require (
 	github.com/urfave/cli/v3 v3.4.1
 	golang.org/x/oauth2 v0.30.0
 	golang.org/x/sync v0.17.0
+	gorm.io/driver/postgres v1.5.7
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 	tailscale.com v1.66.4
@@ -49,6 +50,10 @@ require (
 	github.com/ipfs/go-ipfs-util v0.0.3 // indirect
 	github.com/ipfs/go-ipld-cbor v0.1.0 // indirect
 	github.com/ipfs/go-ipld-format v0.6.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgx/v5 v5.5.0 // indirect
+	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
