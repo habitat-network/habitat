@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_requireAuth/notifications")({
 
     const response = await context.authManager.fetch(
       `https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.notification.listNotifications?${params.toString()}`,
-      "GET"
+      "GET",
     );
 
     if (!response.ok) {
@@ -39,9 +39,7 @@ export const Route = createFileRoute("/_requireAuth/notifications")({
       <article>
         <h1>Notifications</h1>
 
-        {data.records.length === 0 && (
-          <p>No notifications found.</p>
-        )}
+        {data.records.length === 0 && <p>No notifications found.</p>}
 
         {data.records.length > 0 && (
           <table>
@@ -71,4 +69,3 @@ export const Route = createFileRoute("/_requireAuth/notifications")({
     );
   },
 });
-
