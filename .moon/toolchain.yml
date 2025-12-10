@@ -1,1 +1,8 @@
+unstable_node:
+  version: 
+
 unstable_pnpm:
+  version: 
+
+unstable_javascript:
+  packageManager: pnpm
