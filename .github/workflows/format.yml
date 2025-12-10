@@ -15,26 +15,16 @@ jobs:
           ref: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: 1.25
-          cache-dependency-path: "**/go.sum"
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-          run_install: true
-
-      - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.5.0
-          install-only: true
-
       - name: Setup moon
         uses: moonrepo/setup-toolchain@v0
+        with:
+          auto-install: true
+
+      - uses: actions/setup-go@v6
+        with:
+          # don't specify version to prevent additional install after proto
+          # we just want caching
+          cache-dependency-path: "**/go.sum"
 
       - name: Run format-fix
         run: moon :format-fix
