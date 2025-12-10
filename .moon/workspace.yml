@@ -6,6 +6,7 @@ projects:
     frontend: "frontend"
     camera: "camera"
     root: "."
+    typescript/internal: "typescript/internal"
   globs:
     - "cmd/*"
 

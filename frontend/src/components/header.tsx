@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { AuthManager } from "@/auth";
+import type { AuthManager } from "internal/authManager";
 
 function formatHandle(handle: string | null) {
   if (!handle) return "";

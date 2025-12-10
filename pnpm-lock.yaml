@@ -14,6 +14,9 @@ importers:
       prettier:
         specifier: 3.6.2
         version: 3.6.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   camera:
     dependencies:
@@ -141,12 +144,12 @@ importers:
       axios:
         specifier: ^1.8.4
         version: 1.12.2
+      internal:
+        specifier: workspace:*
+        version: link:../typescript/internal
       js-cookie:
         specifier: ^3.0.5
         version: 3.0.5
-      openid-client:
-        specifier: ^6.8.1
-        version: 6.8.1
       react:
         specifier: ^19.0.0
         version: 19.2.0
@@ -193,6 +196,12 @@ importers:
       web-vitals:
         specifier: ^4.2.4
         version: 4.2.4
+
+  typescript/internal:
+    dependencies:
+      openid-client:
+        specifier: ^6.8.1
+        version: 6.8.1
 
 packages:
 

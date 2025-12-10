@@ -1,3 +1,4 @@
 packages:
   - "frontend"
   - "camera"
+  - "typescript/internal"
