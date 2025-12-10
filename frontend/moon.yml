@@ -5,5 +5,5 @@ tasks:
         env:
           HABITAT_DOMAIN: "privi.habitat"
           DOMAIN: "frontend.habitat"
-    options: 
+    options:
       internal: false

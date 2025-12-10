@@ -125,7 +125,6 @@ func generateSelfSignedCert(t *testing.T, certDir string) {
 	require.NoError(t, err, "failed to rename key file")
 }
 
-
 // PDSContainerRequest creates a container request for the Bluesky PDS (HTTP only, behind reverse proxy)
 func PDSContainerRequest(networkName string) testcontainers.GenericContainerRequest {
 	return testcontainers.GenericContainerRequest{
