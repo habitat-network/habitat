@@ -16,17 +16,17 @@ tasks:
     extends: "format-internal"
     args:
       - "--check"
+      - "."
     options:
       internal: false
-      affectedFiles: true
 
   format-fix:
     extends: "format-internal"
     args:
       - "--write"
+      - "."
     options:
       internal: false
-      affectedFiles: true
       runInCI: false
       cache: false
 
