@@ -199,6 +199,9 @@ importers:
 
   typescript/internal:
     dependencies:
+      '@atproto/oauth-client-browser':
+        specifier: ^0.3.34
+        version: 0.3.34
       openid-client:
         specifier: ^6.8.1
         version: 6.8.1

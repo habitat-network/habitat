@@ -11,6 +11,7 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
+    "@atproto/oauth-client-browser": "^0.3.34",
     "openid-client": "^6.8.1"
   }
 }
