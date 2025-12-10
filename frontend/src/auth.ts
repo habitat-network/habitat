@@ -77,8 +77,7 @@ export class AuthManager {
     options?: client.DPoPOptions,
   ) {
     if (!this.accessToken) {
-      this.handleUnauthenticated();
-      return;
+      return this.handleUnauthenticated();
     }
     if (!headers) {
       headers = new Headers();
@@ -95,13 +94,12 @@ export class AuthManager {
     );
 
     if (response.status === 401) {
-      this.handleUnauthenticated();
-      return;
+      return this.handleUnauthenticated();
     }
     return response;
   }
 
-  private handleUnauthenticated() {
+  private handleUnauthenticated(): Response {
     this.handle = null;
     this.accessToken = null;
     localStorage.removeItem(handleLocalStorageKey);
