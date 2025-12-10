@@ -26,6 +26,12 @@ jobs:
           version: 9
           run_install: true
 
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.5.0
+          install-only: true
+
       - name: Setup moon
         uses: moonrepo/setup-toolchain@v0
 
