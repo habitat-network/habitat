@@ -19,5 +19,10 @@ jobs:
         uses: moonrepo/setup-toolchain@v0
         with:
           auto-install: true
+      - uses: actions/setup-go@v6
+        with:
+          # don't specify version to prevent additional install after proto
+          # we just want caching
+          cache-dependency-path: "**/go.sum"
 
       - run: moon ci --color
