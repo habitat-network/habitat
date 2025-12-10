@@ -17,5 +17,7 @@ jobs:
 
       - name: Setup moon
         uses: moonrepo/setup-toolchain@v0
+        with:
+          auto-install: true
 
       - run: moon ci --color
