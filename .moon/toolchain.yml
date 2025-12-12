@@ -1,2 +1,11 @@
 unstable_go:
   version: '1.25.4'
+
+unstable_node:
+  version: 
+
+unstable_pnpm:
+  version: 
+
+unstable_javascript:
+  packageManager: pnpm
