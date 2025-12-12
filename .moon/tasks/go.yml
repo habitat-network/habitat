@@ -3,17 +3,22 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 
 # https://moonrepo.dev/docs/config/project#tasks
 tasks:
+  format-check:
+    command: "noop"
+    deps:
+      - "root:format-check"
+
   format:
     command: "noop"
     deps:
       - "root:format"
+    local: true
 
-  format-fix:
+  lint-check:
     command: "noop"
     deps:
-      - "root:format-fix"
-    options:
-      runInCI: false
+      - "root:lint-check"
+
   build:
     command: "go build"
     args:
@@ -25,11 +30,11 @@ tasks:
     deps:
       - "~:build"
     command: "go test ./..."
+
   tidy-deps:
     command: "go mod tidy"
-    options:
-      runInCI: false
-      cache: false
+    local: true
+
   start:
     command: "$workspaceRoot/bin/$project"
     deps:
@@ -38,8 +43,10 @@ tasks:
     options:
       envFile:
         - "/dev.env"
+
   dev: 
     command: "air"
+    local: true
     options:
       envFile:
         - "/dev.env"
