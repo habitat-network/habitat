@@ -12,7 +12,7 @@ tasks:
     options:
       internal: true
 
-  format:
+  format-check:
     extends: "format-internal"
     args:
       - "--check"
@@ -20,17 +20,16 @@ tasks:
     options:
       internal: false
 
-  format-fix:
+  format:
     extends: "format-internal"
     args:
       - "--write"
       - "."
+    local: true
     options:
       internal: false
-      runInCI: false
-      cache: false
 
-  lint:
+  lint-check:
     command: "npx oxlint ."
 
   build:

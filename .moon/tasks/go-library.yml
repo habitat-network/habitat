@@ -12,7 +12,7 @@ tasks:
   coverage:
     deps:
       - "test"
-    command: "go tool go-test-coverage --config @in(0) --profile @in(1)"
+    command: "go-test-coverage --config @in(0) --profile @in(1)"
     inputs:
       - "/.testcoverage.yml"
       - "coverage.out"

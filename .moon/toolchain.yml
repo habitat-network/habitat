@@ -1,5 +1,8 @@
 unstable_go:
-  version: '1.25.4'
+  version: 
+  tidyOnChange: true
+  bins:
+    - github.com/vladopajic/go-test-coverage/v2
 
 unstable_node:
   version: 
