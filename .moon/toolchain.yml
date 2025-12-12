@@ -1,3 +1,9 @@
+unstable_go:
+  version: 
+  tidyOnChange: true
+  bins:
+    - github.com/vladopajic/go-test-coverage/v2
+
 unstable_node:
   version: 
 
