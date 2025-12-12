@@ -3,6 +3,7 @@ tasks:
     command: "docker build -f @in(0) -t $project ."
     inputs:
       - "Dockerfile"
+    local: true
     options:
       internal: true
       runFromWorkspaceRoot: true
