@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
-	"github.com/eagraf/habitat-new/util"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
-	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -32,34 +29,7 @@ import (
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type sqliteRepo struct {
-	db          *gorm.DB
-	maxBlobSize int
-}
-
-// Helper function to query sqlite compile-time options to get the max blob size
-// Not sure if this can change across versions, if so we need to keep that stable
-func getMaxBlobSize(db *gorm.DB) (int, error) {
-	sqlDb, err := db.DB()
-	if err != nil {
-		return 0, err
-	}
-
-	rows, err := sqlDb.Query("PRAGMA compile_options;")
-	if err != nil {
-		return 0, err
-	}
-	defer util.Close(rows, func(err error) {
-		log.Err(err).Msgf("error closing db rows")
-	})
-
-	for rows.Next() {
-		var opt string
-		_ = rows.Scan(&opt)
-		if strings.HasPrefix(opt, "MAX_LENGTH=") {
-			return strconv.Atoi(strings.TrimPrefix(opt, "MAX_LENGTH="))
-		}
-	}
-	return 0, fmt.Errorf("no MAX_LENGTH parameter found")
+	db *gorm.DB
 }
 
 type Record struct {
@@ -81,15 +51,8 @@ func NewSQLiteRepo(db *gorm.DB) (*sqliteRepo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
-
-	maxBlobSize, err := getMaxBlobSize(db)
-	if err != nil {
-		return nil, err
-	}
-
 	return &sqliteRepo{
-		db:          db,
-		maxBlobSize: maxBlobSize,
+		db: db,
 	}, nil
 }
 
@@ -140,14 +103,6 @@ type blob struct {
 }
 
 func (r *sqliteRepo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
-	// Validate blob size
-	if len(data) > r.maxBlobSize {
-		return nil, fmt.Errorf(
-			"blob size is too big, must be < max blob size (based on SQLITE MAX_LENGTH compile option): %d bytes",
-			r.maxBlobSize,
-		)
-	}
-
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
 	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {

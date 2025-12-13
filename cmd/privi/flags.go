@@ -16,53 +16,68 @@ var (
 	fPort       = "port"
 	fHttpsCerts = "httpscerts"
 	fKeyFile    = "keyfile"
+	fPgUrl      = "pgurl"
 )
 var profiles []string
 
 func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 	return []cli.Flag{
-		&cli.BoolFlag{
-			Name:    fDebug,
-			Usage:   "Enable debug mode",
-			Sources: getSources(fDebug),
-		},
-		&cli.StringSliceFlag{
-			Name:        "profile",
-			Usage:       "YAML profile files that specify flags. Can be stacked from highest precedence to lowest.",
-			TakesFile:   true,
-			Destination: &profiles,
-		},
-		&cli.StringFlag{
-			Name:     fDomain,
-			Required: true,
-			Usage:    "The publicly available domain at which the server can be found",
-			Sources:  getSources(fDomain),
-		},
-		&cli.StringFlag{
-			Name:    fDb,
-			Usage:   "The path to the sqlite file to use as the backing database for this server",
-			Value:   "./repo.db",
-			Sources: getSources(fDb),
-		},
-		&cli.StringFlag{
-			Name:    fPort,
-			Usage:   "The port on which to run the server",
-			Value:   "8000",
-			Sources: getSources(fPort),
-		},
-		&cli.StringFlag{
-			Name:    fHttpsCerts,
-			Usage:   "The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem",
-			Sources: getSources(fHttpsCerts),
-		},
-		&cli.StringFlag{
-			Name:      fKeyFile,
-			Usage:     "The path to the key file to use for OAuth client metadata",
-			Value:     "./key.jwk",
-			TakesFile: true,
-			Sources:   getSources(fKeyFile),
-		},
-	}, []cli.MutuallyExclusiveFlags{}
+			&cli.BoolFlag{
+				Name:    fDebug,
+				Usage:   "Enable debug mode",
+				Sources: getSources(fDebug),
+			},
+			&cli.StringSliceFlag{
+				Name:        "profile",
+				Usage:       "YAML profile files that specify flags. Can be stacked from highest precedence to lowest.",
+				TakesFile:   true,
+				Destination: &profiles,
+			},
+			&cli.StringFlag{
+				Name:     fDomain,
+				Required: true,
+				Usage:    "The publicly available domain at which the server can be found",
+				Sources:  getSources(fDomain),
+			},
+			&cli.StringFlag{
+				Name:    fPort,
+				Usage:   "The port on which to run the server",
+				Value:   "8000",
+				Sources: getSources(fPort),
+			},
+			&cli.StringFlag{
+				Name:    fHttpsCerts,
+				Usage:   "The directory in which TLS certs can be found. Should contain fullchain.pem and privkey.pem",
+				Sources: getSources(fHttpsCerts),
+			},
+			&cli.StringFlag{
+				Name:      fKeyFile,
+				Usage:     "The path to the key file to use for OAuth client metadata",
+				Value:     "./key.jwk",
+				TakesFile: true,
+				Sources:   getSources(fKeyFile),
+			},
+		}, []cli.MutuallyExclusiveFlags{
+			{
+				Flags: [][]cli.Flag{
+					{
+						&cli.StringFlag{
+							Name:    fDb,
+							Usage:   "The path to the sqlite file to use as the backing database for this server",
+							Value:   "./repo.db",
+							Sources: getSources(fDb),
+						},
+					},
+					{
+						&cli.StringFlag{
+							Name:    fPgUrl,
+							Usage:   "The postgres connection string",
+							Sources: getSources(fPgUrl),
+						},
+					},
+				},
+			},
+		}
 }
 
 func getSources(name string) cli.ValueSourceChain {
