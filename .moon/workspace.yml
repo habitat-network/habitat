@@ -6,6 +6,7 @@ projects:
     frontend: "frontend"
     camera: "camera"
     root: "."
+    "integration": "integration"
   globs:
     - "cmd/*"
 
@@ -15,3 +16,8 @@ vcs:
   hooks:
     pre-commit:
       - "moon :format --affected --status=staged --no-bail"
+docker:
+  scaffold:
+    include:
+      - '**/go.mod'
+      - '**/go.sum'

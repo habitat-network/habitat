@@ -1,0 +1,9 @@
+tasks:
+  docker-build:
+    deps:
+      - target: "build"
+        env:
+          HABITAT_DOMAIN: "privi.habitat"
+          DOMAIN: "frontend.habitat"
+    options:
+      internal: false

@@ -12,3 +12,12 @@ tasks:
       - target: "funnel:start"
         args: ["5173", "frontend"]
       - target: "frontend:start"
+  docker-build:
+    options:
+      internal: false
+
+
+docker:
+  file:
+    buildTask: "build"
+    startTask: "start"
