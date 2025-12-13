@@ -1,0 +1,14 @@
+tasks:
+  build:
+    deps:
+      - "root:build"
+  dev:
+    env:
+      HABITAT_PORT: "8000"
+      HABITAT_DEBUG: "true"
+    deps:
+      - target: "funnel:start"
+        args: ["8000", "privi"]
+      - target: "funnel:start"
+        args: ["5173", "frontend"]
+      - target: "frontend:start"

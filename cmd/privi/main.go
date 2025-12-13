@@ -120,6 +120,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 		"/xrpc/network.habitat.notification.listNotifications",
 		priviServer.ListNotifications,
 	)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.notification.createNotification",
+		priviServer.CreateNotification,
+	)
 
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
 		template := `{

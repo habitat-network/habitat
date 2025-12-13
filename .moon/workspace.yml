@@ -1,0 +1,17 @@
+# https://moonrepo.dev/docs/config/workspace
+$schema: "./cache/schemas/workspace.json"
+
+projects:
+  sources:
+    frontend: "frontend"
+    camera: "camera"
+    root: "."
+  globs:
+    - "cmd/*"
+
+vcs:
+  manager: "git"
+  defaultBranch: "master"
+  hooks:
+    pre-commit:
+      - "moon :format --affected --status=staged --no-bail"

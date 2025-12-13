@@ -11,53 +11,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v2
+      - uses: actions/checkout@v6
         with:
-          go-version: 1.25
+          fetch-depth: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v1
+      - name: Setup moon
+        uses: moonrepo/setup-toolchain@v0
         with:
-          node-version: 22
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+          auto-install: true
+      - uses: actions/setup-go@v6
         with:
-          version: 9
+          # don't specify version to prevent additional install after proto
+          # we just want caching
+          cache-dependency-path: "**/go.sum"
 
-      - name: Get dependencies
-        run: |
-          go get -v -t -d ./...
-
-      - name: Build
-        run: make build
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: v2.5.0
-
-      - name: Test
-        run: go test ./... -coverprofile=coverage.out -coverpkg=./...
-
-      - name: check test coverage
-        uses: vladopajic/go-test-coverage@v2.8.2
-        with:
-          config: ./.testcoverage.yml
-
-      - name: Build Archives
-        run: make archive
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            bin/**/*.tar.gz
-            install.sh
-
-    permissions:
-      contents: write
+      - run: moon ci --color
