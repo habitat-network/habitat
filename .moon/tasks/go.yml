@@ -1,0 +1,52 @@
+# https://moonrepo.dev/docs/config/tasks
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+# https://moonrepo.dev/docs/config/project#tasks
+tasks:
+  format-check:
+    command: "noop"
+    deps:
+      - "root:format-check"
+
+  format:
+    command: "noop"
+    deps:
+      - "root:format"
+    local: true
+
+  lint-check:
+    command: "noop"
+    deps:
+      - "root:lint-check"
+
+  build:
+    command: "go build"
+    args:
+      - "-o"
+      - "@out(0)"
+    outputs:
+      - "/bin/$project"
+  test:
+    deps:
+      - "~:build"
+    command: "go test ./..."
+
+  tidy-deps:
+    command: "go mod tidy"
+    local: true
+
+  start:
+    command: "$workspaceRoot/bin/$project"
+    deps:
+      - "~:build"
+    local: true
+    options:
+      envFile:
+        - "/dev.env"
+
+  dev: 
+    command: "air"
+    local: true
+    options:
+      envFile:
+        - "/dev.env"

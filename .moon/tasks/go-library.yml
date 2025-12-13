@@ -1,0 +1,18 @@
+tasks:
+  build:
+    command: "go build ./..."
+    inputs:
+      - "**/*.go"
+  test:
+    deps:
+      - "~:build"
+    command: "go test ./... -coverprofile @out(0) -coverpkg ./..."
+    outputs:
+      - "coverage.out"
+  coverage:
+    deps:
+      - "test"
+    command: "go-test-coverage --config @in(0) --profile @in(1)"
+    inputs:
+      - "/.testcoverage.yml"
+      - "coverage.out"

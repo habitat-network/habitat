@@ -1,0 +1,17 @@
+layer: library
+tasks:
+  format-check:
+    command: "golangci-lint fmt -d"
+    inputs:
+      - "/**/*.go"
+
+  format:
+    command: "golangci-lint fmt"
+    inputs:
+      - "/**/*.go"
+    local: true
+
+  lint-check:
+    command: "golangci-lint run"
+    inputs:
+      - "/**/*.go"

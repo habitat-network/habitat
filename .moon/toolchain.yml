@@ -1,0 +1,14 @@
+unstable_go:
+  version: 
+  tidyOnChange: true
+  bins:
+    - github.com/vladopajic/go-test-coverage/v2@latest
+
+unstable_node:
+  version: 
+
+unstable_pnpm:
+  version: 
+
+unstable_javascript:
+  packageManager: pnpm
