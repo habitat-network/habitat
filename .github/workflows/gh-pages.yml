@@ -25,23 +25,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Set up Node
-        uses: actions/setup-node@v5
+
+      - name: Setup moon
+        uses: moonrepo/setup-toolchain@v0
         with:
-          node-version: 22
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - name: Install dependencies
-        run: pnpm i
-        working-directory: ./frontend
+          auto-install: true
+
       - name: Build
-        run: pnpm run build
-        working-directory: ./frontend
+        run: moon frontend:build
         env:
           DOMAIN: ${{ vars.DOMAIN }}
+          HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
           HASH_ROUTING: true
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
