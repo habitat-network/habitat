@@ -4,9 +4,9 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import { resolve } from "node:path";
 import generateFile from "vite-plugin-generate-file";
 
-import clientMetadata from "./client-metadata";
+import clientMetadata from "internal/clientMetadata";
 
-const domain = process.env.DOMAIN;
+const domain = process.env.DOMAIN ?? "frontend.habitat";
 const habitatDomain = process.env.HABITAT_DOMAIN;
 
 // https://vitejs.dev/config/
@@ -24,10 +24,6 @@ export default defineConfig({
       output: "client-metadata.json",
     }),
   ],
-  test: {
-    globals: true,
-    environment: "jsdom",
-  },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),

@@ -9,9 +9,9 @@ import {
 import { routeTree } from "./routeTree.gen";
 import reportWebVitals from "./reportWebVitals.ts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AuthManager } from "./auth.ts";
+import { AuthManager } from "internal/authManager";
 
-const authManager = new AuthManager(__HABITAT_DOMAIN__, () => {
+const authManager = new AuthManager(__DOMAIN__, __HABITAT_DOMAIN__, () => {
   router.navigate({ to: "/oauth-login" });
 });
 const queryClient = new QueryClient();

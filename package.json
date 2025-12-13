@@ -8,7 +8,8 @@
   },
   "devDependencies": {
     "oxlint": "^1.28.0",
-    "prettier": "3.6.2"
+    "prettier": "3.6.2",
+    "typescript": "^5.9.3"
   },
   "packageManager": "pnpm@10.21.0"
 }

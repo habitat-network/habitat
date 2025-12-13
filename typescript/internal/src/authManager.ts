@@ -1,4 +1,4 @@
-import clientMetadata from "../client-metadata";
+import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
 
 const handleLocalStorageKey = "handle";
@@ -12,8 +12,12 @@ export class AuthManager {
   private config: client.Configuration;
   private onUnauthenticated: () => void;
 
-  constructor(serverDomain: string, onUnauthenticated: () => void) {
-    const { client_id } = clientMetadata(__DOMAIN__);
+  constructor(
+    domain: string,
+    serverDomain: string,
+    onUnauthenticated: () => void,
+  ) {
+    const { client_id } = clientMetadata(domain);
     this.config = new client.Configuration(
       {
         issuer: `https://${serverDomain}/oauth/authorize`,

@@ -9,14 +9,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@atproto/oauth-client-browser": "^0.3.13",
+    "@atproto/oauth-client-browser": "^0.3.34",
     "@tanstack/react-query": "^5.72.2",
     "@tanstack/react-router": "^1.114.3",
     "@tanstack/react-router-devtools": "^1.114.3",
     "@tanstack/router-plugin": "^1.114.3",
     "axios": "^1.8.4",
+    "internal": "workspace:*",
     "js-cookie": "^3.0.5",
-    "openid-client": "^6.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.58.1"

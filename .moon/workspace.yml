@@ -6,7 +6,8 @@ projects:
     frontend: "frontend"
     camera: "camera"
     root: "."
-    "integration": "integration"
+    typescript/internal: "typescript/internal"
+    integration: "integration"
   globs:
     - "cmd/*"
 

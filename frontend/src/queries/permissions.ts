@@ -1,4 +1,4 @@
-import type { AuthManager } from "@/auth";
+import type { AuthManager } from "internal/authManager";
 import { queryOptions } from "@tanstack/react-query";
 
 export function listPermissions(authManager: AuthManager) {
