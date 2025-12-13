@@ -23,8 +23,8 @@ jobs:
         with:
           # don't specify version to prevent additional install after proto
           # we just want caching
-          cache-dependency-path: 
-            - "**/go.sum"
-            - ".prototools"
+          cache-dependency-path: |
+            "**/go.sum"
+            ".prototools"
 
       - run: moon ci --color
