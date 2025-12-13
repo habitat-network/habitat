@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	jose "github.com/go-jose/go-jose/v3"
@@ -156,8 +157,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 			return s.ListenAndServe()
 		}
 		return s.ListenAndServeTLS(
-			fmt.Sprintf("%s%s", httpsCerts, "fullchain.pem"),
-			fmt.Sprintf("%s%s", httpsCerts, "privkey.pem"),
+			filepath.Join(httpsCerts, "fullchain.pem"),
+			filepath.Join(httpsCerts, "privkey.pem"),
 		)
 	})
 

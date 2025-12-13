@@ -7,6 +7,7 @@ projects:
     camera: "camera"
     root: "."
     typescript/internal: "typescript/internal"
+    integration: "integration"
   globs:
     - "cmd/*"
 
@@ -16,3 +17,8 @@ vcs:
   hooks:
     pre-commit:
       - "moon :format --affected --status=staged --no-bail"
+docker:
+  scaffold:
+    include:
+      - '**/go.mod'
+      - '**/go.sum'
