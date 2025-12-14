@@ -110,4 +110,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error { }
+export class UnauthenticatedError extends Error {}
