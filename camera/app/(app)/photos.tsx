@@ -44,7 +44,7 @@ const Tile = ({ cid, size }: { cid: string; size: number }) => {
         headers: headers,
       }); // Native can use the URL directly
     }
-  }, [src, headers]);
+  }, [src, fetchWithAuth]);
 
   if (!imgSrc) return null; // or a loading spinner
 
