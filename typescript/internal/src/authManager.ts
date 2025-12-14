@@ -53,7 +53,11 @@ export class AuthManager {
     // TODO: implement me!!
   }
 
-  async exchangeCode(currentUrl: string) {
+  async maybeExchangeCode(currentUrl: string) {
+    const url = new URL(currentUrl);
+    if (!url.searchParams.get("code") || !url.searchParams.get("state")) {
+      return;
+    }
     const state = localStorage.getItem(stateLocalStorageKey);
     if (!state) {
       throw new Error("No state found");
@@ -68,6 +72,7 @@ export class AuthManager {
     );
     this.accessToken = token.access_token;
     localStorage.setItem(tokenLocalStorageKey, token.access_token);
+    window.location.href = "/";
   }
 
   async fetch(
@@ -110,4 +115,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }
