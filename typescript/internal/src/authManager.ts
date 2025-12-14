@@ -40,7 +40,6 @@ export class AuthManager {
     this.handle = handle;
     localStorage.setItem(handleLocalStorageKey, handle);
     const state = client.randomState();
-    console.log(state);
     localStorage.setItem(stateLocalStorageKey, state);
     return client.buildAuthorizationUrl(this.config, {
       redirect_uri: redirectUri,
@@ -60,8 +59,6 @@ export class AuthManager {
       throw new Error("No state found");
     }
     localStorage.removeItem(stateLocalStorageKey);
-    console.log(currentUrl);
-    console.log(state);
     const token = await client.authorizationCodeGrant(
       this.config,
       new URL(currentUrl),
@@ -113,4 +110,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }
