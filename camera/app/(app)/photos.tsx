@@ -12,14 +12,15 @@ import {
 
 const Tile = ({ cid, size }: { cid: string; size: number }) => {
   const { token, fetchWithAuth, did } = useAuth();
-  const src = `https://${domain}/xrpc/network.habitat.getBlob?cid=${cid}&did=${did}`;
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Habitat-Auth-Method": "oauth",
-  };
 
   const [imgSrc, setImgSrc] = useState<ImageSourcePropType>();
   useEffect(() => {
+    const src = `https://${domain}/xrpc/network.habitat.getBlob?cid=${cid}&did=${did}`;
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Habitat-Auth-Method": "oauth",
+    };
+
     let cancelled = false;
     if (Platform.OS === "web") {
       fetchWithAuth(src, { headers })
@@ -44,7 +45,7 @@ const Tile = ({ cid, size }: { cid: string; size: number }) => {
         headers: headers,
       }); // Native can use the URL directly
     }
-  }, [src, fetchWithAuth]);
+  }, [fetchWithAuth, did, cid, token]);
 
   if (!imgSrc) return null; // or a loading spinner
 
