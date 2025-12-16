@@ -3,7 +3,6 @@ packages:
   - camera
   - typescript/internal
   - typescript/apps/*
-  - docs-test
 
 catalog:
   '@tanstack/devtools-vite': ^0.3.11
