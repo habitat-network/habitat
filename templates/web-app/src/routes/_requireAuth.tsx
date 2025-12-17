@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_requireAuth")({
-  beforeLoad({ context }) {
+  async beforeLoad({ context }) {
+    await context.authManager.maybeExchangeCode(window.location.href);
     if (!context.authManager.isAuthenticated()) {
       throw redirect({ to: "/login" });
     }
