@@ -9,9 +9,6 @@ tasks:
     deps:
       - target: "funnel:start"
         args: ["8000", "privi"]
-      - target: "funnel:start"
-        args: ["5173", "frontend"]
-      - target: "frontend:start"
   docker-build:
     options:
       internal: false
