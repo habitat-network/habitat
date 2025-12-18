@@ -19,10 +19,10 @@ import (
 )
 
 func setupServer(t *testing.T) (multiaddr.Multiaddr, *Server) {
-	p2pServer, err := NewServer(nil)
+	p2pServer, err := NewServer()
 	require.NoError(t, err)
 
-	server := httptest.NewServer(http.HandlerFunc(p2pServer.HandleDiscover))
+	server := httptest.NewServer(http.HandlerFunc(p2pServer.HandleLibp2p))
 	serverUrl, err := url.Parse(server.URL)
 	require.NoError(t, err)
 	ma, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/127.0.0.1/tcp/%s/ws", serverUrl.Port()))

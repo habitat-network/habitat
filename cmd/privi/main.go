@@ -67,7 +67,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer := setupOAuthServer(keyFile, domain)
 	priviServer := setupPriviServer(db, oauthServer)
 	pdsForwarding := newPDSForwarding(oauthServer)
-	p2pServer, err := p2p.NewServer(oauthServer)
+	p2pServer, err := p2p.NewServer()
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup P2P server")
 	}
@@ -130,7 +130,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		"/xrpc/network.habitat.notification.createNotification",
 		priviServer.CreateNotification,
 	)
-	mux.HandleFunc("/xrpc/network.habitat.multiplayer.discover", p2pServer.HandleDiscover)
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
