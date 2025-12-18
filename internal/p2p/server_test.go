@@ -32,7 +32,7 @@ func setupServer(t *testing.T) (multiaddr.Multiaddr, *Server) {
 
 func TestP2PPing(t *testing.T) {
 	ma, p2pServer := setupServer(t)
-	defer p2pServer.Close()
+	t.Cleanup(func() { require.NoError(t, p2pServer.Close()) })
 
 	// Create a separate test client host
 	clientHost, err := libp2p.New(
@@ -40,7 +40,7 @@ func TestP2PPing(t *testing.T) {
 		libp2p.Transport(websocket.New),
 	)
 	require.NoError(t, err)
-	defer clientHost.Close()
+	t.Cleanup(func() { require.NoError(t, clientHost.Close()) })
 
 	serverId := p2pServer.host.ID()
 
@@ -79,7 +79,7 @@ func TestP2PPing(t *testing.T) {
 
 func TestRelay(t *testing.T) {
 	ma, p2pServer := setupServer(t)
-	defer p2pServer.Close()
+	t.Cleanup(func() { require.NoError(t, p2pServer.Close()) })
 
 	// Create a separate test client host
 	client1, err := libp2p.New(
@@ -94,7 +94,7 @@ func TestRelay(t *testing.T) {
 		}),
 	)
 	require.NoError(t, err)
-	defer client1.Close()
+	t.Cleanup(func() { require.NoError(t, client1.Close()) })
 
 	// Create a separate test client host
 	client2, err := libp2p.New(
@@ -109,7 +109,7 @@ func TestRelay(t *testing.T) {
 		}),
 	)
 	require.NoError(t, err)
-	defer client2.Close()
+	t.Cleanup(func() { require.NoError(t, client2.Close()) })
 
 	result := <-ping.NewPingService(client1).Ping(t.Context(), client2.ID())
 	require.Error(t, result.Error, "ping should fail before relay connections")
