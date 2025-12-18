@@ -43,7 +43,7 @@ tasks:
         - "/dev.env"
 
   dev: 
-    command: "air"
+    command: "air --root $workspaceRoot"
     local: true
     options:
       envFile:

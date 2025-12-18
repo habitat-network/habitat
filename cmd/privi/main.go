@@ -24,6 +24,7 @@ import (
 	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
+	"github.com/eagraf/habitat-new/internal/p2p"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/gorilla/sessions"
@@ -66,6 +67,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer := setupOAuthServer(keyFile, domain)
 	priviServer := setupPriviServer(db, oauthServer)
 	pdsForwarding := newPDSForwarding(oauthServer)
+	p2pServer, err := p2p.NewServer(oauthServer)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup P2P server")
+	}
 
 	// Setup context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -125,31 +130,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		"/xrpc/network.habitat.notification.createNotification",
 		priviServer.CreateNotification,
 	)
+	mux.HandleFunc("/xrpc/network.habitat.multiplayer.discover", p2pServer.HandleDiscover)
 
-	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
-		template := `{
-  "id": "did:web:%s",
-  "@context": [
-    "https://www.w3.org/ns/did/v1",
-    "https://w3id.org/security/multikey/v1", 
-    "https://w3id.org/security/suites/secp256k1-2019/v1"
-  ],
-  "service": [
-    {
-      "id": "#habitat",
-      "serviceEndpoint": "https://%s",
-      "type": "HabitatServer"
-    }
-  ]
-}`
-		_, err := fmt.Fprintf(w, template, domain, domain)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
+	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	mux.Handle("/xrpc/", pdsForwarding)
+
+	mux.HandleFunc("/", p2pServer.HandleLibp2p)
 
 	s := &http.Server{
 		Handler: corsMiddleware(loggingMiddleware(mux)),
@@ -172,7 +159,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		<-egCtx.Done()
 		log.Info().Msg("shutting down server")
-		return s.Shutdown(context.Background())
+		if err := s.Shutdown(context.Background()); err != nil {
+			log.Error().Err(err).Msg("error shutting down http server")
+		}
+		if err := p2pServer.Close(); err != nil {
+			log.Error().Err(err).Msg("error closing p2p host")
+		}
+		return nil
 	})
 
 	// Wait for all goroutines to finish
@@ -262,6 +255,31 @@ func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
 		identity.DefaultDirectory(),
 	)
 	return oauthServer
+}
+
+func serveDid(domain string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		template := `{
+  "id": "did:web:%s",
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/multikey/v1", 
+    "https://w3id.org/security/suites/secp256k1-2019/v1"
+  ],
+  "service": [
+    {
+      "id": "#habitat",
+      "serviceEndpoint": "https://%s",
+      "type": "HabitatServer"
+    }
+  ]
+}`
+		_, err := fmt.Fprintf(w, template, domain, domain)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {
