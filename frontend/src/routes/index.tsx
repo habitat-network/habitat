@@ -1,18 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
-  async beforeLoad({ search, context }) {
-    if ("code" in search) {
-      await context.authManager.exchangeCode(window.location.href);
-      window.location.search = "";
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("code");
-        window.history.replaceState({}, "", url.toString());
-      } catch {
-        window.location.search = "";
-      }
-    }
+  async beforeLoad({ context }) {
+    await context.authManager.maybeExchangeCode(window.location.href);
   },
   async loader() {
     return [

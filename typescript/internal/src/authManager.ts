@@ -40,7 +40,6 @@ export class AuthManager {
     this.handle = handle;
     localStorage.setItem(handleLocalStorageKey, handle);
     const state = client.randomState();
-    console.log(state);
     localStorage.setItem(stateLocalStorageKey, state);
     return client.buildAuthorizationUrl(this.config, {
       redirect_uri: redirectUri,
@@ -54,14 +53,16 @@ export class AuthManager {
     // TODO: implement me!!
   }
 
-  async exchangeCode(currentUrl: string) {
+  async maybeExchangeCode(currentUrl: string) {
+    const url = new URL(currentUrl);
+    if (!url.searchParams.get("code") || !url.searchParams.get("state")) {
+      return;
+    }
     const state = localStorage.getItem(stateLocalStorageKey);
     if (!state) {
       throw new Error("No state found");
     }
     localStorage.removeItem(stateLocalStorageKey);
-    console.log(currentUrl);
-    console.log(state);
     const token = await client.authorizationCodeGrant(
       this.config,
       new URL(currentUrl),
@@ -71,6 +72,7 @@ export class AuthManager {
     );
     this.accessToken = token.access_token;
     localStorage.setItem(tokenLocalStorageKey, token.access_token);
+    window.location.href = "/";
   }
 
   async fetch(

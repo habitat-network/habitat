@@ -17,7 +17,6 @@ require (
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20251020231157-aa7fd7f7a301
-	github.com/docker/docker v28.5.2+incompatible
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/mdelapenya/tlscert v0.2.0
 	github.com/stretchr/testify v1.11.1
@@ -41,6 +40,7 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
+	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
@@ -49,7 +49,6 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-rod/rod v0.116.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
@@ -78,11 +77,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
-	github.com/ysmood/fetchup v0.2.3 // indirect
-	github.com/ysmood/goob v0.4.0 // indirect
-	github.com/ysmood/got v0.40.0 // indirect
-	github.com/ysmood/gson v0.7.3 // indirect
-	github.com/ysmood/leakless v0.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect

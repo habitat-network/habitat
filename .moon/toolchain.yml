@@ -12,3 +12,4 @@ unstable_pnpm:
 
 unstable_javascript:
   packageManager: pnpm
+  dedupeOnLockfileChange: false

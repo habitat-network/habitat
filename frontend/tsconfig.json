@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["**/*.ts", "**/*.tsx", "../typescript/internal/src/globals.d.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
