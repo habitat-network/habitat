@@ -50,7 +50,7 @@ export function SplashScreenController() {
 }
 
 const RootNavigator = () => {
-  const { token, isLoading } = useAuth();
+  const { token } = useAuth();
   return (
     <Stack
       screenOptions={{
