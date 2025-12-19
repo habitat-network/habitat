@@ -1,15 +1,15 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { FetchWithAuth, useAuth } from "@/context/auth";
+import { useAuth } from "@/context/auth";
 import {
   CameraCapturedPicture,
   CameraType,
   CameraView,
   useCameraPermissions,
 } from "expo-camera";
-import { Stack, useNavigation, useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { useRef, useEffect, useState } from "react";
-import { Button, Platform, TouchableHighlight } from "react-native";
+import { TouchableHighlight } from "react-native";
 
 const cleanBase64 = (data: string) => {
   if (data.startsWith("data:")) {
@@ -81,7 +81,7 @@ const Home = () => {
     if (!permission?.granted) {
       requestPermission();
     }
-  }, [permission]);
+  }, [permission, requestPermission]);
 
   if (!permission || !permission.granted) {
     // Camera permissions are still loading
