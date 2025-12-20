@@ -1,0 +1,243 @@
+/**
+ * GENERATED CODE - DO NOT MODIFY
+ */
+import {
+  XrpcClient,
+  type FetchHandler,
+  type FetchHandlerOptions,
+} from '@atproto/xrpc'
+import { schemas } from './lexicons.js'
+import { CID } from 'multiformats/cid'
+import { type OmitKey, type Un$Typed } from './util.js'
+import * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
+import * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
+import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
+import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
+import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
+import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
+import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
+
+export * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
+export * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
+export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
+export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
+export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
+export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
+export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
+
+export class AtpBaseClient extends XrpcClient {
+  network: NetworkNS
+
+  constructor(options: FetchHandler | FetchHandlerOptions) {
+    super(options, schemas)
+    this.network = new NetworkNS(this)
+  }
+
+  /** @deprecated use `this` instead */
+  get xrpc(): XrpcClient {
+    return this
+  }
+}
+
+export class NetworkNS {
+  _client: XrpcClient
+  habitat: NetworkHabitatNS
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.habitat = new NetworkHabitatNS(client)
+  }
+}
+
+export class NetworkHabitatNS {
+  _client: XrpcClient
+  photo: NetworkHabitatPhotoRecord
+  notification: NetworkHabitatNotificationNS
+  repo: NetworkHabitatRepoNS
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.notification = new NetworkHabitatNotificationNS(client)
+    this.repo = new NetworkHabitatRepoNS(client)
+    this.photo = new NetworkHabitatPhotoRecord(client)
+  }
+}
+
+export class NetworkHabitatNotificationNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  createNotification(
+    data?: NetworkHabitatNotificationCreateNotification.InputSchema,
+    opts?: NetworkHabitatNotificationCreateNotification.CallOptions,
+  ): Promise<NetworkHabitatNotificationCreateNotification.Response> {
+    return this._client.call(
+      'network.habitat.notification.createNotification',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  listNotifications(
+    params?: NetworkHabitatNotificationListNotifications.QueryParams,
+    opts?: NetworkHabitatNotificationListNotifications.CallOptions,
+  ): Promise<NetworkHabitatNotificationListNotifications.Response> {
+    return this._client.call(
+      'network.habitat.notification.listNotifications',
+      params,
+      undefined,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatRepoNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  getBlob(
+    params?: NetworkHabitatRepoGetBlob.QueryParams,
+    opts?: NetworkHabitatRepoGetBlob.CallOptions,
+  ): Promise<NetworkHabitatRepoGetBlob.Response> {
+    return this._client
+      .call('network.habitat.repo.getBlob', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatRepoGetBlob.toKnownErr(e)
+      })
+  }
+
+  getRecord(
+    params?: NetworkHabitatRepoGetRecord.QueryParams,
+    opts?: NetworkHabitatRepoGetRecord.CallOptions,
+  ): Promise<NetworkHabitatRepoGetRecord.Response> {
+    return this._client
+      .call('network.habitat.repo.getRecord', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatRepoGetRecord.toKnownErr(e)
+      })
+  }
+
+  listRecords(
+    params?: NetworkHabitatRepoListRecords.QueryParams,
+    opts?: NetworkHabitatRepoListRecords.CallOptions,
+  ): Promise<NetworkHabitatRepoListRecords.Response> {
+    return this._client.call(
+      'network.habitat.repo.listRecords',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  putRecord(
+    data?: NetworkHabitatRepoPutRecord.InputSchema,
+    opts?: NetworkHabitatRepoPutRecord.CallOptions,
+  ): Promise<NetworkHabitatRepoPutRecord.Response> {
+    return this._client.call(
+      'network.habitat.repo.putRecord',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  uploadBlob(
+    data?: NetworkHabitatRepoUploadBlob.InputSchema,
+    opts?: NetworkHabitatRepoUploadBlob.CallOptions,
+  ): Promise<NetworkHabitatRepoUploadBlob.Response> {
+    return this._client.call(
+      'network.habitat.repo.uploadBlob',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatPhotoRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatPhoto.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.photo',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{ uri: string; cid: string; value: NetworkHabitatPhoto.Record }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.photo',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatPhoto.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.photo'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatPhoto.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.photo'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.photo', ...params },
+      { headers },
+    )
+  }
+}

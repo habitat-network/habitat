@@ -1,0 +1,12 @@
+tasks:
+  generate:
+    command: "pnpx @atproto/lex-cli"
+    args:
+      - "gen-api"
+      - "."
+      - "$workspaceRoot/lexicons/**/*.json"
+    outputs:
+      - "types/"
+    local: true
+    options:
+      interactive: true
