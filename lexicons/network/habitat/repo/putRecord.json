@@ -33,7 +33,7 @@
               "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
             },
             "record": {
-              "type": "object",
+              "type": "unknown",
               "description": "The record to write."
             }
           }

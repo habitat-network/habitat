@@ -43,6 +43,7 @@
         "type": "object",
         "required": ["did", "originDid", "collection", "rkey"],
         "properties": {
+          "did": { "type": "string", "format": "did" },
           "originDid": { "type": "string", "format": "did" },
           "collection": { "type": "string", "format": "nsid" },
           "rkey": { "type": "string", "format": "record-key" }

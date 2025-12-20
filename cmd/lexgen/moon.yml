@@ -1,0 +1,4 @@
+tasks:
+  start:
+    options:
+      runFromWorkspaceRoot: true
