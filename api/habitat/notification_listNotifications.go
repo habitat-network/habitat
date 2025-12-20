@@ -23,6 +23,7 @@ type NetworkHabitatNotificationListNotificationsRecord struct {
 // NetworkHabitatNotificationListNotificationsNotification represents a notification object
 type NetworkHabitatNotificationListNotificationsNotification struct {
 	Collection string `json:"collection"`
+	Did        string `json:"did"`
 	OriginDid  string `json:"originDid"`
 	Rkey       string `json:"rkey"`
 }

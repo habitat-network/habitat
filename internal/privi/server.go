@@ -93,8 +93,19 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		rkey = req.Rkey
 	}
 
+	record, ok := req.Record.(map[string]any)
+	if !ok {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("record must be a JSON object"),
+			"invalid record type",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
 	v := true
-	err = s.store.putRecord(ownerDID.String(), req.Collection, req.Record, rkey, &v)
+	err = s.store.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,

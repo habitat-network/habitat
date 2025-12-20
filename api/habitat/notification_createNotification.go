@@ -4,9 +4,9 @@ package habitat
 
 // NetworkHabitatNotificationCreateNotificationInput represents the input for network.habitat.notification.createNotification
 type NetworkHabitatNotificationCreateNotificationInput struct {
-	Collection string                 `json:"collection"`
-	Record     map[string]interface{} `json:"record"`
-	Repo       string                 `json:"repo"`
+	Collection string                                                   `json:"collection"`
+	Record     NetworkHabitatNotificationCreateNotificationNotification `json:"record"`
+	Repo       string                                                   `json:"repo"`
 }
 
 // NetworkHabitatNotificationCreateNotificationOutput represents the output for network.habitat.notification.createNotification
@@ -19,5 +19,6 @@ type NetworkHabitatNotificationCreateNotificationOutput struct {
 type NetworkHabitatNotificationCreateNotificationNotification struct {
 	Collection string `json:"collection"`
 	Did        string `json:"did"`
+	OriginDid  string `json:"originDid"`
 	Rkey       string `json:"rkey"`
 }

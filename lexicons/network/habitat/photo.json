@@ -11,7 +11,7 @@
         "required": ["ref"],
         "properties": {
           "ref": {
-            "type": "$link"
+            "type": "blob"
           },
           "createdAt": {
             "type": "string",

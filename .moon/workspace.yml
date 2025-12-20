@@ -8,6 +8,8 @@ projects:
     root: "."
     typescript/internal: "typescript/internal"
     integration: "integration"
+    typescript/api: "typescript/api"
+    go/api: "api"
   globs:
     - "cmd/*"
     - "typescript/apps/*"
