@@ -32,6 +32,10 @@ tasks:
   lint-check:
     command: "npx oxlint ."
 
+  lint:
+    command: "npx oxlint --fix --fix-suggestions --fix-dangerously ."
+    local: true
+
   build:
     command: "pnpm build"
     outputs:

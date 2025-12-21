@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_requireAuth/permissions/lexicons/")({
           </thead>
           <tbody>
             {Object.keys(data).map((lexicon) => (
-              <tr>
+              <tr key={lexicon}>
                 <td>{lexicon}</td>
                 <td>{data[lexicon].length}</td>
                 <td>

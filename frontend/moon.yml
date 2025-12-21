@@ -7,7 +7,7 @@ tasks:
     deps:
       - target: "privi:dev"
       - target: "funnel:start"
-        args: ["5173", "frontend"]
+        args: ["6000", "frontend"]
 
   docker-build:
     deps:
