@@ -102,7 +102,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
       }
     });
 
-    node.services.pubsub.addEventListener("gossipsub:graft", ({ detail }) => {
+    node.services.pubsub.addEventListener("gossipsub:graft", () => {
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageTypes.sync);
       syncProtocol.writeSyncStep1(encoder, doc);
