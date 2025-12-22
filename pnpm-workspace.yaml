@@ -20,7 +20,7 @@ catalog:
   jsdom: ^27.0.0
   react: ^19.2.3
   react-dom: ^19.2.0
-  react-hook-form: ^7.58.1
+  react-hook-form: 7.65.0
   typescript: ^5.7.2
   vite: ^7.1.7
   vite-tsconfig-paths: ^5.1.4
