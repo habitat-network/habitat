@@ -23,6 +23,11 @@ export default function habitatAppPlugin(options?: {
               : "undefined",
             __HASH_ROUTING__: hashRouting ? "true" : "false",
           },
+          base: domain ? `https://${domain}/` : "/",
+          server: {
+            host: true,
+            allowedHosts: [".ts.net"],
+          },
         };
       },
     },

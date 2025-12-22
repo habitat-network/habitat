@@ -42,7 +42,10 @@ tasks:
       - "dist/"
 
   start:
-    command: "pnpm start"
+    command: "pnpm serve"
+
+  dev:
+    command: "pnpm dev"
     options:
       envFile:
         - "/dev.env"

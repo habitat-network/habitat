@@ -1,4 +1,14 @@
 tasks:
+  dev:
+    env:
+      DOMAIN: "$project.${TS_DOMAIN}"
+    inputs:
+      - "$TS_DOMAIN"
+    deps:
+      - target: "privi:dev"
+      - target: "funnel:start"
+        args: ["6000", "frontend"]
+
   docker-build:
     deps:
       - target: "build"

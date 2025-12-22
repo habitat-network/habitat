@@ -4,8 +4,6 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { resolve } from "node:path";
 import habitatAppPlugin from "internal/habitatAppVitePlugin.ts";
 
-const domain = process.env.DOMAIN ?? "frontend.habitat";
-
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -19,8 +17,6 @@ export default defineConfig({
     },
   },
   server: {
-    host: true,
-    allowedHosts: [".ts.net"],
+    port: 6000,
   },
-  base: domain ? `https://${domain}/` : "/",
 });
