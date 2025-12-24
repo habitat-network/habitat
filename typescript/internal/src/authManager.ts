@@ -1,12 +1,19 @@
 import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
+import { HabitatClient, HabitatAuthedAgentSession } from "./habitatClient";
+import { DidResolver } from "@atproto/identity";
+import { Agent } from '@atproto/api';
+
 
 const handleLocalStorageKey = "handle";
+const didLocalStorageKey = "did";
 const tokenLocalStorageKey = "token";
 const stateLocalStorageKey = "state";
 
 export class AuthManager {
   handle: string | null;
+  did: string | null;
+
   private serverDomain: string;
   private accessToken: string | null = null;
   private config: client.Configuration;
@@ -27,9 +34,11 @@ export class AuthManager {
       client_id,
     );
     this.handle = localStorage.getItem(handleLocalStorageKey);
+    this.did = localStorage.getItem(didLocalStorageKey);
     this.accessToken = localStorage.getItem(tokenLocalStorageKey);
-    this.onUnauthenticated = onUnauthenticated;
     this.serverDomain = serverDomain;
+
+    this.onUnauthenticated = onUnauthenticated;
   }
 
   isAuthenticated() {
@@ -58,6 +67,20 @@ export class AuthManager {
     if (!url.searchParams.get("code") || !url.searchParams.get("state")) {
       return;
     }
+  }
+
+  client(): HabitatClient {
+
+    const serverUrl = "https://" + this.serverDomain;
+    const authedSession = new HabitatAuthedAgentSession(serverUrl, this);
+    const authedAgent = new Agent(authedSession);
+    if (!this.did) {
+      throw new Error("No DID found");
+    }
+    return new HabitatClient(this.did, authedAgent, new DidResolver({}));
+  }
+
+  async exchangeCode(currentUrl: string) {
     const state = localStorage.getItem(stateLocalStorageKey);
     if (!state) {
       throw new Error("No state found");
@@ -71,7 +94,11 @@ export class AuthManager {
       },
     );
     this.accessToken = token.access_token;
+    this.did = token.sub as string;
+
     localStorage.setItem(tokenLocalStorageKey, token.access_token);
+    localStorage.setItem(didLocalStorageKey, this.did);
+
     window.location.href = "/";
   }
 
