@@ -1,0 +1,32 @@
+# Config file for [Air](https://github.com/air-verse/air) in TOML format
+
+# Working directory - use workspace root to watch all Go files
+root = "../.."
+tmp_dir = "cmd/privi/tmp"
+
+[build]
+# Build the privi binary (run from cmd/privi since it's its own module)
+cmd = "go build -o ../../bin/privi ."
+# Binary file yields from `cmd` (relative to cmd/privi where air starts)
+bin = "../../bin/privi"
+# Run the binary with the dev profile
+full_bin = "../../bin/privi --profile dev.yaml"
+# Watch these filename extensions.
+include_ext = ["go", "yml", "yaml"]
+# Watch these directories (relative to root)
+include_dir = ["cmd/privi", "internal", "api", "pkg"]
+# Exclude these directories
+exclude_dir = ["bin", "tmp", "vendor", "node_modules", "frontend", "camera", "typescript"]
+# Exclude files matching these patterns
+exclude_regex = ["_test\\.go$"]
+# Stop the old binary when building the new one
+kill_delay = "500ms"
+
+[log]
+# Show log time
+time = true
+
+[misc]
+# Delete tmp directory on exit
+clean_on_exit = true
+
