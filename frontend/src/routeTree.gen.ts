@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as RequireAuthNotificationsRouteImport } from './routes/_requireAuth/notifications'
 import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/forwarding-test'
+import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthPriviTestIndexRouteImport } from './routes/_requireAuth/privi-test/index'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
@@ -56,6 +57,11 @@ const RequireAuthForwardingTestRoute =
     path: '/forwarding-test',
     getParentRoute: () => RequireAuthRoute,
   } as any)
+const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
+  id: '/data',
+  path: '/data',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 const RequireAuthPriviTestIndexRoute =
   RequireAuthPriviTestIndexRouteImport.update({
     id: '/privi-test/',
@@ -114,6 +120,7 @@ const RequireAuthPermissionsLexiconsLexiconIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
+  '/data': typeof RequireAuthDataRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/notifications': typeof RequireAuthNotificationsRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
@@ -130,6 +137,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
+  '/data': typeof RequireAuthDataRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/notifications': typeof RequireAuthNotificationsRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
+  '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/notifications': typeof RequireAuthNotificationsRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/oauth-login'
+    | '/data'
     | '/forwarding-test'
     | '/notifications'
     | '/permissions'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/oauth-login'
+    | '/data'
     | '/forwarding-test'
     | '/notifications'
     | '/permissions/people'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_requireAuth'
     | '/oauth-login'
+    | '/_requireAuth/data'
     | '/_requireAuth/forwarding-test'
     | '/_requireAuth/notifications'
     | '/_requireAuth/permissions'
@@ -257,6 +269,13 @@ declare module '@tanstack/react-router' {
       path: '/forwarding-test'
       fullPath: '/forwarding-test'
       preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/data': {
+      id: '/_requireAuth/data'
+      path: '/data'
+      fullPath: '/data'
+      preLoaderRoute: typeof RequireAuthDataRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/privi-test/': {
@@ -366,6 +385,7 @@ const RequireAuthPermissionsRouteWithChildren =
   )
 
 interface RequireAuthRouteChildren {
+  RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthForwardingTestRoute: typeof RequireAuthForwardingTestRoute
   RequireAuthNotificationsRoute: typeof RequireAuthNotificationsRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
@@ -375,6 +395,7 @@ interface RequireAuthRouteChildren {
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
+  RequireAuthDataRoute: RequireAuthDataRoute,
   RequireAuthForwardingTestRoute: RequireAuthForwardingTestRoute,
   RequireAuthNotificationsRoute: RequireAuthNotificationsRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
