@@ -1,20 +1,24 @@
 package utils
 
 import (
+	"encoding/json"
 	"net/http"
 
-	"github.com/eagraf/habitat-new/internal/logging"
+	"github.com/rs/zerolog/log"
 )
 
-var log = logging.NewLogger()
+type ErrorMessage struct {
+	Error string `json:"error"`
+}
 
 // LogAndHTTPError logs the error before sending and HTTP error response to the provided writer.
 // It takes in both an error and a debug message for verobosity.
 func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
 	log.Error().Err(err).Msg(debug)
+	w.WriteHeader(code)
 	if err != nil {
-		http.Error(w, err.Error(), code)
+		err = json.NewEncoder(w).Encode(&ErrorMessage{Error: err.Error()})
 		return
 	}
-	http.Error(w, "unknown error", code)
+	err = json.NewEncoder(w).Encode(&ErrorMessage{Error: "unknown error"})
 }
