@@ -17,8 +17,8 @@ func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
 	log.Error().Err(err).Msg(debug)
 	w.WriteHeader(code)
 	if err != nil {
-		err = json.NewEncoder(w).Encode(&ErrorMessage{Error: err.Error()})
+		json.NewEncoder(w).Encode(&ErrorMessage{Error: err.Error()})
 		return
 	}
-	err = json.NewEncoder(w).Encode(&ErrorMessage{Error: "unknown error"})
+	json.NewEncoder(w).Encode(&ErrorMessage{Error: "unknown error"})
 }
