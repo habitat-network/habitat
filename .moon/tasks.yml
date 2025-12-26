@@ -7,3 +7,4 @@ tasks:
     options:
       internal: true
       runFromWorkspaceRoot: true
+      persistent: false
