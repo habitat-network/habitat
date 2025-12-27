@@ -37,8 +37,6 @@ tasks:
 
   start:
     command: "$workspaceRoot/bin/$project"
-    deps:
-      - "~:build"
     local: true
     options:
       envFile:
@@ -50,4 +48,3 @@ tasks:
     options:
       envFile:
         - "/dev.env"
-      outputStyle: "stream"

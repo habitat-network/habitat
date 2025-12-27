@@ -12,8 +12,6 @@ tasks:
       - target: "funnel:start"
         args: ["5173", "frontend"]
       - target: "frontend:start"
-    options:
-      outputStyle: "stream"
   docker-build:
     options:
       internal: false
