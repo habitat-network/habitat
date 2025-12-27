@@ -35,3 +35,6 @@ repo.db
 .moon/cache
 
 /privi
+
+# Ignore custom VSCode/Cursor settings
+.vscode/settings.json
