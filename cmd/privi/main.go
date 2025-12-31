@@ -274,7 +274,7 @@ func setupOAuthServer(
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
 
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer := oauthserver.NewOAuthServer(
 		jwk,
 		oauthClient,
 		sessions.NewCookieStore([]byte("my super secret signing password")),

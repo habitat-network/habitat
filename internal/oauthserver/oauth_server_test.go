@@ -42,7 +42,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err, "failed to generate RSA key")
 
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer := oauthserver.NewOAuthServer(
 		&jose.JSONWebKey{
 			Key:       privateKey,
 			KeyID:     "test-key",
@@ -54,7 +54,6 @@ func TestOAuthServerE2E(t *testing.T) {
 		oauthclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 	)
-	require.NoError(t, err, "failed to create oauth server")
 
 	// setup http server oauth client to make requests to
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
