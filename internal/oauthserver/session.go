@@ -4,52 +4,44 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/ory/fosite"
+	"github.com/ory/fosite/handler/oauth2"
+	"github.com/ory/fosite/token/jwt"
 )
 
+// authSession implements fosite.Session for authorization codes (stateless)
+// We store minimal data here since the authorization code is temporary
 type authSession struct {
-	Subject       string                     `cbor:"1,keyasint"`
-	ExpiresAt     time.Time                  `cbor:"2,keyasint"`
-	DpopKey       []byte                     `cbor:"3,keyasint"`
-	TokenInfo     *oauthclient.TokenResponse `cbor:"4,keyasint"`
-	ClientID      string                     `cbor:"5,keyasint"`
-	Scopes        []string                   `cbor:"7,keyasint"`
-	State         string                     `cbor:"8,keyasint"`
-	PKCEChallenge string                     `cbor:"9,keyasint"`
+	Subject       string
+	ExpiresAt     time.Time
+	ClientID      string
+	Scopes        []string
+	PKCEChallenge string
 }
 
 var _ fosite.Session = (*authSession)(nil)
 
 func newAuthorizeSession(
 	req fosite.AuthorizeRequester,
-	dpopKey []byte,
-	tokenInfo *oauthclient.TokenResponse,
 	did syntax.DID,
 ) *authSession {
 	return &authSession{
 		Subject:       did.String(),
 		Scopes:        req.GetRequestedScopes(),
-		DpopKey:       dpopKey,
-		TokenInfo:     tokenInfo,
-		State:         req.GetState(),
 		ClientID:      req.GetClient().GetID(),
 		PKCEChallenge: req.GetRequestForm().Get("code_challenge"),
 	}
 }
 
-func newAccessTokenSession(session *authSession) *authSession {
-	return &authSession{
-		Subject:   session.Subject,
-		DpopKey:   session.DpopKey,
-		TokenInfo: session.TokenInfo,
-		Scopes:    session.Scopes,
-	}
-}
-
 // Clone implements fosite.Session.
 func (s *authSession) Clone() fosite.Session {
-	return s
+	return &authSession{
+		Subject:       s.Subject,
+		ExpiresAt:     s.ExpiresAt,
+		Scopes:        append([]string{}, s.Scopes...),
+		ClientID:      s.ClientID,
+		PKCEChallenge: s.PKCEChallenge,
+	}
 }
 
 // GetExpiresAt implements fosite.Session.
@@ -70,4 +62,16 @@ func (s *authSession) GetUsername() string {
 // SetExpiresAt implements fosite.Session.
 func (s *authSession) SetExpiresAt(key fosite.TokenType, exp time.Time) {
 	s.ExpiresAt = exp
+}
+
+// newJWTSession creates a JWT session for access/refresh tokens from authorization session
+func newJWTSession(authSess *authSession) *oauth2.JWTSession {
+	return &oauth2.JWTSession{
+		JWTClaims: &jwt.JWTClaims{
+			Subject:   authSess.Subject,
+			ExpiresAt: authSess.ExpiresAt,
+			Scope:     authSess.Scopes,
+		},
+		JWTHeader: &jwt.Headers{},
+	}
 }

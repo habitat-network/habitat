@@ -7,11 +7,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetClient(t *testing.T) {
-	store := newStore(newStrategy([]byte("test-secret")))
+	store := newStore(
+		newStrategy(
+			&jose.JSONWebKey{},
+			&fosite.Config{GlobalSecret: []byte("test-secret")}),
+	)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("url: %s", r.Host)
 		if r.URL.Path == "/client-metadata.json" && r.Method == http.MethodGet {

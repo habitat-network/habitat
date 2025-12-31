@@ -2,6 +2,8 @@ package oauthserver_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,25 +11,50 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
+	"github.com/eagraf/habitat-new/internal/pdscred"
+	"github.com/go-jose/go-jose/v3"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestOAuthServerE2E(t *testing.T) {
+	// setup test database
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err, "failed to open test database")
+
+	// setup pds credential store
+	credStore, err := pdscred.NewPDSCredentialStore(db)
+	require.NoError(t, err, "failed to setup pds credential store")
+
 	// setup oauth server
 	clientMetadata := &oauthclient.ClientMetadata{}
 	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 
-	oauthServer := oauthserver.NewOAuthServer(
+	// Generate RSA key for JWT signing
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err, "failed to generate RSA key")
+
+	oauthServer, err := oauthserver.NewOAuthServer(
+		&jose.JSONWebKey{
+			Key:       privateKey,
+			KeyID:     "test-key",
+			Algorithm: string(jose.RS256),
+			Use:       "sig",
+		},
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		oauthclient.NewDummyDirectory("http://pds.url"),
+		credStore,
 	)
+	require.NoError(t, err, "failed to create oauth server")
 
 	// setup http server oauth client to make requests to
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,9 +69,9 @@ func TestOAuthServerE2E(t *testing.T) {
 			oauthServer.HandleToken(w, r)
 			return
 		case "/resource":
-			did, _, ok := oauthServer.Validate(w, r)
+			did, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
-			require.Equal(t, "did:web:test", did)
+			require.Equal(t, syntax.DID("did:web:test"), did)
 		default:
 			t.Errorf("unknown server path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)

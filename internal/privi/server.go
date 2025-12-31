@@ -16,6 +16,7 @@ import (
 
 	"github.com/eagraf/habitat-new/api/habitat"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
+	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/gorilla/schema"
@@ -31,6 +32,7 @@ type Server struct {
 	repo        *sqliteRepo
 	oauthServer *oauthserver.OAuthServer
 	inbox       *Inbox
+	credStore   pdscred.PDSCredentialStore
 }
 
 // NewServer returns a privi server.
@@ -39,6 +41,7 @@ func NewServer(
 	repo *sqliteRepo,
 	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
+	credStore pdscred.PDSCredentialStore,
 ) *Server {
 	server := &Server{
 		store:       newStore(perms, repo),
@@ -46,6 +49,7 @@ func NewServer(
 		repo:        repo,
 		oauthServer: oauthServer,
 		inbox:       inbox,
+		credStore:   credStore,
 	}
 	return server
 }
@@ -178,14 +182,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
 	if r.Header.Get("Habitat-Auth-Method") == "oauth" {
-		didOrHandle, _, ok := s.oauthServer.Validate(w, r)
+		did, ok := s.oauthServer.Validate(w, r)
 		if !ok {
-			return "", false
-		}
-
-		did, err := s.fetchDID(r.Context(), didOrHandle)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
 			return "", false
 		}
 		return did, true
@@ -412,14 +410,22 @@ func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 	// TODO: properly fill in the CID
 	for _, notification := range notifications {
-		resp.Records = append(resp.Records, habitat.NetworkHabitatNotificationListNotificationsRecord{
-			Uri: fmt.Sprintf("habitat://%s/%s/%s", notification.OriginDid, notification.Collection, notification.Rkey),
-			Value: habitat.NetworkHabitatNotificationListNotificationsNotification{
-				OriginDid:  notification.OriginDid,
-				Collection: notification.Collection,
-				Rkey:       notification.Rkey,
+		resp.Records = append(
+			resp.Records,
+			habitat.NetworkHabitatNotificationListNotificationsRecord{
+				Uri: fmt.Sprintf(
+					"habitat://%s/%s/%s",
+					notification.OriginDid,
+					notification.Collection,
+					notification.Rkey,
+				),
+				Value: habitat.NetworkHabitatNotificationListNotificationsNotification{
+					OriginDid:  notification.OriginDid,
+					Collection: notification.Collection,
+					Rkey:       notification.Rkey,
+				},
 			},
-		})
+		)
 	}
 	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
@@ -457,17 +463,16 @@ func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, dpopClient, ok := s.oauthServer.Validate(w, r)
+	did, ok := s.oauthServer.Validate(w, r)
 	if !ok {
 		return
 	}
-	// Try handling both handles and dids
-	atid, err := syntax.ParseAtIdentifier(did)
+	dpopClient, err := s.credStore.GetDpopClient(did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to parse at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "failed to get dpop client", http.StatusInternalServerError)
 		return
 	}
-	id, err := s.dir.Lookup(r.Context(), *atid)
+	id, err := s.dir.LookupDID(r.Context(), did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
 		return
@@ -508,7 +513,12 @@ func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		utils.LogAndHTTPError(w, fmt.Errorf("failed to create notification: %s: %s", resp.Status, string(respBody)), "create notification", resp.StatusCode)
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("failed to create notification: %s: %s", resp.Status, string(respBody)),
+			"create notification",
+			resp.StatusCode,
+		)
 		return
 	}
 

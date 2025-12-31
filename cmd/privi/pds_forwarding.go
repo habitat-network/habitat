@@ -6,39 +6,39 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
+	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/rs/zerolog/log"
 )
 
 type pdsForwarding struct {
 	oauthServer *oauthserver.OAuthServer
+	credStore   pdscred.PDSCredentialStore
 	dir         identity.Directory
 }
 
 var _ http.Handler = (*pdsForwarding)(nil)
 
-func newPDSForwarding(oauthServer *oauthserver.OAuthServer) *pdsForwarding {
+func newPDSForwarding(
+	credStore pdscred.PDSCredentialStore,
+	oauthServer *oauthserver.OAuthServer,
+) *pdsForwarding {
 	return &pdsForwarding{
 		oauthServer: oauthServer,
+		credStore:   credStore,
 		dir:         identity.DefaultDirectory(),
 	}
 }
 
 // ServeHTTP implements http.Handler.
 func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	did, dpopClient, ok := p.oauthServer.Validate(w, r)
+	did, ok := p.oauthServer.Validate(w, r)
 	if !ok {
 		return
 	}
-	// Try handling both handles and dids
-	atid, err := syntax.ParseAtIdentifier(did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to parse at identifier", http.StatusBadRequest)
-		return
-	}
-	id, err := p.dir.Lookup(r.Context(), *atid)
+	dpopClient, err := p.credStore.GetDpopClient(did)
+	id, err := p.dir.LookupDID(r.Context(), did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
 		return

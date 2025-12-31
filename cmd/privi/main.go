@@ -24,6 +24,7 @@ import (
 	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
+	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/gorilla/sessions"
@@ -63,9 +64,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Setup components
 	db := setupDB(cmd)
-	oauthServer := setupOAuthServer(keyFile, domain)
-	priviServer := setupPriviServer(db, oauthServer)
-	pdsForwarding := newPDSForwarding(oauthServer)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup pds cred store")
+	}
+	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore)
+	priviServer := setupPriviServer(db, pdsCredStore, oauthServer)
+	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
 
 	// Setup context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -195,23 +200,30 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return priviDB
 }
 
-func setupPriviServer(db *gorm.DB, oauthServer *oauthserver.OAuthServer) *privi.Server {
+func setupPriviServer(
+	db *gorm.DB,
+	credStore pdscred.PDSCredentialStore,
+	oauthServer *oauthserver.OAuthServer,
+) *privi.Server {
 	repo, err := privi.NewSQLiteRepo(db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
 	}
 
-	adapter, err := permissions.NewSQLiteStore(db)
+	permissionStore, err := permissions.NewSQLiteStore(db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
 
 	inbox := privi.NewInbox(db)
 
-	return privi.NewServer(adapter, repo, inbox, oauthServer)
+	return privi.NewServer(permissionStore, repo, inbox, oauthServer, credStore)
 }
 
-func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
+func setupOAuthServer(
+	keyFile, domain string,
+	credStore pdscred.PDSCredentialStore,
+) *oauthserver.OAuthServer {
 	var jwkBytes []byte
 	_, err := os.Stat(keyFile)
 	if err != nil {
@@ -246,21 +258,32 @@ func setupOAuthServer(keyFile, domain string) *oauthserver.OAuthServer {
 		}
 	}
 
+	jwk := &jose.JSONWebKey{}
+	err = json.Unmarshal(jwkBytes, jwk)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("failed to unmarshal JWK")
+	}
+
 	oauthClient, err := oauthclient.NewOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
 		"https://"+domain+"/oauth-callback",       /*redirectUri*/
-		jwkBytes,                                  /*secretJwk*/
+		jwk,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
 
-	oauthServer := oauthserver.NewOAuthServer(
+	oauthServer, err := oauthserver.NewOAuthServer(
+		jwk,
 		oauthClient,
 		sessions.NewCookieStore([]byte("my super secret signing password")),
 		identity.DefaultDirectory(),
+		credStore,
 	)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup oauth server")
+	}
 	return oauthServer
 }
 
