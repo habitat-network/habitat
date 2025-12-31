@@ -318,7 +318,7 @@ func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (did syntax.DID, ok bool) {
+) (syntax.DID, bool) {
 	ctx := r.Context()
 	_, ar, err := o.provider.IntrospectToken(
 		r.Context(),
@@ -343,7 +343,7 @@ func (o *OAuthServer) Validate(
 		return "", false
 	}
 
-	did = syntax.DID(session.JWTClaims.Subject)
+	did := session.JWTClaims.Subject
 	if did == "" {
 		utils.LogAndHTTPError(
 			w,
@@ -353,5 +353,5 @@ func (o *OAuthServer) Validate(
 		)
 		return "", false
 	}
-	return did, true
+	return syntax.DID(did), true
 }
