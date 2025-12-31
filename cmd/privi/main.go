@@ -263,17 +263,12 @@ func setupOAuthServer(
 	if err != nil {
 		log.Fatal().Err(err).Msgf("failed to unmarshal JWK")
 	}
-
-	oauthClient, err := oauthclient.NewOAuthClient(
+	oauthClient := oauthclient.NewOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
 		"https://"+domain+"/oauth-callback",       /*redirectUri*/
 		jwk,
 	)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup oauth client")
-	}
-
 	oauthServer := oauthserver.NewOAuthServer(
 		jwk,
 		oauthClient,
