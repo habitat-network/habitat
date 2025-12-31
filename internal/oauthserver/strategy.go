@@ -50,7 +50,7 @@ func newStrategy(jwk *jose.JSONWebKey, config fosite.Configurator) *strategy {
 	}
 }
 
-// GenerateAuthorizeCode encrypts the session into the authorization code (stateless)
+// GenerateAuthorizeCode implements oauth2.CoreStrategy.
 func (s *strategy) GenerateAuthorizeCode(
 	ctx context.Context,
 	requester fosite.Requester,
@@ -59,7 +59,7 @@ func (s *strategy) GenerateAuthorizeCode(
 	return token, token, err
 }
 
-// ValidateAuthorizeCode decrypts the authorization code to validate it
+// ValidateAuthorizeCode implements oauth2.CoreStrategy.
 func (s *strategy) ValidateAuthorizeCode(
 	ctx context.Context,
 	requester fosite.Requester,
@@ -68,7 +68,7 @@ func (s *strategy) ValidateAuthorizeCode(
 	return s.decrypt(token, nil)
 }
 
-// AuthorizeCodeSignature returns the code itself as the signature
+// AuthorizeCodeSignature implements oauth2.CoreStrategy.
 func (s *strategy) AuthorizeCodeSignature(ctx context.Context, token string) string {
 	return token
 }
