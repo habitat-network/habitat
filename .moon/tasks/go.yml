@@ -43,7 +43,18 @@ tasks:
         - "/dev.env"
 
   dev: 
-    command: "air --root $workspaceRoot"
+    command: "air"
+    args:
+      - "-c"
+      - "$workspaceRoot/.air.toml"
+      - "--root"
+      - "$workspaceRoot"
+      - "--build.cmd"
+      - "go build -o $workspaceRoot/bin/$project ."
+      - "--build.bin"
+      - "$workspaceRoot/bin/$project"
+      - "--build.include_dir"
+      - "cmd/$project,internal,api,pkg"
     local: true
     options:
       envFile:
