@@ -2,3 +2,4 @@ packages:
   - "frontend"
   - "camera"
   - "typescript/internal"
+  - "typescript/api"

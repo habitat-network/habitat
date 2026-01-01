@@ -1,2 +1,3 @@
 *.gen.ts
 pnpm-lock.yaml
+typescript/api/
