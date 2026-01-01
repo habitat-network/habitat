@@ -8,10 +8,20 @@
   "packageManager": "pnpm@10.21.0",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    "./*": "./src/*"
   },
   "dependencies": {
     "@atproto/oauth-client-browser": "^0.3.34",
-    "openid-client": "^6.8.1"
+    "@tanstack/react-query": "catalog:",
+    "openid-client": "^6.8.1",
+    "react": "catalog:",
+    "react-hook-form": "catalog:",
+    "web-vitals": "^4.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-generate-file": "^0.3.1"
   }
 }

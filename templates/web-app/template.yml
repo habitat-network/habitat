@@ -1,0 +1,12 @@
+# https://moonrepo.dev/docs/config/template
+$schema: '../../.moon/cache/schemas/template.json'
+
+title: 'Habitat Web App'
+description: 'Template for bootstrapping a web app with routing, auth, ...'
+destination: '/typescript/apps/[name]'
+variables:
+  name:
+    type: 'string'
+    default: ''
+    required: true
+    prompt: 'App name?'

@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "../typescript/internal/src/globals.d.ts"],
+  "include": ["**/*.ts", "**/*.tsx", "../../internal/src/globals.d.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
@@ -10,7 +10,7 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
+    "verbatimModuleSyntax": false,
     "noEmit": true,
 
     /* Linting */

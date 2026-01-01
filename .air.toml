@@ -1,0 +1,31 @@
+# Config file for [Air](https://github.com/air-verse/air) in TOML format
+# This is a shared config - binary-specific values are passed via CLI flags
+
+# Working directory - workspace root
+root = "."
+# tmp_dir is set via CLI flag: --build.tmp_dir
+
+[build]
+# Build command is set via CLI flag: --build.cmd
+# Binary path is set via CLI flag: --build.bin
+# Full binary command is set via CLI flag: --build.full_bin
+
+# Watch these filename extensions.
+include_ext = ["go", "yml", "yaml"]
+# include_dir is set via CLI flag: --build.include_dir
+
+# Exclude these directories
+exclude_dir = ["bin", "tmp", "vendor", "node_modules", "frontend", "camera", "typescript"]
+# Exclude files matching these patterns
+exclude_regex = ["_test\\.go$"]
+# Stop the old binary when building the new one
+kill_delay = "500ms"
+
+[log]
+# Show log time
+time = true
+
+[misc]
+# Delete tmp directory on exit
+clean_on_exit = true
+
