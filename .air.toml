@@ -1,20 +1,19 @@
 # Config file for [Air](https://github.com/air-verse/air) in TOML format
+# This is a shared config - binary-specific values are passed via CLI flags
 
-# Working directory - use workspace root to watch all Go files
-root = "../.."
-tmp_dir = "cmd/privi/tmp"
+# Working directory - workspace root
+root = "."
+# tmp_dir is set via CLI flag: --build.tmp_dir
 
 [build]
-# Build the privi binary (run from cmd/privi since it's its own module)
-cmd = "go build -o ../../bin/privi ."
-# Binary file yields from `cmd` (relative to cmd/privi where air starts)
-bin = "../../bin/privi"
-# Run the binary with the dev profile
-full_bin = "../../bin/privi --profile dev.yaml"
+# Build command is set via CLI flag: --build.cmd
+# Binary path is set via CLI flag: --build.bin
+# Full binary command is set via CLI flag: --build.full_bin
+
 # Watch these filename extensions.
 include_ext = ["go", "yml", "yaml"]
-# Watch these directories (relative to root)
-include_dir = ["cmd/privi", "internal", "api", "pkg"]
+# include_dir is set via CLI flag: --build.include_dir
+
 # Exclude these directories
 exclude_dir = ["bin", "tmp", "vendor", "node_modules", "frontend", "camera", "typescript"]
 # Exclude files matching these patterns
