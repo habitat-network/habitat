@@ -1,6 +1,6 @@
 import { Agent } from '@atproto/api';
 import type { ComAtprotoRepoCreateRecord, ComAtprotoRepoGetRecord, ComAtprotoRepoListRecords } from '@atproto/api';
-import { DidDocument, DidResolver } from '@atproto/identity';
+import type { DidDocument, DidResolver } from '@atproto/identity';
 import { AuthManager } from './authManager';
 
 // Response types for HabitatClient
