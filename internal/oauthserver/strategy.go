@@ -21,12 +21,7 @@ type strategy struct {
 var _ oauth2.CoreStrategy = &strategy{}
 
 // newStrategy creates a hybrid strategy
-func newStrategy(jwk *jose.JSONWebKey, config fosite.Configurator) *strategy {
-	// Get global secret for authorization code encryption
-	secret, err := config.GetGlobalSecret(context.Background())
-	if err != nil {
-		panic(err)
-	}
+func newStrategy(jwk *jose.JSONWebKey, secret []byte, config fosite.Configurator) *strategy {
 	// Use the JWK for JWT signing
 	jwtStrategy := compose.NewOAuth2JWTStrategy(func(ctx context.Context) (any, error) {
 		return jwk, nil

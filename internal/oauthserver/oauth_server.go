@@ -79,7 +79,7 @@ func NewOAuthServer(
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 	}
-	strategy := newStrategy(jwk, config)
+	strategy := newStrategy(jwk, secret, config)
 	storage := newStore(strategy)
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})

@@ -16,7 +16,8 @@ func TestGetClient(t *testing.T) {
 	store := newStore(
 		newStrategy(
 			&jose.JSONWebKey{},
-			&fosite.Config{GlobalSecret: []byte("test-secret")}),
+			[]byte("test-secret"),
+			&fosite.Config{}),
 	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
