@@ -67,20 +67,6 @@ export class AuthManager {
     if (!url.searchParams.get("code") || !url.searchParams.get("state")) {
       return;
     }
-  }
-
-  client(): HabitatClient {
-
-    const serverUrl = "https://" + this.serverDomain;
-    const authedSession = new HabitatAuthedAgentSession(serverUrl, this);
-    const authedAgent = new Agent(authedSession);
-    if (!this.did) {
-      throw new Error("No DID found");
-    }
-    return new HabitatClient(this.did, authedAgent, new DidResolver({}));
-  }
-
-  async exchangeCode(currentUrl: string) {
     const state = localStorage.getItem(stateLocalStorageKey);
     if (!state) {
       throw new Error("No state found");
@@ -94,12 +80,19 @@ export class AuthManager {
       },
     );
     this.accessToken = token.access_token;
-    this.did = token.sub as string;
-
     localStorage.setItem(tokenLocalStorageKey, token.access_token);
-    localStorage.setItem(didLocalStorageKey, this.did);
-
     window.location.href = "/";
+  }
+
+  client(): HabitatClient {
+
+    const serverUrl = "https://" + this.serverDomain;
+    const authedSession = new HabitatAuthedAgentSession(serverUrl, this);
+    const authedAgent = new Agent(authedSession);
+    if (!this.did) {
+      throw new Error("No DID found");
+    }
+    return new HabitatClient(this.did, authedAgent, new DidResolver({}));
   }
 
   async fetch(
