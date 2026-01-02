@@ -80,7 +80,10 @@ export class AuthManager {
       },
     );
     this.accessToken = token.access_token;
+
     localStorage.setItem(tokenLocalStorageKey, token.access_token);
+    localStorage.setItem(didLocalStorageKey, token.sub as string);
+
     window.location.href = "/";
   }
 
