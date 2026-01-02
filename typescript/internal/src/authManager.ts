@@ -2,8 +2,7 @@ import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
 import { HabitatClient, HabitatAuthedAgentSession } from "./habitatClient";
 import { DidResolver } from "@atproto/identity";
-import { Agent } from '@atproto/api';
-
+import { Agent } from "@atproto/api";
 
 const handleLocalStorageKey = "handle";
 const didLocalStorageKey = "did";
@@ -88,7 +87,6 @@ export class AuthManager {
   }
 
   client(): HabitatClient {
-
     const serverUrl = "https://" + this.serverDomain;
     const authedSession = new HabitatAuthedAgentSession(serverUrl, this);
     const authedAgent = new Agent(authedSession);
