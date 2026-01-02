@@ -310,6 +310,11 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !s.store.hasRepoForDid(did.String()) {
+		utils.LogAndHTTPError(w, fmt.Errorf("request forwarding not implemented"), fmt.Sprintf("could not forward request for did: %s", did.String()), http.StatusNotImplemented)
+		return
+	}
+
 	output := &habitat.NetworkHabitatRepoListRecordsOutput{
 		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
 	}
