@@ -43,7 +43,9 @@ export class HabitatAgentSession {
     }
 
     async fetchHandler(pathname: string, init?: RequestInit): Promise<Response> {
-        const fetchReq = new Request(`${this.serverUrl}${pathname}`, init);
+        const url = new URL(pathname, this.serverUrl);
+        console.log("url", url.toString());
+        const fetchReq = new Request(url.toString(), init);
 
         const response = await fetch(fetchReq);
         return response;
@@ -96,6 +98,7 @@ export class HabitatClient {
     /**
      * Gets or creates an agent for the given DID.
      * If the agent doesn't exist, resolves the DID to find the PDS host and creates a new agent.
+     * This should only be used for public records
      */
     private async getAgentForDid(did: string): Promise<Agent> {
         // Check if we already have an agent for this DID
@@ -294,7 +297,7 @@ export class HabitatClient {
         const targetRepo = repo ?? this.defaultDid;
         
         // Get the appropriate agent for this repo's PDS
-        const agent = await this.getAgentForDid(targetRepo);
+        const agent = await this.defaultAgent;
         
         const queryParams = new URLSearchParams({
             repo: targetRepo,
@@ -329,7 +332,7 @@ export class HabitatClient {
         const targetRepo = repo ?? this.defaultDid;
         
         // Get the appropriate agent for this repo's PDS
-        const agent = await this.getAgentForDid(targetRepo);
+        const agent = await this.defaultAgent;
         
         const queryParams = new URLSearchParams();
         queryParams.set('collection', collection);
