@@ -16,27 +16,15 @@ threshold:
 # If project has multiple rules that match same path, override rules should be listed in order from
 # specific to more general rules.
 override:
-  # Increase coverage threshold to 100% for `foo` package (default is 80, as configured above)
-  - threshold: 100
-    path: ^pkg/lib/foo$
 
 # Holds regexp rules which will exclude matched files or packages from coverage statistics
 exclude:
   # Exclude files or packages matching their paths
   paths:
     - \/mocks\/.*?$
-    - \/fx\.go$
-    - \/test_helpers
-    - ^pkg\/raft\/transport
-    - ^internal/node/api
     - ^cmd # main.go's don't need to be tested
-    - ^internal/frontend
     - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
-    - ^internal/privi/.*encrypt.* # This is is a noop thing.
-    - ^internal/privi/signing_method.go # TODO: remove!! this was copy-pasted code.
     - internal/bffauth/client.go # TODO: remove!!
-    - ^internal/docker
-    - ^internal/web
     - ^internal/utils
     - ^internal/bffauth/cmd
     - ^internal/bffauth/provider.go # File is too small :)
