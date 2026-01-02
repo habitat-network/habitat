@@ -106,7 +106,7 @@ importers:
         version: 8.0.9(expo@54.0.25)(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-router:
         specifier: ~6.0.14
-        version: 6.0.15(14170c99db1be310ae9229a22442b213)
+        version: 6.0.15(xdnyzfh4kxxhibeuzqpiwchmnm)
       expo-secure-store:
         specifier: ~15.0.7
         version: 15.0.7(expo@54.0.25)
@@ -235,6 +235,12 @@ importers:
 
   typescript/internal:
     dependencies:
+      '@atproto/api':
+        specifier: ^0.18.8
+        version: 0.18.9
+      '@atproto/identity':
+        specifier: ^0.4.10
+        version: 0.4.10
       '@atproto/oauth-client-browser':
         specifier: ^0.3.34
         version: 0.3.34
@@ -310,11 +316,25 @@ packages:
   '@atproto-labs/simple-store@0.3.0':
     resolution: {integrity: sha512-nOb6ONKBRJHRlukW1sVawUkBqReLlLx6hT35VS3imaNPwiXDxLnTK7lxw3Lrl9k5yugSBDQAkZAq3MPTEFSUBQ==}
 
+  '@atproto/api@0.18.9':
+    resolution: {integrity: sha512-ft+0+sczS0qsoxwjqO1VhCXSNG792QEr+uQ91OCc36DTa3sPtaTPL7yNOVTDyEHaYDfp8tYN4v+Pq5/bzz3EpA==}
+
   '@atproto/common-web@0.4.3':
     resolution: {integrity: sha512-nRDINmSe4VycJzPo6fP/hEltBcULFxt9Kw7fQk6405FyAWZiTluYHlXOnU7GkQfeUK44OENG1qFTBcmCJ7e8pg==}
 
+  '@atproto/common-web@0.4.9':
+    resolution: {integrity: sha512-RGt1rUjVC8FEUlF5JQyN3xYlqZJbFTN0XSBBxl+HozjZGhhVtAVFGa+F+TR6BCVs7q7TcitOv/y/YWz4jJWn9g==}
+
+  '@atproto/crypto@0.4.5':
+    resolution: {integrity: sha512-n40aKkMoCatP0u9Yvhrdk6fXyOHFDDbkdm4h4HCyWW+KlKl8iXfD5iV+ECq+w5BM+QH25aIpt3/j6EUNerhLxw==}
+    engines: {node: '>=18.7.0'}
+
   '@atproto/did@0.2.1':
     resolution: {integrity: sha512-1i5BTU2GnBaaeYWhxUOnuEKFVq9euT5+dQPFabHpa927BlJ54PmLGyBBaOI7/NbLmN5HWwBa18SBkMpg3jGZRA==}
+
+  '@atproto/identity@0.4.10':
+    resolution: {integrity: sha512-nQbzDLXOhM8p/wo0cTh5DfMSOSHzj6jizpodX37LJ4S1TZzumSxAjHEZa5Rev3JaoD5uSWMVE0MmKEGWkPPvfQ==}
+    engines: {node: '>=18.7.0'}
 
   '@atproto/jwk-jose@0.1.11':
     resolution: {integrity: sha512-i4Fnr2sTBYmMmHXl7NJh8GrCH+tDQEVWrcDMDnV5DjJfkgT17wIqvojIw9SNbSL4Uf0OtfEv6AgG0A+mgh8b5Q==}
@@ -325,8 +345,17 @@ packages:
   '@atproto/jwk@0.6.0':
     resolution: {integrity: sha512-bDoJPvt7TrQVi/rBfBrSSpGykhtIriKxeYCYQTiPRKFfyRhbgpElF0wPXADjIswnbzZdOwbY63az4E/CFVT3Tw==}
 
+  '@atproto/lex-data@0.0.5':
+    resolution: {integrity: sha512-nasD4eo2wKLyhHozC0vy7Jhp/fBwCKnYhQQogYtraUlT9il6lK1drhT8CNpWlglOhb0T73jLG5WpfNsPp6Pr/w==}
+
+  '@atproto/lex-json@0.0.5':
+    resolution: {integrity: sha512-wgmET7fIWi77jxqHnrr0RvpAGhiFqIqjdO9Py3JK2whHMITyYgFRU0HfEtIeWSzx0Vb9z0S7F/fQW3P3gqb+yA==}
+
   '@atproto/lexicon@0.5.1':
     resolution: {integrity: sha512-y8AEtYmfgVl4fqFxqXAeGvhesiGkxiy3CWoJIfsFDDdTlZUC8DFnZrYhcqkIop3OlCkkljvpSJi1hbeC1tbi8A==}
+
+  '@atproto/lexicon@0.6.0':
+    resolution: {integrity: sha512-5veb8aD+J5M0qszLJ+73KSFsFrJBgAY/nM1TSAJvGY7fNc9ZAT+PSUlmIyrdye9YznAZ07yktalls/TwNV7cHQ==}
 
   '@atproto/oauth-client-browser@0.3.34':
     resolution: {integrity: sha512-hjkTore2hozbJqCx/VCilpXZ0iMuLUiuqeAreDUretCl06jDqvFskKwmk2HNAw6g3iBZUai3yrFThLsln33VOw==}
@@ -340,8 +369,14 @@ packages:
   '@atproto/syntax@0.4.1':
     resolution: {integrity: sha512-CJdImtLAiFO+0z3BWTtxwk6aY5w4t8orHTMVJgkf++QRJWTxPbIFko/0hrkADB7n2EruDxDSeAgfUGehpH6ngw==}
 
+  '@atproto/syntax@0.4.2':
+    resolution: {integrity: sha512-X9XSRPinBy/0VQ677j8VXlBsYSsUXaiqxWVpGGxJYsAhugdQRb0jqaVKJFtm6RskeNkV6y9xclSUi9UYG/COrA==}
+
   '@atproto/xrpc@0.7.5':
     resolution: {integrity: sha512-MUYNn5d2hv8yVegRL0ccHvTHAVj5JSnW07bkbiaz96UH45lvYNRVwt44z+yYVnb0/mvBzyD3/ZQ55TRGt7fHkA==}
+
+  '@atproto/xrpc@0.7.7':
+    resolution: {integrity: sha512-K1ZyO/BU8JNtXX5dmPp7b5UrkLMMqpsIa/Lrj5D3Su+j1Xwq1m6QJ2XJ1AgjEjkI1v4Muzm7klianLE6XGxtmA==}
 
   '@babel/code-frame@7.10.4':
     resolution: {integrity: sha512-vG6SvB6oYEhvgisZNFRmRCUkLz11c7rp+tbNTynGqc6mS1d5ATd/sGyV6W0KZZnXRKMTzZDRgQT3Ou9jhpAfUg==}
@@ -1299,6 +1334,14 @@ packages:
 
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
+
+  '@noble/curves@1.9.7':
+    resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
+    engines: {node: ^14.21.3 || >=16}
+
+  '@noble/hashes@1.8.0':
+    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
+    engines: {node: ^14.21.3 || >=16}
 
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
@@ -2349,6 +2392,9 @@ packages:
   available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
+
+  await-lock@2.2.2:
+    resolution: {integrity: sha512-aDczADvlvTGajTDjcjpJMqRkOF6Qdz3YbPZm/PyW6tKPkx2hlYBzxMhEywM/tU72HrVZjgl5VCdRuMlA7pZ8Gw==}
 
   axios@1.12.2:
     resolution: {integrity: sha512-vMJzPewAlRyOgxV2dU0Cuz2O8zzzx9VYtbJOaBgXFeLc4IV/Eg50n4LowmehOOR61S8ZMpc2K5Sa7g6A4jfkUw==}
@@ -5065,6 +5111,10 @@ packages:
     resolution: {integrity: sha512-azl+t0z7pw/z958Gy9svOTuzqIk6xq+NSheJzn5MMWtWTFywIacg2wUlzKFGtt3cthx0r2SxMK0yzJOR0IES7Q==}
     engines: {node: '>=14.0.0'}
 
+  tlds@1.261.0:
+    resolution: {integrity: sha512-QXqwfEl9ddlGBaRFXIvNKK6OhipSiLXuRuLJX5DErz0o0Q0rYxulWLdFryTkV5PkdZct5iMInwYEGe/eR++1AA==}
+    hasBin: true
+
   tldts-core@7.0.19:
     resolution: {integrity: sha512-lJX2dEWx0SGH4O6p+7FPwYmJ/bu1JbcGJ8RLaG9b7liIgZ85itUVEPbMtWRVrde/0fnDPEPHW10ZsKW3kVsE9A==}
 
@@ -5187,6 +5237,9 @@ packages:
   unicode-property-aliases-ecmascript@2.2.0:
     resolution: {integrity: sha512-hpbDzxUY9BFwX+UeBnxv3Sh1q7HFxj48DTmXchNgRa46lO8uj3/1iEn3MiNUYTg1g9ctIqXCCERn8gYZhHC5lQ==}
     engines: {node: '>=4'}
+
+  unicode-segmenter@0.14.5:
+    resolution: {integrity: sha512-jHGmj2LUuqDcX3hqY12Ql+uhUTn8huuxNZGq7GvtF6bSybzH3aFgedYu/KTzQStEgt1Ra2F3HxadNXsNjb3m3g==}
 
   unique-string@2.0.0:
     resolution: {integrity: sha512-uNaeirEPvpZWSgzwsPGtU2zVSTrn/8L5q/IexZmH0eH6SA73CmAA5U4GwORTxQAZs95TAXLNqeLoPPNO5gZfWg==}
@@ -5593,6 +5646,17 @@ snapshots:
 
   '@atproto-labs/simple-store@0.3.0': {}
 
+  '@atproto/api@0.18.9':
+    dependencies:
+      '@atproto/common-web': 0.4.9
+      '@atproto/lexicon': 0.6.0
+      '@atproto/syntax': 0.4.2
+      '@atproto/xrpc': 0.7.7
+      await-lock: 2.2.2
+      multiformats: 9.9.0
+      tlds: 1.261.0
+      zod: 3.25.76
+
   '@atproto/common-web@0.4.3':
     dependencies:
       graphemer: 1.4.0
@@ -5600,9 +5664,26 @@ snapshots:
       uint8arrays: 3.0.0
       zod: 3.25.76
 
+  '@atproto/common-web@0.4.9':
+    dependencies:
+      '@atproto/lex-data': 0.0.5
+      '@atproto/lex-json': 0.0.5
+      zod: 3.25.76
+
+  '@atproto/crypto@0.4.5':
+    dependencies:
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      uint8arrays: 3.0.0
+
   '@atproto/did@0.2.1':
     dependencies:
       zod: 3.25.76
+
+  '@atproto/identity@0.4.10':
+    dependencies:
+      '@atproto/common-web': 0.4.9
+      '@atproto/crypto': 0.4.5
 
   '@atproto/jwk-jose@0.1.11':
     dependencies:
@@ -5620,10 +5701,31 @@ snapshots:
       multiformats: 9.9.0
       zod: 3.25.76
 
+  '@atproto/lex-data@0.0.5':
+    dependencies:
+      '@atproto/syntax': 0.4.2
+      multiformats: 9.9.0
+      tslib: 2.8.1
+      uint8arrays: 3.0.0
+      unicode-segmenter: 0.14.5
+
+  '@atproto/lex-json@0.0.5':
+    dependencies:
+      '@atproto/lex-data': 0.0.5
+      tslib: 2.8.1
+
   '@atproto/lexicon@0.5.1':
     dependencies:
       '@atproto/common-web': 0.4.3
       '@atproto/syntax': 0.4.1
+      iso-datestring-validator: 2.2.2
+      multiformats: 9.9.0
+      zod: 3.25.76
+
+  '@atproto/lexicon@0.6.0':
+    dependencies:
+      '@atproto/common-web': 0.4.9
+      '@atproto/syntax': 0.4.2
       iso-datestring-validator: 2.2.2
       multiformats: 9.9.0
       zod: 3.25.76
@@ -5664,9 +5766,16 @@ snapshots:
 
   '@atproto/syntax@0.4.1': {}
 
+  '@atproto/syntax@0.4.2': {}
+
   '@atproto/xrpc@0.7.5':
     dependencies:
       '@atproto/lexicon': 0.5.1
+      zod: 3.25.76
+
+  '@atproto/xrpc@0.7.7':
+    dependencies:
+      '@atproto/lexicon': 0.6.0
       zod: 3.25.76
 
   '@babel/code-frame@7.10.4':
@@ -6515,7 +6624,7 @@ snapshots:
       wrap-ansi: 7.0.0
       ws: 8.18.3
     optionalDependencies:
-      expo-router: 6.0.15(14170c99db1be310ae9229a22442b213)
+      expo-router: 6.0.15(xdnyzfh4kxxhibeuzqpiwchmnm)
       react-native: 0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0)
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -6877,6 +6986,12 @@ snapshots:
       '@emnapi/runtime': 1.7.1
       '@tybys/wasm-util': 0.10.1
     optional: true
+
+  '@noble/curves@1.9.7':
+    dependencies:
+      '@noble/hashes': 1.8.0
+
+  '@noble/hashes@1.8.0': {}
 
   '@nolyfill/is-core-module@1.0.39': {}
 
@@ -8014,6 +8129,8 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
+  await-lock@2.2.2: {}
+
   axios@1.12.2:
     dependencies:
       follow-redirects: 1.15.11
@@ -8995,7 +9112,7 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0)
 
-  expo-router@6.0.15(14170c99db1be310ae9229a22442b213):
+  expo-router@6.0.15(xdnyzfh4kxxhibeuzqpiwchmnm):
     dependencies:
       '@expo/metro-runtime': 6.1.2(expo@54.0.25)(react-dom@19.1.0(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@expo/schema-utils': 0.1.7
@@ -11307,6 +11424,8 @@ snapshots:
 
   tinyspy@4.0.4: {}
 
+  tlds@1.261.0: {}
+
   tldts-core@7.0.19: {}
 
   tldts@7.0.19:
@@ -11427,6 +11546,8 @@ snapshots:
   unicode-match-property-value-ecmascript@2.2.1: {}
 
   unicode-property-aliases-ecmascript@2.2.0: {}
+
+  unicode-segmenter@0.14.5: {}
 
   unique-string@2.0.0:
     dependencies:
