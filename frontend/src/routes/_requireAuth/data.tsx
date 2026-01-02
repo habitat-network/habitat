@@ -1,73 +1,95 @@
-import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import { useState, useMemo } from 'react'
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
+import { useMemo } from 'react'
 
-export const Route = createFileRoute('/_requireAuth/data')({
-  component: DataDebugger,
-})
+interface SearchParams {
+  lexicon?: string
+  isPrivate?: boolean
+  repoDid?: string
+  filter?: string
+}
 
 interface FilterCriteria {
   [key: string]: string
 }
 
-function DataDebugger() {
-  const { authManager } = Route.useRouteContext()
-  const [selectedLexicon, setSelectedLexicon] = useState<string>('')
-  const [isPrivate, setIsPrivate] = useState(false)
-  const [repoDid, setRepoDid] = useState<string>('')
-  const [filterText, setFilterText] = useState('')
-  const [parsedFilters, setParsedFilters] = useState<FilterCriteria>({})
-
-  // Parse filter text into key-value pairs
-  const parseFilters = (text: string): FilterCriteria => {
-    const filters: FilterCriteria = {}
-    const parts = text.trim().split(/\s+/)
-    
-    for (const part of parts) {
-      if (part.includes(':')) {
-        const [key, ...valueParts] = part.split(':')
-        const value = valueParts.join(':') // Handle values that might contain colons
-        if (key && value) {
-          filters[key] = value
-        }
+// Parse filter text into key-value pairs
+const parseFilters = (text: string): FilterCriteria => {
+  const filters: FilterCriteria = {}
+  const parts = text.trim().split(/\s+/)
+  
+  for (const part of parts) {
+    if (part.includes(':')) {
+      const [key, ...valueParts] = part.split(':')
+      const value = valueParts.join(':') // Handle values that might contain colons
+      if (key && value) {
+        filters[key] = value
       }
     }
-    
-    return filters
   }
+  
+  return filters
+}
 
-  // Update filters when filter text changes
-  const handleFilterChange = (text: string) => {
-    setFilterText(text)
-    setParsedFilters(parseFilters(text))
-  }
+export const Route = createFileRoute('/_requireAuth/data')({
+  validateSearch(search: Record<string, unknown>): SearchParams {
+    return {
+      lexicon: (search.lexicon as string) || undefined,
+      isPrivate: search.isPrivate === true || search.isPrivate === 'true',
+      repoDid: (search.repoDid as string) || undefined,
+      filter: (search.filter as string) || undefined,
+    }
+  },
+  loaderDeps: ({ search }) => ({
+    lexicon: search.lexicon,
+    isPrivate: search.isPrivate,
+    repoDid: search.repoDid,
+  }),
+  async loader({ deps: { lexicon, isPrivate, repoDid }, context }) {
+    if (!lexicon) {
+      return { records: [], error: null }
+    }
 
-  // Fetch data based on selected lexicon, privacy setting, and optional repo DID
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['data-debugger', selectedLexicon, isPrivate, repoDid],
-    queryFn: async () => {
-      if (!selectedLexicon) {
-        return null
-      }
-      
+    try {
       // Use the repo DID if provided, otherwise undefined (uses default)
-      const repo = repoDid.trim() || undefined
+      const repo = repoDid?.trim() || undefined
       
       if (isPrivate) {
-        return await authManager.client().listPrivateRecords(selectedLexicon, undefined, undefined, repo)
+        const data = await context.authManager.client().listPrivateRecords(lexicon, undefined, undefined, repo)
+        return { records: data.records, error: null }
       } else {
-        return await authManager.client().listRecords(selectedLexicon, undefined, undefined, repo)
+        const data = await context.authManager.client().listRecords(lexicon, undefined, undefined, repo)
+        return { records: data.records, error: null }
       }
-    },
-    enabled: !!selectedLexicon,
-    retry: 2,
-  })
+    } catch (err) {
+      return { records: [], error: err instanceof Error ? err.message : 'An unknown error occurred' }
+    }
+  },
+  component: DataDebugger,
+})
+
+function DataDebugger() {
+  const { lexicon, isPrivate, repoDid, filter } = Route.useSearch()
+  const { records, error } = Route.useLoaderData()
+  const navigate = useNavigate({ from: Route.fullPath })
+  const router = useRouter()
+  
+  // Parse filters from search params
+  const parsedFilters = useMemo(() => parseFilters(filter || ''), [filter])
+
+  // Update search params
+  const updateSearch = (updates: Partial<SearchParams>) => {
+    navigate({
+      search: (prev) => ({ ...prev, ...updates }),
+      replace: true,
+    })
+  }
+  
+  // Refresh data by invalidating the router
+  const refresh = () => router.invalidate()
 
   // Filter records based on parsed filter criteria
   const filteredRecords = useMemo(() => {
-    if (!data) return []
-    
-    const records = data.records
+    if (!records || records.length === 0) return []
     
     if (Object.keys(parsedFilters).length === 0) {
       return records
@@ -101,7 +123,7 @@ function DataDebugger() {
       
       return true
     })
-  }, [data, parsedFilters])
+  }, [records, parsedFilters])
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -127,8 +149,8 @@ function DataDebugger() {
           <input
             id="lexicon"
             type="text"
-            value={selectedLexicon}
-            onChange={(e) => setSelectedLexicon(e.target.value)}
+            value={lexicon || ''}
+            onChange={(e) => updateSearch({ lexicon: e.target.value || undefined })}
             placeholder="e.g., app.bsky.feed.post"
             style={{
               border: '1px solid ButtonBorder',
@@ -149,8 +171,8 @@ function DataDebugger() {
           <input
             id="repoDid"
             type="text"
-            value={repoDid}
-            onChange={(e) => setRepoDid(e.target.value)}
+            value={repoDid || ''}
+            onChange={(e) => updateSearch({ repoDid: e.target.value || undefined })}
             placeholder="did:plc:..."
             style={{
               border: '1px solid ButtonBorder',
@@ -172,8 +194,8 @@ function DataDebugger() {
           <input
             id="filter"
             type="text"
-            value={filterText}
-            onChange={(e) => handleFilterChange(e.target.value)}
+            value={filter || ''}
+            onChange={(e) => updateSearch({ filter: e.target.value || undefined })}
             placeholder="key:value"
             style={{
               padding: '0.375rem 0.5rem',
@@ -190,15 +212,15 @@ function DataDebugger() {
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', cursor: 'pointer', color: 'CanvasText' }}>
           <input
             type="checkbox"
-            checked={isPrivate}
-            onChange={(e) => setIsPrivate(e.target.checked)}
+            checked={isPrivate || false}
+            onChange={(e) => updateSearch({ isPrivate: e.target.checked || undefined })}
           />
           <span style={{ fontWeight: 500 }}>Private Data</span>
         </label>
 
         {/* Refresh Button */}
         <button
-          onClick={() => refetch()}
+          onClick={refresh}
           style={{
             background: 'none',
             border: 'none',
@@ -237,7 +259,7 @@ function DataDebugger() {
 
       {/* Data Display */}
       <div>
-        {!selectedLexicon && (
+        {!lexicon && (
           <div style={{
             display: 'flex',
             flexDirection: 'column',
@@ -257,25 +279,14 @@ function DataDebugger() {
           </div>
         )}
 
-        {isLoading && selectedLexicon && (
-          <div>
-            <div></div>
-            <p>Loading records...</p>
-          </div>
-        )}
-
-        {error && selectedLexicon && (
+        {error && lexicon && (
           <div>
             <div>
               <div>⚠️</div>
               <div>
                 <h3>Error loading records</h3>
-                <p>
-                  {error instanceof Error ? error.message : 'An unknown error occurred'}
-                </p>
-                <button
-                  onClick={() => refetch()}
-                >
+                <p>{error}</p>
+                <button onClick={refresh}>
                   Try again
                 </button>
               </div>
@@ -283,10 +294,10 @@ function DataDebugger() {
           </div>
         )}
 
-        {data && !isLoading && selectedLexicon && (
+        {!error && lexicon && (
           <>
             <div style={{ marginBottom: '0.75rem', color: 'GrayText', fontSize: '0.875rem' }}>
-              {filteredRecords.length} of {data.records?.length || 0} record(s)
+              {filteredRecords.length} of {records?.length || 0} record(s)
               {Object.keys(parsedFilters).length > 0 && ' (filtered)'}
             </div>
 
@@ -339,7 +350,7 @@ function DataDebugger() {
                 <p>
                   {Object.keys(parsedFilters).length > 0
                     ? 'Try adjusting your filters'
-                    : `No records found for collection "${selectedLexicon}"`}
+                    : `No records found for collection "${lexicon}"`}
                 </p>
               </div>
             )}
