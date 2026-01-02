@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/eagraf/habitat-new/internal/encrypt"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"gorm.io/gorm"
 )
@@ -16,19 +17,25 @@ type PDSCredentialStore interface {
 	GetDpopClient(did syntax.DID) (*oauthclient.DpopHttpClient, error)
 }
 
-func NewPDSCredentialStore(db *gorm.DB) (PDSCredentialStore, error) {
+func NewPDSCredentialStore(db *gorm.DB, encryptionKey []byte) (PDSCredentialStore, error) {
+	if encryptionKey == nil {
+		return nil, fmt.Errorf("encryption key is required")
+	}
+
 	// Run migrations
 	if err := db.AutoMigrate(&pdsCredentials{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	return &pdsCredentialStore{
-		db: db,
+		db:            db,
+		encryptionKey: encryptionKey,
 	}, nil
 }
 
 type pdsCredentialStore struct {
-	db *gorm.DB
+	db            *gorm.DB
+	encryptionKey []byte
 }
 
 // pdsCredentials stores PDS credentials for a user (DID).
@@ -58,6 +65,13 @@ func (p *pdsCredentialStore) GetDpopClient(did syntax.DID) (*oauthclient.DpopHtt
 		}
 		return nil, fmt.Errorf("failed to get user credentials: %w", err)
 	}
+
+	// Decrypt the access token
+	var decryptedAccessToken string
+	if err := encrypt.DecryptCBOR(creds.AccessToken, p.encryptionKey, &decryptedAccessToken); err != nil {
+		return nil, fmt.Errorf("failed to decrypt access token: %w", err)
+	}
+
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), creds.DpopKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dpop key: %w", err)
@@ -65,7 +79,7 @@ func (p *pdsCredentialStore) GetDpopClient(did syntax.DID) (*oauthclient.DpopHtt
 	return oauthclient.NewDpopHttpClient(
 		dpopKey,
 		&oauthclient.MemoryNonceProvider{},
-		oauthclient.WithAccessToken(creds.AccessToken),
+		oauthclient.WithAccessToken(decryptedAccessToken),
 	), nil
 }
 
@@ -90,8 +104,18 @@ func (p *pdsCredentialStore) UpsertCredentials(
 	}
 
 	// Update the PDS credentials (on every sign-in)
-	userCreds.AccessToken = tokenInfo.AccessToken
-	userCreds.RefreshToken = tokenInfo.RefreshToken
+	// Encrypt tokens before storing
+	encryptedAccessToken, err := encrypt.EncryptCBOR(tokenInfo.AccessToken, p.encryptionKey)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt access token: %w", err)
+	}
+	encryptedRefreshToken, err := encrypt.EncryptCBOR(tokenInfo.RefreshToken, p.encryptionKey)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt refresh token: %w", err)
+	}
+
+	userCreds.AccessToken = encryptedAccessToken
+	userCreds.RefreshToken = encryptedRefreshToken
 	userCreds.TokenType = tokenInfo.TokenType
 	userCreds.Scope = tokenInfo.Scope
 	userCreds.DpopKey = dpopKey

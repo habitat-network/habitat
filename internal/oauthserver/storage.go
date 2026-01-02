@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/eagraf/habitat-new/internal/encrypt"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
@@ -83,7 +84,7 @@ func (s *store) GetAuthorizeCodeSession(
 	session fosite.Session,
 ) (request fosite.Requester, err error) {
 	var data authSession
-	err = s.strategy.decrypt(code, &data)
+	err = encrypt.DecryptCBOR(code, s.strategy.encryptionKey, &data)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
@@ -125,7 +126,7 @@ func (s *store) GetPKCERequestSession(
 	session fosite.Session,
 ) (fosite.Requester, error) {
 	var data authSession
-	err := s.strategy.decrypt(signature, &data)
+	err := encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}

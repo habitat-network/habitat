@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/eagraf/habitat-new/internal/encrypt"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/pdscred"
@@ -30,7 +31,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to open test database")
 
 	// setup pds credential store
-	credStore, err := pdscred.NewPDSCredentialStore(db)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err, "failed to setup pds credential store")
 
 	// setup oauth server

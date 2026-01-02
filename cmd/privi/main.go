@@ -22,6 +22,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/jetstream/pkg/client"
+	"github.com/eagraf/habitat-new/internal/encrypt"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/pdscred"
@@ -64,7 +65,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Setup components
 	db := setupDB(cmd)
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db)
+
+	// Load encryption key for PDS credentials
+	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to load PDS encryption key")
+	}
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}

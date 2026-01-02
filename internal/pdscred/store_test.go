@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/eagraf/habitat-new/internal/encrypt"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -19,7 +20,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewPDSCredentialStore(db)
+	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 
 	// Generate test dpop key
@@ -69,7 +70,7 @@ func TestGetDpopClient_NotFound(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewPDSCredentialStore(db)
+	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 
 	// Try to get client for non-existent DID
