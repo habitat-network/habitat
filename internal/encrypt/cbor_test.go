@@ -328,3 +328,12 @@ func TestEncryptCBOR_LargeData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, largeSlice, decrypted)
 }
+
+func TestParseKey(t *testing.T) {
+	key, error := encrypt.GenerateKey()
+	require.NoError(t, error)
+
+	parsedKey, err := encrypt.ParseKey(key)
+	require.NoError(t, err)
+	require.Equal(t, 32, len(parsedKey))
+}
