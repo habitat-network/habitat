@@ -64,7 +64,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         if (data.value.blob) {
           Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
         }
-      } catch { }
+      } catch {}
     }
 
     const provider = new Libp2pConnectionProvider(node, ydoc);
