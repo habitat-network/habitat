@@ -13,6 +13,33 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestHasRepoForDid(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewSQLiteRepo(db)
+	require.NoError(t, err)
+
+	// No records exist yet, should return false
+	has, err := repo.hasRepoForDid("did:example:alice")
+	require.NoError(t, err)
+	require.False(t, has)
+
+	// Add a record for the DID
+	err = repo.putRecord("did:example:alice", "test-key", map[string]any{"data": "value"}, nil)
+	require.NoError(t, err)
+
+	// Now the DID should be found
+	has, err = repo.hasRepoForDid("did:example:alice")
+	require.NoError(t, err)
+	require.True(t, has)
+
+	// A different DID should still return false
+	has, err = repo.hasRepoForDid("did:example:bob")
+	require.NoError(t, err)
+	require.False(t, has)
+}
+
 func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	testDBPath := filepath.Join(os.TempDir(), "test_privi.db")
 	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
