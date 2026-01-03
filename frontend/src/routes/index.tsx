@@ -41,6 +41,13 @@ export const Route = createFileRoute("/")({
         icon: "🔔",
         link: "/notifications",
       },
+      {
+        id: "data",
+        name: "Data Debugger",
+        description: "Browse and filter records by lexicon",
+        icon: "🗄️",
+        link: "/data",
+      },
     ];
   },
   component: Wrapper,
