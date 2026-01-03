@@ -18,24 +18,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNonceProvider is a simple in-memory nonce provider for testing
-type TestNonceProvider struct {
-	nonce      string
-	errorOnGet bool
+type ErrorNonceProvider struct{}
+
+func (t *ErrorNonceProvider) GetDpopNonce() (string, bool, error) {
+	return "", false, errors.New("test nonce provider error")
 }
 
-func (t *TestNonceProvider) GetDpopNonce() (string, bool, error) {
-	if t.nonce == "" && !t.errorOnGet {
-		return "", false, nil
-	}
-	if t.errorOnGet {
-		return "", false, errors.New("test nonce provider error")
-	}
-	return t.nonce, true, nil
-}
-
-func (t *TestNonceProvider) SetDpopNonce(nonce string) error {
-	t.nonce = nonce
+func (t *ErrorNonceProvider) SetDpopNonce(nonce string) error {
 	return nil
 }
 
@@ -61,7 +50,7 @@ func TestDpopHttpClient_InitialValidNonce(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create nonce provider with initial nonce
-	nonceProvider := &TestNonceProvider{nonce: "test-nonce-123"}
+	nonceProvider := &MemoryNonceProvider{nonce: "test-nonce-123"}
 
 	// Create DPoP client
 	client := NewDpopHttpClient(key, nonceProvider)
@@ -125,7 +114,7 @@ func TestDpopHttpClient_NoNonceAtBeginning(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create nonce provider with no initial nonce
-	nonceProvider := &TestNonceProvider{}
+	nonceProvider := &MemoryNonceProvider{}
 
 	// Create DPoP client
 	client := NewDpopHttpClient(key, nonceProvider)
@@ -207,7 +196,7 @@ func TestDpopHttpClient_AuthorizationServerNonceError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create nonce provider with no initial nonce
-	nonceProvider := &TestNonceProvider{}
+	nonceProvider := &MemoryNonceProvider{}
 
 	// Create DPoP client
 	client := NewDpopHttpClient(key, nonceProvider)
@@ -277,7 +266,7 @@ func TestDpopHttpClient_WithAccessToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create nonce provider
-	nonceProvider := &TestNonceProvider{nonce: "test-nonce"}
+	nonceProvider := &MemoryNonceProvider{nonce: "test-nonce"}
 
 	// Create DPoP client
 	client := NewDpopHttpClient(key, nonceProvider, WithAccessToken("test-access-token"))
@@ -322,7 +311,7 @@ func TestDpopHttpClient_RequestFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create nonce provider
-	nonceProvider := &TestNonceProvider{nonce: "test-nonce"}
+	nonceProvider := &MemoryNonceProvider{nonce: "test-nonce"}
 
 	// Create DPoP client
 	client := NewDpopHttpClient(key, nonceProvider)
@@ -352,7 +341,7 @@ func TestDpopHttpClient_NonceProviderError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create nonce provider that returns error
-	nonceProvider := &TestNonceProvider{errorOnGet: true}
+	nonceProvider := &ErrorNonceProvider{}
 
 	// Create DPoP client
 	client := NewDpopHttpClient(key, nonceProvider)
@@ -384,7 +373,7 @@ func TestDpopHttpClient_ErrorHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create nonce provider
-	nonceProvider := &TestNonceProvider{nonce: "test-nonce"}
+	nonceProvider := &MemoryNonceProvider{nonce: "test-nonce"}
 
 	// Create DPoP client
 	client := NewDpopHttpClient(key, nonceProvider)

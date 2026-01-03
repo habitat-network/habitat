@@ -8,16 +8,20 @@ import (
 	"crypto/rand"
 	"encoding/gob"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
+	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/utils"
+	"github.com/go-jose/go-jose/v3"
 	"github.com/gorilla/sessions"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
+	"github.com/ory/fosite/handler/oauth2"
 )
 
 const (
@@ -41,9 +45,10 @@ type authRequestFlash struct {
 // for proof-of-possession token binding.
 type OAuthServer struct {
 	provider     fosite.OAuth2Provider
-	sessionStore sessions.Store          // Session storage for authorization flow state
-	oauthClient  oauthclient.OAuthClient // Client for communicating with AT Protocol services
-	directory    identity.Directory      // AT Protocol identity directory for handle resolution
+	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
+	sessionStore sessions.Store             // Session storage for authorization flow state
+	oauthClient  oauthclient.OAuthClient    // Client for communicating with AT Protocol services
+	directory    identity.Directory         // AT Protocol identity directory for handle resolution
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -51,26 +56,30 @@ type OAuthServer struct {
 // The server is configured with:
 //   - Authorization Code Grant with PKCE
 //   - Refresh Token Grant
-//   - HMAC-SHA256 token strategy
+//   - JWT token strategy for access tokens
 //   - Integration with AT Protocol identity directory
+//   - Database storage for OAuth sessions and PDS tokens
 //
 // Parameters:
 //   - oauthClient: Client for AT Protocol OAuth operations
 //   - sessionStore: Store for managing user sessions during authorization flow
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
+//   - db: GORM database connection for storing OAuth sessions
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
+	jwk *jose.JSONWebKey,
 	oauthClient oauthclient.OAuthClient,
 	sessionStore sessions.Store,
 	directory identity.Directory,
+	credStore pdscred.PDSCredentialStore,
 ) *OAuthServer {
 	secret := []byte("my super secret signing password")
 	config := &fosite.Config{
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 	}
-	strategy := newStrategy(secret)
+	strategy := newStrategy(jwk, secret, config)
 	storage := newStore(strategy)
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
@@ -83,8 +92,9 @@ func NewOAuthServer(
 			compose.OAuth2AuthorizeExplicitFactory,
 			compose.OAuth2RefreshTokenGrantFactory,
 			compose.OAuth2PKCEFactory,
-			compose.OAuth2TokenIntrospectionFactory,
+			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
+		credStore:    credStore,
 		oauthClient:  oauthClient,
 		sessionStore: sessionStore,
 		directory:    directory,
@@ -136,7 +146,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to generate key", http.StatusInternalServerError)
 		return
 	}
-	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &nonceProvider{})
+	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &oauthclient.MemoryNonceProvider{})
 	redirect, state, err := o.oauthClient.Authorize(dpopClient, id)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -218,7 +228,7 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
 		return
 	}
-	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &nonceProvider{})
+	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &oauthclient.MemoryNonceProvider{})
 	tokenInfo, err := o.oauthClient.ExchangeCode(
 		dpopClient,
 		r.URL.Query().Get("code"),
@@ -229,10 +239,26 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to exchange code", http.StatusInternalServerError)
 		return
 	}
+
+	// Store/update user credentials in the database with the PDS tokens
+	err = o.credStore.UpsertCredentials(
+		arf.Did,
+		arf.DpopKey,
+		tokenInfo,
+	)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"failed to save user credentials",
+			http.StatusInternalServerError,
+		)
+		return
+	}
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
-		newAuthorizeSession(authRequest, arf.DpopKey, tokenInfo, arf.Did),
+		newAuthorizeSession(authRequest, arf.Did),
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to create response", http.StatusInternalServerError)
@@ -292,7 +318,7 @@ func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (did string, client *oauthclient.DpopHttpClient, ok bool) {
+) (syntax.DID, bool) {
 	ctx := r.Context()
 	_, ar, err := o.provider.IntrospectToken(
 		r.Context(),
@@ -303,36 +329,29 @@ func (o *OAuthServer) Validate(
 	)
 	if err != nil {
 		o.provider.WriteIntrospectionError(ctx, w, err)
-		return "", nil, false
+		return "", false
 	}
-	session := ar.GetSession().(*authSession)
-	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), session.DpopKey)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
-		return
+	// Get the DID from the session subject (stored in JWT)
+	session := ar.GetSession().(*oauth2.JWTSession)
+	if session.JWTClaims == nil {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("JWT claims not found"),
+			"invalid token",
+			http.StatusUnauthorized,
+		)
+		return "", false
 	}
 
-	return session.Subject, oauthclient.NewDpopHttpClient(
-		dpopKey,
-		&nonceProvider{},
-		oauthclient.WithAccessToken(session.TokenInfo.AccessToken),
-	), true
-}
-
-// This simple implementation stores a single nonce value in memory.
-type nonceProvider struct{ nonce string }
-
-var _ oauthclient.DpopNonceProvider = (*nonceProvider)(nil)
-
-// GetDpopNonce retrieves the current DPoP nonce.
-// Returns the nonce value, whether a nonce is available, and any error.
-func (n *nonceProvider) GetDpopNonce() (string, bool, error) {
-	return n.nonce, true, nil
-}
-
-// SetDpopNonce stores a new DPoP nonce value.
-// This is called when the server returns a new nonce in the DPoP-Nonce header.
-func (n *nonceProvider) SetDpopNonce(nonce string) error {
-	n.nonce = nonce
-	return nil
+	did := session.JWTClaims.Subject
+	if did == "" {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("DID not found in JWT"),
+			"invalid token",
+			http.StatusUnauthorized,
+		)
+		return "", false
+	}
+	return syntax.DID(did), true
 }

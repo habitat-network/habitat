@@ -19,19 +19,12 @@ import (
 func testOAuthClient(t *testing.T) OAuthClient {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-
-	jwk := jose.JSONWebKey{
-		Key:   key,
-		KeyID: "test-key-id",
-	}
-
-	jwkBytes, err := json.Marshal(jwk)
-	require.NoError(t, err)
-
-	client, err := NewOAuthClient("test-client", "https://test.com", "https://test.com/callback", jwkBytes)
-	require.NoError(t, err)
-
-	return client
+	return NewOAuthClient(
+		"test-client",
+		"https://test.com",
+		"https://test.com/callback",
+		&jose.JSONWebKey{Key: key, KeyID: "test-key-id"},
+	)
 }
 
 // testIdentity creates a test identity with a given PDS endpoint
@@ -88,7 +81,8 @@ func fakeAuthServer(responses map[string]interface{}) *httptest.Server {
 			}
 			// Default response
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(parResponse{RequestUri: "urn:ietf:params:oauth:request_uri:test"})
+			_ = json.NewEncoder(w).
+				Encode(parResponse{RequestUri: "urn:ietf:params:oauth:request_uri:test"})
 
 		case "/token":
 			if status, ok := responses["token-status"]; ok {
