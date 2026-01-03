@@ -6,7 +6,7 @@ tasks:
   test:
     deps:
       - "~:build"
-    command: "go test ./... -coverprofile @out(0) -coverpkg ./..."
+    command: "go test ./... -coverprofile @out(0)"
     outputs:
       - "coverage.out"
   coverage:
