@@ -9,19 +9,32 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@chainsafe/libp2p-gossipsub": "14.1.2",
+    "@chainsafe/libp2p-noise": "16.1.5",
+    "@chainsafe/libp2p-yamux": "7.0.4",
+    "@libp2p/identify": "^3.0.39",
+    "@libp2p/websockets": "9.2.19",
+    "@multiformats/multiaddr": "12.4.4",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
+    "@tiptap/extension-collaboration": "^3.13.0",
+    "@tiptap/extension-collaboration-caret": "^3.13.0",
     "@tiptap/pm": "^3.13.0",
     "@tiptap/react": "^3.13.0",
     "@tiptap/starter-kit": "^3.13.0",
+    "@tiptap/y-tiptap": "^3.0.1",
     "internal": "workspace:*",
+    "lib0": "^0.2.115",
+    "libp2p": "2.10.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
-    "vite-tsconfig-paths": "catalog:"
+    "vite-tsconfig-paths": "catalog:",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.27"
   },
   "devDependencies": {
     "@tanstack/devtools-vite": "catalog:",
