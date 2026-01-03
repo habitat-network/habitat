@@ -56,6 +56,20 @@ func NewSQLiteRepo(db *gorm.DB) (*sqliteRepo, error) {
 	}, nil
 }
 
+// hasRepoForDid checks if this instance manges the data for a given did
+func (r *sqliteRepo) hasRepoForDid(did string) (bool, error) {
+	// TODO: for now, we determine if a did is managed by this instance, by just checking for the existence of any record
+	// with the matching DID. In the future, we need to track a formal table of managed repos. There will need to be
+	// onboarding and offboard flows as well.
+	_, err := gorm.G[Record](r.db).Where("did = ?", did).First(context.Background())
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
 func (r *sqliteRepo) putRecord(did string, rkey string, rec map[string]any, validate *bool) error {
 	if validate != nil && *validate {

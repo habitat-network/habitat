@@ -94,3 +94,11 @@ func (p *store) listRecords(
 
 	return p.repo.listRecords(params, allow, deny)
 }
+
+func (p *store) hasRepoForDid(did string) (bool, error) {
+	has, err := p.repo.hasRepoForDid(did)
+	if err != nil {
+		return false, err
+	}
+	return has, nil
+}
