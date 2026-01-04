@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.72.2",
+    "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "^1.114.3",
     "@tanstack/react-router-devtools": "^1.114.3",
     "@tanstack/router-plugin": "^1.114.3",
