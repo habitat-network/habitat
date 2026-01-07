@@ -36,6 +36,9 @@ tasks:
     command: "npx oxlint --fix --fix-suggestions --fix-dangerously ."
     local: true
 
+  install:
+    command: "pnpm install"
+
   build:
     command: "pnpm build"
     outputs:
