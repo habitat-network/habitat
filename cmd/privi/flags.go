@@ -10,13 +10,14 @@ import (
 )
 
 var (
-	fDebug      = "debug"
-	fDomain     = "domain"
-	fDb         = "db"
-	fPort       = "port"
-	fHttpsCerts = "httpscerts"
-	fKeyFile    = "keyfile"
-	fPgUrl      = "pgurl"
+	fDebug             = "debug"
+	fDomain            = "domain"
+	fDb                = "db"
+	fPort              = "port"
+	fHttpsCerts        = "httpscerts"
+	fKeyFile           = "keyfile"
+	fPgUrl             = "pgurl"
+	fPdsCredEncryptKey = "pds_cred_encrypt_key"
 )
 var profiles []string
 
@@ -56,6 +57,12 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Value:     "./key.jwk",
 				TakesFile: true,
 				Sources:   getSources(fKeyFile),
+			},
+			&cli.StringFlag{
+				Name:     fPdsCredEncryptKey,
+				Usage:    "32-byte base64-encoded encryption key for PDS credentials. Can use cmd/keygen to generate",
+				Required: true,
+				Sources:  getSources(fPdsCredEncryptKey),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
