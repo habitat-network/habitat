@@ -11,12 +11,16 @@
     "./*": "./src/*"
   },
   "dependencies": {
+    "@atproto/api": "^0.18.8",
+    "@atproto/identity": "^0.4.10",
     "@atproto/oauth-client-browser": "^0.3.34",
-    "@tanstack/react-query": "catalog:",
     "openid-client": "^6.8.1",
-    "react": "catalog:",
-    "react-hook-form": "catalog:",
     "web-vitals": "^4.2.4"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "catalog:",
+    "react": "catalog:",
+    "react-hook-form": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
