@@ -39,7 +39,10 @@ export const Route = createFileRoute("/_requireAuth/")({
             },
           }),
         );
-        const { uri } = await response?.json();
+        if (!response?.ok) {
+          throw new Error("Failed to create doc");
+        }
+        const { uri } = await response.json();
         navigate({
           to: "/$uri",
           params: {
