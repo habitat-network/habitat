@@ -1,50 +1,31 @@
-#### BASE STAGE
-#### Installs moon.
+#### BUILD STAGE
+#### Builds the Go binary.
 
-FROM golang:1.25.4 AS base
+FROM golang:1.25.4-alpine AS build
 WORKDIR /app
 
-# Install moon binary
-RUN curl -fsSL https://moonrepo.dev/install/moon.sh | bash
-ENV PATH="/root/.moon/bin:/root/.proto/bin:$PATH"
+# Copy go module files first for better layer caching
+COPY go.mod go.sum* ./
+COPY cmd/privi/go.mod cmd/privi/go.sum ./cmd/privi/
 
-#### SKELETON STAGE
-#### Scaffolds repository skeleton structures.
 
-FROM base AS skeleton
+# Download dependencies
+WORKDIR /app/cmd/privi
+RUN go mod download
 
-# Copy entire repository and scaffold
-COPY . .
-RUN moon docker scaffold privi
+# Copy the entire repository (needed for replace directive)
+COPY . /app/
 
-#### BUILD STAGE
-#### Builds the project.
+# Build the binary
+RUN go build -o /app/bin/privi .
 
-FROM base AS build
+FROM alpine:latest
 
-# Copy workspace configs
-COPY --from=skeleton /app/.moon/docker/workspace .
+WORKDIR /app
 
-# Install dependencies
-RUN moon docker setup
+# Copy the binary from build stage
+COPY --from=build /app/bin/privi /app/privi
 
-# Copy project sources
-COPY --from=skeleton /app/.moon/docker/sources .
-
-# Build the project
-RUN moon run privi:build
-
-# Prune extraneous dependencies
-RUN moon docker prune
-
-#### START STAGE
-#### Runs the project.
-
-FROM base AS start
-
-# Copy built sources
-COPY --from=build /root/.proto /root/.proto
-COPY --from=build /app /app
-
-CMD moon run privi:start
+# Run the binary
+CMD ["/app/privi"]
 
