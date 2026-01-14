@@ -41,19 +41,6 @@ func TestOAuthClient_ExchangeCode_Success(t *testing.T) {
 	require.Equal(t, 3600, tokenResp.ExpiresIn)
 }
 
-func TestOAuthClient_ExchangeCode_ClientAssertionError(t *testing.T) {
-	// Create a client with invalid JWK to trigger client assertion error
-	invalidJwk := []byte(`{"invalid": "jwk"}`)
-	_, err := NewOAuthClient(
-		"test-client",
-		"https://test.com",
-		"https://test.com/callback",
-		invalidJwk,
-	)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "unknown json web key type")
-}
-
 func TestOAuthClient_ExchangeCode_HTTPRequestError(t *testing.T) {
 	// Create a server that doesn't respond to simulate network error
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

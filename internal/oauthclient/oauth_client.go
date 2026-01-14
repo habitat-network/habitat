@@ -59,26 +59,21 @@ type oauthClientImpl struct {
 	clientId    string
 	clientUri   string
 	redirectUri string
-	secretJwk   jose.JSONWebKey
+	secretJwk   *jose.JSONWebKey
 }
 
 func NewOAuthClient(
 	clientId string,
 	clientUri string,
 	redirectUri string,
-	secretJwk []byte,
-) (OAuthClient, error) {
-	var secret jose.JSONWebKey
-	err := json.Unmarshal(secretJwk, &secret)
-	if err != nil {
-		return nil, err
-	}
+	secretJwk *jose.JSONWebKey,
+) OAuthClient {
 	return &oauthClientImpl{
 		clientId:    clientId,
 		clientUri:   clientUri,
 		redirectUri: redirectUri,
-		secretJwk:   secret,
-	}, nil
+		secretJwk:   secretJwk,
+	}
 }
 
 // ClientMetadata implements OAuthClient.

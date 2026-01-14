@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/eagraf/habitat-new/internal/encrypt"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
@@ -83,7 +84,7 @@ func (s *store) GetAuthorizeCodeSession(
 	session fosite.Session,
 ) (request fosite.Requester, err error) {
 	var data authSession
-	err = s.strategy.decrypt(code, &data)
+	err = encrypt.DecryptCBOR(code, s.strategy.encryptionKey, &data)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
@@ -93,7 +94,7 @@ func (s *store) GetAuthorizeCodeSession(
 	}
 	return &fosite.Request{
 		Client:         client,
-		Session:        &data,
+		Session:        newJWTSession(&data),
 		RequestedScope: data.Scopes,
 	}, nil
 }
@@ -121,12 +122,17 @@ func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) 
 // GetPKCERequestSession implements pkce.PKCERequestStorage.
 func (s *store) GetPKCERequestSession(
 	_ context.Context,
-	_ string,
+	signature string,
 	session fosite.Session,
 ) (fosite.Requester, error) {
+	var data authSession
+	err := encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
+	if err != nil {
+		return nil, errors.Join(fosite.ErrNotFound, err)
+	}
 	return &fosite.Request{
 		Form: url.Values{
-			"code_challenge":        []string{session.(*authSession).PKCEChallenge},
+			"code_challenge":        []string{data.PKCEChallenge},
 			"code_challenge_method": []string{"S256"},
 		},
 	}, nil
@@ -147,16 +153,7 @@ func (s *store) GetAccessTokenSession(
 	signature string,
 	session fosite.Session,
 ) (fosite.Requester, error) {
-	var sess authSession
-	err := s.strategy.decrypt(signature, &sess)
-	if err != nil {
-		return nil, errors.Join(fosite.ErrNotFound, err)
-	}
-	return &fosite.AccessRequest{
-		Request: fosite.Request{
-			Session: &sess,
-		},
-	}, nil
+	return &fosite.Request{Session: session}, nil
 }
 
 // DeleteAccessTokenSession implements oauth2.CoreStorage.
