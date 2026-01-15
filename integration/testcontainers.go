@@ -18,10 +18,9 @@ import (
 
 // TestEnvironment holds the containers and shared resources for integration tests
 type TestEnvironment struct {
-	Containers        []testcontainers.Container
-	PostgresContainer *postgres.PostgresContainer
-	ctx               context.Context
-	t                 *testing.T
+	Containers []testcontainers.Container
+	ctx        context.Context
+	t          *testing.T
 }
 
 // Get returns the container with the given logical name, or nil if not found
@@ -45,7 +44,6 @@ func NewTestEnvironment(
 	ctx context.Context,
 	t *testing.T,
 	requests testcontainers.ParallelContainerRequest,
-	postgresContainer *postgres.PostgresContainer,
 ) *TestEnvironment {
 	t.Helper()
 
@@ -97,10 +95,9 @@ func NewTestEnvironment(
 		}
 	})
 	return &TestEnvironment{
-		Containers:        allContainers,
-		PostgresContainer: postgresContainer,
-		ctx:               ctx,
-		t:                 t,
+		Containers: allContainers,
+		ctx:        ctx,
+		t:          t,
 	}
 }
 
@@ -264,7 +261,7 @@ func NewPostgresContainer(
 	ctx context.Context,
 	t *testing.T,
 	networkName string,
-) (*postgres.PostgresContainer, string) {
+) string {
 	t.Helper()
 
 	postgresContainer, err := postgres.Run(ctx,
@@ -293,7 +290,7 @@ func NewPostgresContainer(
 
 	// Return the container and the internal Docker network connection string
 	pgURL := "postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable"
-	return postgresContainer, pgURL
+	return pgURL
 }
 
 // StandardIntegrationRequests creates the standard set of named container requests for integration tests
