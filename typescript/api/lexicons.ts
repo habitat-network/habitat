@@ -10,6 +10,191 @@ import {
 import { type $Typed, is$typed, maybe$typed } from './util.js'
 
 export const schemaDict = {
+  CommunityLexiconCalendarEvent: {
+    lexicon: 1,
+    id: 'community.lexicon.calendar.event',
+    defs: {
+      main: {
+        type: 'record',
+        description: 'A calendar event.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['createdAt', 'name'],
+          properties: {
+            name: {
+              type: 'string',
+              description: 'The name of the event.',
+            },
+            description: {
+              type: 'string',
+              description: 'The description of the event.',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+              description:
+                'Client-declared timestamp when the event was created.',
+            },
+            startsAt: {
+              type: 'string',
+              format: 'datetime',
+              description: 'Client-declared timestamp when the event starts.',
+            },
+            endsAt: {
+              type: 'string',
+              format: 'datetime',
+              description: 'Client-declared timestamp when the event ends.',
+            },
+            mode: {
+              type: 'ref',
+              ref: 'lex:community.lexicon.calendar.event#mode',
+              description: 'The attendance mode of the event.',
+            },
+            status: {
+              type: 'ref',
+              ref: 'lex:community.lexicon.calendar.event#status',
+              description: 'The status of the event.',
+            },
+            locations: {
+              type: 'array',
+              description: 'The locations where the event takes place.',
+              items: {
+                type: 'union',
+                refs: [
+                  'lex:community.lexicon.calendar.event#uri',
+                  'lex:community.lexicon.location.address',
+                  'lex:community.lexicon.location.fsq',
+                  'lex:community.lexicon.location.geo',
+                  'lex:community.lexicon.location.hthree',
+                ],
+              },
+            },
+            uris: {
+              type: 'array',
+              description: 'URIs associated with the event.',
+              items: {
+                type: 'ref',
+                ref: 'lex:community.lexicon.calendar.event#uri',
+              },
+            },
+          },
+        },
+      },
+      mode: {
+        type: 'string',
+        description: 'The mode of the event.',
+        default: 'community.lexicon.calendar.event#inperson',
+        knownValues: [
+          'community.lexicon.calendar.event#hybrid',
+          'community.lexicon.calendar.event#inperson',
+          'community.lexicon.calendar.event#virtual',
+        ],
+      },
+      virtual: {
+        type: 'token',
+        description: 'A virtual event that takes place online.',
+      },
+      inperson: {
+        type: 'token',
+        description: 'An in-person event that takes place offline.',
+      },
+      hybrid: {
+        type: 'token',
+        description: 'A hybrid event that takes place both online and offline.',
+      },
+      status: {
+        type: 'string',
+        description: 'The status of the event.',
+        default: 'community.lexicon.calendar.event#scheduled',
+        knownValues: [
+          'community.lexicon.calendar.event#cancelled',
+          'community.lexicon.calendar.event#planned',
+          'community.lexicon.calendar.event#postponed',
+          'community.lexicon.calendar.event#rescheduled',
+          'community.lexicon.calendar.event#scheduled',
+        ],
+      },
+      planned: {
+        type: 'token',
+        description: 'The event has been created, but not finalized.',
+      },
+      scheduled: {
+        type: 'token',
+        description: 'The event has been created and scheduled.',
+      },
+      rescheduled: {
+        type: 'token',
+        description: 'The event has been rescheduled.',
+      },
+      cancelled: {
+        type: 'token',
+        description: 'The event has been cancelled.',
+      },
+      postponed: {
+        type: 'token',
+        description:
+          'The event has been postponed and a new start date has not been set.',
+      },
+      uri: {
+        type: 'object',
+        description: 'A URI associated with the event.',
+        required: ['uri'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+          },
+          name: {
+            type: 'string',
+            description: 'The display name of the URI.',
+          },
+        },
+      },
+    },
+  },
+  CommunityLexiconCalendarRsvp: {
+    lexicon: 1,
+    id: 'community.lexicon.calendar.rsvp',
+    defs: {
+      main: {
+        type: 'record',
+        description: 'An RSVP for an event.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'status'],
+          properties: {
+            subject: {
+              type: 'ref',
+              ref: 'lex:com.atproto.repo.strongRef',
+            },
+            status: {
+              type: 'string',
+              default: 'community.lexicon.calendar.rsvp#going',
+              knownValues: [
+                'community.lexicon.calendar.rsvp#interested',
+                'community.lexicon.calendar.rsvp#going',
+                'community.lexicon.calendar.rsvp#notgoing',
+              ],
+            },
+          },
+        },
+      },
+      interested: {
+        type: 'token',
+        description: 'Interested in the event',
+      },
+      going: {
+        type: 'token',
+        description: 'Going to the event',
+      },
+      notgoing: {
+        type: 'token',
+        description: 'Not going to the event',
+      },
+    },
+  },
   NetworkHabitatNotificationCreateNotification: {
     lexicon: 1,
     id: 'network.habitat.notification.createNotification',
@@ -496,6 +681,8 @@ export function validate(
 }
 
 export const ids = {
+  CommunityLexiconCalendarEvent: 'community.lexicon.calendar.event',
+  CommunityLexiconCalendarRsvp: 'community.lexicon.calendar.rsvp',
   NetworkHabitatNotificationCreateNotification:
     'network.habitat.notification.createNotification',
   NetworkHabitatNotificationListNotifications:
