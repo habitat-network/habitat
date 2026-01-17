@@ -8,10 +8,38 @@ import type { DidDocument, DidResolver } from "@atproto/identity";
 import type {
   NetworkHabitatNotificationCreateNotification,
   NetworkHabitatNotificationListNotifications,
-} from "@habitat/lexicon";
+  NetworkHabitatRepoGetRecord,
+  NetworkHabitatRepoListRecords,
+  NetworkHabitatRepoPutRecord,
+} from "api";
 import { AuthManager } from "./authManager";
 
-// Response types for HabitatClient
+// Response types for HabitatClient - using generated types with generic overrides
+
+// For putPrivateRecord: use generated OutputSchema
+export type PutPrivateRecordResponse = NetworkHabitatRepoPutRecord.OutputSchema;
+
+// For getPrivateRecord: override value field with generic
+export type GetPrivateRecordResponse<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoGetRecord.OutputSchema,
+  "value"
+> & {
+  value: T;
+};
+
+// For listPrivateRecords: override records array value field with generic
+export type ListPrivateRecordsResponse<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoListRecords.OutputSchema,
+  "records"
+> & {
+  records: Array<
+    Omit<NetworkHabitatRepoListRecords.Record, "value"> & {
+      value: T;
+    }
+  >;
+};
+
+// Legacy response types for public record operations (using atproto types)
 export interface CreateRecordResponse {
   uri: string;
   cid: string;
@@ -32,20 +60,26 @@ export interface ListRecordsResponse<T = Record<string, unknown>> {
   cursor?: string;
 }
 
-// Re-export notification types from lexicon for consumers
-export type Notification = NetworkHabitatNotificationCreateNotification.Notification;
-export type NotificationRecord = NetworkHabitatNotificationListNotifications.Record;
-export type ListNotificationsResponse = NetworkHabitatNotificationListNotifications.OutputSchema;
-export type CreateNotificationResponse = NetworkHabitatNotificationCreateNotification.OutputSchema;
+// Re-export notification types from api for consumers
+export type Notification =
+  NetworkHabitatNotificationCreateNotification.Notification;
+export type NotificationRecord =
+  NetworkHabitatNotificationListNotifications.Record;
+export type ListNotificationsResponse =
+  NetworkHabitatNotificationListNotifications.OutputSchema;
+export type CreateNotificationResponse =
+  NetworkHabitatNotificationCreateNotification.OutputSchema;
 
-// Internal types for Habitat private record operations
-// These include 'repo' since they're used in the wire protocol
-interface PutRecordRequest<T = Record<string, unknown>> {
-  collection: string;
-  repo: string;
-  rkey?: string;
+// Input types for Habitat private record operations - using generated types with generic overrides
+export type PutPrivateRecordInput<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoPutRecord.InputSchema,
+  "record"
+> & {
   record: T;
-}
+};
+
+export type GetPrivateRecordParams = NetworkHabitatRepoGetRecord.QueryParams;
+export type ListPrivateRecordsParams = NetworkHabitatRepoListRecords.QueryParams;
 
 // HabitatAgentSession implements the Atproto Session interface.
 export class HabitatAgentSession {
@@ -287,11 +321,11 @@ export class HabitatClient {
   async putPrivateRecord<T = Record<string, unknown>>(
     collection: string,
     record: T,
-    rkey?: string,
+    rkey: string,
     opts?: RequestInit,
-  ): Promise<CreateRecordResponse> {
+  ): Promise<PutPrivateRecordResponse> {
     // Writing private records always happens on the user's own repo
-    const requestBody: PutRecordRequest<T> = {
+    const requestBody: PutPrivateRecordInput<T> = {
       repo: this.defaultDid,
       collection,
       rkey,
@@ -299,7 +333,7 @@ export class HabitatClient {
     };
 
     const response = await this.defaultAgent.fetchHandler(
-      "/xrpc/network.habitat.putRecord",
+      "/xrpc/network.habitat.repo.putRecord",
       {
         method: "POST",
         headers: {
@@ -322,15 +356,14 @@ export class HabitatClient {
   async getPrivateRecord<T = Record<string, unknown>>(
     collection: string,
     rkey: string,
-    cid?: string,
     repo?: string,
     opts?: RequestInit,
-  ): Promise<GetRecordResponse<T>> {
+  ): Promise<GetPrivateRecordResponse<T>> {
     // Determine which repo to query (default to user's own repo)
     const targetRepo = repo ?? this.defaultDid;
 
     // Get the appropriate agent for this repo's PDS
-    const agent = await this.defaultAgent;
+    const agent = this.defaultAgent;
 
     const queryParams = new URLSearchParams({
       repo: targetRepo,
@@ -338,12 +371,8 @@ export class HabitatClient {
       rkey,
     });
 
-    if (cid) {
-      queryParams.set("cid", cid);
-    }
-
     const response = await agent.fetchHandler(
-      `/xrpc/network.habitat.getRecord?${queryParams}`,
+      `/xrpc/network.habitat.repo.getRecord?${queryParams}`,
       {
         method: "GET",
         ...opts,
@@ -365,12 +394,12 @@ export class HabitatClient {
     cursor?: string,
     repo?: string,
     opts?: RequestInit,
-  ): Promise<ListRecordsResponse<T>> {
+  ): Promise<ListPrivateRecordsResponse<T>> {
     // Determine which repo to query (default to user's own repo)
     const targetRepo = repo ?? this.defaultDid;
 
     // Get the appropriate agent for this repo's PDS
-    const agent = await this.defaultAgent;
+    const agent = this.defaultAgent;
 
     const queryParams = new URLSearchParams();
     queryParams.set("collection", collection);
@@ -384,7 +413,7 @@ export class HabitatClient {
     }
 
     const response = await agent.fetchHandler(
-      `/xrpc/network.habitat.listRecords?${queryParams}`,
+      `/xrpc/network.habitat.repo.listRecords?${queryParams}`,
       {
         method: "GET",
         ...opts,
