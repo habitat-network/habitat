@@ -94,7 +94,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
-		Key: "env",
+		Key:   "env",
 		Value: attribute.StringValue("local"),
 	}))
 	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
@@ -189,7 +189,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.Handle("/xrpc/", pdsForwarding)
 
-	otelMiddleware := otelhttp.NewMiddleware("habitat-backend", /* TODO: any options here? */)
+	otelMiddleware := otelhttp.NewMiddleware("habitat-backend" /* TODO: any options here? */)
 
 	s := &http.Server{
 		Handler: otelMiddleware(corsMiddleware(mux)),
