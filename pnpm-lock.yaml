@@ -127,7 +127,7 @@ importers:
         version: 8.0.9(expo@54.0.25)(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-router:
         specifier: ~6.0.14
-        version: 6.0.15(14170c99db1be310ae9229a22442b213)
+        version: 6.0.15(xdnyzfh4kxxhibeuzqpiwchmnm)
       expo-secure-store:
         specifier: ~15.0.7
         version: 15.0.7(expo@54.0.25)
@@ -272,6 +272,70 @@ importers:
       '@atproto/lex-cli':
         specifier: ^0.9.8
         version: 0.9.8
+
+  typescript/apps/calendar:
+    dependencies:
+      '@tanstack/react-devtools':
+        specifier: 'catalog:'
+        version: 0.7.11(@types/react-dom@19.2.2(@types/react@19.2.7))(@types/react@19.2.7)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.9)
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.90.16(react@19.2.3)
+      '@tanstack/react-router':
+        specifier: 'catalog:'
+        version: 1.133.32(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tanstack/react-router-devtools':
+        specifier: 'catalog:'
+        version: 1.133.32(@tanstack/react-router@1.133.32(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@tanstack/router-core@1.133.28)(@types/node@22.19.3)(csstype@3.2.3)(lightningcss@1.30.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.9)(terser@5.44.1)(tiny-invariant@1.3.3)(tsx@4.20.6)(yaml@2.8.2)
+      '@tanstack/router-plugin':
+        specifier: 'catalog:'
+        version: 1.133.32(@tanstack/react-router@1.133.32(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.1.12(@types/node@22.19.3)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
+      internal:
+        specifier: workspace:*
+        version: link:../../internal
+      react:
+        specifier: 'catalog:'
+        version: 19.2.3
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.3(react@19.2.3)
+      vite-tsconfig-paths:
+        specifier: 'catalog:'
+        version: 5.1.4(typescript@5.9.3)(vite@7.1.12(@types/node@22.19.3)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
+    devDependencies:
+      '@tanstack/devtools-vite':
+        specifier: 'catalog:'
+        version: 0.3.12(vite@7.1.12(@types/node@22.19.3)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
+      '@testing-library/dom':
+        specifier: 'catalog:'
+        version: 10.4.1
+      '@testing-library/react':
+        specifier: 'catalog:'
+        version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.2.2(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.3
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.2(@types/react@19.2.7)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 5.1.2(vite@7.1.12(@types/node@22.19.3)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
+      jsdom:
+        specifier: 'catalog:'
+        version: 27.4.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vite:
+        specifier: 'catalog:'
+        version: 7.1.12(@types/node@22.19.3)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.4(@types/node@22.19.3)(jsdom@27.4.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
 
   typescript/apps/docs:
     dependencies:
@@ -7189,7 +7253,7 @@ snapshots:
       wrap-ansi: 7.0.0
       ws: 8.18.3
     optionalDependencies:
-      expo-router: 6.0.15(14170c99db1be310ae9229a22442b213)
+      expo-router: 6.0.15(xdnyzfh4kxxhibeuzqpiwchmnm)
       react-native: 0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0)
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
@@ -10014,7 +10078,7 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0)
 
-  expo-router@6.0.15(14170c99db1be310ae9229a22442b213):
+  expo-router@6.0.15(xdnyzfh4kxxhibeuzqpiwchmnm):
     dependencies:
       '@expo/metro-runtime': 6.1.2(expo@54.0.25)(react-dom@19.1.0(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.5)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@expo/schema-utils': 0.1.7
