@@ -14,6 +14,7 @@
     "@atproto/api": "^0.18.8",
     "@atproto/identity": "^0.4.10",
     "@atproto/oauth-client-browser": "^0.3.34",
+    "api": "workspace:*",
     "openid-client": "^6.8.1",
     "web-vitals": "^4.2.4"
   },
