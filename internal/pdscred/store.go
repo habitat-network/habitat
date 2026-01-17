@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/eagraf/habitat-new/internal/encrypt"
@@ -42,17 +43,19 @@ type pdsCredentialStore struct {
 // These credentials are reused across multiple OAuth sessions.
 // Updated on every sign-in.
 type pdsCredentials struct {
-	gorm.Model
-	DID string `gorm:"column:did;uniqueIndex;type:varchar(255)"` // DID of the user (primary key)
+	DID string `gorm:"column:did;primarykey"` // DID of the user (primary key)
 
 	// Tokens received from the AT Protocol PDS (via OAuth client)
-	AccessToken  string `gorm:"type:text"` // Access token from PDS
-	RefreshToken string `gorm:"type:text"` // Refresh token from PDS
-	TokenType    string `gorm:"type:varchar(50)"`
-	Scope        string `gorm:"type:text"` // Space-separated scopes from PDS
+	AccessToken  string // Access token from PDS
+	RefreshToken string // Refresh token from PDS
+	TokenType    string
+	Scope        string // Space-separated scopes from PDS
 
 	// DPoP key for proof-of-possession
-	DpopKey []byte `gorm:"type:blob"` // Serialized ECDSA private key
+	DpopKey []byte // Serialized ECDSA private key
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // GetDpopClient implements [PDSCredentialStore].
