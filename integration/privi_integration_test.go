@@ -113,7 +113,15 @@ func TestPriviOAuthFlow(t *testing.T) {
 		}
 	})
 
-	env := NewTestEnvironment(ctx, t, StandardIntegrationRequests(t, testNetwork.Name, certDir))
+	// Start PostgreSQL container
+	pgURL := NewPostgresContainer(ctx, t, testNetwork.Name)
+	t.Logf("Postgres URL (Docker network): %s", pgURL)
+
+	env := NewTestEnvironment(
+		ctx,
+		t,
+		StandardIntegrationRequests(t, testNetwork.Name, certDir, pgURL),
+	)
 
 	// Extract URLs from named containers
 	pdsProxyHost, err := env.Get("pds-proxy").Host(ctx)

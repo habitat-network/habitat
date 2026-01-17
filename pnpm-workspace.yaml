@@ -3,6 +3,7 @@ packages:
   - camera
   - typescript/internal
   - typescript/apps/*
+  - "typescript/api"
 
 catalog:
   '@tanstack/devtools-vite': ^0.3.11

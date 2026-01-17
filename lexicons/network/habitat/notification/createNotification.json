@@ -23,7 +23,7 @@
               "description": "The NSID of the record collection."
             },
             "record": {
-              "type": "object",
+              "type": "ref",
               "description": "The record to write.",
               "ref": "#notification"
             }
@@ -53,6 +53,11 @@
           "type": "string",
           "format": "did",
           "description": "The handle or DID of the target of the notification."
+        },
+        "originDid": {
+          "type": "string",
+          "format": "did",
+          "description": "The handle or DID of the origin of the notification."
         },
         "collection": {
           "type": "string",

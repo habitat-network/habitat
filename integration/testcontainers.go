@@ -12,6 +12,7 @@ import (
 	"github.com/mdelapenya/tlscert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -195,18 +196,21 @@ func PDSProxyContainerRequest(
 }
 
 // PriviContainerRequest creates a container request for the Privi service with HTTPS enabled
-func PriviContainerRequest(networkName, certDir string) testcontainers.GenericContainerRequest {
+func PriviContainerRequest(
+	networkName, certDir, pgURL string,
+) testcontainers.GenericContainerRequest {
 	return testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Name:  "integration-privi",
 			Image: "privi:latest",
 			Env: map[string]string{
-				"HABITAT_DB":         "/tmp/repo.db",
-				"HABITAT_KEYFILE":    "/tmp/key.jwk",
-				"HABITAT_DOMAIN":     "privi.habitat",
-				"HABITAT_PORT":       "443",
-				"HABITAT_HTTPSCERTS": "/certs/",
-				"SSL_CERT_FILE":      "/certs/fullchain.pem",
+				"HABITAT_KEYFILE":              "/tmp/key.jwk",
+				"HABITAT_DOMAIN":               "privi.habitat",
+				"HABITAT_PORT":                 "443",
+				"HABITAT_HTTPSCERTS":           "/certs/",
+				"SSL_CERT_FILE":                "/certs/fullchain.pem",
+				"HABITAT_PDS_CRED_ENCRYPT_KEY": "GB2ZuB3tRBNGK8KNyCln+pkEylqxutrAI09xfY8njfI=",
+				"HABITAT_PGURL":                pgURL,
 			},
 			ExposedPorts:   []string{"443/tcp"},
 			Networks:       []string{networkName},
@@ -252,17 +256,54 @@ func SeleniumContainerRequest(networkName string) testcontainers.GenericContaine
 	}
 }
 
+// NewPostgresContainer creates and starts a PostgreSQL container using the postgres module
+func NewPostgresContainer(
+	ctx context.Context,
+	t *testing.T,
+	networkName string,
+) string {
+	t.Helper()
+
+	postgresContainer, err := postgres.Run(ctx,
+		"postgres:16-alpine",
+		postgres.WithDatabase("habitat"),
+		postgres.WithUsername("habitat"),
+		postgres.WithPassword("habitat"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+		),
+		testcontainers.CustomizeRequest(testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Name:           "integration-postgres",
+				Networks:       []string{networkName},
+				NetworkAliases: map[string][]string{networkName: {"postgres"}},
+			},
+		}),
+	)
+	require.NoError(t, err, "failed to start postgres container")
+
+	t.Cleanup(func() {
+		if err := postgresContainer.Terminate(ctx); err != nil {
+			t.Logf("Failed to terminate postgres container: %v", err)
+		}
+	})
+
+	// Return the container and the internal Docker network connection string
+	pgURL := "postgres://habitat:habitat@postgres:5432/habitat?sslmode=disable"
+	return pgURL
+}
+
 // StandardIntegrationRequests creates the standard set of named container requests for integration tests
 func StandardIntegrationRequests(
 	t *testing.T,
-	networkName, certDir string,
+	networkName, certDir, pgURL string,
 ) testcontainers.ParallelContainerRequest {
 	t.Helper()
 
 	return []testcontainers.GenericContainerRequest{
 		PDSContainerRequest(networkName),
 		PDSProxyContainerRequest(networkName, certDir),
-		PriviContainerRequest(networkName, certDir),
+		PriviContainerRequest(networkName, certDir, pgURL),
 		SeleniumContainerRequest(networkName),
 		FrontendContainerRequest(networkName, certDir),
 	}
