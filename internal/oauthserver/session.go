@@ -73,5 +73,6 @@ func newJWTSession(authSess *authSession) *oauth2.JWTSession {
 			Scope:     authSess.Scopes,
 		},
 		JWTHeader: &jwt.Headers{},
+		Subject:   authSess.Subject, // Must also set this - GetSubject() returns this field, not JWTClaims.Subject
 	}
 }
