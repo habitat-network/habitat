@@ -61,14 +61,22 @@ export interface ListRecordsResponse<T = Record<string, unknown>> {
 }
 
 // Re-export notification types from api for consumers
-export type Notification =
+// CreateNotificationInput is used when creating notifications
+export type CreateNotificationInput =
   NetworkHabitatNotificationCreateNotification.Notification;
+// ListedNotification is the notification value returned from listNotifications
+export type ListedNotification =
+  NetworkHabitatNotificationListNotifications.Notification;
+// NotificationRecord is a record from listNotifications (includes uri, cid, value)
 export type NotificationRecord =
   NetworkHabitatNotificationListNotifications.Record;
 export type ListNotificationsResponse =
   NetworkHabitatNotificationListNotifications.OutputSchema;
 export type CreateNotificationResponse =
   NetworkHabitatNotificationCreateNotification.OutputSchema;
+
+// Legacy alias for backwards compatibility
+export type Notification = CreateNotificationInput;
 
 // Input types for Habitat private record operations - using generated types with generic overrides
 export type PutPrivateRecordInput<T = Record<string, unknown>> = Omit<
@@ -333,7 +341,7 @@ export class HabitatClient {
     };
 
     const response = await this.defaultAgent.fetchHandler(
-      "/xrpc/network.habitat.repo.putRecord",
+      "/xrpc/network.habitat.putRecord",
       {
         method: "POST",
         headers: {
@@ -372,7 +380,7 @@ export class HabitatClient {
     });
 
     const response = await agent.fetchHandler(
-      `/xrpc/network.habitat.repo.getRecord?${queryParams}`,
+      `/xrpc/network.habitat.getRecord?${queryParams}`,
       {
         method: "GET",
         ...opts,
@@ -413,7 +421,7 @@ export class HabitatClient {
     }
 
     const response = await agent.fetchHandler(
-      `/xrpc/network.habitat.repo.listRecords?${queryParams}`,
+      `/xrpc/network.habitat.listRecords?${queryParams}`,
       {
         method: "GET",
         ...opts,
