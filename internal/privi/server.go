@@ -117,11 +117,20 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Grantees) > 0 {
-		s.store.permissions.AddLexiconReadPermission(
+		err := s.store.permissions.AddLexiconReadPermission(
 			req.Grantees,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
 		)
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				err,
+				fmt.Sprintf("adding permissions for did %s", ownerDID.String()),
+				http.StatusInternalServerError,
+			)
+			return
+		}
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
