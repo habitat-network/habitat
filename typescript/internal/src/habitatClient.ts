@@ -7,6 +7,7 @@ import type {
 import type { DidDocument, DidResolver } from "@atproto/identity";
 import type {
   NetworkHabitatNotificationCreateNotification,
+  NetworkHabitatNotificationDefs,
   NetworkHabitatNotificationListNotifications,
   NetworkHabitatRepoGetRecord,
   NetworkHabitatRepoListRecords,
@@ -61,12 +62,12 @@ export interface ListRecordsResponse<T = Record<string, unknown>> {
 }
 
 // Re-export notification types from api for consumers
-// CreateNotificationInput is used when creating notifications
-export type CreateNotificationInput =
-  NetworkHabitatNotificationCreateNotification.Notification;
-// ListedNotification is the notification value returned from listNotifications
-export type ListedNotification =
-  NetworkHabitatNotificationListNotifications.Notification;
+// Notification is the unified type used for both creating and listing notifications
+export type Notification = NetworkHabitatNotificationDefs.Notification;
+// CreateNotificationInput is used when creating notifications (same as Notification)
+export type CreateNotificationInput = Notification;
+// ListedNotification is the notification value returned from listNotifications (same as Notification)
+export type ListedNotification = Notification;
 // NotificationRecord is a record from listNotifications (includes uri, cid, value)
 export type NotificationRecord =
   NetworkHabitatNotificationListNotifications.Record;
@@ -74,9 +75,6 @@ export type ListNotificationsResponse =
   NetworkHabitatNotificationListNotifications.OutputSchema;
 export type CreateNotificationResponse =
   NetworkHabitatNotificationCreateNotification.OutputSchema;
-
-// Legacy alias for backwards compatibility
-export type Notification = CreateNotificationInput;
 
 // Input types for Habitat private record operations - using generated types with generic overrides
 export type PutPrivateRecordInput<T = Record<string, unknown>> = Omit<
