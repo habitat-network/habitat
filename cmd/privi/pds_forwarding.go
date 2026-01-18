@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/utils"
@@ -15,6 +15,7 @@ import (
 type pdsForwarding struct {
 	oauthServer *oauthserver.OAuthServer
 	credStore   pdscred.PDSCredentialStore
+	oauthClient oauthclient.OAuthClient
 	dir         identity.Directory
 }
 
@@ -23,10 +24,12 @@ var _ http.Handler = (*pdsForwarding)(nil)
 func newPDSForwarding(
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
+	oauthClient oauthclient.OAuthClient,
 ) *pdsForwarding {
 	return &pdsForwarding{
 		oauthServer: oauthServer,
 		credStore:   credStore,
+		oauthClient: oauthClient,
 		dir:         identity.DefaultDirectory(),
 	}
 }
@@ -37,30 +40,23 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dpopClient, err := p.credStore.GetDpopClient(did)
 	id, err := p.dir.LookupDID(r.Context(), did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
 		return
 	}
-	pdsUrl, ok := id.Services["atproto_pds"]
-	if !ok {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("identity has no pds url"),
-			"identity has no pds url",
-			http.StatusBadRequest,
-		)
-		return
-	}
-	// Create a new request for forwarding
-	targetURL := pdsUrl.URL + r.URL.RequestURI()
+	dpopClient := oauthclient.NewAuthedDpopHttpClient(
+		id,
+		p.credStore,
+		p.oauthClient,
+		&oauthclient.MemoryNonceProvider{},
+	)
 	// Only pass body for methods that support it
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
-	req, err := http.NewRequest(r.Method, targetURL, body)
+	req, err := http.NewRequest(r.Method, r.URL.RequestURI(), body)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create forwarding request")
 		http.Error(w, "failed to create forwarding request", http.StatusInternalServerError)
