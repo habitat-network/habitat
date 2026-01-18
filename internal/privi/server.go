@@ -116,9 +116,9 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, grantee := range req.Grantees {
+	if len(req.Grantees) > 0 {
 		s.store.permissions.AddLexiconReadPermission(
-			grantee,
+			req.Grantees,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
 		)
@@ -403,7 +403,11 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.store.permissions.AddLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
+	err = s.store.permissions.AddLexiconReadPermission(
+		[]string{req.DID},
+		callerDID.String(),
+		req.Lexicon,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
 		return

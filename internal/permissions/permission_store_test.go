@@ -26,7 +26,7 @@ func TestSQLiteStoreBasicPermissions(t *testing.T) {
 	require.False(t, hasPermission, "non-owner without permission should be denied")
 
 	// Test: Grant lexicon-level permission
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat.posts")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat.posts")
 	require.NoError(t, err)
 
 	// Test: Bob should now have permission to all posts
@@ -60,7 +60,7 @@ func TestSQLiteStorePrefixPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Grant permission to all "network.habitat.*" lexicons
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat")
 	require.NoError(t, err)
 
 	// Bob should have access to any lexicon under network.habitat
@@ -90,13 +90,13 @@ func TestSQLiteStoreMultipleGrantees(t *testing.T) {
 	require.NoError(t, err)
 
 	// Grant permissions to multiple users
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat.posts")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat.posts")
 	require.NoError(t, err)
 
-	err = store.AddLexiconReadPermission("charlie", "alice", "network.habitat.posts")
+	err = store.AddLexiconReadPermission([]string{"charlie"}, "alice", "network.habitat.posts")
 	require.NoError(t, err)
 
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat.likes")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat.likes")
 	require.NoError(t, err)
 
 	// List permissions by lexicon
@@ -117,7 +117,7 @@ func TestSQLiteStoreListByUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Grant bob access to network.habitat.posts
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat.posts")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat.posts")
 	require.NoError(t, err)
 
 	// List bob's permissions for network.habitat.posts
@@ -128,7 +128,11 @@ func TestSQLiteStoreListByUser(t *testing.T) {
 	require.Len(t, denies, 0)
 
 	// Charlie has no permissions
-	allows, denies, err = store.ListReadPermissionsByUser("alice", "charlie", "network.habitat.posts")
+	allows, denies, err = store.ListReadPermissionsByUser(
+		"alice",
+		"charlie",
+		"network.habitat.posts",
+	)
 	require.NoError(t, err)
 	require.Len(t, allows, 0)
 	require.Len(t, denies, 0)
@@ -142,11 +146,11 @@ func TestSQLiteStorePermissionHierarchy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Grant broad permission
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat")
 	require.NoError(t, err)
 
 	// Grant more specific permission
-	err = store.AddLexiconReadPermission("charlie", "alice", "network.habitat.posts")
+	err = store.AddLexiconReadPermission([]string{"charlie"}, "alice", "network.habitat.posts")
 	require.NoError(t, err)
 
 	// Bob has access via broad permission
@@ -176,7 +180,7 @@ func TestSQLiteStoreEmptyRecordKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Grant permission
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat.posts")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat.posts")
 	require.NoError(t, err)
 
 	// Check permission with empty record key (should check NSID-level permission)
@@ -193,11 +197,11 @@ func TestSQLiteStoreMultipleOwners(t *testing.T) {
 	require.NoError(t, err)
 
 	// Grant bob access to alice's posts
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat.posts")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat.posts")
 	require.NoError(t, err)
 
 	// Grant bob access to charlie's likes
-	err = store.AddLexiconReadPermission("bob", "charlie", "network.habitat.likes")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "charlie", "network.habitat.likes")
 	require.NoError(t, err)
 
 	// Bob should have access to alice's posts
@@ -236,7 +240,7 @@ func TestSQLiteStoreDenyOverridesAllow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Grant bob broad access to network.habitat
-	err = store.AddLexiconReadPermission("bob", "alice", "network.habitat")
+	err = store.AddLexiconReadPermission([]string{"bob"}, "alice", "network.habitat")
 	require.NoError(t, err)
 
 	// Bob should have access to posts
@@ -270,7 +274,23 @@ func TestSQLiteStoreDenyOverridesAllow(t *testing.T) {
 	require.False(t, hasPermission, "deny should override broader allow")
 
 	// Bob should also be denied access to specific like records
-	hasPermission, err = store.HasPermission("bob", "alice", "network.habitat.likes", "specific-record")
+	hasPermission, err = store.HasPermission(
+		"bob",
+		"alice",
+		"network.habitat.likes",
+		"specific-record",
+	)
 	require.NoError(t, err)
 	require.False(t, hasPermission, "deny should apply to all records under likes")
+}
+
+func TestPermissionStoreEmptyGrantees(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewSQLiteStore(db)
+	require.NoError(t, err)
+
+	err = store.AddLexiconReadPermission([]string{}, "alice", "network.habitat.posts")
+	require.Error(t, err)
 }
