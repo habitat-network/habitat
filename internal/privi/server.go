@@ -116,6 +116,14 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, grantee := range req.Grantees {
+		s.store.permissions.AddLexiconReadPermission(
+			grantee,
+			ownerDID.String(),
+			req.Collection+"."+rkey,
+		)
+	}
+
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
 		Uri: fmt.Sprintf("habitat://%s/%s/%s", ownerDID.String(), req.Collection, rkey),
 	}); err != nil {
@@ -325,7 +333,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !has {
-		utils.LogAndHTTPError(w, fmt.Errorf("request forwarding not implemented"), fmt.Sprintf("could not forward request for did: %s", did.String()), http.StatusNotImplemented)
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("request forwarding not implemented"),
+			fmt.Sprintf("could not forward request for did: %s", did.String()),
+			http.StatusNotImplemented,
+		)
 		return
 	}
 
