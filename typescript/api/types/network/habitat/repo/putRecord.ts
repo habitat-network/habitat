@@ -28,6 +28,7 @@ export interface InputSchema {
   validate?: boolean
   /** The record to write. */
   record: { [_ in string]: unknown }
+  grantees?: string[]
 }
 
 export interface OutputSchema {

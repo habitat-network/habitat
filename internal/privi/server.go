@@ -116,6 +116,23 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Grantees) > 0 {
+		err := s.store.permissions.AddLexiconReadPermission(
+			req.Grantees,
+			ownerDID.String(),
+			req.Collection+"."+rkey,
+		)
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				err,
+				fmt.Sprintf("adding permissions for did %s", ownerDID.String()),
+				http.StatusInternalServerError,
+			)
+			return
+		}
+	}
+
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
 		Uri: fmt.Sprintf("habitat://%s/%s/%s", ownerDID.String(), req.Collection, rkey),
 	}); err != nil {
@@ -325,7 +342,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !has {
-		utils.LogAndHTTPError(w, fmt.Errorf("request forwarding not implemented"), fmt.Sprintf("could not forward request for did: %s", did.String()), http.StatusNotImplemented)
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("request forwarding not implemented"),
+			fmt.Sprintf("could not forward request for did: %s", did.String()),
+			http.StatusNotImplemented,
+		)
 		return
 	}
 
@@ -390,7 +412,11 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.store.permissions.AddLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
+	err = s.store.permissions.AddLexiconReadPermission(
+		[]string{req.DID},
+		callerDID.String(),
+		req.Lexicon,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
 		return

@@ -410,6 +410,13 @@ export const schemaDict = {
                 type: 'unknown',
                 description: 'The record to write.',
               },
+              grantees: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
             },
           },
         },
