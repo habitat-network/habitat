@@ -223,7 +223,7 @@ export const schemaDict = {
               record: {
                 type: 'ref',
                 description: 'The record to write.',
-                ref: 'lex:network.habitat.notification.createNotification#notification',
+                ref: 'lex:network.habitat.notification.defs#notification',
               },
             },
           },
@@ -246,6 +246,12 @@ export const schemaDict = {
           },
         },
       },
+    },
+  },
+  NetworkHabitatNotificationDefs: {
+    lexicon: 1,
+    id: 'network.habitat.notification.defs',
+    defs: {
       notification: {
         type: 'object',
         required: ['did', 'originDid', 'collection', 'rkey'],
@@ -326,29 +332,7 @@ export const schemaDict = {
           },
           value: {
             type: 'ref',
-            ref: 'lex:network.habitat.notification.listNotifications#notification',
-          },
-        },
-      },
-      notification: {
-        type: 'object',
-        required: ['did', 'originDid', 'collection', 'rkey'],
-        properties: {
-          did: {
-            type: 'string',
-            format: 'did',
-          },
-          originDid: {
-            type: 'string',
-            format: 'did',
-          },
-          collection: {
-            type: 'string',
-            format: 'nsid',
-          },
-          rkey: {
-            type: 'string',
-            format: 'record-key',
+            ref: 'lex:network.habitat.notification.defs#notification',
           },
         },
       },
@@ -685,6 +669,7 @@ export const ids = {
   CommunityLexiconCalendarRsvp: 'community.lexicon.calendar.rsvp',
   NetworkHabitatNotificationCreateNotification:
     'network.habitat.notification.createNotification',
+  NetworkHabitatNotificationDefs: 'network.habitat.notification.defs',
   NetworkHabitatNotificationListNotifications:
     'network.habitat.notification.listNotifications',
   NetworkHabitatPhoto: 'network.habitat.photo',

@@ -25,7 +25,7 @@
             "record": {
               "type": "ref",
               "description": "The record to write.",
-              "ref": "#notification"
+              "ref": "network.habitat.notification.defs#notification"
             }
           }
         }
@@ -42,33 +42,6 @@
               "knownValues": ["valid", "unknown"]
             }
           }
-        }
-      }
-    },
-    "notification": {
-      "type": "object",
-      "required": ["did", "originDid", "collection", "rkey"],
-      "properties": {
-        "did": {
-          "type": "string",
-          "format": "did",
-          "description": "The handle or DID of the target of the notification."
-        },
-        "originDid": {
-          "type": "string",
-          "format": "did",
-          "description": "The handle or DID of the origin of the notification."
-        },
-        "collection": {
-          "type": "string",
-          "format": "nsid",
-          "description": "The NSID of the record collection."
-        },
-        "rkey": {
-          "type": "string",
-          "format": "record-key",
-          "description": "The Record Key.",
-          "maxLength": 512
         }
       }
     }

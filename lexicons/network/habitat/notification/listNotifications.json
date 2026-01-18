@@ -36,17 +36,7 @@
         "properties": {
           "uri": { "type": "string", "format": "at-uri" },
           "cid": { "type": "string", "format": "cid" },
-          "value": { "type": "ref", "ref": "#notification" }
-        }
-      },
-      "notification": {
-        "type": "object",
-        "required": ["did", "originDid", "collection", "rkey"],
-        "properties": {
-          "did": { "type": "string", "format": "did" },
-          "originDid": { "type": "string", "format": "did" },
-          "collection": { "type": "string", "format": "nsid" },
-          "rkey": { "type": "string", "format": "record-key" }
+          "value": { "type": "ref", "ref": "network.habitat.notification.defs#notification" }
         }
       }
     }
