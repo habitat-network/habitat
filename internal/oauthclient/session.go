@@ -12,7 +12,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/sessions"
-	"github.com/rs/zerolog/log"
 )
 
 const SessionKeyDpop = "dpop-session"

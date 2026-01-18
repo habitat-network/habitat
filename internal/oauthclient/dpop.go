@@ -14,7 +14,6 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 )
 
 // DpopNonceProvider provides access to nonce management
