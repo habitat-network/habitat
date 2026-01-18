@@ -15,6 +15,10 @@ import (
 	"syscall"
 
 	jose "github.com/go-jose/go-jose/v3"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -82,6 +86,28 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Setup context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// Setup OpenTelemetry
+	otelClose, err := setupOTelSDK(ctx)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed setting up telemetry")
+	}
+
+	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
+		Key:   "env",
+		Value: attribute.StringValue("local"),
+	}))
+	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
+	if err != nil {
+		log.Err(err)
+	} else {
+		gauge.Record(ctx, 1)
+		// Set to zero when the task goes away
+		defer gauge.Record(context.Background(), 0)
+	}
+
+	// Handle shutdown properly so nothing leaks.
+	defer otelClose(context.Background())
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -163,8 +189,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.Handle("/xrpc/", pdsForwarding)
 
+	otelMiddleware := otelhttp.NewMiddleware("habitat-backend" /* TODO: any options here? */)
+
 	s := &http.Server{
-		Handler: corsMiddleware(loggingMiddleware(mux)),
+		Handler: otelMiddleware(corsMiddleware(mux)),
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
@@ -287,12 +315,6 @@ func setupOAuthServer(
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")
 	}
 	return oauthServer
-}
-
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
-	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
