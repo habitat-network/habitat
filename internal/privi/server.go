@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/eagraf/habitat-new/api/habitat"
+	"github.com/eagraf/habitat-new/internal/oauthclient"
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/permissions"
@@ -33,6 +34,7 @@ type Server struct {
 	oauthServer *oauthserver.OAuthServer
 	inbox       *Inbox
 	credStore   pdscred.PDSCredentialStore
+	oauthClient oauthclient.OAuthClient
 }
 
 // NewServer returns a privi server.
@@ -42,6 +44,7 @@ func NewServer(
 	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 	credStore pdscred.PDSCredentialStore,
+	oauthClient oauthclient.OAuthClient,
 ) *Server {
 	server := &Server{
 		store:       newStore(perms, repo),
@@ -50,6 +53,7 @@ func NewServer(
 		oauthServer: oauthServer,
 		inbox:       inbox,
 		credStore:   credStore,
+		oauthClient: oauthClient,
 	}
 	return server
 }
@@ -325,7 +329,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !has {
-		utils.LogAndHTTPError(w, fmt.Errorf("request forwarding not implemented"), fmt.Sprintf("could not forward request for did: %s", did.String()), http.StatusNotImplemented)
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("request forwarding not implemented"),
+			fmt.Sprintf("could not forward request for did: %s", did.String()),
+			http.StatusNotImplemented,
+		)
 		return
 	}
 
@@ -488,32 +497,22 @@ func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dpopClient, err := s.credStore.GetDpopClient(did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to get dpop client", http.StatusInternalServerError)
-		return
-	}
 	id, err := s.dir.LookupDID(r.Context(), did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
 		return
 	}
-	pdsUrl, ok := id.Services["atproto_pds"]
-	if !ok {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("identity has no pds url"),
-			"identity has no pds url",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	requestUri := fmt.Sprintf("%s/xrpc/com.atproto.repo.createRecord", pdsUrl.URL)
-
-	log.Info().Msgf("requestUri: %s", requestUri)
-
-	req, err := http.NewRequest(http.MethodPost, requestUri, bytes.NewReader(body))
+	dpopClient := oauthclient.NewAuthedDpopHttpClient(
+		id,
+		s.credStore,
+		s.oauthClient,
+		&oauthclient.MemoryNonceProvider{},
+	)
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"/xrpc/com.atproto.repo.createRecord",
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "create request", http.StatusInternalServerError)
 		return

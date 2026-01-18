@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/stretchr/testify/require"
@@ -220,7 +221,7 @@ func TestDpopHttpClient_AuthorizationServerNonceError(t *testing.T) {
 	require.Equal(t, "auth-server-nonce-789", nonce)
 }
 
-func TestDpopHttpClient_WithAccessToken(t *testing.T) {
+func TestAuthedDpopHttpClient(t *testing.T) {
 	// Create test server that verifies access token hash
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify DPoP header is present
@@ -241,17 +242,14 @@ func TestDpopHttpClient_WithAccessToken(t *testing.T) {
 
 		// Verify authorization header is present
 		require.NotEmpty(t, r.Header.Get("Authorization"), "Authorization header should be present")
-		require.Equal(
-			t,
-			"DPoP test-access-token",
-			r.Header.Get("Authorization"),
-			"Authorization header should be DPoP",
-		)
+
+		// Verify access token is present
+		accessToken := r.Header.Get("Authorization")[5:]
+		require.NotEmpty(t, accessToken, "Access token should be present")
 
 		// Verify the hash matches the token
-		expectedToken := "test-access-token"
 		h := sha256.New()
-		h.Write([]byte(expectedToken))
+		h.Write([]byte(accessToken))
 		expectedHash := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 		require.Equal(t, expectedHash, claims.AccessTokenHash, "Access token hash should match")
 
@@ -265,14 +263,50 @@ func TestDpopHttpClient_WithAccessToken(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
-	// Create nonce provider
-	nonceProvider := &MemoryNonceProvider{nonce: "test-nonce"}
-
 	// Create DPoP client
-	client := NewDpopHttpClient(key, nonceProvider, WithAccessToken("test-access-token"))
+	client := NewAuthedDpopHttpClient(
+		testIdentity(server.URL),
+		testPdsCredStore(t, key, jwt.Claims{
+			Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
+		}),
+		testOAuthClient(t),
+		&MemoryNonceProvider{nonce: "test-nonce"},
+	)
 
 	// Create request with Authorization header
-	req, err := http.NewRequest("GET", server.URL+"/test", nil)
+	req, err := http.NewRequest("GET", "/test", nil)
+	require.NoError(t, err)
+
+	// Execute request
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
+
+	// Verify response
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
+	// Create test server that verifies access token hash
+	server := fakeAuthServer(map[string]any{})
+	defer server.Close()
+
+	// Create test key
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	// Create DPoP client
+	client := NewAuthedDpopHttpClient(
+		testIdentity(server.URL),
+		testPdsCredStore(t, key, jwt.Claims{
+			Expiry: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
+		}),
+		testOAuthClient(t),
+		&MemoryNonceProvider{nonce: "test-nonce"},
+	)
+
+	// Create request with Authorization header
+	req, err := http.NewRequest("GET", "/test", nil)
 	require.NoError(t, err)
 
 	// Execute request
