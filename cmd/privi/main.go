@@ -34,7 +34,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/privi"
 	"github.com/eagraf/habitat-new/internal/telemetry"
 	"github.com/gorilla/sessions"
-	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
 )
 

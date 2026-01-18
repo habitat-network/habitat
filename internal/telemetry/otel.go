@@ -14,14 +14,22 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 )
+
+func habitatResourceDefinition() *resource.Resource {
+	resource, err := resource.New(context.Background(), resource.WithFromEnv(), resource.WithOSDescription())
+	if err != nil {
+		panic(err)
+	}
+	return resource
+}
 
 // setupOTelSDK bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
 func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, err error) {
 	var shutdownFuncs []func(context.Context) error
-
 	// shutdown calls cleanup functions registered via shutdownFuncs.
 	// The errors from the calls are joined.
 	// Each registered cleanup will be invoked once.
@@ -39,6 +47,11 @@ func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 		err = errors.Join(inErr, shutdown(ctx))
 	}
 
+	resource, err := habitatResourceDefinition()
+	if err != nil {
+		return nil, err
+	}
+
 	prop := propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -50,7 +63,7 @@ func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 		return nil, err
 	}
 
-	tracerProvider := trace.NewTracerProvider(trace.WithBatcher(traceExporter))
+	tracerProvider := trace.NewTracerProvider(trace.WithBatcher(traceExporter), trace.WithResource(resource))
 	if err != nil {
 		handleErr(err)
 		return
@@ -63,7 +76,7 @@ func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 		return nil, err
 	}
 
-	meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter)))
+	meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter)), metric.WithResource(resource))
 	if err != nil {
 		handleErr(err)
 		return
@@ -73,7 +86,7 @@ func SetupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 
 	err = runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err)
 	}
 
 	return

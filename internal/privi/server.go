@@ -20,7 +20,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/gorilla/schema"
-	"github.com/rs/zerolog/log"
 )
 
 type Server struct {
