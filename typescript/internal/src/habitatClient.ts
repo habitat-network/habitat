@@ -85,7 +85,8 @@ export type PutPrivateRecordInput<T = Record<string, unknown>> = Omit<
 };
 
 export type GetPrivateRecordParams = NetworkHabitatRepoGetRecord.QueryParams;
-export type ListPrivateRecordsParams = NetworkHabitatRepoListRecords.QueryParams;
+export type ListPrivateRecordsParams =
+  NetworkHabitatRepoListRecords.QueryParams;
 
 // HabitatAgentSession implements the Atproto Session interface.
 export class HabitatAgentSession {
