@@ -32,6 +32,7 @@ import (
 	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
+	"github.com/eagraf/habitat-new/internal/telemetry"
 	"github.com/gorilla/sessions"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
@@ -88,7 +89,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	defer stop()
 
 	// Setup OpenTelemetry
-	otelClose, err := setupOTelSDK(ctx)
+	otelClose, err := telemetry.SetupOTelSDK(ctx)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed setting up telemetry")
 	}
