@@ -195,6 +195,124 @@ export const schemaDict = {
       },
     },
   },
+  CommunityLexiconLocationAddress: {
+    lexicon: 1,
+    id: 'community.lexicon.location.address',
+    defs: {
+      main: {
+        type: 'object',
+        description: 'A physical location in the form of a street address.',
+        required: ['country'],
+        properties: {
+          country: {
+            type: 'string',
+            description:
+              'The ISO 3166 country code. Preferably the 2-letter code.',
+            minLength: 2,
+            maxLength: 10,
+          },
+          postalCode: {
+            type: 'string',
+            description: 'The postal code of the location.',
+          },
+          region: {
+            type: 'string',
+            description:
+              'The administrative region of the country. For example, a state in the USA.',
+          },
+          locality: {
+            type: 'string',
+            description:
+              'The locality of the region. For example, a city in the USA.',
+          },
+          street: {
+            type: 'string',
+            description: 'The street address.',
+          },
+          name: {
+            type: 'string',
+            description: 'The name of the location.',
+          },
+        },
+      },
+    },
+  },
+  CommunityLexiconLocationFsq: {
+    lexicon: 1,
+    id: 'community.lexicon.location.fsq',
+    defs: {
+      main: {
+        type: 'object',
+        description:
+          'A physical location contained in the Foursquare Open Source Places dataset.',
+        required: ['fsq_place_id'],
+        properties: {
+          fsq_place_id: {
+            type: 'string',
+            description: 'The unique identifier of a Foursquare POI.',
+          },
+          latitude: {
+            type: 'string',
+          },
+          longitude: {
+            type: 'string',
+          },
+          name: {
+            type: 'string',
+            description: 'The name of the location.',
+          },
+        },
+      },
+    },
+  },
+  CommunityLexiconLocationGeo: {
+    lexicon: 1,
+    id: 'community.lexicon.location.geo',
+    defs: {
+      main: {
+        type: 'object',
+        description: 'A physical location in the form of a WGS84 coordinate.',
+        required: ['latitude', 'longitude'],
+        properties: {
+          latitude: {
+            type: 'string',
+          },
+          longitude: {
+            type: 'string',
+          },
+          altitude: {
+            type: 'string',
+          },
+          name: {
+            type: 'string',
+            description: 'The name of the location.',
+          },
+        },
+      },
+    },
+  },
+  CommunityLexiconLocationHthree: {
+    lexicon: 1,
+    id: 'community.lexicon.location.hthree',
+    defs: {
+      main: {
+        type: 'object',
+        description:
+          'A physical location in the form of a H3 encoded location.',
+        required: ['value'],
+        properties: {
+          value: {
+            type: 'string',
+            description: 'The h3 encoded location.',
+          },
+          name: {
+            type: 'string',
+            description: 'The name of the location.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatNotificationCreateNotification: {
     lexicon: 1,
     id: 'network.habitat.notification.createNotification',
@@ -667,6 +785,10 @@ export function validate(
 export const ids = {
   CommunityLexiconCalendarEvent: 'community.lexicon.calendar.event',
   CommunityLexiconCalendarRsvp: 'community.lexicon.calendar.rsvp',
+  CommunityLexiconLocationAddress: 'community.lexicon.location.address',
+  CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
+  CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
+  CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
   NetworkHabitatNotificationCreateNotification:
     'network.habitat.notification.createNotification',
   NetworkHabitatNotificationDefs: 'network.habitat.notification.defs',

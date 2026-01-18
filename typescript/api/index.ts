@@ -11,6 +11,10 @@ import { CID } from 'multiformats/cid'
 import { type OmitKey, type Un$Typed } from './util.js'
 import * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 import * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
+import * as CommunityLexiconLocationAddress from './types/community/lexicon/location/address.js'
+import * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
+import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
+import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 import * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
 import * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 import * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
@@ -23,6 +27,10 @@ import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 
 export * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 export * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
+export * as CommunityLexiconLocationAddress from './types/community/lexicon/location/address.js'
+export * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
+export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
+export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 export * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
 export * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 export * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
@@ -76,10 +84,12 @@ export class CommunityNS {
 export class CommunityLexiconNS {
   _client: XrpcClient
   calendar: CommunityLexiconCalendarNS
+  location: CommunityLexiconLocationNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.calendar = new CommunityLexiconCalendarNS(client)
+    this.location = new CommunityLexiconLocationNS(client)
   }
 }
 
@@ -258,6 +268,14 @@ export class CommunityLexiconCalendarRsvpRecord {
       { collection: 'community.lexicon.calendar.rsvp', ...params },
       { headers },
     )
+  }
+}
+
+export class CommunityLexiconLocationNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
   }
 }
 
