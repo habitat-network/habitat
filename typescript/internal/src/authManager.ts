@@ -1,5 +1,6 @@
 import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
+import { decodeJwt } from "jose";
 import { HabitatClient, HabitatAuthedAgentSession } from "./habitatClient";
 import { DidResolver } from "@atproto/identity";
 import { Agent } from "@atproto/api";
@@ -78,10 +79,24 @@ export class AuthManager {
         expectedState: state,
       },
     );
+
+    // Decode the JWT to extract the DID and validate it matches the sub claim
+    const decoded = decodeJwt(token.access_token);
+    const did = decoded.sub;
+    if (!did) {
+      throw new Error("Token missing sub claim");
+    }
+    if (did !== token.sub) {
+      throw new Error(
+        `DID from token "${did}" does not match sub from response "${token.sub}"`,
+      );
+    }
+
     this.accessToken = token.access_token;
+    this.did = did;
 
     localStorage.setItem(tokenLocalStorageKey, token.access_token);
-    localStorage.setItem(didLocalStorageKey, token.sub as string);
+    localStorage.setItem(didLocalStorageKey, did);
 
     window.location.href = "/";
   }
