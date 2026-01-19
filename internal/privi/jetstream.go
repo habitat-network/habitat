@@ -7,6 +7,7 @@ import (
 
 	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/bluesky-social/jetstream/pkg/models"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -48,7 +49,7 @@ func StartNotificationListener(
 
 	// Create a slog logger adapter for the Jetstream client
 	// Jetstream expects slog, but we use zerolog throughout the codebase
-	slogger := slog.New(slog.NewJSONHandler(log, nil))
+	slogger := slog.New(slog.NewJSONHandler(log.Logger, nil))
 
 	// Create a simple scheduler that passes events to the handler
 	scheduler := &simpleScheduler{

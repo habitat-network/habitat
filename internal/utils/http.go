@@ -3,6 +3,8 @@ package utils
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 type ErrorMessage struct {

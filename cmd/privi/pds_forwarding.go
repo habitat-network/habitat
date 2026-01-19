@@ -9,6 +9,7 @@ import (
 	"github.com/eagraf/habitat-new/internal/oauthserver"
 	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/utils"
+	"github.com/rs/zerolog/log"
 )
 
 type pdsForwarding struct {

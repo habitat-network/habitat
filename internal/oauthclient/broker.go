@@ -12,6 +12,7 @@ import (
 
 	"github.com/eagraf/habitat-new/util"
 	"github.com/gorilla/sessions"
+	"github.com/rs/zerolog/log"
 )
 
 type xrpcBrokerHandler struct {

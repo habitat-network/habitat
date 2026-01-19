@@ -2,41 +2,27 @@ package telemetry
 
 import (
 	"context"
-	"os"
+	"io"
 
-	zerolog "github.com/rs/zerolog"
-	"go.opentelemetry.io/contrib/bridges/otelzerolog"
-	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
-
-	otellog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/log"
 )
 
-// Expected usage is that every package should have a one-line file that does:
-// var log = logging.InstrumentedLogger()
-// Now, using log.* anywhere will use the logger that sends logs via OpenTelemetry to Grafana.
+// We need to set up a custom io.Writer to get zerolog to go to an OpenTelemetry collector.
 
-// Copied from: https://pkg.go.dev/go.opentelemetry.io/contrib/bridges/otelzerolog
+type otelWriter struct {
+	logger log.Logger
+}
 
-func InstrumentedLogger() zerolog.Logger {
-	exporter, err := otlploggrpc.New(context.Background())
-	if err != nil {
-		panic(err)
+func (w *otelWriter) Write(p []byte) (int, error) {
+	rec := log.Record{}
+	rec.SetBody(log.StringValue(string(p))) // unavoidable copy
+
+	w.logger.Emit(context.Background(), rec)
+	return len(p), nil
+}
+
+func NewOtelLogWriter(logger log.Logger) io.Writer {
+	return &otelWriter{
+		logger: logger,
 	}
-
-	lp := otellog.NewLoggerProvider(
-		otellog.WithProcessor(otellog.NewBatchProcessor(exporter)),
-		otellog.WithResource(habitatResourceDefinition()),
-	)
-
-	logger := zerolog.New(
-		zerolog.MultiLevelWriter(
-			os.Stdout,
-			otelzerolog.NewWriter("my-service"),
-		),
-	)
-	// Create a logger that emits logs to both STDOUT and the OTel Go SDK.
-	hook := otelzerolog.NewHook("habitat", otelzerolog.WithLoggerProvider(lp))
-	logger := zerolog.New(os.Stdout).With().Logger()
-	logger = logger.Hook(hook)
-	return logger
 }

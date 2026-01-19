@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/eagraf/habitat-new/api/habitat"
 	"github.com/eagraf/habitat-new/internal/oauthserver"

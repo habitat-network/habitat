@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/bluesky-social/jetstream/pkg/models"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
