@@ -18,6 +18,7 @@
     "internal": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
     "vite-tsconfig-paths": "catalog:"
   },
   "devDependencies": {

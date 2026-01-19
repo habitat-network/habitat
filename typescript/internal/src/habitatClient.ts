@@ -115,16 +115,19 @@ export class HabitatAuthedAgentSession extends HabitatAgentSession {
   }
 
   async fetchHandler(pathname: string, init?: RequestInit): Promise<Response> {
-    const fetchReq = new Request(`${this.serverUrl}${pathname}`, init);
+    const url = `${this.serverUrl}${pathname}`;
+    const method = init?.method ?? "GET";
+    const body = init?.body as string | undefined;
+    const headers = new Headers(init?.headers);
 
     const response = await this.authManager.fetch(
-      fetchReq.url,
-      fetchReq.method,
-      fetchReq.body,
-      fetchReq.headers,
+      url,
+      method,
+      body,
+      headers,
     );
     if (!response) {
-      throw new Error(`Failed to fetch: ${fetchReq.url}`);
+      throw new Error(`Failed to fetch: ${url}`);
     }
     return response;
   }

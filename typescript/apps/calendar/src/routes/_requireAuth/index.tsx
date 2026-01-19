@@ -1,32 +1,38 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { EventController } from "../../controllers/eventController.ts";
+import { useState } from "react";
+import { createEvent, getRsvpNotifications, listEvents, listRsvps } from "../../controllers/eventController.ts";
+import { CreateEventForm, type CreateEventFormData } from "../../components/CreateEventForm.tsx";
 
 export const Route = createFileRoute("/_requireAuth/")({
   component: CalendarPage,
+  async loader({ context }) {
+    const { authManager, queryClient } = context;
+    const client = authManager.client();
+
+    await Promise.all([
+      queryClient.ensureQueryData({
+        queryKey: ["rsvps"],
+        queryFn: () => listRsvps(client),
+      }),
+      queryClient.ensureQueryData({
+        queryKey: ["rsvpNotifications"],
+        queryFn: () => getRsvpNotifications(client),
+      }),
+    ]);
+  },
 });
 
 function CalendarPage() {
   const { authManager } = Route.useRouteContext();
-  const eventController = useMemo(() => {
-    const client = authManager.client();
-    const did = authManager.did;
-    if (!did) {
-      throw new Error("User DID not found");
-    }
-    return new EventController(client, did);
-  }, [authManager]);
+  const client = authManager.client();
+  const userDid = authManager.did;
+  if (!userDid) {
+    throw new Error("User DID not found");
+  }
   const queryClient = useQueryClient();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newEvent, setNewEvent] = useState({
-    name: "",
-    description: "",
-    startsAt: "",
-    endsAt: "",
-    invitedDids: "",
-  });
 
   const {
     data: rsvpData,
@@ -34,7 +40,7 @@ function CalendarPage() {
     error: rsvpError,
   } = useQuery({
     queryKey: ["rsvps"],
-    queryFn: () => eventController.listRsvps(),
+    queryFn: () => listRsvps(client),
   });
 
   const {
@@ -43,14 +49,14 @@ function CalendarPage() {
     error: eventError,
   } = useQuery({
     queryKey: ["events"],
-    queryFn: () => eventController.listEvents(),
+    queryFn: () => listEvents(client),
   });
 
   // Fetch and process RSVP notifications on load
   useQuery({
     queryKey: ["rsvpNotifications"],
     queryFn: async () => {
-      const notifications = await eventController.getRsvpNotifications();
+      const notifications = await getRsvpNotifications(client);
       console.log("notifications", notifications);
       // Refetch RSVPs after processing notifications
       if (notifications.length > 0) {
@@ -61,37 +67,28 @@ function CalendarPage() {
   });
 
   const createEventMutation = useMutation({
-    mutationFn: (event: {
-      name: string;
-      description?: string;
-      startsAt?: string;
-      endsAt?: string;
-      invitedDids: string[];
-    }) => {
-      const { invitedDids, ...eventData } = event;
-      return eventController.createEvent(eventData, invitedDids);
+    mutationFn: (data: CreateEventFormData) => {
+      const invitedDids = data.invitedDids
+        .split(",")
+        .map((d) => d.trim())
+        .filter((d) => d.length > 0);
+      return createEvent(
+        client,
+        userDid,
+        {
+          name: data.name,
+          description: data.description || undefined,
+          startsAt: data.startsAt || undefined,
+          endsAt: data.endsAt || undefined,
+        },
+        invitedDids
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       setShowCreateForm(false);
-      setNewEvent({ name: "", description: "", startsAt: "", endsAt: "", invitedDids: "" });
     },
   });
-
-  const handleCreateEvent = (e: React.FormEvent) => {
-    e.preventDefault();
-    const invitedDids = newEvent.invitedDids
-      .split(",")
-      .map((did) => did.trim())
-      .filter((did) => did.length > 0);
-    createEventMutation.mutate({
-      name: newEvent.name,
-      description: newEvent.description || undefined,
-      startsAt: newEvent.startsAt || undefined,
-      endsAt: newEvent.endsAt || undefined,
-      invitedDids,
-    });
-  };
 
   const isLoading = rsvpLoading || eventLoading;
   const error = rsvpError || eventError;
@@ -117,78 +114,11 @@ function CalendarPage() {
         </div>
 
         {showCreateForm && (
-          <form onSubmit={handleCreateEvent} style={{ marginBottom: "1rem" }}>
-            <div>
-              <label>
-                Name:
-                <input
-                  type="text"
-                  value={newEvent.name}
-                  onChange={(e) =>
-                    setNewEvent({ ...newEvent, name: e.target.value })
-                  }
-                  required
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Description:
-                <input
-                  type="text"
-                  value={newEvent.description}
-                  onChange={(e) =>
-                    setNewEvent({ ...newEvent, description: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Starts At:
-                <input
-                  type="datetime-local"
-                  value={newEvent.startsAt}
-                  onChange={(e) =>
-                    setNewEvent({ ...newEvent, startsAt: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Ends At:
-                <input
-                  type="datetime-local"
-                  value={newEvent.endsAt}
-                  onChange={(e) =>
-                    setNewEvent({ ...newEvent, endsAt: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Invite (comma-separated DIDs):
-                <input
-                  type="text"
-                  value={newEvent.invitedDids}
-                  onChange={(e) =>
-                    setNewEvent({ ...newEvent, invitedDids: e.target.value })
-                  }
-                  placeholder="did:plc:abc123, did:plc:xyz789"
-                />
-              </label>
-            </div>
-            <button type="submit" disabled={createEventMutation.isPending}>
-              {createEventMutation.isPending ? "Creating..." : "Save Event"}
-            </button>
-            {createEventMutation.isError && (
-              <p style={{ color: "red" }}>
-                Error: {createEventMutation.error.message}
-              </p>
-            )}
-          </form>
+          <CreateEventForm
+            onSubmit={(data) => createEventMutation.mutate(data)}
+            isPending={createEventMutation.isPending}
+            error={createEventMutation.error}
+          />
         )}
 
         {eventData?.records.length === 0 ? (
