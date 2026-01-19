@@ -24,6 +24,7 @@ exclude:
     - \/mocks\/.*?$
     - ^cmd # main.go's don't need to be tested
     - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
+    - ^internal/telemetry # This is all setup, no logic
     - ^internal/utils
     - dummy_.*\.go
     - ^internal/oauthserver # TODO: should be able to remove once refresh tokens are implemented
