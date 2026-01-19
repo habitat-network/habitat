@@ -120,12 +120,7 @@ export class HabitatAuthedAgentSession extends HabitatAgentSession {
     const body = init?.body as string | undefined;
     const headers = new Headers(init?.headers);
 
-    const response = await this.authManager.fetch(
-      url,
-      method,
-      body,
-      headers,
-    );
+    const response = await this.authManager.fetch(url, method, body, headers);
     if (!response) {
       throw new Error(`Failed to fetch: ${url}`);
     }
