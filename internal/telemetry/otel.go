@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/eagraf/habitat-new/internal/utils"
+	"github.com/habitat-network/habitat/internal/utils"
 
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"

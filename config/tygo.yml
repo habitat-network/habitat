@@ -1,5 +1,5 @@
 packages:
-  - path: "github.com/eagraf/habitat-new/core/api"
+  - path: "github.com/habitat-network/habitat/core/api"
     output_path: "frontend/types/api.ts"
     exclude_files:
       - habitat_db.go
@@ -9,7 +9,7 @@ packages:
       node.State: "node.State"
       node.AppInstallation: "node.AppInstallation"
       node.ReverseProxyRule: "node.ReverseProxyRule"
-  - path: "github.com/eagraf/habitat-new/core/state/node"
+  - path: "github.com/habitat-network/habitat/core/state/node"
     output_path: "frontend/types/node.ts"
     include_files:
       - schema.go

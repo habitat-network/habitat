@@ -10,8 +10,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/eagraf/habitat-new/util"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/util"
 	"github.com/rs/zerolog/log"
 )
 

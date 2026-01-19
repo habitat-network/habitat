@@ -15,12 +15,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/eagraf/habitat-new/api/habitat"
-	"github.com/eagraf/habitat-new/internal/oauthserver"
-	"github.com/eagraf/habitat-new/internal/pdscred"
-	"github.com/eagraf/habitat-new/internal/permissions"
-	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/gorilla/schema"
+	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Server struct {

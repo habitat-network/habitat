@@ -1,24 +1,24 @@
 FROM cosmtrek/air:latest
 
-WORKDIR /go/src/github.com/eagraf/habitat-new
-ENV air_wd=/go/src/github.com/eagraf/habitat-new
+WORKDIR /go/src/github.com/habitat-network/habitat
+ENV air_wd=/go/src/github.com/habitat-network/habitat
 
 # Copy in .air.toml
-COPY ./config/air.node.toml /go/src/github.com/eagraf/habitat-new/.air.toml
+COPY ./config/air.node.toml /go/src/github.com/habitat-network/habitat/.air.toml
 
 # Install debugger
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Download Go modules
-COPY ./go.mod /go/src/github.com/eagraf/habitat-new/go.mod
-COPY ./go.sum /go/src/github.com/eagraf/habitat-new/go.sum
+COPY ./go.mod /go/src/github.com/habitat-network/habitat/go.mod
+COPY ./go.sum /go/src/github.com/habitat-network/habitat/go.sum
 RUN go mod download
 
 # Volume in relevant source directories needed for live reloading
-RUN mkdir -p /go/src/github.com/eagraf/habitat-new/core
-RUN mkdir -p /go/src/github.com/eagraf/habitat-new/cmd
-RUN mkdir -p /go/src/github.com/eagraf/habitat-new/internal
-RUN mkdir -p /go/src/github.com/eagraf/habitat-new/pkg
+RUN mkdir -p /go/src/github.com/habitat-network/habitat/core
+RUN mkdir -p /go/src/github.com/habitat-network/habitat/cmd
+RUN mkdir -p /go/src/github.com/habitat-network/habitat/internal
+RUN mkdir -p /go/src/github.com/habitat-network/habitat/pkg
 
 # Optional:
 # To bind to a TCP port, runtime parameters must be supplied to the docker command.
