@@ -48,9 +48,6 @@ func setupTraceProvider(ctx context.Context, resource *resource.Resource) (*trac
 	}
 
 	provider := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithResource(resource))
-	if err != nil {
-		return nil, err
-	}
 	return provider, nil
 }
 
@@ -61,9 +58,6 @@ func setupMetricsProvider(ctx context.Context, resource *resource.Resource) (*me
 	}
 
 	provider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(exporter)), metric.WithResource(resource))
-	if err != nil {
-		return nil, err
-	}
 	return provider, nil
 }
 
