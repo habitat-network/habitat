@@ -15,9 +15,12 @@ import (
 	"syscall"
 
 	jose "github.com/go-jose/go-jose/v3"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/postgres"
@@ -32,8 +35,8 @@ import (
 	"github.com/eagraf/habitat-new/internal/pdscred"
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/privi"
+	"github.com/eagraf/habitat-new/internal/telemetry"
 	"github.com/gorilla/sessions"
-	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
 )
 
@@ -67,6 +70,44 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Info().Msgf("%s: %v", flag, cmd.Value(flag))
 	}
 
+	// Setup context with signal handling for graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Setup OpenTelemetry
+	// This needs to happen at the beginning so components use the global logger initialized below
+	// by zerolog.
+	otelClose, err := telemetry.SetupOpenTelemetry(ctx)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed setting up open telemetry for metric/trace/log collection")
+	}
+	// Handle shutdown properly so nothing leaks.
+	defer otelClose(context.Background())
+
+	// Metric that records a single running process (for testing)
+	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
+		Key:   "env",
+		Value: attribute.StringValue("local"),
+	}))
+	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
+	if err != nil {
+		log.Err(err)
+	} else {
+		gauge.Record(ctx, 1)
+		// Set to zero when the task goes away
+		defer gauge.Record(context.Background(), 0)
+	}
+
+	// Setup the zerolog logger
+	mw := zerolog.MultiLevelWriter(
+		os.Stdout,
+		telemetry.NewOtelLogWriter(global.GetLoggerProvider().Logger("zerolog")),
+	)
+
+	// Need to set log.Logger so globally anything initialized after here uses the global zerolog Logger
+	// which is now hooked up to open telemetry.
+	log.Logger = zerolog.New(mw).With().Timestamp().Logger()
+
 	// Setup components
 	db := setupDB(cmd)
 
@@ -82,32 +123,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore)
 	priviServer := setupPriviServer(db, pdsCredStore, oauthServer)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
-
-	// Setup context with signal handling for graceful shutdown
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	// Setup OpenTelemetry
-	otelClose, err := setupOTelSDK(ctx)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed setting up telemetry")
-	}
-
-	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
-		Key:   "env",
-		Value: attribute.StringValue("local"),
-	}))
-	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
-	if err != nil {
-		log.Err(err)
-	} else {
-		gauge.Record(ctx, 1)
-		// Set to zero when the task goes away
-		defer gauge.Record(context.Background(), 0)
-	}
-
-	// Handle shutdown properly so nothing leaks.
-	defer otelClose(context.Background())
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
