@@ -14,7 +14,11 @@ interface CreateEventFormProps {
   error?: Error | null;
 }
 
-export function CreateEventForm({ onSubmit, isPending, error }: CreateEventFormProps) {
+export function CreateEventForm({
+  onSubmit,
+  isPending,
+  error,
+}: CreateEventFormProps) {
   const { register, handleSubmit } = useForm<CreateEventFormData>({
     defaultValues: {
       name: "",
@@ -64,9 +68,7 @@ export function CreateEventForm({ onSubmit, isPending, error }: CreateEventFormP
       <button type="submit" disabled={isPending}>
         {isPending ? "Creating..." : "Save Event"}
       </button>
-      {error && (
-        <p style={{ color: "red" }}>Error: {error.message}</p>
-      )}
+      {error && <p style={{ color: "red" }}>Error: {error.message}</p>}
     </form>
   );
 }

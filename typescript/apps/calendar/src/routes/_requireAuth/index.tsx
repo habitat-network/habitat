@@ -1,8 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { createEvent, getRsvpNotifications, listEvents, listRsvps } from "../../controllers/eventController.ts";
-import { CreateEventForm, type CreateEventFormData } from "../../components/CreateEventForm.tsx";
+import {
+  createEvent,
+  getRsvpNotifications,
+  listEvents,
+  listRsvps,
+} from "../../controllers/eventController.ts";
+import {
+  CreateEventForm,
+  type CreateEventFormData,
+} from "../../components/CreateEventForm.tsx";
 
 export const Route = createFileRoute("/_requireAuth/")({
   component: CalendarPage,
@@ -81,7 +89,7 @@ function CalendarPage() {
           startsAt: data.startsAt || undefined,
           endsAt: data.endsAt || undefined,
         },
-        invitedDids
+        invitedDids,
       );
     },
     onSuccess: () => {
@@ -108,7 +116,10 @@ function CalendarPage() {
       <section>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <h2>Events</h2>
-          <button type="button" onClick={() => setShowCreateForm(!showCreateForm)}>
+          <button
+            type="button"
+            onClick={() => setShowCreateForm(!showCreateForm)}
+          >
             {showCreateForm ? "Cancel" : "Create Event"}
           </button>
         </div>
@@ -137,7 +148,10 @@ function CalendarPage() {
               {eventData?.records
                 .filter((record) => {
                   if (!record.value?.name) {
-                    console.error("Invalid event format, missing name:", record.uri);
+                    console.error(
+                      "Invalid event format, missing name:",
+                      record.uri,
+                    );
                     return false;
                   }
                   return true;
@@ -146,8 +160,16 @@ function CalendarPage() {
                   <tr key={record.uri}>
                     <td>{record.value.name}</td>
                     <td>{record.value.description || "-"}</td>
-                    <td>{record.value.startsAt ? new Date(record.value.startsAt).toLocaleString() : "-"}</td>
-                    <td>{record.value.endsAt ? new Date(record.value.endsAt).toLocaleString() : "-"}</td>
+                    <td>
+                      {record.value.startsAt
+                        ? new Date(record.value.startsAt).toLocaleString()
+                        : "-"}
+                    </td>
+                    <td>
+                      {record.value.endsAt
+                        ? new Date(record.value.endsAt).toLocaleString()
+                        : "-"}
+                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -172,10 +194,10 @@ function CalendarPage() {
               {rsvpData?.map((rsvpWithEvent) => {
                 // Format status - strip lexicon prefix if present
                 const rawStatus = rsvpWithEvent.rsvp.status ?? "-";
-                const status = rawStatus.includes("#") 
-                  ? rawStatus.split("#")[1] 
+                const status = rawStatus.includes("#")
+                  ? rawStatus.split("#")[1]
                   : rawStatus;
-                
+
                 return (
                   <tr key={rsvpWithEvent.uri}>
                     <td>{rsvpWithEvent.event?.name ?? "Unknown Event"}</td>

@@ -34,7 +34,9 @@ const RSVP_COLLECTION = "community.lexicon.calendar.rsvp";
  * Parses an AT URI to extract the DID, collection, and rkey.
  * Format: at://did:plc:xxx/collection.name/rkey
  */
-function parseAtUri(uri: string): { did: string; collection: string; rkey: string } | null {
+function parseAtUri(
+  uri: string,
+): { did: string; collection: string; rkey: string } | null {
   const match = uri.match(/^at:\/\/([^/]+)\/([^/]+)\/([^/]+)$/);
   if (!match) return null;
   return { did: match[1], collection: match[2], rkey: match[3] };
@@ -62,7 +64,10 @@ async function createEventNotification(
 /**
  * Checks if an RSVP record exists for the given rkey.
  */
-async function checkRsvpExists(client: HabitatClient, rkey: string): Promise<boolean> {
+async function checkRsvpExists(
+  client: HabitatClient,
+  rkey: string,
+): Promise<boolean> {
   try {
     await client.getPrivateRecord<Rsvp>(RSVP_COLLECTION, rkey);
     return true;
@@ -82,7 +87,7 @@ async function createRsvpFromNotification(
 ): Promise<PutPrivateRecordResponse> {
   // Build the event URI from the notification
   const eventUri = `at://${notification.originDid}/${EVENT_COLLECTION}/${notification.rkey}`;
-  
+
   const rsvp: Rsvp = {
     $type: "community.lexicon.calendar.rsvp",
     subject: {
@@ -101,7 +106,7 @@ async function createRsvpFromNotification(
 
 /**
  * Creates a new calendar event and sends notifications to all invited DIDs.
- * 
+ *
  * @param client - The Habitat client instance
  * @param userDid - The DID of the current user
  * @param event - The event data (without createdAt, which is auto-generated)
@@ -129,7 +134,9 @@ export async function createEvent(
 
   // Create notifications for each invited DID
   await Promise.all(
-    invitedDids.map((did) => createEventNotification(client, userDid, did, rkey)),
+    invitedDids.map((did) =>
+      createEventNotification(client, userDid, did, rkey),
+    ),
   );
 
   return eventResponse;
@@ -137,12 +144,12 @@ export async function createEvent(
 
 /**
  * Queries for RSVP notifications and creates RSVP records for any that don't exist.
- * 
+ *
  * This function:
  * 1. Lists all notifications for the RSVP collection
  * 2. For each notification, checks if a corresponding RSVP exists
  * 3. If no RSVP exists, creates one with a default "interested" state
- * 
+ *
  * @param client - The Habitat client instance
  * @returns The list of notifications that were processed
  */
@@ -172,7 +179,7 @@ export async function getRsvpNotifications(
 
 /**
  * Lists all events from the user's private records.
- * 
+ *
  * @param client - The Habitat client instance
  */
 export async function listEvents(client: HabitatClient) {
@@ -183,10 +190,12 @@ export async function listEvents(client: HabitatClient) {
  * Lists all RSVPs with their corresponding event info.
  * Fetches each event from the event owner's repo.
  * Records with invalid format are logged and discarded.
- * 
+ *
  * @param client - The Habitat client instance
  */
-export async function listRsvps(client: HabitatClient): Promise<RsvpWithEvent[]> {
+export async function listRsvps(
+  client: HabitatClient,
+): Promise<RsvpWithEvent[]> {
   const rsvpsResponse = await client.listPrivateRecords<Rsvp>(RSVP_COLLECTION);
 
   const rsvpsWithEvents: RsvpWithEvent[] = [];
@@ -195,19 +204,32 @@ export async function listRsvps(client: HabitatClient): Promise<RsvpWithEvent[]>
   for (const record of rsvpsResponse.records) {
     // Validate RSVP has expected schema
     if (!record.value?.subject?.uri) {
-      console.error("Invalid RSVP format, missing subject.uri:", record.uri, record.value);
+      console.error(
+        "Invalid RSVP format, missing subject.uri:",
+        record.uri,
+        record.value,
+      );
       continue;
     }
 
     const parsed = parseAtUri(record.value.subject.uri);
     if (!parsed) {
-      console.error("Invalid subject URI in RSVP:", record.uri, record.value.subject.uri);
+      console.error(
+        "Invalid subject URI in RSVP:",
+        record.uri,
+        record.value.subject.uri,
+      );
       continue;
     }
 
     let event: CalendarEvent | null = null;
     try {
-      console.log("getting event:::", parsed.collection, parsed.rkey, parsed.did);
+      console.log(
+        "getting event:::",
+        parsed.collection,
+        parsed.rkey,
+        parsed.did,
+      );
       const eventResponse = await client.getPrivateRecord<CalendarEvent>(
         parsed.collection,
         parsed.rkey,
