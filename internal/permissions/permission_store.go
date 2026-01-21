@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Store interface {
@@ -14,7 +15,7 @@ type Store interface {
 		rkey string,
 	) (bool, error)
 	AddLexiconReadPermission(
-		grantee string,
+		grantees []string,
 		owner string,
 		nsid string,
 	) error
@@ -113,21 +114,25 @@ func (s *sqliteStore) HasPermission(
 // The permission is stored as just the NSID (e.g., "network.habitat.posts").
 // The HasPermission method will automatically check for both exact matches and wildcard patterns.
 func (s *sqliteStore) AddLexiconReadPermission(
-	grantee string,
+	grantees []string,
 	owner string,
 	nsid string,
 ) error {
-	permission := Permission{
-		Grantee: grantee,
-		Owner:   owner,
-		Object:  nsid,
-		Effect:  "allow",
+	permissions := []Permission{}
+	for _, grantee := range grantees {
+		permissions = append(permissions, Permission{
+			Grantee: grantee,
+			Owner:   owner,
+			Object:  nsid,
+			Effect:  "allow",
+		})
 	}
 
-	// Use gorm.G for the generic GORM wrapper if available, or direct DB methods
-	result := s.db.Where("grantee = ? AND owner = ? AND object = ?", grantee, owner, nsid).
-		Assign(Permission{Effect: "allow"}).
-		FirstOrCreate(&permission)
+	// Upsert: insert or update on conflict
+	result := s.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "grantee"}, {Name: "owner"}, {Name: "object"}},
+		DoUpdates: clause.AssignmentColumns([]string{"effect"}),
+	}).Create(&permissions)
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to add lexicon permission: %w", result.Error)
