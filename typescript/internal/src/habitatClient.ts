@@ -5,9 +5,42 @@ import type {
   ComAtprotoRepoListRecords,
 } from "@atproto/api";
 import type { DidDocument, DidResolver } from "@atproto/identity";
+import type {
+  NetworkHabitatNotificationCreateNotification,
+  NetworkHabitatNotificationDefs,
+  NetworkHabitatNotificationListNotifications,
+  NetworkHabitatRepoGetRecord,
+  NetworkHabitatRepoListRecords,
+  NetworkHabitatRepoPutRecord,
+} from "api";
 import { AuthManager } from "./authManager";
 
-// Response types for HabitatClient
+// Response types for HabitatClient - using generated types with generic overrides
+
+// For putPrivateRecord: use generated OutputSchema
+export type PutPrivateRecordResponse = NetworkHabitatRepoPutRecord.OutputSchema;
+
+// For getPrivateRecord: override value field with generic
+export type GetPrivateRecordResponse<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoGetRecord.OutputSchema,
+  "value"
+> & {
+  value: T;
+};
+
+// For listPrivateRecords: override records array value field with generic
+export type ListPrivateRecordsResponse<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoListRecords.OutputSchema,
+  "records"
+> & {
+  records: Array<
+    Omit<NetworkHabitatRepoListRecords.Record, "value"> & {
+      value: T;
+    }
+  >;
+};
+
+// Legacy response types for public record operations (using atproto types)
 export interface CreateRecordResponse {
   uri: string;
   cid: string;
@@ -16,7 +49,7 @@ export interface CreateRecordResponse {
 export interface GetRecordResponse<T = Record<string, unknown>> {
   uri: string;
   cid?: string;
-  record: T;
+  value: T;
 }
 
 export interface ListRecordsResponse<T = Record<string, unknown>> {
@@ -28,14 +61,32 @@ export interface ListRecordsResponse<T = Record<string, unknown>> {
   cursor?: string;
 }
 
-// Internal types for Habitat private record operations
-// These include 'repo' since they're used in the wire protocol
-interface PutRecordRequest<T = Record<string, unknown>> {
-  collection: string;
-  repo: string;
-  rkey?: string;
+// Re-export notification types from api for consumers
+// Notification is the unified type used for both creating and listing notifications
+export type Notification = NetworkHabitatNotificationDefs.Notification;
+// CreateNotificationInput is used when creating notifications (same as Notification)
+export type CreateNotificationInput = Notification;
+// ListedNotification is the notification value returned from listNotifications (same as Notification)
+export type ListedNotification = Notification;
+// NotificationRecord is a record from listNotifications (includes uri, cid, value)
+export type NotificationRecord =
+  NetworkHabitatNotificationListNotifications.Record;
+export type ListNotificationsResponse =
+  NetworkHabitatNotificationListNotifications.OutputSchema;
+export type CreateNotificationResponse =
+  NetworkHabitatNotificationCreateNotification.OutputSchema;
+
+// Input types for Habitat private record operations - using generated types with generic overrides
+export type PutPrivateRecordInput<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoPutRecord.InputSchema,
+  "record"
+> & {
   record: T;
-}
+};
+
+export type GetPrivateRecordParams = NetworkHabitatRepoGetRecord.QueryParams;
+export type ListPrivateRecordsParams =
+  NetworkHabitatRepoListRecords.QueryParams;
 
 // HabitatAgentSession implements the Atproto Session interface.
 export class HabitatAgentSession {
@@ -64,16 +115,14 @@ export class HabitatAuthedAgentSession extends HabitatAgentSession {
   }
 
   async fetchHandler(pathname: string, init?: RequestInit): Promise<Response> {
-    const fetchReq = new Request(`${this.serverUrl}${pathname}`, init);
+    const url = `${this.serverUrl}${pathname}`;
+    const method = init?.method ?? "GET";
+    const body = init?.body as string | undefined;
+    const headers = new Headers(init?.headers);
 
-    const response = await this.authManager.fetch(
-      fetchReq.url,
-      fetchReq.method,
-      fetchReq.body,
-      fetchReq.headers,
-    );
+    const response = await this.authManager.fetch(url, method, body, headers);
     if (!response) {
-      throw new Error(`Failed to fetch: ${fetchReq.url}`);
+      throw new Error(`Failed to fetch: ${url}`);
     }
     return response;
   }
@@ -225,7 +274,7 @@ export class HabitatClient {
     return {
       uri: response.data.uri,
       cid: response.data.cid,
-      record: response.data.value as T,
+      value: response.data.value as T,
     };
   }
 
@@ -277,11 +326,11 @@ export class HabitatClient {
   async putPrivateRecord<T = Record<string, unknown>>(
     collection: string,
     record: T,
-    rkey?: string,
+    rkey: string,
     opts?: RequestInit,
-  ): Promise<CreateRecordResponse> {
+  ): Promise<PutPrivateRecordResponse> {
     // Writing private records always happens on the user's own repo
-    const requestBody: PutRecordRequest<T> = {
+    const requestBody: PutPrivateRecordInput<T> = {
       repo: this.defaultDid,
       collection,
       rkey,
@@ -312,25 +361,20 @@ export class HabitatClient {
   async getPrivateRecord<T = Record<string, unknown>>(
     collection: string,
     rkey: string,
-    cid?: string,
     repo?: string,
     opts?: RequestInit,
-  ): Promise<GetRecordResponse<T>> {
+  ): Promise<GetPrivateRecordResponse<T>> {
     // Determine which repo to query (default to user's own repo)
     const targetRepo = repo ?? this.defaultDid;
 
     // Get the appropriate agent for this repo's PDS
-    const agent = await this.defaultAgent;
+    const agent = this.defaultAgent;
 
     const queryParams = new URLSearchParams({
       repo: targetRepo,
       collection,
       rkey,
     });
-
-    if (cid) {
-      queryParams.set("cid", cid);
-    }
 
     const response = await agent.fetchHandler(
       `/xrpc/network.habitat.getRecord?${queryParams}`,
@@ -355,12 +399,12 @@ export class HabitatClient {
     cursor?: string,
     repo?: string,
     opts?: RequestInit,
-  ): Promise<ListRecordsResponse<T>> {
+  ): Promise<ListPrivateRecordsResponse<T>> {
     // Determine which repo to query (default to user's own repo)
     const targetRepo = repo ?? this.defaultDid;
 
     // Get the appropriate agent for this repo's PDS
-    const agent = await this.defaultAgent;
+    const agent = this.defaultAgent;
 
     const queryParams = new URLSearchParams();
     queryParams.set("collection", collection);
@@ -384,6 +428,68 @@ export class HabitatClient {
     if (!response.ok) {
       throw new Error(
         `Failed to list private records: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Creates a notification targeting a specific DID.
+   */
+  async createNotification(
+    notification: Notification,
+    opts?: RequestInit,
+  ): Promise<CreateNotificationResponse> {
+    const response = await this.defaultAgent.fetchHandler(
+      "/xrpc/network.habitat.notification.createNotification",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          repo: this.defaultDid,
+          collection: "network.habitat.notification",
+          record: notification,
+        }),
+        ...opts,
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to create notification: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Lists notifications for the authenticated user.
+   */
+  async listNotifications(
+    collection?: string,
+    opts?: RequestInit,
+  ): Promise<ListNotificationsResponse> {
+    const queryParams = new URLSearchParams();
+    if (collection) {
+      queryParams.set("collection", collection);
+    }
+
+    const url = queryParams.toString()
+      ? `/xrpc/network.habitat.notification.listNotifications?${queryParams}`
+      : "/xrpc/network.habitat.notification.listNotifications";
+
+    const response = await this.defaultAgent.fetchHandler(url, {
+      method: "GET",
+      ...opts,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to list notifications: ${response.status} ${response.statusText}`,
       );
     }
 
