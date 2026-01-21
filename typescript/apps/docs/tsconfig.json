@@ -1,9 +1,11 @@
 {
   "extends": "../../../tsconfig.app.json",
-  "include": ["**/*.ts", "**/*.tsx", "../../../typescript/internal/src/globals.d.ts"],
-  "references": [
-    { "path": "../../../typescript/internal" }
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../../../typescript/internal/src/globals.d.ts"
   ],
+  "references": [{ "path": "../../../typescript/internal" }],
   "compilerOptions": {
     "types": ["vite/client"],
     "verbatimModuleSyntax": false,

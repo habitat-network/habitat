@@ -1,9 +1,11 @@
 {
   "extends": "../tsconfig.app.json",
-  "include": ["src/**/*", "vite.config.ts", "../typescript/internal/src/globals.d.ts"],
-  "references": [
-    { "path": "../typescript/internal" }
+  "include": [
+    "src/**/*",
+    "vite.config.ts",
+    "../typescript/internal/src/globals.d.ts"
   ],
+  "references": [{ "path": "../typescript/internal" }],
   "compilerOptions": {
     "types": ["vite/client"],
     "noUncheckedSideEffectImports": true,
