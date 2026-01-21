@@ -1,24 +1,12 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "../../internal/src/globals.d.ts"],
+  "extends": "{{ workspace_root | path_relative(from = dest_dir) }}/tsconfig.app.json",
+  "include": ["**/*.ts", "**/*.tsx", "{{ workspace_root | path_relative(from = dest_dir) }}/typescript/internal/src/globals.d.ts"],
+  "references": [
+    { "path": "{{ workspace_root | path_relative(from = dest_dir) }}/typescript/internal" }
+  ],
   "compilerOptions": {
-    "target": "ES2022",
-    "jsx": "react-jsx",
-    "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
-    "noEmit": true,
-
-    /* Linting */
-    "skipLibCheck": true,
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {

@@ -22,6 +22,11 @@ frontend_server/build
 # Ignore old frontend build pre-Tanstack
 frontend/out/
 
+# TypeScript build artifacts
+*.d.ts
+*.d.ts.map
+*.tsbuildinfo
+
 # Ignore custom node config
 config/habitat.dev.yml
 
