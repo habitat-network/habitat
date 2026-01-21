@@ -23,9 +23,8 @@ frontend_server/build
 frontend/out/
 
 # TypeScript build artifacts
-*.d.ts
-*.d.ts.map
 *.tsbuildinfo
+dist/
 
 # Ignore custom node config
 config/habitat.dev.yml

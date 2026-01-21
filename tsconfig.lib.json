@@ -6,6 +6,7 @@
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "outDir": "${configDir}/dist"
   }
 }
