@@ -6,7 +6,4 @@ tasks:
     options:
       internal: true
       runFromWorkspaceRoot: true
-      persistent: false
-    preset: server
-inheritedBy:
-  language: tasks
+    preset: utility

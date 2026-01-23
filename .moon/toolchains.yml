@@ -10,3 +10,4 @@ pnpm:
 javascript:
   packageManager: pnpm
   dedupeOnLockfileChange: false
+typescript: {}
