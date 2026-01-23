@@ -1,0 +1,12 @@
+go:
+  version: null
+  tidyOnChange: true
+  bins:
+  - github.com/vladopajic/go-test-coverage/v2@latest
+node:
+  version: null
+pnpm:
+  version: null
+javascript:
+  packageManager: pnpm
+  dedupeOnLockfileChange: false

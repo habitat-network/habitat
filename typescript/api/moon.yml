@@ -1,21 +1,19 @@
 language: typescript
-
 workspace:
   inheritedTasks:
     exclude:
-      - build
-      - start
-      - dev
-
+    - build
+    - start
+    - dev
 tasks:
   generate:
-    command: "pnpx @atproto/lex-cli"
+    command: pnpx @atproto/lex-cli
     args:
-      - "gen-api"
-      - "."
-      - "$workspaceRoot/lexicons/**/*.json"
+    - gen-api
+    - .
+    - $workspaceRoot/lexicons/**/*.json
     outputs:
-      - "types/"
-    local: true
+    - types/
     options:
       interactive: true
+    preset: server

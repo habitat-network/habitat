@@ -1,24 +1,24 @@
 tasks:
   build:
     deps:
-      - "root:build"
+    - root:build
   dev:
     args:
-      - "--"
-      - "--profile"
-      - "dev.yaml"
+    - --
+    - --profile
+    - dev.yaml
     env:
-      HABITAT_PORT: "8000"
-      HABITAT_DEBUG: "true"
+      HABITAT_PORT: '8000'
+      HABITAT_DEBUG: 'true'
     deps:
-      - target: "funnel:start"
-        args: ["8000", "privi"]
+    - target: funnel:start
+      args:
+      - '8000'
+      - privi
   docker-build:
     options:
       internal: false
-
-
 docker:
   file:
-    buildTask: "build"
-    startTask: "start"
+    buildTask: build
+    startTask: start
