@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/api/habitat"
-	"github.com/eagraf/habitat-new/internal/permissions"
+	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/permissions"
 )
 
 // Privi is an ATProto PDS Wrapper which allows for storing & getting private data.

@@ -1,4 +1,4 @@
-module github.com/eagraf/habitat-new
+module github.com/habitat-network/habitat
 
 go 1.25.0
 

@@ -29,14 +29,14 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/jetstream/pkg/client"
-	"github.com/eagraf/habitat-new/internal/encrypt"
-	"github.com/eagraf/habitat-new/internal/oauthclient"
-	"github.com/eagraf/habitat-new/internal/oauthserver"
-	"github.com/eagraf/habitat-new/internal/pdscred"
-	"github.com/eagraf/habitat-new/internal/permissions"
-	"github.com/eagraf/habitat-new/internal/privi"
-	"github.com/eagraf/habitat-new/internal/telemetry"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/privi"
+	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
 )
 

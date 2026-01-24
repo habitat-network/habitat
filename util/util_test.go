@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eagraf/habitat-new/util"
+	"github.com/habitat-network/habitat/util"
 	"github.com/stretchr/testify/require"
 )
 
