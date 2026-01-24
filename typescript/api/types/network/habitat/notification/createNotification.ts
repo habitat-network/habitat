@@ -10,6 +10,7 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
+import type * as NetworkHabitatNotificationDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -22,7 +23,7 @@ export interface InputSchema {
   repo: string
   /** The NSID of the record collection. */
   collection: string
-  record: Notification
+  record: NetworkHabitatNotificationDefs.Notification
 }
 
 export interface OutputSchema {
@@ -45,26 +46,4 @@ export interface Response {
 
 export function toKnownErr(e: any) {
   return e
-}
-
-export interface Notification {
-  $type?: 'network.habitat.notification.createNotification#notification'
-  /** The handle or DID of the target of the notification. */
-  did: string
-  /** The handle or DID of the origin of the notification. */
-  originDid: string
-  /** The NSID of the record collection. */
-  collection: string
-  /** The Record Key. */
-  rkey: string
-}
-
-const hashNotification = 'notification'
-
-export function isNotification<V>(v: V) {
-  return is$typed(v, id, hashNotification)
-}
-
-export function validateNotification<V>(v: V) {
-  return validate<Notification & V>(v, id, hashNotification)
 }

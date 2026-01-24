@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/eagraf/habitat-new/api/habitat"
 	"github.com/eagraf/habitat-new/internal/oauthclient"
@@ -21,7 +22,6 @@ import (
 	"github.com/eagraf/habitat-new/internal/permissions"
 	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/gorilla/schema"
-	"github.com/rs/zerolog/log"
 )
 
 type Server struct {
@@ -118,6 +118,23 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError,
 		)
 		return
+	}
+
+	if len(req.Grantees) > 0 {
+		err := s.store.permissions.AddLexiconReadPermission(
+			req.Grantees,
+			ownerDID.String(),
+			req.Collection+"."+rkey,
+		)
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				err,
+				fmt.Sprintf("adding permissions for did %s", ownerDID.String()),
+				http.StatusInternalServerError,
+			)
+			return
+		}
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
@@ -399,7 +416,11 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.store.permissions.AddLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
+	err = s.store.permissions.AddLexiconReadPermission(
+		[]string{req.DID},
+		callerDID.String(),
+		req.Lexicon,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
 		return

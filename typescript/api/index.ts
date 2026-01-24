@@ -9,9 +9,21 @@ import {
 import { schemas } from './lexicons.js'
 import { CID } from 'multiformats/cid'
 import { type OmitKey, type Un$Typed } from './util.js'
+import * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
+import * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
+import * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
+import * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
+import * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords.js'
+import * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
+import * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 import * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 import * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
+import * as CommunityLexiconLocationAddress from './types/community/lexicon/location/address.js'
+import * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
+import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
+import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 import * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
+import * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 import * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -20,9 +32,21 @@ import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/lis
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
+export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
+export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
+export * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
+export * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
+export * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords.js'
+export * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
+export * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 export * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 export * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
+export * as CommunityLexiconLocationAddress from './types/community/lexicon/location/address.js'
+export * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
+export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
+export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 export * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
+export * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 export * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -46,11 +70,13 @@ export const COMMUNITY_LEXICON_CALENDAR = {
 }
 
 export class AtpBaseClient extends XrpcClient {
+  com: ComNS
   community: CommunityNS
   network: NetworkNS
 
   constructor(options: FetchHandler | FetchHandlerOptions) {
     super(options, schemas)
+    this.com = new ComNS(this)
     this.community = new CommunityNS(this)
     this.network = new NetworkNS(this)
   }
@@ -58,6 +84,90 @@ export class AtpBaseClient extends XrpcClient {
   /** @deprecated use `this` instead */
   get xrpc(): XrpcClient {
     return this
+  }
+}
+
+export class ComNS {
+  _client: XrpcClient
+  atproto: ComAtprotoNS
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.atproto = new ComAtprotoNS(client)
+  }
+}
+
+export class ComAtprotoNS {
+  _client: XrpcClient
+  repo: ComAtprotoRepoNS
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.repo = new ComAtprotoRepoNS(client)
+  }
+}
+
+export class ComAtprotoRepoNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  createRecord(
+    data?: ComAtprotoRepoCreateRecord.InputSchema,
+    opts?: ComAtprotoRepoCreateRecord.CallOptions,
+  ): Promise<ComAtprotoRepoCreateRecord.Response> {
+    return this._client
+      .call('com.atproto.repo.createRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw ComAtprotoRepoCreateRecord.toKnownErr(e)
+      })
+  }
+
+  deleteRecord(
+    data?: ComAtprotoRepoDeleteRecord.InputSchema,
+    opts?: ComAtprotoRepoDeleteRecord.CallOptions,
+  ): Promise<ComAtprotoRepoDeleteRecord.Response> {
+    return this._client
+      .call('com.atproto.repo.deleteRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw ComAtprotoRepoDeleteRecord.toKnownErr(e)
+      })
+  }
+
+  getRecord(
+    params?: ComAtprotoRepoGetRecord.QueryParams,
+    opts?: ComAtprotoRepoGetRecord.CallOptions,
+  ): Promise<ComAtprotoRepoGetRecord.Response> {
+    return this._client
+      .call('com.atproto.repo.getRecord', params, undefined, opts)
+      .catch((e) => {
+        throw ComAtprotoRepoGetRecord.toKnownErr(e)
+      })
+  }
+
+  listRecords(
+    params?: ComAtprotoRepoListRecords.QueryParams,
+    opts?: ComAtprotoRepoListRecords.CallOptions,
+  ): Promise<ComAtprotoRepoListRecords.Response> {
+    return this._client.call(
+      'com.atproto.repo.listRecords',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  putRecord(
+    data?: ComAtprotoRepoPutRecord.InputSchema,
+    opts?: ComAtprotoRepoPutRecord.CallOptions,
+  ): Promise<ComAtprotoRepoPutRecord.Response> {
+    return this._client
+      .call('com.atproto.repo.putRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw ComAtprotoRepoPutRecord.toKnownErr(e)
+      })
   }
 }
 
@@ -74,10 +184,12 @@ export class CommunityNS {
 export class CommunityLexiconNS {
   _client: XrpcClient
   calendar: CommunityLexiconCalendarNS
+  location: CommunityLexiconLocationNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.calendar = new CommunityLexiconCalendarNS(client)
+    this.location = new CommunityLexiconLocationNS(client)
   }
 }
 
@@ -256,6 +368,14 @@ export class CommunityLexiconCalendarRsvpRecord {
       { collection: 'community.lexicon.calendar.rsvp', ...params },
       { headers },
     )
+  }
+}
+
+export class CommunityLexiconLocationNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
   }
 }
 

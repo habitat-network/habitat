@@ -1,9 +1,13 @@
 package utils
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 func GetEnvString(key string, defaultVal string) string {
-	val := os.Getenv(key)
+	// TODO: possibly this should handle upper and lower envs?
+	val := os.Getenv(strings.ToUpper(key))
 	if val == "" {
 		return defaultVal
 	}

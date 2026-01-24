@@ -10,6 +10,7 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
+import type * as NetworkHabitatNotificationDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -45,7 +46,7 @@ export interface Record {
   $type?: 'network.habitat.notification.listNotifications#record'
   uri: string
   cid: string
-  value: Notification
+  value: NetworkHabitatNotificationDefs.Notification
 }
 
 const hashRecord = 'record'
@@ -56,22 +57,4 @@ export function isRecord<V>(v: V) {
 
 export function validateRecord<V>(v: V) {
   return validate<Record & V>(v, id, hashRecord)
-}
-
-export interface Notification {
-  $type?: 'network.habitat.notification.listNotifications#notification'
-  did: string
-  originDid: string
-  collection: string
-  rkey: string
-}
-
-const hashNotification = 'notification'
-
-export function isNotification<V>(v: V) {
-  return is$typed(v, id, hashNotification)
-}
-
-export function validateNotification<V>(v: V) {
-  return validate<Notification & V>(v, id, hashNotification)
 }
