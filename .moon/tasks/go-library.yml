@@ -1,8 +1,14 @@
 tasks:
   build:
-    command: go build ./...
+    command: go
+    args:
+    - build
+    - ./...
     inputs:
     - '**/*.go'
+    outputs: []
+    options:
+      merge: replace
   test:
     deps:
     - ~:build

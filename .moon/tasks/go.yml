@@ -14,8 +14,9 @@ tasks:
     deps:
     - root:lint-check
   build:
-    command: go build
+    command: go 
     args:
+    - build
     - -o
     - '@out(0)'
     outputs:
@@ -28,10 +29,11 @@ tasks:
     command: go mod tidy
     preset: server
   start:
-    command: $workspaceRoot/bin/$project
+    command: ./bin/$project
     deps:
     - ~:build
     options:
+      runFromWorkspaceRoot: true
       envFile:
       - /dev.env
     preset: server

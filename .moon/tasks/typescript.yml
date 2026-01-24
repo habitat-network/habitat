@@ -1,7 +1,14 @@
 $schema: https://moonrepo.dev/schemas/tasks.json
 tasks:
   format-internal:
-    command: npx prettier --ignore-path @in(0) --ignore-path @in(1)
+    command: npx
+    args:
+      - prettier
+      - --ignore-path
+      - '@in(0)'
+      - --ignore-path
+      - '@in(1)'
+      - --write
     inputs:
     - /.prettierignore
     - .gitignore
@@ -30,6 +37,7 @@ tasks:
     preset: server
   install:
     command: pnpm install
+    preset: utility
   build:
     command: pnpm build
     outputs:
