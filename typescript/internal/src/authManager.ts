@@ -80,16 +80,11 @@ export class AuthManager {
       },
     );
 
-    // Decode the JWT to extract the DID and validate it matches the sub claim
+    // The DID is encoded in the sub claim of the JWT
     const decoded = decodeJwt(token.access_token);
     const did = decoded.sub;
     if (!did) {
       throw new Error("Token missing sub claim");
-    }
-    if (did !== token.sub) {
-      throw new Error(
-        `DID from token "${did}" does not match sub from response "${token.sub}"`,
-      );
     }
 
     this.accessToken = token.access_token;
