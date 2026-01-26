@@ -1,10 +1,10 @@
-module github.com/eagraf/habitat-new/cmd/keygen
+module github.com/habitat-network/habitat/cmd/keygen
 
 go 1.25.4
 
-replace github.com/eagraf/habitat-new => ../..
+replace github.com/habitat-network/habitat => ../..
 
-require github.com/eagraf/habitat-new v0.0.0-00010101000000-000000000000
+require github.com/habitat-network/habitat v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/fxamacker/cbor/v2 v2.5.0 // indirect

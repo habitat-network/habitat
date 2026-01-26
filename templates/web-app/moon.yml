@@ -6,3 +6,8 @@ tasks:
       - target: "privi:dev"
       - target: "funnel:start"
         args: ["5173", "$project"]
+  regenerate:
+    command: "moon generate web-app $projectSource --force -- --name $project"
+    local: true
+    options:
+      runFromWorkspaceRoot: true

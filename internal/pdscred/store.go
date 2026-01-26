@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/internal/encrypt"
-	"github.com/eagraf/habitat-new/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"gorm.io/gorm"
 )
 
