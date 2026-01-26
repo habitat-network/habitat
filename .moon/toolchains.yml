@@ -11,4 +11,5 @@ pnpm:
 javascript:
   packageManager: pnpm
   dedupeOnLockfileChange: false
-typescript: {}
+typescript:
+  syncProjectReferences: true

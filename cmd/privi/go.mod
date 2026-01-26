@@ -7,9 +7,9 @@ replace github.com/habitat-network/habitat => ../..
 require (
 	github.com/bluesky-social/indigo v0.0.0-20251203031309-bdbb48c13b04
 	github.com/bluesky-social/jetstream v0.0.0-20251009222037-7d7efa58d7f1
-	github.com/habitat-network/habitat v0.0.0-00010101000000-000000000000
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/gorilla/sessions v1.4.0
+	github.com/habitat-network/habitat v0.0.0-00010101000000-000000000000
 	github.com/rs/zerolog v1.34.0
 	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli/v3 v3.6.1

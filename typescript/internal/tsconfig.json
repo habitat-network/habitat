@@ -1,24 +1,10 @@
 {
+  "extends": "../../tsconfig.options.json",
   "compilerOptions": {
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "target": "esnext",
-    "types": [],
-    "sourceMap": true,
+    "composite": true,
     "declaration": true,
-    "declarationMap": true,
-    "noUncheckedIndexedAccess": true,
-    "strict": true,
-    "jsx": "react-jsx",
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "skipLibCheck": true,
-    "allowImportingTsExtensions": true
+    "emitDeclarationOnly": true,
+    "noEmit": false
   },
-  "composite": true,
-  "references": [
-    {
-      "path": "../api"
-    }
-  ]
+  "references": [{"path": "../api"}]
 }
