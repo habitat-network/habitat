@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eagraf/habitat-new/api/habitat"
+	"github.com/habitat-network/habitat/api/habitat"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
