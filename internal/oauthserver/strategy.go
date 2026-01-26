@@ -3,8 +3,8 @@ package oauthserver
 import (
 	"context"
 
-	"github.com/eagraf/habitat-new/internal/encrypt"
 	"github.com/go-jose/go-jose/v3"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"

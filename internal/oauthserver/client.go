@@ -3,7 +3,7 @@ package oauthserver
 import (
 	"strings"
 
-	"github.com/eagraf/habitat-new/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/ory/fosite"
 )
 
