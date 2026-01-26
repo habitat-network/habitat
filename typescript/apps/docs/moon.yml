@@ -1,10 +1,13 @@
 tasks:
   dev:
     env:
-      DOMAIN: $project.${TS_DOMAIN}
+      DOMAIN: "$project.${TS_DOMAIN}"
     deps:
-    - target: privi:dev
-    - target: funnel:start
-      args:
-      - '5173'
-      - $project
+      - target: "privi:dev"
+      - target: "funnel:start"
+        args: ["5173", "$project"]
+  regenerate:
+    command: "moon generate web-app $projectSource --force -- --name $project"
+    local: true
+    options:
+      runFromWorkspaceRoot: true

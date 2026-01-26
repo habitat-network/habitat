@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	jose "github.com/go-jose/go-jose/v3"
@@ -29,14 +30,14 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/jetstream/pkg/client"
-	"github.com/eagraf/habitat-new/internal/encrypt"
-	"github.com/eagraf/habitat-new/internal/oauthclient"
-	"github.com/eagraf/habitat-new/internal/oauthserver"
-	"github.com/eagraf/habitat-new/internal/pdscred"
-	"github.com/eagraf/habitat-new/internal/permissions"
-	"github.com/eagraf/habitat-new/internal/privi"
-	"github.com/eagraf/habitat-new/internal/telemetry"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/privi"
+	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
 )
 
@@ -64,11 +65,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
-	// Log the parsed flags
-	log.Info().Msgf("running with flags: ")
-	for _, flag := range cmd.FlagNames() {
-		log.Info().Msgf("%s: %v", flag, cmd.Value(flag))
-	}
+	// Log the parsed flag names (values may be sensitive).
+	log.Info().Msgf("running with flags: %s", strings.Join(cmd.FlagNames(), ", "))
 
 	// Setup context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -81,6 +79,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed setting up open telemetry for metric/trace/log collection")
 	}
+	log.Info().Msg("successfully set up open telemetry")
 	// Handle shutdown properly so nothing leaks.
 	defer otelClose(context.Background())
 
@@ -231,7 +230,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	})
 
 	// Wait for all goroutines to finish
-	return eg.Wait()
+	err = eg.Wait()
+	if err != nil {
+		log.Err(err).Msgf("server shut down returned an error")
+	}
+	return err
 }
 
 func setupDB(cmd *cli.Command) *gorm.DB {

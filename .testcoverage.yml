@@ -1,5 +1,5 @@
 profile: coverage.out
-local-prefix: "github.com/eagraf/habitat-new"
+local-prefix: "github.com/habitat-network/habitat"
 
 # Holds coverage thresholds percentages, values should be in range [0-100]
 threshold:
