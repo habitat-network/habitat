@@ -10,11 +10,11 @@
 #
 # Use latest version:
 #
-#   curl -sL https://github.com/eagraf/habitat-new/releases/latest/download/install.sh 2>&1 | bash
+#   curl -sL https://github.com/habitat-network/habitat/releases/latest/download/install.sh 2>&1 | bash
 #
 # Use specific version:
 #
-#   curl -sL https://github.com/eagraf/habitat-new/releases/download/v0.0.2/install.sh 2>&1 | bash
+#   curl -sL https://github.com/habitat-network/habitat/releases/download/v0.0.2/install.sh 2>&1 | bash
 
 set -euxo pipefail
 
@@ -30,9 +30,9 @@ if [ -n "$1" ]; then
 fi
 
 if [[ "$VERSION" == "latest" ]]; then
-    ARCHIVE_URL="https://github.com/eagraf/habitat-new/releases/latest/download/habitat-${ARCH}-${OS}.tar.gz"
+    ARCHIVE_URL="https://github.com/habitat-network/habitat/releases/latest/download/habitat-${ARCH}-${OS}.tar.gz"
 else
-    ARCHIVE_URL="https://github.com/eagraf/habitat-new/releases/download/${VERSION}/habitat-${ARCH}-${OS}.tar.gz"
+    ARCHIVE_URL="https://github.com/habitat-network/habitat/releases/download/${VERSION}/habitat-${ARCH}-${OS}.tar.gz"
 fi
 
 TMP_DIR=$(mktemp -d)

@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/eagraf/habitat-new/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
 )
 

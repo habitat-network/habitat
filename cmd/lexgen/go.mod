@@ -1,4 +1,4 @@
-module github.com/eagraf/habitat-new/cmd/lexgen
+module github.com/habitat-network/habitat/cmd/lexgen
 
 go 1.25.4
 

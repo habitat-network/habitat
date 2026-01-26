@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/eagraf/habitat-new/internal/encrypt"
-	"github.com/eagraf/habitat-new/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
