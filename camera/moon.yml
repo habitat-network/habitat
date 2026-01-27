@@ -1,7 +1,7 @@
 tasks:
   lint-check:
-    command: "pnpm lint"
+    command: pnpm lint
   build:
     outputs: []
     options:
-      mergeOutputs: "replace"
+      mergeOutputs: replace

@@ -8,6 +8,6 @@ tasks:
         args: ["5173", "$project"]
   regenerate:
     command: "moon generate web-app $projectSource --force -- --name $project"
-    local: true
+    preset: utility
     options:
       runFromWorkspaceRoot: true

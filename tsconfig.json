@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.options.json",
+  "include": [
+    "**/*"
+  ],
+  "references": [
+    {
+      "path": "camera"
+    },
+    {
+      "path": "frontend"
+    },
+    {
+      "path": "typescript/api"
+    },
+    {
+      "path": "typescript/apps/calendar"
+    },
+    {
+      "path": "typescript/apps/docs"
+    },
+    {
+      "path": "typescript/internal"
+    }
+  ]
+}

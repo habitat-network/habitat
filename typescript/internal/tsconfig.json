@@ -1,16 +1,10 @@
 {
-  "extends": "../../tsconfig.lib.json",
-  "include": ["src/**/*"],
-  "references": [
-    {
-      "path": "../api"
-    }
-  ],
+  "extends": "../../tsconfig.options.json",
   "compilerOptions": {
-    "types": [],
-    "strict": true,
-    "jsx": "react-jsx",
-    "noUncheckedIndexedAccess": true,
-    "allowImportingTsExtensions": true
-  }
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noEmit": false
+  },
+  "references": [{ "path": "../api" }]
 }

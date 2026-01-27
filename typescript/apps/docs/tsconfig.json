@@ -1,18 +1,4 @@
 {
-  "extends": "../../../tsconfig.app.json",
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "../../../typescript/internal/src/globals.d.ts"
-  ],
-  "references": [{ "path": "../../../typescript/internal" }],
-  "compilerOptions": {
-    "types": ["vite/client"],
-    "verbatimModuleSyntax": false,
-    "noUncheckedSideEffectImports": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  }
+  "extends": "../../../tsconfig.options.json",
+  "references": [{ "path": "../../internal" }]
 }
