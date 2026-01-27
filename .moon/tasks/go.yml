@@ -24,9 +24,15 @@ tasks:
   test:
     deps:
     - ~:build
-    command: go test ./...
+    command: go
+    args:
+    - test
+    - ./...
   tidy-deps:
-    command: go mod tidy
+    command: go
+    args:
+    - mod
+    - tidy
     preset: server
   start:
     command: ./bin/$project

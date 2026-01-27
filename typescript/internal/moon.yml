@@ -1,5 +1,5 @@
 workspace:
   inheritedTasks:
     exclude:
-    - build
-    - start
+      - build
+      - start

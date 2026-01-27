@@ -12,13 +12,25 @@ tasks:
   test:
     deps:
     - ~:build
-    command: go test ./... -coverprofile @out(0)
+    command: go
+    args:
+    - test
+    - ./...
+    - -coverprofile
+    - '@out(0)'
     outputs:
     - coverage.out
+    options:
+      merge: replace
   coverage:
     deps:
     - test
-    command: go-test-coverage --config @in(0) --profile @in(1)
+    command: go-test-coverage
+    args:
+    - --config
+    - '@in(0)'
+    - --profile
+    - '@in(1)'
     inputs:
     - /.testcoverage.yml
     - coverage.out
