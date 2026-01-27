@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Habitat</title>
+    <style>
+      :root {
+        font-family: system-ui;
+        --highlight: #1b3314;
+        --text: #180c00;
+        --background-gradient-start: rgba(202, 237, 159, 1);
+        --background-gradient-end: rgba(202, 237, 159, 0.7);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --highlight: #caed9f;
+          --text: #fff;
+          --background-gradient-start: rgba(27, 51, 20, 1);
+          --background-gradient-end: rgba(27, 51, 20, 0.7);
+        }
+      }
+      body {
+        line-height: 1.4;
+        margin: 0;
+        background:
+          radial-gradient(
+            ellipse at center,
+            var(--background-gradient-start),
+            var(--background-gradient-end)
+          ),
+          url(/amy-w-YbVCgsg84lA-unsplash.jpg) no-repeat center center;
+        background-size: cover;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text);
+      }
+      p {
+        margin-block: 4px;
+      }
+      a,
+      a:visited {
+        color: var(--highlight);
+      }
+      .content {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        max-width: 512px;
+        padding: 16px;
+        position: relative;
+        margin-top: 128px;
+      }
+      .logo {
+        margin-left: 4px;
+        max-width: 128px;
+        width: 100%;
+        aspect-ratio: 363 / 110;
+        background-color: var(--highlight);
+        mask: url(/logo.svg) no-repeat center / contain;
+        -webkit-mask: url(/logo.svg) no-repeat center / contain;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="content">
+      <div class="logo"></div>
+      <p>
+        We have a vision: within the next couple years, Big Tech won’t be the
+        default way to connect online. Instead, there will be a new ecosystem of
+        apps and sites, ones that are open and interoperable but also personal
+        and contextual. The next generation of the web will give users agency
+        over their data and their experiences online.
+      </p>
+      <p>
+        That’s why we’re calling this project habitat. Humans have built homes
+        for themselves for thousands of years, and we deserve to have that
+        capability in our digital spaces too.
+      </p>
+      <p>
+        Finally, this future will be built together, not in proprietary silos.
+        That’s why we’re building on AT protocol. Learn more about what we’re
+        building here, and sign up for our beta wait list.
+      </p>
+      <div>
+        <a href="https://github.com/habitat-network/habitat" target="_blank"
+          >Github</a
+        >
+      </div>
+    </div>
+  </body>
+</html>
