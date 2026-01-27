@@ -50,4 +50,7 @@ tasks:
       envFile:
       - /dev.env
 inheritedBy:
-  toolchain: typescript
+  toolchains: 
+    or: [typescript]
+    not: [go]
+
