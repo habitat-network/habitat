@@ -37,6 +37,8 @@ tasks:
 
   start:
     command: "$workspaceRoot/bin/$project"
+    deps:
+      - "~:build"
     local: true
     options:
       envFile:
