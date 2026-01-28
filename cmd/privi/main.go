@@ -119,9 +119,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
-	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore)
-	priviServer := setupPriviServer(db, pdsCredStore, oauthServer)
-	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
+	oauthServer, oauthClient := setupOAuthServer(keyFile, domain, pdsCredStore)
+	priviServer := setupPriviServer(db, pdsCredStore, oauthServer, oauthClient)
+	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, oauthClient)
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -257,6 +257,7 @@ func setupPriviServer(
 	db *gorm.DB,
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
+	oauthClient oauthclient.OAuthClient,
 ) *privi.Server {
 	repo, err := privi.NewSQLiteRepo(db)
 	if err != nil {
@@ -270,13 +271,13 @@ func setupPriviServer(
 
 	inbox := privi.NewInbox(db)
 
-	return privi.NewServer(permissionStore, repo, inbox, oauthServer, credStore)
+	return privi.NewServer(permissionStore, repo, inbox, oauthServer, credStore, oauthClient)
 }
 
 func setupOAuthServer(
 	keyFile, domain string,
 	credStore pdscred.PDSCredentialStore,
-) *oauthserver.OAuthServer {
+) (*oauthserver.OAuthServer, oauthclient.OAuthClient) {
 	var jwkBytes []byte
 	_, err := os.Stat(keyFile)
 	if err != nil {
@@ -332,7 +333,7 @@ func setupOAuthServer(
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")
 	}
-	return oauthServer
+	return oauthServer, oauthClient
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
