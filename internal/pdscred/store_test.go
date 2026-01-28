@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

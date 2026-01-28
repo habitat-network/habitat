@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eagraf/habitat-new/api/habitat"
-	"github.com/eagraf/habitat-new/internal/permissions"
+	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

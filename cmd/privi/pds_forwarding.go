@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/eagraf/habitat-new/internal/oauthclient"
-	"github.com/eagraf/habitat-new/internal/oauthserver"
-	"github.com/eagraf/habitat-new/internal/pdscred"
-	"github.com/eagraf/habitat-new/internal/utils"
+	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/rs/zerolog/log"
 )
 
