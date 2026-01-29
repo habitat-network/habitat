@@ -299,6 +299,7 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	client := NewAuthedDpopHttpClient(
 		testIdentity(server.URL),
 		testPdsCredStore(t, key, jwt.Claims{
+			Issuer: "https://example.com",
 			Expiry: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
 		}),
 		testOAuthClient(t),

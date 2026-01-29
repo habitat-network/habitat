@@ -120,6 +120,10 @@ func fakeAuthServer(responses map[string]interface{}) *httptest.Server {
 			})
 			return
 		case "/test":
+			if r.Header.Get("Authorization") != "DPoP default-access-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
 			w.WriteHeader(http.StatusOK)
 		default:
 			http.Error(w, "not found", http.StatusNotFound)

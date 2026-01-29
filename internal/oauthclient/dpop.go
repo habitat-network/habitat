@@ -95,7 +95,6 @@ func (s *AuthedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 	}
 	var accessToken string
 	if claims.Expiry.Time().Before(time.Now().Add(5 * time.Minute)) {
-		log.Info().Msgf("refreshing token for %s", s.id.DID)
 		tokenInfo, err := s.oauthClient.RefreshToken(
 			NewDpopHttpClient(cred.DpopKey, s.nonceProvider),
 			s.id,
