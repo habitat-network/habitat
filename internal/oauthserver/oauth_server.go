@@ -243,8 +243,11 @@ func (o *OAuthServer) HandleCallback(
 	// Store/update user credentials in the database with the PDS tokens
 	err = o.credStore.UpsertCredentials(
 		arf.Did,
-		arf.DpopKey,
-		tokenInfo,
+		&pdscred.Credentials{
+			AccessToken:  tokenInfo.AccessToken,
+			RefreshToken: tokenInfo.RefreshToken,
+			DpopKey:      dpopKey,
+		},
 	)
 	if err != nil {
 		utils.LogAndHTTPError(

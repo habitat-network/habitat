@@ -17,6 +17,7 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -33,6 +34,7 @@ type Server struct {
 	oauthServer *oauthserver.OAuthServer
 	inbox       *Inbox
 	credStore   pdscred.PDSCredentialStore
+	oauthClient oauthclient.OAuthClient
 }
 
 // NewServer returns a privi server.
@@ -42,6 +44,7 @@ func NewServer(
 	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 	credStore pdscred.PDSCredentialStore,
+	oauthClient oauthclient.OAuthClient,
 ) *Server {
 	server := &Server{
 		store:       newStore(perms, repo),
@@ -50,6 +53,7 @@ func NewServer(
 		oauthServer: oauthServer,
 		inbox:       inbox,
 		credStore:   credStore,
+		oauthClient: oauthClient,
 	}
 	return server
 }
@@ -514,32 +518,22 @@ func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dpopClient, err := s.credStore.GetDpopClient(did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to get dpop client", http.StatusInternalServerError)
-		return
-	}
 	id, err := s.dir.LookupDID(r.Context(), did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
 		return
 	}
-	pdsUrl, ok := id.Services["atproto_pds"]
-	if !ok {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("identity has no pds url"),
-			"identity has no pds url",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	requestUri := fmt.Sprintf("%s/xrpc/com.atproto.repo.createRecord", pdsUrl.URL)
-
-	log.Info().Msgf("requestUri: %s", requestUri)
-
-	req, err := http.NewRequest(http.MethodPost, requestUri, bytes.NewReader(body))
+	dpopClient := oauthclient.NewAuthedDpopHttpClient(
+		id,
+		s.credStore,
+		s.oauthClient,
+		&oauthclient.MemoryNonceProvider{},
+	)
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"/xrpc/com.atproto.repo.createRecord",
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "create request", http.StatusInternalServerError)
 		return
