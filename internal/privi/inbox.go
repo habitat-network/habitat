@@ -22,10 +22,10 @@ type notificationRecord struct {
 // Notification is a Gorm model for notifications.
 type Notification struct {
 	gorm.Model
-	Did                 string
-	OriginDid           string
-	Collection          string
-	Rkey                string
+	Did                 string `gorm:"uniqueIndex:idx_notification_unique,priority:1"`
+	OriginDid           string `gorm:"uniqueIndex:idx_notification_unique,priority:2"`
+	Collection          string `gorm:"uniqueIndex:idx_notification_unique,priority:3"`
+	Rkey                string `gorm:"uniqueIndex:idx_notification_unique,priority:4"`
 	Value               string
 	LastFetchFailed     bool       // True if the last attempted record fetch failed
 	LastSuccessfulFetch *time.Time `gorm:"type:timestamp"` // Timestamp of the last successful record fetch (nil if never successful)
@@ -147,7 +147,15 @@ func (n *NotificationIngester) createNotification(did string, originDid string, 
 
 	return gorm.G[Notification](
 		n.db,
-		clause.OnConflict{UpdateAll: true},
+		clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "did"},
+				{Name: "origin_did"},
+				{Name: "collection"},
+				{Name: "rkey"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{"value", "last_fetch_failed", "last_successful_fetch", "updated_at"}),
+		},
 	).Create(
 		context.Background(),
 		&Notification{
