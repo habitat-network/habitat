@@ -9,8 +9,11 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["repo", "collection", "record"],
-          "nullable": ["swapRecord"],
+          "required": [
+            "repo",
+            "collection",
+            "record"
+          ],
           "properties": {
             "repo": {
               "type": "string",
@@ -34,12 +37,20 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri"],
+          "required": [
+            "uri"
+          ],
           "properties": {
-            "uri": { "type": "string", "format": "at-uri" },
+            "uri": {
+              "type": "string",
+              "format": "habitat-uri"
+            },
             "validationStatus": {
               "type": "string",
-              "knownValues": ["valid", "unknown"]
+              "knownValues": [
+                "valid",
+                "unknown"
+              ]
             }
           }
         }

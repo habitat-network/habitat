@@ -1,61 +1,63 @@
 {
   "lexicon": 1,
-  "id": "network.habitat.repo.listRecords",
+  "id": "network.habitat.listRecords",
   "defs": {
     "main": {
-      "type": "query",
-      "description": "List a range of records in a repository, matching a specific collection",
-      "parameters": {
-        "type": "params",
-        "required": ["repo", "collection"],
-        "properties": {
-          "repo": {
-            "type": "string",
-            "format": "at-identifier",
-            "description": "The handle or DID of the repo."
-          },
-          "collection": {
-            "type": "string",
-            "format": "nsid",
-            "description": "The NSID of the record type."
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 50,
-            "description": "The number of records to return."
-          },
-          "cursor": { "type": "string" },
-          "reverse": {
-            "type": "boolean",
-            "description": "Flag to reverse the order of the returned records."
+      "type": "procedure",
+      "description": "List records with optional filters for subjects, lexicons, and timestamps.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "subjects",
+            "collection"
+          ],
+          "properties": {
+            "subjects": {
+              "type": "array",
+              "description": "Repos or arenas to search from to retrieve records.",
+              "items": {
+                "type": "union",
+                "refs": [
+                  "#owner",
+                  "#arena"
+                ]
+              }
+            },
+            "collection": {
+              "type": "string",
+              "description": "Filter by specific lexicons",
+              "items": {
+                "type": "string",
+                "format": "nsid"
+              }
+            },
+            "since": {
+              "type": "string",
+              "description": "Allow getting records that are strictly newer or updated since a certain time.",
+              "format": "datetime"
+            }
           }
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "required": ["records"],
-          "properties": {
-            "cursor": { "type": "string" },
-            "records": {
-              "type": "array",
-              "items": { "type": "ref", "ref": "#record" }
-            }
+          "type": "array",
+          "items": {
+            "type": "object"
           }
         }
       }
     },
-    "record": {
-      "type": "object",
-      "required": ["uri", "cid", "value"],
-      "properties": {
-        "uri": { "type": "string", "format": "at-uri" },
-        "cid": { "type": "string", "format": "cid" },
-        "value": { "type": "unknown" }
-      }
+    "owner": {
+      "type": "string",
+      "format": "did"
+    },
+    "arena": {
+      "type": "string",
+      "format": "habitat-uri"
     }
   }
 }

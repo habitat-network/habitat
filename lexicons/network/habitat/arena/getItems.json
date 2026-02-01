@@ -1,0 +1,40 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.arena.getItems",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Retrieve all items from a specified habitat arena.",
+            "permission": "authenticated",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "arenaID"
+                ],
+                "properties": {
+                    "arenaID": {
+                        "type": "string",
+                        "format": "habitat-uri",
+                        "description": "The ID of the arena to retrieve items from."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "habitat-uri"
+                            },
+                            "description": "The list of items present in the arena."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

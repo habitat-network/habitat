@@ -1,44 +1,63 @@
 {
-    "lexicon": 1,
-    "id": "network.habitat.notification.listNotifications",
-    "defs": {
-      "main": {
-        "type": "query",
-        "description": "List a range of notifications for a given DID",
-        "parameters": {
-          "type": "params",
-          "properties": {
-            "collection": {
-              "type": "string",
-              "format": "nsid",
-              "description": "The NSID of the record type."
-            }
+  "lexicon": 1,
+  "id": "network.habitat.notification.listNotifications",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List a range of notifications for a given DID",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "collection": {
+            "type": "string",
+            "format": "nsid",
+            "description": "The NSID of the record type."
           }
-        },
-        "output": {
-          "encoding": "application/json",
-          "schema": {
-            "type": "object",
-            "required": ["records"],
-            "properties": {
-              "cursor": { "type": "string" },
-              "records": {
-                "type": "array",
-                "items": { "type": "ref", "ref": "#record" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "records"
+          ],
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "records": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#record"
               }
             }
           }
         }
-      },
-      "record": {
-        "type": "object",
-        "required": ["uri", "cid", "value"],
-        "properties": {
-          "uri": { "type": "string", "format": "at-uri" },
-          "cid": { "type": "string", "format": "cid" },
-          "value": { "type": "ref", "ref": "network.habitat.notification.defs#notification" }
+      }
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "uri",
+        "cid",
+        "value"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "habitat-uri"
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        },
+        "value": {
+          "type": "ref",
+          "ref": "network.habitat.notification.defs#notification"
         }
       }
     }
   }
-  
+}
