@@ -28,7 +28,7 @@
                     "properties": {
                         "proof": {
                             "type": "string",
-                            "description": "Signed proof authorizing the permission grant, which can be independently verified by the receiver."
+                            "description": "Signed proof authorizing the permission grant on a specific object, which can be independently verified by anyone."
                         }
                     }
                 }
