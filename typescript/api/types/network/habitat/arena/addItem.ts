@@ -13,7 +13,7 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.arena.sendItem'
+const id = 'network.habitat.arena.addItem'
 
 export type QueryParams = {}
 
@@ -22,13 +22,6 @@ export interface InputSchema {
   item: string
   /** The ID of the arena to send the item to, formatted as a habitat-uri. */
   arenaID: string
-}
-
-export interface OutputSchema {
-  /** Result status of the send operation, e.g., 'success' or 'error'. */
-  status?: string
-  /** Optional message providing additional information about the operation. */
-  message?: string
 }
 
 export interface CallOptions {
@@ -41,7 +34,6 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
-  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

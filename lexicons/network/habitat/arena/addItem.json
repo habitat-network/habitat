@@ -1,6 +1,6 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.arena.sendItem",
+    "id": "network.habitat.arena.addItem",
     "defs": {
         "main": {
             "type": "procedure",
@@ -22,22 +22,6 @@
                         "arenaID": {
                             "type": "string",
                             "description": "The ID of the arena to send the item to, formatted as a habitat-uri."
-                        }
-                    }
-                }
-            },
-            "output": {
-                "encoding": "application/json",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "status": {
-                            "type": "string",
-                            "description": "Result status of the send operation, e.g., 'success' or 'error'."
-                        },
-                        "message": {
-                            "type": "string",
-                            "description": "Optional message providing additional information about the operation."
                         }
                     }
                 }

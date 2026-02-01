@@ -4,21 +4,13 @@ package habitat
 
 // NetworkHabitatNotificationCreateNotificationInput represents the input for network.habitat.notification.createNotification
 type NetworkHabitatNotificationCreateNotificationInput struct {
-	Collection string                                                   `json:"collection"`
-	Record     NetworkHabitatNotificationCreateNotificationNotification `json:"record"`
-	Repo       string                                                   `json:"repo"`
+	Collection string                                     `json:"collection"`
+	Record     NetworkHabitatNotificationDefsNotification `json:"record"`
+	Repo       string                                     `json:"repo"`
 }
 
 // NetworkHabitatNotificationCreateNotificationOutput represents the output for network.habitat.notification.createNotification
 type NetworkHabitatNotificationCreateNotificationOutput struct {
 	Uri              string `json:"uri"`
 	ValidationStatus string `json:"validationStatus,omitempty"`
-}
-
-// NetworkHabitatNotificationCreateNotificationNotification represents a notification object
-type NetworkHabitatNotificationCreateNotificationNotification struct {
-	Collection string `json:"collection"`
-	Did        string `json:"did"`
-	OriginDid  string `json:"originDid"`
-	Rkey       string `json:"rkey"`
 }

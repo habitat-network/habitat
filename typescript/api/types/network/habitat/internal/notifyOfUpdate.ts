@@ -24,13 +24,6 @@ export interface InputSchema {
   did: string
 }
 
-export interface OutputSchema {
-  /** Result status of the permission grant, e.g., 'success' or 'error'. */
-  status?: string
-  /** Optional message providing more details about the operation. */
-  message?: string
-}
-
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
@@ -41,7 +34,6 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
-  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

@@ -10,26 +10,26 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
+import type * as NetworkHabitatNotificationDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.arena.getItems'
+const id = 'network.habitat.notification.listNotifications'
 
 export type QueryParams = {
-  /** The ID of the arena to retrieve items from. */
-  arenaID: string
+  /** The NSID of the record type. */
+  collection?: string
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** The list of items present in the arena, formatted as habitat-uris. */
-  items?: string[]
+  cursor?: string
+  records: Record[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
 }
 
 export interface Response {
@@ -40,4 +40,21 @@ export interface Response {
 
 export function toKnownErr(e: any) {
   return e
+}
+
+export interface Record {
+  $type?: 'network.habitat.notification.listNotifications#record'
+  uri: string
+  cid: string
+  value: NetworkHabitatNotificationDefs.Notification
+}
+
+const hashRecord = 'record'
+
+export function isRecord<V>(v: V) {
+  return is$typed(v, id, hashRecord)
+}
+
+export function validateRecord<V>(v: V) {
+  return validate<Record & V>(v, id, hashRecord)
 }

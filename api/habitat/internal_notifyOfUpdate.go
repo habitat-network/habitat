@@ -7,9 +7,3 @@ type NetworkHabitatInternalNotifyOfUpdateInput struct {
 	Collection string `json:"collection"`
 	Did        string `json:"did"`
 }
-
-// NetworkHabitatInternalNotifyOfUpdateOutput represents the output for network.habitat.internal.notifyOfUpdate
-type NetworkHabitatInternalNotifyOfUpdateOutput struct {
-	Message string `json:"message,omitempty"`
-	Status  string `json:"status,omitempty"`
-}

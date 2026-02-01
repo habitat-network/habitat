@@ -3,7 +3,7 @@
     "id": "network.habitat.arena.getItems",
     "defs": {
         "main": {
-            "type": "query",
+            "type": "procedure",
             "description": "Retrieve all items from a specified habitat arena.",
             "permission": "authenticated",
             "parameters": {
@@ -14,7 +14,7 @@
                 "properties": {
                     "arenaID": {
                         "type": "string",
-                        "description": "The ID of the arena to retrieve items from, formatted as a habitat-uri."
+                        "description": "The ID of the arena to retrieve items from."
                     }
                 }
             },
@@ -22,22 +22,13 @@
                 "encoding": "application/json",
                 "schema": {
                     "type": "object",
-                    "required": [
-                        "allowToken",
-                        "items"
-                    ],
                     "properties": {
-                        "allowToken": {
-                            "type": "string",
-                            "description": "Token providing proof that the caller can read the record, verifiable by the repos hosting the arena's items."
-                        },
                         "items": {
-                            "description": "The list of items present in the arena, referenced by habitat-uris.",
                             "type": "array",
                             "items": {
-                                "type": "ref",
-                                "ref": "#record"
-                            }
+                                "type": "string"
+                            },
+                            "description": "The list of items present in the arena, formatted as habitat-uris."
                         }
                     }
                 }

@@ -732,54 +732,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatArenaGetItems: {
+  NetworkHabitatArenaAddItem: {
     lexicon: 1,
-    id: 'network.habitat.arena.getItems',
-    defs: {
-      main: {
-        type: 'query',
-        description: 'Retrieve all items from a specified habitat arena.',
-        permission: 'authenticated',
-        parameters: {
-          type: 'params',
-          required: ['arenaID'],
-          properties: {
-            arenaID: {
-              type: 'string',
-              description:
-                'The ID of the arena to retrieve items from, formatted as a habitat-uri.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['allowToken', 'items'],
-            properties: {
-              allowToken: {
-                type: 'string',
-                description:
-                  "Token providing proof that the caller can read the record, verifiable by the repos hosting the arena's items.",
-              },
-              items: {
-                description:
-                  'The list of items present in the arena, referenced by habitat-uris.',
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.arena.getItems#record',
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatArenaSendItem: {
-    lexicon: 1,
-    id: 'network.habitat.arena.sendItem',
+    id: 'network.habitat.arena.addItem',
     defs: {
       main: {
         type: 'procedure',
@@ -804,20 +759,39 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  NetworkHabitatArenaGetItems: {
+    lexicon: 1,
+    id: 'network.habitat.arena.getItems',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Retrieve all items from a specified habitat arena.',
+        permission: 'authenticated',
+        parameters: {
+          type: 'params',
+          required: ['arenaID'],
+          properties: {
+            arenaID: {
+              type: 'string',
+              description: 'The ID of the arena to retrieve items from.',
+            },
+          },
+        },
         output: {
           encoding: 'application/json',
           schema: {
             type: 'object',
             properties: {
-              status: {
-                type: 'string',
+              items: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                },
                 description:
-                  "Result status of the send operation, e.g., 'success' or 'error'.",
-              },
-              message: {
-                type: 'string',
-                description:
-                  'Optional message providing additional information about the operation.',
+                  'The list of items present in the arena, formatted as habitat-uris.',
               },
             },
           },
@@ -912,22 +886,147 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  NetworkHabitatNotificationCreateNotification: {
+    lexicon: 1,
+    id: 'network.habitat.notification.createNotification',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Write a new notification.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repo', 'collection', 'record'],
+            nullable: ['swapRecord'],
+            properties: {
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The handle or DID of the repo (aka, current account).',
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'The NSID of the record collection.',
+              },
+              record: {
+                type: 'ref',
+                description: 'The record to write.',
+                ref: 'lex:network.habitat.notification.defs#notification',
+              },
+            },
+          },
+        },
         output: {
           encoding: 'application/json',
           schema: {
             type: 'object',
+            required: ['uri'],
             properties: {
-              status: {
+              uri: {
                 type: 'string',
-                description:
-                  "Result status of the permission grant, e.g., 'success' or 'error'.",
+                format: 'at-uri',
               },
-              message: {
+              validationStatus: {
                 type: 'string',
-                description:
-                  'Optional message providing more details about the operation.',
+                knownValues: ['valid', 'unknown'],
               },
             },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatNotificationDefs: {
+    lexicon: 1,
+    id: 'network.habitat.notification.defs',
+    defs: {
+      notification: {
+        type: 'object',
+        required: ['did', 'originDid', 'collection', 'rkey'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+            description: 'The handle or DID of the target of the notification.',
+          },
+          originDid: {
+            type: 'string',
+            format: 'did',
+            description: 'The handle or DID of the origin of the notification.',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+            description: 'The Record Key.',
+            maxLength: 512,
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatNotificationListNotifications: {
+    lexicon: 1,
+    id: 'network.habitat.notification.listNotifications',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'List a range of notifications for a given DID',
+        parameters: {
+          type: 'params',
+          properties: {
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record type.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.notification.listNotifications#record',
+                },
+              },
+            },
+          },
+        },
+      },
+      record: {
+        type: 'object',
+        required: ['uri', 'cid', 'value'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'at-uri',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          value: {
+            type: 'ref',
+            ref: 'lex:network.habitat.notification.defs#notification',
           },
         },
       },
@@ -1297,11 +1396,16 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatArenaAddItem: 'network.habitat.arena.addItem',
   NetworkHabitatArenaGetItems: 'network.habitat.arena.getItems',
-  NetworkHabitatArenaSendItem: 'network.habitat.arena.sendItem',
   NetworkHabitatInternalGetRecord: 'network.habitat.internal.getRecord',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
+  NetworkHabitatNotificationCreateNotification:
+    'network.habitat.notification.createNotification',
+  NetworkHabitatNotificationDefs: 'network.habitat.notification.defs',
+  NetworkHabitatNotificationListNotifications:
+    'network.habitat.notification.listNotifications',
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',

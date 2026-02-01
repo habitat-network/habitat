@@ -10,26 +10,32 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
+import type * as NetworkHabitatNotificationDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.arena.getItems'
+const id = 'network.habitat.notification.createNotification'
 
-export type QueryParams = {
-  /** The ID of the arena to retrieve items from. */
-  arenaID: string
+export type QueryParams = {}
+
+export interface InputSchema {
+  /** The handle or DID of the repo (aka, current account). */
+  repo: string
+  /** The NSID of the record collection. */
+  collection: string
+  record: NetworkHabitatNotificationDefs.Notification
 }
-export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** The list of items present in the arena, formatted as habitat-uris. */
-  items?: string[]
+  uri: string
+  validationStatus?: 'valid' | 'unknown' | (string & {})
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
   qp?: QueryParams
+  encoding?: 'application/json'
 }
 
 export interface Response {

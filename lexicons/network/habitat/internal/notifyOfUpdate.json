@@ -26,22 +26,6 @@
                         }
                     }
                 }
-            },
-            "output": {
-                "encoding": "application/json",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "status": {
-                            "type": "string",
-                            "description": "Result status of the permission grant, e.g., 'success' or 'error'."
-                        },
-                        "message": {
-                            "type": "string",
-                            "description": "Optional message providing more details about the operation."
-                        }
-                    }
-                }
             }
         }
     }
