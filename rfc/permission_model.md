@@ -2,7 +2,7 @@
 
 ## Context
 
-A usable permissions model requires both the granter and the grantee to have knowledge of the access. 
+A usable permissions model requires both the granter and the grantee to have knowledge of the access granted. 
 The granter needs to know who all has access to their data for visibility but also to support revocations. 
 The grantee needs to know what it has access to in order to fetch it. 
 In a decentralized network like Habitat where granter and grantee live on different nodes and don't share a centralized permission store, this permissions data needs to be synchronized between their nodes. 
