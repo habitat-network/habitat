@@ -17,13 +17,11 @@
                     "properties": {
                         "item": {
                             "type": "string",
-                            "format": "habitat-uri",
-                            "description": "The URI for the item to send to the arena."
+                            "description": "The URI for the item to send to the arena, formatted as a habitat-uri."
                         },
                         "arenaID": {
                             "type": "string",
-                            "format": "habitat-uri",
-                            "description": "The ID of the arena to send the item to."
+                            "description": "The ID of the arena to send the item to, formatted as a habitat-uri."
                         }
                     }
                 }

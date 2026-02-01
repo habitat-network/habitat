@@ -41,7 +41,7 @@
           "properties": {
             "uri": {
               "type": "string",
-              "format": "habitat-uri"
+              "description": "The habitat-uri for this record."
             },
             "value": {
               "type": "unknown"

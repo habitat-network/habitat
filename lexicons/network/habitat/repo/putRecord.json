@@ -70,7 +70,7 @@
           "properties": {
             "uri": {
               "type": "string",
-              "format": "habitat-uri"
+              "description": "The habitat-uri of the put-ed object."
             },
             "validationStatus": {
               "type": "string",
@@ -89,7 +89,7 @@
     },
     "arenaGrantee": {
       "type": "string",
-      "format": "habitat-uri"
+      "description": "The habitat-uri of the arena to delegate permissions to."
     }
   }
 }
