@@ -5,6 +5,8 @@ package habitat
 // NetworkHabitatListRecordsInput represents the input for network.habitat.listRecords
 type NetworkHabitatListRecordsInput struct {
 	Collection string        `json:"collection"`
+	Cursor     string        `json:"cursor,omitempty"`
+	Limit      int64         `json:"limit,omitempty"`
 	Since      string        `json:"since,omitempty"`
 	Subjects   []interface{} `json:"subjects"`
 }

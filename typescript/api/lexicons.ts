@@ -732,6 +732,55 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatInternalNotifyOfUpdate: {
+    lexicon: 1,
+    id: 'network.habitat.internal.notifyOfUpdate',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify another DID that there is an update for them on the fiven record.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collection', 'did'],
+            properties: {
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the record collection that the update is for.',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID to grant permission to (URL parameter).',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              status: {
+                type: 'string',
+                description:
+                  "Result status of the permission grant, e.g., 'success' or 'error'.",
+              },
+              message: {
+                type: 'string',
+                description:
+                  'Optional message providing more details about the operation.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatPhoto: {
     lexicon: 1,
     id: 'network.habitat.photo',
@@ -879,6 +928,8 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatInternalNotifyOfUpdate:
+    'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',

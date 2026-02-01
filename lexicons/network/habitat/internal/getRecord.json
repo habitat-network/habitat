@@ -28,21 +28,11 @@
                         "type": "string",
                         "description": "The Record Key.",
                         "format": "record-key"
-                    }
-                }
-            },
-            "input": {
-                "encoding": "application/json",
-                "schema": {
-                    "type": "object",
-                    "required": [
-                        "proof"
-                    ],
-                    "properties": {
-                        "proof": {
-                            "type": "string",
-                            "description": "Signed proof authorizing permission to the required record, which can be independently verified by the receiver."
-                        }
+                    },
+                    "allowToken": {
+                        "type": "string",
+                        "description": "Optional token providing proof the requester can read the record, verifiable by the resource server (if the record has delegated its permissions to another DID).",
+                        "format": "permission-token"
                     }
                 }
             },
