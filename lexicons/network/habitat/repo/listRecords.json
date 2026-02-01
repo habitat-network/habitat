@@ -37,6 +37,14 @@
               "type": "string",
               "description": "Allow getting records that are strictly newer or updated since a certain time.",
               "format": "datetime"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "[UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API)."
+            },
+            "cursor": {
+              "type": "string",
+              "description": "[UNIMPLEMENTED] Cursor of the returned list."
             }
           }
         }

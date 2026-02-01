@@ -3,7 +3,7 @@
     "id": "network.habitat.arena.getItems",
     "defs": {
         "main": {
-            "type": "procedure",
+            "type": "query",
             "description": "Retrieve all items from a specified habitat arena.",
             "permission": "authenticated",
             "parameters": {
@@ -23,7 +23,16 @@
                 "encoding": "application/json",
                 "schema": {
                     "type": "object",
+                    "required": [
+                        "allowToken",
+                        "items"
+                    ],
                     "properties": {
+                        "allowToken": {
+                            "type": "string",
+                            "description": "Token providing proof that the caller can read the record, verifiable by the repos hosting the arena's items.",
+                            "format": "permission-token"
+                        },
                         "items": {
                             "type": "array",
                             "items": {

@@ -6,31 +6,24 @@
             "type": "procedure",
             "description": "Send an item to a specified habitat arena.",
             "permission": "authenticated",
-            "parameters": {
-                "type": "params",
-                "required": [
-                    "arenaID"
-                ],
-                "properties": {
-                    "arenaID": {
-                        "type": "string",
-                        "format": "habitat-uri",
-                        "description": "The ID of the arena to send the item to."
-                    }
-                }
-            },
             "input": {
                 "encoding": "application/json",
                 "schema": {
                     "type": "object",
                     "required": [
-                        "item"
+                        "item",
+                        "arenaID"
                     ],
                     "properties": {
                         "item": {
                             "type": "string",
                             "format": "habitat-uri",
                             "description": "The URI for the item to send to the arena."
+                        },
+                        "arenaID": {
+                            "type": "string",
+                            "format": "habitat-uri",
+                            "description": "The ID of the arena to send the item to."
                         }
                     }
                 }

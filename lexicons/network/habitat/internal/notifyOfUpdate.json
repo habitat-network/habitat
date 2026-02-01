@@ -1,34 +1,28 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.internal.grantPermission",
+    "id": "network.habitat.internal.notifyOfUpdate",
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Grant permission to a DID using a signed proof.",
-            "parameters": {
-                "type": "object",
-                "required": [
-                    "did"
-                ],
-                "properties": {
-                    "did": {
-                        "type": "string",
-                        "format": "did",
-                        "description": "The DID to grant permission to (URL parameter)."
-                    }
-                }
-            },
+            "description": "Notify another DID that there is an update for them on the fiven record.",
             "input": {
                 "encoding": "application/json",
                 "schema": {
                     "type": "object",
                     "required": [
-                        "proof"
+                        "collection",
+                        "did"
                     ],
                     "properties": {
-                        "proof": {
+                        "collection": {
                             "type": "string",
-                            "description": "Signed proof authorizing the permission grant on a specific object, which can be independently verified by anyone."
+                            "format": "nsid",
+                            "description": "The NSID of the record collection that the update is for."
+                        },
+                        "did": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "The DID to grant permission to (URL parameter)."
                         }
                     }
                 }

@@ -4,6 +4,7 @@ package habitat
 
 // NetworkHabitatInternalGetRecordParams represents the input parameters for network.habitat.internal.getRecord
 type NetworkHabitatInternalGetRecordParams struct {
+	AllowToken string `json:"allowToken,omitempty"`
 	Collection string `json:"collection"`
 	Repo       string `json:"repo"`
 	Rkey       string `json:"rkey"`

@@ -4,7 +4,8 @@ package habitat
 
 // NetworkHabitatArenaSendItemInput represents the input for network.habitat.arena.sendItem
 type NetworkHabitatArenaSendItemInput struct {
-	Item string `json:"item"`
+	ArenaID string `json:"arenaID"`
+	Item    string `json:"item"`
 }
 
 // NetworkHabitatArenaSendItemOutput represents the output for network.habitat.arena.sendItem
