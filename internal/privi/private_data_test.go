@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/stretchr/testify/require"
@@ -32,11 +33,17 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	ownerDIDStr := "did:plc:owner123"
+	callerDIDStr := "did:plc:caller456"
+	ownerDID, err := syntax.ParseDID(ownerDIDStr)
+	require.NoError(t, err)
+	callerDID, err := syntax.ParseDID(callerDIDStr)
+	require.NoError(t, err)
+	err = p.PutRecord(ownerDIDStr, coll, val, rkey, &validate)
 	require.NoError(t, err)
 
 	// Owner can always access their own records
-	got, err := p.getRecord(coll, rkey, "my-did", "my-did")
+	got, err := p.GetRecord(coll, rkey, ownerDID, ownerDID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
@@ -46,15 +53,15 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.Equal(t, val, ownerUnmarshalled)
 
 	// Non-owner without permission gets unauthorized
-	got, err = p.getRecord(coll, rkey, "my-did", "another-did")
+	got, err = p.GetRecord(coll, rkey, ownerDID, callerDID)
 	require.Nil(t, got)
 	require.ErrorIs(t, ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, dummy.AddLexiconReadPermission([]string{"another-did"}, "my-did", coll))
+	require.NoError(t, dummy.AddLexiconReadPermission([]string{callerDIDStr}, ownerDIDStr, coll))
 
 	// Now non-owner can access
-	got, err = p.getRecord(coll, "my-rkey", "my-did", "another-did")
+	got, err = p.GetRecord(coll, "my-rkey", ownerDID, callerDID)
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
@@ -62,7 +69,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, val, unmarshalled)
 
-	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	err = p.PutRecord(ownerDIDStr, coll, val, rkey, &validate)
 	require.NoError(t, err)
 }
 
@@ -82,12 +89,15 @@ func TestListOwnRecords(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	ownerDIDStr := "did:plc:owner123"
+	ownerDID, err := syntax.ParseDID(ownerDIDStr)
+	require.NoError(t, err)
+	err = p.PutRecord(ownerDIDStr, coll, val, rkey, &validate)
 	require.NoError(t, err)
 
-	records, err := p.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll, Repo: "my-did"},
-		"my-did",
+	records, err := p.ListRecords(
+		&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll, Repo: ownerDIDStr},
+		ownerDID,
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
@@ -103,7 +113,7 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	p := newStore(perms, repo)
 
 	// Try to get a record for a DID that doesn't exist on this server
-	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
+	got, err := p.GetRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
 	require.Nil(t, got)
 	require.ErrorIs(t, err, ErrForwardingNotImplemented)
 }
@@ -118,7 +128,7 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	p := newStore(perms, repo)
 
 	// Try to list records for a DID that doesn't exist on this server
-	records, err := p.listRecords(
+	records, err := p.ListRecords(
 		&habitat.NetworkHabitatRepoListRecordsParams{Collection: "some.collection", Repo: "did:plc:unknown123"},
 		"did:plc:caller456",
 	)
@@ -141,15 +151,26 @@ func TestListRecords(t *testing.T) {
 	// Create multiple records across collections
 	coll1 := "my.fake.collection1"
 	coll2 := "my.fake.collection2"
+	ownerDIDStr := "did:plc:owner123"
+	otherDIDStr := "did:plc:other456"
+	readerDIDStr := "did:plc:reader789"
+	specificReaderDIDStr := "did:plc:specificreader"
 
-	require.NoError(t, p.putRecord("my-did", coll1, val, "rkey1", &validate))
-	require.NoError(t, p.putRecord("my-did", coll1, val, "rkey2", &validate))
-	require.NoError(t, p.putRecord("my-did", coll2, val, "rkey3", &validate))
+	otherDID, err := syntax.ParseDID(otherDIDStr)
+	require.NoError(t, err)
+	readerDID, err := syntax.ParseDID(readerDIDStr)
+	require.NoError(t, err)
+	specificReaderDID, err := syntax.ParseDID(specificReaderDIDStr)
+	require.NoError(t, err)
+
+	require.NoError(t, p.PutRecord(ownerDIDStr, coll1, val, "rkey1", &validate))
+	require.NoError(t, p.PutRecord(ownerDIDStr, coll1, val, "rkey2", &validate))
+	require.NoError(t, p.PutRecord(ownerDIDStr, coll2, val, "rkey3", &validate))
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
-		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: "my-did"},
-			"other-did",
+		records, err := p.ListRecords(
+			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: ownerDIDStr},
+			otherDID,
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
@@ -159,15 +180,15 @@ func TestListRecords(t *testing.T) {
 		require.NoError(
 			t,
 			perms.AddLexiconReadPermission(
-				[]string{"reader-did"},
-				"my-did",
+				[]string{readerDIDStr},
+				ownerDIDStr,
 				fmt.Sprintf("%s.*", coll1),
 			),
 		)
 
-		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: "my-did"},
-			"reader-did",
+		records, err := p.ListRecords(
+			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: ownerDIDStr},
+			readerDID,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 2)
@@ -177,25 +198,25 @@ func TestListRecords(t *testing.T) {
 		require.NoError(
 			t,
 			perms.AddLexiconReadPermission(
-				[]string{"specific-reader"},
-				"my-did",
+				[]string{specificReaderDIDStr},
+				ownerDIDStr,
 				fmt.Sprintf("%s.rkey1", coll1),
 			),
 		)
 
-		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: "my-did"},
-			"specific-reader",
+		records, err := p.ListRecords(
+			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: ownerDIDStr},
+			specificReaderDID,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 	})
 
 	t.Run("permissions are scoped to collection", func(t *testing.T) {
-		// reader-did has permission for coll1 but not coll2
-		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll2, Repo: "my-did"},
-			"reader-did",
+		// readerDID has permission for coll1 but not coll2
+		records, err := p.ListRecords(
+			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll2, Repo: ownerDIDStr},
+			readerDID,
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)

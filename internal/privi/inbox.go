@@ -3,7 +3,10 @@ package privi
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
@@ -19,26 +22,31 @@ type notificationRecord struct {
 // Notification is a Gorm model for notifications.
 type Notification struct {
 	gorm.Model
-	Did        string
-	OriginDid  string
-	Collection string
-	Rkey       string
+	Did                 string
+	OriginDid           string
+	Collection          string
+	Rkey                string
+	Value               string
+	LastFetchFailed     bool       // True if the last attempted record fetch failed
+	LastSuccessfulFetch *time.Time `gorm:"type:timestamp"` // Timestamp of the last successful record fetch (nil if never successful)
 }
 
 // NotificationIngester handles the ingestion of notification events from Jetstream
 type NotificationIngester struct {
-	db *gorm.DB
+	db    *gorm.DB
+	store Store
 }
 
 // NewNotificationIngester creates a new NotificationIngester instance
-func NewNotificationIngester(db *gorm.DB) (*NotificationIngester, error) {
+func NewNotificationIngester(db *gorm.DB, store Store) (*NotificationIngester, error) {
 
 	err := db.AutoMigrate(&Notification{})
 	if err != nil {
 		return nil, err
 	}
 	return &NotificationIngester{
-		db: db,
+		db:    db,
+		store: store,
 	}, nil
 }
 
@@ -100,16 +108,56 @@ func (n *NotificationIngester) createNotification(did string, originDid string, 
 		Str("rkey", rkey).
 		Msg("creating notification")
 
+	// Fetch the shadowed record from the store
+	origin, err := syntax.ParseDID(originDid)
+	if err != nil {
+		return err
+	}
+
+	caller, err := syntax.ParseDID(did)
+	if err != nil {
+		return err
+	}
+	// Query the origin repo with us as the caller
+	// If the record fetch fails for any reason (forwarding not implemented, record not found,
+	// unauthorized, etc.), we set the value to an empty string and still create the notification.
+	// This ensures notifications are created even when we can't fetch the shadowed record.
+	recordMarshalledJson := ""
+	fetchFailed := false
+	var lastSuccessfulFetch *time.Time
+
+	record, err := n.store.GetRecord(collection, rkey, origin, caller)
+	if err != nil {
+		fetchFailed = true
+		if errors.Is(err, ErrForwardingNotImplemented) {
+			log.Warn().Err(err).Msgf("skipping fetch-back for %s, forwarding not implemented", originDid)
+		} else if errors.Is(err, ErrRecordNotFound) {
+			log.Warn().Err(err).Msgf("record not found for %s/%s/%s", originDid, collection, rkey)
+		} else if errors.Is(err, ErrUnauthorized) {
+			log.Warn().Err(err).Msgf("unauthorized to fetch record for %s/%s/%s", originDid, collection, rkey)
+		} else {
+			log.Warn().Err(err).Msgf("failed to fetch record for %s/%s/%s", originDid, collection, rkey)
+		}
+		// Continue with empty string value - notification will still be created
+	} else {
+		recordMarshalledJson = record.Rec
+		now := time.Now()
+		lastSuccessfulFetch = &now
+	}
+
 	return gorm.G[Notification](
 		n.db,
 		clause.OnConflict{UpdateAll: true},
 	).Create(
 		context.Background(),
 		&Notification{
-			Did:        did,
-			OriginDid:  originDid,
-			Collection: collection,
-			Rkey:       rkey,
+			Did:                 did,
+			OriginDid:           originDid,
+			Collection:          collection,
+			Rkey:                rkey,
+			Value:               recordMarshalledJson,
+			LastFetchFailed:     fetchFailed,
+			LastSuccessfulFetch: lastSuccessfulFetch,
 		},
 	)
 }

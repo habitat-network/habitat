@@ -26,8 +26,16 @@ import (
 // For now, store all records in the same database. Eventually, this should be broken up into
 // per-user databases or per-user MST repos.
 
-// We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
-// Leaving this as-is for now.
+// SQLiteRepo is the interface for SQLite-backed repositories
+type SQLiteRepo interface {
+	PutRecord(did string, rkey string, rec map[string]any, validate *bool) error
+	GetRecord(did string, rkey string) (*Record, error)
+	UploadBlob(did string, data []byte, mimeType string) (*blob, error)
+	GetBlob(did string, cid string) (string, []byte, error)
+	ListRecords(params *habitat.NetworkHabitatRepoListRecordsParams, allow []string, deny []string) ([]Record, error)
+	HasRepoForDid(did string) (bool, error)
+}
+
 type sqliteRepo struct {
 	db *gorm.DB
 }
@@ -47,7 +55,7 @@ type Blob struct {
 }
 
 // TODO: create table etc.
-func NewSQLiteRepo(db *gorm.DB) (*sqliteRepo, error) {
+func NewSQLiteRepo(db *gorm.DB) (SQLiteRepo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
@@ -56,8 +64,8 @@ func NewSQLiteRepo(db *gorm.DB) (*sqliteRepo, error) {
 	}, nil
 }
 
-// hasRepoForDid checks if this instance manges the data for a given did
-func (r *sqliteRepo) hasRepoForDid(did string) (bool, error) {
+// HasRepoForDid checks if this instance manges the data for a given did
+func (r *sqliteRepo) HasRepoForDid(did string) (bool, error) {
 	// TODO: for now, we determine if a did is managed by this instance, by just checking for the existence of any record
 	// with the matching DID. In the future, we need to track a formal table of managed repos. There will need to be
 	// onboarding and offboard flows as well.
@@ -70,8 +78,8 @@ func (r *sqliteRepo) hasRepoForDid(did string) (bool, error) {
 	return true, nil
 }
 
-// putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *sqliteRepo) putRecord(did string, rkey string, rec map[string]any, validate *bool) error {
+// PutRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
+func (r *sqliteRepo) PutRecord(did string, rkey string, rec map[string]any, validate *bool) error {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
@@ -97,7 +105,7 @@ var (
 	ErrMultipleRecordsFound = fmt.Errorf("multiple records found for desired query")
 )
 
-func (r *sqliteRepo) getRecord(did string, rkey string) (*Record, error) {
+func (r *sqliteRepo) GetRecord(did string, rkey string) (*Record, error) {
 	row, err := gorm.G[Record](
 		r.db,
 	).Where("did = ? and rkey = ?", did, rkey).
@@ -116,7 +124,7 @@ type blob struct {
 	Size     int64          `json:"size"`
 }
 
-func (r *sqliteRepo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
+func (r *sqliteRepo) UploadBlob(did string, data []byte, mimeType string) (*blob, error) {
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
 	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
@@ -143,9 +151,9 @@ func (r *sqliteRepo) uploadBlob(did string, data []byte, mimeType string) (*blob
 	}, nil
 }
 
-// getBlob gets a blob. this is never exposed to the server, because blobs can only be resolved via records that link them (see LexLink)
+// GetBlob gets a blob. this is never exposed to the server, because blobs can only be resolved via records that link them (see LexLink)
 // besides exceptional cases like data migration which we do not support right now.
-func (r *sqliteRepo) getBlob(
+func (r *sqliteRepo) GetBlob(
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
@@ -161,8 +169,8 @@ func (r *sqliteRepo) getBlob(
 	return row.MimeType, row.Blob, nil
 }
 
-// listRecords implements repo.
-func (r *sqliteRepo) listRecords(
+// ListRecords implements repo.
+func (r *sqliteRepo) ListRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	allow []string,
 	deny []string,
