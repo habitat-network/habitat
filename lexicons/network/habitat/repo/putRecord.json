@@ -9,8 +9,15 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["repo", "collection", "rkey", "record"],
-          "nullable": ["swapRecord"],
+          "required": [
+            "repo",
+            "collection",
+            "rkey",
+            "record"
+          ],
+          "nullable": [
+            "swapRecord"
+          ],
           "properties": {
             "repo": {
               "type": "string",
@@ -40,8 +47,12 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "format": "did"
+                "description": "Grantees as either DIDs or Arena refs [TODO: make a union]"
               }
+            },
+            "createArena": {
+              "type": "boolean",
+              "description": "Whether to create an arena, allowing all grantees to aggregate records under this arena."
             }
           }
         }
@@ -50,12 +61,20 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri"],
+          "required": [
+            "uri"
+          ],
           "properties": {
-            "uri": { "type": "string", "format": "at-uri" },
+            "uri": {
+              "type": "string",
+              "description": "The habitat-uri of the put-ed object."
+            },
             "validationStatus": {
               "type": "string",
-              "knownValues": ["valid", "unknown"]
+              "knownValues": [
+                "valid",
+                "unknown"
+              ]
             }
           }
         }

@@ -13,22 +13,19 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.repo.getRecord'
+const id = 'network.habitat.arena.getItems'
 
 export type QueryParams = {
-  /** The handle or DID of the repo. */
-  repo: string
-  /** The NSID of the record collection. */
-  collection: string
-  /** The Record Key. */
-  rkey: string
+  /** The ID of the arena to retrieve items from, formatted as a habitat-uri. */
+  arenaID: string
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** The habitat-uri for this record. */
-  uri: string
-  value: { [_ in string]: unknown }
+  /** Token providing proof that the caller can read the record, verifiable by the repos hosting the arena's items. */
+  allowToken: string
+  /** The list of items present in the arena, referenced by habitat-uris. */
+  items: Record[]
 }
 
 export interface CallOptions {
@@ -42,16 +39,6 @@ export interface Response {
   data: OutputSchema
 }
 
-export class RecordNotFoundError extends XRPCError {
-  constructor(src: XRPCError) {
-    super(src.status, src.error, src.message, src.headers, { cause: src })
-  }
-}
-
 export function toKnownErr(e: any) {
-  if (e instanceof XRPCError) {
-    if (e.error === 'RecordNotFound') return new RecordNotFoundError(e)
-  }
-
   return e
 }

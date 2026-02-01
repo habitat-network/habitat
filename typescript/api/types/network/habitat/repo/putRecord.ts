@@ -29,9 +29,12 @@ export interface InputSchema {
   /** The record to write. */
   record: { [_ in string]: unknown }
   grantees?: string[]
+  /** Whether to create an arena, allowing all grantees to aggregate records under this arena. */
+  createArena?: boolean
 }
 
 export interface OutputSchema {
+  /** The habitat-uri of the put-ed object. */
   uri: string
   validationStatus?: 'valid' | 'unknown' | (string & {})
 }

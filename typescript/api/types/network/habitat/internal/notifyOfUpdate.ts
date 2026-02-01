@@ -10,25 +10,25 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
-import type * as NetworkHabitatNotificationDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.notification.createNotification'
+const id = 'network.habitat.internal.notifyOfUpdate'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The handle or DID of the repo (aka, current account). */
-  repo: string
-  /** The NSID of the record collection. */
+  /** The NSID of the record collection that the update is for. */
   collection: string
-  record: NetworkHabitatNotificationDefs.Notification
+  /** The DID to grant permission to (URL parameter). */
+  did: string
 }
 
 export interface OutputSchema {
-  uri: string
-  validationStatus?: 'valid' | 'unknown' | (string & {})
+  /** Result status of the permission grant, e.g., 'success' or 'error'. */
+  status?: string
+  /** Optional message providing more details about the operation. */
+  message?: string
 }
 
 export interface CallOptions {
