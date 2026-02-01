@@ -14,8 +14,7 @@
                 "properties": {
                     "arenaID": {
                         "type": "string",
-                        "format": "habitat-uri",
-                        "description": "The ID of the arena to retrieve items from."
+                        "description": "The ID of the arena to retrieve items from, formatted as a habitat-uri."
                     }
                 }
             },
@@ -30,16 +29,15 @@
                     "properties": {
                         "allowToken": {
                             "type": "string",
-                            "description": "Token providing proof that the caller can read the record, verifiable by the repos hosting the arena's items.",
-                            "format": "permission-token"
+                            "description": "Token providing proof that the caller can read the record, verifiable by the repos hosting the arena's items."
                         },
                         "items": {
+                            "description": "The list of items present in the arena, referenced by habitat-uris.",
                             "type": "array",
                             "items": {
-                                "type": "string",
-                                "format": "habitat-uri"
-                            },
-                            "description": "The list of items present in the arena."
+                                "type": "ref",
+                                "ref": "#record"
+                            }
                         }
                     }
                 }

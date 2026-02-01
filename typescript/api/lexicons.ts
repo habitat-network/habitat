@@ -732,6 +732,158 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatArenaGetItems: {
+    lexicon: 1,
+    id: 'network.habitat.arena.getItems',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Retrieve all items from a specified habitat arena.',
+        permission: 'authenticated',
+        parameters: {
+          type: 'params',
+          required: ['arenaID'],
+          properties: {
+            arenaID: {
+              type: 'string',
+              description:
+                'The ID of the arena to retrieve items from, formatted as a habitat-uri.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['allowToken', 'items'],
+            properties: {
+              allowToken: {
+                type: 'string',
+                description:
+                  "Token providing proof that the caller can read the record, verifiable by the repos hosting the arena's items.",
+              },
+              items: {
+                description:
+                  'The list of items present in the arena, referenced by habitat-uris.',
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.arena.getItems#record',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatArenaSendItem: {
+    lexicon: 1,
+    id: 'network.habitat.arena.sendItem',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Send an item to a specified habitat arena.',
+        permission: 'authenticated',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['item', 'arenaID'],
+            properties: {
+              item: {
+                type: 'string',
+                description:
+                  'The URI for the item to send to the arena, formatted as a habitat-uri.',
+              },
+              arenaID: {
+                type: 'string',
+                description:
+                  'The ID of the arena to send the item to, formatted as a habitat-uri.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              status: {
+                type: 'string',
+                description:
+                  "Result status of the send operation, e.g., 'success' or 'error'.",
+              },
+              message: {
+                type: 'string',
+                description:
+                  'Optional message providing additional information about the operation.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatInternalGetRecord: {
+    lexicon: 1,
+    id: 'network.habitat.internal.getRecord',
+    defs: {
+      main: {
+        type: 'query',
+        permission: 'signed',
+        description:
+          'Get a single record from a repository, and provide the proof that the caller is allowed to do so.',
+        parameters: {
+          type: 'params',
+          required: ['repo', 'collection', 'rkey'],
+          properties: {
+            repo: {
+              type: 'string',
+              format: 'at-identifier',
+              description: 'The handle or DID of the repo.',
+            },
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record collection.',
+            },
+            rkey: {
+              type: 'string',
+              description: 'The Record Key.',
+              format: 'record-key',
+            },
+            allowToken: {
+              type: 'string',
+              description:
+                'Optional token providing proof the requester can read the record, verifiable by the resource server (if the record has delegated its permissions to another DID).',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri', 'value'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'The habitat-uri for this record.',
+              },
+              value: {
+                type: 'unknown',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'RecordNotFound',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatInternalNotifyOfUpdate: {
     lexicon: 1,
     id: 'network.habitat.internal.notifyOfUpdate',
@@ -852,6 +1004,233 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatRepoGetRecord: {
+    lexicon: 1,
+    id: 'network.habitat.repo.getRecord',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Get a single record from a repository',
+        parameters: {
+          type: 'params',
+          required: ['repo', 'collection', 'rkey'],
+          properties: {
+            repo: {
+              type: 'string',
+              format: 'at-identifier',
+              description: 'The handle or DID of the repo.',
+            },
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record collection.',
+            },
+            rkey: {
+              type: 'string',
+              description: 'The Record Key.',
+              format: 'record-key',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri', 'value'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'The habitat-uri for this record.',
+              },
+              value: {
+                type: 'unknown',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'RecordNotFound',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatListRecords: {
+    lexicon: 1,
+    id: 'network.habitat.listRecords',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'List records with optional filters for subjects, lexicons, and timestamps.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['subjects', 'collection'],
+            properties: {
+              subjects: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  description:
+                    'Repos (DIDs) or arenas (habitat-uris) to search from to retrieve records.',
+                },
+              },
+              collection: {
+                type: 'string',
+                description: 'Filter by specific lexicons',
+                items: {
+                  type: 'string',
+                  format: 'nsid',
+                },
+              },
+              since: {
+                type: 'string',
+                description:
+                  'Allow getting records that are strictly newer or updated since a certain time.',
+                format: 'datetime',
+              },
+              limit: {
+                type: 'integer',
+                description:
+                  '[UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API).',
+              },
+              cursor: {
+                type: 'string',
+                description: '[UNIMPLEMENTED] Cursor of the returned list.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.listRecords#record',
+                },
+              },
+            },
+          },
+        },
+      },
+      record: {
+        type: 'object',
+        required: ['uri', 'cid', 'value'],
+        properties: {
+          uri: {
+            type: 'string',
+            description:
+              'URI reference to the record, formatted as a habitat-uri.',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          value: {
+            type: 'unknown',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRepoPutRecord: {
+    lexicon: 1,
+    id: 'network.habitat.repo.putRecord',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Write a repository record, creating or updating it as needed.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repo', 'collection', 'rkey', 'record'],
+            nullable: ['swapRecord'],
+            properties: {
+              repo: {
+                type: 'string',
+                format: 'at-identifier',
+                description:
+                  'The handle or DID of the repo (aka, current account).',
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'The NSID of the record collection.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description: 'The Record Key.',
+                maxLength: 512,
+              },
+              validate: {
+                type: 'boolean',
+                description:
+                  "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons.",
+              },
+              record: {
+                type: 'unknown',
+                description: 'The record to write.',
+              },
+              grantees: {
+                type: 'array',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.repo.putRecord#didGrantee',
+                    'lex:network.habitat.repo.putRecord#arenaGrantee',
+                  ],
+                },
+              },
+              createArena: {
+                type: 'boolean',
+                description:
+                  'Whether to create an arena, allowing all grantees to aggregate records under this arena.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'The habitat-uri of the put-ed object.',
+              },
+              validationStatus: {
+                type: 'string',
+                knownValues: ['valid', 'unknown'],
+              },
+            },
+          },
+        },
+      },
+      didGrantee: {
+        type: 'string',
+        format: 'did',
+      },
+      arenaGrantee: {
+        type: 'string',
+        description: 'The habitat-uri of the arena to delegate permissions to.',
+      },
+    },
+  },
   NetworkHabitatRepoUploadBlob: {
     lexicon: 1,
     id: 'network.habitat.repo.uploadBlob',
@@ -928,9 +1307,15 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatArenaGetItems: 'network.habitat.arena.getItems',
+  NetworkHabitatArenaSendItem: 'network.habitat.arena.sendItem',
+  NetworkHabitatInternalGetRecord: 'network.habitat.internal.getRecord',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
+  NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
+  NetworkHabitatListRecords: 'network.habitat.listRecords',
+  NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
 } as const

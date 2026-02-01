@@ -16,13 +16,9 @@
           "properties": {
             "subjects": {
               "type": "array",
-              "description": "Repos or arenas to search from to retrieve records.",
               "items": {
-                "type": "union",
-                "refs": [
-                  "#owner",
-                  "#arena"
-                ]
+                "type": "string",
+                "description": "Repos (DIDs) or arenas (habitat-uris) to search from to retrieve records."
               }
             },
             "collection": {
@@ -52,20 +48,45 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "array",
-          "items": {
-            "type": "object"
+          "type": "object",
+          "required": [
+            "records"
+          ],
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "records": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#record"
+              }
+            }
           }
         }
       }
     },
-    "owner": {
-      "type": "string",
-      "format": "did"
-    },
-    "arena": {
-      "type": "string",
-      "format": "habitat-uri"
+    "record": {
+      "type": "object",
+      "required": [
+        "uri",
+        "cid",
+        "value"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "description": "URI reference to the record, formatted as a habitat-uri."
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        },
+        "value": {
+          "type": "unknown"
+        }
+      }
     }
   }
 }

@@ -31,8 +31,7 @@
                     },
                     "allowToken": {
                         "type": "string",
-                        "description": "Optional token providing proof the requester can read the record, verifiable by the resource server (if the record has delegated its permissions to another DID).",
-                        "format": "permission-token"
+                        "description": "Optional token providing proof the requester can read the record, verifiable by the resource server (if the record has delegated its permissions to another DID)."
                     }
                 }
             },
@@ -47,7 +46,7 @@
                     "properties": {
                         "uri": {
                             "type": "string",
-                            "format": "habitat-uri"
+                            "description": "The habitat-uri for this record."
                         },
                         "value": {
                             "type": "unknown"

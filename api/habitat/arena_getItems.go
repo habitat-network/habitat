@@ -9,6 +9,6 @@ type NetworkHabitatArenaGetItemsParams struct {
 
 // NetworkHabitatArenaGetItemsOutput represents the output for network.habitat.arena.getItems
 type NetworkHabitatArenaGetItemsOutput struct {
-	AllowToken string   `json:"allowToken"`
-	Items      []string `json:"items"`
+	AllowToken string                              `json:"allowToken"`
+	Items      []NetworkHabitatArenaGetItemsRecord `json:"items"`
 }
