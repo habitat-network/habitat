@@ -46,6 +46,7 @@ func TestNotificationIngester(t *testing.T) {
 
 	t.Run("ingests commit events and creates notification", func(t *testing.T) {
 		// First, create the record that will be shadowed by the notification
+		// The record should be in the sender's repo (originDid), not the recipient's
 		shadowedRecord := map[string]any{
 			"$type": "app.bsky.feed.like",
 			"subject": map[string]any{
@@ -55,7 +56,11 @@ func TestNotificationIngester(t *testing.T) {
 		}
 		// Access the repo through the store (we're in the same package, so we can cast)
 		sqliteRepo := repo.(*sqliteRepo)
-		err := sqliteRepo.PutRecord("did:plc:recipient", "app.bsky.feed.like.abc123", shadowedRecord, nil)
+		// Put the record in the sender's repo (originDid)
+		err := sqliteRepo.PutRecord("did:plc:sender", "app.bsky.feed.like.abc123", shadowedRecord, nil)
+		require.NoError(t, err)
+		// Grant permission to recipient to read sender's records
+		err = perms.AddLexiconReadPermission([]string{"did:plc:recipient"}, "did:plc:sender", "app.bsky.feed.like")
 		require.NoError(t, err)
 
 		record := notificationRecord{
@@ -102,108 +107,115 @@ func TestNotificationIngester(t *testing.T) {
 		require.NotNil(t, n.LastSuccessfulFetch, "LastSuccessfulFetch should be set when fetch succeeds")
 	})
 
-	t.Run("creates notification with empty value when forwarding not implemented", func(t *testing.T) {
-		// Test case: origin DID doesn't exist in our repo (forwarding not implemented)
-		record := notificationRecord{
-			Did:        "did:plc:unknown", // This DID doesn't exist in our repo
-			Collection: "app.bsky.feed.like",
-			Rkey:       "somekey",
-		}
-		recordBytes, err := json.Marshal(record)
-		require.NoError(t, err)
-
-		event := &models.Event{
-			Did:  "did:plc:sender",
-			Kind: models.EventKindCommit,
-			Commit: &models.Commit{
-				Operation:  models.CommitOperationCreate,
-				Collection: "app.bsky.feed.like",
-				RKey:       "somekey",
-				Record:     recordBytes,
-			},
-		}
-
-		err = ingester.Ingest(ctx, event)
-		require.NoError(t, err)
-
-		// Verify notification was created with empty value
-		var notifications []Notification
-		err = db.Find(&notifications).Error
-		require.NoError(t, err)
-
-		// Find the notification we just created
-		var notification *Notification
-		for i := range notifications {
-			if notifications[i].Did == "did:plc:unknown" && notifications[i].Rkey == "somekey" {
-				notification = &notifications[i]
-				break
-			}
-		}
-		require.NotNil(t, notification, "notification should be created")
-		require.Equal(t, "did:plc:unknown", notification.Did)
-		require.Equal(t, "did:plc:sender", notification.OriginDid)
-		require.Equal(t, "app.bsky.feed.like", notification.Collection)
-		require.Equal(t, "somekey", notification.Rkey)
-		// Value should be empty string when forwarding not implemented
-		require.Empty(t, notification.Value, "value should be empty when record fetch fails due to forwarding not implemented")
-		// Verify fetch failure is tracked
-		require.True(t, notification.LastFetchFailed, "LastFetchFailed should be true when fetch fails")
-		require.Nil(t, notification.LastSuccessfulFetch, "LastSuccessfulFetch should be nil when fetch fails")
-	})
-
-	t.Run("creates notification with empty value when record not found", func(t *testing.T) {
-		// Test case: origin DID exists but record doesn't exist
-		// First ensure the DID exists by creating a different record for it
+	t.Run("creates notification with empty value when record fetch fails", func(t *testing.T) {
 		sqliteRepo := repo.(*sqliteRepo)
-		err := sqliteRepo.PutRecord("did:plc:recipient", "app.bsky.feed.like.otherkey", map[string]any{"data": "value"}, nil)
-		require.NoError(t, err)
+		senderDID := "did:plc:sender"
+		collection := "app.bsky.feed.like"
 
-		// Now try to fetch a record that doesn't exist for this DID
-		record := notificationRecord{
-			Did:        "did:plc:recipient", // This DID exists in our repo
-			Collection: "app.bsky.feed.like",
-			Rkey:       "notfound", // But this record doesn't exist
+		// Setup: Create a record for unauthorized test case
+		ownerDID := "did:plc:owner123"
+		unauthorizedCallerDID := "did:plc:unauthorized456"
+		existingRecord := map[string]any{
+			"$type": "app.bsky.feed.like",
+			"subject": map[string]any{
+				"uri": "at://did:plc:owner123/app.bsky.feed.post/xyz789",
+			},
 		}
-		recordBytes, err := json.Marshal(record)
+		err := sqliteRepo.PutRecord(ownerDID, "app.bsky.feed.like.authztest", existingRecord, nil)
 		require.NoError(t, err)
 
-		event := &models.Event{
-			Did:  "did:plc:sender",
-			Kind: models.EventKindCommit,
-			Commit: &models.Commit{
-				Operation:  models.CommitOperationCreate,
-				Collection: "app.bsky.feed.like",
-				RKey:       "notfound",
-				Record:     recordBytes,
+		// Ensure ownerDID exists in repo for record not found test
+		err = sqliteRepo.PutRecord(ownerDID, "app.bsky.feed.like.otherkey", map[string]any{"data": "value"}, nil)
+		require.NoError(t, err)
+
+		tests := []struct {
+			name          string
+			recordDid     string // The recipient (notification's Did field)
+			eventDid      string // The sender (notification's OriginDid field)
+			recordRkey    string
+			expectedDid   string // Expected notification Did
+			expectedRkey  string
+			failureReason string
+		}{
+			{
+				name:          "forwarding not implemented",
+				recordDid:     "did:plc:unknown",
+				eventDid:      senderDID,
+				recordRkey:    "somekey",
+				expectedDid:   "did:plc:unknown",
+				expectedRkey:  "somekey",
+				failureReason: "forwarding not implemented",
+			},
+			{
+				name:          "record not found",
+				recordDid:     ownerDID, // Recipient
+				eventDid:      ownerDID, // Sender (has repo, but record doesn't exist)
+				recordRkey:    "notfound",
+				expectedDid:   ownerDID,
+				expectedRkey:  "notfound",
+				failureReason: "record not found",
+			},
+			{
+				name:          "unauthorized",
+				recordDid:     unauthorizedCallerDID, // Recipient doesn't have permission
+				eventDid:      ownerDID,              // Sender owns the record
+				recordRkey:    "authztest",
+				expectedDid:   unauthorizedCallerDID,
+				expectedRkey:  "authztest",
+				failureReason: "unauthorized",
 			},
 		}
 
-		err = ingester.Ingest(ctx, event)
-		require.NoError(t, err)
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				// Create notification record
+				record := notificationRecord{
+					Did:        tt.recordDid,
+					Collection: collection,
+					Rkey:       tt.recordRkey,
+				}
+				recordBytes, err := json.Marshal(record)
+				require.NoError(t, err)
 
-		// Verify notification was created with empty value
-		var notifications []Notification
-		err = db.Find(&notifications).Error
-		require.NoError(t, err)
+				event := &models.Event{
+					Did:  tt.eventDid,
+					Kind: models.EventKindCommit,
+					Commit: &models.Commit{
+						Operation:  models.CommitOperationCreate,
+						Collection: collection,
+						RKey:       tt.recordRkey,
+						Record:     recordBytes,
+					},
+				}
 
-		// Find the notification we just created
-		var notification *Notification
-		for i := range notifications {
-			if notifications[i].Did == "did:plc:recipient" && notifications[i].Rkey == "notfound" {
-				notification = &notifications[i]
-				break
-			}
+				err = ingester.Ingest(ctx, event)
+				require.NoError(t, err)
+
+				// Verify notification was created with empty value
+				var notifications []Notification
+				err = db.Find(&notifications).Error
+				require.NoError(t, err)
+
+				// Find the notification we just created
+				var notification *Notification
+				for i := range notifications {
+					if notifications[i].Did == tt.expectedDid && notifications[i].Rkey == tt.expectedRkey {
+						notification = &notifications[i]
+						break
+					}
+				}
+				require.NotNil(t, notification, "notification should be created")
+				require.Equal(t, tt.expectedDid, notification.Did)
+				require.Equal(t, tt.eventDid, notification.OriginDid)
+				require.Equal(t, collection, notification.Collection)
+				require.Equal(t, tt.expectedRkey, notification.Rkey)
+				// Value should be empty string when record fetch fails
+				require.Empty(t, notification.Value, "value should be empty when record fetch fails: %s", tt.failureReason)
+				// Verify fetch failure is tracked
+				require.True(t, notification.LastFetchFailed, "LastFetchFailed should be true when fetch fails: %s", tt.failureReason)
+				require.Nil(t, notification.LastSuccessfulFetch, "LastSuccessfulFetch should be nil when fetch fails: %s", tt.failureReason)
+			})
 		}
-		require.NotNil(t, notification, "notification should be created")
-		require.Equal(t, "did:plc:recipient", notification.Did)
-		require.Equal(t, "did:plc:sender", notification.OriginDid)
-		require.Equal(t, "app.bsky.feed.like", notification.Collection)
-		require.Equal(t, "notfound", notification.Rkey)
-		// Value should be empty string when record not found
-		require.Empty(t, notification.Value, "value should be empty when record not found")
-		// Verify fetch failure is tracked
-		require.True(t, notification.LastFetchFailed, "LastFetchFailed should be true when record not found")
-		require.Nil(t, notification.LastSuccessfulFetch, "LastSuccessfulFetch should be nil when record not found")
 	})
 
 	t.Run("updates LastFetchFailed and LastSuccessfulFetch on retry", func(t *testing.T) {
@@ -231,22 +243,19 @@ func TestNotificationIngester(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify initial state - fetch should have failed
+		// Query for the specific notification by known attributes
 		var notifications []Notification
-		err = db.Find(&notifications).Error
+		err = db.Where("did = ? AND origin_did = ? AND collection = ? AND rkey = ?",
+			"did:plc:recipient", "did:plc:sender", "app.bsky.feed.like", "retrytest").Find(&notifications).Error
 		require.NoError(t, err)
+		require.Len(t, notifications, 1, "should have exactly one matching notification")
 
-		var notification *Notification
-		for i := range notifications {
-			if notifications[i].Rkey == "retrytest" {
-				notification = &notifications[i]
-				break
-			}
-		}
-		require.NotNil(t, notification)
+		notification := notifications[0]
 		require.True(t, notification.LastFetchFailed, "initial fetch should fail")
 		require.Nil(t, notification.LastSuccessfulFetch, "initial fetch should not have successful timestamp")
 
 		// Now create the record and ingest again (simulating a retry)
+		// The record should be in the sender's repo (originDid), not the recipient's
 		sqliteRepo := repo.(*sqliteRepo)
 		shadowedRecord := map[string]any{
 			"$type": "app.bsky.feed.like",
@@ -254,27 +263,33 @@ func TestNotificationIngester(t *testing.T) {
 				"uri": "at://did:plc:recipient/app.bsky.feed.post/xyz789",
 			},
 		}
-		err = sqliteRepo.PutRecord("did:plc:recipient", "app.bsky.feed.like.retrytest", shadowedRecord, nil)
+		err = sqliteRepo.PutRecord("did:plc:sender", "app.bsky.feed.like.retrytest", shadowedRecord, nil)
 		require.NoError(t, err)
+		// Grant permission to recipient to read sender's records
+		err = perms.AddLexiconReadPermission([]string{"did:plc:recipient"}, "did:plc:sender", "app.bsky.feed.like")
+		require.NoError(t, err)
+
+		// Verify the record exists before retry
+		verifyRecord, err := sqliteRepo.GetRecord("did:plc:sender", "app.bsky.feed.like.retrytest")
+		require.NoError(t, err, "record should exist before retry")
+		require.NotNil(t, verifyRecord)
 
 		// Ingest the same event again
 		err = ingester.Ingest(ctx, event)
 		require.NoError(t, err)
 
 		// Verify updated state - fetch should now succeed
-		err = db.Find(&notifications).Error
+		// Query for the specific notification by known attributes
+		var updatedNotifications []Notification
+		err = db.Where("did = ? AND origin_did = ? AND collection = ? AND rkey = ?",
+			"did:plc:recipient", "did:plc:sender", "app.bsky.feed.like", "retrytest").Find(&updatedNotifications).Error
 		require.NoError(t, err)
+		require.Len(t, updatedNotifications, 1, "should have exactly one matching notification after retry")
 
-		for i := range notifications {
-			if notifications[i].Rkey == "retrytest" {
-				notification = &notifications[i]
-				break
-			}
-		}
-		require.NotNil(t, notification)
-		require.False(t, notification.LastFetchFailed, "retry fetch should succeed")
-		require.NotNil(t, notification.LastSuccessfulFetch, "retry fetch should have successful timestamp")
-		require.NotEmpty(t, notification.Value, "value should be populated after successful fetch")
+		updatedNotification := updatedNotifications[0]
+		require.False(t, updatedNotification.LastFetchFailed, "retry fetch should succeed")
+		require.NotNil(t, updatedNotification.LastSuccessfulFetch, "retry fetch should have successful timestamp")
+		require.NotEmpty(t, updatedNotification.Value, "value should be populated after successful fetch")
 	})
 }
 
