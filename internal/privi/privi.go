@@ -26,10 +26,11 @@ type store struct {
 }
 
 var (
-	ErrPublicRecordExists      = fmt.Errorf("a public record exists with the same key")
-	ErrNoPutsOnEncryptedRecord = fmt.Errorf("directly put-ting to this lexicon is not valid")
-	ErrNotLocalRepo            = fmt.Errorf("the desired did does not live on this repo")
-	ErrUnauthorized            = fmt.Errorf("unauthorized request")
+	ErrPublicRecordExists       = fmt.Errorf("a public record exists with the same key")
+	ErrNoPutsOnEncryptedRecord  = fmt.Errorf("directly put-ting to this lexicon is not valid")
+	ErrNotLocalRepo             = fmt.Errorf("the desired did does not live on this repo")
+	ErrUnauthorized             = fmt.Errorf("unauthorized request")
+	ErrForwardingNotImplemented = fmt.Errorf("forwarding not implemented")
 )
 
 // TODO: take in a carfile/sqlite where user's did is persisted
@@ -61,6 +62,15 @@ func (p *store) getRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
+
+	has, err := p.hasRepoForDid(targetDID.String())
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, ErrForwardingNotImplemented
+	}
+
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
 		callerDID.String(),
@@ -83,6 +93,14 @@ func (p *store) listRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	callerDID syntax.DID,
 ) ([]Record, error) {
+	has, err := p.hasRepoForDid(params.Repo)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, ErrForwardingNotImplemented
+	}
+
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
 		params.Repo,
 		callerDID.String(),
