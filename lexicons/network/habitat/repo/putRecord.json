@@ -46,11 +46,8 @@
             "grantees": {
               "type": "array",
               "items": {
-                "type": "union",
-                "refs": [
-                  "#didGrantee",
-                  "#arenaGrantee"
-                ]
+                "type": "string",
+                "description": "Grantees as either DIDs or Arena refs [TODO: make a union]"
               }
             },
             "createArena": {
@@ -82,14 +79,6 @@
           }
         }
       }
-    },
-    "didGrantee": {
-      "type": "string",
-      "format": "did"
-    },
-    "arenaGrantee": {
-      "type": "string",
-      "description": "The habitat-uri of the arena to delegate permissions to."
     }
   }
 }
