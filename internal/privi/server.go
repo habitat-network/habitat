@@ -181,6 +181,21 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	has, err := s.store.hasRepoForDid(targetDID.String())
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "checking if repo exists", http.StatusInternalServerError)
+		return
+	}
+	if !has {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("request forwarding not implemented"),
+			fmt.Sprintf("could not forward request for did: %s", targetDID.String()),
+			http.StatusNotImplemented,
+		)
+		return
+	}
+
 	record, err := s.store.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
 		if errors.Is(err, ErrRecordNotFound) {
