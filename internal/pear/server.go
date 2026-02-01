@@ -198,6 +198,9 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
 			return
+		} else if errors.Is(err, ErrForwardingNotImplemented) {
+			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
+			return
 		}
 		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
 		return
@@ -337,22 +340,11 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	params.Repo = did.String()
 	records, err := s.pear.listRecords(&params, callerDID)
 	if err != nil {
+		if errors.Is(err, ErrForwardingNotImplemented) {
+			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
+			return
+		}
 		utils.LogAndHTTPError(w, err, "listing records", http.StatusInternalServerError)
-		return
-	}
-
-	has, err := s.pear.hasRepoForDid(did.String())
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking if repo exists", http.StatusInternalServerError)
-		return
-	}
-	if !has {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("request forwarding not implemented"),
-			fmt.Sprintf("could not forward request for did: %s", did.String()),
-			http.StatusNotImplemented,
-		)
 		return
 	}
 
