@@ -1188,11 +1188,9 @@ export const schemaDict = {
               grantees: {
                 type: 'array',
                 items: {
-                  type: 'union',
-                  refs: [
-                    'lex:network.habitat.repo.putRecord#didGrantee',
-                    'lex:network.habitat.repo.putRecord#arenaGrantee',
-                  ],
+                  type: 'string',
+                  description:
+                    'Grantees as either DIDs or Arena refs [TODO: make a union]',
                 },
               },
               createArena: {
@@ -1220,14 +1218,6 @@ export const schemaDict = {
             },
           },
         },
-      },
-      didGrantee: {
-        type: 'string',
-        format: 'did',
-      },
-      arenaGrantee: {
-        type: 'string',
-        description: 'The habitat-uri of the arena to delegate permissions to.',
       },
     },
   },

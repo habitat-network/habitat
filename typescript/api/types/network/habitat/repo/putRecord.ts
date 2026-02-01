@@ -28,7 +28,7 @@ export interface InputSchema {
   validate?: boolean
   /** The record to write. */
   record: { [_ in string]: unknown }
-  grantees?: ($Typed<DidGrantee> | $Typed<ArenaGrantee> | { $type: string })[]
+  grantees?: string[]
   /** Whether to create an arena, allowing all grantees to aggregate records under this arena. */
   createArena?: boolean
 }
@@ -55,7 +55,3 @@ export interface Response {
 export function toKnownErr(e: any) {
   return e
 }
-
-export type DidGrantee = string
-/** The habitat-uri of the arena to delegate permissions to. */
-export type ArenaGrantee = string
