@@ -1,0 +1,32 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.internal.notifyOfUpdate",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Notify another DID that there is an update for them on the fiven record.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "collection",
+                        "did"
+                    ],
+                    "properties": {
+                        "collection": {
+                            "type": "string",
+                            "format": "nsid",
+                            "description": "The NSID of the record collection that the update is for."
+                        },
+                        "did": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "The DID to grant permission to (URL parameter)."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
