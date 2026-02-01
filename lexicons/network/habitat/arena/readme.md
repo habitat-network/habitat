@@ -1,0 +1,1 @@
+This sub-folder contains lexicon definitions for arena-related APIs.
