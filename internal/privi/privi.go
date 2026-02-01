@@ -8,6 +8,15 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 )
 
+// Store is the interface for the private data store
+type Store interface {
+	PutRecord(did string, collection string, record map[string]any, rkey string, validate *bool) error
+	GetRecord(collection string, rkey string, targetDID syntax.DID, callerDID syntax.DID) (*Record, error)
+	ListRecords(params *habitat.NetworkHabitatRepoListRecordsParams, callerDID syntax.DID) ([]Record, error)
+	HasRepoForDid(did string) (bool, error)
+	Permissions() permissions.Store
+}
+
 // Privi is an ATProto PDS Wrapper which allows for storing & getting private data.
 // It does this by encrypting data, then storing it in blob. A special lexicon for this purpose,
 // identified by network.habitat.encryptedRecord, points to the blob storing the actual data.
@@ -16,13 +25,14 @@ import (
 // the same API has com.atproto.putRecord and com.atproto.getRecord.
 //
 // TODO: formally define the network.habitat.encryptedRecord and change it to a domain we actually own :)
+// store is the internal store for private data. It handles permissions and record access.
 type store struct {
 	// TODO: consider encrypting at rest. We probably do not want to do this but do want to construct a wholly separate MST for private data.
 	// e           Encrypter
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
-	repo *sqliteRepo
+	repo SQLiteRepo
 }
 
 var (
@@ -34,17 +44,17 @@ var (
 )
 
 // TODO: take in a carfile/sqlite where user's did is persisted
-func newStore(perms permissions.Store, repo *sqliteRepo) *store {
+func newStore(perms permissions.Store, repo SQLiteRepo) *store {
 	return &store{
 		permissions: perms,
 		repo:        repo,
 	}
 }
 
-// putRecord puts the given record on the repo connected to this store (currently an in-memory repo that is a KV store)
+// PutRecord puts the given record on the repo connected to this store (currently an in-memory repo that is a KV store)
 // It does not do any encryption, permissions, auth, etc. It is assumed that only the owner of the store can call this and that
 // is gated by some higher up level. This should be re-written in the future to not give any incorrect impression.
-func (p *store) putRecord(
+func (p *store) PutRecord(
 	did string,
 	collection string,
 	record map[string]any,
@@ -52,18 +62,18 @@ func (p *store) putRecord(
 	validate *bool,
 ) error {
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into privi.
-	return p.repo.putRecord(did, fmt.Sprintf("%s.%s", collection, rkey), record, validate)
+	return p.repo.PutRecord(did, fmt.Sprintf("%s.%s", collection, rkey), record, validate)
 }
 
-// getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
-func (p *store) getRecord(
+// GetRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
+func (p *store) GetRecord(
 	collection string,
 	rkey string,
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
 
-	has, err := p.hasRepoForDid(targetDID.String())
+	has, err := p.HasRepoForDid(targetDID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -86,14 +96,14 @@ func (p *store) getRecord(
 		return nil, ErrUnauthorized
 	}
 
-	return p.repo.getRecord(string(targetDID), fmt.Sprintf("%s.%s", collection, rkey))
+	return p.repo.GetRecord(string(targetDID), fmt.Sprintf("%s.%s", collection, rkey))
 }
 
-func (p *store) listRecords(
+func (p *store) ListRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	callerDID syntax.DID,
 ) ([]Record, error) {
-	has, err := p.hasRepoForDid(params.Repo)
+	has, err := p.HasRepoForDid(params.Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +120,18 @@ func (p *store) listRecords(
 		return nil, err
 	}
 
-	return p.repo.listRecords(params, allow, deny)
+	return p.repo.ListRecords(params, allow, deny)
 }
 
-func (p *store) hasRepoForDid(did string) (bool, error) {
-	has, err := p.repo.hasRepoForDid(did)
-	if err != nil {
-		return false, err
-	}
-	return has, nil
+func (p *store) HasRepoForDid(did string) (bool, error) {
+	return p.repo.HasRepoForDid(did)
+}
+
+func (p *store) Permissions() permissions.Store {
+	return p.permissions
+}
+
+// NewStore creates a new store instance
+func NewStore(perms permissions.Store, repo SQLiteRepo) Store {
+	return newStore(perms, repo)
 }

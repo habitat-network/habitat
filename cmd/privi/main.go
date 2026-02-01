@@ -120,7 +120,21 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore)
-	priviServer := setupPriviServer(db, pdsCredStore, oauthServer)
+
+	// Setup permission store
+	permissionStore, err := permissions.NewSQLiteStore(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup permissions store")
+	}
+
+	// Setup repo and store (shared between server and notification ingester)
+	repo, err := privi.NewSQLiteRepo(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
+	}
+	store := privi.NewStore(permissionStore, repo)
+
+	priviServer := setupPriviServer(db, pdsCredStore, oauthServer, store, repo)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
 
 	// Create error group for managing goroutines
@@ -142,7 +156,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 
 		log.Info().Msg("starting notification listener")
-		ingester, err := privi.NewNotificationIngester(db)
+		ingester, err := privi.NewNotificationIngester(db, store)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to setup notification ingester")
 		}
@@ -257,20 +271,12 @@ func setupPriviServer(
 	db *gorm.DB,
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
+	store privi.Store,
+	repo privi.SQLiteRepo,
 ) *privi.Server {
-	repo, err := privi.NewSQLiteRepo(db)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
-	}
-
-	permissionStore, err := permissions.NewSQLiteStore(db)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup permissions store")
-	}
-
 	inbox := privi.NewInbox(db)
 
-	return privi.NewServer(permissionStore, repo, inbox, oauthServer, credStore)
+	return privi.NewServer(store, repo, inbox, oauthServer, credStore)
 }
 
 func setupOAuthServer(
