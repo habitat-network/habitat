@@ -34,8 +34,8 @@ type repo struct {
 
 type Record struct {
 	Did        string `gorm:"primaryKey"`
+	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
-	Collection string
 	Rec        string
 }
 
@@ -85,9 +85,8 @@ func (r *repo) putRecord(did string, collection string, rkey string, rec map[str
 		return err
 	}
 
-	// Store the combined rkey format: collection.rkey
-	combinedRkey := fmt.Sprintf("%s.%s", collection, rkey)
-	record := Record{Did: did, Rkey: combinedRkey, Collection: collection, Rec: string(bytes)}
+	// Store rkey directly (no concatenation with collection)
+	record := Record{Did: did, Rkey: rkey, Collection: collection, Rec: string(bytes)}
 	// Always put (even if something exists).
 	return gorm.G[Record](
 		r.db,
@@ -101,11 +100,10 @@ var (
 )
 
 func (r *repo) getRecord(did string, collection string, rkey string) (*Record, error) {
-	// Query using the combined rkey format: collection.rkey
-	combinedRkey := fmt.Sprintf("%s.%s", collection, rkey)
+	// Query using separate collection and rkey fields
 	row, err := gorm.G[Record](
 		r.db,
-	).Where("did = ? and rkey = ?", did, combinedRkey).
+	).Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
 		First(context.Background())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
@@ -176,35 +174,94 @@ func (r *repo) listRecords(
 		return []Record{}, nil
 	}
 
+	// Start with base query filtering by did and collection
 	query := gorm.G[Record](
 		r.db.Debug(),
 	).Where("did = ?", params.Repo).
-		Where("rkey LIKE ?", params.Collection+".%")
+		Where("collection = ?", params.Collection)
 
 	// Build OR conditions for allow list
+	// Permissions are stored in format: "collection" or "collection.*" or "collection.rkey"
 	if len(allow) > 0 {
-		allowConditions := r.db.Where("1 = 0") // Start with false condition
+		// Check if any allow condition grants access to all records in the collection
+		hasWildcard := false
+		specificRkeys := []string{}
+
 		for _, a := range allow {
 			if strings.HasSuffix(a, "*") {
-				// Wildcard match
+				// Wildcard match: "collection.*" or "parent.*" - check if it matches this collection
 				prefix := strings.TrimSuffix(a, "*")
-				allowConditions = allowConditions.Or("rkey LIKE ?", prefix+"%")
+				// Trim trailing dot if present (e.g., "collection.*" -> "collection.")
+				prefix = strings.TrimSuffix(prefix, ".")
+				if prefix == params.Collection || strings.HasPrefix(params.Collection, prefix+".") {
+					// Exact match or parent collection wildcard
+					hasWildcard = true
+					break // If we have a wildcard, we don't need to check specific rkeys
+				}
+			} else if a == params.Collection {
+				// Exact collection match: "collection" - match all rkeys in this collection
+				hasWildcard = true
+				break
+			} else if strings.HasPrefix(a, params.Collection+".") {
+				// Specific record: "collection.rkey" - extract rkey
+				rkey := strings.TrimPrefix(a, params.Collection+".")
+				specificRkeys = append(specificRkeys, rkey)
 			} else {
-				// Exact match
-				allowConditions = allowConditions.Or("rkey = ?", a)
+				// Fallback: exact match on rkey (for backwards compatibility)
+				specificRkeys = append(specificRkeys, a)
 			}
 		}
-		query = query.Where(allowConditions)
+
+		// If we have a wildcard, no need to filter by rkey (collection filter is enough)
+		// Otherwise, filter by specific rkeys
+		if !hasWildcard && len(specificRkeys) > 0 {
+			query = query.Where("rkey IN ?", specificRkeys)
+		}
+		// If hasWildcard is true, we don't add any rkey filter (matches all in collection)
 	}
 
-	// Build deny conditions - use NOT LIKE or != for each deny pattern
+	// Build deny conditions
+	// Permissions are stored in format: "collection" or "collection.*" or "collection.rkey"
+	hasCollectionDeny := false
+	deniedRkeys := []string{}
+
 	for _, d := range deny {
 		if strings.HasSuffix(d, "*") {
+			// Wildcard deny: "collection.*" or "parent.*" - check if it matches this collection
 			prefix := strings.TrimSuffix(d, "*")
-			query = query.Where("rkey NOT LIKE ?", prefix+"%")
+			// Trim trailing dot if present (e.g., "collection.*" -> "collection.")
+			prefix = strings.TrimSuffix(prefix, ".")
+			// Check exact match first
+			if prefix == params.Collection {
+				hasCollectionDeny = true
+				break
+			}
+			// Check if this is a parent collection wildcard (e.g., "network.habitat.*" matches "network.habitat.collection-2")
+			if strings.HasPrefix(params.Collection, prefix+".") {
+				hasCollectionDeny = true
+				break
+			}
+		} else if d == params.Collection {
+			// Exact collection deny: "collection" - deny all rkeys in this collection
+			hasCollectionDeny = true
+			break
+		} else if strings.HasPrefix(d, params.Collection+".") {
+			// Specific record deny: "collection.rkey" - extract rkey and deny
+			rkey := strings.TrimPrefix(d, params.Collection+".")
+			deniedRkeys = append(deniedRkeys, rkey)
 		} else {
-			query = query.Where("rkey != ?", d)
+			// Fallback: exact deny on rkey (for backwards compatibility)
+			deniedRkeys = append(deniedRkeys, d)
 		}
+	}
+
+	// Apply deny conditions
+	if hasCollectionDeny {
+		// Deny all records in this collection - return empty result
+		return []Record{}, nil
+	} else if len(deniedRkeys) > 0 {
+		// Deny specific rkeys
+		query = query.Where("rkey NOT IN ?", deniedRkeys)
 	}
 
 	// Cursor-based pagination
