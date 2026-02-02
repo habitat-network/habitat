@@ -336,7 +336,6 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
 	}
 	for _, record := range records {
-		// Rkey now stores just the rkey (no collection prefix)
 		next := habitat.NetworkHabitatRepoListRecordsRecord{
 			Uri: fmt.Sprintf(
 				"habitat://%s/%s/%s",

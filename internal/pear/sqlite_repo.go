@@ -90,7 +90,14 @@ func (r *repo) putRecord(did string, collection string, rkey string, rec map[str
 	// Always put (even if something exists).
 	return gorm.G[Record](
 		r.db,
-		clause.OnConflict{UpdateAll: true},
+		clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "did"},
+				{Name: "collection"},
+				{Name: "rkey"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{"rec"}),
+		},
 	).Create(context.Background(), &record)
 }
 
