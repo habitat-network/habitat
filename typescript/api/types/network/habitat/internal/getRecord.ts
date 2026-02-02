@@ -13,37 +13,29 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.repo.putRecord'
+const id = 'network.habitat.internal.getRecord'
 
-export type QueryParams = {}
-
-export interface InputSchema {
-  /** The handle or DID of the repo (aka, current account). */
+export type QueryParams = {
+  /** The handle or DID of the repo. */
   repo: string
   /** The NSID of the record collection. */
   collection: string
   /** The Record Key. */
   rkey: string
-  /** Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons. */
-  validate?: boolean
-  /** The record to write. */
-  record: { [_ in string]: unknown }
-  grantees?: string[]
-  /** Whether to create an arena, allowing all grantees to aggregate records under this arena. */
-  createArena?: boolean
+  /** Optional token providing proof the requester can read the record, verifiable by the resource server (if the record has delegated its permissions to another DID). */
+  allowToken?: string
 }
+export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** The habitat-uri of the put-ed object. */
+  /** The habitat-uri for this record. */
   uri: string
-  validationStatus?: 'valid' | 'unknown' | (string & {})
+  value: { [_ in string]: unknown }
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {
@@ -52,6 +44,16 @@ export interface Response {
   data: OutputSchema
 }
 
+export class RecordNotFoundError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
 export function toKnownErr(e: any) {
+  if (e instanceof XRPCError) {
+    if (e.error === 'RecordNotFound') return new RecordNotFoundError(e)
+  }
+
   return e
 }

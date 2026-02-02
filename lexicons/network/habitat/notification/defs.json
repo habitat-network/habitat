@@ -4,7 +4,12 @@
   "defs": {
     "notification": {
       "type": "object",
-      "required": ["did", "originDid", "collection", "rkey"],
+      "required": [
+        "did",
+        "originDid",
+        "collection",
+        "rkey"
+      ],
       "properties": {
         "did": {
           "type": "string",

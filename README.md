@@ -1,41 +1,33 @@
 # Habiat
 
-## External Tools
+## Environement Setup
 
-To run all the code and tooling in this repository, you will need to have the following installe:
+All external tools are managed by [proto](https://moonrepo.dev/docs/proto) which installs the correct versions declared in [.prototools](.prototools). To get setup, run:
 
-- GNU Make > v4 (this should be available through xcode)
-- Docker Engine and the Docker CLI: https://docs.docker.com/engine/install/
-- golangci-lint: https://golangci-lint.run/usage/install/
-- go-test-coverage: Run `go install github.com/vladopajic/go-test-coverage/v2@latest`
-- pnpm: https://pnpm.io/installation
-- NodeJS: https://nodejs.org/en/download/package-manager
+```
+bash <(curl -fsSL https://moonrepo.dev/install/proto.sh)
+proto install
+```
 
+### Moonrepo
 
-### Configuration for Local Development
-
-Need dev.env with TS_AUTHKEY and TS_DOMAIN populated.
-You can get this from tailscale admin page. The first time you run, there will be a prompt taking you to a link to generate an auth key.
-
-TODO: how to get domain on first time setup?
+We use [moonrepo](https://moonrepo.dev/docs) to manage our monorepo. A crash course is available in [.moon/README.md](.moon/README.md).
 
 ## Local Development
 
-We use moon to manage dependencies and builds.
+`moon :dev` tasks read environment variables from `dev.env` which is gitignored.
 
-Running `moon frontend:dev` should be sufficient because frontend is the top-most dependency.
-If funnel fails to build, do `moon funnel:build`
+### Tailscale Funnel
 
-## Testing
+We use Tailscale Funnel to make local services reachable from the public internet. 
+The following environment variables are required: 
+- TS_AUTHKEY (can be generate [here](https://login.tailscale.com/admin/settings/keys))
+- TS_DOMAIN (your Tailnet DNS name found [here](https://login.tailscale.com/admin/dns)) populated.
 
-To run all unit tests, run:
+### Running Habitat frontend
 
-```
-make test
-```
-
-There is also a make-rule for getting test coverage, which will open a file in your browser showing the coverage information for various files:
+The following command will spin up the primary frontend and backend services:
 
 ```
-make test-coverage
+moon frontend:dev
 ```

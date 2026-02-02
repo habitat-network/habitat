@@ -7,7 +7,11 @@
       "description": "Get a single record from a repository",
       "parameters": {
         "type": "params",
-        "required": ["repo", "collection", "rkey"],
+        "required": [
+          "repo",
+          "collection",
+          "rkey"
+        ],
         "properties": {
           "repo": {
             "type": "string",
@@ -30,14 +34,26 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri", "value"],
+          "required": [
+            "uri",
+            "value"
+          ],
           "properties": {
-            "uri": { "type": "string", "format": "at-uri" },
-            "value": { "type": "unknown" }
+            "uri": {
+              "type": "string",
+              "description": "The habitat-uri for this record."
+            },
+            "value": {
+              "type": "unknown"
+            }
           }
         }
       },
-      "errors": [{ "name": "RecordNotFound" }]
+      "errors": [
+        {
+          "name": "RecordNotFound"
+        }
+      ]
     }
   }
 }

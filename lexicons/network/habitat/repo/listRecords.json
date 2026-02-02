@@ -1,35 +1,47 @@
 {
   "lexicon": 1,
-  "id": "network.habitat.repo.listRecords",
+  "id": "network.habitat.listRecords",
   "defs": {
     "main": {
-      "type": "query",
-      "description": "List a range of records in a repository, matching a specific collection",
-      "parameters": {
-        "type": "params",
-        "required": ["repo", "collection"],
-        "properties": {
-          "repo": {
-            "type": "string",
-            "format": "at-identifier",
-            "description": "The handle or DID of the repo."
-          },
-          "collection": {
-            "type": "string",
-            "format": "nsid",
-            "description": "The NSID of the record type."
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 50,
-            "description": "The number of records to return."
-          },
-          "cursor": { "type": "string" },
-          "reverse": {
-            "type": "boolean",
-            "description": "Flag to reverse the order of the returned records."
+      "type": "procedure",
+      "description": "List records with optional filters for subjects, lexicons, and timestamps.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "subjects",
+            "collection"
+          ],
+          "properties": {
+            "subjects": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "Repos (DIDs) or arenas (habitat-uris) to search from to retrieve records."
+              }
+            },
+            "collection": {
+              "type": "string",
+              "description": "Filter by specific lexicons",
+              "items": {
+                "type": "string",
+                "format": "nsid"
+              }
+            },
+            "since": {
+              "type": "string",
+              "description": "Allow getting records that are strictly newer or updated since a certain time.",
+              "format": "datetime"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "[UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API)."
+            },
+            "cursor": {
+              "type": "string",
+              "description": "[UNIMPLEMENTED] Cursor of the returned list."
+            }
           }
         }
       },
@@ -37,12 +49,19 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["records"],
+          "required": [
+            "records"
+          ],
           "properties": {
-            "cursor": { "type": "string" },
+            "cursor": {
+              "type": "string"
+            },
             "records": {
               "type": "array",
-              "items": { "type": "ref", "ref": "#record" }
+              "items": {
+                "type": "ref",
+                "ref": "#record"
+              }
             }
           }
         }
@@ -50,11 +69,23 @@
     },
     "record": {
       "type": "object",
-      "required": ["uri", "cid", "value"],
+      "required": [
+        "uri",
+        "cid",
+        "value"
+      ],
       "properties": {
-        "uri": { "type": "string", "format": "at-uri" },
-        "cid": { "type": "string", "format": "cid" },
-        "value": { "type": "unknown" }
+        "uri": {
+          "type": "string",
+          "description": "URI reference to the record, formatted as a habitat-uri."
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        },
+        "value": {
+          "type": "unknown"
+        }
       }
     }
   }

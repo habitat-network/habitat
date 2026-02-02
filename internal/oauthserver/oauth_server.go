@@ -298,8 +298,6 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
-	// Set the sub field in the response body with the user's DID
-	resp.SetExtra("sub", req.GetSession().GetSubject())
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
