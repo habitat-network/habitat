@@ -168,3 +168,30 @@ func TestListRecords(t *testing.T) {
 		require.Empty(t, records)
 	})
 }
+
+// TODO: eventually test permissions with blobs here
+func TestPearUploadAndGetBlob(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	perms, err := permissions.NewSQLiteStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db)
+	require.NoError(t, err)
+	pear := newPermissionEnforcingRepo(perms, repo)
+
+	did := "did:example:alice"
+	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
+	blob := []byte("this is my test blob")
+	mtype := "text/plain"
+
+	bmeta, err := pear.uploadBlob(did, blob, mtype)
+	require.NoError(t, err)
+	require.NotNil(t, bmeta)
+	require.Equal(t, mtype, bmeta.MimeType)
+	require.Equal(t, int64(len(blob)), bmeta.Size)
+
+	m, gotBlob, err := pear.getBlob(did, bmeta.Ref.String())
+	require.NoError(t, err)
+	require.Equal(t, mtype, m)
+	require.Equal(t, blob, gotBlob)
+}
