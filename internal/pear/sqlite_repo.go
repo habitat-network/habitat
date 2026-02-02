@@ -33,9 +33,10 @@ type repo struct {
 }
 
 type Record struct {
-	Did  string `gorm:"primaryKey"`
-	Rkey string `gorm:"primaryKey"`
-	Rec  string
+	Did        string `gorm:"primaryKey"`
+	Rkey       string `gorm:"primaryKey"`
+	Collection string
+	Rec        string
 }
 
 type Blob struct {
@@ -71,7 +72,7 @@ func (r *repo) hasRepoForDid(did string) (bool, error) {
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *repo) putRecord(did string, rkey string, rec map[string]any, validate *bool) error {
+func (r *repo) putRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
@@ -84,7 +85,9 @@ func (r *repo) putRecord(did string, rkey string, rec map[string]any, validate *
 		return err
 	}
 
-	record := Record{Did: did, Rkey: rkey, Rec: string(bytes)}
+	// Store the combined rkey format: collection.rkey
+	combinedRkey := fmt.Sprintf("%s.%s", collection, rkey)
+	record := Record{Did: did, Rkey: combinedRkey, Collection: collection, Rec: string(bytes)}
 	// Always put (even if something exists).
 	return gorm.G[Record](
 		r.db,
@@ -97,10 +100,12 @@ var (
 	ErrMultipleRecordsFound = fmt.Errorf("multiple records found for desired query")
 )
 
-func (r *repo) getRecord(did string, rkey string) (*Record, error) {
+func (r *repo) getRecord(did string, collection string, rkey string) (*Record, error) {
+	// Query using the combined rkey format: collection.rkey
+	combinedRkey := fmt.Sprintf("%s.%s", collection, rkey)
 	row, err := gorm.G[Record](
 		r.db,
-	).Where("did = ? and rkey = ?", did, rkey).
+	).Where("did = ? and rkey = ?", did, combinedRkey).
 		First(context.Background())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
