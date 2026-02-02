@@ -15,15 +15,7 @@ type NetworkHabitatNotificationListNotificationsOutput struct {
 
 // NetworkHabitatNotificationListNotificationsRecord represents a record object
 type NetworkHabitatNotificationListNotificationsRecord struct {
-	Cid   string                                                  `json:"cid"`
-	Uri   string                                                  `json:"uri"`
-	Value NetworkHabitatNotificationListNotificationsNotification `json:"value"`
-}
-
-// NetworkHabitatNotificationListNotificationsNotification represents a notification object
-type NetworkHabitatNotificationListNotificationsNotification struct {
-	Collection string `json:"collection"`
-	Did        string `json:"did"`
-	OriginDid  string `json:"originDid"`
-	Rkey       string `json:"rkey"`
+	Cid   string                                     `json:"cid"`
+	Uri   string                                     `json:"uri"`
+	Value NetworkHabitatNotificationDefsNotification `json:"value"`
 }

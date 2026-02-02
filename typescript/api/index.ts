@@ -22,13 +22,17 @@ import * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 import * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
+import * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addItem.js'
+import * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
+import * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
+import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
 import * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 import * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
-import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
+import * as NetworkHabitatListRecords from './types/network/habitat/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
@@ -45,13 +49,17 @@ export * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 export * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
+export * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addItem.js'
+export * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
+export * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
+export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
 export * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 export * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
-export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
+export * as NetworkHabitatListRecords from './types/network/habitat/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
@@ -392,14 +400,93 @@ export class NetworkNS {
 export class NetworkHabitatNS {
   _client: XrpcClient
   photo: NetworkHabitatPhotoRecord
+  arena: NetworkHabitatArenaNS
+  internal: NetworkHabitatInternalNS
   notification: NetworkHabitatNotificationNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
     this._client = client
+    this.arena = new NetworkHabitatArenaNS(client)
+    this.internal = new NetworkHabitatInternalNS(client)
     this.notification = new NetworkHabitatNotificationNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
+  }
+
+  listRecords(
+    data?: NetworkHabitatListRecords.InputSchema,
+    opts?: NetworkHabitatListRecords.CallOptions,
+  ): Promise<NetworkHabitatListRecords.Response> {
+    return this._client.call(
+      'network.habitat.listRecords',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatArenaNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addItem(
+    data?: NetworkHabitatArenaAddItem.InputSchema,
+    opts?: NetworkHabitatArenaAddItem.CallOptions,
+  ): Promise<NetworkHabitatArenaAddItem.Response> {
+    return this._client.call(
+      'network.habitat.arena.addItem',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  getItems(
+    data?: NetworkHabitatArenaGetItems.InputSchema,
+    opts?: NetworkHabitatArenaGetItems.CallOptions,
+  ): Promise<NetworkHabitatArenaGetItems.Response> {
+    return this._client.call(
+      'network.habitat.arena.getItems',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatInternalNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  getRecord(
+    params?: NetworkHabitatInternalGetRecord.QueryParams,
+    opts?: NetworkHabitatInternalGetRecord.CallOptions,
+  ): Promise<NetworkHabitatInternalGetRecord.Response> {
+    return this._client
+      .call('network.habitat.internal.getRecord', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatInternalGetRecord.toKnownErr(e)
+      })
+  }
+
+  notifyOfUpdate(
+    data?: NetworkHabitatInternalNotifyOfUpdate.InputSchema,
+    opts?: NetworkHabitatInternalNotifyOfUpdate.CallOptions,
+  ): Promise<NetworkHabitatInternalNotifyOfUpdate.Response> {
+    return this._client.call(
+      'network.habitat.internal.notifyOfUpdate',
+      opts?.qp,
+      data,
+      opts,
+    )
   }
 }
 
@@ -462,18 +549,6 @@ export class NetworkHabitatRepoNS {
       .catch((e) => {
         throw NetworkHabitatRepoGetRecord.toKnownErr(e)
       })
-  }
-
-  listRecords(
-    params?: NetworkHabitatRepoListRecords.QueryParams,
-    opts?: NetworkHabitatRepoListRecords.CallOptions,
-  ): Promise<NetworkHabitatRepoListRecords.Response> {
-    return this._client.call(
-      'network.habitat.repo.listRecords',
-      params,
-      undefined,
-      opts,
-    )
   }
 
   putRecord(

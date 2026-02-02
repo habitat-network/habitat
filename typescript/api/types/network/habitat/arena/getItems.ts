@@ -13,29 +13,23 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.repo.listRecords'
+const id = 'network.habitat.arena.getItems'
 
 export type QueryParams = {
-  /** The handle or DID of the repo. */
-  repo: string
-  /** The NSID of the record type. */
-  collection: string
-  /** The number of records to return. */
-  limit?: number
-  cursor?: string
-  /** Flag to reverse the order of the returned records. */
-  reverse?: boolean
+  /** The ID of the arena to retrieve items from. */
+  arenaID: string
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  cursor?: string
-  records: Record[]
+  /** The list of items present in the arena, formatted as habitat-uris. */
+  items?: string[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
+  qp?: QueryParams
 }
 
 export interface Response {
@@ -46,21 +40,4 @@ export interface Response {
 
 export function toKnownErr(e: any) {
   return e
-}
-
-export interface Record {
-  $type?: 'network.habitat.repo.listRecords#record'
-  uri: string
-  cid: string
-  value: { [_ in string]: unknown }
-}
-
-const hashRecord = 'record'
-
-export function isRecord<V>(v: V) {
-  return is$typed(v, id, hashRecord)
-}
-
-export function validateRecord<V>(v: V) {
-  return validate<Record & V>(v, id, hashRecord)
 }

@@ -466,7 +466,7 @@ func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
 					notification.Collection,
 					notification.Rkey,
 				),
-				Value: habitat.NetworkHabitatNotificationListNotificationsNotification{
+				Value: habitat.NetworkHabitatNotificationDefsNotification{
 					OriginDid:  notification.OriginDid,
 					Collection: notification.Collection,
 					Rkey:       notification.Rkey,

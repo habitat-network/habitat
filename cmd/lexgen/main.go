@@ -458,17 +458,24 @@ func resolveRef(ref string, lexiconID string, lexSchema *lex.Schema) string {
 	// Ref can be either:
 	// 1. Local ref starting with # (e.g., "#record")
 	// 2. External ref to another lexicon (e.g., "com.atproto.repo.strongRef")
-
 	if strings.HasPrefix(ref, "#") {
 		// Local reference - extract the def name
 		defName := strings.TrimPrefix(ref, "#")
-		typeName := toTypeName(lexiconID) + toFieldName(defName)
-		return typeName
+		return toTypeName(lexiconID) + toFieldName(defName)
+	}
+
+	// Handle refs that include a fragment (e.g. "some.lexicon#def")
+	if strings.Contains(ref, "#") {
+		parts := strings.SplitN(ref, "#", 2)
+		base := parts[0]
+		frag := parts[1]
+		if base == "" {
+			return toTypeName(lexiconID) + toFieldName(frag)
+		}
+		return toTypeName(base) + toFieldName(frag)
 	}
 
 	// External reference - convert to type name
-	// For now, we'll just convert the external ref to a type name
-	// In a more complete implementation, we'd need to track imported types
 	return toTypeName(ref)
 }
 
