@@ -7,6 +7,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -24,7 +25,9 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	dummy, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo)
 
@@ -74,7 +77,9 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 	dummy, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo)
 
@@ -98,7 +103,9 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo)
 
@@ -113,7 +120,9 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo)
 
@@ -131,7 +140,9 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo)
 
