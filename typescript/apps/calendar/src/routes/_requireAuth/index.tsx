@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
@@ -18,21 +18,26 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { authManager, queryClient } = context;
     const client = authManager.client();
 
-    await Promise.all([
+    await getRsvpNotifications(client);
+
+    const [rsvps, events] = await Promise.all([
       queryClient.ensureQueryData({
         queryKey: ["rsvps"],
         queryFn: () => listRsvps(client),
       }),
       queryClient.ensureQueryData({
-        queryKey: ["rsvpNotifications"],
-        queryFn: () => getRsvpNotifications(client),
+        queryKey: ["events"],
+        queryFn: () => listEvents(client),
       }),
     ]);
+    return { rsvps, events };
   },
 });
 
 function CalendarPage() {
   const { authManager } = Route.useRouteContext();
+  const router = useRouter();
+  const { rsvps, events } = Route.useLoaderData();
   const client = authManager.client();
   const userDid = authManager.did;
   if (!userDid) {
@@ -41,38 +46,6 @@ function CalendarPage() {
   const queryClient = useQueryClient();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-
-  const {
-    data: rsvpData,
-    isLoading: rsvpLoading,
-    error: rsvpError,
-  } = useQuery({
-    queryKey: ["rsvps"],
-    queryFn: () => listRsvps(client),
-  });
-
-  const {
-    data: eventData,
-    isLoading: eventLoading,
-    error: eventError,
-  } = useQuery({
-    queryKey: ["events"],
-    queryFn: () => listEvents(client),
-  });
-
-  // Fetch and process RSVP notifications on load
-  useQuery({
-    queryKey: ["rsvpNotifications"],
-    queryFn: async () => {
-      const notifications = await getRsvpNotifications(client);
-      console.log("notifications", notifications);
-      // Refetch RSVPs after processing notifications
-      if (notifications.length > 0) {
-        queryClient.invalidateQueries({ queryKey: ["rsvps"] });
-      }
-      return notifications;
-    },
-  });
 
   const createEventMutation = useMutation({
     mutationFn: (data: CreateEventFormData) => {
@@ -94,20 +67,10 @@ function CalendarPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
+      router.invalidate();
       setShowCreateForm(false);
     },
   });
-
-  const isLoading = rsvpLoading || eventLoading;
-  const error = rsvpError || eventError;
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error.message}</div>;
-  }
 
   return (
     <div>
@@ -132,7 +95,7 @@ function CalendarPage() {
           />
         )}
 
-        {eventData?.records.length === 0 ? (
+        {events.records.length === 0 ? (
           <p>No events found</p>
         ) : (
           <table>
@@ -145,7 +108,7 @@ function CalendarPage() {
               </tr>
             </thead>
             <tbody>
-              {eventData?.records
+              {events.records
                 .filter((record) => {
                   if (!record.value?.name) {
                     console.error(
@@ -179,7 +142,7 @@ function CalendarPage() {
 
       <section>
         <h2>RSVPs</h2>
-        {rsvpData?.length === 0 ? (
+        {rsvps.length === 0 ? (
           <p>No RSVPs found</p>
         ) : (
           <table>
@@ -191,7 +154,7 @@ function CalendarPage() {
               </tr>
             </thead>
             <tbody>
-              {rsvpData?.map((rsvpWithEvent) => {
+              {rsvps.map((rsvpWithEvent) => {
                 // Format status - strip lexicon prefix if present
                 const rawStatus = rsvpWithEvent.rsvp.status ?? "-";
                 const status = rawStatus.includes("#")
