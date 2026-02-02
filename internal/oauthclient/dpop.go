@@ -33,6 +33,9 @@ type dpopClaims struct {
 	// the `htm` (HTTP Method) claim. See https://datatracker.ietf.org/doc/html/draft-ietf-oauth-dpop#section-4.2
 	Method string `json:"htm"`
 
+	// the `htu` (HTTP URL) claim. See https://datatracker.ietf.org/doc/html/draft-ietf-oauth-dpop#section-4.2
+	URL string `json:"htu"`
+
 	// the `ath` (Authorization Token Hash) claim. See https://datatracker.ietf.org/doc/html/draft-ietf-oauth-dpop#section-4.2
 	AccessTokenHash string `json:"ath,omitempty"`
 
@@ -222,12 +225,14 @@ func generateClaims(
 	nonceProvider DpopNonceProvider,
 	accessToken string,
 ) (*dpopClaims, error) {
+	htu := req.URL.String()
 	claims := &dpopClaims{
 		Claims: jwt.Claims{
 			ID:       base64.StdEncoding.EncodeToString([]byte(uuid.NewString())),
 			IssuedAt: jwt.NewNumericDate(time.Now()),
 		},
 		Method: req.Method,
+		URL:    htu,
 	}
 	nonce, ok, err := nonceProvider.GetDpopNonce()
 	if err != nil {
