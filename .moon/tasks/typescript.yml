@@ -39,6 +39,8 @@ tasks:
     command: pnpm install
     preset: utility
   build:
+    deps:
+      - ^:build
     command: pnpm build
     outputs:
     - dist/
