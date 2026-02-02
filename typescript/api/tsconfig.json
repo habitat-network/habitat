@@ -1,14 +1,11 @@
 {
-  "extends": "../../tsconfig.lib.json",
-  "include": ["**/*.ts"],
+  "extends": "../../tsconfig.options.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
-    "verbatimModuleSyntax": false,
-
-    /* Relaxed checking for generated code */
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitAny": false
-  }
+    "composite": true,
+    "declaration": true,
+    "allowImportingTsExtensions": false,
+    "noEmit": false,
+    "strict": false
+  },
+  "references": []
 }

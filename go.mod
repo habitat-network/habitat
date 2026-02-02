@@ -6,12 +6,10 @@ require (
 	github.com/bluesky-social/indigo v0.0.0-20251020231157-aa7fd7f7a301
 	github.com/bluesky-social/jetstream v0.0.0-20251009222037-7d7efa58d7f1
 	github.com/go-jose/go-jose/v3 v3.0.4
-	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
 	github.com/gorilla/sessions v1.4.0
 	github.com/ipfs/go-cid v0.5.0
-	github.com/joho/godotenv v1.5.1
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/ory/fosite v0.49.0
 	github.com/rs/zerolog v1.33.0

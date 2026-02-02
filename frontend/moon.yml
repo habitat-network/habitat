@@ -1,19 +1,20 @@
 tasks:
   dev:
     env:
-      DOMAIN: "$project.${TS_DOMAIN}"
+      DOMAIN: $project.${TS_DOMAIN}
     inputs:
-      - "$TS_DOMAIN"
+      - $TS_DOMAIN
     deps:
-      - target: "privi:dev"
-      - target: "funnel:start"
-        args: ["6000", "frontend"]
-
+      - target: privi:dev
+      - target: funnel:start
+        args:
+          - "6000"
+          - frontend
   docker-build:
     deps:
-      - target: "build"
+      - target: build
         env:
-          HABITAT_DOMAIN: "privi.habitat"
-          DOMAIN: "frontend.habitat"
+          HABITAT_DOMAIN: privi.habitat
+          DOMAIN: frontend.habitat
     options:
       internal: false
