@@ -19,7 +19,6 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -30,11 +29,10 @@ type Server struct {
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 	// TODO: should this really live here?
-	repo        *sqliteRepo
-	oauthServer *oauthserver.OAuthServer
-	inbox       *Inbox
-	credStore   pdscred.PDSCredentialStore
-	oauthClient oauthclient.OAuthClient
+	repo             *sqliteRepo
+	oauthServer      *oauthserver.OAuthServer
+	inbox            *Inbox
+	pdsClientFactory *oauthclient.PDSClientFactory
 }
 
 // NewServer returns a privi server.
@@ -43,17 +41,15 @@ func NewServer(
 	repo *sqliteRepo,
 	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
-	credStore pdscred.PDSCredentialStore,
-	oauthClient oauthclient.OAuthClient,
+	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *Server {
 	server := &Server{
-		store:       newStore(perms, repo),
-		dir:         identity.DefaultDirectory(),
-		repo:        repo,
-		oauthServer: oauthServer,
-		inbox:       inbox,
-		credStore:   credStore,
-		oauthClient: oauthClient,
+		store:            newStore(perms, repo),
+		dir:              identity.DefaultDirectory(),
+		repo:             repo,
+		oauthServer:      oauthServer,
+		inbox:            inbox,
+		pdsClientFactory: pdsClientFactory,
 	}
 	return server
 }
@@ -518,17 +514,11 @@ func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, err := s.dir.LookupDID(r.Context(), did)
+	dpopClient, err := s.pdsClientFactory.NewClient(r.Context(), did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "create dpop client", http.StatusInternalServerError)
 		return
 	}
-	dpopClient := oauthclient.NewAuthedDpopHttpClient(
-		id,
-		s.credStore,
-		s.oauthClient,
-		&oauthclient.MemoryNonceProvider{},
-	)
 	req, err := http.NewRequest(
 		http.MethodPost,
 		"/xrpc/com.atproto.repo.createRecord",

@@ -120,8 +120,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 	oauthServer, oauthClient := setupOAuthServer(keyFile, domain, pdsCredStore)
-	priviServer := setupPriviServer(db, pdsCredStore, oauthServer, oauthClient)
-	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, oauthClient)
+	pdsClientFactory := oauthclient.NewPDSClientFactory(
+		pdsCredStore,
+		oauthClient,
+		identity.DefaultDirectory(),
+	)
+	priviServer := setupPriviServer(db, oauthServer, pdsClientFactory)
+	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -255,9 +260,8 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 func setupPriviServer(
 	db *gorm.DB,
-	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
-	oauthClient oauthclient.OAuthClient,
+	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *privi.Server {
 	repo, err := privi.NewSQLiteRepo(db)
 	if err != nil {
@@ -271,7 +275,7 @@ func setupPriviServer(
 
 	inbox := privi.NewInbox(db)
 
-	return privi.NewServer(permissionStore, repo, inbox, oauthServer, credStore, oauthClient)
+	return privi.NewServer(permissionStore, repo, inbox, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(
