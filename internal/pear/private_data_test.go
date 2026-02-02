@@ -1,4 +1,4 @@
-package privi
+package pear
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 )
 
 // A unit test testing putRecord and getRecord with one basic permission.
-// TODO: an integration test with two PDS's + privi servers running.
+// TODO: an integration test with two PDS's + pear servers running.
 func TestControllerPrivateDataPutGet(t *testing.T) {
 	// The val the caller is trying to put
 	val := map[string]any{
@@ -26,7 +26,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(dummy, repo)
+	p := newPermissionEnforcingRepo(dummy, repo)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -76,7 +76,7 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(dummy, repo)
+	p := newPermissionEnforcingRepo(dummy, repo)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -100,7 +100,7 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(perms, repo)
+	p := newPermissionEnforcingRepo(perms, repo)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true

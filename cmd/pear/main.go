@@ -35,8 +35,8 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/privi"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
 )
@@ -120,7 +120,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore)
-	priviServer := setupPriviServer(db, pdsCredStore, oauthServer)
+	pearServer := setupPriviServer(db, pdsCredStore, oauthServer)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
 
 	// Create error group for managing goroutines
@@ -142,11 +142,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 
 		log.Info().Msg("starting notification listener")
-		ingester, err := privi.NewNotificationIngester(db)
+		ingester, err := pear.NewNotificationIngester(db)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to setup notification ingester")
 		}
-		return privi.StartNotificationListener(egCtx, config, nil, ingester.GetEventHandler(), db)
+		return pear.StartNotificationListener(egCtx, config, nil, ingester.GetEventHandler(), db)
 	})
 
 	mux := http.NewServeMux()
@@ -157,25 +157,25 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 
-	// privi routes
-	mux.HandleFunc("/xrpc/network.habitat.putRecord", priviServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.getRecord", priviServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.listRecords", priviServer.ListRecords)
+	// pear routes
+	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
+	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
 
-	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", priviServer.UploadBlob)
-	mux.HandleFunc("/xrpc/network.habitat.getBlob", priviServer.GetBlob)
+	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
+	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
 
-	mux.HandleFunc("/xrpc/network.habitat.listPermissions", priviServer.ListPermissions)
-	mux.HandleFunc("/xrpc/network.habitat.addPermission", priviServer.AddPermission)
-	mux.HandleFunc("/xrpc/network.habitat.removePermission", priviServer.RemovePermission)
+	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
+	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
+	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
 
 	mux.HandleFunc(
 		"/xrpc/network.habitat.notification.listNotifications",
-		priviServer.ListNotifications,
+		pearServer.ListNotifications,
 	)
 	mux.HandleFunc(
 		"/xrpc/network.habitat.notification.createNotification",
-		priviServer.CreateNotification,
+		pearServer.CreateNotification,
 	)
 
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
@@ -242,25 +242,25 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	if postgresUrl != "" {
 		db, err := gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to open postgres db backing privi server")
+			log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
 		}
 		return db
 	}
-	priviDB, err := gorm.Open(sqlite.Open(cmd.String(fDb)))
+	pearDB, err := gorm.Open(sqlite.Open(cmd.String(fDb)))
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to open sqlite file backing privi server")
+		log.Fatal().Err(err).Msg("unable to open sqlite file backing pear server")
 	}
-	return priviDB
+	return pearDB
 }
 
 func setupPriviServer(
 	db *gorm.DB,
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
-) *privi.Server {
-	repo, err := privi.NewSQLiteRepo(db)
+) *pear.Server {
+	repo, err := pear.NewSQLiteRepo(db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup privi sqlite db")
+		log.Fatal().Err(err).Msg("unable to setup pear sqlite db")
 	}
 
 	permissionStore, err := permissions.NewSQLiteStore(db)
@@ -268,9 +268,9 @@ func setupPriviServer(
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
 
-	inbox := privi.NewInbox(db)
+	inbox := pear.NewInbox(db)
 
-	return privi.NewServer(permissionStore, repo, inbox, oauthServer, credStore)
+	return pear.NewServer(permissionStore, repo, inbox, oauthServer, credStore)
 }
 
 func setupOAuthServer(

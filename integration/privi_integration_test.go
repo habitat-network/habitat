@@ -130,11 +130,11 @@ func TestPriviOAuthFlow(t *testing.T) {
 	require.NoError(t, err)
 	pdsURL := fmt.Sprintf("https://%s:%s", pdsProxyHost, pdsProxyPort.Port())
 
-	priviHost, err := env.Get("privi").Host(ctx)
+	pearHost, err := env.Get("pear").Host(ctx)
 	require.NoError(t, err)
-	priviPort, err := env.Get("privi").MappedPort(ctx, "443")
+	pearPort, err := env.Get("pear").MappedPort(ctx, "443")
 	require.NoError(t, err)
-	priviURL := fmt.Sprintf("https://%s:%s", priviHost, priviPort.Port())
+	pearURL := fmt.Sprintf("https://%s:%s", pearHost, pearPort.Port())
 
 	seleniumHost, err := env.Get("selenium").Host(ctx)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestPriviOAuthFlow(t *testing.T) {
 	require.NoError(t, err)
 	seleniumURL := fmt.Sprintf("http://%s:%s/wd/hub", seleniumHost, seleniumPort.Port())
 
-	t.Logf("Privi URL: %s", priviURL)
+	t.Logf("Privi URL: %s", pearURL)
 	t.Logf("PDS URL (host): %s", pdsURL)
 	t.Logf("PDS URL (Docker network): https://pds.example.com")
 	t.Logf("Selenium URL: %s", seleniumURL)

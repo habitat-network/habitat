@@ -14,7 +14,7 @@ tasks:
     - target: funnel:start
       args:
       - '8000'
-      - privi
+      - pear
   docker-build:
     options:
       internal: false

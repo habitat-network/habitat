@@ -1,4 +1,4 @@
-package privi
+package pear
 
 import (
 	"encoding/json"
@@ -41,13 +41,13 @@ func TestHasRepoForDid(t *testing.T) {
 }
 
 func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
-	testDBPath := filepath.Join(os.TempDir(), "test_privi.db")
+	testDBPath := filepath.Join(os.TempDir(), "test_pear.db")
 	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
 
-	priviDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
+	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewSQLiteRepo(priviDB)
+	repo, err := NewSQLiteRepo(pearDB)
 	require.NoError(t, err)
 
 	key := "test-key"

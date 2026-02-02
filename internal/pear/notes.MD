@@ -1,5 +1,5 @@
 This is how it would work "in the wild".
-The ideal is everyone runs their own privi instance, wrapping private data.
+The ideal is everyone runs their own pear instance, wrapping private data.
 
 [Arushi Private PDS][Arushi Privi]
 [Sashank Private PDS][Sashanki Privi]
