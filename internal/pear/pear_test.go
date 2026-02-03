@@ -100,12 +100,12 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(perms, repo)
+	p := newPermissionEnforcingRepo(perms, repo)
 
 	// Try to get a record for a DID that doesn't exist on this server
 	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
 	require.Nil(t, got)
-	require.ErrorIs(t, err, ErrForwardingNotImplemented)
+	require.ErrorIs(t, err, ErrNotLocalRepo)
 }
 
 func TestListRecordsForwardingNotImplemented(t *testing.T) {
@@ -115,7 +115,7 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db)
 	require.NoError(t, err)
-	p := newStore(perms, repo)
+	p := newPermissionEnforcingRepo(perms, repo)
 
 	// Try to list records for a DID that doesn't exist on this server
 	records, err := p.listRecords(
@@ -123,7 +123,7 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 		"did:plc:caller456",
 	)
 	require.Nil(t, records)
-	require.ErrorIs(t, err, ErrForwardingNotImplemented)
+	require.ErrorIs(t, err, ErrNotLocalRepo)
 }
 
 func TestListRecords(t *testing.T) {
