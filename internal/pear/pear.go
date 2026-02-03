@@ -44,7 +44,7 @@ func (p *permissionEnforcingRepo) putRecord(
 	validate *bool,
 ) error {
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
-	return p.repo.putRecord(did, fmt.Sprintf("%s.%s", collection, rkey), record, validate)
+	return p.repo.putRecord(did, collection, rkey, record, validate)
 }
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
@@ -78,7 +78,7 @@ func (p *permissionEnforcingRepo) getRecord(
 		return nil, ErrUnauthorized
 	}
 
-	return p.repo.getRecord(string(targetDID), fmt.Sprintf("%s.%s", collection, rkey))
+	return p.repo.getRecord(string(targetDID), collection, rkey)
 }
 
 func (p *permissionEnforcingRepo) listRecords(
