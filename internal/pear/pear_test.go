@@ -219,7 +219,9 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	pear := newPermissionEnforcingRepo(perms, repo)
 
