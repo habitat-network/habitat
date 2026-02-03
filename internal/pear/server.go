@@ -183,7 +183,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
 			return
-		} else if errors.Is(err, ErrForwardingNotImplemented) {
+		} else if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
 		}
@@ -325,7 +325,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	params.Repo = did.String()
 	records, err := s.pear.listRecords(&params, callerDID)
 	if err != nil {
-		if errors.Is(err, ErrForwardingNotImplemented) {
+		if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
 		}

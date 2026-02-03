@@ -20,11 +20,10 @@ type permissionEnforcingRepo struct {
 }
 
 var (
-	ErrPublicRecordExists       = fmt.Errorf("a public record exists with the same key")
-	ErrNoPutsOnEncryptedRecord  = fmt.Errorf("directly put-ting to this lexicon is not valid")
-	ErrNotLocalRepo             = fmt.Errorf("the desired did does not live on this repo")
-	ErrUnauthorized             = fmt.Errorf("unauthorized request")
-	ErrForwardingNotImplemented = fmt.Errorf("forwarding not implemented")
+	ErrPublicRecordExists      = fmt.Errorf("a public record exists with the same key")
+	ErrNoPutsOnEncryptedRecord = fmt.Errorf("directly put-ting to this lexicon is not valid")
+	ErrNotLocalRepo            = fmt.Errorf("the desired did does not live on this repo")
+	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
 func newPermissionEnforcingRepo(perms permissions.Store, repo *repo) *permissionEnforcingRepo {
@@ -61,7 +60,7 @@ func (p *permissionEnforcingRepo) getRecord(
 		return nil, err
 	}
 	if !has {
-		return nil, ErrForwardingNotImplemented
+		return nil, ErrNotLocalRepo
 	}
 
 	// Run permissions before returning to the user
@@ -91,7 +90,7 @@ func (p *permissionEnforcingRepo) listRecords(
 		return nil, err
 	}
 	if !has {
-		return nil, ErrForwardingNotImplemented
+		return nil, ErrNotLocalRepo
 	}
 
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
