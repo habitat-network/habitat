@@ -66,6 +66,7 @@ type OAuthServer struct {
 //   - oauthClient: Client for AT Protocol OAuth operations
 //   - sessionStore: Store for managing user sessions during authorization flow
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
+//   - db: GORM database connection for storing OAuth sessions
 //   - credStore: Store for PDS credentials
 //   - userStore: Store for managing users (can be nil if not needed)
 //
@@ -261,7 +262,7 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	// Ensure user exists in the users table (called on first login)
+	// Ensure user exists in the users table (will insert on first login)
 	if o.userStore != nil {
 		err = o.userStore.EnsureUser(arf.Did)
 		if err != nil {
