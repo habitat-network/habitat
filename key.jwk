@@ -1,0 +1,10 @@
+{
+  "use": "sig",
+  "kty": "EC",
+  "kid": "habitat",
+  "crv": "P-256",
+  "alg": "ES256",
+  "x": "z9cJXBTBEDXSREaBwYvlVvXs6kKdQ5zSt0DX7GgWziM",
+  "y": "2X2qgov-yPg6FK_6M3YJjKxLZBzUTRTdRa3eaKHIZa8",
+  "d": "oecudvTa7fydeGiJXjs2lI_yb00V12iL28TzYwkQGlQ"
+}

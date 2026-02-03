@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/userstore"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -29,7 +31,8 @@ import (
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type repo struct {
-	db *gorm.DB
+	db        *gorm.DB
+	userStore userstore.UserStore
 }
 
 type Record struct {
@@ -48,27 +51,23 @@ type Blob struct {
 }
 
 // TODO: create table etc.
-func NewSQLiteRepo(db *gorm.DB) (*repo, error) {
+func NewSQLiteRepo(db *gorm.DB, userStore userstore.UserStore) (*repo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
 	return &repo{
-		db: db,
+		db:        db,
+		userStore: userStore,
 	}, nil
 }
 
 // hasRepoForDid checks if this instance manges the data for a given did
 func (r *repo) hasRepoForDid(did string) (bool, error) {
-	// TODO: for now, we determine if a did is managed by this instance, by just checking for the existence of any record
-	// with the matching DID. In the future, we need to track a formal table of managed repos. There will need to be
-	// onboarding and offboard flows as well.
-	_, err := gorm.G[Record](r.db).Where("did = ?", did).First(context.Background())
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
-	} else if err != nil {
-		return false, err
+	if r.userStore == nil {
+		return false, fmt.Errorf("userStore is not set")
 	}
-	return true, nil
+	didSyntax := syntax.DID(did)
+	return r.userStore.CheckUserExists(didSyntax)
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.

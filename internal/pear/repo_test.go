@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/userstore"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -17,16 +18,19 @@ func TestHasRepoForDid(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
 	require.NoError(t, err)
 
-	// No records exist yet, should return false
+	repo, err := NewSQLiteRepo(db, userStore)
+	require.NoError(t, err)
+
+	// No user exists yet, should return false
 	has, err := repo.hasRepoForDid("did:example:alice")
 	require.NoError(t, err)
 	require.False(t, has)
 
-	// Add a record for the DID
-	err = repo.putRecord("did:example:alice", "test.collection", "test-key", map[string]any{"data": "value"}, nil)
+	// Ensure user exists (simulating first login)
+	err = userStore.EnsureUser("did:example:alice")
 	require.NoError(t, err)
 
 	// Now the DID should be found
@@ -47,7 +51,10 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewSQLiteRepo(pearDB)
+	userStore, err := userstore.NewUserStore(pearDB)
+	require.NoError(t, err)
+
+	repo, err := NewSQLiteRepo(pearDB, userStore)
 	require.NoError(t, err)
 
 	collection := "test.collection"
@@ -70,7 +77,9 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 func TestSQLiteRepoListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	err = repo.putRecord(
 		"my-did",
@@ -170,7 +179,10 @@ func TestUploadAndGetBlob(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 
 	did := "did:example:alice"

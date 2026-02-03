@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -24,9 +26,15 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	dummy, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo)
+
+	// Ensure user exists before putting records
+	err = userStore.EnsureUser(syntax.DID("my-did"))
+	require.NoError(t, err)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -74,9 +82,15 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 	dummy, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo)
+
+	// Ensure user exists before putting records
+	err = userStore.EnsureUser(syntax.DID("my-did"))
+	require.NoError(t, err)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -98,7 +112,9 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo)
 
@@ -113,7 +129,9 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo)
 
@@ -131,12 +149,18 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
+
+	// Ensure user exists before putting records
+	err = userStore.EnsureUser(syntax.DID("my-did"))
+	require.NoError(t, err)
 
 	// Create multiple records across collections
 	coll1 := "my.fake.collection1"
@@ -208,7 +232,9 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	pear := newPermissionEnforcingRepo(perms, repo)
 

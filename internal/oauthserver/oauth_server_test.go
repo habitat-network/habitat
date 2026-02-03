@@ -19,6 +19,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"gorm.io/driver/sqlite"
@@ -33,6 +34,10 @@ func TestOAuthServerE2E(t *testing.T) {
 	// setup pds credential store
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err, "failed to setup pds credential store")
+
+	// setup user store
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err, "failed to setup user store")
 
 	// setup oauth server
 	clientMetadata := &oauthclient.ClientMetadata{}
@@ -54,6 +59,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		oauthclient.NewDummyDirectory("http://pds.url"),
 		credStore,
+		userStore,
 	)
 
 	// setup http server oauth client to make requests to

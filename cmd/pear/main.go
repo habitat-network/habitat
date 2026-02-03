@@ -38,6 +38,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/telemetry"
+	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/urfave/cli/v3"
 )
 
@@ -119,8 +120,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
-	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore)
-	pearServer := setupPriviServer(db, pdsCredStore, oauthServer)
+	userStore, err := userstore.NewUserStore(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup user store")
+	}
+	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore, userStore)
+	pearServer := setupPriviServer(db, pdsCredStore, oauthServer, userStore)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
 
 	// Create error group for managing goroutines
@@ -257,8 +262,9 @@ func setupPriviServer(
 	db *gorm.DB,
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
+	userStore userstore.UserStore,
 ) *pear.Server {
-	repo, err := pear.NewSQLiteRepo(db)
+	repo, err := pear.NewSQLiteRepo(db, userStore)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear sqlite db")
 	}
@@ -276,6 +282,7 @@ func setupPriviServer(
 func setupOAuthServer(
 	keyFile, domain string,
 	credStore pdscred.PDSCredentialStore,
+	userStore userstore.UserStore,
 ) *oauthserver.OAuthServer {
 	var jwkBytes []byte
 	_, err := os.Stat(keyFile)
@@ -328,6 +335,7 @@ func setupOAuthServer(
 		sessions.NewCookieStore([]byte("my super secret signing password")),
 		identity.DefaultDirectory(),
 		credStore,
+		userStore,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")
