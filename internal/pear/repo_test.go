@@ -61,7 +61,7 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Rec), &unmarshalled)
+	err = json.Unmarshal([]byte(got.Value), &unmarshalled)
 	require.NoError(t, err)
 
 	require.Equal(t, val, unmarshalled)

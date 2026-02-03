@@ -197,7 +197,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			params.Rkey,
 		),
 	}
-	if err := json.Unmarshal([]byte(record.Rec), &output.Value); err != nil {
+	if err := json.Unmarshal([]byte(record.Value), &output.Value); err != nil {
 		utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
 		return
 	}
@@ -344,7 +344,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 				record.Rkey,
 			),
 		}
-		if err := json.Unmarshal([]byte(record.Rec), &next.Value); err != nil {
+		if err := json.Unmarshal([]byte(record.Value), &next.Value); err != nil {
 			utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
 			return
 		}

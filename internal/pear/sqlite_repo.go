@@ -36,7 +36,7 @@ type Record struct {
 	Did        string `gorm:"primaryKey"`
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
-	Rec        string
+	Value      string
 }
 
 type Blob struct {
@@ -86,7 +86,7 @@ func (r *repo) putRecord(did string, collection string, rkey string, rec map[str
 	}
 
 	// Store rkey directly (no concatenation with collection)
-	record := Record{Did: did, Rkey: rkey, Collection: collection, Rec: string(bytes)}
+	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: string(bytes)}
 	// Always put (even if something exists).
 	return gorm.G[Record](
 		r.db,
@@ -96,7 +96,7 @@ func (r *repo) putRecord(did string, collection string, rkey string, rec map[str
 				{Name: "collection"},
 				{Name: "rkey"},
 			},
-			DoUpdates: clause.AssignmentColumns([]string{"rec"}),
+			DoUpdates: clause.AssignmentColumns([]string{"value"}),
 		},
 	).Create(context.Background(), &record)
 }
