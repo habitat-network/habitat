@@ -31,12 +31,11 @@ config/habitat.dev.yml
 
 tmp/
 
-# todo: move these into some directory used for dev runtime files 
-# currently these get added to root directory if you run gmake pear-dev
-key.jwk
-repo.db
-
 .moon/cache
+
+# Seems like we generate some keys and store them in here (key.jwk and repo.db)
+# Not sure if that is only for tests or something else
+/pear
 
 # Ignore custom VSCode/Cursor settings
 .vscode/settings.json
