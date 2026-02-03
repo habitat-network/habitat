@@ -26,7 +26,7 @@ func TestHasRepoForDid(t *testing.T) {
 	require.False(t, has)
 
 	// Add a record for the DID
-	err = repo.putRecord("did:example:alice", "test-key", map[string]any{"data": "value"}, nil)
+	err = repo.putRecord("did:example:alice", "test.collection", "test-key", map[string]any{"data": "value"}, nil)
 	require.NoError(t, err)
 
 	// Now the DID should be found
@@ -50,17 +50,18 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	repo, err := NewSQLiteRepo(pearDB)
 	require.NoError(t, err)
 
+	collection := "test.collection"
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
 
-	err = repo.putRecord("my-did", key, val, nil)
+	err = repo.putRecord("my-did", collection, key, val, nil)
 	require.NoError(t, err)
 
-	got, err := repo.getRecord("my-did", key)
+	got, err := repo.getRecord("my-did", collection, key)
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Rec), &unmarshalled)
+	err = json.Unmarshal([]byte(got.Value), &unmarshalled)
 	require.NoError(t, err)
 
 	require.Equal(t, val, unmarshalled)
@@ -73,7 +74,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	err = repo.putRecord(
 		"my-did",
-		"network.habitat.collection-1.key-1",
+		"network.habitat.collection-1",
+		"key-1",
 		map[string]any{"data": "value"},
 		nil,
 	)
@@ -81,7 +83,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 
 	err = repo.putRecord(
 		"my-did",
-		"network.habitat.collection-1.key-2",
+		"network.habitat.collection-1",
+		"key-2",
 		map[string]any{"data": "value"},
 		nil,
 	)
@@ -89,7 +92,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 
 	err = repo.putRecord(
 		"my-did",
-		"network.habitat.collection-2.key-2",
+		"network.habitat.collection-2",
+		"key-2",
 		map[string]any{"data": "value"},
 		nil,
 	)

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -198,7 +197,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			params.Rkey,
 		),
 	}
-	if err := json.Unmarshal([]byte(record.Rec), &output.Value); err != nil {
+	if err := json.Unmarshal([]byte(record.Value), &output.Value); err != nil {
 		utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
 		return
 	}
@@ -337,17 +336,15 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
 	}
 	for _, record := range records {
-		rkeyParts := strings.Split(record.Rkey, ".")
-		rkey := rkeyParts[len(rkeyParts)-1]
 		next := habitat.NetworkHabitatRepoListRecordsRecord{
 			Uri: fmt.Sprintf(
 				"habitat://%s/%s/%s",
 				params.Repo,
 				params.Collection,
-				rkey,
+				record.Rkey,
 			),
 		}
-		if err := json.Unmarshal([]byte(record.Rec), &next.Value); err != nil {
+		if err := json.Unmarshal([]byte(record.Value), &next.Value); err != nil {
 			utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
 			return
 		}

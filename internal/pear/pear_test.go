@@ -41,7 +41,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NotNil(t, got)
 
 	var ownerUnmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Rec), &ownerUnmarshalled)
+	err = json.Unmarshal([]byte(got.Value), &ownerUnmarshalled)
 	require.NoError(t, err)
 	require.Equal(t, val, ownerUnmarshalled)
 
@@ -58,7 +58,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Rec), &unmarshalled)
+	err = json.Unmarshal([]byte(got.Value), &unmarshalled)
 	require.NoError(t, err)
 	require.Equal(t, val, unmarshalled)
 
