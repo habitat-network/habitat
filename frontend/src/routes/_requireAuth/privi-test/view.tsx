@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_requireAuth/privi-test/view")({
+export const Route = createFileRoute("/_requireAuth/pear-test/view")({
   validateSearch(search) {
     return {
       did: search.did as string,

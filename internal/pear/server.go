@@ -1,4 +1,4 @@
-package privi
+package pear
 
 import (
 	"bytes"
@@ -24,29 +24,26 @@ import (
 )
 
 type Server struct {
-	// TODO: allow privy server to serve many stores, not just one user
-	store *store
+	pear *permissionEnforcingRepo
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
-	// TODO: should this really live here?
-	repo        *sqliteRepo
+
 	oauthServer *oauthserver.OAuthServer
 	inbox       *Inbox
 	credStore   pdscred.PDSCredentialStore
 }
 
-// NewServer returns a privi server.
+// NewServer returns a pear server.
 func NewServer(
 	perms permissions.Store,
-	repo *sqliteRepo,
+	repo *repo,
 	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 	credStore pdscred.PDSCredentialStore,
 ) *Server {
 	server := &Server{
-		store:       newStore(perms, repo),
 		dir:         identity.DefaultDirectory(),
-		repo:        repo,
+		pear:        newPermissionEnforcingRepo(perms, repo),
 		oauthServer: oauthServer,
 		inbox:       inbox,
 		credStore:   credStore,
@@ -105,7 +102,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	err = s.store.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
+	err = s.pear.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -117,7 +114,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Grantees) > 0 {
-		err := s.store.permissions.AddLexiconReadPermission(
+		err := s.pear.permissions.AddLexiconReadPermission(
 			req.Grantees,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
@@ -181,7 +178,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.store.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
+	record, err := s.pear.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
 		if errors.Is(err, ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
@@ -242,7 +239,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := s.repo.uploadBlob(string(callerDID), bytes, mimeType)
+	blob, err := s.pear.uploadBlob(string(callerDID), bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -268,15 +265,8 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
-	/*
-		// TODO: implement permissions over getBlob
-		callerDID, ok := s.getAuthedUser(w, r)
-		if !ok {
-			return
-		}
-	*/
-
 	var params habitat.NetworkHabitatRepoGetBlobParams
 	err := formDecoder.Decode(&params, r.URL.Query())
 	if err != nil {
@@ -284,7 +274,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, blob, err := s.repo.getBlob(params.Did, params.Cid)
+	mimeType, blob, err := s.pear.getBlob(params.Did, params.Cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -330,13 +320,13 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params.Repo = did.String()
-	records, err := s.store.listRecords(&params, callerDID)
+	records, err := s.pear.listRecords(&params, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "listing records", http.StatusInternalServerError)
 		return
 	}
 
-	has, err := s.store.hasRepoForDid(did.String())
+	has, err := s.pear.hasRepoForDid(did.String())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking if repo exists", http.StatusInternalServerError)
 		return
@@ -382,7 +372,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	permissions, err := s.store.permissions.ListReadPermissionsByLexicon(callerDID.String())
+	permissions, err := s.pear.permissions.ListReadPermissionsByLexicon(callerDID.String())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
 		return
@@ -412,7 +402,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.store.permissions.AddLexiconReadPermission(
+	err = s.pear.permissions.AddLexiconReadPermission(
 		[]string{req.DID},
 		callerDID.String(),
 		req.Lexicon,
@@ -434,7 +424,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.store.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
+	err = s.pear.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return

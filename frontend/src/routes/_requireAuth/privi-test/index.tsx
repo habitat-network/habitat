@@ -16,7 +16,7 @@ interface getData {
   rkey: string;
 }
 
-export const Route = createFileRoute("/_requireAuth/privi-test/")({
+export const Route = createFileRoute("/_requireAuth/pear-test/")({
   component() {
     const { authManager } = Route.useRouteContext();
     const putForm = useForm<putData>({});

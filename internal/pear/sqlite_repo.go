@@ -1,4 +1,4 @@
-package privi
+package pear
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
-type sqliteRepo struct {
+type repo struct {
 	db *gorm.DB
 }
 
@@ -47,17 +47,17 @@ type Blob struct {
 }
 
 // TODO: create table etc.
-func NewSQLiteRepo(db *gorm.DB) (*sqliteRepo, error) {
+func NewSQLiteRepo(db *gorm.DB) (*repo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
-	return &sqliteRepo{
+	return &repo{
 		db: db,
 	}, nil
 }
 
 // hasRepoForDid checks if this instance manges the data for a given did
-func (r *sqliteRepo) hasRepoForDid(did string) (bool, error) {
+func (r *repo) hasRepoForDid(did string) (bool, error) {
 	// TODO: for now, we determine if a did is managed by this instance, by just checking for the existence of any record
 	// with the matching DID. In the future, we need to track a formal table of managed repos. There will need to be
 	// onboarding and offboard flows as well.
@@ -71,7 +71,7 @@ func (r *sqliteRepo) hasRepoForDid(did string) (bool, error) {
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *sqliteRepo) putRecord(did string, rkey string, rec map[string]any, validate *bool) error {
+func (r *repo) putRecord(did string, rkey string, rec map[string]any, validate *bool) error {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
@@ -97,7 +97,7 @@ var (
 	ErrMultipleRecordsFound = fmt.Errorf("multiple records found for desired query")
 )
 
-func (r *sqliteRepo) getRecord(did string, rkey string) (*Record, error) {
+func (r *repo) getRecord(did string, rkey string) (*Record, error) {
 	row, err := gorm.G[Record](
 		r.db,
 	).Where("did = ? and rkey = ?", did, rkey).
@@ -116,7 +116,7 @@ type blob struct {
 	Size     int64          `json:"size"`
 }
 
-func (r *sqliteRepo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
+func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
 	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
@@ -145,7 +145,7 @@ func (r *sqliteRepo) uploadBlob(did string, data []byte, mimeType string) (*blob
 
 // getBlob gets a blob. this is never exposed to the server, because blobs can only be resolved via records that link them (see LexLink)
 // besides exceptional cases like data migration which we do not support right now.
-func (r *sqliteRepo) getBlob(
+func (r *repo) getBlob(
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
@@ -162,7 +162,7 @@ func (r *sqliteRepo) getBlob(
 }
 
 // listRecords implements repo.
-func (r *sqliteRepo) listRecords(
+func (r *repo) listRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	allow []string,
 	deny []string,

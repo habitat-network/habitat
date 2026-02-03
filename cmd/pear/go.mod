@@ -1,4 +1,4 @@
-module github.com/habitat-network/habitat/cmd/privi
+module github.com/habitat-network/habitat/cmd/pear
 
 go 1.25.4
 

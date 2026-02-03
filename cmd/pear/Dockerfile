@@ -6,26 +6,26 @@ WORKDIR /app
 
 # Copy go module files first for better layer caching
 COPY go.mod go.sum* ./
-COPY cmd/privi/go.mod cmd/privi/go.sum ./cmd/privi/
+COPY cmd/pear/go.mod cmd/pear/go.sum ./cmd/pear/
 
 
 # Download dependencies
-WORKDIR /app/cmd/privi
+WORKDIR /app/cmd/pear
 RUN go mod download
 
 # Copy the entire repository (needed for replace directive)
 COPY . /app/
 
 # Build the binary
-RUN go build -o /app/bin/privi .
+RUN go build -o /app/bin/pear .
 
 FROM alpine:latest
 
 WORKDIR /app
 
 # Copy the binary from build stage
-COPY --from=build /app/bin/privi /app/privi
+COPY --from=build /app/bin/pear /app/pear
 
 # Run the binary
-CMD ["/app/privi"]
+CMD ["/app/pear"]
 
