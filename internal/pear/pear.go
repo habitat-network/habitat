@@ -20,9 +20,10 @@ type permissionEnforcingRepo struct {
 }
 
 var (
-	ErrPublicRecordExists = fmt.Errorf("a public record exists with the same key")
-	ErrNotLocalRepo       = fmt.Errorf("the desired did does not live on this repo")
-	ErrUnauthorized       = fmt.Errorf("unauthorized request")
+	ErrPublicRecordExists      = fmt.Errorf("a public record exists with the same key")
+	ErrNoPutsOnEncryptedRecord = fmt.Errorf("directly put-ting to this lexicon is not valid")
+	ErrNotLocalRepo            = fmt.Errorf("the desired did does not live on this repo")
+	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
 func newPermissionEnforcingRepo(perms permissions.Store, repo *repo) *permissionEnforcingRepo {
@@ -53,6 +54,15 @@ func (p *permissionEnforcingRepo) getRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
+
+	has, err := p.hasRepoForDid(targetDID.String())
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, ErrNotLocalRepo
+	}
+
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
 		callerDID.String(),
@@ -75,6 +85,14 @@ func (p *permissionEnforcingRepo) listRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	callerDID syntax.DID,
 ) ([]Record, error) {
+	has, err := p.hasRepoForDid(params.Repo)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, ErrNotLocalRepo
+	}
+
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
 		params.Repo,
 		callerDID.String(),
