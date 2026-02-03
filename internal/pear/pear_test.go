@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/userstore"
@@ -30,6 +31,10 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo)
+
+	// Ensure user exists before putting records
+	err = userStore.EnsureUser(syntax.DID("my-did"))
+	require.NoError(t, err)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -82,6 +87,10 @@ func TestListOwnRecords(t *testing.T) {
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo)
+
+	// Ensure user exists before putting records
+	err = userStore.EnsureUser(syntax.DID("my-did"))
+	require.NoError(t, err)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -148,6 +157,10 @@ func TestListRecords(t *testing.T) {
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
+
+	// Ensure user exists before putting records
+	err = userStore.EnsureUser(syntax.DID("my-did"))
+	require.NoError(t, err)
 
 	// Create multiple records across collections
 	coll1 := "my.fake.collection1"
