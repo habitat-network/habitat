@@ -55,7 +55,7 @@ func NewSQLiteRepo(db *gorm.DB, userStore userstore.UserStore) (*repo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
-	return &sqliteRepo{
+	return &repo{
 		db:        db,
 		userStore: userStore,
 	}, nil
