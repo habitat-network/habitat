@@ -9,6 +9,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdscred"
 )
 
+// PDSClientFactory helps create clients to make authenticated requests to a DID's atproto PDS
 type PDSClientFactory struct {
 	credStore   pdscred.PDSCredentialStore
 	oauthClient OAuthClient
