@@ -125,8 +125,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup user store")
 	}
 	oauthServer, oauthClient := setupOAuthServer(keyFile, domain, pdsCredStore, userStore)
-	pearServer := setupPriviServer(db, pdsCredStore, oauthServer, userStore)
-	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
+	pdsClientFactory := oauthclient.NewPDSClientFactory(
+		pdsCredStore,
+		oauthClient,
+		identity.DefaultDirectory(),
+	)
+	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory, userStore)
+	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
