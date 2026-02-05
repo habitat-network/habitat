@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -46,6 +47,7 @@ type authRequestFlash struct {
 type OAuthServer struct {
 	provider     fosite.OAuth2Provider
 	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
+	userStore    userstore.UserStore        // Store for managing users
 	sessionStore sessions.Store             // Session storage for authorization flow state
 	oauthClient  oauthclient.OAuthClient    // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
@@ -65,6 +67,8 @@ type OAuthServer struct {
 //   - sessionStore: Store for managing user sessions during authorization flow
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
+//   - credStore: Store for PDS credentials
+//   - userStore: Store for managing users (can be nil if not needed)
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
@@ -73,6 +77,7 @@ func NewOAuthServer(
 	sessionStore sessions.Store,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
+	userStore userstore.UserStore,
 ) *OAuthServer {
 	secret := []byte("my super secret signing password")
 	config := &fosite.Config{
@@ -95,6 +100,7 @@ func NewOAuthServer(
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
 		credStore:    credStore,
+		userStore:    userStore,
 		oauthClient:  oauthClient,
 		sessionStore: sessionStore,
 		directory:    directory,
@@ -258,6 +264,21 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
+
+	// Ensure user exists in the users table (will insert on first login)
+	if o.userStore != nil {
+		err = o.userStore.EnsureUser(arf.Did)
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				err,
+				"failed to ensure user exists",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+	}
+
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,

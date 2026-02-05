@@ -28,4 +28,4 @@ exclude:
     - ^internal/utils
     - dummy_.*\.go
     - ^internal/oauthserver # TODO: should be able to remove once refresh tokens are implemented
-    - ^internal/privi/jetstream.go # This is all setup code for stream listeners. More approriate for integration tests with a fake jetstream service
+    - ^internal/pear/jetstream.go # This is all setup code for stream listeners. More approriate for integration tests with a fake jetstream service

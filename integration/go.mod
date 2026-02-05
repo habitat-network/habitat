@@ -4,7 +4,7 @@ go 1.25.4
 
 replace github.com/habitat-network/habitat => ..
 
-replace github.com/habitat-network/habitat/cmd/privi => ../cmd/privi
+replace github.com/habitat-network/habitat/cmd/pear => ../cmd/pear
 
 replace github.com/docker/docker/api => github.com/moby/moby/api v1.52.0
 

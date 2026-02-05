@@ -1,4 +1,4 @@
-package privi
+package pear
 
 import (
 	"testing"

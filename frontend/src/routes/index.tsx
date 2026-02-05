@@ -9,16 +9,16 @@ export const Route = createFileRoute("/")({
       {
         id: "permissions",
         name: "Permissions",
-        description: "Manage permissions for privi",
+        description: "Manage permissions for pear",
         icon: "🔑",
         link: "/permissions",
       },
       {
-        id: "privi-test",
+        id: "pear-test",
         name: "Privi Test",
         description: "Privi Test for getting and putting records",
         icon: "💿",
-        link: "/privi-test",
+        link: "/pear-test",
       },
       {
         id: "blob-test",

@@ -1,4 +1,4 @@
-package privi
+package pear
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/userstore"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -17,16 +18,19 @@ func TestHasRepoForDid(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
 	require.NoError(t, err)
 
-	// No records exist yet, should return false
+	repo, err := NewSQLiteRepo(db, userStore)
+	require.NoError(t, err)
+
+	// No user exists yet, should return false
 	has, err := repo.hasRepoForDid("did:example:alice")
 	require.NoError(t, err)
 	require.False(t, has)
 
-	// Add a record for the DID
-	err = repo.putRecord("did:example:alice", "test-key", map[string]any{"data": "value"}, nil)
+	// Ensure user exists (simulating first login)
+	err = userStore.EnsureUser("did:example:alice")
 	require.NoError(t, err)
 
 	// Now the DID should be found
@@ -41,26 +45,30 @@ func TestHasRepoForDid(t *testing.T) {
 }
 
 func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
-	testDBPath := filepath.Join(os.TempDir(), "test_privi.db")
+	testDBPath := filepath.Join(os.TempDir(), "test_pear.db")
 	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
 
-	priviDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
+	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewSQLiteRepo(priviDB)
+	userStore, err := userstore.NewUserStore(pearDB)
 	require.NoError(t, err)
 
+	repo, err := NewSQLiteRepo(pearDB, userStore)
+	require.NoError(t, err)
+
+	collection := "test.collection"
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
 
-	err = repo.putRecord("my-did", key, val, nil)
+	err = repo.putRecord("my-did", collection, key, val, nil)
 	require.NoError(t, err)
 
-	got, err := repo.getRecord("my-did", key)
+	got, err := repo.getRecord("my-did", collection, key)
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Rec), &unmarshalled)
+	err = json.Unmarshal([]byte(got.Value), &unmarshalled)
 	require.NoError(t, err)
 
 	require.Equal(t, val, unmarshalled)
@@ -69,11 +77,14 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 func TestSQLiteRepoListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 	err = repo.putRecord(
 		"my-did",
-		"network.habitat.collection-1.key-1",
+		"network.habitat.collection-1",
+		"key-1",
 		map[string]any{"data": "value"},
 		nil,
 	)
@@ -81,7 +92,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 
 	err = repo.putRecord(
 		"my-did",
-		"network.habitat.collection-1.key-2",
+		"network.habitat.collection-1",
+		"key-2",
 		map[string]any{"data": "value"},
 		nil,
 	)
@@ -89,7 +101,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 
 	err = repo.putRecord(
 		"my-did",
-		"network.habitat.collection-2.key-2",
+		"network.habitat.collection-2",
+		"key-2",
 		map[string]any{"data": "value"},
 		nil,
 	)
@@ -166,7 +179,10 @@ func TestUploadAndGetBlob(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewSQLiteRepo(db)
+	userStore, err := userstore.NewUserStore(db)
+	require.NoError(t, err)
+
+	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
 
 	did := "did:example:alice"

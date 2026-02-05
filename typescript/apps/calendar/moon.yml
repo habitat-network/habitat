@@ -3,7 +3,7 @@ tasks:
     env:
       DOMAIN: "$project.${TS_DOMAIN}"
     deps:
-      - target: "privi:dev"
+      - target: "pear:dev"
       - target: "funnel:start"
         args: ["5173", "$project"]
   regenerate:

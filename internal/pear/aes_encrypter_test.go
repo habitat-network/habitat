@@ -1,4 +1,4 @@
-package privi
+package pear
 
 /*
 // TODO: comment back in when using real encryption

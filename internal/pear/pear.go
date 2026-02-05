@@ -1,4 +1,4 @@
-package privi
+package pear
 
 import (
 	"fmt"
@@ -8,21 +8,15 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 )
 
-// Privi is an ATProto PDS Wrapper which allows for storing & getting private data.
-// It does this by encrypting data, then storing it in blob. A special lexicon for this purpose,
-// identified by network.habitat.encryptedRecord, points to the blob storing the actual data.
-//
-// This encryption layer is transparent to the caller -- Privi.PutRecord() and Privi.GetRecord() have
-// the same API has com.atproto.putRecord and com.atproto.getRecord.
-//
-// TODO: formally define the network.habitat.encryptedRecord and change it to a domain we actually own :)
-type store struct {
-	// TODO: consider encrypting at rest. We probably do not want to do this but do want to construct a wholly separate MST for private data.
-	// e           Encrypter
+// pear stands for Permission Enforcing ATProto Repo.
+// This package implements that.
+
+// The permissionEnforcingRepo wraps a repo, and enforces permissions on any calls.
+type permissionEnforcingRepo struct {
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
-	repo *sqliteRepo
+	repo *repo
 }
 
 var (
@@ -32,35 +26,43 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-// TODO: take in a carfile/sqlite where user's did is persisted
-func newStore(perms permissions.Store, repo *sqliteRepo) *store {
-	return &store{
+func newPermissionEnforcingRepo(perms permissions.Store, repo *repo) *permissionEnforcingRepo {
+	return &permissionEnforcingRepo{
 		permissions: perms,
 		repo:        repo,
 	}
 }
 
-// putRecord puts the given record on the repo connected to this store (currently an in-memory repo that is a KV store)
+// putRecord puts the given record on the repo connected to this permissionEnforcingRepo.
 // It does not do any encryption, permissions, auth, etc. It is assumed that only the owner of the store can call this and that
 // is gated by some higher up level. This should be re-written in the future to not give any incorrect impression.
-func (p *store) putRecord(
+func (p *permissionEnforcingRepo) putRecord(
 	did string,
 	collection string,
 	record map[string]any,
 	rkey string,
 	validate *bool,
 ) error {
-	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into privi.
-	return p.repo.putRecord(did, fmt.Sprintf("%s.%s", collection, rkey), record, validate)
+	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
+	return p.repo.putRecord(did, collection, rkey, record, validate)
 }
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
-func (p *store) getRecord(
+func (p *permissionEnforcingRepo) getRecord(
 	collection string,
 	rkey string,
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
+
+	has, err := p.hasRepoForDid(targetDID.String())
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, ErrNotLocalRepo
+	}
+
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
 		callerDID.String(),
@@ -76,13 +78,21 @@ func (p *store) getRecord(
 		return nil, ErrUnauthorized
 	}
 
-	return p.repo.getRecord(string(targetDID), fmt.Sprintf("%s.%s", collection, rkey))
+	return p.repo.getRecord(string(targetDID), collection, rkey)
 }
 
-func (p *store) listRecords(
+func (p *permissionEnforcingRepo) listRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	callerDID syntax.DID,
 ) ([]Record, error) {
+	has, err := p.hasRepoForDid(params.Repo)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, ErrNotLocalRepo
+	}
+
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
 		params.Repo,
 		callerDID.String(),
@@ -95,10 +105,23 @@ func (p *store) listRecords(
 	return p.repo.listRecords(params, allow, deny)
 }
 
-func (p *store) hasRepoForDid(did string) (bool, error) {
+func (p *permissionEnforcingRepo) hasRepoForDid(did string) (bool, error) {
 	has, err := p.repo.hasRepoForDid(did)
 	if err != nil {
 		return false, err
 	}
 	return has, nil
+}
+
+// TODO: actually enforce permissions here
+func (p *permissionEnforcingRepo) getBlob(
+	did string,
+	cid string,
+) (string /* mimetype */, []byte /* raw blob */, error) {
+	return p.repo.getBlob(did, cid)
+}
+
+// TODO: actually enforce permissions here
+func (p *permissionEnforcingRepo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
+	return p.repo.uploadBlob(did, data, mimeType)
 }
