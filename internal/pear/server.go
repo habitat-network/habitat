@@ -28,7 +28,6 @@ type Server struct {
 	dir identity.Directory
 
 	oauthServer      *oauthserver.OAuthServer
-	inbox            *Inbox
 	pdsClientFactory *oauthclient.PDSClientFactory
 }
 
@@ -36,7 +35,6 @@ type Server struct {
 func NewServer(
 	perms permissions.Store,
 	repo *repo,
-	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *Server {
@@ -44,7 +42,6 @@ func NewServer(
 		dir:              identity.DefaultDirectory(),
 		pear:             newPermissionEnforcingRepo(perms, repo),
 		oauthServer:      oauthServer,
-		inbox:            inbox,
 		pdsClientFactory: pdsClientFactory,
 	}
 	return server
@@ -418,49 +415,6 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
 	}
-}
-
-func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
-	if !ok {
-		return
-	}
-	notifications, err := s.inbox.getNotificationsByDid(callerDID.String())
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting notifications", http.StatusInternalServerError)
-		return
-	}
-
-	resp := habitat.NetworkHabitatNotificationListNotificationsOutput{
-		Records: []habitat.NetworkHabitatNotificationListNotificationsRecord{},
-	}
-	// TODO: properly fill in the CID
-	for _, notification := range notifications {
-		resp.Records = append(
-			resp.Records,
-			habitat.NetworkHabitatNotificationListNotificationsRecord{
-				Uri: fmt.Sprintf(
-					"habitat://%s/%s/%s",
-					notification.OriginDid,
-					notification.Collection,
-					notification.Rkey,
-				),
-				Value: habitat.NetworkHabitatNotificationDefsNotification{
-					OriginDid:  notification.OriginDid,
-					Collection: notification.Collection,
-					Rkey:       notification.Rkey,
-				},
-			},
-		)
-	}
-	err = json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
