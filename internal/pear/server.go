@@ -417,20 +417,18 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
-	if !ok {
-		return
-	}
+	/*
+		callerDID, ok := s.getAuthedUser(w, r)
+		if !ok {
+			return
+		}
 
-	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
-	err := json.NewDecoder(r.Body).Decode(req)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
-		return
-	}
-	err = s.pear.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
-		return
-	}
+		req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
+		err := json.NewDecoder(r.Body).Decode(req)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+			return
+		}
+	*/
+
 }
