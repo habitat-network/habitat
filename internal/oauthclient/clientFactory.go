@@ -3,6 +3,7 @@ package oauthclient
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -28,13 +29,17 @@ func NewPDSClientFactory(
 	}
 }
 
+type PDSClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 func (f *PDSClientFactory) NewClient(
 	ctx context.Context,
 	did syntax.DID,
-) (*AuthedDpopHttpClient, error) {
+) (PDSClient, error) {
 	id, err := f.dir.LookupDID(ctx, did)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup did: %w", err)
 	}
-	return NewAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{}), nil
+	return newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{}), nil
 }

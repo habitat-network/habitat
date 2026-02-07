@@ -61,20 +61,20 @@ func (s *DpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return doInternal(req, s.nonceProvider, s.key, "")
 }
 
-type AuthedDpopHttpClient struct {
+type authedDpopHttpClient struct {
 	id            *identity.Identity
 	credStore     pdscred.PDSCredentialStore
 	oauthClient   OAuthClient
 	nonceProvider DpopNonceProvider
 }
 
-func NewAuthedDpopHttpClient(
+func newAuthedDpopHttpClient(
 	id *identity.Identity,
 	credStore pdscred.PDSCredentialStore,
 	oauthClient OAuthClient,
 	nonceProvider DpopNonceProvider,
-) *AuthedDpopHttpClient {
-	return &AuthedDpopHttpClient{
+) *authedDpopHttpClient {
+	return &authedDpopHttpClient{
 		id:            id,
 		credStore:     credStore,
 		oauthClient:   oauthClient,
@@ -82,7 +82,7 @@ func NewAuthedDpopHttpClient(
 	}
 }
 
-func (s *AuthedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
+func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 	cred, err := s.credStore.GetCredentials(s.id.DID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user credentials: %w", err)

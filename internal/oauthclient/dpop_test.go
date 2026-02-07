@@ -264,7 +264,7 @@ func TestAuthedDpopHttpClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create DPoP client
-	client := NewAuthedDpopHttpClient(
+	client := newAuthedDpopHttpClient(
 		testIdentity(server.URL),
 		testPdsCredStore(t, key, jwt.Claims{
 			Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
@@ -296,7 +296,7 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create DPoP client
-	client := NewAuthedDpopHttpClient(
+	client := newAuthedDpopHttpClient(
 		testIdentity(server.URL),
 		testPdsCredStore(t, key, jwt.Claims{
 			Issuer: "https://example.com",
