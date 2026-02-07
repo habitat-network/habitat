@@ -127,6 +127,50 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
+
+		// TODO: TEMPORARY TESTING CODE - Remove before production
+		// Create notifications for grantees that exist on the current node
+		for _, grantee := range req.Grantees {
+			// Check if grantee exists on the current node
+			hasLocalRepo, err := s.pear.hasRepoForDid(grantee)
+			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("grantee", grantee).
+					Str("ownerDID", ownerDID.String()).
+					Str("collection", req.Collection).
+					Str("rkey", rkey).
+					Msg("failed to check if grantee has local repo, skipping notification")
+				continue
+			}
+
+			if hasLocalRepo {
+				// Create notification for this grantee
+				err = s.inbox.createNotification(grantee, ownerDID.String(), req.Collection, rkey)
+				if err != nil {
+					log.Warn().
+						Err(err).
+						Str("grantee", grantee).
+						Str("ownerDID", ownerDID.String()).
+						Str("collection", req.Collection).
+						Str("rkey", rkey).
+						Msg("failed to create notification for grantee")
+					// Continue with other grantees even if one fails
+					continue
+				}
+				log.Info().
+					Str("grantee", grantee).
+					Str("ownerDID", ownerDID.String()).
+					Str("collection", req.Collection).
+					Str("rkey", rkey).
+					Msg("created notification for local grantee")
+			} else {
+				log.Debug().
+					Str("grantee", grantee).
+					Str("ownerDID", ownerDID.String()).
+					Msg("skipping notification for grantee on different node")
+			}
+		}
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
