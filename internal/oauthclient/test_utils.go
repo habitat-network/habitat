@@ -257,13 +257,15 @@ func stringPtr(s string) *string {
 
 func testPdsCredStore(
 	t *testing.T,
-	key *ecdsa.PrivateKey,
 	claims jwt.Claims,
 ) pdscred.PDSCredentialStore {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err, "failed to open in-memory db")
 	store, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err, "failed to create pds cred store")
+	// Create test key
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.ES256,
 		Key:       key,

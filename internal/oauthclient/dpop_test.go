@@ -259,19 +259,12 @@ func TestAuthedDpopHttpClient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create test key
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	clientFactory := NewPDSClientFactory(testPdsCredStore(t, jwt.Claims{
+		Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
+	}), testOAuthClient(t), NewDummyDirectory(server.URL))
 
-	// Create DPoP client
-	client := newAuthedDpopHttpClient(
-		testIdentity(server.URL),
-		testPdsCredStore(t, key, jwt.Claims{
-			Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
-		}),
-		testOAuthClient(t),
-		&MemoryNonceProvider{nonce: "test-nonce"},
-	)
+	client, err := clientFactory.NewClient(t.Context(), testIdentity(server.URL).DID)
+	require.NoError(t, err)
 
 	// Create request with Authorization header
 	req, err := http.NewRequest("GET", "/test", nil)
@@ -291,20 +284,13 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	server := fakeAuthServer(map[string]any{})
 	defer server.Close()
 
-	// Create test key
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	clientFactory := NewPDSClientFactory(testPdsCredStore(t, jwt.Claims{
+		Issuer: "https://example.com",
+		Expiry: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
+	}), testOAuthClient(t), NewDummyDirectory(server.URL))
 
-	// Create DPoP client
-	client := newAuthedDpopHttpClient(
-		testIdentity(server.URL),
-		testPdsCredStore(t, key, jwt.Claims{
-			Issuer: "https://example.com",
-			Expiry: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
-		}),
-		testOAuthClient(t),
-		&MemoryNonceProvider{nonce: "test-nonce"},
-	)
+	client, err := clientFactory.NewClient(t.Context(), testIdentity(server.URL).DID)
+	require.NoError(t, err)
 
 	// Create request with Authorization header
 	req, err := http.NewRequest("GET", "/test", nil)

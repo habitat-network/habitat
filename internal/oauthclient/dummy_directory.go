@@ -9,12 +9,12 @@ import (
 )
 
 type DummyDirectory struct {
-	URL string
+	pdsUrl string
 }
 
-func NewDummyDirectory(url string) *DummyDirectory {
+func NewDummyDirectory(pdsUrl string) *DummyDirectory {
 	return &DummyDirectory{
-		URL: url,
+		pdsUrl: pdsUrl,
 	}
 }
 
@@ -29,24 +29,27 @@ func (d *DummyDirectory) LookupDID(
 	ctx context.Context,
 	did syntax.DID,
 ) (*identity.Identity, error) {
-	return nil, fmt.Errorf("unimplemented")
+	return getIdentity(d.pdsUrl, did.String()), nil
 }
 
 func (d *DummyDirectory) Lookup(
 	ctx context.Context,
 	atid syntax.AtIdentifier,
 ) (*identity.Identity, error) {
-	did := atid.String()
-	return &identity.Identity{
-		DID: syntax.DID(did),
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {
-				URL: d.URL,
-			},
-		},
-	}, nil
+	return getIdentity(d.pdsUrl, atid.String()), nil
 }
 
 func (d *DummyDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return fmt.Errorf("unimplemented")
+}
+
+func getIdentity(pdsUrl string, did string) *identity.Identity {
+	return &identity.Identity{
+		DID: syntax.DID(did),
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_pds": {
+				URL: pdsUrl,
+			},
+		},
+	}
 }
