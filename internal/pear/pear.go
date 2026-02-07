@@ -6,6 +6,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/rs/zerolog/log"
 )
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -85,24 +86,98 @@ func (p *permissionEnforcingRepo) listRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	callerDID syntax.DID,
 ) ([]Record, error) {
-	has, err := p.hasRepoForDid(params.Repo)
+	var allRecords []Record
+	callerDIDStr := callerDID.String()
+
+	// Step 1: Get records from caller's own repo (if it exists locally)
+	hasOwnRepo, err := p.hasRepoForDid(callerDIDStr)
 	if err != nil {
 		return nil, err
 	}
-	if !has {
+	if !hasOwnRepo {
 		return nil, ErrNotLocalRepo
 	}
-
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
-		params.Repo,
-		callerDID.String(),
+		callerDIDStr,
+		callerDIDStr,
 		params.Collection,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.repo.listRecords(params, allow, deny)
+	ownRepoParams := &habitat.NetworkHabitatRepoListRecordsParams{
+		Repo:       callerDIDStr,
+		Collection: params.Collection,
+		Cursor:     params.Cursor,
+		Limit:      params.Limit,
+		Reverse:    params.Reverse,
+	}
+
+	ownRecords, err := p.repo.listRecords(ownRepoParams, allow, deny)
+	if err != nil {
+		return nil, err
+	}
+	allRecords = append(allRecords, ownRecords...)
+
+	// Step 2: Query notifications JOINed with records table
+	// This automatically filters out notifications without corresponding records
+	var joinedResults []struct {
+		Notification
+		Record
+	}
+
+	err = p.repo.db.Table("notifications").
+		Select("notifications.*, records.*").
+		Joins("INNER JOIN records ON notifications.origin_did = records.did AND notifications.collection = records.collection AND notifications.rkey = records.rkey").
+		Where("notifications.did = ?", callerDIDStr).
+		Where("notifications.collection = ?", params.Collection).
+		Find(&joinedResults).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to query notifications with records: %w", err)
+	}
+
+	// Step 3: For each joined result, check if OriginDid is local and check permissions
+	for _, result := range joinedResults {
+		originDid := result.Notification.OriginDid
+
+		// Check if the record owner is on the same node
+		hasLocalRepo, err := p.hasRepoForDid(originDid)
+		if err != nil {
+			return nil, err
+		}
+
+		if !hasLocalRepo {
+			// Record is on a different node - log warning and skip
+			log.Warn().
+				Str("originDid", originDid).
+				Str("collection", result.Notification.Collection).
+				Str("rkey", result.Notification.Rkey).
+				Msg("skipping record from different node (cross-node fetching not yet implemented)")
+			continue
+		}
+
+		// Record is on the same node - check permissions
+		authz, err := p.permissions.HasPermission(
+			callerDIDStr,
+			originDid,
+			result.Notification.Collection,
+			result.Notification.Rkey,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if !authz {
+			// User doesn't have permission for this record - skip it
+			continue
+		}
+
+		// Add the record to results
+		allRecords = append(allRecords, result.Record)
+	}
+
+	return allRecords, nil
 }
 
 func (p *permissionEnforcingRepo) hasRepoForDid(did string) (bool, error) {
