@@ -89,20 +89,11 @@ const Step1 = ({
         </legend>
         <label>
           Handle
-          <input
-            {...form.register("handle")}
-            required
-            defaultValue={"sashankg.bsky.social"}
-          />
+          <input {...form.register("handle")} required />
         </label>
         <label>
           Password
-          <input
-            {...form.register("password")}
-            required
-            type="password"
-            defaultValue={"6lSJVTChdGKAww"}
-          />
+          <input {...form.register("password")} required type="password" />
         </label>
         <button type="submit" aria-busy={isPending}>
           Request code for identity update
