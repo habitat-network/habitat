@@ -136,3 +136,20 @@ func (i *Inbox) getNotificationsByDid(did string) ([]Notification, error) {
 	}
 	return rows, nil
 }
+
+// createNotification creates a notification for testing purposes.
+// TODO: TEMPORARY TESTING CODE - Remove before production
+func (i *Inbox) createNotification(did string, originDid string, collection string, rkey string) error {
+	return gorm.G[Notification](
+		i.db,
+		clause.OnConflict{UpdateAll: true},
+	).Create(
+		context.Background(),
+		&Notification{
+			Did:        did,
+			OriginDid:  originDid,
+			Collection: collection,
+			Rkey:       rkey,
+		},
+	)
+}
