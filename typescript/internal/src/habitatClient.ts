@@ -327,6 +327,7 @@ export class HabitatClient {
     collection: string,
     record: T,
     rkey: string,
+    grantees?: string[],
     opts?: RequestInit,
   ): Promise<PutPrivateRecordResponse> {
     // Writing private records always happens on the user's own repo
@@ -335,6 +336,7 @@ export class HabitatClient {
       collection,
       rkey,
       record,
+      grantees,
     };
 
     const response = await this.defaultAgent.fetchHandler(
