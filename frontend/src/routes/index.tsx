@@ -48,6 +48,13 @@ export const Route = createFileRoute("/")({
         icon: "🗄️",
         link: "/data",
       },
+      {
+        id: "onboard",
+        name: "Habitat Onboarding (DID updater)",
+        description: "Join Habitat by updating DID",
+        icon: "🍾",
+        link: "/onboard",
+      },
     ];
   },
   component: Wrapper,
