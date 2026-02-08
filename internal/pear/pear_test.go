@@ -23,7 +23,7 @@ func newPearForTest(t *testing.T) *permissionEnforcingRepo {
 	require.NoError(t, err)
 	inbox, err := inbox.NewInbox(db)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), dummy, repo, inbox)
+	p := newPermissionEnforcingRepo(t.Context(), "empty", "empty", identity.DefaultDirectory(), dummy, repo, inbox)
 	return p
 }
 
@@ -41,7 +41,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), dummy, repo)
+	p := newPermissionEnforcingRepo(t.Context(), "empty", "empty", identity.DefaultDirectory(), dummy, repo)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -131,7 +131,7 @@ func TestListRecords(t *testing.T) {
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), perms, repo)
+	p := newPermissionEnforcingRepo(t.Context(), "empty", "empty", identity.DefaultDirectory(), perms, repo)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -209,7 +209,7 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	pear := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), perms, repo)
+	pear := newPermissionEnforcingRepo(t.Context(), "empty", "empty", identity.DefaultDirectory(), perms, repo)
 
 	did := "did:example:alice"
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment

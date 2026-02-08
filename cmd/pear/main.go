@@ -39,6 +39,7 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/userstore"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/urfave/cli/v3"
 )
 
@@ -130,7 +131,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
-	pearServer := setupPearServer(domain, db, oauthServer, pdsClientFactory)
+
+	habitatServiceName := "habitat"
+	env := utils.GetEnvString("env", "local")
+	if env == "local" {
+		habitatServiceName = "habitat_local"
+	}
+	pearServer := setupPearServer(domain, habitatServiceName, db, oauthServer, pdsClientFactory)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
@@ -232,6 +239,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 func setupPearServer(
 	location string,
+	serviceName string,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
@@ -250,7 +258,7 @@ func setupPearServer(
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup inbox")
 	}
-	return pear.NewServer(context.Background(), location, permissionStore, repo, inbox, oauthServer, pdsClientFactory)
+	return pear.NewServer(context.Background(), location, serviceName, permissionStore, repo, inbox, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(

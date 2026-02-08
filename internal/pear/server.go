@@ -35,6 +35,7 @@ type Server struct {
 func NewServer(
 	ctx context.Context,
 	url string,
+	serviceName string,
 	perms permissions.Store,
 	repo *repo,
 	inbox inbox.Inbox,
@@ -44,7 +45,11 @@ func NewServer(
 	dir := identity.DefaultDirectory()
 	server := &Server{
 		dir:              dir,
+<<<<<<< HEAD
 		pear:             newPermissionEnforcingRepo(ctx, url, dir, perms, repo, inbox),
+=======
+		pear:             newPermissionEnforcingRepo(ctx, url, serviceName, dir, perms, repo),
+>>>>>>> 3456736 (different for local / prod)
 		oauthServer:      oauthServer,
 		pdsClientFactory: pdsClientFactory,
 	}

@@ -20,7 +20,9 @@ type permissionEnforcingRepo struct {
 	ctx context.Context
 	// The URL at which this repo lives; should match what is in a hosted user's DID doc for the habitat service entry
 	url string
-	dir identity.Directory
+	// The service name for habitat in the DID doc (different for dev / production)
+	serviceName string
+	dir         identity.Directory
 
 	// Backing for permissions
 	permissions permissions.Store
@@ -39,10 +41,19 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-func newPermissionEnforcingRepo(ctx context.Context, url string, dir identity.Directory, perms permissions.Store, repo *repo, inbox inbox.Inbox) *permissionEnforcingRepo {
+func newPermissionEnforcingRepo(
+	ctx context.Context,
+	url string,
+	serviceName string,
+	dir identity.Directory,
+	perms permissions.Store,
+	repo *repo,
+	inbox inbox.Inbox,
+) *permissionEnforcingRepo {
 	return &permissionEnforcingRepo{
 		ctx:         ctx,
 		url:         url,
+		serviceName: serviceName,
 		dir:         dir,
 		permissions: perms,
 		repo:        repo,
@@ -131,7 +142,7 @@ func (p *permissionEnforcingRepo) hasRepoForDid(did syntax.DID) (bool, error) {
 		return false, err
 	}
 
-	foundURL, ok := id.Services["habitat"]
+	foundURL, ok := id.Services[p.serviceName]
 	if !ok {
 		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
 	}
