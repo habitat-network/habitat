@@ -26,11 +26,11 @@ type directMessageChannelImpl struct {
 }
 
 func NewDirectMessageChannel(
-	clientFacotry *oauthclient.PDSClientFactory,
+	clientFactory *oauthclient.PDSClientFactory,
 	directory identity.Directory,
 ) MessageChannel {
 	return &directMessageChannelImpl{
-		clientFacotry: clientFacotry,
+		clientFacotry: clientFactory,
 		directory:     directory,
 	}
 }
