@@ -43,7 +43,6 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 			},
 			&cli.StringFlag{
 				Name:        fServiceName,
-				Required:    true,
 				Usage:       "The service name of habitat that should be looked up in users' DID doc services list",
 				DefaultText: "habitat",
 				Sources:     getSources(fServiceName),
