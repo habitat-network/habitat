@@ -2,6 +2,7 @@ package pear
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -72,7 +73,27 @@ func (p *permissionEnforcingRepo) getRecord(
 		q.Add("collection", collection)
 		q.Add("rkey", rkey)
 		forwardedReq.URL.RawQuery = q.Encode()
-		p.nodeMessageChannel.SendXRPC(context.Background(), callerDID, targetDID, forwardedReq)
+		resp, err := p.nodeMessageChannel.SendXRPC(
+			context.Background(),
+			callerDID,
+			targetDID,
+			forwardedReq,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("forwarding failed: %s", resp.Status)
+		}
+		var getRecordResponse habitat.NetworkHabitatRepoGetRecordOutput
+		json.NewDecoder(resp.Body).Decode(&getRecordResponse)
+		return &Record{
+			Did:        string(targetDID),
+			Collection: collection,
+			Rkey:       rkey,
+			Value:      "", /* TODO we should reorganize some things so that i can return a json object here */
+		}, nil
 	}
 
 	// Run permissions before returning to the user
