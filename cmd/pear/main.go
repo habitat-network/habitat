@@ -39,13 +39,7 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/userstore"
-	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/urfave/cli/v3"
-)
-
-const (
-	JetstreamURL       = "wss://jetstream2.us-east.bsky.network/subscribe"
-	JetstreamUserAgent = "habitat-jetstream-client/v0.0.1"
 )
 
 func main() {
@@ -132,12 +126,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 		identity.DefaultDirectory(),
 	)
 
-	habitatServiceName := "habitat"
-	env := utils.GetEnvString("env", "local")
-	if env == "local" {
-		habitatServiceName = "habitat_local"
-	}
-	pearServer := setupPearServer(domain, habitatServiceName, db, oauthServer, pdsClientFactory)
+	serviceName := cmd.String(fServiceName)
+	pearServer := setupPearServer(domain, serviceName, db, oauthServer, pdsClientFactory)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
