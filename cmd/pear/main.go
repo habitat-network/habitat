@@ -245,7 +245,7 @@ func setupPriviServer(
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
 
-	return pear.NewServer(permissionStore, repo, oauthServer, pdsClientFactory)
+	return pear.NewServer(db, permissionStore, repo, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(

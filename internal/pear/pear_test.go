@@ -30,7 +30,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(dummy, repo)
+	p := newPermissionEnforcingRepo(db, dummy, repo)
 
 	// Ensure user exists before putting records
 	err = userStore.EnsureUser(syntax.DID("my-did"))
@@ -86,7 +86,7 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(dummy, repo)
+	p := newPermissionEnforcingRepo(db, dummy, repo)
 
 	// Ensure user exists before putting records
 	err = userStore.EnsureUser(syntax.DID("my-did"))
@@ -116,7 +116,7 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo)
+	p := newPermissionEnforcingRepo(db, perms, repo)
 
 	// Try to get a record for a DID that doesn't exist on this server
 	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
@@ -133,7 +133,7 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo)
+	p := newPermissionEnforcingRepo(db, perms, repo)
 
 	// Try to list records for a DID that doesn't exist on this server
 	records, err := p.listRecords(
@@ -153,7 +153,7 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo)
+	p := newPermissionEnforcingRepo(db, perms, repo)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -236,7 +236,7 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	pear := newPermissionEnforcingRepo(perms, repo)
+	pear := newPermissionEnforcingRepo(db, perms, repo)
 
 	did := "did:example:alice"
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment

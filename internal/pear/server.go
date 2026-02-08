@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"gorm.io/gorm"
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -32,6 +33,7 @@ type Server struct {
 
 // NewServer returns a pear server.
 func NewServer(
+	db *gorm.DB,
 	perms permissions.Store,
 	repo *repo,
 	oauthServer *oauthserver.OAuthServer,
@@ -39,7 +41,7 @@ func NewServer(
 ) *Server {
 	server := &Server{
 		dir:              identity.DefaultDirectory(),
-		pear:             newPermissionEnforcingRepo(perms, repo),
+		pear:             newPermissionEnforcingRepo(db, perms, repo),
 		oauthServer:      oauthServer,
 		pdsClientFactory: pdsClientFactory,
 	}
