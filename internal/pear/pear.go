@@ -2,8 +2,10 @@ package pear
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
@@ -15,6 +17,12 @@ import (
 
 // The permissionEnforcingRepo wraps a repo, and enforces permissions on any calls.
 type permissionEnforcingRepo struct {
+	ctx context.Context
+	// The URL at which this repo lives; should match what is in a hosted user's DID doc for the habitat service entry
+	url string
+	dir identity.Directory
+
+	// Backing for permissions
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
@@ -31,8 +39,11 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-func newPermissionEnforcingRepo(perms permissions.Store, repo *repo, inbox inbox.Inbox) *permissionEnforcingRepo {
+func newPermissionEnforcingRepo(ctx context.Context, url string, dir identity.Directory, perms permissions.Store, repo *repo, inbox inbox.Inbox) *permissionEnforcingRepo {
 	return &permissionEnforcingRepo{
+		ctx:         ctx,
+		url:         url,
+		dir:         dir,
 		permissions: perms,
 		repo:        repo,
 		inbox:       inbox,
@@ -60,8 +71,7 @@ func (p *permissionEnforcingRepo) getRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
-
-	has, err := p.hasRepoForDid(targetDID.String())
+	has, err := p.hasRepoForDid(syntax.DID(targetDID))
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +101,7 @@ func (p *permissionEnforcingRepo) listRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	callerDID syntax.DID,
 ) ([]Record, error) {
-	has, err := p.hasRepoForDid(params.Repo)
+	has, err := p.hasRepoForDid(syntax.DID(params.Repo))
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +121,22 @@ func (p *permissionEnforcingRepo) listRecords(
 	return p.repo.listRecords(params, allow, deny)
 }
 
-func (p *permissionEnforcingRepo) hasRepoForDid(did string) (bool, error) {
-	has, err := p.repo.hasRepoForDid(did)
+var (
+	ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
+)
+
+func (p *permissionEnforcingRepo) hasRepoForDid(did syntax.DID) (bool, error) {
+	id, err := p.dir.LookupDID(p.ctx, did)
 	if err != nil {
 		return false, err
 	}
-	return has, nil
+
+	foundURL, ok := id.Services["habitat"]
+	if !ok {
+		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
+	}
+
+	return foundURL.URL == p.url, nil
 }
 
 // TODO: actually enforce permissions here

@@ -130,7 +130,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
-	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory, userStore)
+	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
@@ -234,9 +234,8 @@ func setupPriviServer(
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
-	userStore userstore.UserStore,
 ) *pear.Server {
-	repo, err := pear.NewSQLiteRepo(db, userStore)
+	repo, err := pear.NewRepo(db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear sqlite db")
 	}

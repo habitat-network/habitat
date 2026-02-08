@@ -5,15 +5,27 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func newPearForTest(t *testing.T) *permissionEnforcingRepo {
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	dummy, err := permissions.NewSQLiteStore(db)
+	require.NoError(t, err)
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
+	p := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), dummy, repo, inbox)
+	return p
+}
 
 // A unit test testing putRecord and getRecord with one basic permission.
 // TODO: an integration test with two PDS's + pear servers running.
@@ -27,17 +39,9 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	dummy, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
+	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(dummy, repo, inbox)
-
-	// Ensure user exists before putting records
-	err = userStore.EnsureUser(syntax.DID("my-did"))
-	require.NoError(t, err)
+	p := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), dummy, repo)
 
 	// putRecord
 	coll := "my.fake.collection"
@@ -81,27 +85,13 @@ func TestListOwnRecords(t *testing.T) {
 	val := map[string]any{
 		"someKey": "someVal",
 	}
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	dummy, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(dummy, repo, inbox)
-
-	// Ensure user exists before putting records
-	err = userStore.EnsureUser(syntax.DID("my-did"))
-	require.NoError(t, err)
+	p := newPearForTest(t)
 
 	// putRecord
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	err := p.putRecord("my-did", coll, val, rkey, &validate)
 	require.NoError(t, err)
 
 	records, err := p.listRecords(
@@ -113,17 +103,7 @@ func TestListOwnRecords(t *testing.T) {
 }
 
 func TestGetRecordForwardingNotImplemented(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	perms, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo, inbox)
+	p := newPearForTest(t)
 
 	// Try to get a record for a DID that doesn't exist on this server
 	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
@@ -132,17 +112,7 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 }
 
 func TestListRecordsForwardingNotImplemented(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	perms, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo, inbox)
+	p := newPearForTest(t)
 
 	// Try to list records for a DID that doesn't exist on this server
 	records, err := p.listRecords(
@@ -158,20 +128,13 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
+
+	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo, inbox)
+	p := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), perms, repo)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
-
-	// Ensure user exists before putting records
-	err = userStore.EnsureUser(syntax.DID("my-did"))
-	require.NoError(t, err)
 
 	// Create multiple records across collections
 	coll1 := "my.fake.collection1"
@@ -243,13 +206,10 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewSQLiteStore(db)
 	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
+
+	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	pear := newPermissionEnforcingRepo(perms, repo, inbox)
+	pear := newPermissionEnforcingRepo(t.Context(), "empty", identity.DefaultDirectory(), perms, repo)
 
 	did := "did:example:alice"
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment

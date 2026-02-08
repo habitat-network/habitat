@@ -34,14 +34,17 @@ type Server struct {
 // NewServer returns a pear server.
 func NewServer(
 	inbox inbox.Inbox,
+	ctx context.Context,
+	url string,
 	perms permissions.Store,
 	repo *repo,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *Server {
+	dir := identity.DefaultDirectory()
 	server := &Server{
-		dir:              identity.DefaultDirectory(),
-		pear:             newPermissionEnforcingRepo(perms, repo, inbox),
+		dir:              dir,
+		pear:             newPermissionEnforcingRepo(ctx, url, dir, perms, repo, inbox),
 		oauthServer:      oauthServer,
 		pdsClientFactory: pdsClientFactory,
 	}
