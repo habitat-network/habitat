@@ -130,7 +130,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
-	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory)
+	pearServer := setupPearServer(domain, db, oauthServer, pdsClientFactory)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
@@ -230,7 +230,8 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPriviServer(
+func setupPearServer(
+	location string,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
@@ -249,7 +250,7 @@ func setupPriviServer(
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup inbox")
 	}
-	return pear.NewServer(inbox, permissionStore, repo, oauthServer, pdsClientFactory)
+	return pear.NewServer(context.Background(), location, permissionStore, repo, inbox, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(

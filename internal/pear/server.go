@@ -33,11 +33,11 @@ type Server struct {
 
 // NewServer returns a pear server.
 func NewServer(
-	inbox inbox.Inbox,
 	ctx context.Context,
 	url string,
 	perms permissions.Store,
 	repo *repo,
+	inbox inbox.Inbox,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *Server {
