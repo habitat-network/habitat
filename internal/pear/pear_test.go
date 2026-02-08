@@ -90,7 +90,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 		"someKey": "someVal",
 	}
 
-	dir := mockIdentities([]string{":my-did", ":another-did"})
+	dir := mockIdentities([]string{"my-did", "another-did"})
 	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// putRecord

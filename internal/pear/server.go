@@ -45,11 +45,7 @@ func NewServer(
 	dir := identity.DefaultDirectory()
 	server := &Server{
 		dir:              dir,
-<<<<<<< HEAD
-		pear:             newPermissionEnforcingRepo(ctx, url, dir, perms, repo, inbox),
-=======
-		pear:             newPermissionEnforcingRepo(ctx, url, serviceName, dir, perms, repo),
->>>>>>> 3456736 (different for local / prod)
+		pear:             newPermissionEnforcingRepo(ctx, url, serviceName, dir, perms, repo, inbox),
 		oauthServer:      oauthServer,
 		pdsClientFactory: pdsClientFactory,
 	}
