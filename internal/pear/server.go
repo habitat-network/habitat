@@ -1,7 +1,6 @@
 package pear
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,10 +25,8 @@ import (
 type Server struct {
 	pear *permissionEnforcingRepo
 	// Used for resolving handles -> did, did -> PDS
-	dir identity.Directory
-
+	dir                identity.Directory
 	oauthServer        *oauthserver.OAuthServer
-	inbox              *Inbox
 	pdsClientFactory   *oauthclient.PDSClientFactory
 	nodeMessageChannel messagechannel.MessageChannel
 }
@@ -38,7 +35,6 @@ type Server struct {
 func NewServer(
 	perms permissions.Store,
 	repo *repo,
-	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
 	nodeMessageChannel messagechannel.MessageChannel,
@@ -47,7 +43,6 @@ func NewServer(
 		dir:              identity.DefaultDirectory(),
 		pear:             newPermissionEnforcingRepo(perms, repo, nodeMessageChannel),
 		oauthServer:      oauthServer,
-		inbox:            inbox,
 		pdsClientFactory: pdsClientFactory,
 	}
 	return server
@@ -419,132 +414,6 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	err = s.pear.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (s *Server) ListNotifications(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
-	if !ok {
-		return
-	}
-	notifications, err := s.inbox.getNotificationsByDid(callerDID.String())
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting notifications", http.StatusInternalServerError)
-		return
-	}
-
-	resp := habitat.NetworkHabitatNotificationListNotificationsOutput{
-		Records: []habitat.NetworkHabitatNotificationListNotificationsRecord{},
-	}
-	// TODO: properly fill in the CID
-	for _, notification := range notifications {
-		resp.Records = append(
-			resp.Records,
-			habitat.NetworkHabitatNotificationListNotificationsRecord{
-				Uri: fmt.Sprintf(
-					"habitat://%s/%s/%s",
-					notification.OriginDid,
-					notification.Collection,
-					notification.Rkey,
-				),
-				Value: habitat.NetworkHabitatNotificationDefsNotification{
-					OriginDid:  notification.OriginDid,
-					Collection: notification.Collection,
-					Rkey:       notification.Rkey,
-				},
-			},
-		)
-	}
-	err = json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-}
-
-func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
-	_, ok := s.getAuthedUser(w, r)
-	if !ok {
-		return
-	}
-	input := habitat.NetworkHabitatNotificationCreateNotificationInput{}
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusInternalServerError)
-		return
-	}
-	log.Info().Msgf("body: %s", string(body))
-	err = json.Unmarshal(body, &input)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
-		return
-	}
-
-	log.Info().Msgf("input: %+v", input)
-
-	body, err = json.Marshal(input)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "marshal json request", http.StatusInternalServerError)
-		return
-	}
-
-	did, ok := s.oauthServer.Validate(w, r)
-	if !ok {
-		return
-	}
-	dpopClient, err := s.pdsClientFactory.NewClient(r.Context(), did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "create dpop client", http.StatusInternalServerError)
-		return
-	}
-	req, err := http.NewRequest(
-		http.MethodPost,
-		"/xrpc/com.atproto.repo.createRecord",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "create request", http.StatusInternalServerError)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := dpopClient.Do(req)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "forward request", http.StatusInternalServerError)
-		return
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading response body", http.StatusInternalServerError)
-		return
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("failed to create notification: %s: %s", resp.Status, string(respBody)),
-			"create notification",
-			resp.StatusCode,
-		)
-		return
-	}
-
-	log.Info().Msgf("response body: %s", string(respBody))
-
-	output := &habitat.NetworkHabitatNotificationCreateNotificationOutput{}
-	if err := json.Unmarshal(respBody, output); err != nil {
-		utils.LogAndHTTPError(w, err, "unmarshalling response", http.StatusInternalServerError)
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
 }

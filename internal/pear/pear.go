@@ -31,10 +31,15 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-func newPermissionEnforcingRepo(perms permissions.Store, repo *repo) *permissionEnforcingRepo {
+func newPermissionEnforcingRepo(
+	perms permissions.Store,
+	repo *repo,
+	nodeMessageChannel messagechannel.MessageChannel,
+) *permissionEnforcingRepo {
 	return &permissionEnforcingRepo{
-		permissions: perms,
-		repo:        repo,
+		permissions:        perms,
+		repo:               repo,
+		nodeMessageChannel: nodeMessageChannel,
 	}
 }
 
