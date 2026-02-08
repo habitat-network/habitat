@@ -246,7 +246,11 @@ func setupPriviServer(
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
 
-	return pear.NewServer(inbox.NewInbox(db), permissionStore, repo, oauthServer, pdsClientFactory)
+	inbox, err := inbox.NewInbox(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup inbox")
+	}
+	return pear.NewServer(inbox, permissionStore, repo, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(

@@ -31,7 +31,8 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	inbox := inbox.NewInbox(db)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo, inbox)
 
 	// Ensure user exists before putting records
@@ -88,7 +89,8 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	inbox := inbox.NewInbox(db)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(dummy, repo, inbox)
 
 	// Ensure user exists before putting records
@@ -119,7 +121,8 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	inbox := inbox.NewInbox(db)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	// Try to get a record for a DID that doesn't exist on this server
@@ -137,7 +140,8 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	inbox := inbox.NewInbox(db)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	// Try to list records for a DID that doesn't exist on this server
@@ -158,7 +162,8 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	inbox := inbox.NewInbox(db)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
 	p := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	val := map[string]any{"someKey": "someVal"}
@@ -242,7 +247,8 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	inbox := inbox.NewInbox(db)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
 	pear := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	did := "did:example:alice"
