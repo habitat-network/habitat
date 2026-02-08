@@ -870,18 +870,27 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'did'],
+            required: ['collection', 'rkey', 'sender', 'recipient'],
             properties: {
+              sender: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID to grant permission to (URL parameter).',
+              },
+              recipient: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID to grant permission to (URL parameter).',
+              },
               collection: {
                 type: 'string',
                 format: 'nsid',
                 description:
                   'The NSID of the record collection that the update is for.',
               },
-              did: {
+              rkey: {
                 type: 'string',
-                format: 'did',
-                description: 'The DID to grant permission to (URL parameter).',
+                description: 'The record key which was updated.',
               },
             },
           },
