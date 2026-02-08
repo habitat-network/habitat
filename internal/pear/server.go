@@ -435,17 +435,7 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if callerDID != syntax.DID(req.Sender) {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("only owner can put record"),
-			"only owner can put record",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
-	err = s.pear.notifyOfUpdate(r.Context(), syntax.DID(req.Sender), syntax.DID(req.Recipient), req.Collection, req.Rkey)
+	err = s.pear.notifyOfUpdate(r.Context(), callerDID, syntax.DID(req.Recipient), req.Collection, req.Rkey)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
 		return

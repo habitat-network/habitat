@@ -870,13 +870,8 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'rkey', 'sender', 'recipient'],
+            required: ['collection', 'rkey', 'recipient'],
             properties: {
-              sender: {
-                type: 'string',
-                format: 'did',
-                description: 'The DID to grant permission to (URL parameter).',
-              },
               recipient: {
                 type: 'string',
                 format: 'did',

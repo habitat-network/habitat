@@ -7,5 +7,4 @@ type NetworkHabitatInternalNotifyOfUpdateInput struct {
 	Collection string `json:"collection"`
 	Recipient  string `json:"recipient"`
 	Rkey       string `json:"rkey"`
-	Sender     string `json:"sender"`
 }

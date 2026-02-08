@@ -17,10 +17,10 @@ type Inbox interface {
 // Notifications are unique by sender + receiver + collection + rkey
 // Notifications generally live forever, there's no delete actions
 type Notification struct {
-	Sender     string `gorm:"uniqueIndex:idx_user_notification"`
-	Recipient  string `gorm:"uniqueIndex:idx_user_notification"`
-	Collection string `gorm:"uniqueIndex:idx_user_notification"`
-	Rkey       string `gorm:"uniqueIndex:idx_user_notification"`
+	Sender     string `gorm:"primaryKey"`
+	Recipient  string `gorm:"primaryKey"`
+	Collection string `gorm:"primaryKey"`
+	Rkey       string `gorm:"primaryKey"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -33,6 +33,7 @@ type inbox struct {
 var _ Inbox = &inbox{}
 
 func NewInbox(db *gorm.DB) Inbox {
+	db.AutoMigrate(&Notification{})
 	return &inbox{db}
 }
 

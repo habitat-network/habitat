@@ -19,8 +19,6 @@ export type QueryParams = {}
 
 export interface InputSchema {
   /** The DID to grant permission to (URL parameter). */
-  sender: string
-  /** The DID to grant permission to (URL parameter). */
   recipient: string
   /** The NSID of the record collection that the update is for. */
   collection: string

@@ -16,9 +16,6 @@ func NewInboxForTest(t *testing.T) (Inbox, *gorm.DB) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	err = db.AutoMigrate(&Notification{})
-	require.NoError(t, err)
-
 	return NewInbox(db), db
 }
 
