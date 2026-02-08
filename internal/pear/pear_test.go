@@ -7,6 +7,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,8 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(db, dummy, repo)
+	inbox := inbox.NewInbox(db)
+	p := newPermissionEnforcingRepo(dummy, repo, inbox)
 
 	// Ensure user exists before putting records
 	err = userStore.EnsureUser(syntax.DID("my-did"))
@@ -86,7 +88,8 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(db, dummy, repo)
+	inbox := inbox.NewInbox(db)
+	p := newPermissionEnforcingRepo(dummy, repo, inbox)
 
 	// Ensure user exists before putting records
 	err = userStore.EnsureUser(syntax.DID("my-did"))
@@ -116,7 +119,8 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(db, perms, repo)
+	inbox := inbox.NewInbox(db)
+	p := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	// Try to get a record for a DID that doesn't exist on this server
 	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
@@ -133,7 +137,8 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(db, perms, repo)
+	inbox := inbox.NewInbox(db)
+	p := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	// Try to list records for a DID that doesn't exist on this server
 	records, err := p.listRecords(
@@ -153,7 +158,8 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(db, perms, repo)
+	inbox := inbox.NewInbox(db)
+	p := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -236,7 +242,8 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	repo, err := NewSQLiteRepo(db, userStore)
 	require.NoError(t, err)
-	pear := newPermissionEnforcingRepo(db, perms, repo)
+	inbox := inbox.NewInbox(db)
+	pear := newPermissionEnforcingRepo(perms, repo, inbox)
 
 	did := "did:example:alice"
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment

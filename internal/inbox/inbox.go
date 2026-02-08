@@ -17,13 +17,12 @@ type Inbox interface {
 // Notifications are unique by sender + receiver + collection + rkey
 // Notifications generally live forever, there's no delete actions
 type Notification struct {
-	// We can reuse CreatedAt, UpdatedAt, DeletedAt from gorm.Model
-	// ID is unused, since we never reference notifications by a db-generated ID.
-	gorm.Model
 	Sender     string `gorm:"uniqueIndex:idx_user_notification"`
 	Recipient  string `gorm:"uniqueIndex:idx_user_notification"`
 	Collection string `gorm:"uniqueIndex:idx_user_notification"`
 	Rkey       string `gorm:"uniqueIndex:idx_user_notification"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type inbox struct {

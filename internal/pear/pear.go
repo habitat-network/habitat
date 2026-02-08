@@ -8,7 +8,6 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"gorm.io/gorm"
 )
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -32,11 +31,11 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-func newPermissionEnforcingRepo(db *gorm.DB, perms permissions.Store, repo *repo) *permissionEnforcingRepo {
+func newPermissionEnforcingRepo(perms permissions.Store, repo *repo, inbox inbox.Inbox) *permissionEnforcingRepo {
 	return &permissionEnforcingRepo{
 		permissions: perms,
 		repo:        repo,
-		inbox:       inbox.NewInbox(db),
+		inbox:       inbox,
 	}
 }
 
