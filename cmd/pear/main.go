@@ -31,6 +31,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -245,7 +246,11 @@ func setupPriviServer(
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
 
-	return pear.NewServer(permissionStore, repo, oauthServer, pdsClientFactory)
+	inbox, err := inbox.NewInbox(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup inbox")
+	}
+	return pear.NewServer(inbox, permissionStore, repo, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(

@@ -18,10 +18,12 @@ const id = 'network.habitat.internal.notifyOfUpdate'
 export type QueryParams = {}
 
 export interface InputSchema {
+  /** The DID to grant permission to (URL parameter). */
+  recipient: string
   /** The NSID of the record collection that the update is for. */
   collection: string
-  /** The DID to grant permission to (URL parameter). */
-  did: string
+  /** The record key which was updated. */
+  rkey: string
 }
 
 export interface CallOptions {

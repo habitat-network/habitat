@@ -1,10 +1,12 @@
 package pear
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
 )
 
@@ -17,6 +19,9 @@ type permissionEnforcingRepo struct {
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
 	repo *repo
+
+	// Manage receiving updates for records (replacement for the Firehose)
+	inbox inbox.Inbox
 }
 
 var (
@@ -26,10 +31,11 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-func newPermissionEnforcingRepo(perms permissions.Store, repo *repo) *permissionEnforcingRepo {
+func newPermissionEnforcingRepo(perms permissions.Store, repo *repo, inbox inbox.Inbox) *permissionEnforcingRepo {
 	return &permissionEnforcingRepo{
 		permissions: perms,
 		repo:        repo,
+		inbox:       inbox,
 	}
 }
 
@@ -124,4 +130,8 @@ func (p *permissionEnforcingRepo) getBlob(
 // TODO: actually enforce permissions here
 func (p *permissionEnforcingRepo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
 	return p.repo.uploadBlob(did, data, mimeType)
+}
+
+func (p *permissionEnforcingRepo) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {
+	return p.inbox.PutNotification(ctx, sender, recipient, collection, rkey)
 }

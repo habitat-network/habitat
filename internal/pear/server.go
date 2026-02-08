@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -32,6 +33,7 @@ type Server struct {
 
 // NewServer returns a pear server.
 func NewServer(
+	inbox inbox.Inbox,
 	perms permissions.Store,
 	repo *repo,
 	oauthServer *oauthserver.OAuthServer,
@@ -39,7 +41,7 @@ func NewServer(
 ) *Server {
 	server := &Server{
 		dir:              identity.DefaultDirectory(),
-		pear:             newPermissionEnforcingRepo(perms, repo),
+		pear:             newPermissionEnforcingRepo(perms, repo, inbox),
 		oauthServer:      oauthServer,
 		pdsClientFactory: pdsClientFactory,
 	}
@@ -211,6 +213,10 @@ func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.D
 		}
 		return did, true
 	}
+	return "", false
+}
+
+func (s *Server) getServiceAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
 	return "", false
 }
 
@@ -412,6 +418,26 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	err = s.pear.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := s.getServiceAuthedUser(w, r)
+	if !ok {
+		return
+	}
+
+	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		return
+	}
+
+	err = s.pear.notifyOfUpdate(r.Context(), callerDID, syntax.DID(req.Recipient), req.Collection, req.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
 		return
 	}
 }
