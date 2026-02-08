@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/oauthclient"
@@ -135,30 +134,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
-
-	// Start the notification listener in a separate goroutine
-	eg.Go(func() error {
-		// Note that for now, we're ingesting all notifications in the entire system
-		// This can be reduced in the future to only listen for DIDs that the user is interested in.
-		config := &client.ClientConfig{
-			Compress:          true,
-			WebsocketURL:      "wss://jetstream2.us-east.bsky.network/subscribe",
-			WantedDids:        []string{},
-			WantedCollections: []string{"network.habitat.notification"},
-			MaxSize:           0,
-			ExtraHeaders: map[string]string{
-				"User-Agent": "habitat-jetstream-client/v0.0.1",
-			},
-		}
-
-		log.Info().Msg("starting notification listener")
-		ingester, err := pear.NewNotificationIngester(db)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup notification ingester")
-		}
-		return pear.StartNotificationListener(egCtx, config, nil, ingester.GetEventHandler(), db)
-	})
-
 	mux := http.NewServeMux()
 
 	// auth routes
@@ -178,15 +153,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
-
-	mux.HandleFunc(
-		"/xrpc/network.habitat.notification.listNotifications",
-		pearServer.ListNotifications,
-	)
-	mux.HandleFunc(
-		"/xrpc/network.habitat.notification.createNotification",
-		pearServer.CreateNotification,
-	)
 
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
 		template := `{
@@ -279,8 +245,7 @@ func setupPriviServer(
 		log.Fatal().Err(err).Msg("unable to setup permissions store")
 	}
 
-	inbox := pear.NewInbox(db)
-	return pear.NewServer(permissionStore, repo, inbox, oauthServer, pdsClientFactory)
+	return pear.NewServer(permissionStore, repo, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(
