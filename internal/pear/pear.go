@@ -82,7 +82,7 @@ func (p *permissionEnforcingRepo) getRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
-	has, err := p.hasRepoForDid(syntax.DID(targetDID))
+	has, err := p.hasRepoForDid(targetDID)
 	if err != nil {
 		return nil, err
 	}
