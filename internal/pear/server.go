@@ -417,18 +417,15 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	/*
-		callerDID, ok := s.getAuthedUser(w, r)
-		if !ok {
-			return
-		}
+	// TODO: use service auth to verify requests
+	// For now, there is no authn, blindly trusting sender field of input
 
-		req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
-		err := json.NewDecoder(r.Body).Decode(req)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
-			return
-		}
-	*/
+	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		return
+	}
 
+	s.pear.notifyOfUpdate(r.Context(), syntax.DID(req.Sender), syntax.DID(req.Recipient), req.Collection, req.Rkey)
 }

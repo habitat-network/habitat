@@ -11,11 +11,17 @@
                     "type": "object",
                     "required": [
                         "collection",
+                        "rkey",
                         "sender",
-                        "rkey"
+                        "recipient"
                     ],
                     "properties": {
                         "sender": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "The DID to grant permission to (URL parameter)."
+                        },
+                        "recipient": {
                             "type": "string",
                             "format": "did",
                             "description": "The DID to grant permission to (URL parameter)."
