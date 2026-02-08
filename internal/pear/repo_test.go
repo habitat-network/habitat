@@ -7,42 +7,11 @@ import (
 	"testing"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/userstore"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-func TestHasRepoForDid(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-
-	// No user exists yet, should return false
-	has, err := repo.hasRepoForDid("did:example:alice")
-	require.NoError(t, err)
-	require.False(t, has)
-
-	// Ensure user exists (simulating first login)
-	err = userStore.EnsureUser("did:example:alice")
-	require.NoError(t, err)
-
-	// Now the DID should be found
-	has, err = repo.hasRepoForDid("did:example:alice")
-	require.NoError(t, err)
-	require.True(t, has)
-
-	// A different DID should still return false
-	has, err = repo.hasRepoForDid("did:example:bob")
-	require.NoError(t, err)
-	require.False(t, has)
-}
 
 func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	testDBPath := filepath.Join(os.TempDir(), "test_pear.db")
@@ -51,10 +20,7 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
-	userStore, err := userstore.NewUserStore(pearDB)
-	require.NoError(t, err)
-
-	repo, err := NewSQLiteRepo(pearDB, userStore)
+	repo, err := NewRepo(pearDB)
 	require.NoError(t, err)
 
 	collection := "test.collection"
@@ -77,9 +43,8 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 func TestSQLiteRepoListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
+
+	repo, err := NewRepo(db)
 	require.NoError(t, err)
 	err = repo.putRecord(
 		"my-did",
@@ -179,10 +144,7 @@ func TestUploadAndGetBlob(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-
-	repo, err := NewSQLiteRepo(db, userStore)
+	repo, err := NewRepo(db)
 	require.NoError(t, err)
 
 	did := "did:example:alice"

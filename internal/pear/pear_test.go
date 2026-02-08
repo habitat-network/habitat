@@ -5,15 +5,82 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+const (
+	testServiceName     = "habitat_test"
+	testServiceEndpoint = "test_url"
+)
+
+type options struct {
+	dir identity.Directory
+}
+
+type option func(*options)
+
+func withIdentityDirectory(dir identity.Directory) option {
+	return func(o *options) {
+		o.dir = dir
+	}
+}
+
+func newPearForTest(t *testing.T, opts ...option) *permissionEnforcingRepo {
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	permissions, err := permissions.NewSQLiteStore(db)
+	require.NoError(t, err)
+
+	o := &options{
+		dir: identity.DefaultDirectory(),
+	}
+	for _, opt := range opts {
+		opt(o)
+	}
+	fmt.Printf("%T\n", o.dir)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+	inbox, err := inbox.NewInbox(db)
+	require.NoError(t, err)
+	p := newPermissionEnforcingRepo(t.Context(), testServiceEndpoint, testServiceName, o.dir, permissions, repo, inbox)
+	return p
+}
+
+func mockIdentities(dids []string) identity.Directory {
+	dir := identity.NewMockDirectory()
+	for _, did := range dids {
+		dir.Insert(identity.Identity{
+			DID: syntax.DID(did),
+			Services: map[string]identity.ServiceEndpoint{
+				testServiceName: identity.ServiceEndpoint{
+					URL: testServiceEndpoint,
+				},
+			},
+		})
+	}
+	return &dir
+}
+
+func TestMockIdentities(t *testing.T) {
+	dir := mockIdentities([]string{"my-did", "another-did"})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	id, err := dir.LookupDID(t.Context(), syntax.DID("my-did"))
+	require.NoError(t, err)
+	require.Equal(t, id.Services[testServiceName].URL, testServiceEndpoint)
+
+	has, err := p.hasRepoForDid(syntax.DID("my-did"))
+	require.NoError(t, err)
+	require.True(t, has)
+}
 
 // A unit test testing putRecord and getRecord with one basic permission.
 // TODO: an integration test with two PDS's + pear servers running.
@@ -23,27 +90,14 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 		"someKey": "someVal",
 	}
 
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	dummy, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(dummy, repo, inbox)
-
-	// Ensure user exists before putting records
-	err = userStore.EnsureUser(syntax.DID("my-did"))
-	require.NoError(t, err)
+	dir := mockIdentities([]string{"my-did", "another-did"})
+	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// putRecord
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	err := p.putRecord("my-did", coll, val, rkey, &validate)
 	require.NoError(t, err)
 
 	// Owner can always access their own records
@@ -62,7 +116,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.ErrorIs(t, ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, dummy.AddLexiconReadPermission([]string{"another-did"}, "my-did", coll))
+	require.NoError(t, p.permissions.AddLexiconReadPermission([]string{"another-did"}, "my-did", coll))
 
 	// Now non-owner can access
 	got, err = p.getRecord(coll, "my-rkey", "my-did", "another-did")
@@ -81,27 +135,14 @@ func TestListOwnRecords(t *testing.T) {
 	val := map[string]any{
 		"someKey": "someVal",
 	}
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	dummy, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(dummy, repo, inbox)
-
-	// Ensure user exists before putting records
-	err = userStore.EnsureUser(syntax.DID("my-did"))
-	require.NoError(t, err)
+	dir := mockIdentities([]string{"my-did"})
+	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// putRecord
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	err := p.putRecord("my-did", coll, val, rkey, &validate)
 	require.NoError(t, err)
 
 	records, err := p.listRecords(
@@ -113,36 +154,18 @@ func TestListOwnRecords(t *testing.T) {
 }
 
 func TestGetRecordForwardingNotImplemented(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	perms, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo, inbox)
+	dir := mockIdentities([]string{"did:plc:caller456"})
+	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// Try to get a record for a DID that doesn't exist on this server
 	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
 	require.Nil(t, got)
-	require.ErrorIs(t, err, ErrNotLocalRepo)
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
 func TestListRecordsForwardingNotImplemented(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	perms, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo, inbox)
+	dir := mockIdentities([]string{"did:plc:caller456"})
+	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// Try to list records for a DID that doesn't exist on this server
 	records, err := p.listRecords(
@@ -150,28 +173,15 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 		"did:plc:caller456",
 	)
 	require.Nil(t, records)
-	require.ErrorIs(t, err, ErrNotLocalRepo)
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
 func TestListRecords(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	perms, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(perms, repo, inbox)
+	dir := mockIdentities([]string{"my-did", "other-did", "reader-did", "specific-reader"})
+	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
-
-	// Ensure user exists before putting records
-	err = userStore.EnsureUser(syntax.DID("my-did"))
-	require.NoError(t, err)
 
 	// Create multiple records across collections
 	coll1 := "my.fake.collection1"
@@ -193,7 +203,7 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns records with wildcard permission", func(t *testing.T) {
 		require.NoError(
 			t,
-			perms.AddLexiconReadPermission(
+			p.permissions.AddLexiconReadPermission(
 				[]string{"reader-did"},
 				"my-did",
 				fmt.Sprintf("%s.*", coll1),
@@ -211,7 +221,7 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns only specific permitted record", func(t *testing.T) {
 		require.NoError(
 			t,
-			perms.AddLexiconReadPermission(
+			p.permissions.AddLexiconReadPermission(
 				[]string{"specific-reader"},
 				"my-did",
 				fmt.Sprintf("%s.rkey1", coll1),
@@ -239,17 +249,8 @@ func TestListRecords(t *testing.T) {
 
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	perms, err := permissions.NewSQLiteStore(db)
-	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
-	require.NoError(t, err)
-	pear := newPermissionEnforcingRepo(perms, repo, inbox)
+	dir := mockIdentities([]string{"did:example:alice"})
+	pear := newPearForTest(t, withIdentityDirectory(dir))
 
 	did := "did:example:alice"
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment

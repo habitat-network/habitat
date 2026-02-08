@@ -42,11 +42,6 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-const (
-	JetstreamURL       = "wss://jetstream2.us-east.bsky.network/subscribe"
-	JetstreamUserAgent = "habitat-jetstream-client/v0.0.1"
-)
-
 func main() {
 	flags, mutuallyExclusiveFlags := getFlags()
 	cmd := &cli.Command{
@@ -130,7 +125,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
-	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory, userStore)
+
+	serviceName := cmd.String(fServiceName)
+	pearServer := setupPearServer(domain, serviceName, db, oauthServer, pdsClientFactory)
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
@@ -230,13 +227,14 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPriviServer(
+func setupPearServer(
+	location string,
+	serviceName string,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
-	userStore userstore.UserStore,
 ) *pear.Server {
-	repo, err := pear.NewSQLiteRepo(db, userStore)
+	repo, err := pear.NewRepo(db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear sqlite db")
 	}
@@ -250,7 +248,7 @@ func setupPriviServer(
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup inbox")
 	}
-	return pear.NewServer(inbox, permissionStore, repo, oauthServer, pdsClientFactory)
+	return pear.NewServer(context.Background(), location, serviceName, permissionStore, repo, inbox, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(

@@ -8,14 +8,12 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/userstore"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -31,8 +29,7 @@ import (
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type repo struct {
-	db        *gorm.DB
-	userStore userstore.UserStore
+	db *gorm.DB
 }
 
 type Record struct {
@@ -51,23 +48,13 @@ type Blob struct {
 }
 
 // TODO: create table etc.
-func NewSQLiteRepo(db *gorm.DB, userStore userstore.UserStore) (*repo, error) {
+func NewRepo(db *gorm.DB) (*repo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
 	return &repo{
-		db:        db,
-		userStore: userStore,
+		db: db,
 	}, nil
-}
-
-// hasRepoForDid checks if this instance manges the data for a given did
-func (r *repo) hasRepoForDid(did string) (bool, error) {
-	if r.userStore == nil {
-		return false, fmt.Errorf("userStore is not set")
-	}
-	didSyntax := syntax.DID(did)
-	return r.userStore.CheckUserExists(didSyntax)
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
