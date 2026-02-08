@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/messagechannel"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -27,9 +28,10 @@ type Server struct {
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 
-	oauthServer      *oauthserver.OAuthServer
-	inbox            *Inbox
-	pdsClientFactory *oauthclient.PDSClientFactory
+	oauthServer        *oauthserver.OAuthServer
+	inbox              *Inbox
+	pdsClientFactory   *oauthclient.PDSClientFactory
+	nodeMessageChannel messagechannel.MessageChannel
 }
 
 // NewServer returns a pear server.
@@ -39,10 +41,11 @@ func NewServer(
 	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
+	nodeMessageChannel messagechannel.MessageChannel,
 ) *Server {
 	server := &Server{
 		dir:              identity.DefaultDirectory(),
-		pear:             newPermissionEnforcingRepo(perms, repo),
+		pear:             newPermissionEnforcingRepo(perms, repo, nodeMessageChannel),
 		oauthServer:      oauthServer,
 		inbox:            inbox,
 		pdsClientFactory: pdsClientFactory,

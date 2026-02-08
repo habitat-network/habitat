@@ -32,6 +32,7 @@ import (
 	"github.com/bluesky-social/jetstream/pkg/client"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/messagechannel"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -128,6 +129,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	pdsClientFactory := oauthclient.NewPDSClientFactory(
 		pdsCredStore,
 		oauthClient,
+		identity.DefaultDirectory(),
+	)
+	nodeMessageChannel := messagechannel.NewDirectMessageChannel(
+		pdsClientFactory,
 		identity.DefaultDirectory(),
 	)
 	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory, userStore)
@@ -268,6 +273,7 @@ func setupPriviServer(
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory *oauthclient.PDSClientFactory,
 	userStore userstore.UserStore,
+	nodeMessageChannel messagechannel.MessageChannel,
 ) *pear.Server {
 	repo, err := pear.NewSQLiteRepo(db, userStore)
 	if err != nil {
@@ -280,7 +286,14 @@ func setupPriviServer(
 	}
 
 	inbox := pear.NewInbox(db)
-	return pear.NewServer(permissionStore, repo, inbox, oauthServer, pdsClientFactory)
+	return pear.NewServer(
+		permissionStore,
+		repo,
+		inbox,
+		oauthServer,
+		pdsClientFactory,
+		nodeMessageChannel,
+	)
 }
 
 func setupOAuthServer(

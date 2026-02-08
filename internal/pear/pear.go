@@ -1,10 +1,13 @@
 package pear
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/messagechannel"
 	"github.com/habitat-network/habitat/internal/permissions"
 )
 
@@ -16,7 +19,8 @@ type permissionEnforcingRepo struct {
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
-	repo *repo
+	repo               *repo
+	nodeMessageChannel messagechannel.MessageChannel
 }
 
 var (
@@ -54,13 +58,21 @@ func (p *permissionEnforcingRepo) getRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
-
 	has, err := p.hasRepoForDid(targetDID.String())
 	if err != nil {
 		return nil, err
 	}
 	if !has {
-		return nil, ErrNotLocalRepo
+		forwardedReq, err := http.NewRequest("GET", "/xrpc/network.habitat.getRecord", nil)
+		if err != nil {
+			return nil, err
+		}
+		q := forwardedReq.URL.Query()
+		q.Add("repo", targetDID.String())
+		q.Add("collection", collection)
+		q.Add("rkey", rkey)
+		forwardedReq.URL.RawQuery = q.Encode()
+		p.nodeMessageChannel.SendXRPC(context.Background(), callerDID, targetDID, forwardedReq)
 	}
 
 	// Run permissions before returning to the user
@@ -122,6 +134,10 @@ func (p *permissionEnforcingRepo) getBlob(
 }
 
 // TODO: actually enforce permissions here
-func (p *permissionEnforcingRepo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
+func (p *permissionEnforcingRepo) uploadBlob(
+	did string,
+	data []byte,
+	mimeType string,
+) (*blob, error) {
 	return p.repo.uploadBlob(did, data, mimeType)
 }
