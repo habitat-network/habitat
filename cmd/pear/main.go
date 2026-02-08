@@ -124,9 +124,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup user store")
 	}
-	oauthServer := setupOAuthServer(keyFile, domain, pdsCredStore, userStore)
-	pearServer := setupPriviServer(db, pdsCredStore, oauthServer, userStore)
-	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer)
+	oauthServer, oauthClient := setupOAuthServer(keyFile, domain, pdsCredStore, userStore)
+	pdsClientFactory := oauthclient.NewPDSClientFactory(
+		pdsCredStore,
+		oauthClient,
+		identity.DefaultDirectory(),
+	)
+	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory, userStore)
+	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -260,8 +265,8 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 func setupPriviServer(
 	db *gorm.DB,
-	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
+	pdsClientFactory *oauthclient.PDSClientFactory,
 	userStore userstore.UserStore,
 ) *pear.Server {
 	repo, err := pear.NewSQLiteRepo(db, userStore)
@@ -275,15 +280,14 @@ func setupPriviServer(
 	}
 
 	inbox := pear.NewInbox(db)
-
-	return pear.NewServer(permissionStore, repo, inbox, oauthServer, credStore)
+	return pear.NewServer(permissionStore, repo, inbox, oauthServer, pdsClientFactory)
 }
 
 func setupOAuthServer(
 	keyFile, domain string,
 	credStore pdscred.PDSCredentialStore,
 	userStore userstore.UserStore,
-) *oauthserver.OAuthServer {
+) (*oauthserver.OAuthServer, oauthclient.OAuthClient) {
 	var jwkBytes []byte
 	_, err := os.Stat(keyFile)
 	if err != nil {
@@ -340,7 +344,7 @@ func setupOAuthServer(
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")
 	}
-	return oauthServer
+	return oauthServer, oauthClient
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

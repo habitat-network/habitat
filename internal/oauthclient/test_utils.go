@@ -10,9 +10,15 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // testOAuthClient creates a test OAuth client with a valid JWK
@@ -44,6 +50,7 @@ func testIdentity(pdsEndpoint string) *identity.Identity {
 // fakeAuthServer creates a test server that responds to OAuth discovery endpoints
 func fakeAuthServer(responses map[string]interface{}) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		print(r.URL.Path)
 		switch r.URL.Path {
 		case "/.well-known/oauth-protected-resource":
 			if resp, ok := responses["protected-resource"]; ok {
@@ -112,7 +119,12 @@ func fakeAuthServer(responses map[string]interface{}) *httptest.Server {
 				ExpiresIn:    3600,
 			})
 			return
-
+		case "/test":
+			if r.Header.Get("Authorization") != "DPoP default-access-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		default:
 			http.Error(w, "not found", http.StatusNotFound)
 		}
@@ -241,4 +253,34 @@ func testDpopSession(t *testing.T, opts DpopSessionOptions) *cookieSession {
 // stringPtr returns a pointer to the given string
 func stringPtr(s string) *string {
 	return &s
+}
+
+func testPdsCredStore(
+	t *testing.T,
+	claims jwt.Claims,
+) pdscred.PDSCredentialStore {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err, "failed to open in-memory db")
+	store, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err, "failed to create pds cred store")
+	// Create test key
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       key,
+	}, nil)
+	require.NoError(t, err, "failed to create signer")
+	accessToken, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	require.NoError(t, err, "failed to sign claims")
+	require.NoError(
+		t,
+		store.UpsertCredentials(syntax.DID("did:plc:test123"), &pdscred.Credentials{
+			AccessToken:  accessToken,
+			DpopKey:      key,
+			RefreshToken: "test-refresh-token",
+		}),
+		"failed to upsert credentials",
+	)
+	return store
 }

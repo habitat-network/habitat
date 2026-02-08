@@ -16,8 +16,8 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -27,9 +27,9 @@ type Server struct {
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 
-	oauthServer *oauthserver.OAuthServer
-	inbox       *Inbox
-	credStore   pdscred.PDSCredentialStore
+	oauthServer      *oauthserver.OAuthServer
+	inbox            *Inbox
+	pdsClientFactory *oauthclient.PDSClientFactory
 }
 
 // NewServer returns a pear server.
@@ -38,14 +38,14 @@ func NewServer(
 	repo *repo,
 	inbox *Inbox,
 	oauthServer *oauthserver.OAuthServer,
-	credStore pdscred.PDSCredentialStore,
+	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *Server {
 	server := &Server{
-		dir:         identity.DefaultDirectory(),
-		pear:        newPermissionEnforcingRepo(perms, repo),
-		oauthServer: oauthServer,
-		inbox:       inbox,
-		credStore:   credStore,
+		dir:              identity.DefaultDirectory(),
+		pear:             newPermissionEnforcingRepo(perms, repo),
+		oauthServer:      oauthServer,
+		inbox:            inbox,
+		pdsClientFactory: pdsClientFactory,
 	}
 	return server
 }
@@ -493,32 +493,16 @@ func (s *Server) CreateNotification(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dpopClient, err := s.credStore.GetDpopClient(did)
+	dpopClient, err := s.pdsClientFactory.NewClient(r.Context(), did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to get dpop client", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "create dpop client", http.StatusInternalServerError)
 		return
 	}
-	id, err := s.dir.LookupDID(r.Context(), did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
-		return
-	}
-	pdsUrl, ok := id.Services["atproto_pds"]
-	if !ok {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("identity has no pds url"),
-			"identity has no pds url",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	requestUri := fmt.Sprintf("%s/xrpc/com.atproto.repo.createRecord", pdsUrl.URL)
-
-	log.Info().Msgf("requestUri: %s", requestUri)
-
-	req, err := http.NewRequest(http.MethodPost, requestUri, bytes.NewReader(body))
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"/xrpc/com.atproto.repo.createRecord",
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "create request", http.StatusInternalServerError)
 		return

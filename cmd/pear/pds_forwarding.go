@@ -1,21 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/rs/zerolog/log"
 )
 
 type pdsForwarding struct {
-	oauthServer *oauthserver.OAuthServer
-	credStore   pdscred.PDSCredentialStore
-	dir         identity.Directory
+	oauthServer      *oauthserver.OAuthServer
+	pdsClientFactory *oauthclient.PDSClientFactory
 }
 
 var _ http.Handler = (*pdsForwarding)(nil)
@@ -23,11 +20,11 @@ var _ http.Handler = (*pdsForwarding)(nil)
 func newPDSForwarding(
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
+	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *pdsForwarding {
 	return &pdsForwarding{
-		oauthServer: oauthServer,
-		credStore:   credStore,
-		dir:         identity.DefaultDirectory(),
+		oauthServer:      oauthServer,
+		pdsClientFactory: pdsClientFactory,
 	}
 }
 
@@ -37,30 +34,18 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dpopClient, err := p.credStore.GetDpopClient(did)
-	id, err := p.dir.LookupDID(r.Context(), did)
+	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusBadRequest)
+		log.Error().Err(err).Msg("failed to create dpop client")
+		http.Error(w, "failed to create dpop client", http.StatusInternalServerError)
 		return
 	}
-	pdsUrl, ok := id.Services["atproto_pds"]
-	if !ok {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("identity has no pds url"),
-			"identity has no pds url",
-			http.StatusBadRequest,
-		)
-		return
-	}
-	// Create a new request for forwarding
-	targetURL := pdsUrl.URL + r.URL.RequestURI()
 	// Only pass body for methods that support it
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
-	req, err := http.NewRequest(r.Method, targetURL, body)
+	req, err := http.NewRequest(r.Method, r.URL.RequestURI(), body)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create forwarding request")
 		http.Error(w, "failed to create forwarding request", http.StatusInternalServerError)
