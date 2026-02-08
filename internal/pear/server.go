@@ -216,6 +216,10 @@ func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.D
 	return "", false
 }
 
+func (s *Server) getServiceAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
+	return "", false
+}
+
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
@@ -419,8 +423,10 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	// TODO: use service auth to verify requests
-	// For now, there is no authn, blindly trusting sender field of input
+	callerDID, ok := s.getServiceAuthedUser(w, r)
+	if !ok {
+		return
+	}
 
 	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
@@ -429,5 +435,19 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.pear.notifyOfUpdate(r.Context(), syntax.DID(req.Sender), syntax.DID(req.Recipient), req.Collection, req.Rkey)
+	if callerDID != syntax.DID(req.Sender) {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("only owner can put record"),
+			"only owner can put record",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	err = s.pear.notifyOfUpdate(r.Context(), syntax.DID(req.Sender), syntax.DID(req.Recipient), req.Collection, req.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
+		return
+	}
 }
