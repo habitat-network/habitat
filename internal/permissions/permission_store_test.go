@@ -8,11 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestSQLiteStoreBasicPermissions(t *testing.T) {
+func TestStoreBasicPermissions(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Test: Owner always has permission
@@ -52,11 +52,11 @@ func TestSQLiteStoreBasicPermissions(t *testing.T) {
 	require.False(t, hasPermission, "bob should not have permission after removal")
 }
 
-func TestSQLiteStorePrefixPermissions(t *testing.T) {
+func TestStorePrefixPermissions(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Grant permission to all "network.habitat.*" lexicons
@@ -82,11 +82,11 @@ func TestSQLiteStorePrefixPermissions(t *testing.T) {
 	require.False(t, hasPermission)
 }
 
-func TestSQLiteStoreMultipleGrantees(t *testing.T) {
+func TestStoreMultipleGrantees(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Grant permissions to multiple users
@@ -109,11 +109,11 @@ func TestSQLiteStoreMultipleGrantees(t *testing.T) {
 	require.ElementsMatch(t, []string{"bob"}, permissions["network.habitat.likes"])
 }
 
-func TestSQLiteStoreListByUser(t *testing.T) {
+func TestStoreListByUser(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Grant bob access to network.habitat.posts
@@ -138,11 +138,11 @@ func TestSQLiteStoreListByUser(t *testing.T) {
 	require.Len(t, denies, 0)
 }
 
-func TestSQLiteStorePermissionHierarchy(t *testing.T) {
+func TestStorePermissionHierarchy(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Grant broad permission
@@ -172,11 +172,11 @@ func TestSQLiteStorePermissionHierarchy(t *testing.T) {
 	require.False(t, hasPermission)
 }
 
-func TestSQLiteStoreEmptyRecordKey(t *testing.T) {
+func TestStoreEmptyRecordKey(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Grant permission
@@ -189,11 +189,11 @@ func TestSQLiteStoreEmptyRecordKey(t *testing.T) {
 	require.True(t, hasPermission, "should have permission to NSID when record key is empty")
 }
 
-func TestSQLiteStoreMultipleOwners(t *testing.T) {
+func TestStoreMultipleOwners(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Grant bob access to alice's posts
@@ -232,11 +232,11 @@ func TestSQLiteStoreMultipleOwners(t *testing.T) {
 	require.Contains(t, permissions, "network.habitat.likes")
 }
 
-func TestSQLiteStoreDenyOverridesAllow(t *testing.T) {
+func TestStoreDenyOverridesAllow(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	// Grant bob broad access to network.habitat
@@ -288,7 +288,7 @@ func TestPermissionStoreEmptyGrantees(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := NewSQLiteStore(db)
+	store, err := NewStore(db)
 	require.NoError(t, err)
 
 	err = store.AddLexiconReadPermission([]string{}, "alice", "network.habitat.posts")

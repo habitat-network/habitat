@@ -11,19 +11,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// NewInboxForTest creates a new inbox instance with an in-memory database for testing.
-func NewInboxForTest(t *testing.T) (Inbox, *gorm.DB) {
+// NewForTest creates a new inbox instance with an in-memory database for testing.
+func NewForTest(t *testing.T) (Inbox, *gorm.DB) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	inbox, err := NewInbox(db)
+	inbox, err := New(db)
 	require.NoError(t, err)
 	return inbox, db
 }
 
 func TestPutNotificationBasic(t *testing.T) {
 	ctx := context.Background()
-	inb, db := NewInboxForTest(t)
+	inb, db := NewForTest(t)
 
 	sender, _ := syntax.ParseDID("did:plc:sender123")
 	recipient, _ := syntax.ParseDID("did:plc:recipient456")
@@ -47,7 +47,7 @@ func TestPutNotificationBasic(t *testing.T) {
 
 func TestPutNotificationMultipleSeparateKeys(t *testing.T) {
 	ctx := context.Background()
-	inb, db := NewInboxForTest(t)
+	inb, db := NewForTest(t)
 
 	sender, _ := syntax.ParseDID("did:plc:sender123")
 	recipient, _ := syntax.ParseDID("did:plc:recipient456")
@@ -76,7 +76,7 @@ func TestPutNotificationMultipleSeparateKeys(t *testing.T) {
 
 func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	ctx := context.Background()
-	inb, db := NewInboxForTest(t)
+	inb, db := NewForTest(t)
 
 	sender, _ := syntax.ParseDID("did:plc:sender123")
 	recipient, _ := syntax.ParseDID("did:plc:recipient456")

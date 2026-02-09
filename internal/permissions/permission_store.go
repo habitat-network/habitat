@@ -47,12 +47,12 @@ type Permission struct {
 	Effect  string `gorm:"not null;check:effect IN ('allow', 'deny')"`
 }
 
-// NewSQLiteStore creates a new SQLite-backed permission store.
+// NewStore creates a new db-backed permission store.
 // The store manages permissions at different granularities:
 // - Whole NSID prefixes: "network.habitat.*"
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
-func NewSQLiteStore(db *gorm.DB) (*sqliteStore, error) {
+func NewStore(db *gorm.DB) (*sqliteStore, error) {
 	// AutoMigrate will create the table with all indexes defined in the Permission struct
 	err := db.AutoMigrate(&Permission{})
 	if err != nil {
