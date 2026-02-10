@@ -59,7 +59,16 @@ export class AuthManager {
   }
 
   logout() {
-    // TODO: implement me!!
+    // Delete all internal state
+    localStorage.removeItem(handleLocalStorageKey);
+    localStorage.removeItem(stateLocalStorageKey);
+    localStorage.removeItem(tokenLocalStorageKey);
+    localStorage.removeItem(didLocalStorageKey);
+    this.accessToken = null;
+    this.did = null;
+    this.handle = null;
+
+    window.location.href = "/";
   }
 
   async maybeExchangeCode(currentUrl: string) {
@@ -146,4 +155,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }

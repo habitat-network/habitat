@@ -29,5 +29,5 @@ The following environment variables are required:
 The following command will spin up the primary frontend and backend services:
 
 ```
-moon frontend:dev
+moon r frontend:dev
 ```
