@@ -15,39 +15,29 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/inbox"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Server struct {
-	pear *permissionEnforcingRepo
+	// Implementation of permission-enforcint atprotocol repo
+	pear *Pear
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
-
-	oauthServer      *oauthserver.OAuthServer
-	pdsClientFactory *oauthclient.PDSClientFactory
+	// Used for validating oauth tokens
+	oauthServer *oauthserver.OAuthServer
 }
 
 // NewServer returns a pear server.
 func NewServer(
-	ctx context.Context,
-	url string,
-	serviceName string,
-	perms permissions.Store,
-	repo *repo,
-	inbox inbox.Inbox,
+	dir identity.Directory,
+	pear *Pear,
 	oauthServer *oauthserver.OAuthServer,
-	pdsClientFactory *oauthclient.PDSClientFactory,
 ) *Server {
-	dir := identity.DefaultDirectory()
 	server := &Server{
-		dir:              dir,
-		pear:             newPermissionEnforcingRepo(ctx, url, serviceName, dir, perms, repo, inbox),
-		oauthServer:      oauthServer,
-		pdsClientFactory: pdsClientFactory,
+		dir:         dir,
+		pear:        pear,
+		oauthServer: oauthServer,
 	}
 	return server
 }

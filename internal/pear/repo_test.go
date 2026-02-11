@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
+func TestRepoPutAndGetRecord(t *testing.T) {
 	testDBPath := filepath.Join(os.TempDir(), "test_pear.db")
 	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
 
@@ -40,7 +40,7 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	require.Equal(t, val, unmarshalled)
 }
 
-func TestSQLiteRepoListRecords(t *testing.T) {
+func TestRepoListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
