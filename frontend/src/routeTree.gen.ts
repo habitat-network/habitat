@@ -24,7 +24,6 @@ import { Route as RequireAuthPermissionsPeopleRouteImport } from './routes/_requ
 import { Route as RequireAuthPermissionsLexiconsRouteImport } from './routes/_requireAuth/permissions/lexicons'
 import { Route as RequireAuthPearTestViewRouteImport } from './routes/_requireAuth/pear-test/view'
 import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './routes/_requireAuth/permissions/lexicons/index'
-import { Route as RequireAuthPermissionsGroupsIndexRouteImport } from './routes/_requireAuth/permissions/groups/index'
 import { Route as RequireAuthPermissionsLexiconsLexiconIdRouteImport } from './routes/_requireAuth/permissions/lexicons/$lexiconId'
 
 const OnboardLocalRoute = OnboardLocalRouteImport.update({
@@ -108,12 +107,6 @@ const RequireAuthPermissionsLexiconsIndexRoute =
     path: '/',
     getParentRoute: () => RequireAuthPermissionsLexiconsRoute,
   } as any)
-const RequireAuthPermissionsGroupsIndexRoute =
-  RequireAuthPermissionsGroupsIndexRouteImport.update({
-    id: '/groups/',
-    path: '/groups/',
-    getParentRoute: () => RequireAuthPermissionsRoute,
-  } as any)
 const RequireAuthPermissionsLexiconsLexiconIdRoute =
   RequireAuthPermissionsLexiconsLexiconIdRouteImport.update({
     id: '/$lexiconId',
@@ -136,7 +129,6 @@ export interface FileRoutesByFullPath {
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -152,7 +144,6 @@ export interface FileRoutesByTo {
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
   '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 export interface FileRoutesById {
@@ -172,7 +163,6 @@ export interface FileRoutesById {
   '/_requireAuth/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/_requireAuth/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/_requireAuth/permissions/groups/': typeof RequireAuthPermissionsGroupsIndexRoute
   '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 export interface FileRouteTypes {
@@ -192,7 +182,6 @@ export interface FileRouteTypes {
     | '/pear-test'
     | '/permissions/'
     | '/permissions/lexicons/$lexiconId'
-    | '/permissions/groups'
     | '/permissions/lexicons/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -208,7 +197,6 @@ export interface FileRouteTypes {
     | '/pear-test'
     | '/permissions'
     | '/permissions/lexicons/$lexiconId'
-    | '/permissions/groups'
     | '/permissions/lexicons'
   id:
     | '__root__'
@@ -227,7 +215,6 @@ export interface FileRouteTypes {
     | '/_requireAuth/pear-test/'
     | '/_requireAuth/permissions/'
     | '/_requireAuth/permissions/lexicons/$lexiconId'
-    | '/_requireAuth/permissions/groups/'
     | '/_requireAuth/permissions/lexicons/'
   fileRoutesById: FileRoutesById
 }
@@ -346,13 +333,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPermissionsLexiconsIndexRouteImport
       parentRoute: typeof RequireAuthPermissionsLexiconsRoute
     }
-    '/_requireAuth/permissions/groups/': {
-      id: '/_requireAuth/permissions/groups/'
-      path: '/groups'
-      fullPath: '/permissions/groups'
-      preLoaderRoute: typeof RequireAuthPermissionsGroupsIndexRouteImport
-      parentRoute: typeof RequireAuthPermissionsRoute
-    }
     '/_requireAuth/permissions/lexicons/$lexiconId': {
       id: '/_requireAuth/permissions/lexicons/$lexiconId'
       path: '/$lexiconId'
@@ -385,7 +365,6 @@ interface RequireAuthPermissionsRouteChildren {
   RequireAuthPermissionsLexiconsRoute: typeof RequireAuthPermissionsLexiconsRouteWithChildren
   RequireAuthPermissionsPeopleRoute: typeof RequireAuthPermissionsPeopleRoute
   RequireAuthPermissionsIndexRoute: typeof RequireAuthPermissionsIndexRoute
-  RequireAuthPermissionsGroupsIndexRoute: typeof RequireAuthPermissionsGroupsIndexRoute
 }
 
 const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
@@ -394,8 +373,6 @@ const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
       RequireAuthPermissionsLexiconsRouteWithChildren,
     RequireAuthPermissionsPeopleRoute: RequireAuthPermissionsPeopleRoute,
     RequireAuthPermissionsIndexRoute: RequireAuthPermissionsIndexRoute,
-    RequireAuthPermissionsGroupsIndexRoute:
-      RequireAuthPermissionsGroupsIndexRoute,
   }
 
 const RequireAuthPermissionsRouteWithChildren =
