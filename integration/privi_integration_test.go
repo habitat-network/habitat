@@ -94,7 +94,7 @@ func createAccountJWT(
 	return tokenString, nil
 }
 
-func TestPriviOAuthFlow(t *testing.T) {
+func TestPearOAuthFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -142,14 +142,14 @@ func TestPriviOAuthFlow(t *testing.T) {
 	require.NoError(t, err)
 	seleniumURL := fmt.Sprintf("http://%s:%s/wd/hub", seleniumHost, seleniumPort.Port())
 
-	t.Logf("Privi URL: %s", pearURL)
+	t.Logf("Pear URL: %s", pearURL)
 	t.Logf("PDS URL (host): %s", pdsURL)
 	t.Logf("PDS URL (Docker network): https://pds.example.com")
 	t.Logf("Selenium URL: %s", seleniumURL)
 
 	// Load DID keypair from environment
 	// NOTE: The DID document at sashankg.github.io must have serviceEndpoint: "https://pds.example.com"
-	// for Privi (running in Docker) to reach the PDS container via Docker networking
+	// for Pear (running in Docker) to reach the PDS container via Docker networking
 	keyPair, err := loadDIDKeyPairFromEnv()
 	require.NoError(t, err, "INTEGRATION_DID_PRIVKEY environment variable must be set")
 
@@ -255,7 +255,7 @@ func performOAuthLoginWithBrowser(
 	err = loginButton.Click()
 	require.NoError(t, err, "Failed to click login button")
 
-	// Get current URL after redirect (should be at Privi's authorize endpoint)
+	// Get current URL after redirect (should be at Pear's authorize endpoint)
 	currentURL, err = wd.CurrentURL()
 	require.NoError(t, err)
 	t.Logf("Current URL after clicking login: %s", currentURL)

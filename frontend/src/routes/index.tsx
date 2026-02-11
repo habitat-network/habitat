@@ -15,8 +15,8 @@ export const Route = createFileRoute("/")({
       },
       {
         id: "pear-test",
-        name: "Privi Test",
-        description: "Privi Test for getting and putting records",
+        name: "Pear Test",
+        description: "Pear Test for getting and putting records",
         icon: "💿",
         link: "/pear-test",
       },
