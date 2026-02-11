@@ -1,9 +1,11 @@
 tasks:
   dev:
-    env:
-      DOMAIN: $project.${TS_DOMAIN}
-    inputs:
-      - $TS_DOMAIN
+    args:
+    - --
+    - --domain
+    - $project.${TS_DOMAIN}
+    - --habitatDomain
+    - pear.${TS_DOMAIN}
     deps:
       - target: pear:dev
       - target: funnel:start
