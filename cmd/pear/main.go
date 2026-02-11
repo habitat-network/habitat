@@ -248,7 +248,7 @@ func setupPearServer(ctx context.Context, serviceName string, domain string, db 
 	}
 
 	dir := identity.DefaultDirectory()
-	p := pear.New(ctx, domain, serviceName, dir, permissions, repo, inbox)
+	p := pear.NewPear(ctx, domain, serviceName, dir, permissions, repo, inbox)
 	return pear.NewServer(dir, p, oauthServer), nil
 }
 

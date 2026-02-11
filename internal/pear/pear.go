@@ -41,7 +41,7 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-func New(
+func NewPear(
 	ctx context.Context,
 	url string,
 	serviceName string,

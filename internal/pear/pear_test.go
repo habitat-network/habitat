@@ -50,7 +50,7 @@ func newPearForTest(t *testing.T, opts ...option) *Pear {
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
-	p := New(t.Context(), testServiceEndpoint, testServiceName, o.dir, permissions, repo, inbox)
+	p := NewPear(t.Context(), testServiceEndpoint, testServiceName, o.dir, permissions, repo, inbox)
 	return p
 }
 
