@@ -58,7 +58,7 @@ export class AuthManager {
     });
   }
 
-  logout() {
+  logout = () => {
     // Delete all internal state
     localStorage.removeItem(handleLocalStorageKey);
     localStorage.removeItem(stateLocalStorageKey);
@@ -67,8 +67,8 @@ export class AuthManager {
     this.accessToken = null;
     this.did = null;
     this.handle = null;
-
-    window.location.href = "/";
+    // Redirect to login page
+    this.onUnauthenticated();
   }
 
   async maybeExchangeCode(currentUrl: string) {

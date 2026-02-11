@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import type { AuthManager } from "internal/authManager.ts";
 
 function formatHandle(handle: string | null) {
@@ -11,6 +12,22 @@ function formatHandle(handle: string | null) {
 }
 
 const Header = ({ authManager }: { authManager: AuthManager }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    authManager.isAuthenticated()
+  );
+  const [handle, setHandle] = useState(authManager.handle);
+
+  useEffect(() => {
+    setIsAuthenticated(authManager.isAuthenticated());
+    setHandle(authManager.handle);
+  }, [authManager]);
+
+  const handleLogout = () => {
+    authManager.logout();
+    setIsAuthenticated(false);
+    setHandle(null);
+  };
+
   return (
     <header>
       <nav>
@@ -19,13 +36,11 @@ const Header = ({ authManager }: { authManager: AuthManager }) => {
             <Link to="/">🌱 Habitat</Link>
           </li>
         </ul>
-        {authManager.isAuthenticated() && (
+        {isAuthenticated && (
           <ul>
-            <li>{authManager.handle && formatHandle(authManager.handle)}</li>
+            <li>{handle && formatHandle(handle)}</li>
             <li>
-              <button onClick={authManager.logout}>
-                Logout [does nothing right now]
-              </button>
+              <button onClick={handleLogout}>Logout</button>
             </li>
           </ul>
         )}
