@@ -35,13 +35,6 @@ export const Route = createFileRoute("/")({
         link: "/forwarding-test",
       },
       {
-        id: "notifications",
-        name: "Notifications",
-        description: "View your notifications",
-        icon: "🔔",
-        link: "/notifications",
-      },
-      {
         id: "data",
         name: "Data Debugger",
         description: "Browse and filter records by lexicon",
@@ -54,6 +47,13 @@ export const Route = createFileRoute("/")({
         description: "Join Habitat by updating DID",
         icon: "🍾",
         link: "/onboard",
+      },
+      {
+        id: "onboard-local",
+        name: "Habitat Local Onboarding (DID updater)",
+        description: "Join Habitat (local dev) by updating DID",
+        icon: "🍾",
+        link: "/onboard-local",
       },
     ];
   },

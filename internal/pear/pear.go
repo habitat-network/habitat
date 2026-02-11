@@ -43,7 +43,7 @@ var (
 
 func NewPear(
 	ctx context.Context,
-	url string,
+	domain string,
 	serviceName string,
 	dir identity.Directory,
 	perms permissions.Store,
@@ -52,7 +52,7 @@ func NewPear(
 ) *Pear {
 	return &Pear{
 		ctx:         ctx,
-		url:         url,
+		url:         "https://" + domain, // We use https
 		serviceName: serviceName,
 		dir:         dir,
 		permissions: perms,
@@ -142,12 +142,12 @@ func (p *Pear) hasRepoForDid(did syntax.DID) (bool, error) {
 		return false, err
 	}
 
-	foundURL, ok := id.Services[p.serviceName]
+	found, ok := id.Services[p.serviceName]
 	if !ok {
 		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
 	}
 
-	return foundURL.URL == p.url, nil
+	return found.URL == p.url, nil
 }
 
 // TODO: actually enforce permissions here
