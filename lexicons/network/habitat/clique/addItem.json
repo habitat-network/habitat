@@ -1,10 +1,10 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.arena.addItem",
+    "id": "network.habitat.clique.addItem",
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Send an item to a specified habitat arena.",
+            "description": "Send an item to a specified habitat clique.",
             "permission": "authenticated",
             "input": {
                 "encoding": "application/json",
@@ -12,16 +12,16 @@
                     "type": "object",
                     "required": [
                         "item",
-                        "arenaID"
+                        "cliqueID"
                     ],
                     "properties": {
                         "item": {
                             "type": "string",
-                            "description": "The URI for the item to send to the arena, formatted as a habitat-uri."
+                            "description": "The URI for the item to send to the clique, formatted as a habitat-uri."
                         },
-                        "arenaID": {
+                        "cliqueID": {
                             "type": "string",
-                            "description": "The ID of the arena to send the item to, formatted as a habitat-uri."
+                            "description": "The ID of the clique to send the item to, formatted as a habitat-uri."
                         }
                     }
                 }

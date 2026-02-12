@@ -732,29 +732,29 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatArenaAddItem: {
+  NetworkHabitatCliqueAddItem: {
     lexicon: 1,
-    id: 'network.habitat.arena.addItem',
+    id: 'network.habitat.clique.addItem',
     defs: {
       main: {
         type: 'procedure',
-        description: 'Send an item to a specified habitat arena.',
+        description: 'Send an item to a specified habitat clique.',
         permission: 'authenticated',
         input: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['item', 'arenaID'],
+            required: ['item', 'cliqueID'],
             properties: {
               item: {
                 type: 'string',
                 description:
-                  'The URI for the item to send to the arena, formatted as a habitat-uri.',
+                  'The URI for the item to send to the clique, formatted as a habitat-uri.',
               },
-              arenaID: {
+              cliqueID: {
                 type: 'string',
                 description:
-                  'The ID of the arena to send the item to, formatted as a habitat-uri.',
+                  'The ID of the clique to send the item to, formatted as a habitat-uri.',
               },
             },
           },
@@ -762,21 +762,21 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatArenaGetItems: {
+  NetworkHabitatCliqueGetItems: {
     lexicon: 1,
-    id: 'network.habitat.arena.getItems',
+    id: 'network.habitat.clique.getItems',
     defs: {
       main: {
         type: 'procedure',
-        description: 'Retrieve all items from a specified habitat arena.',
+        description: 'Retrieve all items from a specified habitat clique.',
         permission: 'authenticated',
         parameters: {
           type: 'params',
-          required: ['arenaID'],
+          required: ['cliqueID'],
           properties: {
-            arenaID: {
+            cliqueID: {
               type: 'string',
-              description: 'The ID of the arena to retrieve items from.',
+              description: 'The ID of the clique to retrieve items from.',
             },
           },
         },
@@ -791,7 +791,7 @@ export const schemaDict = {
                   type: 'string',
                 },
                 description:
-                  'The list of items present in the arena, formatted as habitat-uris.',
+                  'The list of items present in the clique, formatted as habitat-uris.',
               },
             },
           },
@@ -1099,7 +1099,7 @@ export const schemaDict = {
                 items: {
                   type: 'string',
                   description:
-                    'Repos (DIDs) or arenas (habitat-uris) to search from to retrieve records.',
+                    'Repos (DIDs) or cliques (habitat-uris) to search from to retrieve records.',
                 },
               },
               collection: {
@@ -1217,10 +1217,10 @@ export const schemaDict = {
                     'Grantees as either DIDs or Arena refs [TODO: make a union]',
                 },
               },
-              createArena: {
+              createClique: {
                 type: 'boolean',
                 description:
-                  'Whether to create an arena, allowing all grantees to aggregate records under this arena.',
+                  'Whether to create a clique, allowing all grantees to aggregate records under this clique.',
               },
             },
           },
@@ -1321,8 +1321,8 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
-  NetworkHabitatArenaAddItem: 'network.habitat.arena.addItem',
-  NetworkHabitatArenaGetItems: 'network.habitat.arena.getItems',
+  NetworkHabitatCliqueAddItem: 'network.habitat.clique.addItem',
+  NetworkHabitatCliqueGetItems: 'network.habitat.clique.getItems',
   NetworkHabitatInternalGetRecord: 'network.habitat.internal.getRecord',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',

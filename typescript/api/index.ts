@@ -22,8 +22,8 @@ import * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 import * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
-import * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addItem.js'
-import * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
+import * as NetworkHabitatCliqueAddItem from './types/network/habitat/clique/addItem.js'
+import * as NetworkHabitatCliqueGetItems from './types/network/habitat/clique/getItems.js'
 import * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -48,8 +48,8 @@ export * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 export * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
-export * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addItem.js'
-export * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
+export * as NetworkHabitatCliqueAddItem from './types/network/habitat/clique/addItem.js'
+export * as NetworkHabitatCliqueGetItems from './types/network/habitat/clique/getItems.js'
 export * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -398,14 +398,14 @@ export class NetworkNS {
 export class NetworkHabitatNS {
   _client: XrpcClient
   photo: NetworkHabitatPhotoRecord
-  arena: NetworkHabitatArenaNS
+  clique: NetworkHabitatCliqueNS
   internal: NetworkHabitatInternalNS
   permissions: NetworkHabitatPermissionsNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
     this._client = client
-    this.arena = new NetworkHabitatArenaNS(client)
+    this.clique = new NetworkHabitatCliqueNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
@@ -425,7 +425,7 @@ export class NetworkHabitatNS {
   }
 }
 
-export class NetworkHabitatArenaNS {
+export class NetworkHabitatCliqueNS {
   _client: XrpcClient
 
   constructor(client: XrpcClient) {
@@ -433,11 +433,11 @@ export class NetworkHabitatArenaNS {
   }
 
   addItem(
-    data?: NetworkHabitatArenaAddItem.InputSchema,
-    opts?: NetworkHabitatArenaAddItem.CallOptions,
-  ): Promise<NetworkHabitatArenaAddItem.Response> {
+    data?: NetworkHabitatCliqueAddItem.InputSchema,
+    opts?: NetworkHabitatCliqueAddItem.CallOptions,
+  ): Promise<NetworkHabitatCliqueAddItem.Response> {
     return this._client.call(
-      'network.habitat.arena.addItem',
+      'network.habitat.clique.addItem',
       opts?.qp,
       data,
       opts,
@@ -445,11 +445,11 @@ export class NetworkHabitatArenaNS {
   }
 
   getItems(
-    data?: NetworkHabitatArenaGetItems.InputSchema,
-    opts?: NetworkHabitatArenaGetItems.CallOptions,
-  ): Promise<NetworkHabitatArenaGetItems.Response> {
+    data?: NetworkHabitatCliqueGetItems.InputSchema,
+    opts?: NetworkHabitatCliqueGetItems.CallOptions,
+  ): Promise<NetworkHabitatCliqueGetItems.Response> {
     return this._client.call(
-      'network.habitat.arena.getItems',
+      'network.habitat.clique.getItems',
       opts?.qp,
       data,
       opts,

@@ -4,13 +4,13 @@ package habitat
 
 // NetworkHabitatRepoPutRecordInput represents the input for network.habitat.repo.putRecord
 type NetworkHabitatRepoPutRecordInput struct {
-	Collection  string      `json:"collection"`
-	CreateArena bool        `json:"createArena,omitempty"`
-	Grantees    []string    `json:"grantees,omitempty"`
-	Record      interface{} `json:"record"`
-	Repo        string      `json:"repo"`
-	Rkey        string      `json:"rkey"`
-	Validate    bool        `json:"validate,omitempty"`
+	Collection   string      `json:"collection"`
+	CreateClique bool        `json:"createClique,omitempty"`
+	Grantees     []string    `json:"grantees,omitempty"`
+	Record       interface{} `json:"record"`
+	Repo         string      `json:"repo"`
+	Rkey         string      `json:"rkey"`
+	Validate     bool        `json:"validate,omitempty"`
 }
 
 // NetworkHabitatRepoPutRecordOutput represents the output for network.habitat.repo.putRecord
