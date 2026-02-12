@@ -1,20 +1,20 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.arena.getItems",
+    "id": "network.habitat.clique.getItems",
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Retrieve all items from a specified habitat arena.",
+            "description": "Retrieve all items from a specified habitat clique.",
             "permission": "authenticated",
             "parameters": {
                 "type": "params",
                 "required": [
-                    "arenaID"
+                    "cliqueID"
                 ],
                 "properties": {
-                    "arenaID": {
+                    "cliqueID": {
                         "type": "string",
-                        "description": "The ID of the arena to retrieve items from."
+                        "description": "The ID of the clique to retrieve items from."
                     }
                 }
             },
@@ -28,7 +28,7 @@
                             "items": {
                                 "type": "string"
                             },
-                            "description": "The list of items present in the arena, formatted as habitat-uris."
+                            "description": "The list of items present in the clique, formatted as habitat-uris."
                         }
                     }
                 }

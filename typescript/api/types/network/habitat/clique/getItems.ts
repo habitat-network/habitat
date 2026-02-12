@@ -13,27 +13,29 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.arena.addItem'
+const id = 'network.habitat.clique.getItems'
 
-export type QueryParams = {}
+export type QueryParams = {
+  /** The ID of the clique to retrieve items from. */
+  cliqueID: string
+}
+export type InputSchema = undefined
 
-export interface InputSchema {
-  /** The URI for the item to send to the arena, formatted as a habitat-uri. */
-  item: string
-  /** The ID of the arena to send the item to, formatted as a habitat-uri. */
-  arenaID: string
+export interface OutputSchema {
+  /** The list of items present in the clique, formatted as habitat-uris. */
+  items?: string[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
   qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

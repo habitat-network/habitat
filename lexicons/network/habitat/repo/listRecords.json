@@ -18,7 +18,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "description": "Repos (DIDs) or arenas (habitat-uris) to search from to retrieve records."
+                "description": "Repos (DIDs) or cliques (habitat-uris) to search from to retrieve records."
               }
             },
             "collection": {
