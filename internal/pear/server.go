@@ -48,6 +48,7 @@ var formDecoder = schema.NewDecoder()
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		utils.LogAndHTTPError(w, fmt.Errorf("unable to authn user"), "getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 
@@ -153,6 +154,7 @@ func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		utils.LogAndHTTPError(w, fmt.Errorf("unable to authn user"), "getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 	var params habitat.NetworkHabitatRepoGetRecordParams
@@ -199,14 +201,20 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// getAuthedUser attempts to get the calling user from the Habitat-Auth-Method header which uses oauth.
+// If this fails, it will write an http error response with the appropriate status, so no need for the caller to do that.
 func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
 	if r.Header.Get("Habitat-Auth-Method") == "oauth" {
+		// If the header could not be validated, an error response is written by Validate()
 		did, ok := s.oauthServer.Validate(w, r)
 		if !ok {
 			return "", false
 		}
 		return did, true
 	}
+	// If no header was provided, also write an err
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(&utils.ErrorMessage{Error: fmt.Errorf("no auth method provided").Error()})
 	return "", false
 }
 
@@ -217,6 +225,7 @@ func (s *Server) getServiceAuthedUser(w http.ResponseWriter, r *http.Request) (s
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		utils.LogAndHTTPError(w, fmt.Errorf("unable to authn user"), "getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 
@@ -300,6 +309,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		utils.LogAndHTTPError(w, fmt.Errorf("unable to authn user"), "getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 
@@ -355,6 +365,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		utils.LogAndHTTPError(w, fmt.Errorf("unable to authn user"), "getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 	permissions, err := s.pear.permissions.ListReadPermissionsByLexicon(callerDID.String())
@@ -379,6 +390,7 @@ type editPermissionRequest struct {
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		utils.LogAndHTTPError(w, fmt.Errorf("unable to authn user"), "getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 	req := &editPermissionRequest{}
@@ -401,6 +413,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		utils.LogAndHTTPError(w, fmt.Errorf("unable to authn user"), "getAuthedUser", http.StatusUnauthorized)
 		return
 	}
 	req := &editPermissionRequest{}
