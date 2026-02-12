@@ -26,9 +26,6 @@ import * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addIt
 import * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
 import * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
-import * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
-import * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
-import * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
@@ -53,9 +50,6 @@ export * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addIt
 export * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
 export * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
-export * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
-export * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
-export * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
@@ -402,14 +396,12 @@ export class NetworkHabitatNS {
   photo: NetworkHabitatPhotoRecord
   arena: NetworkHabitatArenaNS
   internal: NetworkHabitatInternalNS
-  notification: NetworkHabitatNotificationNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.arena = new NetworkHabitatArenaNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
-    this.notification = new NetworkHabitatNotificationNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
   }
@@ -485,38 +477,6 @@ export class NetworkHabitatInternalNS {
       'network.habitat.internal.notifyOfUpdate',
       opts?.qp,
       data,
-      opts,
-    )
-  }
-}
-
-export class NetworkHabitatNotificationNS {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  createNotification(
-    data?: NetworkHabitatNotificationCreateNotification.InputSchema,
-    opts?: NetworkHabitatNotificationCreateNotification.CallOptions,
-  ): Promise<NetworkHabitatNotificationCreateNotification.Response> {
-    return this._client.call(
-      'network.habitat.notification.createNotification',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
-
-  listNotifications(
-    params?: NetworkHabitatNotificationListNotifications.QueryParams,
-    opts?: NetworkHabitatNotificationListNotifications.CallOptions,
-  ): Promise<NetworkHabitatNotificationListNotifications.Response> {
-    return this._client.call(
-      'network.habitat.notification.listNotifications',
-      params,
-      undefined,
       opts,
     )
   }
