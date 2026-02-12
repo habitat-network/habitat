@@ -2,6 +2,8 @@
 name: Github Pages
 
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 # Sets the GITHUB_TOKEN permissions to allow deployment to GitHub Pages
@@ -25,6 +27,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup moon
         uses: moonrepo/setup-toolchain@v0
@@ -32,7 +36,7 @@ jobs:
           auto-install: true
 
       - name: Build
-        run: moon frontend:build
+        run: moon r frontend:build
         env:
           DOMAIN: ${{ vars.DOMAIN }}
           HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
