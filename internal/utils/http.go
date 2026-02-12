@@ -22,3 +22,14 @@ func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
 	}
 	_ = json.NewEncoder(w).Encode(&ErrorMessage{Error: "unknown error"})
 }
+
+// LogAndHTTPError logs the error before sending and HTTP error response to the provided writer.
+// It takes in both an error and a debug message for verobosity.
+func WriteHTTPError(w http.ResponseWriter, err error, code int) {
+	w.WriteHeader(code)
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(&ErrorMessage{Error: err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(&ErrorMessage{Error: "unknown error"})
+}

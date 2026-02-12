@@ -211,8 +211,7 @@ func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.D
 		return did, true
 	}
 	// If no header was provided, also write an err
-	w.WriteHeader(http.StatusUnauthorized)
-	_ = json.NewEncoder(w).Encode(&utils.ErrorMessage{Error: fmt.Errorf("no auth method provided").Error()})
+	utils.WriteHTTPError(w, fmt.Errorf("no habitat auth header provided"), http.StatusUnauthorized)
 	return "", false
 }
 
@@ -361,6 +360,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
+		fmt.Println("not authed, returning")
 		return
 	}
 	permissions, err := s.pear.permissions.ListReadPermissionsByLexicon(callerDID.String())
