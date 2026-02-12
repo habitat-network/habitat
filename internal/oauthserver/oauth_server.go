@@ -342,7 +342,6 @@ func (o *OAuthServer) Validate(
 	r *http.Request,
 	scopes ...string,
 ) (syntax.DID, bool) {
-	ctx := r.Context()
 	_, ar, err := o.provider.IntrospectToken(
 		r.Context(),
 		fosite.AccessTokenFromRequest(r),
@@ -351,7 +350,7 @@ func (o *OAuthServer) Validate(
 		scopes...,
 	)
 	if err != nil {
-		o.provider.WriteIntrospectionError(ctx, w, err)
+		utils.WriteHTTPError(w, fmt.Errorf("invalid or expired token: %w", err), http.StatusUnauthorized)
 		return "", false
 	}
 	// Get the DID from the session subject (stored in JWT)
