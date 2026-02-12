@@ -9,12 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as OnboardLocalRouteImport } from './routes/onboard-local'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as OauthLoginRouteImport } from './routes/oauth-login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
-import { Route as RequireAuthNotificationsRouteImport } from './routes/_requireAuth/notifications'
 import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/forwarding-test'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
@@ -24,9 +24,13 @@ import { Route as RequireAuthPermissionsPeopleRouteImport } from './routes/_requ
 import { Route as RequireAuthPermissionsLexiconsRouteImport } from './routes/_requireAuth/permissions/lexicons'
 import { Route as RequireAuthPearTestViewRouteImport } from './routes/_requireAuth/pear-test/view'
 import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './routes/_requireAuth/permissions/lexicons/index'
-import { Route as RequireAuthPermissionsGroupsIndexRouteImport } from './routes/_requireAuth/permissions/groups/index'
 import { Route as RequireAuthPermissionsLexiconsLexiconIdRouteImport } from './routes/_requireAuth/permissions/lexicons/$lexiconId'
 
+const OnboardLocalRoute = OnboardLocalRouteImport.update({
+  id: '/onboard-local',
+  path: '/onboard-local',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardRoute = OnboardRouteImport.update({
   id: '/onboard',
   path: '/onboard',
@@ -51,12 +55,6 @@ const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   path: '/permissions',
   getParentRoute: () => RequireAuthRoute,
 } as any)
-const RequireAuthNotificationsRoute =
-  RequireAuthNotificationsRouteImport.update({
-    id: '/notifications',
-    path: '/notifications',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
 const RequireAuthForwardingTestRoute =
   RequireAuthForwardingTestRouteImport.update({
     id: '/forwarding-test',
@@ -109,12 +107,6 @@ const RequireAuthPermissionsLexiconsIndexRoute =
     path: '/',
     getParentRoute: () => RequireAuthPermissionsLexiconsRoute,
   } as any)
-const RequireAuthPermissionsGroupsIndexRoute =
-  RequireAuthPermissionsGroupsIndexRouteImport.update({
-    id: '/groups/',
-    path: '/groups/',
-    getParentRoute: () => RequireAuthPermissionsRoute,
-  } as any)
 const RequireAuthPermissionsLexiconsLexiconIdRoute =
   RequireAuthPermissionsLexiconsLexiconIdRouteImport.update({
     id: '/$lexiconId',
@@ -126,9 +118,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
+  '/onboard-local': typeof OnboardLocalRoute
   '/data': typeof RequireAuthDataRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
-  '/notifications': typeof RequireAuthNotificationsRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
@@ -137,23 +129,21 @@ export interface FileRoutesByFullPath {
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
+  '/onboard-local': typeof OnboardLocalRoute
   '/data': typeof RequireAuthDataRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
-  '/notifications': typeof RequireAuthNotificationsRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRoute
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
   '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/permissions/groups': typeof RequireAuthPermissionsGroupsIndexRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 export interface FileRoutesById {
@@ -162,9 +152,9 @@ export interface FileRoutesById {
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
+  '/onboard-local': typeof OnboardLocalRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/forwarding-test': typeof RequireAuthForwardingTestRoute
-  '/_requireAuth/notifications': typeof RequireAuthNotificationsRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/_requireAuth/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
@@ -173,7 +163,6 @@ export interface FileRoutesById {
   '/_requireAuth/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/_requireAuth/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
-  '/_requireAuth/permissions/groups/': typeof RequireAuthPermissionsGroupsIndexRoute
   '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 export interface FileRouteTypes {
@@ -182,9 +171,9 @@ export interface FileRouteTypes {
     | '/'
     | '/oauth-login'
     | '/onboard'
+    | '/onboard-local'
     | '/data'
     | '/forwarding-test'
-    | '/notifications'
     | '/permissions'
     | '/pear-test/view'
     | '/permissions/lexicons'
@@ -193,23 +182,21 @@ export interface FileRouteTypes {
     | '/pear-test'
     | '/permissions/'
     | '/permissions/lexicons/$lexiconId'
-    | '/permissions/groups'
     | '/permissions/lexicons/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/oauth-login'
     | '/onboard'
+    | '/onboard-local'
     | '/data'
     | '/forwarding-test'
-    | '/notifications'
     | '/pear-test/view'
     | '/permissions/people'
     | '/blob-test'
     | '/pear-test'
     | '/permissions'
     | '/permissions/lexicons/$lexiconId'
-    | '/permissions/groups'
     | '/permissions/lexicons'
   id:
     | '__root__'
@@ -217,9 +204,9 @@ export interface FileRouteTypes {
     | '/_requireAuth'
     | '/oauth-login'
     | '/onboard'
+    | '/onboard-local'
     | '/_requireAuth/data'
     | '/_requireAuth/forwarding-test'
-    | '/_requireAuth/notifications'
     | '/_requireAuth/permissions'
     | '/_requireAuth/pear-test/view'
     | '/_requireAuth/permissions/lexicons'
@@ -228,7 +215,6 @@ export interface FileRouteTypes {
     | '/_requireAuth/pear-test/'
     | '/_requireAuth/permissions/'
     | '/_requireAuth/permissions/lexicons/$lexiconId'
-    | '/_requireAuth/permissions/groups/'
     | '/_requireAuth/permissions/lexicons/'
   fileRoutesById: FileRoutesById
 }
@@ -237,10 +223,18 @@ export interface RootRouteChildren {
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
+  OnboardLocalRoute: typeof OnboardLocalRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/onboard-local': {
+      id: '/onboard-local'
+      path: '/onboard-local'
+      fullPath: '/onboard-local'
+      preLoaderRoute: typeof OnboardLocalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboard': {
       id: '/onboard'
       path: '/onboard'
@@ -274,13 +268,6 @@ declare module '@tanstack/react-router' {
       path: '/permissions'
       fullPath: '/permissions'
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
-    '/_requireAuth/notifications': {
-      id: '/_requireAuth/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof RequireAuthNotificationsRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/forwarding-test': {
@@ -346,13 +333,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPermissionsLexiconsIndexRouteImport
       parentRoute: typeof RequireAuthPermissionsLexiconsRoute
     }
-    '/_requireAuth/permissions/groups/': {
-      id: '/_requireAuth/permissions/groups/'
-      path: '/groups'
-      fullPath: '/permissions/groups'
-      preLoaderRoute: typeof RequireAuthPermissionsGroupsIndexRouteImport
-      parentRoute: typeof RequireAuthPermissionsRoute
-    }
     '/_requireAuth/permissions/lexicons/$lexiconId': {
       id: '/_requireAuth/permissions/lexicons/$lexiconId'
       path: '/$lexiconId'
@@ -385,7 +365,6 @@ interface RequireAuthPermissionsRouteChildren {
   RequireAuthPermissionsLexiconsRoute: typeof RequireAuthPermissionsLexiconsRouteWithChildren
   RequireAuthPermissionsPeopleRoute: typeof RequireAuthPermissionsPeopleRoute
   RequireAuthPermissionsIndexRoute: typeof RequireAuthPermissionsIndexRoute
-  RequireAuthPermissionsGroupsIndexRoute: typeof RequireAuthPermissionsGroupsIndexRoute
 }
 
 const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
@@ -394,8 +373,6 @@ const RequireAuthPermissionsRouteChildren: RequireAuthPermissionsRouteChildren =
       RequireAuthPermissionsLexiconsRouteWithChildren,
     RequireAuthPermissionsPeopleRoute: RequireAuthPermissionsPeopleRoute,
     RequireAuthPermissionsIndexRoute: RequireAuthPermissionsIndexRoute,
-    RequireAuthPermissionsGroupsIndexRoute:
-      RequireAuthPermissionsGroupsIndexRoute,
   }
 
 const RequireAuthPermissionsRouteWithChildren =
@@ -406,7 +383,6 @@ const RequireAuthPermissionsRouteWithChildren =
 interface RequireAuthRouteChildren {
   RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthForwardingTestRoute: typeof RequireAuthForwardingTestRoute
-  RequireAuthNotificationsRoute: typeof RequireAuthNotificationsRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthPearTestViewRoute: typeof RequireAuthPearTestViewRoute
   RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
@@ -416,7 +392,6 @@ interface RequireAuthRouteChildren {
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthDataRoute: RequireAuthDataRoute,
   RequireAuthForwardingTestRoute: RequireAuthForwardingTestRoute,
-  RequireAuthNotificationsRoute: RequireAuthNotificationsRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthPearTestViewRoute: RequireAuthPearTestViewRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
@@ -432,6 +407,7 @@ const rootRouteChildren: RootRouteChildren = {
   RequireAuthRoute: RequireAuthRouteWithChildren,
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
+  OnboardLocalRoute: OnboardLocalRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -127,7 +127,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	serviceName := cmd.String(fServiceName)
-	pearServer := setupPearServer(domain, serviceName, db, oauthServer, pdsClientFactory)
+	pearServer, err := setupPearServer(ctx, serviceName, domain, db, oauthServer)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup pear servers")
+	}
+
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
@@ -227,28 +231,25 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPearServer(
-	location string,
-	serviceName string,
-	db *gorm.DB,
-	oauthServer *oauthserver.OAuthServer,
-	pdsClientFactory *oauthclient.PDSClientFactory,
-) *pear.Server {
+func setupPearServer(ctx context.Context, serviceName string, domain string, db *gorm.DB, oauthServer *oauthserver.OAuthServer) (*pear.Server, error) {
 	repo, err := pear.NewRepo(db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pear sqlite db")
+		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	permissionStore, err := permissions.NewSQLiteStore(db)
+	permissions, err := permissions.NewStore(db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup permissions store")
+		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
 
-	inbox, err := inbox.NewInbox(db)
+	inbox, err := inbox.New(db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup inbox")
+		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
-	return pear.NewServer(context.Background(), location, serviceName, permissionStore, repo, inbox, oauthServer, pdsClientFactory)
+
+	dir := identity.DefaultDirectory()
+	p := pear.NewPear(ctx, domain, serviceName, dir, permissions, repo, inbox)
+	return pear.NewServer(dir, p, oauthServer), nil
 }
 
 func setupOAuthServer(

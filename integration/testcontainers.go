@@ -195,8 +195,8 @@ func PDSProxyContainerRequest(
 	}
 }
 
-// PriviContainerRequest creates a container request for the Privi service with HTTPS enabled
-func PriviContainerRequest(
+// PearContainerRequest creates a container request for the Pear service with HTTPS enabled
+func PearContainerRequest(
 	networkName, certDir, pgURL string,
 ) testcontainers.GenericContainerRequest {
 	return testcontainers.GenericContainerRequest{
@@ -303,7 +303,7 @@ func StandardIntegrationRequests(
 	return []testcontainers.GenericContainerRequest{
 		PDSContainerRequest(networkName),
 		PDSProxyContainerRequest(networkName, certDir),
-		PriviContainerRequest(networkName, certDir, pgURL),
+		PearContainerRequest(networkName, certDir, pgURL),
 		SeleniumContainerRequest(networkName),
 		FrontendContainerRequest(networkName, certDir),
 	}

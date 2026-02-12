@@ -16,7 +16,7 @@ import (
 // This package implements that.
 
 // The permissionEnforcingRepo wraps a repo, and enforces permissions on any calls.
-type permissionEnforcingRepo struct {
+type Pear struct {
 	ctx context.Context
 	// The URL at which this repo lives; should match what is in a hosted user's DID doc for the habitat service entry
 	url string
@@ -41,18 +41,18 @@ var (
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
 )
 
-func newPermissionEnforcingRepo(
+func NewPear(
 	ctx context.Context,
-	url string,
+	domain string,
 	serviceName string,
 	dir identity.Directory,
 	perms permissions.Store,
 	repo *repo,
 	inbox inbox.Inbox,
-) *permissionEnforcingRepo {
-	return &permissionEnforcingRepo{
+) *Pear {
+	return &Pear{
 		ctx:         ctx,
-		url:         url,
+		url:         "https://" + domain, // We use https
 		serviceName: serviceName,
 		dir:         dir,
 		permissions: perms,
@@ -64,7 +64,7 @@ func newPermissionEnforcingRepo(
 // putRecord puts the given record on the repo connected to this permissionEnforcingRepo.
 // It does not do any encryption, permissions, auth, etc. It is assumed that only the owner of the store can call this and that
 // is gated by some higher up level. This should be re-written in the future to not give any incorrect impression.
-func (p *permissionEnforcingRepo) putRecord(
+func (p *Pear) putRecord(
 	did string,
 	collection string,
 	record map[string]any,
@@ -76,7 +76,7 @@ func (p *permissionEnforcingRepo) putRecord(
 }
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
-func (p *permissionEnforcingRepo) getRecord(
+func (p *Pear) getRecord(
 	collection string,
 	rkey string,
 	targetDID syntax.DID,
@@ -108,7 +108,7 @@ func (p *permissionEnforcingRepo) getRecord(
 	return p.repo.getRecord(string(targetDID), collection, rkey)
 }
 
-func (p *permissionEnforcingRepo) listRecords(
+func (p *Pear) listRecords(
 	params *habitat.NetworkHabitatRepoListRecordsParams,
 	callerDID syntax.DID,
 ) ([]Record, error) {
@@ -136,22 +136,22 @@ var (
 	ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
 )
 
-func (p *permissionEnforcingRepo) hasRepoForDid(did syntax.DID) (bool, error) {
+func (p *Pear) hasRepoForDid(did syntax.DID) (bool, error) {
 	id, err := p.dir.LookupDID(p.ctx, did)
 	if err != nil {
 		return false, err
 	}
 
-	foundURL, ok := id.Services[p.serviceName]
+	found, ok := id.Services[p.serviceName]
 	if !ok {
 		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
 	}
 
-	return foundURL.URL == p.url, nil
+	return found.URL == p.url, nil
 }
 
 // TODO: actually enforce permissions here
-func (p *permissionEnforcingRepo) getBlob(
+func (p *Pear) getBlob(
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
@@ -159,10 +159,10 @@ func (p *permissionEnforcingRepo) getBlob(
 }
 
 // TODO: actually enforce permissions here
-func (p *permissionEnforcingRepo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
+func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
 	return p.repo.uploadBlob(did, data, mimeType)
 }
 
-func (p *permissionEnforcingRepo) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {
+func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {
 	return p.inbox.PutNotification(ctx, sender, recipient, collection, rkey)
 }

@@ -32,10 +32,10 @@ func withIdentityDirectory(dir identity.Directory) option {
 	}
 }
 
-func newPearForTest(t *testing.T, opts ...option) *permissionEnforcingRepo {
+func newPearForTest(t *testing.T, opts ...option) *Pear {
 	db, err := gorm.Open(sqlite.Open(":memory:"))
 	require.NoError(t, err)
-	permissions, err := permissions.NewSQLiteStore(db)
+	permissions, err := permissions.NewStore(db)
 	require.NoError(t, err)
 
 	o := &options{
@@ -44,13 +44,12 @@ func newPearForTest(t *testing.T, opts ...option) *permissionEnforcingRepo {
 	for _, opt := range opts {
 		opt(o)
 	}
-	fmt.Printf("%T\n", o.dir)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	inbox, err := inbox.NewInbox(db)
+	inbox, err := inbox.New(db)
 	require.NoError(t, err)
-	p := newPermissionEnforcingRepo(t.Context(), testServiceEndpoint, testServiceName, o.dir, permissions, repo, inbox)
+	p := NewPear(t.Context(), testServiceEndpoint, testServiceName, o.dir, permissions, repo, inbox)
 	return p
 }
 
@@ -61,7 +60,7 @@ func mockIdentities(dids []string) identity.Directory {
 			DID: syntax.DID(did),
 			Services: map[string]identity.ServiceEndpoint{
 				testServiceName: identity.ServiceEndpoint{
-					URL: testServiceEndpoint,
+					URL: "https://" + testServiceEndpoint,
 				},
 			},
 		})
@@ -75,7 +74,7 @@ func TestMockIdentities(t *testing.T) {
 
 	id, err := dir.LookupDID(t.Context(), syntax.DID("my-did"))
 	require.NoError(t, err)
-	require.Equal(t, id.Services[testServiceName].URL, testServiceEndpoint)
+	require.Equal(t, id.Services[testServiceName].URL, "https://"+testServiceEndpoint)
 
 	has, err := p.hasRepoForDid(syntax.DID("my-did"))
 	require.NoError(t, err)

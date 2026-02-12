@@ -32,7 +32,7 @@ type inbox struct {
 // inbox implements Inbox
 var _ Inbox = &inbox{}
 
-func NewInbox(db *gorm.DB) (Inbox, error) {
+func New(db *gorm.DB) (Inbox, error) {
 	err := db.AutoMigrate(&Notification{})
 	if err != nil {
 		return nil, err
