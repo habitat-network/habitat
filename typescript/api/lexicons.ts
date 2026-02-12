@@ -767,7 +767,7 @@ export const schemaDict = {
     id: 'network.habitat.clique.getItems',
     defs: {
       main: {
-        type: 'procedure',
+        type: 'query',
         description: 'Retrieve all items from a specified habitat clique.',
         permission: 'authenticated',
         parameters: {
@@ -1324,7 +1324,6 @@ export const schemaDict = {
           schema: {
             type: 'object',
             required: ['repo', 'collection', 'rkey', 'record'],
-            nullable: ['swapRecord'],
             properties: {
               repo: {
                 type: 'string',
@@ -1357,13 +1356,8 @@ export const schemaDict = {
                 items: {
                   type: 'string',
                   description:
-                    'Grantees as either DIDs or Arena refs [TODO: make a union]',
+                    'Grantees as either DIDs or clique refs (habitat-uris pointing to clique owners)',
                 },
-              },
-              createClique: {
-                type: 'boolean',
-                description:
-                  'Whether to create a clique, allowing all grantees to aggregate records under this clique.',
               },
             },
           },

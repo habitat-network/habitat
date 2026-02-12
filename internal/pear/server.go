@@ -93,6 +93,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
+
 	err = s.pear.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
