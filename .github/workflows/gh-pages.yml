@@ -32,7 +32,7 @@ jobs:
           auto-install: true
 
       - name: Build
-        run: moon frontend:build
+        run: moon r frontend:build
         env:
           DOMAIN: ${{ vars.DOMAIN }}
           HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
