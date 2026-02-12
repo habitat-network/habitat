@@ -336,6 +336,7 @@ func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// Validate's the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,

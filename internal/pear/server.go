@@ -201,14 +201,20 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// getAuthedUser attempts to get the calling user from the Habitat-Auth-Method header which uses oauth.
+// If this fails, it will write an http error response with the appropriate status, so no need for the caller to do that.
 func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
 	if r.Header.Get("Habitat-Auth-Method") == "oauth" {
+		// If the header could not be validated, an error response is written by Validate()
 		did, ok := s.oauthServer.Validate(w, r)
 		if !ok {
 			return "", false
 		}
 		return did, true
 	}
+	// If no header was provided, also write an err
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(&utils.ErrorMessage{Error: fmt.Errorf("no auth method provided").Error()})
 	return "", false
 }
 
