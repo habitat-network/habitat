@@ -1036,6 +1036,70 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatPermissionsAddPermission: {
+    lexicon: 1,
+    id: 'network.habitat.permissions.addPermission',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Grant read permission to a user for a specific lexicon.',
+        permission: 'authenticated',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['did', 'lexicon'],
+            properties: {
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the user to grant read permission to.',
+              },
+              lexicon: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the lexicon or record to grant read permission for.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatPermissionsRemovePermission: {
+    lexicon: 1,
+    id: 'network.habitat.permissions.removePermission',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Revoke read permission from a user for a specific lexicon.',
+        permission: 'authenticated',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['did', 'lexicon'],
+            properties: {
+              did: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of the user to revoke read permission from.',
+              },
+              lexicon: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the lexicon or record to revoke read permission for.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatPhoto: {
     lexicon: 1,
     id: 'network.habitat.photo',
@@ -1410,6 +1474,10 @@ export const ids = {
   NetworkHabitatNotificationDefs: 'network.habitat.notification.defs',
   NetworkHabitatNotificationListNotifications:
     'network.habitat.notification.listNotifications',
+  NetworkHabitatPermissionsAddPermission:
+    'network.habitat.permissions.addPermission',
+  NetworkHabitatPermissionsRemovePermission:
+    'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',

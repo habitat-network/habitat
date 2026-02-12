@@ -377,24 +377,19 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type editPermissionRequest struct {
-	DID     string `json:"did"`
-	Lexicon string `json:"lexicon"`
-}
-
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
 		return
 	}
-	req := &editPermissionRequest{}
+	req := &habitat.NetworkHabitatPermissionsAddPermissionInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 	err = s.pear.permissions.AddReadPermission(
-		[]string{req.DID},
+		[]string{req.Did},
 		callerDID.String(),
 		req.Lexicon,
 	)
@@ -409,13 +404,13 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req := &editPermissionRequest{}
+	req := &habitat.NetworkHabitatPermissionsRemovePermissionInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.RemoveReadPermission(req.DID, callerDID.String(), req.Lexicon)
+	err = s.pear.permissions.RemoveReadPermission(req.Did, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return

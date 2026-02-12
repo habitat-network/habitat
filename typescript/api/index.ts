@@ -29,6 +29,8 @@ import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/i
 import * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
 import * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 import * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
+import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
+import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
@@ -56,6 +58,8 @@ export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/i
 export * as NetworkHabitatNotificationCreateNotification from './types/network/habitat/notification/createNotification.js'
 export * as NetworkHabitatNotificationDefs from './types/network/habitat/notification/defs.js'
 export * as NetworkHabitatNotificationListNotifications from './types/network/habitat/notification/listNotifications.js'
+export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
+export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
@@ -403,6 +407,7 @@ export class NetworkHabitatNS {
   arena: NetworkHabitatArenaNS
   internal: NetworkHabitatInternalNS
   notification: NetworkHabitatNotificationNS
+  permissions: NetworkHabitatPermissionsNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
@@ -410,6 +415,7 @@ export class NetworkHabitatNS {
     this.arena = new NetworkHabitatArenaNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.notification = new NetworkHabitatNotificationNS(client)
+    this.permissions = new NetworkHabitatPermissionsNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
   }
@@ -517,6 +523,38 @@ export class NetworkHabitatNotificationNS {
       'network.habitat.notification.listNotifications',
       params,
       undefined,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatPermissionsNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addPermission(
+    data?: NetworkHabitatPermissionsAddPermission.InputSchema,
+    opts?: NetworkHabitatPermissionsAddPermission.CallOptions,
+  ): Promise<NetworkHabitatPermissionsAddPermission.Response> {
+    return this._client.call(
+      'network.habitat.permissions.addPermission',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  removePermission(
+    data?: NetworkHabitatPermissionsRemovePermission.InputSchema,
+    opts?: NetworkHabitatPermissionsRemovePermission.CallOptions,
+  ): Promise<NetworkHabitatPermissionsRemovePermission.Response> {
+    return this._client.call(
+      'network.habitat.permissions.removePermission',
+      opts?.qp,
+      data,
       opts,
     )
   }
