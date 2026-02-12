@@ -1,0 +1,36 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.group",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A user group -- a set of users.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "members",
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the group."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The description of this group."
+                    },
+                    "members": {
+                        "type": "array",
+                        "description": "The members of this group",
+                        "items": {
+                            "type": "string",
+                            "format": "did"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,72 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.repo.editGroup",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Edit an existing user group. Update its metadata or add/remove members.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "repo",
+            "rkey"
+          ],
+          "properties": {
+            "repo": {
+              "type": "string",
+              "format": "at-identifier",
+              "description": "The handle or DID of the repo (aka, current account)."
+            },
+            "rkey": {
+              "type": "string",
+              "format": "record-key",
+              "description": "The Record Key of the group to edit.",
+              "maxLength": 512
+            },
+            "name": {
+              "type": "string",
+              "description": "Updated name of the group."
+            },
+            "description": {
+              "type": "string",
+              "description": "Updated description of the group."
+            },
+            "addMembers": {
+              "type": "array",
+              "description": "Members to add to the group.",
+              "items": {
+                "type": "string",
+                "format": "did"
+              }
+            },
+            "removeMembers": {
+              "type": "array",
+              "description": "Members to remove from the group.",
+              "items": {
+                "type": "string",
+                "format": "did"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "uri"
+          ],
+          "properties": {
+            "uri": {
+              "type": "string",
+              "description": "The habitat-uri of the edited group."
+            }
+          }
+        }
+      }
+    }
+  }
+}

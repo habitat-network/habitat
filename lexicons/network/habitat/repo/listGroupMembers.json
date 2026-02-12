@@ -1,0 +1,47 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.repo.listGroupMembers",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the members of a group.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "repo",
+                    "rkey"
+                ],
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "format": "at-identifier",
+                        "description": "The handle or DID of the repo."
+                    },
+                    "rkey": {
+                        "type": "string",
+                        "format": "record-key",
+                        "description": "The Record Key of the group."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "members"
+                    ],
+                    "properties": {
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

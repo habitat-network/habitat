@@ -1,0 +1,58 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.repo.createGroup",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Create a new user group.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "repo",
+            "name"
+          ],
+          "properties": {
+            "repo": {
+              "type": "string",
+              "format": "at-identifier",
+              "description": "The handle or DID of the repo (aka, current account)."
+            },
+            "name": {
+              "type": "string",
+              "description": "The name of the group."
+            },
+            "description": {
+              "type": "string",
+              "description": "The description of this group."
+            },
+            "members": {
+              "type": "array",
+              "description": "Initial members to add to the group.",
+              "items": {
+                "type": "string",
+                "format": "did"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "uri"
+          ],
+          "properties": {
+            "uri": {
+              "type": "string",
+              "description": "The habitat-uri of the created group."
+            }
+          }
+        }
+      }
+    }
+  }
+}
