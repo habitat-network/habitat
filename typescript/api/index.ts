@@ -445,13 +445,13 @@ export class NetworkHabitatCliqueNS {
   }
 
   getItems(
-    data?: NetworkHabitatCliqueGetItems.InputSchema,
+    params?: NetworkHabitatCliqueGetItems.QueryParams,
     opts?: NetworkHabitatCliqueGetItems.CallOptions,
   ): Promise<NetworkHabitatCliqueGetItems.Response> {
     return this._client.call(
       'network.habitat.clique.getItems',
-      opts?.qp,
-      data,
+      params,
+      undefined,
       opts,
     )
   }

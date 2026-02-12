@@ -3,7 +3,7 @@
     "id": "network.habitat.clique.getItems",
     "defs": {
         "main": {
-            "type": "procedure",
+            "type": "query",
             "description": "Retrieve all items from a specified habitat clique.",
             "permission": "authenticated",
             "parameters": {

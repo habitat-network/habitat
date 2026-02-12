@@ -29,8 +29,6 @@ export interface InputSchema {
   /** The record to write. */
   record: { [_ in string]: unknown }
   grantees?: string[]
-  /** Whether to create a clique, allowing all grantees to aggregate records under this clique. */
-  createClique?: boolean
 }
 
 export interface OutputSchema {

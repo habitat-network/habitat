@@ -29,7 +29,6 @@ export interface OutputSchema {
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
 }
 
 export interface Response {
