@@ -140,6 +140,46 @@ func TestRepoListRecords(t *testing.T) {
 	require.Len(t, records, 0)
 }
 
+func TestCliqueAddAndGetItems(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	cliqueURI := "habitat://did:plc:owner123/network.habitat.clique/clique1"
+	item1 := "habitat://did:plc:owner123/network.habitat.post/post1"
+	item2 := "habitat://did:plc:owner123/network.habitat.post/post2"
+
+	// Empty clique returns no items
+	items, err := repo.getCliqueItems(cliqueURI)
+	require.NoError(t, err)
+	require.Empty(t, items)
+
+	// Add items
+	require.NoError(t, repo.addCliqueItem(cliqueURI, item1))
+	require.NoError(t, repo.addCliqueItem(cliqueURI, item2))
+
+	// Get items
+	items, err = repo.getCliqueItems(cliqueURI)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	require.Contains(t, items, item1)
+	require.Contains(t, items, item2)
+
+	// Adding duplicate is a no-op
+	require.NoError(t, repo.addCliqueItem(cliqueURI, item1))
+	items, err = repo.getCliqueItems(cliqueURI)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	// Different clique is isolated
+	otherClique := "habitat://did:plc:owner123/network.habitat.clique/clique2"
+	items, err = repo.getCliqueItems(otherClique)
+	require.NoError(t, err)
+	require.Empty(t, items)
+}
+
 func TestUploadAndGetBlob(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

@@ -2,6 +2,31 @@
   "lexicon": 1,
   "id": "network.habitat.repo.putRecord",
   "defs": {
+    "didGrantee": {
+      "type": "object",
+      "required": [
+        "did"
+      ],
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did"
+        }
+      }
+    },
+    "cliqueRef": {
+      "type": "object",
+      "required": [
+        "uri"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "description": "A habitat-uri pointing to a clique owner (habitat://<did>/<collection>/<rkey>)"
+        }
+      }
+    },
     "main": {
       "type": "procedure",
       "description": "Write a repository record, creating or updating it as needed.",
@@ -43,8 +68,11 @@
             "grantees": {
               "type": "array",
               "items": {
-                "type": "string",
-                "description": "Grantees as either DIDs or clique refs (habitat-uris pointing to clique owners)"
+                "type": "union",
+                "refs": [
+                  "#didGrantee",
+                  "#cliqueRef"
+                ]
               }
             }
           }
