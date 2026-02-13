@@ -63,23 +63,23 @@ func NewRepo(db *gorm.DB) (*repo, error) {
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *repo) putRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error {
+func (r *repo) putRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) (bool, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	bytes, err := json.Marshal(rec)
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	// Store rkey directly (no concatenation with collection)
 	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: string(bytes)}
 	// Always put (even if something exists).
-	return gorm.G[Record](
+	return true, gorm.G[Record](
 		r.db,
 		clause.OnConflict{
 			Columns: []clause.Column{

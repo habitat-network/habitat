@@ -10,7 +10,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
 	"github.com/gorilla/schema"
@@ -21,7 +20,7 @@ import (
 
 type Server struct {
 	// Implementation of permission-enforcint atprotocol repo
-	pear *Pear
+	pear Pear
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 	// Used for validating oauth tokens
@@ -29,9 +28,10 @@ type Server struct {
 }
 
 // NewServer returns a pear server.
+// The server's endpoints take care of authentication, and the pear is reponsible for authorization.
 func NewServer(
 	dir identity.Directory,
-	pear *Pear,
+	pear Pear,
 	oauthServer *oauthserver.OAuthServer,
 ) *Server {
 	server := &Server{
@@ -58,73 +58,17 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ownerDID, err := s.fetchDID(r.Context(), req.Repo)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
-		return
-	}
-
-	if ownerDID.String() != callerDID.String() {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("only owner can put record"),
-			"only owner can put record",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
-	var rkey string
-	if req.Rkey == "" {
-		rkey = uuid.NewString()
-	} else {
-		rkey = req.Rkey
-	}
-
-	record, ok := req.Record.(map[string]any)
-	if !ok {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("record must be a JSON object"),
-			"invalid record type",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	v := true
-
-	err = s.pear.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
+	out, err := s.pear.PutRecord(callerDID, req)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
 			err,
-			fmt.Sprintf("putting record for did %s", ownerDID.String()),
+			fmt.Sprintf("putting record for did %s", err),
 			http.StatusInternalServerError,
 		)
 		return
 	}
-
-	if len(req.Grantees) > 0 {
-		err := s.pear.permissions.AddReadPermission(
-			req.Grantees,
-			ownerDID.String(),
-			req.Collection+"."+rkey,
-		)
-		if err != nil {
-			utils.LogAndHTTPError(
-				w,
-				err,
-				fmt.Sprintf("adding permissions for did %s", ownerDID.String()),
-				http.StatusInternalServerError,
-			)
-			return
-		}
-	}
-
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
-		Uri: fmt.Sprintf("habitat://%s/%s/%s", ownerDID.String(), req.Collection, rkey),
-	}); err != nil {
+	if err = json.NewEncoder(w).Encode(out); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
@@ -170,7 +114,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
+	out, err := s.pear.GetRecord(params)
 	if err != nil {
 		if errors.Is(err, ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
@@ -182,22 +126,29 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
 		return
 	}
-	output := &habitat.NetworkHabitatRepoGetRecordOutput{
-		Uri: fmt.Sprintf(
-			"habitat://%s/%s/%s",
-			targetDID.String(),
-			params.Collection,
-			params.Rkey,
-		),
-	}
-	if err := json.Unmarshal([]byte(record.Value), &output.Value); err != nil {
-		utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
-		return
-	}
-	if json.NewEncoder(w).Encode(output) != nil {
+	if json.NewEncoder(w).Encode(out) != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
+
+	/*
+		output := &habitat.NetworkHabitatRepoGetRecordOutput{
+			Uri: fmt.Sprintf(
+				"habitat://%s/%s/%s",
+				targetDID.String(),
+				params.Collection,
+				params.Rkey,
+			),
+		}
+		if err := json.Unmarshal([]byte(record.Value), &output.Value); err != nil {
+			utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
+			return
+		}
+		if json.NewEncoder(w).Encode(output) != nil {
+			utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+			return
+		}
+	*/
 }
 
 // getAuthedUser attempts to get the calling user from the Habitat-Auth-Method header which uses oauth.
@@ -364,6 +315,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("not authed, returning")
 		return
 	}
+
 	permissions, err := s.pear.permissions.ListReadPermissionsByLexicon(callerDID.String())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
