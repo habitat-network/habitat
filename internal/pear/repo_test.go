@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/habitat-network/habitat/api/habitat"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -74,10 +73,8 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	records, err := repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{},
 		[]string{},
 	)
@@ -85,10 +82,8 @@ func TestRepoListRecords(t *testing.T) {
 	require.Len(t, records, 0)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.key-1", "network.habitat.collection-1.key-2"},
 		[]string{},
 	)
@@ -96,10 +91,8 @@ func TestRepoListRecords(t *testing.T) {
 	require.Len(t, records, 2)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.*"},
 		[]string{},
 	)
@@ -107,10 +100,8 @@ func TestRepoListRecords(t *testing.T) {
 	require.Len(t, records, 2)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.*"},
 		[]string{"network.habitat.collection-1.key-1"},
 	)
@@ -118,10 +109,8 @@ func TestRepoListRecords(t *testing.T) {
 	require.Len(t, records, 1)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-2",
-		},
+		"my-did",
+		"network.habitat.collection-2",
 		[]string{"network.habitat.*"},
 		[]string{},
 	)
@@ -129,10 +118,8 @@ func TestRepoListRecords(t *testing.T) {
 	require.Len(t, records, 1)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-2",
-		},
+		"my-did",
+		"network.habitat.collection-2",
 		[]string{"network.habitat.*"},
 		[]string{"network.habitat.collection-2.*"},
 	)
