@@ -129,7 +129,30 @@ func (p *pear) PutRecord(ctx context.Context, caller syntax.DID, input habitat.N
 		return habitat.NetworkHabitatRepoPutRecordOutput{}, err
 	}
 
+	// Uri of newly putted record
+	uri := fmt.Sprintf("habitat://%s/%s/%s", repoDID.String(), input.Collection, rkey)
+
+	isDID := func(string) bool {
+		return true
+	}
+	isHabitatURi := func(string) bool {
+		return true
+	}
+
 	if len(input.Grantees) > 0 {
+		cliques := []string{}
+		dids := []string{}
+		for _, grantee := range input.Grantees {
+			if isDID(grantee) {
+				dids = append(dids, grantee)
+			} else if isHabitatURi(grantee) {
+				cliques = append(cliques, grantee)
+			} else {
+				// TODO: return an error
+			}
+		}
+
+		// Directly add the permission for everything
 		err := p.permissions.AddReadPermission(
 			input.Grantees,
 			repoDID.String(),
@@ -138,6 +161,16 @@ func (p *pear) PutRecord(ctx context.Context, caller syntax.DID, input habitat.N
 		if err != nil {
 			return habitat.NetworkHabitatRepoPutRecordOutput{}, err
 		}
+
+		// Add items to the relevant cliques
+		for _, clique := range cliques {
+			// TODO: this needs to possibly call out to nodes living somewhere else
+			// TODO: if this fails we need to roll back the write for the record + permission and return an error (or retry)
+			err := p.repo.addCliqueItem(clique, uri)
+			if err != nil {
+				return habitat.NetworkHabitatRepoPutRecordOutput{}, err
+			}
+		}
 	}
 
 	status := "unknown"
@@ -145,7 +178,7 @@ func (p *pear) PutRecord(ctx context.Context, caller syntax.DID, input habitat.N
 		status = "valid"
 	}
 	return habitat.NetworkHabitatRepoPutRecordOutput{
-		Uri:              fmt.Sprintf("habitat://%s/%s/%s", repoDID.String(), input.Collection, rkey),
+		Uri:              uri,
 		ValidationStatus: status,
 	}, nil
 }
