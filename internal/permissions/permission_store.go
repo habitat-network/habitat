@@ -14,12 +14,12 @@ type Store interface {
 		nsid string,
 		rkey string,
 	) (bool, error)
-	AddLexiconReadPermission(
+	AddReadPermission(
 		grantees []string,
 		owner string,
 		nsid string,
 	) error
-	RemoveLexiconReadPermission(
+	RemoveReadPermission(
 		grantee string,
 		owner string,
 		nsid string,
@@ -32,11 +32,11 @@ type Store interface {
 	) (allow []string, deny []string, err error)
 }
 
-type sqliteStore struct {
+type store struct {
 	db *gorm.DB
 }
 
-var _ Store = (*sqliteStore)(nil)
+var _ Store = (*store)(nil)
 
 // Permission represents a permission entry in the database
 type Permission struct {
@@ -52,14 +52,14 @@ type Permission struct {
 // - Whole NSID prefixes: "network.habitat.*"
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
-func NewStore(db *gorm.DB) (*sqliteStore, error) {
+func NewStore(db *gorm.DB) (*store, error) {
 	// AutoMigrate will create the table with all indexes defined in the Permission struct
 	err := db.AutoMigrate(&Permission{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
 	}
 
-	return &sqliteStore{db: db}, nil
+	return &store{db: db}, nil
 }
 
 // HasPermission checks if a requester has permission to access a specific record.
@@ -68,7 +68,7 @@ func NewStore(db *gorm.DB) (*sqliteStore, error) {
 // 2. Specific record permissions (exact match)
 // 3. NSID-level permissions (prefix match with .*)
 // 4. Wildcard prefix permissions (e.g., "network.habitat.*")
-func (s *sqliteStore) HasPermission(
+func (s *store) HasPermission(
 	requester string,
 	owner string,
 	nsid string,
@@ -113,7 +113,7 @@ func (s *sqliteStore) HasPermission(
 // AddLexiconReadPermission grants read permission for an entire lexicon (NSID).
 // The permission is stored as just the NSID (e.g., "network.habitat.posts").
 // The HasPermission method will automatically check for both exact matches and wildcard patterns.
-func (s *sqliteStore) AddLexiconReadPermission(
+func (s *store) AddReadPermission(
 	grantees []string,
 	owner string,
 	nsid string,
@@ -141,7 +141,7 @@ func (s *sqliteStore) AddLexiconReadPermission(
 }
 
 // RemoveLexiconReadPermission removes read permission for an entire lexicon.
-func (s *sqliteStore) RemoveLexiconReadPermission(
+func (s *store) RemoveReadPermission(
 	grantee string,
 	owner string,
 	nsid string,
@@ -157,7 +157,7 @@ func (s *sqliteStore) RemoveLexiconReadPermission(
 
 // ListReadPermissionsByLexicon returns a map of lexicon NSIDs to lists of grantees
 // who have permission to read that lexicon.
-func (s *sqliteStore) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
+func (s *store) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
 	var permissions []Permission
 	err := s.db.Where("owner = ? AND effect = ?", owner, "allow").
 		Find(&permissions).Error
@@ -177,7 +177,7 @@ func (s *sqliteStore) ListReadPermissionsByLexicon(owner string) (map[string][]s
 
 // ListReadPermissionsByUser returns the allow and deny lists for a specific user
 // for a given NSID. This is used to filter records when querying.
-func (s *sqliteStore) ListReadPermissionsByUser(
+func (s *store) ListReadPermissionsByUser(
 	owner string,
 	requester string,
 	nsid string,

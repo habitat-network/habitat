@@ -105,7 +105,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Grantees) > 0 {
-		err := s.pear.permissions.AddLexiconReadPermission(
+		err := s.pear.permissions.AddReadPermission(
 			req.Grantees,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
@@ -393,7 +393,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.AddLexiconReadPermission(
+	err = s.pear.permissions.AddReadPermission(
 		[]string{req.DID},
 		callerDID.String(),
 		req.Lexicon,
@@ -415,7 +415,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
+	err = s.pear.permissions.RemoveReadPermission(req.DID, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return

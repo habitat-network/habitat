@@ -115,7 +115,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.ErrorIs(t, ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, p.permissions.AddLexiconReadPermission([]string{"another-did"}, "my-did", coll))
+	require.NoError(t, p.permissions.AddReadPermission([]string{"another-did"}, "my-did", coll))
 
 	// Now non-owner can access
 	got, err = p.getRecord(coll, "my-rkey", "my-did", "another-did")
@@ -202,7 +202,7 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns records with wildcard permission", func(t *testing.T) {
 		require.NoError(
 			t,
-			p.permissions.AddLexiconReadPermission(
+			p.permissions.AddReadPermission(
 				[]string{"reader-did"},
 				"my-did",
 				fmt.Sprintf("%s.*", coll1),
@@ -220,7 +220,7 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns only specific permitted record", func(t *testing.T) {
 		require.NoError(
 			t,
-			p.permissions.AddLexiconReadPermission(
+			p.permissions.AddReadPermission(
 				[]string{"specific-reader"},
 				"my-did",
 				fmt.Sprintf("%s.rkey1", coll1),
