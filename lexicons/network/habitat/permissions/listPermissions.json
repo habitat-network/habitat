@@ -10,12 +10,13 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "description": "A map of lexicon NSIDs to arrays of DIDs that have been granted read permission.",
-          "additionalProperties": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "did"
+          "properties": {
+            "permissions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "did"
+              }
             }
           }
         }

@@ -15,6 +15,37 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.repo.putRecord'
 
+export interface DidGrantee {
+  $type?: 'network.habitat.repo.putRecord#didGrantee'
+  did: string
+}
+
+const hashDidGrantee = 'didGrantee'
+
+export function isDidGrantee<V>(v: V) {
+  return is$typed(v, id, hashDidGrantee)
+}
+
+export function validateDidGrantee<V>(v: V) {
+  return validate<DidGrantee & V>(v, id, hashDidGrantee)
+}
+
+export interface CliqueRef {
+  $type?: 'network.habitat.repo.putRecord#cliqueRef'
+  /** A habitat-uri pointing to a clique owner (habitat://<did>/<collection>/<rkey>) */
+  uri: string
+}
+
+const hashCliqueRef = 'cliqueRef'
+
+export function isCliqueRef<V>(v: V) {
+  return is$typed(v, id, hashCliqueRef)
+}
+
+export function validateCliqueRef<V>(v: V) {
+  return validate<CliqueRef & V>(v, id, hashCliqueRef)
+}
+
 export type QueryParams = {}
 
 export interface InputSchema {
@@ -28,7 +59,7 @@ export interface InputSchema {
   validate?: boolean
   /** The record to write. */
   record: { [_ in string]: unknown }
-  grantees?: string[]
+  grantees?: ($Typed<DidGrantee> | $Typed<CliqueRef> | { $type: string })[]
 }
 
 export interface OutputSchema {

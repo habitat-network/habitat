@@ -106,8 +106,23 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Grantees) > 0 {
+		grantees := []string{}
+		for _, grantee := range req.Grantees {
+			if asDID, ok := grantee.(habitat.NetworkHabitatRepoPutRecordDidGrantee); ok {
+				grantees = append(grantees, asDID.Did)
+			} else {
+				// If we ever run into a non-DID grantee, return an error as this is not yet supported
+				utils.LogAndHTTPError(
+					w,
+					err,
+					fmt.Sprintf("non-DID grantees are not supported: %v", grantee),
+					http.StatusInternalServerError,
+				)
+				return
+			}
+		}
 		err := s.pear.permissions.AddReadPermission(
-			req.Grantees,
+			grantees,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
 		)

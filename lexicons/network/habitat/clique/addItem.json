@@ -17,10 +17,12 @@
                     "properties": {
                         "item": {
                             "type": "string",
+                            "format": "uri",
                             "description": "The URI for the item to send to the clique, formatted as a habitat-uri."
                         },
                         "cliqueID": {
                             "type": "string",
+                            "format": "uri",
                             "description": "The ID of the clique to send the item to, formatted as a habitat-uri."
                         }
                     }

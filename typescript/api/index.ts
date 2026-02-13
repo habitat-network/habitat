@@ -23,10 +23,10 @@ import * as CommunityLexiconLocationFsq from './types/community/lexicon/location
 import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 import * as NetworkHabitatCliqueAddItem from './types/network/habitat/clique/addItem.js'
-import * as NetworkHabitatCliqueGetItems from './types/network/habitat/clique/getItems.js'
 import * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
+import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -49,10 +49,10 @@ export * as CommunityLexiconLocationFsq from './types/community/lexicon/location
 export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 export * as NetworkHabitatCliqueAddItem from './types/network/habitat/clique/addItem.js'
-export * as NetworkHabitatCliqueGetItems from './types/network/habitat/clique/getItems.js'
 export * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
+export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -443,18 +443,6 @@ export class NetworkHabitatCliqueNS {
       opts,
     )
   }
-
-  getItems(
-    params?: NetworkHabitatCliqueGetItems.QueryParams,
-    opts?: NetworkHabitatCliqueGetItems.CallOptions,
-  ): Promise<NetworkHabitatCliqueGetItems.Response> {
-    return this._client.call(
-      'network.habitat.clique.getItems',
-      params,
-      undefined,
-      opts,
-    )
-  }
 }
 
 export class NetworkHabitatInternalNS {
@@ -503,6 +491,18 @@ export class NetworkHabitatPermissionsNS {
       'network.habitat.permissions.addPermission',
       opts?.qp,
       data,
+      opts,
+    )
+  }
+
+  listPermissions(
+    params?: NetworkHabitatPermissionsListPermissions.QueryParams,
+    opts?: NetworkHabitatPermissionsListPermissions.CallOptions,
+  ): Promise<NetworkHabitatPermissionsListPermissions.Response> {
+    return this._client.call(
+      'network.habitat.permissions.listPermissions',
+      params,
+      undefined,
       opts,
     )
   }

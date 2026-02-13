@@ -748,50 +748,15 @@ export const schemaDict = {
             properties: {
               item: {
                 type: 'string',
+                format: 'uri',
                 description:
                   'The URI for the item to send to the clique, formatted as a habitat-uri.',
               },
               cliqueID: {
                 type: 'string',
+                format: 'uri',
                 description:
                   'The ID of the clique to send the item to, formatted as a habitat-uri.',
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatCliqueGetItems: {
-    lexicon: 1,
-    id: 'network.habitat.clique.getItems',
-    defs: {
-      main: {
-        type: 'query',
-        description: 'Retrieve all items from a specified habitat clique.',
-        permission: 'authenticated',
-        parameters: {
-          type: 'params',
-          required: ['cliqueID'],
-          properties: {
-            cliqueID: {
-              type: 'string',
-              description: 'The ID of the clique to retrieve items from.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            properties: {
-              items: {
-                type: 'array',
-                items: {
-                  type: 'string',
-                },
-                description:
-                  'The list of items present in the clique, formatted as habitat-uris.',
               },
             },
           },
@@ -842,6 +807,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
+                format: 'uri',
                 description: 'The habitat-uri for this record.',
               },
               value: {
@@ -917,6 +883,33 @@ export const schemaDict = {
                 format: 'nsid',
                 description:
                   'The NSID of the lexicon or record to grant read permission for.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatPermissionsListPermissions: {
+    lexicon: 1,
+    id: 'network.habitat.permissions.listPermissions',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List all read permissions granted by the authenticated user, grouped by lexicon.',
+        permission: 'authenticated',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              permissions: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
               },
             },
           },
@@ -1064,6 +1057,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
+                format: 'uri',
                 description: 'The habitat-uri for this record.',
               },
               value: {
@@ -1099,7 +1093,7 @@ export const schemaDict = {
                 items: {
                   type: 'string',
                   description:
-                    'Repos (DIDs) or cliques (habitat-uris) to search from to retrieve records.',
+                    'Repos (DIDs) to search from to retrieve records.',
                 },
               },
               collection: {
@@ -1154,6 +1148,7 @@ export const schemaDict = {
         properties: {
           uri: {
             type: 'string',
+            format: 'uri',
             description:
               'URI reference to the record, formatted as a habitat-uri.',
           },
@@ -1172,6 +1167,28 @@ export const schemaDict = {
     lexicon: 1,
     id: 'network.habitat.repo.putRecord',
     defs: {
+      didGrantee: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+      cliqueRef: {
+        type: 'object',
+        required: ['uri'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'A habitat-uri pointing to a clique owner (habitat://<did>/<collection>/<rkey>)',
+          },
+        },
+      },
       main: {
         type: 'procedure',
         description:
@@ -1211,9 +1228,11 @@ export const schemaDict = {
               grantees: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  description:
-                    'Grantees as either DIDs or clique refs (habitat-uris pointing to clique owners)',
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.repo.putRecord#didGrantee',
+                    'lex:network.habitat.repo.putRecord#cliqueRef',
+                  ],
                 },
               },
             },
@@ -1227,6 +1246,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
+                format: 'uri',
                 description: 'The habitat-uri of the put-ed object.',
               },
               validationStatus: {
@@ -1316,12 +1336,13 @@ export const ids = {
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
   NetworkHabitatCliqueAddItem: 'network.habitat.clique.addItem',
-  NetworkHabitatCliqueGetItems: 'network.habitat.clique.getItems',
   NetworkHabitatInternalGetRecord: 'network.habitat.internal.getRecord',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
+  NetworkHabitatPermissionsListPermissions:
+    'network.habitat.permissions.listPermissions',
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',

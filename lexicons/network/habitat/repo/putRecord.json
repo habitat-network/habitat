@@ -88,6 +88,7 @@
           "properties": {
             "uri": {
               "type": "string",
+              "format": "uri",
               "description": "The habitat-uri of the put-ed object."
             },
             "validationStatus": {

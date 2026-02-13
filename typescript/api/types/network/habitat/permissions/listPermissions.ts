@@ -13,17 +13,13 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.clique.getItems'
+const id = 'network.habitat.permissions.listPermissions'
 
-export type QueryParams = {
-  /** The ID of the clique to retrieve items from. */
-  cliqueID: string
-}
+export type QueryParams = {}
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** The list of items present in the clique, formatted as habitat-uris. */
-  items?: string[]
+  permissions?: string[]
 }
 
 export interface CallOptions {

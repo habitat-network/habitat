@@ -18,7 +18,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "description": "Repos (DIDs) or cliques (habitat-uris) to search from to retrieve records."
+                "description": "Repos (DIDs) to search from to retrieve records."
               }
             },
             "collection": {
@@ -60,7 +60,7 @@
               "type": "array",
               "items": {
                 "type": "ref",
-                "ref": "#record"
+                "ref": "network.habitat.listRecords#record"
               }
             }
           }
@@ -77,6 +77,7 @@
       "properties": {
         "uri": {
           "type": "string",
+          "format": "uri",
           "description": "URI reference to the record, formatted as a habitat-uri."
         },
         "cid": {
