@@ -9,7 +9,7 @@ export const Route = createFileRoute(
     const data = await context.queryClient.fetchQuery(
       listPermissions(context.authManager),
     );
-    // Find all lexicons this person has access to
+    // Derive lexicons for this person from the already-cached full map
     const lexicons: string[] = [];
     for (const [lexicon, dids] of Object.entries(data)) {
       if (dids.includes(params.did)) {
