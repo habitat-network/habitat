@@ -46,14 +46,9 @@ type Blob struct {
 	Blob     []byte
 }
 
-type CliqueItem struct {
-	Root string `gorm:"primaryKey"`       // habitat-uri of the root record for this clique, from which the item inherits permissions
-	Uri  string `gorm:"primaryKey;index"` // habiatat-uri of the item. Root is already indexed as the first tuple item of primary key, but we want to efficiently look up items as well so add an index on Uri.
-}
-
 // TODO: create table etc.
 func NewRepo(db *gorm.DB) (*repo, error) {
-	if err := db.AutoMigrate(&Record{}, &Blob{}, &CliqueItem{}); err != nil {
+	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
 	return &repo{
@@ -283,31 +278,4 @@ func (r *repo) listRecords(
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	return rows, nil
-}
-
-// get all items in the given clique
-func (r *repo) getCliqueItems(cliqueURI string) ([]string, error) {
-	rows, err := gorm.G[CliqueItem](
-		r.db,
-	).Where("root = ?", cliqueURI).Find(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("querying clique items: %w", err)
-	}
-
-	uris := make([]string, len(rows))
-	for i, row := range rows {
-		uris[i] = row.Uri
-	}
-	return uris, nil
-}
-
-// add this item to the corresponding clique
-func (r *repo) addCliqueItem(cliqueURI string, itemURI string) error {
-	return gorm.G[CliqueItem](
-		r.db,
-		clause.OnConflict{DoNothing: true},
-	).Create(context.Background(), &CliqueItem{
-		Root: cliqueURI,
-		Uri:  itemURI,
-	})
 }
