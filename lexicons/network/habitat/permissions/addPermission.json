@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.permissions.addPermission",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Grant read permission to a user for a specific lexicon.",
+      "permission": "authenticated",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did",
+            "lexicon"
+          ],
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did",
+              "description": "The DID of the user to grant read permission to."
+            },
+            "lexicon": {
+              "type": "string",
+              "format": "nsid",
+              "description": "The NSID of the lexicon or record to grant read permission for."
+            }
+          }
+        }
+      }
+    }
+  }
+}
