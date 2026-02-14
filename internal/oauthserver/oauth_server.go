@@ -350,6 +350,8 @@ func (o *OAuthServer) Validate(
 		scopes...,
 	)
 	if err != nil {
+		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
+		// Unfortunately that was returning a 200 http response, so we write our own error here.
 		utils.WriteHTTPError(w, fmt.Errorf("invalid or expired token: %w", err), http.StatusUnauthorized)
 		return "", false
 	}

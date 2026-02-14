@@ -360,7 +360,6 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
-		fmt.Println("not authed, returning")
 		return
 	}
 	permissions, err := s.pear.permissions.ListReadPermissionsByLexicon(callerDID.String())
