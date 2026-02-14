@@ -732,98 +732,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatCliqueAddItem: {
-    lexicon: 1,
-    id: 'network.habitat.clique.addItem',
-    defs: {
-      main: {
-        type: 'procedure',
-        description: 'Send an item to a specified habitat clique.',
-        permission: 'authenticated',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['item', 'cliqueID'],
-            properties: {
-              item: {
-                type: 'string',
-                format: 'uri',
-                description:
-                  'The URI for the item to send to the clique, formatted as a habitat-uri.',
-              },
-              cliqueID: {
-                type: 'string',
-                format: 'uri',
-                description:
-                  'The ID of the clique to send the item to, formatted as a habitat-uri.',
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatInternalGetRecord: {
-    lexicon: 1,
-    id: 'network.habitat.internal.getRecord',
-    defs: {
-      main: {
-        type: 'query',
-        permission: 'signed',
-        description:
-          'Get a single record from a repository, and provide the proof that the caller is allowed to do so.',
-        parameters: {
-          type: 'params',
-          required: ['repo', 'collection', 'rkey'],
-          properties: {
-            repo: {
-              type: 'string',
-              format: 'at-identifier',
-              description: 'The handle or DID of the repo.',
-            },
-            collection: {
-              type: 'string',
-              format: 'nsid',
-              description: 'The NSID of the record collection.',
-            },
-            rkey: {
-              type: 'string',
-              description: 'The Record Key.',
-              format: 'record-key',
-            },
-            allowToken: {
-              type: 'string',
-              description:
-                'Optional token providing proof the requester can read the record, verifiable by the resource server (if the record has delegated its permissions to another DID).',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri', 'value'],
-            properties: {
-              uri: {
-                type: 'string',
-                format: 'uri',
-                description: 'The habitat-uri for this record.',
-              },
-              value: {
-                type: 'unknown',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'RecordNotFound',
-          },
-        ],
-      },
-    },
-  },
   NetworkHabitatInternalNotifyOfUpdate: {
     lexicon: 1,
     id: 'network.habitat.internal.notifyOfUpdate',
@@ -1335,8 +1243,6 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
-  NetworkHabitatCliqueAddItem: 'network.habitat.clique.addItem',
-  NetworkHabitatInternalGetRecord: 'network.habitat.internal.getRecord',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatPermissionsAddPermission:

@@ -1,1 +1,0 @@
-This sub-folder contains lexicon definitions for clique-related APIs.

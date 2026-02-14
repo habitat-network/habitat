@@ -22,8 +22,6 @@ import * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 import * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
-import * as NetworkHabitatCliqueAddItem from './types/network/habitat/clique/addItem.js'
-import * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
@@ -48,8 +46,6 @@ export * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 export * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
-export * as NetworkHabitatCliqueAddItem from './types/network/habitat/clique/addItem.js'
-export * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
@@ -398,14 +394,12 @@ export class NetworkNS {
 export class NetworkHabitatNS {
   _client: XrpcClient
   photo: NetworkHabitatPhotoRecord
-  clique: NetworkHabitatCliqueNS
   internal: NetworkHabitatInternalNS
   permissions: NetworkHabitatPermissionsNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
     this._client = client
-    this.clique = new NetworkHabitatCliqueNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
@@ -425,42 +419,11 @@ export class NetworkHabitatNS {
   }
 }
 
-export class NetworkHabitatCliqueNS {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  addItem(
-    data?: NetworkHabitatCliqueAddItem.InputSchema,
-    opts?: NetworkHabitatCliqueAddItem.CallOptions,
-  ): Promise<NetworkHabitatCliqueAddItem.Response> {
-    return this._client.call(
-      'network.habitat.clique.addItem',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
-}
-
 export class NetworkHabitatInternalNS {
   _client: XrpcClient
 
   constructor(client: XrpcClient) {
     this._client = client
-  }
-
-  getRecord(
-    params?: NetworkHabitatInternalGetRecord.QueryParams,
-    opts?: NetworkHabitatInternalGetRecord.CallOptions,
-  ): Promise<NetworkHabitatInternalGetRecord.Response> {
-    return this._client
-      .call('network.habitat.internal.getRecord', params, undefined, opts)
-      .catch((e) => {
-        throw NetworkHabitatInternalGetRecord.toKnownErr(e)
-      })
   }
 
   notifyOfUpdate(
