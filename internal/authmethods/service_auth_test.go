@@ -61,5 +61,5 @@ func (a atcryptoSigner) Public() *jose.JSONWebKey {
 
 // SignPayload implements [jose.OpaqueSigner].
 func (a atcryptoSigner) SignPayload(payload []byte, alg jose.SignatureAlgorithm) ([]byte, error) {
-	return a.PrivateKey.HashAndSign(payload)
+	return a.HashAndSign(payload)
 }

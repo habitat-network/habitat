@@ -26,10 +26,7 @@ var _ Method = (*pdsServiceAuthMethod)(nil)
 
 // CanHandle implements [Method].
 func (p *pdsServiceAuthMethod) CanHandle(r *http.Request) bool {
-	if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-		return false
-	}
-	return true
+	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
 }
 
 // Validate implements [Method].
@@ -59,6 +56,10 @@ func (p *pdsServiceAuthMethod) Validate(
 		return "", false
 	}
 	publicKey, err := id.PublicKey()
+	if err != nil {
+		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
+		return "", false
+	}
 	if err := token.Claims(atcryptoVerifier{publicKey}); err != nil {
 		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
 		return "", false
