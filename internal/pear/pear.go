@@ -7,7 +7,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
 )
@@ -109,10 +108,11 @@ func (p *Pear) getRecord(
 }
 
 func (p *Pear) listRecords(
-	params *habitat.NetworkHabitatRepoListRecordsParams,
+	did syntax.DID,
+	collection string,
 	callerDID syntax.DID,
 ) ([]Record, error) {
-	has, err := p.hasRepoForDid(syntax.DID(params.Repo))
+	has, err := p.hasRepoForDid(did)
 	if err != nil {
 		return nil, err
 	}
@@ -121,15 +121,15 @@ func (p *Pear) listRecords(
 	}
 
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
-		params.Repo,
+		did.String(),
 		callerDID.String(),
-		params.Collection,
+		collection,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.repo.listRecords(params, allow, deny)
+	return p.repo.listRecords(did.String(), collection, allow, deny)
 }
 
 var (

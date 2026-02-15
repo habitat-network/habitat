@@ -54,6 +54,60 @@ func NewServer(
 
 var formDecoder = schema.NewDecoder()
 
+type didGrantee string
+
+func (didGrantee) isGrantee() {}
+
+type cliqueGrantee string
+
+func (cliqueGrantee) isGrantee() {}
+
+type grantee interface {
+	isGrantee()
+}
+
+// Parse the grantees input which is typed as an interface
+func parseGrantees(grantees []interface{}) ([]grantee, error) {
+	parsed := make([]grantee, len(grantees))
+	for i, generic := range grantees {
+		unknownGrantee, ok := generic.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("unexpected type in grantees field: %v", generic)
+		}
+
+		granteeType, ok := unknownGrantee["$type"]
+		if !ok {
+			return nil, fmt.Errorf("malformatted grantee has no $type field: %v", unknownGrantee)
+		}
+
+		switch granteeType {
+		case "network.habitat.repo.putRecord#didGrantee":
+			did, ok := unknownGrantee["did"]
+			if !ok {
+				return nil, fmt.Errorf("malformatted did grantee has no did field: %v", unknownGrantee)
+			}
+			asStr, ok := did.(string)
+			if !ok {
+				return nil, fmt.Errorf("malformatted did grantee has non-string did field: %v", unknownGrantee)
+			}
+			parsed[i] = didGrantee(asStr)
+		case "network.habitat.repo.putRecord#cliqueRef":
+			uri, ok := unknownGrantee["uri"]
+			if !ok {
+				return nil, fmt.Errorf("malformatted clique grantee has no uri field: %v", unknownGrantee)
+			}
+			asStr, ok := uri.(string)
+			if !ok {
+				return nil, fmt.Errorf("malformatted clique grantee has non-string uri field: %v", unknownGrantee)
+			}
+			parsed[i] = cliqueGrantee(asStr)
+		default:
+			return nil, fmt.Errorf("malformatted grantee has unknown $type of %v: %v", granteeType, unknownGrantee)
+		}
+	}
+	return parsed, nil
+}
+
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
@@ -103,6 +157,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
+
 	err = s.pear.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -115,8 +170,36 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Grantees) > 0 {
-		err := s.pear.permissions.AddReadPermission(
-			req.Grantees,
+		parsed, err := parseGrantees(req.Grantees)
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				err,
+				fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+		didGrantees := []string{}
+		for _, grantee := range parsed {
+			switch g := grantee.(type) {
+			case didGrantee:
+				didGrantees = append(didGrantees, string(g))
+			case cliqueGrantee:
+				// If we ever run into a non-DID grantee, return an error as this is not yet supported
+				utils.LogAndHTTPError(
+					w,
+					err,
+					fmt.Sprintf("non-DID grantees are not supported: %v", grantee),
+					http.StatusInternalServerError,
+				)
+				return
+			}
+		}
+
+		err = s.pear.permissions.AddReadPermission(
+			didGrantees,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
 		)
@@ -298,22 +381,25 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params habitat.NetworkHabitatRepoListRecordsParams
+	var params habitat.NetworkHabitatListRecordsInput
 	err := formDecoder.Decode(&params, r.URL.Query())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
 		return
 	}
 
+	// TODO: this is wrong
+	repo := params.Subjects[0]
+
 	// Handle both @handles and dids
-	did, err := s.fetchDID(r.Context(), params.Repo)
+	did, err := s.fetchDID(r.Context(), repo)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
 		return
 	}
 
-	params.Repo = did.String()
-	records, err := s.pear.listRecords(&params, callerDID)
+	repo = did.String()
+	records, err := s.pear.listRecords(did, params.Collection, callerDID)
 	if err != nil {
 		if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -323,14 +409,14 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output := &habitat.NetworkHabitatRepoListRecordsOutput{
-		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
+	output := &habitat.NetworkHabitatListRecordsOutput{
+		Records: []habitat.NetworkHabitatListRecordsRecord{},
 	}
 	for _, record := range records {
-		next := habitat.NetworkHabitatRepoListRecordsRecord{
+		next := habitat.NetworkHabitatListRecordsRecord{
 			Uri: fmt.Sprintf(
 				"habitat://%s/%s/%s",
-				params.Repo,
+				repo,
 				params.Collection,
 				record.Rkey,
 			),

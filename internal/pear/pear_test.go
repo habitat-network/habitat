@@ -7,7 +7,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/stretchr/testify/require"
@@ -145,7 +144,8 @@ func TestListOwnRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	records, err := p.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll, Repo: "my-did"},
+		"my-did",
+		coll,
 		"my-did",
 	)
 	require.NoError(t, err)
@@ -168,7 +168,8 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 
 	// Try to list records for a DID that doesn't exist on this server
 	records, err := p.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{Collection: "some.collection", Repo: "did:plc:unknown123"},
+		"did:plc:unknown123",
+		"some.collection",
 		"did:plc:caller456",
 	)
 	require.Nil(t, records)
@@ -192,7 +193,8 @@ func TestListRecords(t *testing.T) {
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
 		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: "my-did"},
+			"my-did",
+			coll1,
 			"other-did",
 		)
 		require.NoError(t, err)
@@ -210,7 +212,8 @@ func TestListRecords(t *testing.T) {
 		)
 
 		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: "my-did"},
+			"my-did",
+			coll1,
 			"reader-did",
 		)
 		require.NoError(t, err)
@@ -228,7 +231,8 @@ func TestListRecords(t *testing.T) {
 		)
 
 		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll1, Repo: "my-did"},
+			"my-did",
+			coll1,
 			"specific-reader",
 		)
 		require.NoError(t, err)
@@ -238,7 +242,8 @@ func TestListRecords(t *testing.T) {
 	t.Run("permissions are scoped to collection", func(t *testing.T) {
 		// reader-did has permission for coll1 but not coll2
 		records, err := p.listRecords(
-			&habitat.NetworkHabitatRepoListRecordsParams{Collection: coll2, Repo: "my-did"},
+			"my-did",
+			coll2,
 			"reader-did",
 		)
 		require.NoError(t, err)

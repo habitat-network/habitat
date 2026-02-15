@@ -4,4 +4,5 @@ package habitat
 
 // NetworkHabitatPermissionsListPermissionsOutput represents the output for network.habitat.permissions.listPermissions
 type NetworkHabitatPermissionsListPermissionsOutput struct {
+	Permissions []string `json:"permissions,omitempty"`
 }

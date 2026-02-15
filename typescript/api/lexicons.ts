@@ -732,132 +732,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatArenaAddItem: {
-    lexicon: 1,
-    id: 'network.habitat.arena.addItem',
-    defs: {
-      main: {
-        type: 'procedure',
-        description: 'Send an item to a specified habitat arena.',
-        permission: 'authenticated',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['item', 'arenaID'],
-            properties: {
-              item: {
-                type: 'string',
-                description:
-                  'The URI for the item to send to the arena, formatted as a habitat-uri.',
-              },
-              arenaID: {
-                type: 'string',
-                description:
-                  'The ID of the arena to send the item to, formatted as a habitat-uri.',
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatArenaGetItems: {
-    lexicon: 1,
-    id: 'network.habitat.arena.getItems',
-    defs: {
-      main: {
-        type: 'procedure',
-        description: 'Retrieve all items from a specified habitat arena.',
-        permission: 'authenticated',
-        parameters: {
-          type: 'params',
-          required: ['arenaID'],
-          properties: {
-            arenaID: {
-              type: 'string',
-              description: 'The ID of the arena to retrieve items from.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            properties: {
-              items: {
-                type: 'array',
-                items: {
-                  type: 'string',
-                },
-                description:
-                  'The list of items present in the arena, formatted as habitat-uris.',
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatInternalGetRecord: {
-    lexicon: 1,
-    id: 'network.habitat.internal.getRecord',
-    defs: {
-      main: {
-        type: 'query',
-        permission: 'signed',
-        description:
-          'Get a single record from a repository, and provide the proof that the caller is allowed to do so.',
-        parameters: {
-          type: 'params',
-          required: ['repo', 'collection', 'rkey'],
-          properties: {
-            repo: {
-              type: 'string',
-              format: 'at-identifier',
-              description: 'The handle or DID of the repo.',
-            },
-            collection: {
-              type: 'string',
-              format: 'nsid',
-              description: 'The NSID of the record collection.',
-            },
-            rkey: {
-              type: 'string',
-              description: 'The Record Key.',
-              format: 'record-key',
-            },
-            allowToken: {
-              type: 'string',
-              description:
-                'Optional token providing proof the requester can read the record, verifiable by the resource server (if the record has delegated its permissions to another DID).',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri', 'value'],
-            properties: {
-              uri: {
-                type: 'string',
-                description: 'The habitat-uri for this record.',
-              },
-              value: {
-                type: 'unknown',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'RecordNotFound',
-          },
-        ],
-      },
-    },
-  },
   NetworkHabitatInternalNotifyOfUpdate: {
     lexicon: 1,
     id: 'network.habitat.internal.notifyOfUpdate',
@@ -917,6 +791,33 @@ export const schemaDict = {
                 format: 'nsid',
                 description:
                   'The NSID of the lexicon or record to grant read permission for.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatPermissionsListPermissions: {
+    lexicon: 1,
+    id: 'network.habitat.permissions.listPermissions',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List all read permissions granted by the authenticated user, grouped by lexicon.',
+        permission: 'authenticated',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              permissions: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
               },
             },
           },
@@ -1064,6 +965,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
+                format: 'uri',
                 description: 'The habitat-uri for this record.',
               },
               value: {
@@ -1099,7 +1001,7 @@ export const schemaDict = {
                 items: {
                   type: 'string',
                   description:
-                    'Repos (DIDs) or arenas (habitat-uris) to search from to retrieve records.',
+                    'Repos (DIDs) to search from to retrieve records.',
                 },
               },
               collection: {
@@ -1154,6 +1056,7 @@ export const schemaDict = {
         properties: {
           uri: {
             type: 'string',
+            format: 'uri',
             description:
               'URI reference to the record, formatted as a habitat-uri.',
           },
@@ -1172,6 +1075,28 @@ export const schemaDict = {
     lexicon: 1,
     id: 'network.habitat.repo.putRecord',
     defs: {
+      didGrantee: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+      cliqueRef: {
+        type: 'object',
+        required: ['uri'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'A habitat-uri pointing to a clique owner (habitat://<did>/<collection>/<rkey>)',
+          },
+        },
+      },
       main: {
         type: 'procedure',
         description:
@@ -1181,7 +1106,6 @@ export const schemaDict = {
           schema: {
             type: 'object',
             required: ['repo', 'collection', 'rkey', 'record'],
-            nullable: ['swapRecord'],
             properties: {
               repo: {
                 type: 'string',
@@ -1212,15 +1136,12 @@ export const schemaDict = {
               grantees: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  description:
-                    'Grantees as either DIDs or Arena refs [TODO: make a union]',
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.repo.putRecord#didGrantee',
+                    'lex:network.habitat.repo.putRecord#cliqueRef',
+                  ],
                 },
-              },
-              createArena: {
-                type: 'boolean',
-                description:
-                  'Whether to create an arena, allowing all grantees to aggregate records under this arena.',
               },
             },
           },
@@ -1233,6 +1154,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
+                format: 'uri',
                 description: 'The habitat-uri of the put-ed object.',
               },
               validationStatus: {
@@ -1321,13 +1243,12 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
-  NetworkHabitatArenaAddItem: 'network.habitat.arena.addItem',
-  NetworkHabitatArenaGetItems: 'network.habitat.arena.getItems',
-  NetworkHabitatInternalGetRecord: 'network.habitat.internal.getRecord',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
+  NetworkHabitatPermissionsListPermissions:
+    'network.habitat.permissions.listPermissions',
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
