@@ -30,6 +30,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/authmethods"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/oauthclient"
@@ -231,7 +232,13 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPearServer(ctx context.Context, serviceName string, domain string, db *gorm.DB, oauthServer *oauthserver.OAuthServer) (*pear.Server, error) {
+func setupPearServer(
+	ctx context.Context,
+	serviceName string,
+	domain string,
+	db *gorm.DB,
+	oauthServer *oauthserver.OAuthServer,
+) (*pear.Server, error) {
 	repo, err := pear.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
@@ -249,7 +256,7 @@ func setupPearServer(ctx context.Context, serviceName string, domain string, db 
 
 	dir := identity.DefaultDirectory()
 	p := pear.NewPear(ctx, domain, serviceName, dir, permissions, repo, inbox)
-	return pear.NewServer(dir, p, oauthServer), nil
+	return pear.NewServer(dir, p, oauthServer, authmethods.NewServiceAuthMethod(dir)), nil
 }
 
 func setupOAuthServer(
