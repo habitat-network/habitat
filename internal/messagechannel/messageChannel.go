@@ -21,11 +21,13 @@ type XrpcChannel interface {
 }
 
 type serviceProxyXrpcChannel struct {
+	serviceName   string
 	directory     identity.Directory
 	clientFactory *oauthclient.PDSClientFactory
 }
 
 func NewServiceProxyXrpcChannel(
+	serviceName string,
 	clientFactory *oauthclient.PDSClientFactory,
 	directory identity.Directory,
 ) XrpcChannel {
@@ -46,7 +48,7 @@ func (m *serviceProxyXrpcChannel) SendXRPC(
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup identity: %w", err)
 	}
-	pearServiceEndpoint := atid.GetServiceEndpoint("habitat")
+	pearServiceEndpoint := atid.GetServiceEndpoint(m.serviceName)
 	url, err := url.Parse(pearServiceEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse url: %w", err)
