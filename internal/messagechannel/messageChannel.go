@@ -11,7 +11,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthclient"
 )
 
-type MessageChannel interface {
+type XrpcChannel interface {
 	SendXRPC(
 		ctx context.Context,
 		sender syntax.DID,
@@ -20,23 +20,23 @@ type MessageChannel interface {
 	) (*http.Response, error)
 }
 
-type directMessageChannelImpl struct {
+type serviceProxyXrpcChannel struct {
 	directory     identity.Directory
 	clientFactory *oauthclient.PDSClientFactory
 }
 
-func NewDirectMessageChannel(
+func NewServiceProxyXrpcChannel(
 	clientFactory *oauthclient.PDSClientFactory,
 	directory identity.Directory,
-) MessageChannel {
-	return &directMessageChannelImpl{
+) XrpcChannel {
+	return &serviceProxyXrpcChannel{
 		clientFactory: clientFactory,
 		directory:     directory,
 	}
 }
 
-// SendXRPC implements [MessageChannel].
-func (m *directMessageChannelImpl) SendXRPC(
+// SendXRPC implements [XrpcChannel].
+func (m *serviceProxyXrpcChannel) SendXRPC(
 	ctx context.Context,
 	sender syntax.DID,
 	receiver syntax.DID,
