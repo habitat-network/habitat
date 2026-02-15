@@ -50,6 +50,9 @@ func getIdentity(pdsUrl string, did string) *identity.Identity {
 			"atproto_pds": {
 				URL: pdsUrl,
 			},
+			"habitat": {
+				URL: "https://habitat.network",
+			},
 		},
 	}
 }

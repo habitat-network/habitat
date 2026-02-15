@@ -10,8 +10,12 @@ import (
 	"github.com/habitat-network/habitat/internal/pdscred"
 )
 
-// PDSClientFactory helps create clients to make authenticated requests to a DID's atproto PDS
-type PDSClientFactory struct {
+type PDSClientFactory interface {
+	NewClient(ctx context.Context, did syntax.DID) (PDSClient, error)
+}
+
+// pdsClientFactoryImpl helps create clients to make authenticated requests to a DID's atproto PDS
+type pdsClientFactoryImpl struct {
 	credStore   pdscred.PDSCredentialStore
 	oauthClient OAuthClient
 	dir         identity.Directory
@@ -21,8 +25,8 @@ func NewPDSClientFactory(
 	credStore pdscred.PDSCredentialStore,
 	oauthClient OAuthClient,
 	dir identity.Directory,
-) *PDSClientFactory {
-	return &PDSClientFactory{
+) PDSClientFactory {
+	return &pdsClientFactoryImpl{
 		credStore:   credStore,
 		oauthClient: oauthClient,
 		dir:         dir,
@@ -33,7 +37,7 @@ type PDSClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func (f *PDSClientFactory) NewClient(
+func (f *pdsClientFactoryImpl) NewClient(
 	ctx context.Context,
 	did syntax.DID,
 ) (PDSClient, error) {

@@ -12,7 +12,7 @@ import (
 
 type pdsForwarding struct {
 	oauthServer      *oauthserver.OAuthServer
-	pdsClientFactory *oauthclient.PDSClientFactory
+	pdsClientFactory oauthclient.PDSClientFactory
 }
 
 var _ http.Handler = (*pdsForwarding)(nil)
@@ -20,7 +20,7 @@ var _ http.Handler = (*pdsForwarding)(nil)
 func newPDSForwarding(
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
-	pdsClientFactory *oauthclient.PDSClientFactory,
+	pdsClientFactory oauthclient.PDSClientFactory,
 ) *pdsForwarding {
 	return &pdsForwarding{
 		oauthServer:      oauthServer,
