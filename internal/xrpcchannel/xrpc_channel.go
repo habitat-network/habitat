@@ -1,4 +1,4 @@
-package messagechannel
+package xrpcchannel
 
 import (
 	"context"
@@ -23,12 +23,12 @@ type XrpcChannel interface {
 type serviceProxyXrpcChannel struct {
 	serviceName   string
 	directory     identity.Directory
-	clientFactory *oauthclient.PDSClientFactory
+	clientFactory *oauthclient.PDSClientFactoryimpl
 }
 
 func NewServiceProxyXrpcChannel(
 	serviceName string,
-	clientFactory *oauthclient.PDSClientFactory,
+	clientFactory *oauthclient.PDSClientFactoryimpl,
 	directory identity.Directory,
 ) XrpcChannel {
 	return &serviceProxyXrpcChannel{
