@@ -86,95 +86,27 @@ func (p *Pear) getRecord(
 	if err != nil {
 		return nil, err
 	}
-	if has {
-		// Run permissions before returning to the user
-		authz, err := p.permissions.HasPermission(
-			callerDID.String(),
-			targetDID.String(),
-			collection,
-			rkey,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if authz {
-			// User has permission, return the record
-			return p.repo.getRecord(targetDID.String(), collection, rkey)
-		}
-		// User doesn't have permission, continue to check notifications
+	if !has {
+		return nil, ErrNotLocalRepo
 	}
 
-	// Step 2: Search through notifications for records the user has access to
-	var joinedResults []struct {
-		inbox.Notification
-		Record
-	}
-
-	err = p.repo.db.Table("notifications").
-		Select("notifications.*, records.*").
-		Joins("INNER JOIN records ON notifications.sender = records.did AND notifications.collection = records.collection AND notifications.rkey = records.rkey").
-		Where("notifications.recipient = ?", callerDID.String()).
-		Where("notifications.collection = ?", collection).
-		Where("notifications.rkey = ?", rkey).
-		Find(&joinedResults).Error
+	// Run permissions before returning to the user
+	authz, err := p.permissions.HasPermission(
+		callerDID.String(),
+		targetDID.String(),
+		collection,
+		rkey,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query notifications with records: %w", err)
+		return nil, err
 	}
 
-	// There should only be one notification per record max
-	if len(joinedResults) > 1 {
-		return nil, fmt.Errorf("multiple notifications found for record %s/%s/%s", collection, rkey, callerDID.String())
+	if authz {
+		// User has permission, return the record
+		return p.repo.getRecord(targetDID.String(), collection, rkey)
 	}
 
-	// Step 3: If we found a notification, check if Sender is local and check permissions
-	if len(joinedResults) == 1 {
-		result := joinedResults[0]
-		originDid := result.Notification.Sender
-
-		// Check if the record owner is on the same node
-		hasLocalRepo, err := p.hasRepoForDid(syntax.DID(originDid))
-		if err != nil {
-			return nil, err
-		}
-
-		if !hasLocalRepo {
-			// Record is on a different node - log warning and return error
-			log.Warn().
-				Str("originDid", originDid).
-				Str("collection", result.Notification.Collection).
-				Str("rkey", result.Notification.Rkey).
-				Msg("skipping record from different node (cross-node fetching not yet implemented)")
-			return nil, ErrNotLocalRepo
-		}
-
-		// Record is on the same node - check permissions
-		authz, err := p.permissions.HasPermission(
-			callerDID.String(),
-			originDid,
-			result.Notification.Collection,
-			result.Notification.Rkey,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if !authz {
-			// User doesn't have permission for this record
-			return nil, ErrUnauthorized
-		}
-
-		// Found a record the user has access to - return it
-		return &result.Record, nil
-	}
-
-	// No record found in targetDID's repo or in notifications
-	if has {
-		// targetDID exists locally but user doesn't have permission
-		return nil, ErrUnauthorized
-	}
-	// targetDID doesn't exist locally and no matching notifications found
-	return nil, ErrNotLocalRepo
+	return nil, ErrUnauthorized
 }
 
 func (p *Pear) listRecords(
