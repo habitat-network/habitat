@@ -13,7 +13,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/habitat-network/habitat/api/habitat"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -159,7 +158,8 @@ func (r *repo) getBlob(
 
 // listRecords implements repo.
 func (r *repo) listRecords(
-	params *habitat.NetworkHabitatRepoListRecordsParams,
+	did string,
+	collection string,
 	allow []string,
 	deny []string,
 ) ([]Record, error) {
@@ -170,8 +170,8 @@ func (r *repo) listRecords(
 	// Start with base query filtering by did and collection
 	query := gorm.G[Record](
 		r.db.Debug(),
-	).Where("did = ?", params.Repo).
-		Where("collection = ?", params.Collection)
+	).Where("did = ?", did).
+		Where("collection = ?", collection)
 
 	// Build OR conditions for allow list
 	// Permissions are stored in format: "collection" or "collection.*" or "collection.rkey"
@@ -186,18 +186,18 @@ func (r *repo) listRecords(
 				prefix := strings.TrimSuffix(a, "*")
 				// Trim trailing dot if present (e.g., "collection.*" -> "collection.")
 				prefix = strings.TrimSuffix(prefix, ".")
-				if prefix == params.Collection || strings.HasPrefix(params.Collection, prefix+".") {
+				if prefix == collection || strings.HasPrefix(collection, prefix+".") {
 					// Exact match or parent collection wildcard
 					hasWildcard = true
 					break // If we have a wildcard, we don't need to check specific rkeys
 				}
-			} else if a == params.Collection {
+			} else if a == collection {
 				// Exact collection match: "collection" - match all rkeys in this collection
 				hasWildcard = true
 				break
-			} else if strings.HasPrefix(a, params.Collection+".") {
+			} else if strings.HasPrefix(a, collection+".") {
 				// Specific record: "collection.rkey" - extract rkey
-				rkey := strings.TrimPrefix(a, params.Collection+".")
+				rkey := strings.TrimPrefix(a, collection+".")
 				specificRkeys = append(specificRkeys, rkey)
 			} else {
 				// Fallback: exact match on rkey (for backwards compatibility)
@@ -225,22 +225,22 @@ func (r *repo) listRecords(
 			// Trim trailing dot if present (e.g., "collection.*" -> "collection.")
 			prefix = strings.TrimSuffix(prefix, ".")
 			// Check exact match first
-			if prefix == params.Collection {
+			if prefix == collection {
 				hasCollectionDeny = true
 				break
 			}
 			// Check if this is a parent collection wildcard (e.g., "network.habitat.*" matches "network.habitat.collection-2")
-			if strings.HasPrefix(params.Collection, prefix+".") {
+			if strings.HasPrefix(collection, prefix+".") {
 				hasCollectionDeny = true
 				break
 			}
-		} else if d == params.Collection {
+		} else if d == collection {
 			// Exact collection deny: "collection" - deny all rkeys in this collection
 			hasCollectionDeny = true
 			break
-		} else if strings.HasPrefix(d, params.Collection+".") {
+		} else if strings.HasPrefix(d, collection+".") {
 			// Specific record deny: "collection.rkey" - extract rkey and deny
-			rkey := strings.TrimPrefix(d, params.Collection+".")
+			rkey := strings.TrimPrefix(d, collection+".")
 			deniedRkeys = append(deniedRkeys, rkey)
 		} else {
 			// Fallback: exact deny on rkey (for backwards compatibility)
@@ -257,15 +257,17 @@ func (r *repo) listRecords(
 		query = query.Where("rkey NOT IN ?", deniedRkeys)
 	}
 
-	// Cursor-based pagination
-	if params.Cursor != "" {
-		query = query.Where("rkey > ?", params.Cursor)
-	}
+	// Cursor-based pagination -- unimplemented
+	/*
+		if params.Cursor != "" {
+			query = query.Where("rkey > ?", params.Cursor)
+		}
 
-	// Limit
-	if params.Limit != 0 {
-		query = query.Limit(int(params.Limit))
-	}
+		// Limit
+		if params.Limit != 0 {
+			query = query.Limit(int(params.Limit))
+		}
+	*/
 
 	// Order by rkey for consistent pagination
 	query = query.Order("rkey ASC")

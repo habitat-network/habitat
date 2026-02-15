@@ -22,11 +22,9 @@ import * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 import * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
-import * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addItem.js'
-import * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
-import * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
+import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -48,11 +46,9 @@ export * as CommunityLexiconLocationAddress from './types/community/lexicon/loca
 export * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
 export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
-export * as NetworkHabitatArenaAddItem from './types/network/habitat/arena/addItem.js'
-export * as NetworkHabitatArenaGetItems from './types/network/habitat/arena/getItems.js'
-export * as NetworkHabitatInternalGetRecord from './types/network/habitat/internal/getRecord.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
+export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -398,14 +394,12 @@ export class NetworkNS {
 export class NetworkHabitatNS {
   _client: XrpcClient
   photo: NetworkHabitatPhotoRecord
-  arena: NetworkHabitatArenaNS
   internal: NetworkHabitatInternalNS
   permissions: NetworkHabitatPermissionsNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
     this._client = client
-    this.arena = new NetworkHabitatArenaNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
@@ -425,54 +419,11 @@ export class NetworkHabitatNS {
   }
 }
 
-export class NetworkHabitatArenaNS {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  addItem(
-    data?: NetworkHabitatArenaAddItem.InputSchema,
-    opts?: NetworkHabitatArenaAddItem.CallOptions,
-  ): Promise<NetworkHabitatArenaAddItem.Response> {
-    return this._client.call(
-      'network.habitat.arena.addItem',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
-
-  getItems(
-    data?: NetworkHabitatArenaGetItems.InputSchema,
-    opts?: NetworkHabitatArenaGetItems.CallOptions,
-  ): Promise<NetworkHabitatArenaGetItems.Response> {
-    return this._client.call(
-      'network.habitat.arena.getItems',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
-}
-
 export class NetworkHabitatInternalNS {
   _client: XrpcClient
 
   constructor(client: XrpcClient) {
     this._client = client
-  }
-
-  getRecord(
-    params?: NetworkHabitatInternalGetRecord.QueryParams,
-    opts?: NetworkHabitatInternalGetRecord.CallOptions,
-  ): Promise<NetworkHabitatInternalGetRecord.Response> {
-    return this._client
-      .call('network.habitat.internal.getRecord', params, undefined, opts)
-      .catch((e) => {
-        throw NetworkHabitatInternalGetRecord.toKnownErr(e)
-      })
   }
 
   notifyOfUpdate(
@@ -503,6 +454,18 @@ export class NetworkHabitatPermissionsNS {
       'network.habitat.permissions.addPermission',
       opts?.qp,
       data,
+      opts,
+    )
+  }
+
+  listPermissions(
+    params?: NetworkHabitatPermissionsListPermissions.QueryParams,
+    opts?: NetworkHabitatPermissionsListPermissions.CallOptions,
+  ): Promise<NetworkHabitatPermissionsListPermissions.Response> {
+    return this._client.call(
+      'network.habitat.permissions.listPermissions',
+      params,
+      undefined,
       opts,
     )
   }

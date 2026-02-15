@@ -1,13 +1,19 @@
 import React from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
+
+interface Grantee {
+  type: "did" | "clique";
+  value: string;
+}
 
 interface putData {
   collection: string;
   record: string;
   repo: string;
   rkey: string;
+  grantees: Grantee[];
 }
 
 interface getData {
@@ -19,13 +25,20 @@ interface getData {
 export const Route = createFileRoute("/_requireAuth/pear-test/")({
   component() {
     const { authManager } = Route.useRouteContext();
-    const putForm = useForm<putData>({});
+    const putForm = useForm<putData>({
+      defaultValues: { grantees: [] },
+    });
+    const { fields, append, remove } = useFieldArray({
+      control: putForm.control,
+      name: "grantees",
+    });
     const getForm = useForm<getData>({});
 
     const {
       mutate: put,
       isPending: putIsPending,
       status,
+      error: putError,
     } = useMutation({
       async mutationFn(data: putData) {
         let recordObj;
@@ -35,6 +48,13 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
           alert("Record must be valid JSON");
           return;
         }
+        const grantees = data.grantees
+          .filter((g) => g.value.trim() !== "")
+          .map((g) =>
+            g.type === "did"
+              ? { $type: "network.habitat.repo.putRecord#didGrantee", did: g.value }
+              : { $type: "network.habitat.repo.putRecord#cliqueRef", uri: g.value },
+          );
         const response = await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
           "POST",
@@ -43,9 +63,13 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
             record: recordObj,
             repo: data.repo,
             rkey: data.rkey,
+            ...(grantees.length > 0 ? { grantees } : {}),
           }),
         );
-        console.log(response);
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(body || `Request failed with status ${response.status}`);
+        }
       },
     });
 
@@ -109,10 +133,33 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
                 {...putForm.register("rkey")}
               />
             </label>
+            <fieldset>
+              <legend>Grantees</legend>
+              {fields.map((field, index) => (
+                <div key={field.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+                  <select {...putForm.register(`grantees.${index}.type`)}>
+                    <option value="did">DID</option>
+                    <option value="clique">Clique URI</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder={putForm.watch(`grantees.${index}.type`) === "did" ? "did:plc:..." : "habitat://..."}
+                    {...putForm.register(`grantees.${index}.value`)}
+                  />
+                  <button type="button" onClick={() => remove(index)} style={{ width: "auto" }}>
+                    &times;
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={() => append({ type: "did", value: "" })} style={{ width: "auto" }}>
+                + Add Grantee
+              </button>
+            </fieldset>
             <button type="submit" aria-busy={putIsPending}>
               Put Record
             </button>
-            {status !== "idle" && status}
+            {status === "success" && "success"}
+            {status === "error" && <pre style={{ color: "red" }}>{putError?.message}</pre>}
           </form>
         </article>
 
