@@ -58,9 +58,18 @@ export class AuthManager {
     });
   }
 
-  logout() {
-    // TODO: implement me!!
-  }
+  logout = () => {
+    // Delete all internal state
+    localStorage.removeItem(handleLocalStorageKey);
+    localStorage.removeItem(stateLocalStorageKey);
+    localStorage.removeItem(tokenLocalStorageKey);
+    localStorage.removeItem(didLocalStorageKey);
+    this.accessToken = null;
+    this.did = null;
+    this.handle = null;
+    // Redirect to login page
+    this.onUnauthenticated();
+  };
 
   async maybeExchangeCode(currentUrl: string) {
     const url = new URL(currentUrl);

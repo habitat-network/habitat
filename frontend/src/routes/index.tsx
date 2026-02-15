@@ -15,8 +15,8 @@ export const Route = createFileRoute("/")({
       },
       {
         id: "pear-test",
-        name: "Privi Test",
-        description: "Privi Test for getting and putting records",
+        name: "Pear Test",
+        description: "Pear Test for getting and putting records",
         icon: "💿",
         link: "/pear-test",
       },
@@ -35,13 +35,6 @@ export const Route = createFileRoute("/")({
         link: "/forwarding-test",
       },
       {
-        id: "notifications",
-        name: "Notifications",
-        description: "View your notifications",
-        icon: "🔔",
-        link: "/notifications",
-      },
-      {
         id: "data",
         name: "Data Debugger",
         description: "Browse and filter records by lexicon",
@@ -55,45 +48,41 @@ export const Route = createFileRoute("/")({
         icon: "🍾",
         link: "/onboard",
       },
+      {
+        id: "onboard-local",
+        name: "Habitat Local Onboarding (DID updater)",
+        description: "Join Habitat (local dev) by updating DID",
+        icon: "🍾",
+        link: "/onboard-local",
+      },
     ];
   },
-  component: Wrapper,
-});
-
-function Wrapper() {
-  const { authManager } = Route.useRouteContext();
-  return authManager.isAuthenticated() ? (
-    <Shortcuts />
-  ) : (
-    <Link to="/oauth-login">Login</Link>
-  );
-}
-
-function Shortcuts() {
-  const data = Route.useLoaderData();
-  return (
-    <>
-      <h1>Shortcuts</h1>
-      <table>
-        <thead>
-          <tr>
-            <th>App</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map(({ id, name, description, icon, link }) => (
-            <tr key={id}>
-              <td>
-                <Link to={link}>
-                  {icon} {name}
-                </Link>
-              </td>
-              <td>{description}</td>
+  component() {
+    const data = Route.useLoaderData();
+    return (
+      <>
+        <h1>Shortcuts</h1>
+        <table>
+          <thead>
+            <tr>
+              <th>App</th>
+              <th>Description</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
-}
+          </thead>
+          <tbody>
+            {data.map(({ id, name, description, icon, link }) => (
+              <tr key={id}>
+                <td>
+                  <Link to={link}>
+                    {icon} {name}
+                  </Link>
+                </td>
+                <td>{description}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    );
+  },
+});

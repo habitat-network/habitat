@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.permissions.listPermissions",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List all read permissions granted by the authenticated user, grouped by lexicon.",
+      "permission": "authenticated",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "permissions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "did"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

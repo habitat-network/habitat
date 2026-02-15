@@ -336,12 +336,12 @@ func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// Validate's the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
 ) (syntax.DID, bool) {
-	ctx := r.Context()
 	_, ar, err := o.provider.IntrospectToken(
 		r.Context(),
 		fosite.AccessTokenFromRequest(r),
@@ -350,7 +350,9 @@ func (o *OAuthServer) Validate(
 		scopes...,
 	)
 	if err != nil {
-		o.provider.WriteIntrospectionError(ctx, w, err)
+		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
+		// Unfortunately that was returning a 200 http response, so we write our own error here.
+		utils.WriteHTTPError(w, fmt.Errorf("invalid or expired token: %w", err), http.StatusUnauthorized)
 		return "", false
 	}
 	// Get the DID from the session subject (stored in JWT)

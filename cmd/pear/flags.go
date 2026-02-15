@@ -12,6 +12,7 @@ import (
 var (
 	fDebug             = "debug"
 	fDomain            = "domain"
+	fServiceName       = "service_name"
 	fDb                = "db"
 	fPort              = "port"
 	fHttpsCerts        = "httpscerts"
@@ -39,6 +40,12 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Required: true,
 				Usage:    "The publicly available domain at which the server can be found",
 				Sources:  getSources(fDomain),
+			},
+			&cli.StringFlag{
+				Name:        fServiceName,
+				Usage:       "The service name of habitat that should be looked up in users' DID doc services list",
+				DefaultText: "habitat",
+				Sources:     getSources(fServiceName),
 			},
 			&cli.StringFlag{
 				Name:    fPort,

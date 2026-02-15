@@ -10,12 +10,18 @@ interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
+  loader({ context }) {
+    return {
+      handle: context.authManager.handle,
+    };
+  },
   staleTime: 1000 * 60 * 60,
   component() {
     const { authManager } = Route.useRouteContext();
+    const { handle } = Route.useLoaderData();
     return (
       <>
-        <Header authManager={authManager} />
+        <Header handle={handle} onLogout={authManager.logout} />
         <Outlet />
         <TanStackRouterDevtools />
       </>

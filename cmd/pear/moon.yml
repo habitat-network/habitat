@@ -5,11 +5,12 @@ tasks:
   dev:
     args:
     - --
-    - --profile
-    - dev.yaml
+    - --domain
+    - $project.${TS_DOMAIN}
     env:
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'
+      HABITAT_SERVICE_NAME: "habitat_local"
     deps:
     - target: funnel:start
       args:

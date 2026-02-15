@@ -31,7 +31,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/messagechannel"
+	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -40,11 +40,6 @@ import (
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/urfave/cli/v3"
-)
-
-const (
-	JetstreamURL       = "wss://jetstream2.us-east.bsky.network/subscribe"
-	JetstreamUserAgent = "habitat-jetstream-client/v0.0.1"
 )
 
 func main() {
@@ -130,11 +125,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
-	nodeMessageChannel := messagechannel.NewDirectMessageChannel(
-		pdsClientFactory,
-		identity.DefaultDirectory(),
-	)
-	pearServer := setupPriviServer(db, oauthServer, pdsClientFactory, userStore)
+
+	serviceName := cmd.String(fServiceName)
+	pearServer, err := setupPearServer(ctx, serviceName, domain, db, oauthServer)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup pear servers")
+	}
+
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	// Create error group for managing goroutines
@@ -234,27 +231,25 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPriviServer(
-	db *gorm.DB,
-	oauthServer *oauthserver.OAuthServer,
-	pdsClientFactory *oauthclient.PDSClientFactory,
-	userStore userstore.UserStore,
-	nodeMessageChannel messagechannel.MessageChannel,
-) *pear.Server {
-	repo, err := pear.NewSQLiteRepo(db, userStore)
+func setupPearServer(ctx context.Context, serviceName string, domain string, db *gorm.DB, oauthServer *oauthserver.OAuthServer) (*pear.Server, error) {
+	repo, err := pear.NewRepo(db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pear sqlite db")
+		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	permissionStore, err := permissions.NewSQLiteStore(db)
+	permissions, err := permissions.NewStore(db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup permissions store")
+		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
 
-	return pear.NewServer(permissionStore, repo, oauthServer, pdsClientFactory,
+	inbox, err := inbox.New(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create inbox: %w", err)
+	}
 
-		nodeMessageChannel,
-	)
+	dir := identity.DefaultDirectory()
+	p := pear.NewPear(ctx, domain, serviceName, dir, permissions, repo, inbox)
+	return pear.NewServer(dir, p, oauthServer), nil
 }
 
 func setupOAuthServer(

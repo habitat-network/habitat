@@ -10,25 +10,18 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
-import type * as NetworkHabitatNotificationDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.notification.createNotification'
+const id = 'network.habitat.permissions.addPermission'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The handle or DID of the repo (aka, current account). */
-  repo: string
-  /** The NSID of the record collection. */
-  collection: string
-  record: NetworkHabitatNotificationDefs.Notification
-}
-
-export interface OutputSchema {
-  uri: string
-  validationStatus?: 'valid' | 'unknown' | (string & {})
+  /** The DID of the user to grant read permission to. */
+  did: string
+  /** The NSID of the lexicon or record to grant read permission for. */
+  lexicon: string
 }
 
 export interface CallOptions {
@@ -41,7 +34,6 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
-  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

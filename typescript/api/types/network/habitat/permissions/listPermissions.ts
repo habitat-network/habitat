@@ -13,27 +13,24 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.arena.addItem'
+const id = 'network.habitat.permissions.listPermissions'
 
 export type QueryParams = {}
+export type InputSchema = undefined
 
-export interface InputSchema {
-  /** The URI for the item to send to the arena, formatted as a habitat-uri. */
-  item: string
-  /** The ID of the arena to send the item to, formatted as a habitat-uri. */
-  arenaID: string
+export interface OutputSchema {
+  permissions?: string[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

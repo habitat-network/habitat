@@ -15,40 +15,88 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/messagechannel"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Server struct {
-	pear *permissionEnforcingRepo
+	// Implementation of permission-enforcint atprotocol repo
+	pear *Pear
 	// Used for resolving handles -> did, did -> PDS
-	dir                identity.Directory
-	oauthServer        *oauthserver.OAuthServer
-	pdsClientFactory   *oauthclient.PDSClientFactory
-	nodeMessageChannel messagechannel.MessageChannel
+	dir identity.Directory
+	// Used for validating oauth tokens
+	oauthServer *oauthserver.OAuthServer
 }
 
 // NewServer returns a pear server.
 func NewServer(
-	perms permissions.Store,
-	repo *repo,
+	dir identity.Directory,
+	pear *Pear,
 	oauthServer *oauthserver.OAuthServer,
-	pdsClientFactory *oauthclient.PDSClientFactory,
-	nodeMessageChannel messagechannel.MessageChannel,
 ) *Server {
 	server := &Server{
-		dir:              identity.DefaultDirectory(),
-		pear:             newPermissionEnforcingRepo(perms, repo, nodeMessageChannel),
-		oauthServer:      oauthServer,
-		pdsClientFactory: pdsClientFactory,
+		dir:         dir,
+		pear:        pear,
+		oauthServer: oauthServer,
 	}
 	return server
 }
 
 var formDecoder = schema.NewDecoder()
+
+type didGrantee string
+
+func (didGrantee) isGrantee() {}
+
+type cliqueGrantee string
+
+func (cliqueGrantee) isGrantee() {}
+
+type grantee interface {
+	isGrantee()
+}
+
+// Parse the grantees input which is typed as an interface
+func parseGrantees(grantees []interface{}) ([]grantee, error) {
+	parsed := make([]grantee, len(grantees))
+	for i, generic := range grantees {
+		unknownGrantee, ok := generic.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("unexpected type in grantees field: %v", generic)
+		}
+
+		granteeType, ok := unknownGrantee["$type"]
+		if !ok {
+			return nil, fmt.Errorf("malformatted grantee has no $type field: %v", unknownGrantee)
+		}
+
+		switch granteeType {
+		case "network.habitat.repo.putRecord#didGrantee":
+			did, ok := unknownGrantee["did"]
+			if !ok {
+				return nil, fmt.Errorf("malformatted did grantee has no did field: %v", unknownGrantee)
+			}
+			asStr, ok := did.(string)
+			if !ok {
+				return nil, fmt.Errorf("malformatted did grantee has non-string did field: %v", unknownGrantee)
+			}
+			parsed[i] = didGrantee(asStr)
+		case "network.habitat.repo.putRecord#cliqueRef":
+			uri, ok := unknownGrantee["uri"]
+			if !ok {
+				return nil, fmt.Errorf("malformatted clique grantee has no uri field: %v", unknownGrantee)
+			}
+			asStr, ok := uri.(string)
+			if !ok {
+				return nil, fmt.Errorf("malformatted clique grantee has non-string uri field: %v", unknownGrantee)
+			}
+			parsed[i] = cliqueGrantee(asStr)
+		default:
+			return nil, fmt.Errorf("malformatted grantee has unknown $type of %v: %v", granteeType, unknownGrantee)
+		}
+	}
+	return parsed, nil
+}
 
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +147,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
+
 	err = s.pear.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -111,8 +160,36 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Grantees) > 0 {
-		err := s.pear.permissions.AddLexiconReadPermission(
-			req.Grantees,
+		parsed, err := parseGrantees(req.Grantees)
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				err,
+				fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+		didGrantees := []string{}
+		for _, grantee := range parsed {
+			switch g := grantee.(type) {
+			case didGrantee:
+				didGrantees = append(didGrantees, string(g))
+			case cliqueGrantee:
+				// If we ever run into a non-DID grantee, return an error as this is not yet supported
+				utils.LogAndHTTPError(
+					w,
+					err,
+					fmt.Sprintf("non-DID grantees are not supported: %v", grantee),
+					http.StatusInternalServerError,
+				)
+				return
+			}
+		}
+
+		err = s.pear.permissions.AddReadPermission(
+			didGrantees,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
 		)
@@ -205,14 +282,23 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// getAuthedUser attempts to get the calling user from the Habitat-Auth-Method header which uses oauth.
+// If this fails, it will write an http error response with the appropriate status, so no need for the caller to do that.
 func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
 	if r.Header.Get("Habitat-Auth-Method") == "oauth" {
+		// If the header could not be validated, an error response is written by Validate()
 		did, ok := s.oauthServer.Validate(w, r)
 		if !ok {
 			return "", false
 		}
 		return did, true
 	}
+	// If no header was provided, also write an err
+	utils.WriteHTTPError(w, fmt.Errorf("no habitat auth header provided"), http.StatusUnauthorized)
+	return "", false
+}
+
+func (s *Server) getServiceAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
 	return "", false
 }
 
@@ -305,22 +391,25 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params habitat.NetworkHabitatRepoListRecordsParams
+	var params habitat.NetworkHabitatListRecordsInput
 	err := formDecoder.Decode(&params, r.URL.Query())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
 		return
 	}
 
+	// TODO: this is wrong
+	repo := params.Subjects[0]
+
 	// Handle both @handles and dids
-	did, err := s.fetchDID(r.Context(), params.Repo)
+	did, err := s.fetchDID(r.Context(), repo)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
 		return
 	}
 
-	params.Repo = did.String()
-	records, err := s.pear.listRecords(&params, callerDID)
+	repo = did.String()
+	records, err := s.pear.listRecords(did, params.Collection, callerDID)
 	if err != nil {
 		if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -330,14 +419,14 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output := &habitat.NetworkHabitatRepoListRecordsOutput{
-		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
+	output := &habitat.NetworkHabitatListRecordsOutput{
+		Records: []habitat.NetworkHabitatListRecordsRecord{},
 	}
 	for _, record := range records {
-		next := habitat.NetworkHabitatRepoListRecordsRecord{
+		next := habitat.NetworkHabitatListRecordsRecord{
 			Uri: fmt.Sprintf(
 				"habitat://%s/%s/%s",
-				params.Repo,
+				repo,
 				params.Collection,
 				record.Rkey,
 			),
@@ -373,24 +462,19 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type editPermissionRequest struct {
-	DID     string `json:"did"`
-	Lexicon string `json:"lexicon"`
-}
-
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := s.getAuthedUser(w, r)
 	if !ok {
 		return
 	}
-	req := &editPermissionRequest{}
+	req := &habitat.NetworkHabitatPermissionsAddPermissionInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.AddLexiconReadPermission(
-		[]string{req.DID},
+	err = s.pear.permissions.AddReadPermission(
+		[]string{req.Did},
 		callerDID.String(),
 		req.Lexicon,
 	)
@@ -405,15 +489,35 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req := &editPermissionRequest{}
+	req := &habitat.NetworkHabitatPermissionsRemovePermissionInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.RemoveLexiconReadPermission(req.DID, callerDID.String(), req.Lexicon)
+	err = s.pear.permissions.RemoveReadPermission(req.Did, callerDID.String(), req.Lexicon)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := s.getServiceAuthedUser(w, r)
+	if !ok {
+		return
+	}
+
+	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		return
+	}
+
+	err = s.pear.notifyOfUpdate(r.Context(), callerDID, syntax.DID(req.Recipient), req.Collection, req.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
 		return
 	}
 }

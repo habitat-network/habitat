@@ -6,55 +6,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/userstore"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func TestHasRepoForDid(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-
-	// No user exists yet, should return false
-	has, err := repo.hasRepoForDid("did:example:alice")
-	require.NoError(t, err)
-	require.False(t, has)
-
-	// Ensure user exists (simulating first login)
-	err = userStore.EnsureUser("did:example:alice")
-	require.NoError(t, err)
-
-	// Now the DID should be found
-	has, err = repo.hasRepoForDid("did:example:alice")
-	require.NoError(t, err)
-	require.True(t, has)
-
-	// A different DID should still return false
-	has, err = repo.hasRepoForDid("did:example:bob")
-	require.NoError(t, err)
-	require.False(t, has)
-}
-
-func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
+func TestRepoPutAndGetRecord(t *testing.T) {
 	testDBPath := filepath.Join(os.TempDir(), "test_pear.db")
 	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
 
 	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
-	userStore, err := userstore.NewUserStore(pearDB)
-	require.NoError(t, err)
-
-	repo, err := NewSQLiteRepo(pearDB, userStore)
+	repo, err := NewRepo(pearDB)
 	require.NoError(t, err)
 
 	collection := "test.collection"
@@ -74,12 +39,11 @@ func TestSQLiteRepoPutAndGetRecord(t *testing.T) {
 	require.Equal(t, val, unmarshalled)
 }
 
-func TestSQLiteRepoListRecords(t *testing.T) {
+func TestRepoListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-	repo, err := NewSQLiteRepo(db, userStore)
+
+	repo, err := NewRepo(db)
 	require.NoError(t, err)
 	err = repo.putRecord(
 		"my-did",
@@ -109,10 +73,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	records, err := repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{},
 		[]string{},
 	)
@@ -120,10 +82,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 	require.Len(t, records, 0)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.key-1", "network.habitat.collection-1.key-2"},
 		[]string{},
 	)
@@ -131,10 +91,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 	require.Len(t, records, 2)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.*"},
 		[]string{},
 	)
@@ -142,10 +100,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 	require.Len(t, records, 2)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-1",
-		},
+		"my-did",
+		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.*"},
 		[]string{"network.habitat.collection-1.key-1"},
 	)
@@ -153,10 +109,8 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 	require.Len(t, records, 1)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-2",
-		},
+		"my-did",
+		"network.habitat.collection-2",
 		[]string{"network.habitat.*"},
 		[]string{},
 	)
@@ -164,40 +118,11 @@ func TestSQLiteRepoListRecords(t *testing.T) {
 	require.Len(t, records, 1)
 
 	records, err = repo.listRecords(
-		&habitat.NetworkHabitatRepoListRecordsParams{
-			Repo:       "my-did",
-			Collection: "network.habitat.collection-2",
-		},
+		"my-did",
+		"network.habitat.collection-2",
 		[]string{"network.habitat.*"},
 		[]string{"network.habitat.collection-2.*"},
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
-}
-
-func TestUploadAndGetBlob(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err)
-
-	repo, err := NewSQLiteRepo(db, userStore)
-	require.NoError(t, err)
-
-	did := "did:example:alice"
-	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
-	blob := []byte("this is my test blob")
-	mtype := "text/plain"
-
-	bmeta, err := repo.uploadBlob(did, blob, mtype)
-	require.NoError(t, err)
-	require.NotNil(t, bmeta)
-	require.Equal(t, mtype, bmeta.MimeType)
-	require.Equal(t, int64(len(blob)), bmeta.Size)
-
-	m, gotBlob, err := repo.getBlob(did, bmeta.Ref.String())
-	require.NoError(t, err)
-	require.Equal(t, mtype, m)
-	require.Equal(t, blob, gotBlob)
 }
