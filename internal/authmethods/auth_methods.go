@@ -21,5 +21,6 @@ func Validate(
 			return method.Validate(w, r)
 		}
 	}
+	w.WriteHeader(http.StatusUnauthorized)
 	return "", false
 }

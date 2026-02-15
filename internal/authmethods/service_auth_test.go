@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServiceAuth_Validate(t *testing.T) {
+func TestServiceAuthValidate(t *testing.T) {
 	directory := oauthclient.NewDummyDirectory("https://pds.com")
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: "ES256K",
@@ -35,6 +35,47 @@ func TestServiceAuth_Validate(t *testing.T) {
 
 	require.True(t, ok)
 	require.Equal(t, syntax.DID("did:plc:test"), resultDid)
+}
+
+func TestServiceAuthValidate_InvalidToken(t *testing.T) {
+	directory := oauthclient.NewDummyDirectory("https://pds.com")
+	serviceAuth := NewServiceAuthMethod(directory)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("Authorization", "Bearer invalid")
+	_, ok := serviceAuth.Validate(w, r)
+	require.False(t, ok)
+}
+
+func TestServiceAuthValidate_InvalidSignature(t *testing.T) {
+	directory := oauthclient.NewDummyDirectory("https://pds.com")
+	key, err := atcrypto.GeneratePrivateKeyK256()
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: "ES256K",
+		Key:       atcryptoSigner{key},
+	}, nil)
+	require.NoError(t, err, "failed to create signer")
+	token, err := jwt.Signed(signer).Claims(serviceJwtPayload{
+		Iss: "did:plc:test",
+		Aud: "https://pds.com",
+		Exp: 0,
+		Lxm: "lxm",
+	}).CompactSerialize()
+	serviceAuth := NewServiceAuthMethod(directory)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("Authorization", "Bearer "+token)
+	_, ok := serviceAuth.Validate(w, r)
+	require.False(t, ok)
+}
+
+func TestServiceAuthCanHandle(t *testing.T) {
+	directory := oauthclient.NewDummyDirectory("https://pds.com")
+	serviceAuth := NewServiceAuthMethod(directory)
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("Authorization", "Bearer invalid")
+	require.True(t, serviceAuth.CanHandle(r))
 }
 
 type atcryptoSigner struct {
