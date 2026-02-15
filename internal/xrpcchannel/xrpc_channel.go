@@ -23,15 +23,16 @@ type XrpcChannel interface {
 type serviceProxyXrpcChannel struct {
 	serviceName   string
 	directory     identity.Directory
-	clientFactory *oauthclient.PDSClientFactoryimpl
+	clientFactory oauthclient.PDSClientFactory
 }
 
 func NewServiceProxyXrpcChannel(
 	serviceName string,
-	clientFactory *oauthclient.PDSClientFactoryimpl,
+	clientFactory oauthclient.PDSClientFactory,
 	directory identity.Directory,
 ) XrpcChannel {
 	return &serviceProxyXrpcChannel{
+		serviceName:   serviceName,
 		clientFactory: clientFactory,
 		directory:     directory,
 	}
