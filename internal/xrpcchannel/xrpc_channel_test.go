@@ -15,7 +15,8 @@ func TestServiceProxyXrpcChannel(t *testing.T) {
 		require.Equal(t, "/xrpc/network.habitat.getRecord", r.URL.Path)
 		require.Equal(t, "did:web:habitat.network#habitat", r.Header.Get("atproto-proxy"))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("hello"))
+		_, err := w.Write([]byte("hello"))
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 	channel := NewServiceProxyXrpcChannel(
@@ -32,9 +33,9 @@ func TestServiceProxyXrpcChannel(t *testing.T) {
 		req,
 	)
 	require.NoError(t, err)
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, "hello", string(body))
+	require.NoError(t, resp.Body.Close())
 }
