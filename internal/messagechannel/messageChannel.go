@@ -22,7 +22,7 @@ type MessageChannel interface {
 
 type directMessageChannelImpl struct {
 	directory     identity.Directory
-	clientFacotry *oauthclient.PDSClientFactory
+	clientFactory *oauthclient.PDSClientFactory
 }
 
 func NewDirectMessageChannel(
@@ -30,7 +30,7 @@ func NewDirectMessageChannel(
 	directory identity.Directory,
 ) MessageChannel {
 	return &directMessageChannelImpl{
-		clientFacotry: clientFactory,
+		clientFactory: clientFactory,
 		directory:     directory,
 	}
 }
@@ -52,7 +52,7 @@ func (m *directMessageChannelImpl) SendXRPC(
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
 	pearServiceDid := fmt.Sprintf("did:web:%s#habitat", url.Hostname())
-	client, err := m.clientFacotry.NewClient(req.Context(), sender)
+	client, err := m.clientFactory.NewClient(req.Context(), sender)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
