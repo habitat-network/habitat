@@ -15,17 +15,23 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authmethods"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/utils"
 )
+
+type authMethods struct {
+	oauth       authmethods.Method
+	serviceAuth authmethods.Method
+}
 
 type Server struct {
 	// Implementation of permission-enforcint atprotocol repo
 	pear *Pear
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
-	// Used for validating oauth tokens
-	oauthServer *oauthserver.OAuthServer
+
+	authMethods authMethods
 }
 
 // NewServer returns a pear server.
@@ -33,11 +39,15 @@ func NewServer(
 	dir identity.Directory,
 	pear *Pear,
 	oauthServer *oauthserver.OAuthServer,
+	serviceAuthMethod authmethods.Method,
 ) *Server {
 	server := &Server{
-		dir:         dir,
-		pear:        pear,
-		oauthServer: oauthServer,
+		dir:  dir,
+		pear: pear,
+		authMethods: authMethods{
+			oauth:       oauthServer,
+			serviceAuth: serviceAuthMethod,
+		},
 	}
 	return server
 }
@@ -46,7 +56,7 @@ var formDecoder = schema.NewDecoder()
 
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -151,7 +161,7 @@ func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, 
 
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -199,28 +209,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getAuthedUser attempts to get the calling user from the Habitat-Auth-Method header which uses oauth.
-// If this fails, it will write an http error response with the appropriate status, so no need for the caller to do that.
-func (s *Server) getAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
-	if r.Header.Get("Habitat-Auth-Method") == "oauth" {
-		// If the header could not be validated, an error response is written by Validate()
-		did, ok := s.oauthServer.Validate(w, r)
-		if !ok {
-			return "", false
-		}
-		return did, true
-	}
-	// If no header was provided, also write an err
-	utils.WriteHTTPError(w, fmt.Errorf("no habitat auth header provided"), http.StatusUnauthorized)
-	return "", false
-}
-
-func (s *Server) getServiceAuthedUser(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
-	return "", false
-}
-
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -303,7 +293,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -358,7 +348,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -377,7 +367,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -399,7 +389,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -417,7 +407,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.getServiceAuthedUser(w, r)
+	callerDID, ok := authmethods.Validate(w, r, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -429,7 +419,13 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.pear.notifyOfUpdate(r.Context(), callerDID, syntax.DID(req.Recipient), req.Collection, req.Rkey)
+	err = s.pear.notifyOfUpdate(
+		r.Context(),
+		callerDID,
+		syntax.DID(req.Recipient),
+		req.Collection,
+		req.Rkey,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
 		return

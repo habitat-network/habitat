@@ -4,17 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 type DummyDirectory struct {
-	pdsUrl string
+	pdsUrl     string
+	PrivateKey *atcrypto.PrivateKeyK256
 }
 
 func NewDummyDirectory(pdsUrl string) *DummyDirectory {
+	privateKey, _ := atcrypto.GeneratePrivateKeyK256()
 	return &DummyDirectory{
-		pdsUrl: pdsUrl,
+		pdsUrl:     pdsUrl,
+		PrivateKey: privateKey,
 	}
 }
 
@@ -29,26 +33,33 @@ func (d *DummyDirectory) LookupDID(
 	ctx context.Context,
 	did syntax.DID,
 ) (*identity.Identity, error) {
-	return getIdentity(d.pdsUrl, did.String()), nil
+	return d.getIdentity(did.String()), nil
 }
 
 func (d *DummyDirectory) Lookup(
 	ctx context.Context,
 	atid syntax.AtIdentifier,
 ) (*identity.Identity, error) {
-	return getIdentity(d.pdsUrl, atid.String()), nil
+	return d.getIdentity(atid.String()), nil
 }
 
 func (d *DummyDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return fmt.Errorf("unimplemented")
 }
 
-func getIdentity(pdsUrl string, did string) *identity.Identity {
+func (d *DummyDirectory) getIdentity(did string) *identity.Identity {
+	publicKey, _ := d.PrivateKey.PublicKey()
 	return &identity.Identity{
 		DID: syntax.DID(did),
 		Services: map[string]identity.ServiceEndpoint{
 			"atproto_pds": {
-				URL: pdsUrl,
+				URL: d.pdsUrl,
+			},
+		},
+		Keys: map[string]identity.VerificationMethod{
+			"atproto": {
+				Type:               "Multikey",
+				PublicKeyMultibase: publicKey.Multibase(),
 			},
 		},
 	}
