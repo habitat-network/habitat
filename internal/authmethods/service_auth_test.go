@@ -62,6 +62,7 @@ func TestServiceAuthValidate_InvalidSignature(t *testing.T) {
 		Exp: 0,
 		Lxm: "lxm",
 	}).CompactSerialize()
+	require.NoError(t, err, "failed to create token")
 	serviceAuth := NewServiceAuthMethod(directory)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/", nil)

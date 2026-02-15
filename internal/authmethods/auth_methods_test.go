@@ -24,7 +24,7 @@ func TestValidate(t *testing.T) {
 
 	w = httptest.NewRecorder()
 	r.Header.Set("Authorization", "bar")
-	did, ok = Validate(
+	_, ok = Validate(
 		w,
 		r,
 		&testAuthMethod{expectedHeader: "foo"},
@@ -35,7 +35,7 @@ func TestValidate(t *testing.T) {
 
 	w = httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")
-	did, ok = Validate(
+	_, ok = Validate(
 		w,
 		r,
 		&testAuthMethod{expectedHeader: "bar"},
