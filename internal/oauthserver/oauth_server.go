@@ -16,6 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/authmethods"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/userstore"
@@ -336,6 +337,12 @@ func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+var _ authmethods.Method = (*OAuthServer)(nil)
+
+func (o *OAuthServer) CanHandle(r *http.Request) bool {
+	return r.Header.Get("Habitat-Auth-Method") == "oauth"
+}
+
 // Validate's the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
@@ -352,7 +359,11 @@ func (o *OAuthServer) Validate(
 	if err != nil {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
-		utils.WriteHTTPError(w, fmt.Errorf("invalid or expired token: %w", err), http.StatusUnauthorized)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("invalid or expired token: %w", err),
+			http.StatusUnauthorized,
+		)
 		return "", false
 	}
 	// Get the DID from the session subject (stored in JWT)
