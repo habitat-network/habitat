@@ -358,11 +358,14 @@ func TestListRecordsWithNotifications(t *testing.T) {
 		aliceRecords := 0
 		bobRecords := 0
 		for _, record := range records {
-			if record.Did == aliceDID {
+			switch record.Did {
+			case aliceDID:
 				aliceRecords++
-			} else if record.Did == bobDID {
+			case bobDID:
 				bobRecords++
 				require.Equal(t, "bob-rkey1", record.Rkey)
+			default:
+				require.Fail(t, "unexpected record did: %s", record.Did)
 			}
 		}
 		require.Equal(t, 2, aliceRecords)

@@ -172,7 +172,7 @@ func (p *Pear) listRecords(
 
 	// Step 4: For each joined result, check if Sender is local and check permissions
 	for _, result := range joinedResults {
-		originDid := syntax.DID(result.Notification.Sender)
+		originDid := syntax.DID(result.Sender)
 
 		// Check if the record owner is on the same node
 		hasLocalRepo, err := p.hasRepoForDid(originDid)
