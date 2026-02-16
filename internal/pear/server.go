@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -254,7 +255,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	record, err := s.pear.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
-		if errors.Is(err, ErrRecordNotFound) {
+		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
 			return
 		} else if errors.Is(err, ErrNotLocalRepo) {

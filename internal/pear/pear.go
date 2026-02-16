@@ -9,6 +9,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/repo"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -27,7 +30,7 @@ type Pear struct {
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
-	repo *repo
+	repo repo.Repo
 
 	// Manage receiving updates for records (replacement for the Firehose)
 	inbox inbox.Inbox
@@ -46,7 +49,7 @@ func NewPear(
 	serviceName string,
 	dir identity.Directory,
 	perms permissions.Store,
-	repo *repo,
+	repo repo.Repo,
 	inbox inbox.Inbox,
 ) *Pear {
 	return &Pear{
@@ -71,7 +74,7 @@ func (p *Pear) putRecord(
 	validate *bool,
 ) error {
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
-	return p.repo.putRecord(did, collection, rkey, record, validate)
+	return p.repo.PutRecord(did, collection, rkey, record, validate)
 }
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
@@ -80,7 +83,7 @@ func (p *Pear) getRecord(
 	rkey string,
 	targetDID syntax.DID,
 	callerDID syntax.DID,
-) (*Record, error) {
+) (*repo.Record, error) {
 	has, err := p.hasRepoForDid(targetDID)
 	if err != nil {
 		return nil, err
@@ -104,14 +107,14 @@ func (p *Pear) getRecord(
 		return nil, ErrUnauthorized
 	}
 
-	return p.repo.getRecord(string(targetDID), collection, rkey)
+	return p.repo.GetRecord(string(targetDID), collection, rkey)
 }
 
 func (p *Pear) listRecords(
 	did syntax.DID,
 	collection string,
 	callerDID syntax.DID,
-) ([]Record, error) {
+) ([]repo.Record, error) {
 	has, err := p.hasRepoForDid(did)
 	if err != nil {
 		return nil, err
@@ -129,7 +132,7 @@ func (p *Pear) listRecords(
 		return nil, err
 	}
 
-	return p.repo.listRecords(did.String(), collection, allow, deny)
+	return p.repo.ListRecords(did.String(), collection, allow, deny)
 }
 
 var (
@@ -155,14 +158,65 @@ func (p *Pear) getBlob(
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
-	return p.repo.getBlob(did, cid)
+	return p.repo.GetBlob(did, cid)
 }
 
 // TODO: actually enforce permissions here
-func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
-	return p.repo.uploadBlob(did, data, mimeType)
+func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*repo.BlobRef, error) {
+	return p.repo.UploadBlob(did, data, mimeType)
 }
 
 func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {
 	return p.inbox.PutNotification(ctx, sender, recipient, collection, rkey)
+}
+
+func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.HabitatURI, itemURI habitat_syntax.HabitatURI) error {
+	cliqueDID, err := cliqueURI.Authority().AsDID()
+	if err != nil {
+		return err
+	}
+	// If the clique does not exist on this pear node, then forward the request to the clique's repo.
+	ok, err := p.hasRepoForDid(cliqueDID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		// TODO: fill me in
+	}
+
+	// Otherwise, ensure that this item is indexed by the clique owner.
+	did, collection, rkey, err := itemURI.ExtractParts()
+	if err != nil {
+		return err
+	}
+
+	// If the clique + item owners are the same, no need to take action since the item is indexed by way of the clique repo.
+	if did == cliqueDID {
+		// Nothing to do, return.
+		return nil
+	}
+
+	// Otherwise, ensure that that the item is discoverable by the clique owner via the inbox.
+	p.notifyOfUpdate(ctx, did, cliqueDID, collection.String(), rkey.String())
+	return nil
+}
+
+func (p *Pear) getCliqueItems(cliqueURI habitat_syntax.HabitatURI) ([]habitat_syntax.HabitatURI, error) {
+	cliqueDID, err := cliqueURI.Authority().AsDID()
+	if err != nil {
+		return nil, err
+	}
+
+	has, err := p.hasRepoForDid(cliqueDID)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the clique does not exist on this repo, then forward the request.
+	if !has {
+		// TODO: unimplemented
+	}
+
+	// Otherwise, the clique exists on this repo, so fetch relevant rkeys from both the inbox and the repo of the owner did.
+	return p.repo.ListCliqueRecords(cliqueDID.String(), cliqueURI.String())
 }

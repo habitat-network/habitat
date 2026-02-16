@@ -31,6 +31,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/urfave/cli/v3"
@@ -231,7 +232,7 @@ func setupPearServer(
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 ) (*pear.Server, error) {
-	repo, err := pear.NewRepo(db)
+	repo, err := repo.NewRepo(ctx, db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}

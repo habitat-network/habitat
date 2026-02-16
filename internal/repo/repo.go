@@ -1,4 +1,4 @@
-package pear
+package repo
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"gorm.io/gorm"
@@ -15,6 +16,15 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+type Repo interface {
+	PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error
+	GetRecord(did string, collection string, rkey string) (*Record, error)
+	UploadBlob(did string, data []byte, mimeType string) (*BlobRef, error)
+	GetBlob(did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
+	ListRecords(did string, collection string, allow []string, deny []string) ([]Record, error)
+	ListCliqueRecords(did string, clique string) ([]habitat_syntax.HabitatURI, error)
+}
 
 // Persist private data within repos that mirror public repos.
 // A repo currently implements four basic methods: putRecord, getRecord, uploadBlob, getBlob
@@ -28,14 +38,19 @@ import (
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type repo struct {
-	db *gorm.DB
+	ctx context.Context
+	db  *gorm.DB
 }
+
+// repo implements the public type Repo
+var _ Repo = &repo{}
 
 type Record struct {
 	Did        string `gorm:"primaryKey"`
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
 	Value      string
+	Clique     string `gorm:"index"`
 }
 
 type Blob struct {
@@ -47,17 +62,18 @@ type Blob struct {
 }
 
 // TODO: create table etc.
-func NewRepo(db *gorm.DB) (*repo, error) {
+func NewRepo(ctx context.Context, db *gorm.DB) (*repo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
 	return &repo{
-		db: db,
+		ctx: ctx,
+		db:  db,
 	}, nil
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *repo) putRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error {
+func (r *repo) PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
@@ -83,7 +99,7 @@ func (r *repo) putRecord(did string, collection string, rkey string, rec map[str
 			},
 			DoUpdates: clause.AssignmentColumns([]string{"value"}),
 		},
-	).Create(context.Background(), &record)
+	).Create(r.ctx, &record)
 }
 
 var (
@@ -91,12 +107,12 @@ var (
 	ErrMultipleRecordsFound = fmt.Errorf("multiple records found for desired query")
 )
 
-func (r *repo) getRecord(did string, collection string, rkey string) (*Record, error) {
+func (r *repo) GetRecord(did string, collection string, rkey string) (*Record, error) {
 	// Query using separate collection and rkey fields
 	row, err := gorm.G[Record](
 		r.db,
 	).Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
-		First(context.Background())
+		First(r.ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
 	} else if err != nil {
@@ -105,13 +121,13 @@ func (r *repo) getRecord(did string, collection string, rkey string) (*Record, e
 	return &row, nil
 }
 
-type blob struct {
+type BlobRef struct {
 	Ref      atdata.CIDLink `json:"cid"`
 	MimeType string         `json:"mimetype"`
 	Size     int64          `json:"size"`
 }
 
-func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
+func (r *repo) UploadBlob(did string, data []byte, mimeType string) (*BlobRef, error) {
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
 	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
@@ -121,7 +137,7 @@ func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, erro
 	err = gorm.G[Blob](
 		r.db,
 		clause.OnConflict{UpdateAll: true},
-	).Create(context.Background(), &Blob{
+	).Create(r.ctx, &Blob{
 		Did:      did,
 		Cid:      cid.String(),
 		MimeType: mimeType,
@@ -131,7 +147,7 @@ func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, erro
 		return nil, err
 	}
 
-	return &blob{
+	return &BlobRef{
 		Ref:      atdata.CIDLink(cid),
 		MimeType: mimeType,
 		Size:     int64(len(data)),
@@ -140,13 +156,13 @@ func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, erro
 
 // getBlob gets a blob. this is never exposed to the server, because blobs can only be resolved via records that link them (see LexLink)
 // besides exceptional cases like data migration which we do not support right now.
-func (r *repo) getBlob(
+func (r *repo) GetBlob(
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
 	row, err := gorm.G[Blob](
 		r.db,
-	).Where("did = ? and cid = ?", did, cid).First(context.Background())
+	).Where("did = ? and cid = ?", did, cid).First(r.ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrRecordNotFound
 	} else if err != nil {
@@ -157,7 +173,7 @@ func (r *repo) getBlob(
 }
 
 // listRecords implements repo.
-func (r *repo) listRecords(
+func (r *repo) ListRecords(
 	did string,
 	collection string,
 	allow []string,
@@ -273,9 +289,28 @@ func (r *repo) listRecords(
 	query = query.Order("rkey ASC")
 
 	// Execute query
-	rows, err := query.Find(context.Background())
+	rows, err := query.Find(r.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	return rows, nil
+}
+
+func (r *repo) ListCliqueRecords(did string, clique string) ([]habitat_syntax.HabitatURI, error) {
+	records, err := gorm.G[Record](r.db.Debug()).
+		Select("did", "collection", "rkey").
+		Where("did = ?", did).
+		Where("clique = ?", clique).
+		Find(r.ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Construct the habiatat URIs from did, collection, rkey fields.
+	uris := make([]habitat_syntax.HabitatURI, len(records))
+	for i, record := range records {
+		uris[i] = habitat_syntax.ConstructHabitatUri(record.Did, record.Collection, record.Rkey)
+	}
+	return uris, nil
 }

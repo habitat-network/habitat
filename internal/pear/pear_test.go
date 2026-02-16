@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -44,7 +45,7 @@ func newPearForTest(t *testing.T, opts ...option) *Pear {
 		opt(o)
 	}
 
-	repo, err := NewRepo(db)
+	repo, err := repo.NewRepo(t.Context(), db)
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
