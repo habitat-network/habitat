@@ -32,8 +32,8 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -120,7 +120,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup user store")
 	}
 	oauthServer, oauthClient := setupOAuthServer(keyFile, domain, pdsCredStore, userStore)
-	pdsClientFactory := oauthclient.NewPDSClientFactory(
+	pdsClientFactory := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
 		identity.DefaultDirectory(),
@@ -231,7 +231,13 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPearServer(ctx context.Context, serviceName string, domain string, db *gorm.DB, oauthServer *oauthserver.OAuthServer) (*pear.Server, error) {
+func setupPearServer(
+	ctx context.Context,
+	serviceName string,
+	domain string,
+	db *gorm.DB,
+	oauthServer *oauthserver.OAuthServer,
+) (*pear.Server, error) {
 	repo, err := pear.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
@@ -256,7 +262,7 @@ func setupOAuthServer(
 	keyFile, domain string,
 	credStore pdscred.PDSCredentialStore,
 	userStore userstore.UserStore,
-) (*oauthserver.OAuthServer, oauthclient.OAuthClient) {
+) (*oauthserver.OAuthServer, pdsclient.PdsOAuthClient) {
 	var jwkBytes []byte
 	_, err := os.Stat(keyFile)
 	if err != nil {
@@ -296,7 +302,7 @@ func setupOAuthServer(
 	if err != nil {
 		log.Fatal().Err(err).Msgf("failed to unmarshal JWK")
 	}
-	oauthClient := oauthclient.NewOAuthClient(
+	oauthClient := pdsclient.NewPdsOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
 		"https://"+domain+"/oauth-callback",       /*redirectUri*/
