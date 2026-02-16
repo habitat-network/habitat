@@ -30,7 +30,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/sessions"
-	"github.com/habitat-network/habitat/internal/authmethods"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/oauthclient"
@@ -256,7 +256,7 @@ func setupPearServer(
 
 	dir := identity.DefaultDirectory()
 	p := pear.NewPear(ctx, domain, serviceName, dir, permissions, repo, inbox)
-	return pear.NewServer(dir, p, oauthServer, authmethods.NewServiceAuthMethod(dir)), nil
+	return pear.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
 }
 
 func setupOAuthServer(
