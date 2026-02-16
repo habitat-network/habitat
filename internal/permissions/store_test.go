@@ -1,6 +1,7 @@
 package permissions
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -293,4 +294,170 @@ func TestPermissionStoreEmptyGrantees(t *testing.T) {
 
 	err = store.AddReadPermission([]string{}, "alice", "network.habitat.posts")
 	require.Error(t, err)
+}
+
+func TestStoreListFullAccessOwnersForGranteeCollection(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+
+	t.Run("returns empty when no permissions exist", func(t *testing.T) {
+		owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.Empty(t, owners)
+	})
+
+	t.Run("returns owners with exact collection match", func(t *testing.T) {
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", collection))
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "charlie", collection))
+
+		owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.Len(t, owners, 2)
+		require.Contains(t, owners, "alice")
+		require.Contains(t, owners, "charlie")
+	})
+
+	t.Run("returns owners with parent wildcard match", func(t *testing.T) {
+		// Create wildcard permission directly (stored as "network.habitat.*")
+		wildcardPermission := Permission{
+			Grantee: grantee,
+			Owner:   "david",
+			Object:  "network.habitat.*",
+			Effect:  "allow",
+		}
+		require.NoError(t, db.Create(&wildcardPermission).Error)
+
+		owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.Contains(t, owners, "david", "parent wildcard should match child collection")
+	})
+
+	t.Run("does not return owners with specific record permissions", func(t *testing.T) {
+		// Grant specific record permission (not full collection)
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "eve", fmt.Sprintf("%s.record1", collection)))
+
+		owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.NotContains(t, owners, "eve", "specific record permission should not grant full access")
+	})
+
+	t.Run("does not return owners for different collections", func(t *testing.T) {
+		otherCollection := "network.habitat.likes"
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "frank", otherCollection))
+
+		owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.NotContains(t, owners, "frank", "permission for different collection should not match")
+	})
+
+	t.Run("filters by grantee", func(t *testing.T) {
+		otherGrantee := "charlie"
+		require.NoError(t, store.AddReadPermission([]string{otherGrantee}, "grace", collection))
+
+		owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.NotContains(t, owners, "grace", "permissions for other grantee should not be included")
+	})
+}
+
+func TestStoreListSpecificRecordsForGranteeCollection(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+
+	t.Run("returns empty when no permissions exist", func(t *testing.T) {
+		records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.Empty(t, records)
+	})
+
+	t.Run("returns specific record permissions", func(t *testing.T) {
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", fmt.Sprintf("%s.record1", collection)))
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", fmt.Sprintf("%s.record2", collection)))
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "charlie", fmt.Sprintf("%s.record3", collection)))
+
+		records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		require.Len(t, records, 3)
+
+		// Check alice's records
+		aliceRecords := []RecordPermission{}
+		for _, r := range records {
+			if r.Owner == "alice" {
+				aliceRecords = append(aliceRecords, r)
+			}
+		}
+		require.Len(t, aliceRecords, 2)
+		require.Contains(t, []string{aliceRecords[0].Rkey, aliceRecords[1].Rkey}, "record1")
+		require.Contains(t, []string{aliceRecords[0].Rkey, aliceRecords[1].Rkey}, "record2")
+
+		// Check charlie's record
+		charlieRecords := []RecordPermission{}
+		for _, r := range records {
+			if r.Owner == "charlie" {
+				charlieRecords = append(charlieRecords, r)
+			}
+		}
+		require.Len(t, charlieRecords, 1)
+		require.Equal(t, "record3", charlieRecords[0].Rkey)
+	})
+
+	t.Run("does not return full collection permissions", func(t *testing.T) {
+		// Grant full collection permission (not specific record)
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "david", collection))
+
+		records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		// Should not include david's full collection permission
+		for _, r := range records {
+			require.NotEqual(t, "david", r.Owner, "full collection permission should not be in specific records list")
+		}
+	})
+
+	t.Run("does not return permissions for different collections", func(t *testing.T) {
+		otherCollection := "network.habitat.likes"
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "eve", fmt.Sprintf("%s.record1", otherCollection)))
+
+		records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		// Should not include records from other collection
+		for _, r := range records {
+			require.NotEqual(t, "eve", r.Owner, "permissions for different collection should not be included")
+		}
+	})
+
+	t.Run("filters by grantee", func(t *testing.T) {
+		otherGrantee := "charlie"
+		require.NoError(t, store.AddReadPermission([]string{otherGrantee}, "frank", fmt.Sprintf("%s.record4", collection)))
+
+		records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		// Should not include permissions for other grantee
+		for _, r := range records {
+			require.NotEqual(t, "frank", r.Owner, "permissions for other grantee should not be included")
+		}
+	})
+
+	t.Run("handles parent wildcard permissions correctly", func(t *testing.T) {
+		// Parent wildcard should not be returned as specific record
+		require.NoError(t, store.AddReadPermission([]string{grantee}, "grace", "network.habitat"))
+
+		records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+		require.NoError(t, err)
+		// Should not include parent wildcard as specific record
+		for _, r := range records {
+			require.NotEqual(t, "grace", r.Owner, "parent wildcard should not be in specific records list")
+		}
+	})
 }
