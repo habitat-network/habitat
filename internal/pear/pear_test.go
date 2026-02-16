@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -49,7 +50,7 @@ func newPearForTest(t *testing.T, opts ...option) *Pear {
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
-	p := NewPear(t.Context(), testServiceEndpoint, testServiceName, o.dir, permissions, repo, inbox)
+	p := NewPear(t.Context(), testServiceEndpoint, testServiceName, o.dir, xrpcchannel.NewDummy(), permissions, repo, inbox)
 	return p
 }
 

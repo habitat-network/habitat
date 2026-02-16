@@ -1,15 +1,20 @@
 package pear
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/habitat-network/habitat/internal/xrpcchannel"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -25,6 +30,9 @@ type Pear struct {
 	// The service name for habitat in the DID doc (different for dev / production)
 	serviceName string
 	dir         identity.Directory
+
+	// Channel on which to forward xrpc requests to other pear nodes.
+	xrpcCh xrpcchannel.XrpcChannel
 
 	// Backing for permissions
 	permissions permissions.Store
@@ -48,6 +56,7 @@ func NewPear(
 	domain string,
 	serviceName string,
 	dir identity.Directory,
+	xrpcCh xrpcchannel.XrpcChannel,
 	perms permissions.Store,
 	repo repo.Repo,
 	inbox inbox.Inbox,
@@ -57,6 +66,7 @@ func NewPear(
 		url:         "https://" + domain, // We use https
 		serviceName: serviceName,
 		dir:         dir,
+		xrpcCh:      xrpcCh,
 		permissions: perms,
 		repo:        repo,
 		inbox:       inbox,
@@ -180,16 +190,35 @@ func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.Habit
 	if err != nil {
 		return err
 	}
-	if !ok {
-		// TODO: fill me in
-	}
 
-	// Otherwise, ensure that this item is indexed by the clique owner.
 	did, collection, rkey, err := itemURI.ExtractParts()
 	if err != nil {
 		return err
 	}
+	if !ok {
+		update := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{
+			Clique:     string(cliqueURI),
+			Collection: collection.String(),
+			Recipient:  string(cliqueDID),
+			Rkey:       rkey.String(),
+		}
+		buf := new(bytes.Buffer)
+		err := json.NewEncoder(buf).Encode(update)
+		if err != nil {
+			return err
+		}
 
+		req, err := http.NewRequest(http.MethodPost, "/xrpc/network.habitat.notifyOfUpdate", buf)
+		_, err = p.xrpcCh.SendXRPC(
+			ctx,
+			did,
+			cliqueDID,
+			req,
+		)
+		return nil
+	}
+
+	// Otherwise, ensure that this item is indexed by the clique owner.
 	// If the clique + item owners are the same, no need to take action since the item is indexed by way of the clique repo.
 	if did == cliqueDID {
 		// Nothing to do, return.

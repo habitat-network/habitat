@@ -34,6 +34,7 @@ import (
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/userstore"
+	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/urfave/cli/v3"
 )
 
@@ -121,7 +122,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	serviceName := cmd.String(fServiceName)
-	pearServer, err := setupPearServer(ctx, serviceName, domain, db, oauthServer)
+	pearServer, err := setupPearServer(ctx, serviceName, domain, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
@@ -132,20 +133,23 @@ func run(_ context.Context, cmd *cli.Command) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	mux := http.NewServeMux()
 
-	// auth routes
+	// auth-related routes
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 
-	// pear routes
+	// record-related routes
 	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
+	mux.HandleFunc("/xrpc/network.habitat.notifyOfUpdate", pearServer.NotifyOfUpdate)
 
+	// blob-related routes
 	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
 
+	// permission-related routes
 	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
@@ -231,6 +235,7 @@ func setupPearServer(
 	domain string,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
+	pdsClientFactory oauthclient.PDSClientFactory,
 ) (*pear.Server, error) {
 	repo, err := repo.NewRepo(ctx, db)
 	if err != nil {
@@ -248,7 +253,9 @@ func setupPearServer(
 	}
 
 	dir := identity.DefaultDirectory()
-	p := pear.NewPear(ctx, domain, serviceName, dir, permissions, repo, inbox)
+	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, pdsClientFactory, dir)
+
+	p := pear.NewPear(ctx, domain, serviceName, dir, xrpcCh, permissions, repo, inbox)
 	return pear.NewServer(dir, p, oauthServer), nil
 }
 
