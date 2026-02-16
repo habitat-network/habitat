@@ -24,6 +24,8 @@ export interface InputSchema {
   collection: string
   /** The record key which was updated. */
   rkey: string
+  /** The clique to which this record belongs, if any. */
+  clique?: string
 }
 
 export interface CallOptions {

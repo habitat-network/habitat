@@ -761,6 +761,10 @@ export const schemaDict = {
                 type: 'string',
                 description: 'The record key which was updated.',
               },
+              clique: {
+                type: 'string',
+                description: 'The clique to which this record belongs, if any.',
+              },
             },
           },
         },
