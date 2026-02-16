@@ -9,7 +9,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
-	"github.com/rs/zerolog/log"
 )
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -82,14 +81,6 @@ func (p *Pear) getRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
-	has, err := p.hasRepoForDid(targetDID)
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, ErrNotLocalRepo
-	}
-
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
 		callerDID.String(),
@@ -115,29 +106,8 @@ func (p *Pear) listRecords(
 	callerDID syntax.DID,
 ) ([]Record, error) {
 	var allRecords []Record
-	// Step 1: Check if the requested repo exists (only validate if params.Repo is different from caller and is a valid DID)
-	if did != callerDID {
-		// Try to parse as DID - if it fails, assume it's the caller's repo (for backward compatibility)
-		hasRequestedRepo, err := p.hasRepoForDid(did)
-		if err != nil {
-			// If DID not found, return error
-			return nil, err
-		}
-		if !hasRequestedRepo {
-			return nil, ErrNotLocalRepo
-		}
-		// If params.Repo doesn't parse as a DID, we'll assume it's valid and continue
-		// (for backward compatibility with tests that use simple strings)
-	}
 
-	// Step 2: Get records from caller's own repo (if it exists locally)
-	hasOwnRepo, err := p.hasRepoForDid(callerDID)
-	if err != nil {
-		return nil, err
-	}
-	if !hasOwnRepo {
-		return nil, ErrNotLocalRepo
-	}
+	// Step 2: Get records from caller's own repo
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
 		did.String(),
 		callerDID.String(),
@@ -153,70 +123,45 @@ func (p *Pear) listRecords(
 	}
 	allRecords = append(allRecords, ownRecords...)
 
-	// Step 3: Query notifications JOINed with records table
-	// This automatically filters out notifications without corresponding records
-	var joinedResults []struct {
-		inbox.Notification
-		Record
-	}
-
-	err = p.repo.db.Table("notifications").
-		Select("notifications.*, records.*").
-		Joins("INNER JOIN records ON notifications.sender = records.did AND notifications.collection = records.collection AND notifications.rkey = records.rkey").
-		Where("notifications.recipient = ?", callerDID.String()).
-		Where("notifications.collection = ?", collection).
-		Find(&joinedResults).Error
+	// Step 3: Query permissions store to get two lists:
+	// 1. Users with full collection access
+	// 2. Specific records with direct permissions
+	fullAccessOwners, err := p.permissions.ListFullAccessOwnersForGranteeCollection(callerDID.String(), collection)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query notifications with records: %w", err)
+		return nil, err
 	}
 
-	// Step 4: For each joined result, check if Sender is local and check permissions
-	for _, result := range joinedResults {
-		originDid := syntax.DID(result.Sender)
+	specificRecords, err := p.permissions.ListSpecificRecordsForGranteeCollection(callerDID.String(), collection)
+	if err != nil {
+		return nil, err
+	}
 
-		// Check if the record owner is on the same node
-		hasLocalRepo, err := p.hasRepoForDid(originDid)
-		if err != nil {
-			// If DID not found, skip this record (it's from a different node)
-			if errors.Is(err, identity.ErrDIDNotFound) {
-				log.Warn().
-					Str("originDid", originDid.String()).
-					Str("collection", result.Notification.Collection).
-					Str("rkey", result.Notification.Rkey).
-					Msg("skipping record from different node (DID not found)")
-				continue
-			}
-			return nil, err
-		}
-
-		if !hasLocalRepo {
-			// Record is on a different node - log warning and skip
-			log.Warn().
-				Str("originDid", originDid.String()).
-				Str("collection", result.Notification.Collection).
-				Str("rkey", result.Notification.Rkey).
-				Msg("skipping record from different node (cross-node fetching not yet implemented)")
-			continue
-		}
-
-		// Record is on the same node - check permissions
-		authz, err := p.permissions.HasPermission(
-			callerDID.String(),
-			originDid.String(),
-			result.Notification.Collection,
-			result.Notification.Rkey,
-		)
+	// Step 4: Query all records for owners with full collection access in a single query
+	if len(fullAccessOwners) > 0 {
+		ownerRecords, err := p.repo.listRecordsByOwners(fullAccessOwners, collection)
 		if err != nil {
 			return nil, err
 		}
+		allRecords = append(allRecords, ownerRecords...)
+	}
 
-		if !authz {
-			// User doesn't have permission for this record - skip it
-			continue
+	// Step 5: Query all specific records in a single query
+	if len(specificRecords) > 0 {
+		recordPairs := make([]struct {
+			Owner string
+			Rkey  string
+		}, len(specificRecords))
+		for i, recordPerm := range specificRecords {
+			recordPairs[i] = struct {
+				Owner string
+				Rkey  string
+			}{Owner: recordPerm.Owner, Rkey: recordPerm.Rkey}
 		}
-
-		// Add the record to results
-		allRecords = append(allRecords, result.Record)
+		specificRecordsResult, err := p.repo.listSpecificRecords(collection, recordPairs)
+		if err != nil {
+			return nil, err
+		}
+		allRecords = append(allRecords, specificRecordsResult...)
 	}
 
 	return allRecords, nil

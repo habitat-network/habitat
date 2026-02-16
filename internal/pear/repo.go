@@ -279,3 +279,50 @@ func (r *repo) listRecords(
 	}
 	return rows, nil
 }
+
+// listRecordsByOwners queries records from multiple owners for a given collection
+func (r *repo) listRecordsByOwners(ownerDIDs []string, collection string) ([]Record, error) {
+	if len(ownerDIDs) == 0 {
+		return []Record{}, nil
+	}
+
+	query := gorm.G[Record](r.db).
+		Where("did IN ?", ownerDIDs).
+		Where("collection = ?", collection).
+		Order("did ASC, rkey ASC")
+
+	records, err := query.Find(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to query records by owners: %w", err)
+	}
+	return records, nil
+}
+
+// listSpecificRecords queries specific records by a list of (did, rkey) pairs for a given collection
+// recordPairs is a slice of structs with Owner and Rkey fields
+func (r *repo) listSpecificRecords(collection string, recordPairs []struct{ Owner, Rkey string }) ([]Record, error) {
+	if len(recordPairs) == 0 {
+		return []Record{}, nil
+	}
+
+	// Build OR conditions for (did, rkey) pairs
+	// Format: (did = owner1 AND rkey = rkey1) OR (did = owner2 AND rkey = rkey2) OR ...
+	query := gorm.G[Record](r.db).
+		Where("collection = ?", collection)
+
+	// Build OR conditions using GORM's Or method
+	if len(recordPairs) > 0 {
+		query = query.Where("(did = ? AND rkey = ?)", recordPairs[0].Owner, recordPairs[0].Rkey)
+		for i := 1; i < len(recordPairs); i++ {
+			query = query.Or("(did = ? AND rkey = ?)", recordPairs[i].Owner, recordPairs[i].Rkey)
+		}
+	}
+
+	query = query.Order("did ASC, rkey ASC")
+
+	records, err := query.Find(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to query specific records: %w", err)
+	}
+	return records, nil
+}
