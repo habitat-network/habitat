@@ -7,17 +7,20 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetClient(t *testing.T) {
+	secret, err := encrypt.GenerateKey()
+	secretBytes, err := encrypt.ParseKey(secret)
+	strat, err := newStrategy(
+		secretBytes,
+		&fosite.Config{})
+	require.NoError(t, err)
 	store := newStore(
-		newStrategy(
-			&jose.JSONWebKey{},
-			[]byte("test-secret"),
-			&fosite.Config{}),
+		strat,
 	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
