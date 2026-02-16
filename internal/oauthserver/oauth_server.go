@@ -14,8 +14,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/go-jose/go-jose/v3"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/userstore"
@@ -72,19 +72,25 @@ type OAuthServer struct {
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
-	jwk *jose.JSONWebKey,
+	secret string,
 	oauthClient oauthclient.OAuthClient,
 	sessionStore sessions.Store,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
 	userStore userstore.UserStore,
-) *OAuthServer {
-	secret := []byte("my super secret signing password")
+) (*OAuthServer, error) {
+	secretBytes, err := encrypt.ParseKey(secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse secret: %w", err)
+	}
 	config := &fosite.Config{
-		GlobalSecret:               secret,
+		GlobalSecret:               secretBytes,
 		SendDebugMessagesToClients: true,
 	}
-	strategy := newStrategy(jwk, secret, config)
+	strategy, err := newStrategy(secretBytes, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create strategy: %w", err)
+	}
 	storage := newStore(strategy)
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
@@ -104,7 +110,7 @@ func NewOAuthServer(
 		oauthClient:  oauthClient,
 		sessionStore: sessionStore,
 		directory:    directory,
-	}
+	}, nil
 }
 
 // HandleAuthorize processes OAuth 2.0 authorization requests from the client.
@@ -352,7 +358,11 @@ func (o *OAuthServer) Validate(
 	if err != nil {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
-		utils.WriteHTTPError(w, fmt.Errorf("invalid or expired token: %w", err), http.StatusUnauthorized)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("invalid or expired token: %w", err),
+			http.StatusUnauthorized,
+		)
 		return "", false
 	}
 	// Get the DID from the session subject (stored in JWT)
