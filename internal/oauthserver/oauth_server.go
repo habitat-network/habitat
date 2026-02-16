@@ -16,7 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/gorilla/sessions"
-	"github.com/habitat-network/habitat/internal/authmethods"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/userstore"
@@ -337,7 +337,7 @@ func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-var _ authmethods.Method = (*OAuthServer)(nil)
+var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
 	return r.Header.Get("Habitat-Auth-Method") == "oauth"
