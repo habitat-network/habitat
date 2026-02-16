@@ -16,8 +16,8 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
@@ -40,7 +40,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to setup user store")
 
 	// setup oauth server
-	clientMetadata := &oauthclient.ClientMetadata{}
+	clientMetadata := &pdsclient.ClientMetadata{}
 	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 
@@ -57,7 +57,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		},
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
-		oauthclient.NewDummyDirectory("http://pds.url"),
+		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 		userStore,
 	)
@@ -103,7 +103,7 @@ func TestOAuthServerE2E(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&oauthclient.ClientMetadata{
+				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
 					ClientId:      "http://" + r.Host + "/client-metadata.json",
 					RedirectUris:  []string{"http://" + r.Host + "/callback"},
 					ResponseTypes: []string{"code"},

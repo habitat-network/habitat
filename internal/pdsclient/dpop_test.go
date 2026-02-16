@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"crypto/ecdsa"
@@ -259,7 +259,7 @@ func TestAuthedDpopHttpClient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	clientFactory := NewPDSClientFactory(testPdsCredStore(t, jwt.Claims{
+	clientFactory := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
 		Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
 	}), testOAuthClient(t), NewDummyDirectory(server.URL))
 
@@ -284,7 +284,7 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	server := fakeAuthServer(map[string]any{})
 	defer server.Close()
 
-	clientFactory := NewPDSClientFactory(testPdsCredStore(t, jwt.Claims{
+	clientFactory := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
 		Issuer: "https://example.com",
 		Expiry: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
 	}), testOAuthClient(t), NewDummyDirectory(server.URL))

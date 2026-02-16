@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"testing"
@@ -17,7 +17,13 @@ func TestDoesHandleBelongToDomain(t *testing.T) {
 	for _, test := range tests {
 		got := doesHandleBelongToDomain(test.handle, test.domain)
 		if got != test.want {
-			t.Errorf("doesHandleBelongToDomain(%q, %q) = %v, want %v", test.handle, test.domain, got, test.want)
+			t.Errorf(
+				"doesHandleBelongToDomain(%q, %q) = %v, want %v",
+				test.handle,
+				test.domain,
+				got,
+				test.want,
+			)
 		}
 	}
 }

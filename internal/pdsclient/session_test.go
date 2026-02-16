@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"net/http/httptest"

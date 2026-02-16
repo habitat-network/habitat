@@ -16,7 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/gorilla/sessions"
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -37,8 +37,8 @@ const (
 type authRequestFlash struct {
 	Form           url.Values // Original authorization request form data
 	DpopKey        []byte
-	AuthorizeState *oauthclient.AuthorizeState // AT Protocol authorization state
-	Did            syntax.DID                  // DID of the user
+	AuthorizeState *pdsclient.AuthorizeState // AT Protocol authorization state
+	Did            syntax.DID                // DID of the user
 }
 
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
@@ -49,7 +49,7 @@ type OAuthServer struct {
 	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
 	userStore    userstore.UserStore        // Store for managing users
 	sessionStore sessions.Store             // Session storage for authorization flow state
-	oauthClient  oauthclient.OAuthClient    // Client for communicating with AT Protocol services
+	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
 }
 
@@ -73,7 +73,7 @@ type OAuthServer struct {
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
 	jwk *jose.JSONWebKey,
-	oauthClient oauthclient.OAuthClient,
+	oauthClient pdsclient.PdsOAuthClient,
 	sessionStore sessions.Store,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
@@ -88,7 +88,7 @@ func NewOAuthServer(
 	storage := newStore(strategy)
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
-	gob.Register(oauthclient.AuthorizeState{})
+	gob.Register(pdsclient.AuthorizeState{})
 	return &OAuthServer{
 		provider: compose.Compose(
 			config,
@@ -152,7 +152,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to generate key", http.StatusInternalServerError)
 		return
 	}
-	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &oauthclient.MemoryNonceProvider{})
+	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	redirect, state, err := o.oauthClient.Authorize(dpopClient, id)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -234,7 +234,7 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
 		return
 	}
-	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &oauthclient.MemoryNonceProvider{})
+	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	tokenInfo, err := o.oauthClient.ExchangeCode(
 		dpopClient,
 		r.URL.Query().Get("code"),
@@ -352,7 +352,11 @@ func (o *OAuthServer) Validate(
 	if err != nil {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
-		utils.WriteHTTPError(w, fmt.Errorf("invalid or expired token: %w", err), http.StatusUnauthorized)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("invalid or expired token: %w", err),
+			http.StatusUnauthorized,
+		)
 		return "", false
 	}
 	// Get the DID from the session subject (stored in JWT)

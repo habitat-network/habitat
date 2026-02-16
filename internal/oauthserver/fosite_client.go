@@ -3,12 +3,12 @@ package oauthserver
 import (
 	"strings"
 
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 )
 
 type client struct {
-	oauthclient.ClientMetadata
+	pdsclient.ClientMetadata
 }
 
 var _ fosite.Client = (*client)(nil)

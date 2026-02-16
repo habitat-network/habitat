@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"encoding/json"

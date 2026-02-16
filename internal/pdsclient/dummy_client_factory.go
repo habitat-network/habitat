@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"context"
@@ -16,16 +16,16 @@ func NewDummyClientFactory(pdsUrl string) *DummyClientFactory {
 	return &DummyClientFactory{pdsUrl}
 }
 
-var _ PDSClientFactory = &DummyClientFactory{}
+var _ HttpClientFactory = &DummyClientFactory{}
 
-// NewClient implements [PDSClientFactory].
-func (d *DummyClientFactory) NewClient(ctx context.Context, did syntax.DID) (PDSClient, error) {
+// NewClient implements [HttpClientFactory].
+func (d *DummyClientFactory) NewClient(ctx context.Context, did syntax.DID) (HttpClient, error) {
 	return &dummyClient{d.pdsUrl}, nil
 }
 
 type dummyClient struct{ pdsUrl string }
 
-// Do implements [PDSClient].
+// Do implements [HttpClient].
 func (d *dummyClient) Do(req *http.Request) (*http.Response, error) {
 	pdsUrl, err := url.Parse(d.pdsUrl)
 	if err != nil {

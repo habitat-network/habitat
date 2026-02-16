@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -54,7 +54,7 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 		return nil, fmt.Errorf("failed to fetch client metadata: status %d", resp.StatusCode)
 	}
 
-	var metadata oauthclient.ClientMetadata
+	var metadata pdsclient.ClientMetadata
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode client metadata: %w", err)

@@ -8,7 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 )
 
 type XrpcChannel interface {
@@ -23,12 +23,12 @@ type XrpcChannel interface {
 type serviceProxyXrpcChannel struct {
 	serviceName   string
 	directory     identity.Directory
-	clientFactory oauthclient.PDSClientFactory
+	clientFactory pdsclient.HttpClientFactory
 }
 
 func NewServiceProxyXrpcChannel(
 	serviceName string,
-	clientFactory oauthclient.PDSClientFactory,
+	clientFactory pdsclient.HttpClientFactory,
 	directory identity.Directory,
 ) XrpcChannel {
 	return &serviceProxyXrpcChannel{

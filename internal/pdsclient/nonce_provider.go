@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 // This simple implementation stores a single nonce value in memory.
 type MemoryNonceProvider struct{ nonce string }

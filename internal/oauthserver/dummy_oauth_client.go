@@ -7,17 +7,17 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
 type dummyOAuthClient struct {
-	metadata *oauthclient.ClientMetadata
+	metadata *pdsclient.ClientMetadata
 	server   *httptest.Server
 	t        *testing.T
 }
 
-func NewDummyOAuthClient(t *testing.T, metadata *oauthclient.ClientMetadata) *dummyOAuthClient {
+func NewDummyOAuthClient(t *testing.T, metadata *pdsclient.ClientMetadata) *dummyOAuthClient {
 	client := &dummyOAuthClient{
 		metadata: metadata,
 		t:        t,
@@ -40,17 +40,17 @@ func NewDummyOAuthClient(t *testing.T, metadata *oauthclient.ClientMetadata) *du
 	return client
 }
 
-var _ oauthclient.OAuthClient = (*dummyOAuthClient)(nil)
+var _ pdsclient.PdsOAuthClient = (*dummyOAuthClient)(nil)
 
 // Authorize implements OAuthClient.
 func (d *dummyOAuthClient) Authorize(
-	_ *oauthclient.DpopHttpClient,
+	_ *pdsclient.DpopHttpClient,
 	i *identity.Identity,
-) (string, *oauthclient.AuthorizeState, error) {
+) (string, *pdsclient.AuthorizeState, error) {
 	q := url.Values{
 		"redirect_uri": []string{d.metadata.RedirectUris[0]},
 	}
-	return d.server.URL + "/authorize?" + q.Encode(), &oauthclient.AuthorizeState{
+	return d.server.URL + "/authorize?" + q.Encode(), &pdsclient.AuthorizeState{
 		Verifier:      "dummyVerifier",
 		State:         "dummyState",
 		TokenEndpoint: d.server.URL + "/token",
@@ -58,21 +58,21 @@ func (d *dummyOAuthClient) Authorize(
 }
 
 // ClientMetadata implements OAuthClient.
-func (d *dummyOAuthClient) ClientMetadata() *oauthclient.ClientMetadata {
+func (d *dummyOAuthClient) ClientMetadata() *pdsclient.ClientMetadata {
 	return d.metadata
 }
 
 // ExchangeCode implements OAuthClient.
 func (d *dummyOAuthClient) ExchangeCode(
-	dpopClient *oauthclient.DpopHttpClient,
+	dpopClient *pdsclient.DpopHttpClient,
 	code string,
 	issuer string,
-	state *oauthclient.AuthorizeState,
-) (*oauthclient.TokenResponse, error) {
+	state *pdsclient.AuthorizeState,
+) (*pdsclient.TokenResponse, error) {
 	require.Equal(d.t, "dummyCode", code)
 	require.Equal(d.t, "dummyState", state.State)
 	require.Equal(d.t, "dummyVerifier", state.Verifier)
-	return &oauthclient.TokenResponse{
+	return &pdsclient.TokenResponse{
 		AccessToken:  "dummy_access_token",
 		RefreshToken: "dummy_refresh_token",
 		TokenType:    "DPoP",
@@ -83,13 +83,13 @@ func (d *dummyOAuthClient) ExchangeCode(
 
 // RefreshToken implements OAuthClient.
 func (d *dummyOAuthClient) RefreshToken(
-	dpopClient *oauthclient.DpopHttpClient,
+	dpopClient *pdsclient.DpopHttpClient,
 	identity *identity.Identity,
 	issuer string,
 	refreshToken string,
-) (*oauthclient.TokenResponse, error) {
+) (*pdsclient.TokenResponse, error) {
 	require.Equal(d.t, "dummy_refresh_token", refreshToken)
-	return &oauthclient.TokenResponse{
+	return &pdsclient.TokenResponse{
 		AccessToken:  "dummy_refreshed_access_token",
 		RefreshToken: "dummy_refresh_token",
 		TokenType:    "DPoP",
