@@ -55,14 +55,14 @@ func (d *DummyDirectory) getIdentity(did string) *identity.Identity {
 			"atproto_pds": {
 				URL: d.pdsUrl,
 			},
+			"habitat": {
+				URL: "https://habitat.network",
+			},
 		},
 		Keys: map[string]identity.VerificationMethod{
 			"atproto": {
 				Type:               "Multikey",
 				PublicKeyMultibase: publicKey.Multibase(),
-			},
-			"habitat": {
-				URL: "https://habitat.network",
 			},
 		},
 	}
