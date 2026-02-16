@@ -516,7 +516,12 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.pear.notifyOfUpdate(r.Context(), callerDID, syntax.DID(req.Recipient), req.Collection, req.Rkey)
+	var clique *string
+	if req.Clique != "" {
+		clique = &req.Clique
+	}
+
+	err = s.pear.notifyOfUpdate(r.Context(), callerDID, syntax.DID(req.Recipient), req.Collection, req.Rkey, clique)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
 		return

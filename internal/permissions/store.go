@@ -1,10 +1,13 @@
 package permissions
 
 import (
+	"context"
 	"fmt"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type Store interface {
@@ -30,6 +33,7 @@ type Store interface {
 		requester string,
 		nsid string,
 	) (allow []string, deny []string, err error)
+	ListAllowedRecordsByGrantee(ctx context.Context, caller string, grantee string) ([]habitat_syntax.HabitatURI, error)
 }
 
 type store struct {
@@ -213,4 +217,24 @@ func (s *store) ListReadPermissionsByUser(
 	}
 
 	return allows, denies, nil
+}
+
+func (s *store) ListAllowedRecordsByGrantee(ctx context.Context, caller string, grantee string) ([]habitat_syntax.HabitatURI, error) {
+	permissions, err := gorm.G[Permission](s.db.Debug()).
+		Select("owner", "object").
+		Where("grantee = ? AND owner = ?", grantee, caller).
+		Find(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	uris := make([]habitat_syntax.HabitatURI, len(permissions))
+	for i, p := range permissions {
+		// TODO: call ConstructHabitatURI after refactor of this table
+		// TODO: validate that the permission always includes a direct record (adding a whole collection to a clique is not supported.)
+		uris[i] = habitat_syntax.HabitatURI("habitat://" + p.Owner + p.Object)
+	}
+
+	return uris, nil
 }

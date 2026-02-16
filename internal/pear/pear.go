@@ -166,8 +166,8 @@ func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*repo.BlobR
 	return p.repo.UploadBlob(did, data, mimeType)
 }
 
-func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {
-	return p.inbox.PutNotification(ctx, sender, recipient, collection, rkey)
+func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string, clique *string) error {
+	return p.inbox.Put(ctx, sender, recipient, collection, rkey, clique)
 }
 
 func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.HabitatURI, itemURI habitat_syntax.HabitatURI) error {
@@ -197,11 +197,11 @@ func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.Habit
 	}
 
 	// Otherwise, ensure that that the item is discoverable by the clique owner via the inbox.
-	p.notifyOfUpdate(ctx, did, cliqueDID, collection.String(), rkey.String())
+	p.notifyOfUpdate(ctx, did, cliqueDID, collection.String(), rkey.String(), (*string)(&cliqueURI))
 	return nil
 }
 
-func (p *Pear) getCliqueItems(cliqueURI habitat_syntax.HabitatURI) ([]habitat_syntax.HabitatURI, error) {
+func (p *Pear) getCliqueItems(ctx context.Context, cliqueURI habitat_syntax.HabitatURI) ([]habitat_syntax.HabitatURI, error) {
 	cliqueDID, err := cliqueURI.Authority().AsDID()
 	if err != nil {
 		return nil, err
@@ -214,9 +214,20 @@ func (p *Pear) getCliqueItems(cliqueURI habitat_syntax.HabitatURI) ([]habitat_sy
 
 	// If the clique does not exist on this repo, then forward the request.
 	if !has {
-		// TODO: unimplemented
+		// TODO: unimplemented -- not sure when this would happen
 	}
 
 	// Otherwise, the clique exists on this repo, so fetch relevant rkeys from both the inbox and the repo of the owner did.
-	return p.repo.ListCliqueRecords(cliqueDID.String(), cliqueURI.String())
+	inboxURIs, err := p.inbox.GetCliqueItems(p.ctx, cliqueDID.String(), string(cliqueURI))
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the list of records that are granted the clique permissions from the permission store
+	uris, err := p.permissions.ListAllowedRecordsByGrantee(ctx, cliqueDID.String(), string(cliqueURI))
+	if err != nil {
+		return nil, err
+	}
+
+	return append(inboxURIs, uris...), nil
 }

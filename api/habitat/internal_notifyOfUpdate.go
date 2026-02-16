@@ -7,4 +7,5 @@ type NetworkHabitatInternalNotifyOfUpdateInput struct {
 	Collection string `json:"collection"`
 	Recipient  string `json:"recipient"`
 	Rkey       string `json:"rkey"`
+	Clique     string `json:"clique,omitempty"`
 }

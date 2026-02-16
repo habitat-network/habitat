@@ -31,7 +31,7 @@ func TestPutNotificationBasic(t *testing.T) {
 	rkey := "like-1"
 
 	// Put a notification
-	err := inb.PutNotification(ctx, sender, recipient, collection, rkey)
+	err := inb.Put(ctx, sender, recipient, collection, rkey, nil)
 	require.NoError(t, err)
 
 	// Verify it was stored with expected values
@@ -53,10 +53,10 @@ func TestPutNotificationMultipleSeparateKeys(t *testing.T) {
 	recipient, _ := syntax.ParseDID("did:plc:recipient456")
 
 	// Put multiple notifications with different keys
-	err := inb.PutNotification(ctx, sender, recipient, "app.bsky.feed.like", "like-1")
+	err := inb.Put(ctx, sender, recipient, "app.bsky.feed.like", "like-1", nil)
 	require.NoError(t, err)
 
-	err = inb.PutNotification(ctx, sender, recipient, "app.bsky.feed.repost", "repost-1")
+	err = inb.Put(ctx, sender, recipient, "app.bsky.feed.repost", "repost-1", nil)
 	require.NoError(t, err)
 
 	// Both notifications should exist
@@ -84,7 +84,7 @@ func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	rkey := "like-1"
 
 	// Put first notification
-	err := inb.PutNotification(ctx, sender, recipient, collection, rkey)
+	err := inb.Put(ctx, sender, recipient, collection, rkey, nil)
 	require.NoError(t, err)
 
 	// Get the first notification's UpdatedAt time
@@ -97,7 +97,7 @@ func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Put the same notification again (same sender, recipient, collection, rkey)
-	err = inb.PutNotification(ctx, sender, recipient, collection, rkey)
+	err = inb.Put(ctx, sender, recipient, collection, rkey, nil)
 	require.NoError(t, err)
 
 	// Verify only one notification exists (not duplicated)

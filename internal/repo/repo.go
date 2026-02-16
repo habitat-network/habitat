@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"gorm.io/gorm"
@@ -23,7 +22,6 @@ type Repo interface {
 	UploadBlob(did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	ListRecords(did string, collection string, allow []string, deny []string) ([]Record, error)
-	ListCliqueRecords(did string, clique string) ([]habitat_syntax.HabitatURI, error)
 }
 
 // Persist private data within repos that mirror public repos.
@@ -50,7 +48,6 @@ type Record struct {
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
 	Value      string
-	Clique     string `gorm:"index"`
 }
 
 type Blob struct {
@@ -294,23 +291,4 @@ func (r *repo) ListRecords(
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	return rows, nil
-}
-
-func (r *repo) ListCliqueRecords(did string, clique string) ([]habitat_syntax.HabitatURI, error) {
-	records, err := gorm.G[Record](r.db.Debug()).
-		Select("did", "collection", "rkey").
-		Where("did = ?", did).
-		Where("clique = ?", clique).
-		Find(r.ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// Construct the habiatat URIs from did, collection, rkey fields.
-	uris := make([]habitat_syntax.HabitatURI, len(records))
-	for i, record := range records {
-		uris[i] = habitat_syntax.ConstructHabitatUri(record.Did, record.Collection, record.Rkey)
-	}
-	return uris, nil
 }

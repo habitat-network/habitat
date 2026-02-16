@@ -5,12 +5,15 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type Inbox interface {
-	PutNotification(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
+	Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string, clique *string) error
+	GetCliqueItems(ctx context.Context, did string, clique string) ([]habitat_syntax.HabitatURI, error)
 }
 
 // Notification is a Gorm model for notifications.
@@ -23,7 +26,20 @@ type Notification struct {
 	Rkey       string `gorm:"primaryKey"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	Clique     string `gorm:"index"` // We want to be able to fetch notifications for a given clique
 }
+
+/*
+// TODO: We could possibly store habitat-uris rather than breaking up the collection, rkey fields. Unsure if this would be desriable for some reason.
+type NotificationV2 struct {
+	Sender    string `gorm:"primaryKey"`
+	Recipient string `gorm:"primaryKey"`
+	URI       string `gorm:"primaryKey"`
+	Clique    string `gorm:"index"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+*/
 
 type inbox struct {
 	db *gorm.DB
@@ -40,12 +56,15 @@ func New(db *gorm.DB) (Inbox, error) {
 	return &inbox{db}, nil
 }
 
-func (i *inbox) PutNotification(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {
+func (i *inbox) Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string, clique *string) error {
 	notification := &Notification{
 		Sender:     sender.String(),
 		Recipient:  recipient.String(),
 		Collection: collection,
 		Rkey:       rkey,
+	}
+	if clique != nil {
+		notification.Clique = *clique
 	}
 	notification.UpdatedAt = time.Now()
 
@@ -61,4 +80,24 @@ func (i *inbox) PutNotification(ctx context.Context, sender syntax.DID, recipien
 			DoUpdates: clause.AssignmentColumns([]string{"updated_at"}),
 		},
 	).Create(ctx, notification)
+}
+
+func (i *inbox) GetCliqueItems(ctx context.Context, did string, clique string) ([]habitat_syntax.HabitatURI, error) {
+	items, err := gorm.G[Notification](i.db.Debug()).
+		Select("sender", "collection", "rkey").
+		Where("recipient = ?", did).
+		Where("clique = ?", clique).
+		Find(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Construct the habiatat URIs from did, collection, rkey fields.
+	uris := make([]habitat_syntax.HabitatURI, len(items))
+	for i, item := range items {
+		uris[i] = habitat_syntax.ConstructHabitatUri(item.Sender, item.Collection, item.Rkey)
+	}
+
+	return uris, nil
 }
