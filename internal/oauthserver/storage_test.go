@@ -14,7 +14,9 @@ import (
 
 func TestGetClient(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
 	secretBytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
 	strat, err := newStrategy(
 		secretBytes,
 		&fosite.Config{})
