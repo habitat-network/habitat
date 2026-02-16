@@ -1,4 +1,4 @@
-package authmethods
+package authn
 
 import (
 	"net/http"

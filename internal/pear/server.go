@@ -15,14 +15,14 @@ import (
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authmethods"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type authMethods struct {
-	oauth       authmethods.Method
-	serviceAuth authmethods.Method
+	oauth       authn.Method
+	serviceAuth authn.Method
 }
 
 type Server struct {
@@ -39,7 +39,7 @@ func NewServer(
 	dir identity.Directory,
 	pear *Pear,
 	oauthServer *oauthserver.OAuthServer,
-	serviceAuthMethod authmethods.Method,
+	serviceAuthMethod authn.Method,
 ) *Server {
 	server := &Server{
 		dir:  dir,
@@ -110,7 +110,7 @@ func parseGrantees(grantees []interface{}) ([]grantee, error) {
 
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -244,7 +244,7 @@ func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, 
 
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -293,7 +293,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -376,7 +376,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -434,7 +434,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -453,7 +453,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -475,7 +475,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -493,7 +493,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authmethods.Validate(w, r, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
