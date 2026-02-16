@@ -61,6 +61,9 @@ func (d *DummyDirectory) getIdentity(did string) *identity.Identity {
 				Type:               "Multikey",
 				PublicKeyMultibase: publicKey.Multibase(),
 			},
+			"habitat": {
+				URL: "https://habitat.network",
+			},
 		},
 	}
 }
