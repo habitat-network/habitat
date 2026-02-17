@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -145,36 +144,6 @@ type errLookupDIDDirectory struct {
 
 func (d *errLookupDIDDirectory) LookupDID(_ context.Context, _ syntax.DID) (*identity.Identity, error) {
 	return nil, fmt.Errorf("simulated DID doc lookup failure")
-}
-
-// failingExchangeClient implements PdsOAuthClient with an Authorize that works but an
-// ExchangeCode that always returns an error, exercising the exchange failure path in HandleCallback.
-type failingExchangeClient struct {
-	metadata  *pdsclient.ClientMetadata
-	pdsServer *httptest.Server
-}
-
-func (c *failingExchangeClient) Authorize(
-	_ *pdsclient.DpopHttpClient, _ *identity.Identity,
-) (string, *pdsclient.AuthorizeState, error) {
-	q := url.Values{"redirect_uri": {c.metadata.RedirectUris[0]}}
-	return c.pdsServer.URL + "/authorize?" + q.Encode(), &pdsclient.AuthorizeState{
-		Verifier: "v", State: "s", TokenEndpoint: c.pdsServer.URL + "/token",
-	}, nil
-}
-
-func (c *failingExchangeClient) ClientMetadata() *pdsclient.ClientMetadata { return c.metadata }
-
-func (c *failingExchangeClient) ExchangeCode(
-	_ *pdsclient.DpopHttpClient, _, _ string, _ *pdsclient.AuthorizeState,
-) (*pdsclient.TokenResponse, error) {
-	return nil, fmt.Errorf("exchange code failed")
-}
-
-func (c *failingExchangeClient) RefreshToken(
-	_ *pdsclient.DpopHttpClient, _ *identity.Identity, _, _ string,
-) (*pdsclient.TokenResponse, error) {
-	return nil, fmt.Errorf("not implemented")
 }
 
 // newClientApp returns a test server that serves OAuth client metadata.
