@@ -127,6 +127,134 @@ func TestRepoListRecords(t *testing.T) {
 	require.Len(t, records, 0)
 }
 
+func TestListRecordsByOwnersDeprecated(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	coll := "test.collection"
+	val := map[string]any{"data": "value"}
+
+	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-1", val, nil)
+	require.NoError(t, err)
+	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-2", val, nil)
+	require.NoError(t, err)
+	_, err = repo.PutRecord(t.Context(), "did:bob", coll, "rkey-1", val, nil)
+	require.NoError(t, err)
+	_, err = repo.PutRecord(t.Context(), "did:carol", coll, "rkey-1", val, nil)
+	require.NoError(t, err)
+	// Record in a different collection — must not appear in results
+	_, err = repo.PutRecord(t.Context(), "did:alice", "other.collection", "rkey-1", val, nil)
+	require.NoError(t, err)
+
+	t.Run("returns empty for empty owner list", func(t *testing.T) {
+		records, err := repo.ListRecordsByOwnersDeprecated([]string{}, coll)
+		require.NoError(t, err)
+		require.Empty(t, records)
+	})
+
+	t.Run("returns all records for a single owner in the collection", func(t *testing.T) {
+		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:alice"}, coll)
+		require.NoError(t, err)
+		require.Len(t, records, 2)
+		for _, r := range records {
+			require.Equal(t, "did:alice", r.Did)
+			require.Equal(t, coll, r.Collection)
+		}
+	})
+
+	t.Run("returns records across multiple owners", func(t *testing.T) {
+		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:alice", "did:bob"}, coll)
+		require.NoError(t, err)
+		require.Len(t, records, 3)
+	})
+
+	t.Run("does not include records from other collections", func(t *testing.T) {
+		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:alice"}, coll)
+		require.NoError(t, err)
+		for _, r := range records {
+			require.Equal(t, coll, r.Collection)
+		}
+	})
+
+	t.Run("returns empty for owner with no records in the collection", func(t *testing.T) {
+		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:unknown"}, coll)
+		require.NoError(t, err)
+		require.Empty(t, records)
+	})
+}
+
+func TestListSpecificRecordsDeprecated(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	coll := "test.collection"
+	val := map[string]any{"data": "value"}
+
+	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-1", val, nil)
+	require.NoError(t, err)
+	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-2", val, nil)
+	require.NoError(t, err)
+	_, err = repo.PutRecord(t.Context(), "did:bob", coll, "rkey-1", val, nil)
+	require.NoError(t, err)
+	_, err = repo.PutRecord(t.Context(), "did:bob", coll, "rkey-2", val, nil)
+	require.NoError(t, err)
+	// Record in a different collection — must not appear in results
+	_, err = repo.PutRecord(t.Context(), "did:alice", "other.collection", "rkey-1", val, nil)
+	require.NoError(t, err)
+
+	type pair = struct{ Owner, Rkey string }
+
+	t.Run("returns empty for empty pairs list", func(t *testing.T) {
+		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{})
+		require.NoError(t, err)
+		require.Empty(t, records)
+	})
+
+	t.Run("returns a single specific record", func(t *testing.T) {
+		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:alice", "rkey-1"}})
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, "did:alice", records[0].Did)
+		require.Equal(t, "rkey-1", records[0].Rkey)
+	})
+
+	t.Run("returns specific records across multiple owners", func(t *testing.T) {
+		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{
+			{"did:alice", "rkey-1"},
+			{"did:bob", "rkey-2"},
+		})
+		require.NoError(t, err)
+		require.Len(t, records, 2)
+	})
+
+	t.Run("does not return other rkeys for the same owner", func(t *testing.T) {
+		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:alice", "rkey-1"}})
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+		require.Equal(t, "rkey-1", records[0].Rkey)
+	})
+
+	t.Run("does not include records from other collections", func(t *testing.T) {
+		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:alice", "rkey-1"}})
+		require.NoError(t, err)
+		for _, r := range records {
+			require.Equal(t, coll, r.Collection)
+		}
+	})
+
+	t.Run("returns empty for non-existent pair", func(t *testing.T) {
+		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:unknown", "rkey-1"}})
+		require.NoError(t, err)
+		require.Empty(t, records)
+	})
+}
+
 func TestRepoUploadAndGetBlob(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
