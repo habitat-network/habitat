@@ -83,7 +83,7 @@ func parseGrantees(grantees []interface{}) ([]string, error) {
 		}
 
 		switch granteeType {
-		case "network.habitat.repo.putRecord#didGrantee":
+		case "network.habitat.grantee#didGrantee":
 			did, ok := unknownGrantee["did"]
 			if !ok {
 				return nil, fmt.Errorf("malformatted did grantee has no did field: %v", unknownGrantee)
@@ -97,7 +97,7 @@ func parseGrantees(grantees []interface{}) ([]string, error) {
 				return nil, fmt.Errorf("malformed did grantee field: %s", asStr)
 			}
 			parsed[i] = asStr
-		case "network.habitat.repo.putRecord#cliqueRef":
+		case "network.habitat.grantee#cliqueRef":
 			uri, ok := unknownGrantee["uri"]
 			if !ok {
 				return nil, fmt.Errorf("malformatted clique grantee has no uri field: %v", unknownGrantee)
@@ -106,7 +106,7 @@ func parseGrantees(grantees []interface{}) ([]string, error) {
 			if !ok {
 				return nil, fmt.Errorf("malformatted clique grantee has non-string uri field: %v", unknownGrantee)
 			}
-			_, err := habitat_syntax.ParseHabitatURI(asStr)
+			_, err := habitat_syntax.ParseHabitatClique(asStr)
 			if err != nil {
 				return nil, fmt.Errorf("malformed habitat uri grantee field: %s", asStr)
 			}
