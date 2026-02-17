@@ -31,8 +31,7 @@ type Store interface {
 		requester string,
 		nsid string,
 	) (allow []string, deny []string, err error)
-	ListFullAccessOwnersForGranteeCollection(grantee string, collection string) ([]string, error)
-	ListSpecificRecordsForGranteeCollection(grantee string, collection string) ([]RecordPermission, error)
+	ListCrossRepoAccessByCollection(grantee string, collection string) ([]string, []RecordPermission, error)
 }
 
 // RecordPermission represents a specific record permission (owner + rkey)
@@ -224,11 +223,23 @@ func (s *store) ListReadPermissionsByUser(
 	return allows, denies, nil
 }
 
-// ListFullAccessOwnersForGranteeCollection returns a list of all users (owners) who have granted full collection access
+func (s *store) ListCrossRepoAccessByCollection(grantee string, collection string) ([]string, []RecordPermission, error) {
+	fullAccessOwners, err := s.listFullAccessOwnersForGranteeCollection(grantee, collection)
+	if err != nil {
+		return nil, nil, err
+	}
+	specificRecords, err := s.listSpecificRecordsForGranteeCollection(grantee, collection)
+	if err != nil {
+		return nil, nil, err
+	}
+	return fullAccessOwners, specificRecords, nil
+}
+
+// listFullAccessOwnersForGranteeCollection returns a list of all users (owners) who have granted full collection access
 // to the grantee. This includes:
 // - Exact collection match: object = collection
 // - Parent wildcard match: object LIKE '%.*' AND collection LIKE prefix || '.%'
-func (s *store) ListFullAccessOwnersForGranteeCollection(grantee string, collection string) ([]string, error) {
+func (s *store) listFullAccessOwnersForGranteeCollection(grantee string, collection string) ([]string, error) {
 	// Query permissions where:
 	// - Exact collection match: object = collection
 	// - OR parent wildcard: object LIKE '%.*' AND collection LIKE SUBSTR(object, 1, LENGTH(object) - 2) || '.%'
@@ -252,9 +263,9 @@ func (s *store) ListFullAccessOwnersForGranteeCollection(grantee string, collect
 	return owners, nil
 }
 
-// ListSpecificRecordsForGranteeCollection returns a list of records that have been given direct permission
+// listSpecificRecordsForGranteeCollection returns a list of records that have been given direct permission
 // to the grantee. This includes permissions where object LIKE collection || '.%' (specific records like "collection.rkey")
-func (s *store) ListSpecificRecordsForGranteeCollection(grantee string, collection string) ([]RecordPermission, error) {
+func (s *store) listSpecificRecordsForGranteeCollection(grantee string, collection string) ([]RecordPermission, error) {
 	// Query permissions where object LIKE collection || '.%' (specific records like "collection.rkey")
 	var perms []Permission
 	err := s.db.Where("grantee = ?", grantee).

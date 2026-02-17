@@ -296,7 +296,7 @@ func TestPermissionStoreEmptyGrantees(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestStoreListFullAccessOwnersForGranteeCollectionEmpty(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionEmpty(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -305,12 +305,13 @@ func TestStoreListFullAccessOwnersForGranteeCollectionEmpty(t *testing.T) {
 
 	collection := "network.habitat.posts"
 	grantee := "bob"
-	owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
 	require.Empty(t, owners)
+	require.Empty(t, records)
 }
 
-func TestStoreListFullAccessOwnersForGranteeCollectionExactMatch(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionExactMatch(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -322,14 +323,15 @@ func TestStoreListFullAccessOwnersForGranteeCollectionExactMatch(t *testing.T) {
 	require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", collection))
 	require.NoError(t, store.AddReadPermission([]string{grantee}, "charlie", collection))
 
-	owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
 	require.Len(t, owners, 2)
 	require.Contains(t, owners, "alice")
 	require.Contains(t, owners, "charlie")
+	require.Empty(t, records)
 }
 
-func TestStoreListFullAccessOwnersForGranteeCollectionWildcardMatch(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionWildcardMatch(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -347,12 +349,13 @@ func TestStoreListFullAccessOwnersForGranteeCollectionWildcardMatch(t *testing.T
 	}
 	require.NoError(t, db.Create(&wildcardPermission).Error)
 
-	owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
 	require.Contains(t, owners, "david", "parent wildcard should match child collection")
+	require.Empty(t, records)
 }
 
-func TestStoreListFullAccessOwnersForGranteeCollectionExcludesSpecificRecords(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionExcludesSpecificRecordsFromOwners(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -364,12 +367,15 @@ func TestStoreListFullAccessOwnersForGranteeCollectionExcludesSpecificRecords(t 
 	// Grant specific record permission (not full collection)
 	require.NoError(t, store.AddReadPermission([]string{grantee}, "eve", fmt.Sprintf("%s.record1", collection)))
 
-	owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
 	require.NotContains(t, owners, "eve", "specific record permission should not grant full access")
+	require.Len(t, records, 1)
+	require.Equal(t, "eve", records[0].Owner)
+	require.Equal(t, "record1", records[0].Rkey)
 }
 
-func TestStoreListFullAccessOwnersForGranteeCollectionExcludesDifferentCollection(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionExcludesDifferentCollection(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -381,12 +387,13 @@ func TestStoreListFullAccessOwnersForGranteeCollectionExcludesDifferentCollectio
 	grantee := "bob"
 	require.NoError(t, store.AddReadPermission([]string{grantee}, "frank", otherCollection))
 
-	owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
 	require.NotContains(t, owners, "frank", "permission for different collection should not match")
+	require.Empty(t, records)
 }
 
-func TestStoreListFullAccessOwnersForGranteeCollectionFiltersByGrantee(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionFiltersByGrantee(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -398,26 +405,13 @@ func TestStoreListFullAccessOwnersForGranteeCollectionFiltersByGrantee(t *testin
 	otherGrantee := "charlie"
 	require.NoError(t, store.AddReadPermission([]string{otherGrantee}, "grace", collection))
 
-	owners, err := store.ListFullAccessOwnersForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
 	require.NotContains(t, owners, "grace", "permissions for other grantee should not be included")
-}
-
-func TestStoreListSpecificRecordsForGranteeCollectionEmpty(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	collection := "network.habitat.posts"
-	grantee := "bob"
-	records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
-	require.NoError(t, err)
 	require.Empty(t, records)
 }
 
-func TestStoreListSpecificRecordsForGranteeCollectionReturnsSpecificRecords(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionReturnsSpecificRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -430,8 +424,9 @@ func TestStoreListSpecificRecordsForGranteeCollectionReturnsSpecificRecords(t *t
 	require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", fmt.Sprintf("%s.record2", collection)))
 	require.NoError(t, store.AddReadPermission([]string{grantee}, "charlie", fmt.Sprintf("%s.record3", collection)))
 
-	records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
+	require.Empty(t, owners)
 	require.Len(t, records, 3)
 
 	// Check alice's records
@@ -456,7 +451,7 @@ func TestStoreListSpecificRecordsForGranteeCollectionReturnsSpecificRecords(t *t
 	require.Equal(t, "record3", charlieRecords[0].Rkey)
 }
 
-func TestStoreListSpecificRecordsForGranteeCollectionExcludesFullCollection(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionExcludesFullCollectionFromRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -468,15 +463,16 @@ func TestStoreListSpecificRecordsForGranteeCollectionExcludesFullCollection(t *t
 	// Grant full collection permission (not specific record)
 	require.NoError(t, store.AddReadPermission([]string{grantee}, "david", collection))
 
-	records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
-	// Should not include david's full collection permission
+	require.Contains(t, owners, "david")
+	// Should not include david's full collection permission in records
 	for _, r := range records {
 		require.NotEqual(t, "david", r.Owner, "full collection permission should not be in specific records list")
 	}
 }
 
-func TestStoreListSpecificRecordsForGranteeCollectionExcludesDifferentCollection(t *testing.T) {
+func TestStoreListCrossRepoAccessByCollectionExcludesParentWildcardFromRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -484,52 +480,19 @@ func TestStoreListSpecificRecordsForGranteeCollectionExcludesDifferentCollection
 	require.NoError(t, err)
 
 	collection := "network.habitat.posts"
-	otherCollection := "network.habitat.likes"
 	grantee := "bob"
-	require.NoError(t, store.AddReadPermission([]string{grantee}, "eve", fmt.Sprintf("%s.record1", otherCollection)))
-
-	records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
-	require.NoError(t, err)
-	// Should not include records from other collection
-	for _, r := range records {
-		require.NotEqual(t, "eve", r.Owner, "permissions for different collection should not be included")
+	// Create parent wildcard permission directly (stored as "network.habitat.*")
+	wildcardPermission := Permission{
+		Grantee: grantee,
+		Owner:   "grace",
+		Object:  "network.habitat.*",
+		Effect:  "allow",
 	}
-}
+	require.NoError(t, db.Create(&wildcardPermission).Error)
 
-func TestStoreListSpecificRecordsForGranteeCollectionFiltersByGrantee(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
 	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	collection := "network.habitat.posts"
-	grantee := "bob"
-	otherGrantee := "charlie"
-	require.NoError(t, store.AddReadPermission([]string{otherGrantee}, "frank", fmt.Sprintf("%s.record4", collection)))
-
-	records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
-	require.NoError(t, err)
-	// Should not include permissions for other grantee
-	for _, r := range records {
-		require.NotEqual(t, "frank", r.Owner, "permissions for other grantee should not be included")
-	}
-}
-
-func TestStoreListSpecificRecordsForGranteeCollectionExcludesParentWildcard(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	collection := "network.habitat.posts"
-	grantee := "bob"
-	// Parent wildcard should not be returned as specific record
-	require.NoError(t, store.AddReadPermission([]string{grantee}, "grace", "network.habitat"))
-
-	records, err := store.ListSpecificRecordsForGranteeCollection(grantee, collection)
-	require.NoError(t, err)
+	require.Contains(t, owners, "grace", "parent wildcard should grant full access")
 	// Should not include parent wildcard as specific record
 	for _, r := range records {
 		require.NotEqual(t, "grace", r.Owner, "parent wildcard should not be in specific records list")

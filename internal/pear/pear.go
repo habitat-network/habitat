@@ -92,12 +92,12 @@ func (p *Pear) getRecord(
 		return nil, err
 	}
 
-	if authz {
-		// User has permission, return the record
-		return p.repo.getRecord(targetDID.String(), collection, rkey)
+	if !authz {
+		return nil, ErrUnauthorized
 	}
 
-	return nil, ErrUnauthorized
+	// User has permission, return the record
+	return p.repo.getRecord(targetDID.String(), collection, rkey)
 }
 
 func (p *Pear) listRecords(
@@ -107,7 +107,7 @@ func (p *Pear) listRecords(
 ) ([]Record, error) {
 	var allRecords []Record
 
-	// Step 2: Get records from caller's own repo
+	// Step 1: Get records from caller's own repo
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
 		did.String(),
 		callerDID.String(),
@@ -123,20 +123,15 @@ func (p *Pear) listRecords(
 	}
 	allRecords = append(allRecords, ownRecords...)
 
-	// Step 3: Query permissions store to get two lists:
+	// Step 2: Query permissions store to get two lists:
 	// 1. Users with full collection access
 	// 2. Specific records with direct permissions
-	fullAccessOwners, err := p.permissions.ListFullAccessOwnersForGranteeCollection(callerDID.String(), collection)
+	fullAccessOwners, specificRecords, err := p.permissions.ListCrossRepoAccessByCollection(callerDID.String(), collection)
 	if err != nil {
 		return nil, err
 	}
 
-	specificRecords, err := p.permissions.ListSpecificRecordsForGranteeCollection(callerDID.String(), collection)
-	if err != nil {
-		return nil, err
-	}
-
-	// Step 4: Query all records for owners with full collection access in a single query
+	// Step 3: Query all records for owners with full collection access in a single query
 	if len(fullAccessOwners) > 0 {
 		ownerRecords, err := p.repo.listRecordsByOwners(fullAccessOwners, collection)
 		if err != nil {
@@ -145,7 +140,7 @@ func (p *Pear) listRecords(
 		allRecords = append(allRecords, ownerRecords...)
 	}
 
-	// Step 5: Query all specific records in a single query
+	// Step 4: Query all specific records in a single query
 	if len(specificRecords) > 0 {
 		recordPairs := make([]struct {
 			Owner string
