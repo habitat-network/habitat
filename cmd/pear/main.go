@@ -2,11 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,7 +10,6 @@ import (
 	"strings"
 	"syscall"
 
-	jose "github.com/go-jose/go-jose/v3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -56,7 +50,6 @@ func main() {
 
 func run(_ context.Context, cmd *cli.Command) error {
 	// Parse all CLI arguments and options at the beginning
-	keyFile := cmd.String(fKeyFile)
 	domain := cmd.String(fDomain)
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
@@ -119,7 +112,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup user store")
 	}
-	oauthServer, oauthClient := setupOAuthServer(keyFile, domain, pdsCredStore, userStore)
+	oauthServer, oauthClient := setupOAuthServer(cmd, pdsCredStore, userStore)
 	pdsClientFactory := oauthclient.NewPDSClientFactory(
 		pdsCredStore,
 		oauthClient,
@@ -231,7 +224,13 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPearServer(ctx context.Context, serviceName string, domain string, db *gorm.DB, oauthServer *oauthserver.OAuthServer) (*pear.Server, error) {
+func setupPearServer(
+	ctx context.Context,
+	serviceName string,
+	domain string,
+	db *gorm.DB,
+	oauthServer *oauthserver.OAuthServer,
+) (*pear.Server, error) {
 	repo, err := pear.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
@@ -253,57 +252,22 @@ func setupPearServer(ctx context.Context, serviceName string, domain string, db 
 }
 
 func setupOAuthServer(
-	keyFile, domain string,
+	cmd *cli.Command,
 	credStore pdscred.PDSCredentialStore,
 	userStore userstore.UserStore,
 ) (*oauthserver.OAuthServer, oauthclient.OAuthClient) {
-	var jwkBytes []byte
-	_, err := os.Stat(keyFile)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			log.Fatal().Err(err).Msgf("error finding key file")
-		}
-		// Generate ECDSA key using P-256 curve with crypto/rand for secure randomness
-		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			log.Fatal().Err(err).Msgf("failed to generate key")
-		}
-		// Create JWK from the generated key
-		jwk := jose.JSONWebKey{
-			Key:       key,
-			KeyID:     "habitat",
-			Algorithm: string(jose.ES256),
-			Use:       "sig",
-		}
-		jwkBytes, err = json.MarshalIndent(jwk, "", "  ")
-		if err != nil {
-			log.Fatal().Err(err).Msgf("failed to marshal JWK")
-		}
-		if err := os.WriteFile(keyFile, jwkBytes, 0o600); err != nil {
-			log.Fatal().Err(err).Msgf("failed to write key to file")
-		}
-		log.Info().Msgf("created key file at %s", keyFile)
-	} else {
-		// Read JWK from file
-		jwkBytes, err = os.ReadFile(keyFile)
-		if err != nil {
-			log.Fatal().Err(err).Msgf("failed to read key from file")
-		}
-	}
-
-	jwk := &jose.JSONWebKey{}
-	err = json.Unmarshal(jwkBytes, jwk)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("failed to unmarshal JWK")
-	}
-	oauthClient := oauthclient.NewOAuthClient(
+	domain := cmd.String(fDomain)
+	oauthClient, err := oauthclient.NewOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
 		"https://"+domain+"/oauth-callback",       /*redirectUri*/
-		jwk,
+		cmd.String(fOauthClientSecret),
 	)
-	oauthServer := oauthserver.NewOAuthServer(
-		jwk,
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup oauth client")
+	}
+	oauthServer, err := oauthserver.NewOAuthServer(
+		cmd.String(fOauthServerSecret),
 		oauthClient,
 		sessions.NewCookieStore([]byte("my super secret signing password")),
 		identity.DefaultDirectory(),

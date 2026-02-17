@@ -2,8 +2,9 @@ package oauthserver
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 
-	"github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -21,10 +22,14 @@ type strategy struct {
 var _ oauth2.CoreStrategy = &strategy{}
 
 // newStrategy creates a hybrid strategy
-func newStrategy(jwk *jose.JSONWebKey, secret []byte, config fosite.Configurator) *strategy {
+func newStrategy(secret []byte, config fosite.Configurator) (*strategy, error) {
+	privateKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), secret)
+	if err != nil {
+		return nil, err
+	}
 	// Use the JWK for JWT signing
 	jwtStrategy := compose.NewOAuth2JWTStrategy(func(ctx context.Context) (any, error) {
-		return jwk, nil
+		return privateKey, nil
 	}, oauth2.NewHMACSHAStrategy(&hmac.HMACStrategy{
 		Config: config,
 	}, config), config)
@@ -32,7 +37,7 @@ func newStrategy(jwk *jose.JSONWebKey, secret []byte, config fosite.Configurator
 	return &strategy{
 		DefaultJWTStrategy: jwtStrategy,
 		encryptionKey:      secret,
-	}
+	}, nil
 }
 
 // GenerateAuthorizeCode implements oauth2.CoreStrategy.
