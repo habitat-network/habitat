@@ -221,7 +221,6 @@ func (p *Pear) uploadBlob(ctx context.Context, did string, data []byte, mimeType
 
 // Inbox-related methods
 func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string, clique *string) error {
-	fmt.Println("notify of update called")
 	has, err := p.hasRepoForDid(recipient)
 	if err != nil {
 		return err
@@ -251,7 +250,6 @@ func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient 
 	}
 
 	if has {
-		fmt.Println("has repo")
 		// TODO: if the notification is on a clique that this recipient owns, ensure that the sender is part of the clique.
 		if clique != nil {
 			uri, err := habitat_syntax.ParseHabitatURI(*clique)
@@ -266,9 +264,15 @@ func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient 
 			// If this record is a clique root, and the recipient owns it, then the recipient need to fan out notifications.
 			// (This is the fan in from all clique members to the clique owner)
 			if did == recipient {
-				err := p.inbox.Put(ctx, sender, recipient, collection, rkey, clique)
-				if err != nil {
-					return fmt.Errorf("putting in inbox: %w", err)
+				// Optimization: we can skip putting into the recipients inbox if the sender and recipient are on the same node, since listRecords for the recipient will
+				// fetch any record on this pear node the recipient has access to, even if it isn't theirs.
+				if hasSender, err := p.hasRepoForDid(sender); err == nil && hasSender {
+					// No need to call inbox.Put(...)
+				} else {
+					err := p.inbox.Put(ctx, sender, recipient, collection, rkey, clique)
+					if err != nil {
+						return fmt.Errorf("putting in inbox: %w", err)
+					}
 				}
 
 				cliqueMembers, err := p.permissions.ListGranteesForRecord(ctx, recipient.String(), collection, rkey)
