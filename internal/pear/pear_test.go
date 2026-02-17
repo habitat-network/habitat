@@ -322,12 +322,11 @@ func TestNestedCliquesDisallowed(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now B creates a record and adds it to clique A.
-	postRkey := "post-1"
-	cliqueB, err := p.putRecord(ctx, didB, postCollection, map[string]any{"text": "hello"}, postRkey, &validate, []grantee{cliqueGrantee(cliqueA)})
+	cliqueB, err := p.putRecord(ctx, didB, postCollection, map[string]any{"text": "hello"}, "clique-B", &validate, []grantee{cliqueGrantee(cliqueA)})
 	require.NoError(t, err)
 
 	// Now C tries to create a record and add it to clique B.
-	_, err = p.putRecord(ctx, didC, postCollection, map[string]any{"text": "hello"}, postRkey, &validate, []grantee{cliqueGrantee(cliqueB)})
+	_, err = p.putRecord(ctx, didC, postCollection, map[string]any{"text": "hello"}, "clique-C", &validate, []grantee{cliqueGrantee(cliqueB)})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nested clique")
 }
@@ -375,6 +374,64 @@ func TestPutRecordWithDidAndCliqueGrantees(t *testing.T) {
 	items, err := p.getCliqueItems(ctx, cliqueURI)
 	require.NoError(t, err)
 	require.NotEmpty(t, items, "A should see B's record via the clique")
+}
+
+func TestCliqueMembersCanListRecordsAfterPutWithCliqueGrantee(t *testing.T) {
+	ctx := t.Context()
+
+	didA := "did:plc:aaaaaaaaaaaaaaaaaaaaaa"
+	didB := "did:plc:bbbbbbbbbbbbbbbbbbbbbb"
+	didC := "did:plc:cccccccccccccccccccccc"
+
+	dir := mockIdentities([]string{didA, didB, didC})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	validate := true
+
+	// A creates a clique root record.
+	cliqueCollection := "network.habitat.clique"
+	cliqueRkey := "clique-1"
+	cliqueURI, err := p.putRecord(ctx, didA, cliqueCollection, map[string]any{"name": "my-clique"}, cliqueRkey, &validate, nil)
+	require.NoError(t, err)
+
+	// A adds B and C as members of the clique.
+	err = p.addReadPermission(ctx, didGrantee(didB), didA, cliqueCollection, cliqueRkey)
+	require.NoError(t, err)
+	err = p.addReadPermission(ctx, didGrantee(didC), didA, cliqueCollection, cliqueRkey)
+	require.NoError(t, err)
+
+	// B creates a record and grants access to A's clique.
+	bCollection := "network.habitat.post"
+	_, err = p.putRecord(ctx, didB, bCollection, map[string]any{"text": "post from B"}, "post-1", &validate, []grantee{
+		cliqueGrantee(cliqueURI),
+	})
+	require.NoError(t, err)
+
+	// B creates a second record also granted to the clique.
+	_, err = p.putRecord(ctx, didB, bCollection, map[string]any{"text": "another post from B"}, "post-2", &validate, []grantee{
+		cliqueGrantee(cliqueURI),
+	})
+	require.NoError(t, err)
+
+	// All clique members (A, B, C) should be able to see B's records via listRecords.
+	for _, caller := range []string{didA, didB, didC} {
+		fmt.Println("checking", caller)
+		records, err := p.listRecords(ctx, syntax.DID(didB), bCollection, syntax.DID(caller))
+		require.NoError(t, err)
+		require.Len(t, records, 2, "caller %s should see both of B's records", caller)
+	}
+
+	// A non-member should not see any of B's records.
+	nonMember := "did:plc:dddddddddddddddddddddd"
+	dir.(*identity.MockDirectory).Insert(identity.Identity{
+		DID: syntax.DID(nonMember),
+		Services: map[string]identity.ServiceEndpoint{
+			testServiceName: {URL: "https://" + testServiceEndpoint},
+		},
+	})
+	records, err := p.listRecords(ctx, syntax.DID(didB), bCollection, syntax.DID(nonMember))
+	require.NoError(t, err)
+	require.Empty(t, records, "non-member should not see B's records")
 }
 
 // TODO: eventually test permissions with blobs here

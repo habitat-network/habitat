@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -214,16 +215,40 @@ func (s *store) ListReadPermissionsByUser(
 		return nil, nil, fmt.Errorf("failed to query permissions: %w", err)
 	}
 
+	allowPs := []Permission{}
 	allows := []string{}
 	denies := []string{}
 
 	for _, perm := range permissions {
 		switch perm.Effect {
 		case "allow":
+			allowPs = append(allowPs, perm)
 			allows = append(allows, perm.Object)
 		case "deny":
 			denies = append(denies, perm.Object)
 		}
+	}
+
+	// For each of the objects
+	// Fetch
+	for _, allow := range allowPs {
+		fmt.Println("allow", allow)
+		var viaCliques []string
+		parts := strings.Split(allow.Object, ".")
+		if parts[len(parts)-1] == "*" {
+			continue
+		}
+
+		cliqueURI := "habitat://" + allow.Owner + "/" + strings.Join(parts[:len(parts)-1], ".") + "/" + parts[len(parts)-1]
+		fmt.Println("cliqueuri", cliqueURI)
+		err := s.db.Model(&Permission{}).
+			Where("grantee = ?", cliqueURI).
+			Pluck("object", &viaCliques).Error
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to query permissions: %w", err)
+		}
+
+		allows = append(allows, viaCliques...)
 	}
 
 	return allows, denies, nil
@@ -252,7 +277,7 @@ func (s *store) ListAllowedRecordsByGrantee(ctx context.Context, caller string, 
 func (s *store) ListGranteesForRecord(ctx context.Context, owner string, collection string, rkey string) ([]string, error) {
 	var grantees []string
 	err := s.db.Model(&Permission{}).
-		Where("owner = ? AND object = ?", owner, collection+rkey).
+		Where("owner = ? AND object = ?", owner, collection+"."+rkey).
 		Pluck("grantee", &grantees).Error
 
 	if err != nil {

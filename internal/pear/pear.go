@@ -101,7 +101,6 @@ func (p *Pear) putRecord(
 	validate *bool,
 	grantees []grantee,
 ) (habitat_syntax.HabitatURI, error) {
-	fmt.Println("putrecord", did, collection, rkey, grantees)
 	cliqueGrantees := []string{}
 	for _, grantee := range grantees {
 		switch g := grantee.(type) {
@@ -193,6 +192,7 @@ func (p *Pear) listRecords(
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("allow", allow, deny)
 
 	return p.repo.ListRecords(ctx, did.String(), collection, allow, deny)
 }
@@ -385,7 +385,6 @@ func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller st
 		}
 
 		// TODO: this needs to work with multiple pear nodes
-		fmt.Println("checking permissions on record", cliqueDID, uri.Collection(), uri.RecordKey())
 		existing, err := p.permissions.ListGranteesForRecord(ctx, cliqueDID.String(), uri.Collection().String(), uri.RecordKey().String())
 		if err != nil {
 			return fmt.Errorf("resolving existing grantees: %w", err)
@@ -455,6 +454,5 @@ func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller st
 	}
 
 	clique := cliqueGrantee.String()
-	fmt.Println("down here")
 	return p.notifyOfUpdate(ctx, syntax.DID(caller), cliqueDID, collection, rkey, &clique)
 }
