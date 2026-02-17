@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,8 +21,8 @@ func TestServiceProxyXrpcChannel(t *testing.T) {
 	defer server.Close()
 	channel := NewServiceProxyXrpcChannel(
 		"habitat",
-		oauthclient.NewDummyClientFactory(server.URL),
-		oauthclient.NewDummyDirectory(server.URL),
+		pdsclient.NewDummyClientFactory(server.URL),
+		pdsclient.NewDummyDirectory(server.URL),
 	)
 	req, err := http.NewRequest("GET", "/xrpc/network.habitat.getRecord", nil)
 	require.NoError(t, err)

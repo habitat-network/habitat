@@ -4,15 +4,15 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/rs/zerolog/log"
 )
 
 type pdsForwarding struct {
 	oauthServer      *oauthserver.OAuthServer
-	pdsClientFactory oauthclient.PDSClientFactory
+	pdsClientFactory pdsclient.HttpClientFactory
 }
 
 var _ http.Handler = (*pdsForwarding)(nil)
@@ -20,7 +20,7 @@ var _ http.Handler = (*pdsForwarding)(nil)
 func newPDSForwarding(
 	credStore pdscred.PDSCredentialStore,
 	oauthServer *oauthserver.OAuthServer,
-	pdsClientFactory oauthclient.PDSClientFactory,
+	pdsClientFactory pdsclient.HttpClientFactory,
 ) *pdsForwarding {
 	return &pdsForwarding{
 		oauthServer:      oauthServer,

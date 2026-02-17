@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"crypto/ecdsa"
@@ -15,8 +15,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const SessionKeyDpop = "dpop-session"
-const SessionKeyAuth = "auth-session"
+const (
+	SessionKeyDpop = "dpop-session"
+	SessionKeyAuth = "auth-session"
+)
 
 type Session interface {
 	GetDpopKey() (*ecdsa.PrivateKey, bool, error)

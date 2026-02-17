@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"context"
@@ -10,37 +10,37 @@ import (
 	"github.com/habitat-network/habitat/internal/pdscred"
 )
 
-type PDSClientFactory interface {
-	NewClient(ctx context.Context, did syntax.DID) (PDSClient, error)
+type HttpClientFactory interface {
+	NewClient(ctx context.Context, did syntax.DID) (HttpClient, error)
 }
 
-// pdsClientFactoryImpl helps create clients to make authenticated requests to a DID's atproto PDS
-type pdsClientFactoryImpl struct {
+// clientFactoryImpl helps create clients to make authenticated requests to a DID's atproto PDS
+type clientFactoryImpl struct {
 	credStore   pdscred.PDSCredentialStore
-	oauthClient OAuthClient
+	oauthClient PdsOAuthClient
 	dir         identity.Directory
 }
 
-func NewPDSClientFactory(
+func NewHttpClientFactory(
 	credStore pdscred.PDSCredentialStore,
-	oauthClient OAuthClient,
+	oauthClient PdsOAuthClient,
 	dir identity.Directory,
-) PDSClientFactory {
-	return &pdsClientFactoryImpl{
+) HttpClientFactory {
+	return &clientFactoryImpl{
 		credStore:   credStore,
 		oauthClient: oauthClient,
 		dir:         dir,
 	}
 }
 
-type PDSClient interface {
+type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func (f *pdsClientFactoryImpl) NewClient(
+func (f *clientFactoryImpl) NewClient(
 	ctx context.Context,
 	did syntax.DID,
-) (PDSClient, error) {
+) (HttpClient, error) {
 	id, err := f.dir.LookupDID(ctx, did)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup did: %w", err)

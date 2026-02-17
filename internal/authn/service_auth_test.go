@@ -8,12 +8,12 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServiceAuthValidate(t *testing.T) {
-	directory := oauthclient.NewDummyDirectory("https://pds.com")
+	directory := pdsclient.NewDummyDirectory("https://pds.com")
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: "ES256K",
 		Key:       atcryptoSigner{directory.PrivateKey},
@@ -38,7 +38,7 @@ func TestServiceAuthValidate(t *testing.T) {
 }
 
 func TestServiceAuthValidate_InvalidToken(t *testing.T) {
-	directory := oauthclient.NewDummyDirectory("https://pds.com")
+	directory := pdsclient.NewDummyDirectory("https://pds.com")
 	serviceAuth := NewServiceAuthMethod(directory)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/", nil)
@@ -48,7 +48,7 @@ func TestServiceAuthValidate_InvalidToken(t *testing.T) {
 }
 
 func TestServiceAuthValidate_InvalidSignature(t *testing.T) {
-	directory := oauthclient.NewDummyDirectory("https://pds.com")
+	directory := pdsclient.NewDummyDirectory("https://pds.com")
 	key, err := atcrypto.GeneratePrivateKeyK256()
 	require.NoError(t, err)
 	signer, err := jose.NewSigner(jose.SigningKey{
@@ -72,7 +72,7 @@ func TestServiceAuthValidate_InvalidSignature(t *testing.T) {
 }
 
 func TestServiceAuthCanHandle(t *testing.T) {
-	directory := oauthclient.NewDummyDirectory("https://pds.com")
+	directory := pdsclient.NewDummyDirectory("https://pds.com")
 	serviceAuth := NewServiceAuthMethod(directory)
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set("Authorization", "Bearer invalid")

@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"bytes"
@@ -64,14 +64,14 @@ func (s *DpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 type authedDpopHttpClient struct {
 	id            *identity.Identity
 	credStore     pdscred.PDSCredentialStore
-	oauthClient   OAuthClient
+	oauthClient   PdsOAuthClient
 	nonceProvider DpopNonceProvider
 }
 
 func newAuthedDpopHttpClient(
 	id *identity.Identity,
 	credStore pdscred.PDSCredentialStore,
-	oauthClient OAuthClient,
+	oauthClient PdsOAuthClient,
 	nonceProvider DpopNonceProvider,
 ) *authedDpopHttpClient {
 	return &authedDpopHttpClient{

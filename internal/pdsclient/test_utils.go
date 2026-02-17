@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"crypto/ecdsa"
@@ -22,10 +22,10 @@ import (
 )
 
 // testOAuthClient creates a test OAuth client with a valid JWK
-func testOAuthClient(t *testing.T) OAuthClient {
+func testOAuthClient(t *testing.T) PdsOAuthClient {
 	key, err := encrypt.GenerateKey()
 	require.NoError(t, err)
-	client, err := NewOAuthClient(
+	client, err := NewPdsOAuthClient(
 		"test-client",
 		"https://test.com",
 		"https://test.com/callback",

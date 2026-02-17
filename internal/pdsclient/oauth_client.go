@@ -1,4 +1,4 @@
-package oauthclient
+package pdsclient
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ type ClientMetadata struct {
 	Jwks                    *jose.JSONWebKeySet `json:"jwks"`
 }
 
-type OAuthClient interface {
+type PdsOAuthClient interface {
 	ClientMetadata() *ClientMetadata
 	Authorize(
 		dpopClient *DpopHttpClient,
@@ -65,12 +65,12 @@ type oauthClientImpl struct {
 	secretJwk   *jose.JSONWebKey
 }
 
-func NewOAuthClient(
+func NewPdsOAuthClient(
 	clientId string,
 	clientUri string,
 	redirectUri string,
 	secret string,
-) (OAuthClient, error) {
+) (PdsOAuthClient, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
 		return nil, err

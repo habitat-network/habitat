@@ -27,8 +27,8 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
-	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -114,7 +114,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup user store")
 	}
 	oauthServer, oauthClient := setupOAuthServer(cmd, pdsCredStore, userStore)
-	pdsClientFactory := oauthclient.NewPDSClientFactory(
+	pdsClientFactory := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
 		identity.DefaultDirectory(),
@@ -256,9 +256,9 @@ func setupOAuthServer(
 	cmd *cli.Command,
 	credStore pdscred.PDSCredentialStore,
 	userStore userstore.UserStore,
-) (*oauthserver.OAuthServer, oauthclient.OAuthClient) {
+) (*oauthserver.OAuthServer, pdsclient.PdsOAuthClient) {
 	domain := cmd.String(fDomain)
-	oauthClient, err := oauthclient.NewOAuthClient(
+	oauthClient, err := pdsclient.NewPdsOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
 		"https://"+domain,                         /*clientUri*/
 		"https://"+domain+"/oauth-callback",       /*redirectUri*/
