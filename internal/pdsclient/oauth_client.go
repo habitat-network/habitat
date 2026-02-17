@@ -2,6 +2,8 @@ package pdsclient
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -16,6 +18,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 )
@@ -66,14 +69,27 @@ func NewPdsOAuthClient(
 	clientId string,
 	clientUri string,
 	redirectUri string,
-	secretJwk *jose.JSONWebKey,
-) PdsOAuthClient {
+	secret string,
+) (PdsOAuthClient, error) {
+	secretBytes, err := encrypt.ParseKey(secret)
+	if err != nil {
+		return nil, err
+	}
+	privateKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), secretBytes)
+	if err != nil {
+		return nil, err
+	}
 	return &oauthClientImpl{
 		clientId:    clientId,
 		clientUri:   clientUri,
 		redirectUri: redirectUri,
-		secretJwk:   secretJwk,
-	}
+		secretJwk: &jose.JSONWebKey{
+			Key:       privateKey,
+			KeyID:     "habitat",
+			Algorithm: string(jose.ES256),
+			Use:       "sig",
+		},
+	}, nil
 }
 
 // ClientMetadata implements OAuthClient.

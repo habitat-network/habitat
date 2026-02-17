@@ -16,9 +16,10 @@ var (
 	fDb                = "db"
 	fPort              = "port"
 	fHttpsCerts        = "httpscerts"
-	fKeyFile           = "keyfile"
 	fPgUrl             = "pgurl"
 	fPdsCredEncryptKey = "pds_cred_encrypt_key"
+	fOauthServerSecret = "oauth_server_secret"
+	fOauthClientSecret = "oauth_client_secret"
 )
 var profiles []string
 
@@ -59,17 +60,22 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Sources: getSources(fHttpsCerts),
 			},
 			&cli.StringFlag{
-				Name:      fKeyFile,
-				Usage:     "The path to the key file to use for OAuth client metadata",
-				Value:     "./key.jwk",
-				TakesFile: true,
-				Sources:   getSources(fKeyFile),
-			},
-			&cli.StringFlag{
 				Name:     fPdsCredEncryptKey,
 				Usage:    "32-byte base64-encoded encryption key for PDS credentials. Can use cmd/keygen to generate",
 				Required: true,
 				Sources:  getSources(fPdsCredEncryptKey),
+			},
+			&cli.StringFlag{
+				Name:     fOauthServerSecret,
+				Usage:    "32-byte base64-encoded secret for the OAuth server. Can use cmd/keygen to generate",
+				Required: true,
+				Sources:  getSources(fOauthServerSecret),
+			},
+			&cli.StringFlag{
+				Name:     fOauthClientSecret,
+				Usage:    "32-byte base64-encoded secret for the OAuth client. Can use cmd/keygen to generate",
+				Required: true,
+				Sources:  getSources(fOauthClientSecret),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
