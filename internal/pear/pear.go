@@ -81,14 +81,6 @@ func (p *Pear) getRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*Record, error) {
-	has, err := p.hasRepoForDid(targetDID)
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, ErrNotLocalRepo
-	}
-
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
 		callerDID.String(),
@@ -104,7 +96,8 @@ func (p *Pear) getRecord(
 		return nil, ErrUnauthorized
 	}
 
-	return p.repo.getRecord(string(targetDID), collection, rkey)
+	// User has permission, return the record
+	return p.repo.getRecord(targetDID.String(), collection, rkey)
 }
 
 func (p *Pear) listRecords(
@@ -112,14 +105,9 @@ func (p *Pear) listRecords(
 	collection string,
 	callerDID syntax.DID,
 ) ([]Record, error) {
-	has, err := p.hasRepoForDid(did)
-	if err != nil {
-		return nil, err
-	}
-	if !has {
-		return nil, ErrNotLocalRepo
-	}
+	var allRecords []Record
 
+	// Step 1: Get records from caller's own repo
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
 		did.String(),
 		callerDID.String(),
@@ -129,7 +117,49 @@ func (p *Pear) listRecords(
 		return nil, err
 	}
 
-	return p.repo.listRecords(did.String(), collection, allow, deny)
+	ownRecords, err := p.repo.listRecords(callerDID.String(), collection, allow, deny)
+	if err != nil {
+		return nil, err
+	}
+	allRecords = append(allRecords, ownRecords...)
+
+	// Step 2: Query permissions store to get two lists:
+	// 1. Users with full collection access
+	// 2. Specific records with direct permissions
+	fullAccessOwners, specificRecords, err := p.permissions.ListCrossRepoAccessByCollection(callerDID.String(), collection)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 3: Query all records for owners with full collection access in a single query
+	if len(fullAccessOwners) > 0 {
+		ownerRecords, err := p.repo.listRecordsByOwners(fullAccessOwners, collection)
+		if err != nil {
+			return nil, err
+		}
+		allRecords = append(allRecords, ownerRecords...)
+	}
+
+	// Step 4: Query all specific records in a single query
+	if len(specificRecords) > 0 {
+		recordPairs := make([]struct {
+			Owner string
+			Rkey  string
+		}, len(specificRecords))
+		for i, recordPerm := range specificRecords {
+			recordPairs[i] = struct {
+				Owner string
+				Rkey  string
+			}{Owner: recordPerm.Owner, Rkey: recordPerm.Rkey}
+		}
+		specificRecordsResult, err := p.repo.listSpecificRecords(collection, recordPairs)
+		if err != nil {
+			return nil, err
+		}
+		allRecords = append(allRecords, specificRecordsResult...)
+	}
+
+	return allRecords, nil
 }
 
 var (

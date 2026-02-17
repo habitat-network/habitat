@@ -2,6 +2,7 @@ package permissions
 
 import (
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -30,6 +31,13 @@ type Store interface {
 		requester string,
 		nsid string,
 	) (allow []string, deny []string, err error)
+	ListCrossRepoAccessByCollection(grantee string, collection string) ([]string, []RecordPermission, error)
+}
+
+// RecordPermission represents a specific record permission (owner + rkey)
+type RecordPermission struct {
+	Owner string
+	Rkey  string
 }
 
 type store struct {
@@ -213,4 +221,70 @@ func (s *store) ListReadPermissionsByUser(
 	}
 
 	return allows, denies, nil
+}
+
+func (s *store) ListCrossRepoAccessByCollection(grantee string, collection string) ([]string, []RecordPermission, error) {
+	fullAccessOwners, err := s.listFullAccessOwnersForGranteeCollection(grantee, collection)
+	if err != nil {
+		return nil, nil, err
+	}
+	specificRecords, err := s.listSpecificRecordsForGranteeCollection(grantee, collection)
+	if err != nil {
+		return nil, nil, err
+	}
+	return fullAccessOwners, specificRecords, nil
+}
+
+// listFullAccessOwnersForGranteeCollection returns a list of all users (owners) who have granted full collection access
+// to the grantee. This includes:
+// - Exact collection match: object = collection
+// - Parent wildcard match: object LIKE '%.*' AND collection LIKE prefix || '.%'
+func (s *store) listFullAccessOwnersForGranteeCollection(grantee string, collection string) ([]string, error) {
+	// Query permissions where:
+	// - Exact collection match: object = collection
+	// - OR parent wildcard: object LIKE '%.*' AND collection LIKE SUBSTR(object, 1, LENGTH(object) - 2) || '.%'
+	var perms []Permission
+	err := s.db.Where("grantee = ?", grantee).
+		Where("effect = ?", "allow").
+		Where(
+			"object = ? OR (object LIKE '%.*' AND ? LIKE SUBSTR(object, 1, LENGTH(object) - 2) || '.%')",
+			collection, collection,
+		).
+		Find(&perms).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to query full access permissions: %w", err)
+	}
+
+	owners := make([]string, 0, len(perms))
+	for _, perm := range perms {
+		owners = append(owners, perm.Owner)
+	}
+
+	return owners, nil
+}
+
+// listSpecificRecordsForGranteeCollection returns a list of records that have been given direct permission
+// to the grantee. This includes permissions where object LIKE collection || '.%' (specific records like "collection.rkey")
+func (s *store) listSpecificRecordsForGranteeCollection(grantee string, collection string) ([]RecordPermission, error) {
+	// Query permissions where object LIKE collection || '.%' (specific records like "collection.rkey")
+	var perms []Permission
+	err := s.db.Where("grantee = ?", grantee).
+		Where("effect = ?", "allow").
+		Where("object LIKE ? || '.%'", collection).
+		Find(&perms).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to query specific record permissions: %w", err)
+	}
+
+	records := make([]RecordPermission, 0, len(perms))
+	for _, perm := range perms {
+		// Extract rkey from "collection.rkey"
+		rkey := strings.TrimPrefix(perm.Object, collection+".")
+		records = append(records, RecordPermission{
+			Owner: perm.Owner,
+			Rkey:  rkey,
+		})
+	}
+
+	return records, nil
 }

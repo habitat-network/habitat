@@ -157,9 +157,10 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// Try to get a record for a DID that doesn't exist on this server
-	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
+	// This will return ErrUnauthorized since we no longer check for local repos
+	got, err := p.getRecord("some.collection", "some-rkey", syntax.DID("did:plc:unknown123"), syntax.DID("did:plc:caller456"))
 	require.Nil(t, got)
-	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+	require.ErrorIs(t, err, ErrUnauthorized)
 }
 
 func TestListRecordsForwardingNotImplemented(t *testing.T) {
@@ -167,13 +168,14 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// Try to list records for a DID that doesn't exist on this server
+	// This will return empty results since we no longer check for local repos
 	records, err := p.listRecords(
-		"did:plc:unknown123",
+		syntax.DID("did:plc:unknown123"),
 		"some.collection",
-		"did:plc:caller456",
+		syntax.DID("did:plc:caller456"),
 	)
-	require.Nil(t, records)
-	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+	require.NoError(t, err)
+	require.Empty(t, records)
 }
 
 func TestListRecords(t *testing.T) {
@@ -193,31 +195,34 @@ func TestListRecords(t *testing.T) {
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
 		records, err := p.listRecords(
-			"my-did",
+			syntax.DID("my-did"),
 			coll1,
-			"other-did",
+			syntax.DID("other-did"),
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
 	})
 
-	t.Run("returns records with wildcard permission", func(t *testing.T) {
+	t.Run("returns records with full collection permission", func(t *testing.T) {
 		require.NoError(
 			t,
 			p.permissions.AddReadPermission(
 				[]string{"reader-did"},
 				"my-did",
-				fmt.Sprintf("%s.*", coll1),
+				coll1,
 			),
 		)
 
 		records, err := p.listRecords(
-			"my-did",
+			syntax.DID("my-did"),
 			coll1,
-			"reader-did",
+			syntax.DID("reader-did"),
 		)
 		require.NoError(t, err)
+		// reader-did has permission to see all my-did's records in coll1
 		require.Len(t, records, 2)
+		require.Equal(t, "my-did", records[0].Did)
+		require.Equal(t, "my-did", records[1].Did)
 	})
 
 	t.Run("returns only specific permitted record", func(t *testing.T) {
@@ -231,20 +236,23 @@ func TestListRecords(t *testing.T) {
 		)
 
 		records, err := p.listRecords(
-			"my-did",
+			syntax.DID("my-did"),
 			coll1,
-			"specific-reader",
+			syntax.DID("specific-reader"),
 		)
 		require.NoError(t, err)
+		// specific-reader has permission only for rkey1
 		require.Len(t, records, 1)
+		require.Equal(t, "my-did", records[0].Did)
+		require.Equal(t, "rkey1", records[0].Rkey)
 	})
 
 	t.Run("permissions are scoped to collection", func(t *testing.T) {
 		// reader-did has permission for coll1 but not coll2
 		records, err := p.listRecords(
-			"my-did",
+			syntax.DID("my-did"),
 			coll2,
-			"reader-did",
+			syntax.DID("reader-did"),
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
@@ -271,4 +279,156 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
 	require.Equal(t, blob, gotBlob)
+}
+
+func TestListRecordsWithPermissions(t *testing.T) {
+
+	// Note: this test doesn't include any remote users. Querying from remote as well isn't supported yet.
+	// Set up users
+	aliceDID := "did:plc:alice"
+	bobDID := "did:plc:bob"
+	carolDID := "did:plc:carol"
+	remoteDID := "did:plc:remote"
+
+	// Create a shared database for the test
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+
+	// Create pear with the shared database
+	perms, err := permissions.NewStore(db)
+	require.NoError(t, err)
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+	inboxInstance, err := inbox.New(db)
+	require.NoError(t, err)
+	// remoteDID is intentionally not added to mock identities to simulate a different node
+	p := NewPear(t.Context(), testServiceEndpoint, testServiceName, mockIdentities([]string{aliceDID, bobDID, carolDID}), perms, repo, inboxInstance)
+
+	val := map[string]any{"someKey": "someVal"}
+	validate := true
+	coll := "my.fake.collection"
+
+	// Alice creates her own records
+	require.NoError(t, p.putRecord(aliceDID, coll, val, "alice-rkey1", &validate))
+	require.NoError(t, p.putRecord(aliceDID, coll, val, "alice-rkey2", &validate))
+
+	// Bob creates records
+	require.NoError(t, p.putRecord(bobDID, coll, val, "bob-rkey1", &validate))
+	require.NoError(t, p.putRecord(bobDID, coll, val, "bob-rkey2", &validate))
+
+	// Carol creates records
+	require.NoError(t, p.putRecord(carolDID, coll, val, "carol-rkey1", &validate))
+
+	t.Run("includes records from other users when user has permission", func(t *testing.T) {
+		// Grant Alice permission to read Bob's records
+		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, coll))
+
+		records, err := p.listRecords(
+			syntax.DID(aliceDID),
+			coll,
+			syntax.DID(aliceDID),
+		)
+		require.NoError(t, err)
+		require.Len(t, records, 4) // 2 from Alice's own repo + 2 from Bob with permission
+
+		// Verify we have Alice's and Bob's records
+		aliceRecords := 0
+		bobRecords := 0
+		for _, record := range records {
+			switch record.Did {
+			case aliceDID:
+				aliceRecords++
+			case bobDID:
+				bobRecords++
+			default:
+				require.Fail(t, "unexpected record did: %s", record.Did)
+			}
+		}
+		require.Equal(t, 2, aliceRecords)
+		require.Equal(t, 2, bobRecords)
+	})
+
+	t.Run("excludes records when user lacks permission", func(t *testing.T) {
+		// Alice doesn't have permission for Carol's records
+		records, err := p.listRecords(
+			syntax.DID(aliceDID),
+			coll,
+			syntax.DID(aliceDID),
+		)
+		require.NoError(t, err)
+		// Should be 4 (2 from Alice + 2 from Bob with permission, but NOT Carol's)
+		require.Len(t, records, 4)
+
+		// Verify Carol's record is not included
+		for _, record := range records {
+			require.NotEqual(t, carolDID, record.Did, "Carol's record should not be included without permission")
+		}
+	})
+
+	t.Run("includes records from different nodes if they exist in database", func(t *testing.T) {
+		// Grant Alice permission to read remote user's records
+		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, remoteDID, coll))
+
+		records, err := p.listRecords(
+			syntax.DID(aliceDID),
+			coll,
+			syntax.DID(aliceDID),
+		)
+		require.NoError(t, err)
+		require.Len(t, records, 4)
+	})
+
+	t.Run("filters by collection", func(t *testing.T) {
+		otherColl := "other.collection"
+		require.NoError(t, p.putRecord(bobDID, otherColl, val, "bob-other-rkey", &validate))
+		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, otherColl))
+
+		// Query for original collection
+		records, err := p.listRecords(
+			syntax.DID(aliceDID),
+			coll,
+			syntax.DID(aliceDID),
+		)
+		require.NoError(t, err)
+		require.Len(t, records, 4)
+
+		// Query for other collection
+		records, err = p.listRecords(
+			syntax.DID(aliceDID),
+			otherColl,
+			syntax.DID(aliceDID),
+		)
+		require.NoError(t, err)
+		// Should have 1 record from Bob (Alice doesn't have own records in otherColl)
+		require.Len(t, records, 1)
+		require.Equal(t, bobDID, records[0].Did)
+		require.Equal(t, "bob-other-rkey", records[0].Rkey)
+	})
+
+	t.Run("returns only specific permitted records", func(t *testing.T) {
+		// Remove full collection permission first, then grant only specific permission
+		require.NoError(t, perms.RemoveReadPermission(aliceDID, bobDID, coll))
+		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, fmt.Sprintf("%s.bob-rkey1", coll)))
+
+		records, err := p.listRecords(
+			syntax.DID(aliceDID),
+			coll,
+			syntax.DID(aliceDID),
+		)
+		require.NoError(t, err)
+		// Should have at least 2 from Alice + 1 specific from Bob (may include remote if it exists)
+		require.GreaterOrEqual(t, len(records), 3)
+
+		// Verify we have the right records from Bob
+		bobRkey1Found := false
+		for _, record := range records {
+			if record.Did == bobDID && record.Rkey == "bob-rkey1" {
+				bobRkey1Found = true
+			}
+			if record.Did == bobDID {
+				require.Equal(t, "bob-rkey1", record.Rkey, "Should only have bob-rkey1, not bob-rkey2")
+			}
+		}
+		require.True(t, bobRkey1Found, "Should have found bob-rkey1")
+	})
 }

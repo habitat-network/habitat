@@ -1,6 +1,7 @@
 package permissions
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -293,4 +294,207 @@ func TestPermissionStoreEmptyGrantees(t *testing.T) {
 
 	err = store.AddReadPermission([]string{}, "alice", "network.habitat.posts")
 	require.Error(t, err)
+}
+
+func TestStoreListCrossRepoAccessByCollectionEmpty(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.Empty(t, owners)
+	require.Empty(t, records)
+}
+
+func TestStoreListCrossRepoAccessByCollectionExactMatch(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", collection))
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "charlie", collection))
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.Len(t, owners, 2)
+	require.Contains(t, owners, "alice")
+	require.Contains(t, owners, "charlie")
+	require.Empty(t, records)
+}
+
+func TestStoreListCrossRepoAccessByCollectionWildcardMatch(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	// Create wildcard permission directly (stored as "network.habitat.*")
+	wildcardPermission := Permission{
+		Grantee: grantee,
+		Owner:   "david",
+		Object:  "network.habitat.*",
+		Effect:  "allow",
+	}
+	require.NoError(t, db.Create(&wildcardPermission).Error)
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.Contains(t, owners, "david", "parent wildcard should match child collection")
+	require.Empty(t, records)
+}
+
+func TestStoreListCrossRepoAccessByCollectionExcludesSpecificRecordsFromOwners(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	// Grant specific record permission (not full collection)
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "eve", fmt.Sprintf("%s.record1", collection)))
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.NotContains(t, owners, "eve", "specific record permission should not grant full access")
+	require.Len(t, records, 1)
+	require.Equal(t, "eve", records[0].Owner)
+	require.Equal(t, "record1", records[0].Rkey)
+}
+
+func TestStoreListCrossRepoAccessByCollectionExcludesDifferentCollection(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	otherCollection := "network.habitat.likes"
+	grantee := "bob"
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "frank", otherCollection))
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.NotContains(t, owners, "frank", "permission for different collection should not match")
+	require.Empty(t, records)
+}
+
+func TestStoreListCrossRepoAccessByCollectionFiltersByGrantee(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	otherGrantee := "charlie"
+	require.NoError(t, store.AddReadPermission([]string{otherGrantee}, "grace", collection))
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.NotContains(t, owners, "grace", "permissions for other grantee should not be included")
+	require.Empty(t, records)
+}
+
+func TestStoreListCrossRepoAccessByCollectionReturnsSpecificRecords(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", fmt.Sprintf("%s.record1", collection)))
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "alice", fmt.Sprintf("%s.record2", collection)))
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "charlie", fmt.Sprintf("%s.record3", collection)))
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.Empty(t, owners)
+	require.Len(t, records, 3)
+
+	// Check alice's records
+	aliceRecords := []RecordPermission{}
+	for _, r := range records {
+		if r.Owner == "alice" {
+			aliceRecords = append(aliceRecords, r)
+		}
+	}
+	require.Len(t, aliceRecords, 2)
+	require.Contains(t, []string{aliceRecords[0].Rkey, aliceRecords[1].Rkey}, "record1")
+	require.Contains(t, []string{aliceRecords[0].Rkey, aliceRecords[1].Rkey}, "record2")
+
+	// Check charlie's record
+	charlieRecords := []RecordPermission{}
+	for _, r := range records {
+		if r.Owner == "charlie" {
+			charlieRecords = append(charlieRecords, r)
+		}
+	}
+	require.Len(t, charlieRecords, 1)
+	require.Equal(t, "record3", charlieRecords[0].Rkey)
+}
+
+func TestStoreListCrossRepoAccessByCollectionExcludesFullCollectionFromRecords(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	// Grant full collection permission (not specific record)
+	require.NoError(t, store.AddReadPermission([]string{grantee}, "david", collection))
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.Contains(t, owners, "david")
+	// Should not include david's full collection permission in records
+	for _, r := range records {
+		require.NotEqual(t, "david", r.Owner, "full collection permission should not be in specific records list")
+	}
+}
+
+func TestStoreListCrossRepoAccessByCollectionExcludesParentWildcardFromRecords(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	collection := "network.habitat.posts"
+	grantee := "bob"
+	// Create parent wildcard permission directly (stored as "network.habitat.*")
+	wildcardPermission := Permission{
+		Grantee: grantee,
+		Owner:   "grace",
+		Object:  "network.habitat.*",
+		Effect:  "allow",
+	}
+	require.NoError(t, db.Create(&wildcardPermission).Error)
+
+	owners, records, err := store.ListCrossRepoAccessByCollection(grantee, collection)
+	require.NoError(t, err)
+	require.Contains(t, owners, "grace", "parent wildcard should grant full access")
+	// Should not include parent wildcard as specific record
+	for _, r := range records {
+		require.NotEqual(t, "grace", r.Owner, "parent wildcard should not be in specific records list")
+	}
 }
