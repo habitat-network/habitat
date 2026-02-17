@@ -54,7 +54,7 @@ func ParseHabitatURI(raw string) (HabitatURI, error) {
 		return "", errors.New("HabitatURI is too long (8192 chars max)")
 	}
 	parts := HabitatURIRegex.FindStringSubmatch(raw)
-	if parts == nil || len(parts) < 2 || parts[0] == "" {
+	if len(parts) < 2 || parts[0] == "" {
 		return "", errors.New("AT-URI syntax didn't validate via regex")
 	}
 	// verify authority as either a DID or NSID

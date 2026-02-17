@@ -116,7 +116,6 @@ func (p *Pear) putRecord(
 		case cliqueGrantee:
 			// For clique grantees, we need to notify the clique owner that there is a new record to be aware of
 			cliqueGrantees = append(cliqueGrantees, string(g))
-			return "", fmt.Errorf("clique grantees are not supported yet")
 		}
 	}
 
@@ -139,7 +138,9 @@ func (p *Pear) putRecord(
 		if err != nil {
 			return "", err
 		}
-		p.addCliqueItem(ctx, cliqueURI, uri)
+		if err = p.addCliqueItem(ctx, cliqueURI, uri); err != nil {
+			return "", nil
+		}
 	}
 	return uri, nil
 }
@@ -240,12 +241,15 @@ func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient 
 		if err != nil {
 			return err
 		}
-		_, err = p.xrpcCh.SendXRPC(
+		resp, err := p.xrpcCh.SendXRPC(
 			ctx,
 			sender,
 			recipient,
 			req,
 		)
+
+		// TODO: should we be checking resp?
+		defer func() { _ = resp.Body.Close() }()
 		return err
 	}
 
@@ -284,7 +288,7 @@ func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient 
 					cliqueStr := uri.String()
 					if did, err := syntax.ParseDID(member); err == nil {
 						// TODO: is this weird? recursion.
-						p.notifyOfUpdate(ctx, recipient, syntax.DID(did.String()), collection, rkey, &cliqueStr)
+						return p.notifyOfUpdate(ctx, recipient, syntax.DID(did.String()), collection, rkey, &cliqueStr)
 					} else {
 						// We should never have allowed nested cliques.
 						return fmt.Errorf("found a nested clique -- should never happen")
@@ -348,6 +352,7 @@ func (p *Pear) getCliqueItems(ctx context.Context, cliqueURI habitat_syntax.Habi
 	// If the clique does not exist on this repo, then forward the request.
 	if !has {
 		// TODO: unimplemented -- not sure when this would happen
+		return nil, fmt.Errorf("unexpected -- calling getCliqueItems on a did that does not exist on this repo")
 	}
 
 	// Otherwise, the clique exists on this repo, so fetch relevant rkeys from both the inbox and the repo of the owner did.
@@ -403,6 +408,10 @@ func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller st
 		maybeCliqueStr := string(maybeClique)
 		for _, itemURI := range items {
 			_, collection, rkey, err := itemURI.ExtractParts()
+			if err != nil {
+				return fmt.Errorf("extracting clique item URIs: %w", err)
+			}
+
 			err = p.notifyOfUpdate(ctx, syntax.DID(caller), syntax.DID(grantee.String()), collection.String(), rkey.String(), &maybeCliqueStr)
 			if err != nil {
 				return fmt.Errorf("clique owner, notify clique members of an update: %w", err)
