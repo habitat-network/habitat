@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/repo"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -68,8 +69,8 @@ type grantee interface {
 }
 
 // Parse the grantees input which is typed as an interface
-func parseGrantees(grantees []interface{}) ([]grantee, error) {
-	parsed := make([]grantee, len(grantees))
+func parseGrantees(grantees []interface{}) ([]string, error) {
+	parsed := make([]string, len(grantees))
 	for i, generic := range grantees {
 		unknownGrantee, ok := generic.(map[string]interface{})
 		if !ok {
@@ -91,7 +92,11 @@ func parseGrantees(grantees []interface{}) ([]grantee, error) {
 			if !ok {
 				return nil, fmt.Errorf("malformatted did grantee has non-string did field: %v", unknownGrantee)
 			}
-			parsed[i] = didGrantee(asStr)
+			_, err := syntax.ParseDID(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("malformed did grantee field: %s", asStr)
+			}
+			parsed[i] = asStr
 		case "network.habitat.repo.putRecord#cliqueRef":
 			uri, ok := unknownGrantee["uri"]
 			if !ok {
@@ -101,7 +106,11 @@ func parseGrantees(grantees []interface{}) ([]grantee, error) {
 			if !ok {
 				return nil, fmt.Errorf("malformatted clique grantee has non-string uri field: %v", unknownGrantee)
 			}
-			parsed[i] = cliqueGrantee(asStr)
+			_, err := habitat_syntax.ParseHabitatURI(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("malformed habitat uri grantee field: %s", asStr)
+			}
+			parsed[i] = asStr
 		default:
 			return nil, fmt.Errorf("malformatted grantee has unknown $type of %v: %v", granteeType, unknownGrantee)
 		}
@@ -181,26 +190,8 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-
-		didGrantees := []string{}
-		for _, grantee := range parsed {
-			switch g := grantee.(type) {
-			case didGrantee:
-				didGrantees = append(didGrantees, string(g))
-			case cliqueGrantee:
-				// If we ever run into a non-DID grantee, return an error as this is not yet supported
-				utils.LogAndHTTPError(
-					w,
-					err,
-					fmt.Sprintf("non-DID grantees are not supported: %v", grantee),
-					http.StatusInternalServerError,
-				)
-				return
-			}
-		}
-
 		err = s.pear.permissions.AddReadPermission(
-			didGrantees,
+			parsed,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
 		)
@@ -454,7 +445,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	_, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -464,10 +455,17 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
+
+	grantees, err := parseGrantees(req.Grantees)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		return
+	}
 	err = s.pear.permissions.AddReadPermission(
-		[]string{req.Did},
+		grantees,
 		callerDID.String(),
-		req.Lexicon,
+		req.Collection,
+		// TODO: handle record key here after sashanks PR
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
