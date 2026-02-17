@@ -18,7 +18,7 @@ import (
 
 const (
 	testServiceName     = "habitat_test"
-	testServiceEndpoint = "test_url"
+	testServiceEndpoint = "https://test_url"
 )
 
 type options struct {
@@ -50,7 +50,7 @@ func newPearForTest(t *testing.T, opts ...option) *Pear {
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
-	p := NewPear(t.Context(), testServiceEndpoint, testServiceName, o.dir, permissions, repo, inbox)
+	p := NewPear(t.Context(), testServiceName, testServiceEndpoint, o.dir, permissions, repo, inbox)
 	return p
 }
 
@@ -61,7 +61,7 @@ func mockIdentities(dids []string) identity.Directory {
 			DID: syntax.DID(did),
 			Services: map[string]identity.ServiceEndpoint{
 				testServiceName: identity.ServiceEndpoint{
-					URL: "https://" + testServiceEndpoint,
+					URL: testServiceEndpoint,
 				},
 			},
 		})
@@ -75,7 +75,7 @@ func TestMockIdentities(t *testing.T) {
 
 	id, err := dir.LookupDID(t.Context(), syntax.DID("my-did"))
 	require.NoError(t, err)
-	require.Equal(t, id.Services[testServiceName].URL, "https://"+testServiceEndpoint)
+	require.Equal(t, id.Services[testServiceName].URL, testServiceEndpoint)
 
 	has, err := p.hasRepoForDid(syntax.DID("my-did"))
 	require.NoError(t, err)
@@ -315,7 +315,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	inboxInstance, err := inbox.New(db)
 	require.NoError(t, err)
 	// remoteDID is intentionally not added to mock identities to simulate a different node
-	p := NewPear(t.Context(), testServiceEndpoint, testServiceName, mockIdentities([]string{aliceDID, bobDID, carolDID}), perms, repoStore, inboxInstance)
+	p := NewPear(t.Context(), testServiceName, testServiceEndpoint, mockIdentities([]string{aliceDID, bobDID, carolDID}), perms, repoStore, inboxInstance)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true

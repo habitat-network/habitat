@@ -19,7 +19,6 @@ import (
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -46,9 +45,12 @@ type authRequestFlash struct {
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
 // for proof-of-possession token binding.
 type OAuthServer struct {
+	// The habitat service name to look up in DID docs.
+	serviceName     string
+	serviceEndpoint string
+
 	provider     fosite.OAuth2Provider
 	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
-	userStore    userstore.UserStore        // Store for managing users
 	sessionStore sessions.Store             // Session storage for authorization flow state
 	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
@@ -73,12 +75,13 @@ type OAuthServer struct {
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
+	serviceName string,
+	serviceEndpoint string,
 	secret string,
 	oauthClient pdsclient.PdsOAuthClient,
 	sessionStore sessions.Store,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
-	userStore userstore.UserStore,
 ) (*OAuthServer, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
@@ -97,6 +100,8 @@ func NewOAuthServer(
 	gob.Register(&authRequestFlash{})
 	gob.Register(pdsclient.AuthorizeState{})
 	return &OAuthServer{
+		serviceName:     serviceName,
+		serviceEndpoint: serviceEndpoint,
 		provider: compose.Compose(
 			config,
 			storage,
@@ -107,7 +112,6 @@ func NewOAuthServer(
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
 		credStore:    credStore,
-		userStore:    userStore,
 		oauthClient:  oauthClient,
 		sessionStore: sessionStore,
 		directory:    directory,
@@ -272,14 +276,24 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	// Ensure user exists in the users table (will insert on first login)
-	if o.userStore != nil {
-		err = o.userStore.EnsureUser(arf.Did)
+	// Ensure that habitat serves this user
+	id, err := o.directory.LookupDID(ctx, arf.Did)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"failed to lookup did",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	if endpoint, ok := id.Services[o.serviceName]; !ok || endpoint.URL != o.serviceEndpoint {
 		if err != nil {
 			utils.LogAndHTTPError(
 				w,
 				err,
-				"failed to ensure user exists",
+				"user's habitat service in DID doc does not match expected service",
 				http.StatusInternalServerError,
 			)
 			return

@@ -34,7 +34,6 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/telemetry"
-	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/urfave/cli/v3"
 )
 
@@ -52,7 +51,6 @@ func main() {
 
 func run(_ context.Context, cmd *cli.Command) error {
 	// Parse all CLI arguments and options at the beginning
-	domain := cmd.String(fDomain)
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
@@ -110,19 +108,18 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
-	userStore, err := userstore.NewUserStore(db)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup user store")
-	}
-	oauthServer, oauthClient := setupOAuthServer(cmd, pdsCredStore, userStore)
+
+	serviceName := cmd.String(fServiceName)
+	domain := cmd.String(fDomain)
+	serviceEndpoint := "https://" + domain
+	oauthServer, oauthClient := setupOAuthServer(cmd, serviceName, serviceEndpoint, pdsCredStore)
 	pdsClientFactory := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
 
-	serviceName := cmd.String(fServiceName)
-	pearServer, err := setupPearServer(ctx, serviceName, domain, db, oauthServer)
+	pearServer, err := setupPearServer(ctx, serviceName, serviceEndpoint, db, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
@@ -229,7 +226,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 func setupPearServer(
 	ctx context.Context,
 	serviceName string,
-	domain string,
+	serviceEndpoint string,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 ) (*pear.Server, error) {
@@ -249,14 +246,15 @@ func setupPearServer(
 	}
 
 	dir := identity.DefaultDirectory()
-	p := pear.NewPear(ctx, domain, serviceName, dir, permissions, repo, inbox)
+	p := pear.NewPear(ctx, serviceName, serviceEndpoint, dir, permissions, repo, inbox)
 	return pear.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
 }
 
 func setupOAuthServer(
 	cmd *cli.Command,
+	serviceName string,
+	serviceEndpoint string,
 	credStore pdscred.PDSCredentialStore,
-	userStore userstore.UserStore,
 ) (*oauthserver.OAuthServer, pdsclient.PdsOAuthClient) {
 	domain := cmd.String(fDomain)
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
@@ -269,12 +267,13 @@ func setupOAuthServer(
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
 	oauthServer, err := oauthserver.NewOAuthServer(
+		serviceName,
+		serviceEndpoint,
 		cmd.String(fOauthServerSecret),
 		oauthClient,
 		sessions.NewCookieStore([]byte("my super secret signing password")),
 		identity.DefaultDirectory(),
 		credStore,
-		userStore,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")

@@ -45,8 +45,8 @@ var (
 
 func NewPear(
 	ctx context.Context,
-	domain string,
 	serviceName string,
+	serviceEndpoint string,
 	dir identity.Directory,
 	perms permissions.Store,
 	repo repo.Repo,
@@ -54,7 +54,7 @@ func NewPear(
 ) *Pear {
 	return &Pear{
 		ctx:         ctx,
-		url:         "https://" + domain, // We use https
+		url:         serviceEndpoint,
 		serviceName: serviceName,
 		dir:         dir,
 		permissions: perms,
