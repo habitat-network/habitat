@@ -454,7 +454,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	_, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}

@@ -4,6 +4,7 @@ package habitat
 
 // NetworkHabitatPermissionsAddPermissionInput represents the input for network.habitat.permissions.addPermission
 type NetworkHabitatPermissionsAddPermissionInput struct {
-	Did     string `json:"did"`
-	Lexicon string `json:"lexicon"`
+	Collection string        `json:"collection"`
+	Grantees   []interface{} `json:"grantees"`
+	Rkey       string        `json:"rkey"`
 }

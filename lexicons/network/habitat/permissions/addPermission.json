@@ -11,19 +11,32 @@
         "schema": {
           "type": "object",
           "required": [
-            "did",
-            "lexicon"
+            "grantees",
+            "collection",
+            "rkey"
           ],
           "properties": {
-            "did": {
-              "type": "string",
-              "format": "did",
-              "description": "The DID of the user to grant read permission to."
+            "grantees": {
+              "type": "array",
+              "items": {
+                "type": "union",
+                "refs": [
+                  "network.habitat.grantee#didGrantee",
+                  "network.habitat.grantee#cliqueRef"
+                ]
+              },
+              "maxLength": 100
             },
-            "lexicon": {
+            "collection": {
               "type": "string",
               "format": "nsid",
               "description": "The NSID of the lexicon or record to grant read permission for."
+            },
+            "rkey": {
+              "type": "string",
+              "format": "record-key",
+              "description": "The Record Key to grant read permissions to, if any.",
+              "maxLength": 512
             }
           }
         }
