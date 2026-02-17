@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -254,6 +255,53 @@ func TestListRecords(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, records)
 	})
+}
+
+func TestCliqueEndToEnd(t *testing.T) {
+	ctx := t.Context()
+
+	didA := "did:plc:aaaaaaaaaaaaaaaaaaaaaa"
+	didB := "did:plc:bbbbbbbbbbbbbbbbbbbbbb"
+	didC := "did:plc:cccccccccccccccccccccc"
+
+	dir := mockIdentities([]string{didA, didB, didC})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	validate := true
+
+	// Step 1: did A creates a record (this is the clique root).
+	cliqueCollection := "network.habitat.clique"
+	cliqueRkey := "clique-1"
+	_, err := p.putRecord(ctx, didA, cliqueCollection, map[string]any{"name": "my-clique-root"}, cliqueRkey, &validate, nil)
+	require.NoError(t, err)
+
+	cliqueURI := habitat_syntax.ConstructHabitatUri(didA, cliqueCollection, cliqueRkey)
+
+	// Step 2: did B creates a record and adds it to the clique originating at A's record.
+	bCollection := "network.habitat.post"
+	bRkey := "post-1"
+	_, err = p.putRecord(ctx, didB, bCollection, map[string]any{"text": "hello from B"}, bRkey, &validate, nil)
+	require.NoError(t, err)
+
+	// B grants the clique read permission on B's record.
+	err = p.addReadPermission(ctx, cliqueGrantee(cliqueURI), didB, bCollection, bRkey)
+	require.NoError(t, err)
+
+	// Step 3: did A can see that a notification about B's record exists in A's inbox.
+	items, err := p.getCliqueItems(ctx, cliqueURI)
+	require.NoError(t, err)
+	require.NotEmpty(t, items, "A should see B's record in the clique")
+
+	// Step 4: did A adds did C to the clique.
+	err = p.addReadPermission(ctx, didGrantee(didC), didA, cliqueCollection, cliqueRkey)
+	require.NoError(t, err)
+
+	// Step 5: C should have received a notification for B's record as a result of A adding C.
+	// Query C's inbox for notifications tagged with this clique.
+	cliqueStr := string(cliqueURI)
+	cInboxItems, err := p.inbox.GetCliqueItems(ctx, didC, cliqueStr)
+	require.NoError(t, err)
+	require.NotEmpty(t, cInboxItems, "C should have received a notification for B's record via the clique fan-out")
 }
 
 // TODO: eventually test permissions with blobs here

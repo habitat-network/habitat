@@ -218,6 +218,7 @@ func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*repo.BlobR
 
 // Inbox-related methods
 func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string, clique *string) error {
+	fmt.Println("notify of update called")
 	has, err := p.hasRepoForDid(recipient)
 	if err != nil {
 		return err
@@ -247,6 +248,7 @@ func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient 
 	}
 
 	if has {
+		fmt.Println("has repo")
 		// TODO: if the notification is on a clique that this recipient owns, ensure that the sender is part of the clique.
 		if clique != nil {
 			uri, err := habitat_syntax.ParseHabitatURI(*clique)
@@ -263,12 +265,12 @@ func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient 
 			if did == recipient {
 				err := p.inbox.Put(ctx, sender, recipient, collection, rkey, clique)
 				if err != nil {
-					return err
+					return fmt.Errorf("putting in inbox: %w", err)
 				}
 
 				cliqueMembers, err := p.permissions.ListGranteesForRecord(ctx, recipient.String(), collection, rkey)
 				if err != nil {
-					return err
+					return fmt.Errorf("getting clique members: %w", err)
 				}
 
 				for _, member := range cliqueMembers {
@@ -360,6 +362,7 @@ func (p *Pear) getCliqueItems(ctx context.Context, cliqueURI habitat_syntax.Habi
 
 // TODO: understand if this works with rkey = ""
 func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller string, collection string, rkey string) error {
+	fmt.Println("add read permission", grantee, caller, collection+rkey)
 	cliqueGrantee, isCliqueGrantee := grantee.(cliqueGrantee)
 	if isCliqueGrantee && rkey == "" {
 		// If it's a clique, ensure that rkey is populated (can't grant a clique permission to a whole collection -- unsupported for now)
@@ -372,7 +375,7 @@ func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller st
 		collection+rkey, // TODO: seperate these when the permission store is fixed
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("adding read permission: %w", err)
 	}
 
 	// There are some cases that need further work.
@@ -380,15 +383,14 @@ func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller st
 		// If we are granting permission directly to a did grantee then always notify them that there is something new to see.
 		err := p.notifyOfUpdate(ctx, syntax.DID(caller), syntax.DID(grantee.String()), collection, rkey, nil)
 		if err != nil {
-			return err
+			return fmt.Errorf("notify new grantees of an update: %w", err)
 		}
 
 		// If the record we are granting permission on happens to be a clique root, then this inbox + repo contains all notifications for this clique. Look those up and fan them out.
-
 		maybeClique := habitat_syntax.ConstructHabitatUri(caller, collection, rkey)
 		items, err := p.getCliqueItems(ctx, maybeClique)
 		if err != nil {
-			return err
+			return fmt.Errorf("getting clique items: %w", err)
 		}
 
 		maybeCliqueStr := string(maybeClique)
@@ -396,7 +398,7 @@ func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller st
 			_, collection, rkey, err := itemURI.ExtractParts()
 			err = p.notifyOfUpdate(ctx, syntax.DID(caller), syntax.DID(grantee.String()), collection.String(), rkey.String(), &maybeCliqueStr)
 			if err != nil {
-				return err
+				return fmt.Errorf("clique owner, notify clique members of an update: %w", err)
 			}
 		}
 		return nil
@@ -405,14 +407,15 @@ func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller st
 	// Otherwise, if the grantee is a clique, then notify the clique owner that there is an update to forward.
 	uri, err := habitat_syntax.ParseHabitatURI(cliqueGrantee.String())
 	if err != nil {
-		return err
+		return fmt.Errorf("parsing habitat URI: %w", err)
 	}
 
 	cliqueDID, err := uri.Authority().AsDID()
 	if err != nil {
-		return err
+		return fmt.Errorf("resolving clique did: %w", err)
 	}
 
 	clique := cliqueGrantee.String()
+	fmt.Println("down here")
 	return p.notifyOfUpdate(ctx, syntax.DID(caller), cliqueDID, collection, rkey, &clique)
 }

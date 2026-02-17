@@ -34,7 +34,9 @@ func ConstructHabitatUri(did string, collection string, rkey string) HabitatURI 
 	sb := strings.Builder{}
 	sb.WriteString(habitatScheme)
 	sb.WriteString(did)
+	sb.WriteString("/")
 	sb.WriteString(collection)
+	sb.WriteString("/")
 	sb.WriteString(rkey)
 	return HabitatURI(sb.String())
 }

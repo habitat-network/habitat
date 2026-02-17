@@ -133,6 +133,10 @@ func (s *store) AddReadPermission(
 		})
 	}
 
+	if len(grantees) == 0 {
+		return nil
+	}
+
 	// Upsert: insert or update on conflict
 	result := s.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "grantee"}, {Name: "owner"}, {Name: "object"}},
@@ -241,8 +245,13 @@ func (s *store) ListAllowedRecordsByGrantee(ctx context.Context, caller string, 
 }
 
 func (s *store) ListGranteesForRecord(ctx context.Context, owner string, collection string, rkey string) ([]string, error) {
-	return gorm.G[string](s.db.Debug()).
-		Select("grantee").
+	var grantees []string
+	err := s.db.Model(&Permission{}).
 		Where("owner = ? AND object = ?", owner, collection+rkey).
-		Find(ctx)
+		Pluck("grantee", &grantees).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return grantees, nil
 }
