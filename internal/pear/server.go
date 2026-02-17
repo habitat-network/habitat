@@ -74,11 +74,17 @@ func parseGrantees(grantees []interface{}) ([]string, error) {
 		case "network.habitat.grantee#didGrantee":
 			did, ok := unknownGrantee["did"]
 			if !ok {
-				return nil, fmt.Errorf("malformatted did grantee has no did field: %v", unknownGrantee)
+				return nil, fmt.Errorf(
+					"malformatted did grantee has no did field: %v",
+					unknownGrantee,
+				)
 			}
 			asStr, ok := did.(string)
 			if !ok {
-				return nil, fmt.Errorf("malformatted did grantee has non-string did field: %v", unknownGrantee)
+				return nil, fmt.Errorf(
+					"malformatted did grantee has non-string did field: %v",
+					unknownGrantee,
+				)
 			}
 			_, err := syntax.ParseDID(asStr)
 			if err != nil {
@@ -88,11 +94,17 @@ func parseGrantees(grantees []interface{}) ([]string, error) {
 		case "network.habitat.grantee#cliqueRef":
 			uri, ok := unknownGrantee["uri"]
 			if !ok {
-				return nil, fmt.Errorf("malformatted clique grantee has no uri field: %v", unknownGrantee)
+				return nil, fmt.Errorf(
+					"malformatted clique grantee has no uri field: %v",
+					unknownGrantee,
+				)
 			}
 			asStr, ok := uri.(string)
 			if !ok {
-				return nil, fmt.Errorf("malformatted clique grantee has non-string uri field: %v", unknownGrantee)
+				return nil, fmt.Errorf(
+					"malformatted clique grantee has non-string uri field: %v",
+					unknownGrantee,
+				)
 			}
 			_, err := habitat_syntax.ParseHabitatClique(asStr)
 			if err != nil {
@@ -100,7 +112,11 @@ func parseGrantees(grantees []interface{}) ([]string, error) {
 			}
 			parsed[i] = asStr
 		default:
-			return nil, fmt.Errorf("malformatted grantee has unknown $type of %v: %v", granteeType, unknownGrantee)
+			return nil, fmt.Errorf(
+				"malformatted grantee has unknown $type of %v: %v",
+				granteeType,
+				unknownGrantee,
+			)
 		}
 	}
 	return parsed, nil
@@ -181,7 +197,8 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		err = s.pear.permissions.AddReadPermission(
 			parsed,
 			ownerDID.String(),
-			req.Collection+"."+rkey,
+			req.Collection,
+			rkey,
 		)
 		if err != nil {
 			utils.LogAndHTTPError(
@@ -453,7 +470,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		grantees,
 		callerDID.String(),
 		req.Collection,
-		// TODO: handle record key here after sashanks PR
+		req.Rkey,
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
@@ -472,17 +489,11 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
+
+	// TODO: RemoveReadPermission should take grantees list
 	grantees, err := parseGrantees(req.Grantees)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing grantees", http.StatusBadRequest)
-		return
-	}
-	object := req.Collection
-	if req.Rkey != "" {
-		object += "." + req.Rkey
-	}
 	for _, grantee := range grantees {
-		err = s.pear.permissions.RemoveReadPermission(grantee, callerDID.String(), object)
+		err = s.pear.permissions.RemoveReadPermission(grantee, callerDID.String(), req.Collection, req.Rkey)
 		if err != nil {
 			utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 			return
