@@ -23,14 +23,16 @@ import (
 
 // testOAuthClient creates a test OAuth client with a valid JWK
 func testOAuthClient(t *testing.T) OAuthClient {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := encrypt.GenerateKey()
 	require.NoError(t, err)
-	return NewOAuthClient(
+	client, err := NewOAuthClient(
 		"test-client",
 		"https://test.com",
 		"https://test.com/callback",
-		&jose.JSONWebKey{Key: key, KeyID: "test-key-id"},
+		key,
 	)
+	require.NoError(t, err)
+	return client
 }
 
 // testIdentity creates a test identity with a given PDS endpoint

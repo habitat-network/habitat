@@ -2,8 +2,6 @@ package oauthserver_test
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/go-jose/go-jose/v3"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -45,22 +42,18 @@ func TestOAuthServerE2E(t *testing.T) {
 	defer oauthClient.Close()
 
 	// Generate RSA key for JWT signing
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err, "failed to generate RSA key")
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err, "failed to generate secret")
 
-	oauthServer := oauthserver.NewOAuthServer(
-		&jose.JSONWebKey{
-			Key:       privateKey,
-			KeyID:     "test-key",
-			Algorithm: string(jose.RS256),
-			Use:       "sig",
-		},
+	oauthServer, err := oauthserver.NewOAuthServer(
+		secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		oauthclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 		userStore,
 	)
+	require.NoError(t, err, "failed to setup oauth server")
 
 	// setup http server oauth client to make requests to
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
