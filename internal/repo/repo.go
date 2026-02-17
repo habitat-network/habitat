@@ -95,7 +95,7 @@ func (r *repo) PutRecord(ctx context.Context, did string, collection string, rke
 			},
 			DoUpdates: clause.AssignmentColumns([]string{"value"}),
 		},
-	).Create(context.Background(), &record)
+	).Create(ctx, &record)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +113,7 @@ func (r *repo) GetRecord(ctx context.Context, did string, collection string, rke
 	row, err := gorm.G[Record](
 		r.db,
 	).Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
-		First(context.Background())
+		First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
 	} else if err != nil {
@@ -138,7 +138,7 @@ func (r *repo) UploadBlob(ctx context.Context, did string, data []byte, mimeType
 	err = gorm.G[Blob](
 		r.db,
 		clause.OnConflict{UpdateAll: true},
-	).Create(context.Background(), &Blob{
+	).Create(ctx, &Blob{
 		Did:      did,
 		Cid:      cid.String(),
 		MimeType: mimeType,
@@ -164,7 +164,7 @@ func (r *repo) GetBlob(
 ) (string /* mimetype */, []byte /* raw blob */, error) {
 	row, err := gorm.G[Blob](
 		r.db,
-	).Where("did = ? and cid = ?", did, cid).First(context.Background())
+	).Where("did = ? and cid = ?", did, cid).First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrRecordNotFound
 	} else if err != nil {
@@ -292,7 +292,7 @@ func (r *repo) ListRecords(
 	query = query.Order("rkey ASC")
 
 	// Execute query
-	rows, err := query.Find(context.Background())
+	rows, err := query.Find(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
