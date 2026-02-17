@@ -85,7 +85,7 @@ func ParseHabitatClique(raw string) (HabitatURI, error) {
 	}
 
 	if uri.Collection() != habitatCliqueNSID {
-		return "", fmt.Errorf("input does not use clique nsid: %s, raw")
+		return "", fmt.Errorf("input does not use clique nsid: %s", raw)
 	}
 	return uri, nil
 }

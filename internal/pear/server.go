@@ -56,18 +56,6 @@ func NewServer(
 
 var formDecoder = schema.NewDecoder()
 
-type didGrantee string
-
-func (didGrantee) isGrantee() {}
-
-type cliqueGrantee string
-
-func (cliqueGrantee) isGrantee() {}
-
-type grantee interface {
-	isGrantee()
-}
-
 // Parse the grantees input which is typed as an interface
 func parseGrantees(grantees []interface{}) ([]string, error) {
 	parsed := make([]string, len(grantees))
