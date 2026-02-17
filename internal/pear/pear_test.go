@@ -304,6 +304,79 @@ func TestCliqueEndToEnd(t *testing.T) {
 	require.NotEmpty(t, cInboxItems, "C should have received a notification for B's record via the clique fan-out")
 }
 
+func TestNestedCliquesDisallowed(t *testing.T) {
+	ctx := t.Context()
+
+	didA := "did:plc:a"
+	didB := "did:plc:b"
+	didC := "did:plc:c"
+
+	dir := mockIdentities([]string{didA, didB, didC})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	validate := true
+
+	// A creates a clique root record.
+	postCollection := "network.habitat.post"
+	cliqueA, err := p.putRecord(ctx, didA, postCollection, map[string]any{"name": "clique-A"}, "clique-a", &validate, nil)
+	require.NoError(t, err)
+
+	// Now B creates a record and adds it to clique A.
+	postRkey := "post-1"
+	cliqueB, err := p.putRecord(ctx, didB, postCollection, map[string]any{"text": "hello"}, postRkey, &validate, []grantee{cliqueGrantee(cliqueA)})
+	require.NoError(t, err)
+
+	// Now C tries to create a record and add it to clique B.
+	_, err = p.putRecord(ctx, didC, postCollection, map[string]any{"text": "hello"}, postRkey, &validate, []grantee{cliqueGrantee(cliqueB)})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nested clique")
+}
+
+func TestPutRecordWithDidAndCliqueGrantees(t *testing.T) {
+	ctx := t.Context()
+
+	didA := "did:plc:aaaaaaaaaaaaaaaaaaaaaa"
+	didB := "did:plc:bbbbbbbbbbbbbbbbbbbbbb"
+	didC := "did:plc:cccccccccccccccccccccc"
+
+	dir := mockIdentities([]string{didA, didB, didC})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	validate := true
+
+	// A creates a clique root record.
+	cliqueCollection := "network.habitat.clique"
+	cliqueRkey := "clique-1"
+	_, err := p.putRecord(ctx, didA, cliqueCollection, map[string]any{"name": "my-clique"}, cliqueRkey, &validate, nil)
+	require.NoError(t, err)
+	cliqueURI := habitat_syntax.ConstructHabitatUri(didA, cliqueCollection, cliqueRkey)
+
+	// B creates a record and grants access to both did C (directly) and A's clique.
+	bCollection := "network.habitat.post"
+	bRkey := "post-1"
+	uri, err := p.putRecord(ctx, didB, bCollection, map[string]any{"text": "shared post"}, bRkey, &validate, []grantee{
+		didGrantee(didC),
+		cliqueGrantee(cliqueURI),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, uri)
+
+	// did C should have direct read permission on B's record.
+	hasAccess, err := p.permissions.HasPermission(didC, didB, bCollection, bRkey)
+	require.NoError(t, err)
+	require.True(t, hasAccess, "C should have direct read permission on B's record")
+
+	// The clique should also have been granted permission on B's record.
+	hasAccess, err = p.permissions.HasPermission(string(cliqueURI), didB, bCollection, bRkey)
+	require.NoError(t, err)
+	require.True(t, hasAccess, "clique should have read permission on B's record")
+
+	// A (the clique owner) should see B's record in the clique items.
+	items, err := p.getCliqueItems(ctx, cliqueURI)
+	require.NoError(t, err)
+	require.NotEmpty(t, items, "A should see B's record via the clique")
+}
+
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]string{"did:example:alice"})

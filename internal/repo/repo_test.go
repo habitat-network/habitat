@@ -126,3 +126,51 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 0)
 }
+
+func TestRepoUploadAndGetBlob(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	did := "did:plc:testuser"
+	data := []byte("hello blob world")
+	mimeType := "text/plain"
+
+	// Upload a blob
+	ref, err := repo.UploadBlob(t.Context(), did, data, mimeType)
+	require.NoError(t, err)
+	require.NotNil(t, ref)
+	require.Equal(t, mimeType, ref.MimeType)
+	require.Equal(t, int64(len(data)), ref.Size)
+
+	// Retrieve it by CID
+	gotMime, gotData, err := repo.GetBlob(t.Context(), did, ref.Ref.String())
+	require.NoError(t, err)
+	require.Equal(t, mimeType, gotMime)
+	require.Equal(t, data, gotData)
+
+	// Upload a second blob with a different mime type
+	data2 := []byte{0x89, 0x50, 0x4E, 0x47} // fake PNG header
+	ref2, err := repo.UploadBlob(t.Context(), did, data2, "image/png")
+	require.NoError(t, err)
+	require.Equal(t, "image/png", ref2.MimeType)
+	require.Equal(t, int64(len(data2)), ref2.Size)
+
+	// Both blobs should be independently retrievable
+	gotMime2, gotData2, err := repo.GetBlob(t.Context(), did, ref2.Ref.String())
+	require.NoError(t, err)
+	require.Equal(t, "image/png", gotMime2)
+	require.Equal(t, data2, gotData2)
+
+	// Original blob is still intact
+	gotMime, gotData, err = repo.GetBlob(t.Context(), did, ref.Ref.String())
+	require.NoError(t, err)
+	require.Equal(t, mimeType, gotMime)
+	require.Equal(t, data, gotData)
+
+	// Getting a non-existent blob returns an error
+	_, _, err = repo.GetBlob(t.Context(), did, "bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	require.ErrorIs(t, err, ErrRecordNotFound)
+}

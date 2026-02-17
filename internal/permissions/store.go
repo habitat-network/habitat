@@ -2,6 +2,7 @@ package permissions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -67,6 +68,10 @@ func NewStore(db *gorm.DB) (*store, error) {
 	return &store{db: db}, nil
 }
 
+var (
+	ErrEmptyGrantees = errors.New("grantees argument is empty")
+)
+
 // HasPermission checks if a requester has permission to access a specific record.
 // It checks permissions in the following order:
 // 1. Owner always has access
@@ -123,6 +128,10 @@ func (s *store) AddReadPermission(
 	owner string,
 	nsid string,
 ) error {
+	if len(grantees) == 0 {
+		return ErrEmptyGrantees
+	}
+
 	permissions := []Permission{}
 	for _, grantee := range grantees {
 		permissions = append(permissions, Permission{
@@ -131,10 +140,6 @@ func (s *store) AddReadPermission(
 			Object:  nsid,
 			Effect:  "allow",
 		})
-	}
-
-	if len(grantees) == 0 {
-		return nil
 	}
 
 	// Upsert: insert or update on conflict

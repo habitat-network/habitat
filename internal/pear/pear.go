@@ -101,35 +101,27 @@ func (p *Pear) putRecord(
 	validate *bool,
 	grantees []grantee,
 ) (habitat_syntax.HabitatURI, error) {
-	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
+	fmt.Println("putrecord", did, collection, rkey, grantees)
+	cliqueGrantees := []string{}
+	for _, grantee := range grantees {
+		switch g := grantee.(type) {
+		case cliqueGrantee:
+			// For clique grantees, we need to notify the clique owner that there is a new record to be aware of
+			cliqueGrantees = append(cliqueGrantees, string(g))
+		}
+		err := p.addReadPermission(ctx, grantee, did, collection, rkey)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	uri, err := p.repo.PutRecord(ctx, did, collection, rkey, record, validate)
 	if err != nil {
 		return "", err
 	}
 
-	didGrantees := []string{}
-	cliqueGrantees := []string{}
-	for _, grantee := range grantees {
-		switch g := grantee.(type) {
-		case didGrantee:
-			didGrantees = append(didGrantees, string(g))
-		case cliqueGrantee:
-			// For clique grantees, we need to notify the clique owner that there is a new record to be aware of
-			cliqueGrantees = append(cliqueGrantees, string(g))
-		}
-	}
-
-	err = p.permissions.AddReadPermission(
-		append(didGrantees, cliqueGrantees...),
-		did,
-		collection+"."+rkey,
-	)
-	if err != nil {
-		return "", err
-	}
-
-	if len(cliqueGrantees) == 0 {
-		return "", nil
+	if len(grantees) == 0 {
+		return uri, nil
 	}
 
 	// If we granted permission to a clique, we need to notify the clique owner.
@@ -374,17 +366,48 @@ func (p *Pear) getCliqueItems(ctx context.Context, cliqueURI habitat_syntax.Habi
 
 // TODO: understand if this works with rkey = ""
 func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller string, collection string, rkey string) error {
-	fmt.Println("add read permission", grantee, caller, collection+rkey)
 	cliqueGrantee, isCliqueGrantee := grantee.(cliqueGrantee)
 	if isCliqueGrantee && rkey == "" {
 		// If it's a clique, ensure that rkey is populated (can't grant a clique permission to a whole collection -- unsupported for now)
 		return fmt.Errorf("granting a clique permissions to an entire collection is unsupported")
 	}
 
+	if isCliqueGrantee {
+		// If this is a clique, need to make sure that we do not allow nested cliques.
+		uri, err := habitat_syntax.ParseHabitatURI(cliqueGrantee.String())
+		if err != nil {
+			return fmt.Errorf("parsing habitat URI: %w", err)
+		}
+
+		cliqueDID, err := uri.Authority().AsDID()
+		if err != nil {
+			return fmt.Errorf("resolving clique did: %w", err)
+		}
+
+		// TODO: this needs to work with multiple pear nodes
+		fmt.Println("checking permissions on record", cliqueDID, uri.Collection(), uri.RecordKey())
+		existing, err := p.permissions.ListGranteesForRecord(ctx, cliqueDID.String(), uri.Collection().String(), uri.RecordKey().String())
+		if err != nil {
+			return fmt.Errorf("resolving existing grantees: %w", err)
+		}
+
+		for _, grantee := range existing {
+			_, err := habitat_syntax.ParseHabitatURI(grantee)
+			if err != nil {
+				_, err := syntax.ParseDID(grantee)
+				if err != nil {
+					return fmt.Errorf("grantee is neither clique nor did; something is wrong %w", err)
+				}
+				continue // did grantees are fine
+			}
+			return fmt.Errorf("nested cliques are not allowed, found an existing clique grantee")
+		}
+	}
+
 	err := p.permissions.AddReadPermission(
 		[]string{grantee.String()},
 		caller,
-		collection+rkey, // TODO: seperate these when the permission store is fixed
+		collection+"."+rkey, // TODO: seperate these when the permission store is fixed
 	)
 	if err != nil {
 		return fmt.Errorf("adding read permission: %w", err)
