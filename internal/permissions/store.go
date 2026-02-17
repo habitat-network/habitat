@@ -225,7 +225,7 @@ func (s *store) ListReadPermissionsByUser(
 }
 
 func (s *store) ListAllowedRecordsByGrantee(ctx context.Context, caller string, grantee string) ([]habitat_syntax.HabitatURI, error) {
-	permissions, err := gorm.G[Permission](s.db.Debug()).
+	permissions, err := gorm.G[Permission](s.db).
 		Select("owner", "object").
 		Where("grantee = ? AND owner = ?", grantee, caller).
 		Find(ctx)

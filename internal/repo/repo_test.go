@@ -19,17 +19,17 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), pearDB)
+	repo, err := NewRepo(pearDB)
 	require.NoError(t, err)
 
 	collection := "test.collection"
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
 
-	_, err = repo.PutRecord("my-did", collection, key, val, nil)
+	_, err = repo.PutRecord(t.Context(), "my-did", collection, key, val, nil)
 	require.NoError(t, err)
 
-	got, err := repo.GetRecord("my-did", collection, key)
+	got, err := repo.GetRecord(t.Context(), "my-did", collection, key)
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
@@ -43,9 +43,9 @@ func TestRepoListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	_, err = repo.PutRecord(
+	_, err = repo.PutRecord(t.Context(),
 		"my-did",
 		"network.habitat.collection-1",
 		"key-1",
@@ -54,7 +54,7 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = repo.PutRecord(
+	_, err = repo.PutRecord(t.Context(),
 		"my-did",
 		"network.habitat.collection-1",
 		"key-2",
@@ -63,7 +63,7 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = repo.PutRecord(
+	_, err = repo.PutRecord(t.Context(),
 		"my-did",
 		"network.habitat.collection-2",
 		"key-2",
@@ -72,7 +72,7 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	records, err := repo.ListRecords(
+	records, err := repo.ListRecords(t.Context(),
 		"my-did",
 		"network.habitat.collection-1",
 		[]string{},
@@ -81,7 +81,7 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 0)
 
-	records, err = repo.ListRecords(
+	records, err = repo.ListRecords(t.Context(),
 		"my-did",
 		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.key-1", "network.habitat.collection-1.key-2"},
@@ -90,7 +90,7 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 
-	records, err = repo.ListRecords(
+	records, err = repo.ListRecords(t.Context(),
 		"my-did",
 		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.*"},
@@ -99,7 +99,7 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 
-	records, err = repo.ListRecords(
+	records, err = repo.ListRecords(t.Context(),
 		"my-did",
 		"network.habitat.collection-1",
 		[]string{"network.habitat.collection-1.*"},
@@ -108,7 +108,7 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 
-	records, err = repo.ListRecords(
+	records, err = repo.ListRecords(t.Context(),
 		"my-did",
 		"network.habitat.collection-2",
 		[]string{"network.habitat.*"},
@@ -117,7 +117,7 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 
-	records, err = repo.ListRecords(
+	records, err = repo.ListRecords(t.Context(),
 		"my-did",
 		"network.habitat.collection-2",
 		[]string{"network.habitat.*"},

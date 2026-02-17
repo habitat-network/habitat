@@ -18,11 +18,11 @@ import (
 )
 
 type Repo interface {
-	PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error)
-	GetRecord(did string, collection string, rkey string) (*Record, error)
-	UploadBlob(did string, data []byte, mimeType string) (*BlobRef, error)
-	GetBlob(did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
-	ListRecords(did string, collection string, allow []string, deny []string) ([]Record, error)
+	PutRecord(ctx context.Context, did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error)
+	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
+	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
+	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
+	ListRecords(ctx context.Context, did string, collection string, allow []string, deny []string) ([]Record, error)
 }
 
 // Persist private data within repos that mirror public repos.
@@ -37,8 +37,7 @@ type Repo interface {
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type repo struct {
-	ctx context.Context
-	db  *gorm.DB
+	db *gorm.DB
 }
 
 // repo implements the public type Repo
@@ -60,18 +59,17 @@ type Blob struct {
 }
 
 // TODO: create table etc.
-func NewRepo(ctx context.Context, db *gorm.DB) (*repo, error) {
+func NewRepo(db *gorm.DB) (*repo, error) {
 	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
 		return nil, err
 	}
 	return &repo{
-		ctx: ctx,
-		db:  db,
+		db: db,
 	}, nil
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *repo) PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error) {
+func (r *repo) PutRecord(ctx context.Context, did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
@@ -97,7 +95,7 @@ func (r *repo) PutRecord(did string, collection string, rkey string, rec map[str
 			},
 			DoUpdates: clause.AssignmentColumns([]string{"value"}),
 		},
-	).Create(r.ctx, &record)
+	).Create(context.Background(), &record)
 	if err != nil {
 		return "", err
 	}
@@ -110,12 +108,12 @@ var (
 	ErrMultipleRecordsFound = fmt.Errorf("multiple records found for desired query")
 )
 
-func (r *repo) GetRecord(did string, collection string, rkey string) (*Record, error) {
+func (r *repo) GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error) {
 	// Query using separate collection and rkey fields
 	row, err := gorm.G[Record](
 		r.db,
 	).Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
-		First(r.ctx)
+		First(context.Background())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
 	} else if err != nil {
@@ -130,7 +128,7 @@ type BlobRef struct {
 	Size     int64          `json:"size"`
 }
 
-func (r *repo) UploadBlob(did string, data []byte, mimeType string) (*BlobRef, error) {
+func (r *repo) UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error) {
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
 	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
@@ -140,7 +138,7 @@ func (r *repo) UploadBlob(did string, data []byte, mimeType string) (*BlobRef, e
 	err = gorm.G[Blob](
 		r.db,
 		clause.OnConflict{UpdateAll: true},
-	).Create(r.ctx, &Blob{
+	).Create(context.Background(), &Blob{
 		Did:      did,
 		Cid:      cid.String(),
 		MimeType: mimeType,
@@ -160,12 +158,13 @@ func (r *repo) UploadBlob(did string, data []byte, mimeType string) (*BlobRef, e
 // getBlob gets a blob. this is never exposed to the server, because blobs can only be resolved via records that link them (see LexLink)
 // besides exceptional cases like data migration which we do not support right now.
 func (r *repo) GetBlob(
+	ctx context.Context,
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
 	row, err := gorm.G[Blob](
 		r.db,
-	).Where("did = ? and cid = ?", did, cid).First(r.ctx)
+	).Where("did = ? and cid = ?", did, cid).First(context.Background())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrRecordNotFound
 	} else if err != nil {
@@ -177,6 +176,7 @@ func (r *repo) GetBlob(
 
 // listRecords implements repo.
 func (r *repo) ListRecords(
+	ctx context.Context,
 	did string,
 	collection string,
 	allow []string,
@@ -188,7 +188,7 @@ func (r *repo) ListRecords(
 
 	// Start with base query filtering by did and collection
 	query := gorm.G[Record](
-		r.db.Debug(),
+		r.db,
 	).Where("did = ?", did).
 		Where("collection = ?", collection)
 
@@ -292,7 +292,7 @@ func (r *repo) ListRecords(
 	query = query.Order("rkey ASC")
 
 	// Execute query
-	rows, err := query.Find(r.ctx)
+	rows, err := query.Find(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

@@ -102,7 +102,7 @@ func (p *Pear) putRecord(
 	grantees []grantee,
 ) (habitat_syntax.HabitatURI, error) {
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
-	uri, err := p.repo.PutRecord(did, collection, rkey, record, validate)
+	uri, err := p.repo.PutRecord(ctx, did, collection, rkey, record, validate)
 	if err != nil {
 		return "", err
 	}
@@ -146,6 +146,7 @@ func (p *Pear) putRecord(
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
 func (p *Pear) getRecord(
+	ctx context.Context,
 	collection string,
 	rkey string,
 	targetDID syntax.DID,
@@ -174,10 +175,11 @@ func (p *Pear) getRecord(
 		return nil, ErrUnauthorized
 	}
 
-	return p.repo.GetRecord(string(targetDID), collection, rkey)
+	return p.repo.GetRecord(ctx, string(targetDID), collection, rkey)
 }
 
 func (p *Pear) listRecords(
+	ctx context.Context,
 	did syntax.DID,
 	collection string,
 	callerDID syntax.DID,
@@ -199,21 +201,22 @@ func (p *Pear) listRecords(
 		return nil, err
 	}
 
-	return p.repo.ListRecords(did.String(), collection, allow, deny)
+	return p.repo.ListRecords(ctx, did.String(), collection, allow, deny)
 }
 
 // Blob-related methods
 // TODO: actually enforce permissions here
 func (p *Pear) getBlob(
+	ctx context.Context,
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
-	return p.repo.GetBlob(did, cid)
+	return p.repo.GetBlob(ctx, did, cid)
 }
 
 // TODO: actually enforce permissions here
-func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*repo.BlobRef, error) {
-	return p.repo.UploadBlob(did, data, mimeType)
+func (p *Pear) uploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error) {
+	return p.repo.UploadBlob(ctx, did, data, mimeType)
 }
 
 // Inbox-related methods

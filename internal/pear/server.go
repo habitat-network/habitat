@@ -239,7 +239,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
+	record, err := s.pear.getRecord(r.Context(), params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
@@ -312,7 +312,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := s.pear.uploadBlob(string(callerDID), bytes, mimeType)
+	blob, err := s.pear.uploadBlob(r.Context(), string(callerDID), bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -347,7 +347,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, blob, err := s.pear.getBlob(params.Did, params.Cid)
+	mimeType, blob, err := s.pear.getBlob(r.Context(), params.Did, params.Cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -396,7 +396,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	repo = did.String()
-	records, err := s.pear.listRecords(did, params.Collection, callerDID)
+	records, err := s.pear.listRecords(r.Context(), did, params.Collection, callerDID)
 	if err != nil {
 		if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)

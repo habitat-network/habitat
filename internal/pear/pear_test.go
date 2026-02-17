@@ -47,7 +47,7 @@ func newPearForTest(t *testing.T, opts ...option) *Pear {
 		opt(o)
 	}
 
-	repo, err := repo.NewRepo(t.Context(), db)
+	repo, err := repo.NewRepo(db)
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 
 	// Owner can always access their own records
-	got, err := p.getRecord(coll, rkey, "my-did", "my-did")
+	got, err := p.getRecord(t.Context(), coll, rkey, "my-did", "my-did")
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
@@ -112,7 +112,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.Equal(t, val, ownerUnmarshalled)
 
 	// Non-owner without permission gets unauthorized
-	got, err = p.getRecord(coll, rkey, "my-did", "another-did")
+	got, err = p.getRecord(t.Context(), coll, rkey, "my-did", "another-did")
 	require.Nil(t, got)
 	require.ErrorIs(t, ErrUnauthorized, err)
 
@@ -120,7 +120,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, p.permissions.AddReadPermission([]string{"another-did"}, "my-did", coll))
 
 	// Now non-owner can access
-	got, err = p.getRecord(coll, "my-rkey", "my-did", "another-did")
+	got, err = p.getRecord(t.Context(), coll, "my-rkey", "my-did", "another-did")
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
@@ -146,7 +146,7 @@ func TestListOwnRecords(t *testing.T) {
 	_, err := p.putRecord(t.Context(), "my-did", coll, val, rkey, &validate, nil)
 	require.NoError(t, err)
 
-	records, err := p.listRecords(
+	records, err := p.listRecords(t.Context(),
 		"my-did",
 		coll,
 		"my-did",
@@ -160,7 +160,7 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// Try to get a record for a DID that doesn't exist on this server
-	got, err := p.getRecord("some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
+	got, err := p.getRecord(t.Context(), "some.collection", "some-rkey", "did:plc:unknown123", "did:plc:caller456")
 	require.Nil(t, got)
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
@@ -170,7 +170,7 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	p := newPearForTest(t, withIdentityDirectory(dir))
 
 	// Try to list records for a DID that doesn't exist on this server
-	records, err := p.listRecords(
+	records, err := p.listRecords(t.Context(),
 		"did:plc:unknown123",
 		"some.collection",
 		"did:plc:caller456",
@@ -198,7 +198,7 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
-		records, err := p.listRecords(
+		records, err := p.listRecords(t.Context(),
 			"my-did",
 			coll1,
 			"other-did",
@@ -217,7 +217,7 @@ func TestListRecords(t *testing.T) {
 			),
 		)
 
-		records, err := p.listRecords(
+		records, err := p.listRecords(t.Context(),
 			"my-did",
 			coll1,
 			"reader-did",
@@ -236,7 +236,7 @@ func TestListRecords(t *testing.T) {
 			),
 		)
 
-		records, err := p.listRecords(
+		records, err := p.listRecords(t.Context(),
 			"my-did",
 			coll1,
 			"specific-reader",
@@ -247,7 +247,7 @@ func TestListRecords(t *testing.T) {
 
 	t.Run("permissions are scoped to collection", func(t *testing.T) {
 		// reader-did has permission for coll1 but not coll2
-		records, err := p.listRecords(
+		records, err := p.listRecords(t.Context(),
 			"my-did",
 			coll2,
 			"reader-did",
@@ -314,13 +314,13 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	blob := []byte("this is my test blob")
 	mtype := "text/plain"
 
-	bmeta, err := pear.uploadBlob(did, blob, mtype)
+	bmeta, err := pear.uploadBlob(t.Context(), did, blob, mtype)
 	require.NoError(t, err)
 	require.NotNil(t, bmeta)
 	require.Equal(t, mtype, bmeta.MimeType)
 	require.Equal(t, int64(len(blob)), bmeta.Size)
 
-	m, gotBlob, err := pear.getBlob(did, bmeta.Ref.String())
+	m, gotBlob, err := pear.getBlob(t.Context(), did, bmeta.Ref.String())
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
 	require.Equal(t, blob, gotBlob)

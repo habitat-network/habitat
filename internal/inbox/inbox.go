@@ -71,7 +71,7 @@ func (i *inbox) Put(ctx context.Context, sender syntax.DID, recipient syntax.DID
 }
 
 func (i *inbox) GetCliqueItems(ctx context.Context, did string, clique string) ([]habitat_syntax.HabitatURI, error) {
-	items, err := gorm.G[Notification](i.db.Debug()).
+	items, err := gorm.G[Notification](i.db).
 		Select("sender", "collection", "rkey").
 		Where("recipient = ?", did).
 		Where("clique = ?", clique).
