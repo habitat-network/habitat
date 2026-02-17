@@ -237,7 +237,7 @@ func setupPearServer(
 	oauthServer *oauthserver.OAuthServer,
 	pdsClientFactory oauthclient.PDSClientFactory,
 ) (*pear.Server, error) {
-	repo, err := repo.NewRepo(ctx, db)
+	repo, err := repo.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
