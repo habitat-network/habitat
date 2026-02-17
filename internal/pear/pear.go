@@ -9,6 +9,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/repo"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -27,7 +30,7 @@ type Pear struct {
 	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
-	repo *repo
+	repo repo.Repo
 
 	// Manage receiving updates for records (replacement for the Firehose)
 	inbox inbox.Inbox
@@ -46,7 +49,7 @@ func NewPear(
 	serviceName string,
 	dir identity.Directory,
 	perms permissions.Store,
-	repo *repo,
+	repo repo.Repo,
 	inbox inbox.Inbox,
 ) *Pear {
 	return &Pear{
@@ -64,23 +67,25 @@ func NewPear(
 // It does not do any encryption, permissions, auth, etc. It is assumed that only the owner of the store can call this and that
 // is gated by some higher up level. This should be re-written in the future to not give any incorrect impression.
 func (p *Pear) putRecord(
+	ctx context.Context,
 	did string,
 	collection string,
 	record map[string]any,
 	rkey string,
 	validate *bool,
-) error {
+) (habitat_syntax.HabitatURI, error) {
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
-	return p.repo.putRecord(did, collection, rkey, record, validate)
+	return p.repo.PutRecord(ctx, did, collection, rkey, record, validate)
 }
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
 func (p *Pear) getRecord(
+	ctx context.Context,
 	collection string,
 	rkey string,
 	targetDID syntax.DID,
 	callerDID syntax.DID,
-) (*Record, error) {
+) (*repo.Record, error) {
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
 		callerDID.String(),
@@ -97,15 +102,16 @@ func (p *Pear) getRecord(
 	}
 
 	// User has permission, return the record
-	return p.repo.getRecord(targetDID.String(), collection, rkey)
+	return p.repo.GetRecord(ctx, targetDID.String(), collection, rkey)
 }
 
 func (p *Pear) listRecords(
+	ctx context.Context,
 	did syntax.DID,
 	collection string,
 	callerDID syntax.DID,
-) ([]Record, error) {
-	var allRecords []Record
+) ([]repo.Record, error) {
+	var allRecords []repo.Record
 
 	// Step 1: Get records from caller's own repo
 	allow, deny, err := p.permissions.ListReadPermissionsByUser(
@@ -117,7 +123,7 @@ func (p *Pear) listRecords(
 		return nil, err
 	}
 
-	ownRecords, err := p.repo.listRecords(callerDID.String(), collection, allow, deny)
+	ownRecords, err := p.repo.ListRecords(ctx, callerDID.String(), collection, allow, deny)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +139,7 @@ func (p *Pear) listRecords(
 
 	// Step 3: Query all records for owners with full collection access in a single query
 	if len(fullAccessOwners) > 0 {
-		ownerRecords, err := p.repo.listRecordsByOwners(fullAccessOwners, collection)
+		ownerRecords, err := p.repo.ListRecordsByOwnersDeprecated(fullAccessOwners, collection)
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +158,7 @@ func (p *Pear) listRecords(
 				Rkey  string
 			}{Owner: recordPerm.Owner, Rkey: recordPerm.Rkey}
 		}
-		specificRecordsResult, err := p.repo.listSpecificRecords(collection, recordPairs)
+		specificRecordsResult, err := p.repo.ListSpecificRecordsDeprecated(collection, recordPairs)
 		if err != nil {
 			return nil, err
 		}
@@ -182,15 +188,16 @@ func (p *Pear) hasRepoForDid(did syntax.DID) (bool, error) {
 
 // TODO: actually enforce permissions here
 func (p *Pear) getBlob(
+	ctx context.Context,
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
-	return p.repo.getBlob(did, cid)
+	return p.repo.GetBlob(ctx, did, cid)
 }
 
 // TODO: actually enforce permissions here
-func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
-	return p.repo.uploadBlob(did, data, mimeType)
+func (p *Pear) uploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error) {
+	return p.repo.UploadBlob(ctx, did, data, mimeType)
 }
 
 func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {

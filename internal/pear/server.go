@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -158,7 +159,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 
 	v := true
 
-	err = s.pear.putRecord(ownerDID.String(), req.Collection, record, rkey, &v)
+	uri, err := s.pear.putRecord(r.Context(), ownerDID.String(), req.Collection, record, rkey, &v)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -215,7 +216,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
-		Uri: fmt.Sprintf("habitat://%s/%s/%s", ownerDID.String(), req.Collection, rkey),
+		Uri: uri.String(),
 	}); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
@@ -262,9 +263,9 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.getRecord(params.Collection, params.Rkey, targetDID, callerDID)
+	record, err := s.pear.getRecord(r.Context(), params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
-		if errors.Is(err, ErrRecordNotFound) {
+		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
 			return
 		} else if errors.Is(err, ErrNotLocalRepo) {
@@ -315,7 +316,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := s.pear.uploadBlob(string(callerDID), bytes, mimeType)
+	blob, err := s.pear.uploadBlob(r.Context(), string(callerDID), bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -350,7 +351,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, blob, err := s.pear.getBlob(params.Did, params.Cid)
+	mimeType, blob, err := s.pear.getBlob(r.Context(), params.Did, params.Cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -399,7 +400,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	repo = did.String()
-	records, err := s.pear.listRecords(did, params.Collection, callerDID)
+	records, err := s.pear.listRecords(r.Context(), did, params.Collection, callerDID)
 	if err != nil {
 		if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
