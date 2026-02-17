@@ -267,35 +267,20 @@ func (o *OAuthServer) HandleCallback(
 		},
 	)
 	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"failed to save user credentials",
-			http.StatusInternalServerError,
-		)
+		utils.LogAndHTTPError(w, err, "failed to save user credentials", http.StatusInternalServerError)
 		return
 	}
 
 	// Ensure that habitat serves this user
 	id, err := o.directory.LookupDID(ctx, arf.Did)
 	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"failed to lookup did",
-			http.StatusInternalServerError,
-		)
+		utils.LogAndHTTPError(w, err, "failed to lookup did", http.StatusInternalServerError)
 		return
 	}
 
 	if endpoint, ok := id.Services[o.serviceName]; !ok || endpoint.URL != o.serviceEndpoint {
 		if err != nil {
-			utils.LogAndHTTPError(
-				w,
-				err,
-				"user's habitat service in DID doc does not match expected service",
-				http.StatusInternalServerError,
-			)
+			utils.LogAndHTTPError(w, err, "user's habitat service in DID doc does not match expected service", http.StatusInternalServerError)
 			return
 		}
 	}

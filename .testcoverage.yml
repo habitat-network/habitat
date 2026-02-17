@@ -27,4 +27,4 @@ exclude:
     - ^internal/telemetry # This is all setup, no logic
     - ^internal/utils
     - dummy_.*\.go
-    - ^internal/oauthserver/fosite* # This is mostly interface satisfying
+    - ^internal/oauthserver # This is mostly interface satisfying
