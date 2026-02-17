@@ -15,6 +15,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -340,6 +341,12 @@ func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Reques
 		)
 		return
 	}
+}
+
+var _ authn.Method = (*OAuthServer)(nil)
+
+func (o *OAuthServer) CanHandle(r *http.Request) bool {
+	return r.Header.Get("Habitat-Auth-Method") == "oauth"
 }
 
 // Validate's the given token and writes an error response to w if validation fails
