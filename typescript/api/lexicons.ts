@@ -775,6 +775,28 @@ export const schemaDict = {
     lexicon: 1,
     id: 'network.habitat.permissions.addPermission',
     defs: {
+      didGrantee: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+      cliqueRef: {
+        type: 'object',
+        required: ['uri'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'A habitat-uri pointing to a clique owner (habitat://<did>/<collection>/<rkey>)',
+          },
+        },
+      },
       main: {
         type: 'procedure',
         description: 'Grant read permission to a user for a specific lexicon.',
@@ -783,18 +805,28 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['did', 'lexicon'],
+            required: ['grantee', 'collection'],
             properties: {
-              did: {
-                type: 'string',
-                format: 'did',
-                description: 'The DID of the user to grant read permission to.',
+              grantee: {
+                type: 'union',
+                refs: [
+                  'lex:network.habitat.permissions.addPermission#didGrantee',
+                  'lex:network.habitat.permissions.addPermission#cliqueRef',
+                ],
+                description:
+                  'The DID of the user or habitat-uri of the clique to grant read permission to.',
               },
-              lexicon: {
+              collection: {
                 type: 'string',
                 format: 'nsid',
                 description:
                   'The NSID of the lexicon or record to grant read permission for.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description: 'The Record Key.',
+                maxLength: 512,
               },
             },
           },

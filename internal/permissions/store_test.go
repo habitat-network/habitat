@@ -1,8 +1,10 @@
 package permissions
 
 import (
+	"context"
 	"testing"
 
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -293,4 +295,43 @@ func TestPermissionStoreEmptyGrantees(t *testing.T) {
 
 	err = store.AddReadPermission([]string{}, "alice", "network.habitat.posts")
 	require.Error(t, err)
+}
+
+func TestListAllowedRecordsByGrantee(t *testing.T) {
+	ctx := context.Background()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	// Grant bob access to two of alice's collections
+	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts")
+	require.NoError(t, err)
+	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.likes")
+	require.NoError(t, err)
+
+	// Grant charlie access to one of alice's collections (should not appear)
+	err = store.AddReadPermission([]string{"charlie"}, "alice", "network.habitat.posts")
+	require.NoError(t, err)
+
+	// Grant bob access to dave's collection (different owner, should not appear)
+	err = store.AddReadPermission([]string{"bob"}, "dave", "network.habitat.follows")
+	require.NoError(t, err)
+
+	// List allowed records where caller=alice and grantee=bob
+	uris, err := store.ListAllowedRecordsByGrantee(ctx, "alice", "bob")
+	require.NoError(t, err)
+	require.Len(t, uris, 2)
+
+	expected := []habitat_syntax.HabitatURI{
+		habitat_syntax.HabitatURI("habitat://alice" + "network.habitat.posts"),
+		habitat_syntax.HabitatURI("habitat://alice" + "network.habitat.likes"),
+	}
+	require.ElementsMatch(t, expected, uris)
+
+	// List for a grantee with no permissions — should return empty
+	uris, err = store.ListAllowedRecordsByGrantee(ctx, "alice", "nobody")
+	require.NoError(t, err)
+	require.Empty(t, uris)
 }

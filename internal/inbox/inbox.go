@@ -29,18 +29,6 @@ type Notification struct {
 	Clique     string `gorm:"index"` // We want to be able to fetch notifications for a given clique
 }
 
-/*
-// TODO: We could possibly store habitat-uris rather than breaking up the collection, rkey fields. Unsure if this would be desriable for some reason.
-type NotificationV2 struct {
-	Sender    string `gorm:"primaryKey"`
-	Recipient string `gorm:"primaryKey"`
-	URI       string `gorm:"primaryKey"`
-	Clique    string `gorm:"index"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-*/
-
 type inbox struct {
 	db *gorm.DB
 }

@@ -26,7 +26,7 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
 
-	err = repo.PutRecord("my-did", collection, key, val, nil)
+	_, err = repo.PutRecord("my-did", collection, key, val, nil)
 	require.NoError(t, err)
 
 	got, err := repo.GetRecord("my-did", collection, key)
@@ -45,7 +45,7 @@ func TestRepoListRecords(t *testing.T) {
 
 	repo, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
-	err = repo.PutRecord(
+	_, err = repo.PutRecord(
 		"my-did",
 		"network.habitat.collection-1",
 		"key-1",
@@ -54,7 +54,7 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	err = repo.PutRecord(
+	_, err = repo.PutRecord(
 		"my-did",
 		"network.habitat.collection-1",
 		"key-2",
@@ -63,7 +63,7 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	err = repo.PutRecord(
+	_, err = repo.PutRecord(
 		"my-did",
 		"network.habitat.collection-2",
 		"key-2",

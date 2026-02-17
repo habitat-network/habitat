@@ -34,6 +34,7 @@ type Store interface {
 		nsid string,
 	) (allow []string, deny []string, err error)
 	ListAllowedRecordsByGrantee(ctx context.Context, caller string, grantee string) ([]habitat_syntax.HabitatURI, error)
+	ListGranteesForRecord(ctx context.Context, owner string, collection string, rkey string) ([]string, error)
 }
 
 type store struct {
@@ -237,4 +238,11 @@ func (s *store) ListAllowedRecordsByGrantee(ctx context.Context, caller string, 
 	}
 
 	return uris, nil
+}
+
+func (s *store) ListGranteesForRecord(ctx context.Context, owner string, collection string, rkey string) ([]string, error) {
+	return gorm.G[string](s.db.Debug()).
+		Select("grantee").
+		Where("owner = ? AND object = ?", owner, collection+rkey).
+		Find(ctx)
 }

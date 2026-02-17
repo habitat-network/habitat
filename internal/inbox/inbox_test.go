@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -113,4 +114,49 @@ func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	require.True(t, n2.UpdatedAt.After(firstUpdatedAt),
 		"UpdatedAt should be updated when putting notification with same key. Original: %v, New: %v",
 		firstUpdatedAt, n2.UpdatedAt)
+}
+
+func TestGetCliqueItems(t *testing.T) {
+	ctx := context.Background()
+	inb, _ := newInboxForTest(t)
+
+	recipient, _ := syntax.ParseDID("did:plc:recipient456")
+	sender1, _ := syntax.ParseDID("did:plc:sender1")
+	sender2, _ := syntax.ParseDID("did:plc:sender2")
+	sender3, _ := syntax.ParseDID("did:plc:sender3")
+
+	clique := "my-clique"
+	otherClique := "other-clique"
+
+	// Insert notifications: two in target clique, one in a different clique, one with no clique
+	err := inb.Put(ctx, sender1, recipient, "app.bsky.feed.like", "like-1", &clique)
+	require.NoError(t, err)
+	err = inb.Put(ctx, sender2, recipient, "app.bsky.feed.repost", "repost-1", &clique)
+	require.NoError(t, err)
+	err = inb.Put(ctx, sender3, recipient, "app.bsky.feed.like", "like-2", &otherClique)
+	require.NoError(t, err)
+	err = inb.Put(ctx, sender1, recipient, "app.bsky.feed.like", "like-3", nil)
+	require.NoError(t, err)
+
+	// Fetch items for the target clique
+	items, err := inb.GetCliqueItems(ctx, recipient.String(), clique)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	expected := []habitat_syntax.HabitatURI{
+		habitat_syntax.ConstructHabitatUri(sender1.String(), "app.bsky.feed.like", "like-1"),
+		habitat_syntax.ConstructHabitatUri(sender2.String(), "app.bsky.feed.repost", "repost-1"),
+	}
+	require.ElementsMatch(t, expected, items)
+
+	// Fetch items for the other clique — should return only one
+	items, err = inb.GetCliqueItems(ctx, recipient.String(), otherClique)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, habitat_syntax.ConstructHabitatUri(sender3.String(), "app.bsky.feed.like", "like-2"), items[0])
+
+	// Fetch items for a clique with no notifications — should return empty
+	items, err = inb.GetCliqueItems(ctx, recipient.String(), "nonexistent-clique")
+	require.NoError(t, err)
+	require.Empty(t, items)
 }

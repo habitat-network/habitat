@@ -13,11 +13,12 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type Repo interface {
-	PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error
+	PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error)
 	GetRecord(did string, collection string, rkey string) (*Record, error)
 	UploadBlob(did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
@@ -70,23 +71,23 @@ func NewRepo(ctx context.Context, db *gorm.DB) (*repo, error) {
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *repo) PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error {
+func (r *repo) PutRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	bytes, err := json.Marshal(rec)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Store rkey directly (no concatenation with collection)
 	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: string(bytes)}
 	// Always put (even if something exists).
-	return gorm.G[Record](
+	err = gorm.G[Record](
 		r.db,
 		clause.OnConflict{
 			Columns: []clause.Column{
@@ -97,6 +98,11 @@ func (r *repo) PutRecord(did string, collection string, rkey string, rec map[str
 			DoUpdates: clause.AssignmentColumns([]string{"value"}),
 		},
 	).Create(r.ctx, &record)
+	if err != nil {
+		return "", err
+	}
+
+	return habitat_syntax.ConstructHabitatUri(did, collection, rkey), nil
 }
 
 var (

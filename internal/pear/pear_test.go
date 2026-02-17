@@ -97,7 +97,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	err := p.putRecord("my-did", coll, val, rkey, &validate)
+	_, err := p.putRecord(t.Context(), "my-did", coll, val, rkey, &validate, nil)
 	require.NoError(t, err)
 
 	// Owner can always access their own records
@@ -127,7 +127,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, val, unmarshalled)
 
-	err = p.putRecord("my-did", coll, val, rkey, &validate)
+	_, err = p.putRecord(t.Context(), "my-did", coll, val, rkey, &validate, nil)
 	require.NoError(t, err)
 }
 
@@ -142,7 +142,7 @@ func TestListOwnRecords(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	err := p.putRecord("my-did", coll, val, rkey, &validate)
+	_, err := p.putRecord(t.Context(), "my-did", coll, val, rkey, &validate, nil)
 	require.NoError(t, err)
 
 	records, err := p.listRecords(
@@ -189,9 +189,12 @@ func TestListRecords(t *testing.T) {
 	coll1 := "my.fake.collection1"
 	coll2 := "my.fake.collection2"
 
-	require.NoError(t, p.putRecord("my-did", coll1, val, "rkey1", &validate))
-	require.NoError(t, p.putRecord("my-did", coll1, val, "rkey2", &validate))
-	require.NoError(t, p.putRecord("my-did", coll2, val, "rkey3", &validate))
+	_, err := p.putRecord(t.Context(), "my-did", coll1, val, "rkey1", &validate, nil)
+	require.NoError(t, err)
+	_, err = p.putRecord(t.Context(), "my-did", coll1, val, "rkey2", &validate, nil)
+	require.NoError(t, err)
+	_, err = p.putRecord(t.Context(), "my-did", coll2, val, "rkey3", &validate, nil)
+	require.NoError(t, err)
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
 		records, err := p.listRecords(

@@ -49,6 +49,7 @@ var (
 	ErrNoPutsOnEncryptedRecord = fmt.Errorf("directly put-ting to this lexicon is not valid")
 	ErrNotLocalRepo            = fmt.Errorf("the desired did does not live on this repo")
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
+	ErrNoHabitatServer         = errors.New("no habitat server found for did :%s")
 )
 
 func NewPear(
@@ -73,18 +74,74 @@ func NewPear(
 	}
 }
 
+// Helpers
+func (p *Pear) hasRepoForDid(did syntax.DID) (bool, error) {
+	id, err := p.dir.LookupDID(p.ctx, did)
+	if err != nil {
+		return false, err
+	}
+
+	found, ok := id.Services[p.serviceName]
+	if !ok {
+		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
+	}
+
+	return found.URL == p.url, nil
+}
+
 // putRecord puts the given record on the repo connected to this permissionEnforcingRepo.
 // It does not do any encryption, permissions, auth, etc. It is assumed that only the owner of the store can call this and that
 // is gated by some higher up level. This should be re-written in the future to not give any incorrect impression.
 func (p *Pear) putRecord(
+	ctx context.Context,
 	did string,
 	collection string,
 	record map[string]any,
 	rkey string,
 	validate *bool,
-) error {
+	grantees []grantee,
+) (habitat_syntax.HabitatURI, error) {
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
-	return p.repo.PutRecord(did, collection, rkey, record, validate)
+	uri, err := p.repo.PutRecord(did, collection, rkey, record, validate)
+	if err != nil {
+		return "", err
+	}
+
+	didGrantees := []string{}
+	cliqueGrantees := []string{}
+	for _, grantee := range grantees {
+		switch g := grantee.(type) {
+		case didGrantee:
+			didGrantees = append(didGrantees, string(g))
+		case cliqueGrantee:
+			// For clique grantees, we need to notify the clique owner that there is a new record to be aware of
+			cliqueGrantees = append(cliqueGrantees, string(g))
+			return "", fmt.Errorf("clique grantees are not supported yet")
+		}
+	}
+
+	err = p.permissions.AddReadPermission(
+		append(didGrantees, cliqueGrantees...),
+		did,
+		collection+"."+rkey,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if len(cliqueGrantees) == 0 {
+		return "", nil
+	}
+
+	// If we granted permission to a clique, we need to notify the clique owner.
+	for _, clique := range cliqueGrantees {
+		cliqueURI, err := habitat_syntax.ParseHabitatURI(clique)
+		if err != nil {
+			return "", err
+		}
+		p.addCliqueItem(ctx, cliqueURI, uri)
+	}
+	return uri, nil
 }
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
@@ -145,24 +202,7 @@ func (p *Pear) listRecords(
 	return p.repo.ListRecords(did.String(), collection, allow, deny)
 }
 
-var (
-	ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
-)
-
-func (p *Pear) hasRepoForDid(did syntax.DID) (bool, error) {
-	id, err := p.dir.LookupDID(p.ctx, did)
-	if err != nil {
-		return false, err
-	}
-
-	found, ok := id.Services[p.serviceName]
-	if !ok {
-		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
-	}
-
-	return found.URL == p.url, nil
-}
-
+// Blob-related methods
 // TODO: actually enforce permissions here
 func (p *Pear) getBlob(
 	did string,
@@ -176,17 +216,96 @@ func (p *Pear) uploadBlob(did string, data []byte, mimeType string) (*repo.BlobR
 	return p.repo.UploadBlob(did, data, mimeType)
 }
 
+// Inbox-related methods
 func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string, clique *string) error {
-	return p.inbox.Put(ctx, sender, recipient, collection, rkey, clique)
-}
-
-func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.HabitatURI, itemURI habitat_syntax.HabitatURI) error {
-	cliqueDID, err := cliqueURI.Authority().AsDID()
+	has, err := p.hasRepoForDid(recipient)
 	if err != nil {
 		return err
 	}
-	// If the clique does not exist on this pear node, then forward the request to the clique's repo.
-	ok, err := p.hasRepoForDid(cliqueDID)
+
+	sendUpdateToOtherRepo := func(update *habitat.NetworkHabitatInternalNotifyOfUpdateInput) error {
+		if clique != nil {
+			update.Clique = *clique
+		}
+		buf := new(bytes.Buffer)
+		err = json.NewEncoder(buf).Encode(update)
+		if err != nil {
+			return err
+		}
+
+		req, err := http.NewRequest(http.MethodPost, "/xrpc/network.habitat.notifyOfUpdate", buf)
+		if err != nil {
+			return err
+		}
+		_, err = p.xrpcCh.SendXRPC(
+			ctx,
+			sender,
+			recipient,
+			req,
+		)
+		return err
+	}
+
+	if has {
+		// TODO: if the notification is on a clique that this recipient owns, ensure that the sender is part of the clique.
+		if clique != nil {
+			uri, err := habitat_syntax.ParseHabitatURI(*clique)
+			if err != nil {
+				return fmt.Errorf("malformed clique parameter: %s", uri)
+			}
+			did, err := uri.Authority().AsDID()
+			if err != nil {
+				return fmt.Errorf("unable to extract did from clique parameter: %s", uri)
+			}
+
+			// If this record is a clique root, and the recipient owns it, then the recipient need to fan out notifications.
+			// (This is the fan in from all clique members to the clique owner)
+			if did == recipient {
+				err := p.inbox.Put(ctx, sender, recipient, collection, rkey, clique)
+				if err != nil {
+					return err
+				}
+
+				cliqueMembers, err := p.permissions.ListGranteesForRecord(ctx, recipient.String(), collection, rkey)
+				if err != nil {
+					return err
+				}
+
+				for _, member := range cliqueMembers {
+					cliqueStr := uri.String()
+					if did, err := syntax.ParseDID(member); err == nil {
+						// TODO: is this weird? recursion.
+						p.notifyOfUpdate(ctx, recipient, syntax.DID(did.String()), collection, rkey, &cliqueStr)
+					} else {
+						// We should never have allowed nested cliques.
+						return fmt.Errorf("found a nested clique -- should never happen")
+					}
+				}
+
+			} else if did != sender {
+				// Otherwise, this recipient should only accept clique notifications from the clique owner.
+				// (This is the fan out from clique owner to all clique members)
+				return ErrUnauthorized
+			}
+		}
+		return p.inbox.Put(ctx, sender, recipient, collection, rkey, clique)
+	}
+
+	// TODO: if the notification was for a record part of a clique, fan out that notification to all the clique owners.
+
+	// If the recipient does not exist on this node, forward the request.
+	return sendUpdateToOtherRepo(
+		&habitat.NetworkHabitatInternalNotifyOfUpdateInput{
+			Collection: collection,
+			Recipient:  recipient.String(),
+			Rkey:       rkey,
+		},
+	)
+}
+
+// Clique-related methods
+func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.HabitatURI, itemURI habitat_syntax.HabitatURI) error {
+	cliqueDID, err := cliqueURI.Authority().AsDID()
 	if err != nil {
 		return err
 	}
@@ -195,30 +314,7 @@ func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.Habit
 	if err != nil {
 		return err
 	}
-	if !ok {
-		update := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{
-			Clique:     string(cliqueURI),
-			Collection: collection.String(),
-			Recipient:  string(cliqueDID),
-			Rkey:       rkey.String(),
-		}
-		buf := new(bytes.Buffer)
-		err := json.NewEncoder(buf).Encode(update)
-		if err != nil {
-			return err
-		}
 
-		req, err := http.NewRequest(http.MethodPost, "/xrpc/network.habitat.notifyOfUpdate", buf)
-		_, err = p.xrpcCh.SendXRPC(
-			ctx,
-			did,
-			cliqueDID,
-			req,
-		)
-		return nil
-	}
-
-	// Otherwise, ensure that this item is indexed by the clique owner.
 	// If the clique + item owners are the same, no need to take action since the item is indexed by way of the clique repo.
 	if did == cliqueDID {
 		// Nothing to do, return.
@@ -226,8 +322,7 @@ func (p *Pear) addCliqueItem(ctx context.Context, cliqueURI habitat_syntax.Habit
 	}
 
 	// Otherwise, ensure that that the item is discoverable by the clique owner via the inbox.
-	p.notifyOfUpdate(ctx, did, cliqueDID, collection.String(), rkey.String(), (*string)(&cliqueURI))
-	return nil
+	return p.notifyOfUpdate(ctx, did, cliqueDID, collection.String(), rkey.String(), (*string)(&cliqueURI))
 }
 
 func (p *Pear) getCliqueItems(ctx context.Context, cliqueURI habitat_syntax.HabitatURI) ([]habitat_syntax.HabitatURI, error) {
@@ -259,4 +354,65 @@ func (p *Pear) getCliqueItems(ctx context.Context, cliqueURI habitat_syntax.Habi
 	}
 
 	return append(inboxURIs, uris...), nil
+}
+
+// Permissions-related methods
+
+// TODO: understand if this works with rkey = ""
+func (p *Pear) addReadPermission(ctx context.Context, grantee grantee, caller string, collection string, rkey string) error {
+	cliqueGrantee, isCliqueGrantee := grantee.(cliqueGrantee)
+	if isCliqueGrantee && rkey == "" {
+		// If it's a clique, ensure that rkey is populated (can't grant a clique permission to a whole collection -- unsupported for now)
+		return fmt.Errorf("granting a clique permissions to an entire collection is unsupported")
+	}
+
+	err := p.permissions.AddReadPermission(
+		[]string{grantee.String()},
+		caller,
+		collection+rkey, // TODO: seperate these when the permission store is fixed
+	)
+	if err != nil {
+		return err
+	}
+
+	// There are some cases that need further work.
+	if !isCliqueGrantee {
+		// If we are granting permission directly to a did grantee then always notify them that there is something new to see.
+		err := p.notifyOfUpdate(ctx, syntax.DID(caller), syntax.DID(grantee.String()), collection, rkey, nil)
+		if err != nil {
+			return err
+		}
+
+		// If the record we are granting permission on happens to be a clique root, then this inbox + repo contains all notifications for this clique. Look those up and fan them out.
+
+		maybeClique := habitat_syntax.ConstructHabitatUri(caller, collection, rkey)
+		items, err := p.getCliqueItems(ctx, maybeClique)
+		if err != nil {
+			return err
+		}
+
+		maybeCliqueStr := string(maybeClique)
+		for _, itemURI := range items {
+			_, collection, rkey, err := itemURI.ExtractParts()
+			err = p.notifyOfUpdate(ctx, syntax.DID(caller), syntax.DID(grantee.String()), collection.String(), rkey.String(), &maybeCliqueStr)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Otherwise, if the grantee is a clique, then notify the clique owner that there is an update to forward.
+	uri, err := habitat_syntax.ParseHabitatURI(cliqueGrantee.String())
+	if err != nil {
+		return err
+	}
+
+	cliqueDID, err := uri.Authority().AsDID()
+	if err != nil {
+		return err
+	}
+
+	clique := cliqueGrantee.String()
+	return p.notifyOfUpdate(ctx, syntax.DID(caller), cliqueDID, collection, rkey, &clique)
 }
