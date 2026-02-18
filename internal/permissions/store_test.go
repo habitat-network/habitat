@@ -203,3 +203,43 @@ func TestPermissionStoreEmptyGrantees(t *testing.T) {
 	err = store.AddReadPermission([]string{}, "alice", "network.habitat.posts", "")
 	require.Error(t, err)
 }
+
+func TestAddReadPermission_EmptyCollection(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	err = store.AddReadPermission([]string{"bob"}, "alice", "", "")
+	require.Error(t, err)
+}
+
+func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db)
+	require.NoError(t, err)
+
+	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts", "record-1")
+	require.NoError(t, err)
+
+	// Should not return multiple permissions for the same record 
+	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts", "record-1")
+	require.NoError(t, err)
+
+	perms, err := store.ListReadPermissionsByGrantee("bob", "")
+	require.NoError(t, err)
+	require.Len(t, perms, 2 /* includes self permissions */)
+
+	// Should only return the most powerful permission
+	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts", "")
+	require.NoError(t, err)
+
+	perms, err = store.ListReadPermissionsByGrantee("bob", "")
+	require.NoError(t, err)
+	require.Len(t, perms, 2)
+}
+
+func 

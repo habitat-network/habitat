@@ -114,6 +114,9 @@ func (s *store) AddReadPermission(
 	collection string,
 	rkey string,
 ) error {
+	if collection == "" {
+		return fmt.Errorf("collection is required")
+	}
 	permissions := []Permission{}
 	for _, grantee := range grantees {
 		permissions = append(permissions, Permission{
@@ -132,15 +135,7 @@ func (s *store) AddReadPermission(
 		return fmt.Errorf("failed to add lexicon permission: %w", result.Error)
 	}
 	// delete redundant allow permissions
-	if collection == "" {
-		result = s.db.Where("grantee IN ?", grantees).
-			Where("owner = ?", owner).
-			Where("effect = 'allow'").
-			Delete(&Permission{})
-		if result.Error != nil {
-			return fmt.Errorf("failed to remove redundant allow permissions: %w", result.Error)
-		}
-	} else if rkey == "" {
+	if rkey == "" {
 		result = s.db.Where("grantee IN ?", grantees).
 			Where("owner = ?", owner).
 			Where("rkey != ''").
