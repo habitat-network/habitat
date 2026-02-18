@@ -52,8 +52,8 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
           .filter((g) => g.value.trim() !== "")
           .map((g) =>
             g.type === "did"
-              ? { $type: "network.habitat.repo.putRecord#didGrantee", did: g.value }
-              : { $type: "network.habitat.repo.putRecord#cliqueRef", uri: g.value },
+              ? { $type: "network.habitat.grantee#didGrantee", did: g.value }
+              : { $type: "network.habitat.grantee#cliqueRef", uri: g.value },
           );
         const response = await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
