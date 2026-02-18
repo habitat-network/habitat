@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/bradenaw/juniper/xmaps"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -22,8 +22,8 @@ type Store interface {
 		collection string,
 		rkey string,
 	) error
-	RemoveReadPermission(
-		grantee string,
+	RemoveReadPermissions(
+		grantee []string,
 		owner string,
 		collection string,
 		rkey string,
@@ -141,14 +141,15 @@ func (s *store) AddReadPermission(
 		// all grantess already have collection-level permissions so don't do anything
 		return nil
 	}
-	existingCollectionGrantess := mapset.NewSet[string]()
+
+	existingCollectionGrantees := xmaps.Set[string]{}
 	for _, perm := range existingCollectionPermissions {
-		existingCollectionGrantess.Add(perm.Grantee)
+		existingCollectionGrantees.Add(perm.Grantee)
 	}
 	// only add permissions for those that don't already have access
-	granteesSet := mapset.NewSet(grantees...).Difference(existingCollectionGrantess)
+	granteesSet := xmaps.Difference(xmaps.SetFromSlice(grantees), existingCollectionGrantees)
 	permissions := []Permission{}
-	for grantee := range mapset.Elements(granteesSet) {
+	for grantee := range granteesSet {
 		permissions = append(permissions, Permission{
 			Grantee:    grantee,
 			Owner:      owner,
@@ -172,15 +173,16 @@ func (s *store) AddReadPermission(
 // If the user already has access to the collection, it will add a deny permission for rkey.
 // Otherwise will delete the specific permission if it exists.
 // Will not error if there are no permissions to remove.
-func (s *store) RemoveReadPermission(
-	grantee string,
+func (s *store) RemoveReadPermissions(
+	grantees []string,
 	owner string,
 	collection string,
 	rkey string,
 ) error {
+	// If the removal is on an entire collection, delete all allow permissions for records in the collection or the entire collection.
 	if rkey == "" {
 		// delete all permissions for this collection
-		result := s.db.Where("grantee = ?", grantee).
+		result := s.db.Where("grantee IN ?", grantees).
 			Where("owner = ?", owner).
 			Where("collection = ?", collection).
 			Delete(&Permission{})
@@ -189,40 +191,24 @@ func (s *store) RemoveReadPermission(
 		}
 		return nil
 	}
-	// Check if there's a collection-level permission (empty rkey)
-	var collectionPerm Permission
-	err := s.db.Where("grantee = ?", grantee).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
-		Where("rkey = ''").
-		First(&collectionPerm).
-		Error
-	if err == nil {
-		// Collection-level permission exists, add a deny permission
-		if err := s.db.Clauses(clause.OnConflict{
-			UpdateAll: true,
-		}).Create(&Permission{
+
+	// Otherwise, the removal is on a specific record key, so add a deny effect on the specific record for a batch of grantees.
+	recordPerms := make([]*Permission, len(grantees))
+	for i, grantee := range grantees {
+		recordPerms[i] = &Permission{
 			Grantee:    grantee,
 			Owner:      owner,
 			Collection: collection,
 			Rkey:       rkey,
 			Effect:     "deny",
-		}).Error; err != nil {
-			return fmt.Errorf("failed to add deny permission: %w", err)
 		}
-		return nil
-	} else if err != gorm.ErrRecordNotFound {
-		return fmt.Errorf("failed to check collection permission: %w", err)
 	}
 
-	// No collection-level permission, just delete the specific permission
-	if err := s.db.Where("grantee = ?", grantee).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
-		Where("rkey = ?", rkey).
-		Where("effect = 'allow'").
-		Delete(&Permission{}).Error; err != nil {
-		return fmt.Errorf("failed to remove permission: %w", err)
+	// Collection-level permission exists, add a deny permission
+	if err := s.db.Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).Create(recordPerms).Error; err != nil {
+		return fmt.Errorf("failed to add deny permissions: %w", err)
 	}
 	return nil
 }

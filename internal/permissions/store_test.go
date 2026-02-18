@@ -44,7 +44,7 @@ func TestStoreBasicPermissions(t *testing.T) {
 	require.False(t, hasPermission, "bob should not have permission to other lexicons")
 
 	// Test: Remove permission
-	err = store.RemoveReadPermission("bob", "alice", "network.habitat.posts", "")
+	err = store.RemoveReadPermissions([]string{"bob"}, "alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
 	hasPermission, err = store.HasPermission("bob", "alice", "network.habitat.posts", "record1")
@@ -179,7 +179,7 @@ func TestStoreDenyOverridesAllow(t *testing.T) {
 	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
-	err = store.RemoveReadPermission("bob", "alice", "network.habitat.posts", "record1")
+	err = store.RemoveReadPermissions([]string{"bob"}, "alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
 	// Bob should not have access to the denied post

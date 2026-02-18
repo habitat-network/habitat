@@ -492,14 +492,20 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: RemoveReadPermission should take grantees list
 	grantees, err := parseGrantees(req.Grantees)
-	for _, grantee := range grantees {
-		err = s.pear.permissions.RemoveReadPermission(grantee, callerDID.String(), req.Collection, req.Rkey)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
-			return
-		}
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
+			http.StatusInternalServerError,
+		)
+		return
 	}
-
+	err = s.pear.permissions.RemoveReadPermissions(grantees, callerDID.String(), req.Collection, req.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {

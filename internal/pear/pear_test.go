@@ -436,7 +436,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("returns only specific permitted records", func(t *testing.T) {
 		// Remove full collection permission first, then grant only specific permission
-		require.NoError(t, perms.RemoveReadPermission(aliceDID, bobDID, coll, ""))
+		require.NoError(t, perms.RemoveReadPermissions([]string{aliceDID}, bobDID, coll, ""))
 		require.NoError(
 			t,
 			perms.AddReadPermission([]string{aliceDID}, bobDID, coll, "bob-rkey1"),

@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20251020231157-aa7fd7f7a301
-	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
@@ -94,6 +93,7 @@ require (
 )
 
 require (
+	github.com/bradenaw/juniper v0.15.3
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
