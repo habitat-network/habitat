@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
+	"github.com/bradenaw/juniper/xslices"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -17,19 +19,19 @@ type Store interface {
 		rkey string,
 	) (bool, error)
 	AddReadPermission(
-		grantees []string,
+		grantees []Grantee,
 		owner string,
 		collection string,
 		rkey string,
 	) error
 	RemoveReadPermissions(
-		grantee []string,
+		grantee []Grantee,
 		owner string,
 		collection string,
 		rkey string,
 	) error
 	ListReadPermissionsByLexicon(owner string) (map[string][]string, error)
-	ListReadPermissionsByGrantee(grantee string, collection string) ([]Permission, error)
+	ListReadPermissionsByUser(grantee syntax.DID, collection string) ([]Permission, error)
 }
 
 // RecordPermission represents a specific record permission (owner + rkey)
@@ -108,7 +110,7 @@ func (s *store) HasPermission(
 // Will not add redundant permssions that are less powerful than existing ones
 // Will not error in cases where no work is done
 func (s *store) AddReadPermission(
-	grantees []string,
+	granteesTyped []Grantee,
 	owner string,
 	collection string,
 	rkey string,
@@ -116,6 +118,11 @@ func (s *store) AddReadPermission(
 	if collection == "" {
 		return fmt.Errorf("collection is required")
 	}
+
+	grantees := xslices.Map(granteesTyped, func(g Grantee) string {
+		return g.String()
+	})
+
 	var existingCollectionPermissions []Permission
 	if rkey == "" { /* collection-level permission */
 		// delete redundant allow permissions that are less powerful
@@ -174,11 +181,14 @@ func (s *store) AddReadPermission(
 // Otherwise will delete the specific permission if it exists.
 // Will not error if there are no permissions to remove.
 func (s *store) RemoveReadPermissions(
-	grantees []string,
+	granteesTyped []Grantee,
 	owner string,
 	collection string,
 	rkey string,
 ) error {
+	grantees := xslices.Map(granteesTyped, func(g Grantee) string {
+		return g.String()
+	})
 	// If the removal is on an entire collection, delete all allow permissions for records in the collection or the entire collection.
 	if rkey == "" {
 		// delete all permissions for this collection
@@ -238,12 +248,12 @@ func (s *store) ListReadPermissionsByLexicon(owner string) (map[string][]string,
 
 // ListReadPermissionsByUser returns the permissions available to a grantee.
 // If a collection is provided, only permissions for that collection are returned.
-func (s *store) ListReadPermissionsByGrantee(
-	grantee string,
+func (s *store) ListReadPermissionsByUser(
+	grantee syntax.DID,
 	collection string,
 ) ([]Permission, error) {
 	var permissions []Permission
-	query := s.db.Where("grantee = ?", grantee)
+	query := s.db.Where("grantee = ?", grantee.String())
 	if collection != "" {
 		query = query.Where("collection = ?", collection)
 	}
@@ -252,7 +262,7 @@ func (s *store) ListReadPermissionsByGrantee(
 	}
 	return append(
 		// grant the owner access to all of their own permissions
-		[]Permission{{Grantee: grantee, Owner: grantee, Collection: collection, Effect: "allow"}},
+		[]Permission{{Grantee: grantee.String(), Owner: grantee.String(), Collection: collection, Effect: "allow"}},
 		// append all others
 		permissions...), nil
 }

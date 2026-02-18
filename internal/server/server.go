@@ -18,8 +18,8 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pear"
+	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -56,77 +56,6 @@ func NewServer(
 }
 
 var formDecoder = schema.NewDecoder()
-
-// Parse the grantees input which is typed as an interface
-func parseGrantees(grantees []interface{}) ([]string, error) {
-	// Tiny optimization to avoid unnecessary allocations
-	if len(grantees) == 0 {
-		return nil, nil
-	}
-
-	parsed := make([]string, len(grantees))
-	for i, generic := range grantees {
-		unknownGrantee, ok := generic.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("unexpected type in grantees field: %v", generic)
-		}
-
-		granteeType, ok := unknownGrantee["$type"]
-		if !ok {
-			return nil, fmt.Errorf("malformatted grantee has no $type field: %v", unknownGrantee)
-		}
-
-		switch granteeType {
-		case "network.habitat.grantee#didGrantee":
-			did, ok := unknownGrantee["did"]
-			if !ok {
-				return nil, fmt.Errorf(
-					"malformatted did grantee has no did field: %v",
-					unknownGrantee,
-				)
-			}
-			asStr, ok := did.(string)
-			if !ok {
-				return nil, fmt.Errorf(
-					"malformatted did grantee has non-string did field: %v",
-					unknownGrantee,
-				)
-			}
-			_, err := syntax.ParseDID(asStr)
-			if err != nil {
-				return nil, fmt.Errorf("malformed did grantee field: %s", asStr)
-			}
-			parsed[i] = asStr
-		case "network.habitat.grantee#cliqueRef":
-			uri, ok := unknownGrantee["uri"]
-			if !ok {
-				return nil, fmt.Errorf(
-					"malformatted clique grantee has no uri field: %v",
-					unknownGrantee,
-				)
-			}
-			asStr, ok := uri.(string)
-			if !ok {
-				return nil, fmt.Errorf(
-					"malformatted clique grantee has non-string uri field: %v",
-					unknownGrantee,
-				)
-			}
-			_, err := habitat_syntax.ParseHabitatClique(asStr)
-			if err != nil {
-				return nil, fmt.Errorf("malformed habitat uri grantee field: %s", asStr)
-			}
-			parsed[i] = asStr
-		default:
-			return nil, fmt.Errorf(
-				"malformatted grantee has unknown $type of %v: %v",
-				granteeType,
-				unknownGrantee,
-			)
-		}
-	}
-	return parsed, nil
-}
 
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +95,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsed, err := parseGrantees(req.Grantees)
+	parsed, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -441,7 +370,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grantees, err := parseGrantees(req.Grantees)
+	grantees, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
@@ -470,7 +399,8 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grantees, err := parseGrantees(req.Grantees)
+	// TODO: RemoveReadPermission should take grantees list
+	grantees, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,

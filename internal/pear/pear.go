@@ -23,7 +23,7 @@ type Pear interface {
 	permissions.Store
 
 	// Permissioned repository methods
-	PutRecord(ctx context.Context, callerDID, targetDID, collection string, record map[string]any, rkey string, validate *bool, grantees []string) (habitat_syntax.HabitatURI, error)
+	PutRecord(ctx context.Context, callerDID, targetDID, collection string, record map[string]any, rkey string, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection, rkey string, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, did syntax.DID, collection string, callerDID syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
@@ -55,7 +55,7 @@ type pear struct {
 }
 
 // Pass throughs to implement permission.Store
-func (p *pear) AddReadPermission(grantees []string, owner string, collection string, rkey string) error {
+func (p *pear) AddReadPermission(grantees []permissions.Grantee, owner string, collection string, rkey string) error {
 	return p.permissions.AddReadPermission(grantees, owner, collection, rkey)
 }
 
@@ -65,8 +65,8 @@ func (p *pear) HasPermission(requester string, owner string, nsid string, rkey s
 }
 
 // ListReadPermissionsByGrantee implements Pear.
-func (p *pear) ListReadPermissionsByGrantee(grantee string, collection string) ([]permissions.Permission, error) {
-	return p.permissions.ListReadPermissionsByGrantee(grantee, collection)
+func (p *pear) ListReadPermissionsByUser(grantee syntax.DID, collection string) ([]permissions.Permission, error) {
+	return p.permissions.ListReadPermissionsByUser(grantee, collection)
 }
 
 // ListReadPermissionsByLexicon implements Pear.
@@ -75,7 +75,7 @@ func (p *pear) ListReadPermissionsByLexicon(owner string) (map[string][]string, 
 }
 
 // RemoveReadPermissions implements Pear.
-func (p *pear) RemoveReadPermissions(grantee []string, owner string, collection string, rkey string) error {
+func (p *pear) RemoveReadPermissions(grantee []permissions.Grantee, owner string, collection string, rkey string) error {
 	return p.permissions.RemoveReadPermissions(grantee, owner, collection, rkey)
 }
 
@@ -117,7 +117,7 @@ func (p *pear) PutRecord(
 	record map[string]any,
 	rkey string,
 	validate *bool,
-	grantees []string,
+	grantees []permissions.Grantee,
 ) (habitat_syntax.HabitatURI, error) {
 	if targetDID != callerDID {
 		return "", fmt.Errorf("only owner can put record")
@@ -173,8 +173,8 @@ func (p *pear) ListRecords(
 	collection string,
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
-	perms, err := p.permissions.ListReadPermissionsByGrantee(
-		callerDID.String(),
+	perms, err := p.permissions.ListReadPermissionsByUser(
+		callerDID,
 		collection,
 	)
 	if err != nil {

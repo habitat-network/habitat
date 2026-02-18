@@ -18,8 +18,7 @@ import (
 // We reuse as many functions as possible from the public syntax package.
 
 const (
-	habitatScheme     = "habitat://"
-	habitatCliqueNSID = syntax.NSID("network.habitat.clique")
+	habitatScheme = "habitat://"
 )
 
 var HabitatURIRegex = regexp.MustCompile(`^habitat:\/\/(?P<authority>[a-zA-Z0-9._:%-]+)(\/(?P<collection>[a-zA-Z0-9-.]+)(\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512}))?)?$`)
@@ -76,18 +75,6 @@ func ParseHabitatURI(raw string) (HabitatURI, error) {
 		}
 	}
 	return HabitatURI(raw), nil
-}
-
-func ParseHabitatClique(raw string) (HabitatURI, error) {
-	uri, err := ParseHabitatURI(raw)
-	if err != nil {
-		return "", err
-	}
-
-	if uri.Collection() != habitatCliqueNSID {
-		return "", fmt.Errorf("input does not use clique nsid: %s", raw)
-	}
-	return uri, nil
 }
 
 // Every valid HabitatURI has a valid AtIdentifier in the authority position.
