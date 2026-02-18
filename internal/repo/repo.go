@@ -1,4 +1,4 @@
-package pear
+package repo
 
 import (
 	"context"
@@ -13,8 +13,20 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+type Repo interface {
+	PutRecord(ctx context.Context, did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error)
+	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
+	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
+	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
+	ListRecords(ctx context.Context, did string, collection string, allow []string, deny []string) ([]Record, error)
+	// These will be deprecated by Sashank's incoming PR; leaving in for the refactor
+	ListRecordsByOwnersDeprecated(ownerDIDs []string, collection string) ([]Record, error)
+	ListSpecificRecordsDeprecated(collection string, recordPairs []struct{ Owner, Rkey string }) ([]Record, error)
+}
 
 // Persist private data within repos that mirror public repos.
 // A repo currently implements four basic methods: putRecord, getRecord, uploadBlob, getBlob
@@ -30,6 +42,9 @@ import (
 type repo struct {
 	db *gorm.DB
 }
+
+// repo implements the public type Repo
+var _ Repo = &repo{}
 
 type Record struct {
 	Did        string `gorm:"primaryKey"`
@@ -57,23 +72,23 @@ func NewRepo(db *gorm.DB) (*repo, error) {
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *repo) putRecord(did string, collection string, rkey string, rec map[string]any, validate *bool) error {
+func (r *repo) PutRecord(ctx context.Context, did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	bytes, err := json.Marshal(rec)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Store rkey directly (no concatenation with collection)
 	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: string(bytes)}
 	// Always put (even if something exists).
-	return gorm.G[Record](
+	err = gorm.G[Record](
 		r.db,
 		clause.OnConflict{
 			Columns: []clause.Column{
@@ -83,7 +98,12 @@ func (r *repo) putRecord(did string, collection string, rkey string, rec map[str
 			},
 			DoUpdates: clause.AssignmentColumns([]string{"value"}),
 		},
-	).Create(context.Background(), &record)
+	).Create(ctx, &record)
+	if err != nil {
+		return "", err
+	}
+
+	return habitat_syntax.ConstructHabitatUri(did, collection, rkey), nil
 }
 
 var (
@@ -91,12 +111,12 @@ var (
 	ErrMultipleRecordsFound = fmt.Errorf("multiple records found for desired query")
 )
 
-func (r *repo) getRecord(did string, collection string, rkey string) (*Record, error) {
+func (r *repo) GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error) {
 	// Query using separate collection and rkey fields
 	row, err := gorm.G[Record](
 		r.db,
 	).Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
-		First(context.Background())
+		First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
 	} else if err != nil {
@@ -105,13 +125,13 @@ func (r *repo) getRecord(did string, collection string, rkey string) (*Record, e
 	return &row, nil
 }
 
-type blob struct {
+type BlobRef struct {
 	Ref      atdata.CIDLink `json:"cid"`
 	MimeType string         `json:"mimetype"`
 	Size     int64          `json:"size"`
 }
 
-func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, error) {
+func (r *repo) UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error) {
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
 	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
@@ -121,7 +141,7 @@ func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, erro
 	err = gorm.G[Blob](
 		r.db,
 		clause.OnConflict{UpdateAll: true},
-	).Create(context.Background(), &Blob{
+	).Create(ctx, &Blob{
 		Did:      did,
 		Cid:      cid.String(),
 		MimeType: mimeType,
@@ -131,7 +151,7 @@ func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, erro
 		return nil, err
 	}
 
-	return &blob{
+	return &BlobRef{
 		Ref:      atdata.CIDLink(cid),
 		MimeType: mimeType,
 		Size:     int64(len(data)),
@@ -140,13 +160,14 @@ func (r *repo) uploadBlob(did string, data []byte, mimeType string) (*blob, erro
 
 // getBlob gets a blob. this is never exposed to the server, because blobs can only be resolved via records that link them (see LexLink)
 // besides exceptional cases like data migration which we do not support right now.
-func (r *repo) getBlob(
+func (r *repo) GetBlob(
+	ctx context.Context,
 	did string,
 	cid string,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
 	row, err := gorm.G[Blob](
 		r.db,
-	).Where("did = ? and cid = ?", did, cid).First(context.Background())
+	).Where("did = ? and cid = ?", did, cid).First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrRecordNotFound
 	} else if err != nil {
@@ -157,7 +178,8 @@ func (r *repo) getBlob(
 }
 
 // listRecords implements repo.
-func (r *repo) listRecords(
+func (r *repo) ListRecords(
+	ctx context.Context,
 	did string,
 	collection string,
 	allow []string,
@@ -169,7 +191,7 @@ func (r *repo) listRecords(
 
 	// Start with base query filtering by did and collection
 	query := gorm.G[Record](
-		r.db.Debug(),
+		r.db,
 	).Where("did = ?", did).
 		Where("collection = ?", collection)
 
@@ -273,7 +295,7 @@ func (r *repo) listRecords(
 	query = query.Order("rkey ASC")
 
 	// Execute query
-	rows, err := query.Find(context.Background())
+	rows, err := query.Find(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -281,7 +303,7 @@ func (r *repo) listRecords(
 }
 
 // listRecordsByOwners queries records from multiple owners for a given collection
-func (r *repo) listRecordsByOwners(ownerDIDs []string, collection string) ([]Record, error) {
+func (r *repo) ListRecordsByOwnersDeprecated(ownerDIDs []string, collection string) ([]Record, error) {
 	if len(ownerDIDs) == 0 {
 		return []Record{}, nil
 	}
@@ -300,7 +322,7 @@ func (r *repo) listRecordsByOwners(ownerDIDs []string, collection string) ([]Rec
 
 // listSpecificRecords queries specific records by a list of (did, rkey) pairs for a given collection
 // recordPairs is a slice of structs with Owner and Rkey fields
-func (r *repo) listSpecificRecords(collection string, recordPairs []struct{ Owner, Rkey string }) ([]Record, error) {
+func (r *repo) ListSpecificRecordsDeprecated(collection string, recordPairs []struct{ Owner, Rkey string }) ([]Record, error) {
 	if len(recordPairs) == 0 {
 		return []Record{}, nil
 	}

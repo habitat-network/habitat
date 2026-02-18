@@ -3,12 +3,14 @@ package oauthserver_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -16,12 +18,211 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/habitat-network/habitat/internal/userstore"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestOAuthServerErrorPaths(t *testing.T) {
+	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
+		_, err := oauthserver.NewOAuthServer(
+			"name", "endpoint", "not-valid-base64!!!",
+			nil, nil, nil, nil,
+		)
+		require.Error(t, err)
+	})
+
+	// Common setup for all handler tests.
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	oauthSrv, err := oauthserver.NewOAuthServer(
+		"testServiceName",
+		"testServiceEndpoint",
+		secret,
+		oauthClient,
+		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
+		pdsclient.NewDummyDirectory("http://pds.url"),
+		credStore,
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			oauthSrv.HandleAuthorize(w, r)
+		case "/callback":
+			oauthSrv.HandleCallback(w, r)
+		case "/token":
+			oauthSrv.HandleToken(w, r)
+		case "/client-metadata":
+			oauthSrv.HandleClientMetadata(w, r)
+		case "/resource":
+			oauthSrv.Validate(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Habitat-Auth-Method", "oauth")
+		require.True(t, oauthSrv.CanHandle(r))
+	})
+
+	t.Run("CanHandle returns false without oauth header", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		require.False(t, oauthSrv.CanHandle(r))
+	})
+
+	t.Run("HandleClientMetadata returns metadata as JSON", func(t *testing.T) {
+		resp, err := server.Client().Get(server.URL + "/client-metadata")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+	})
+
+	t.Run("HandleAuthorize rejects request missing OAuth params", func(t *testing.T) {
+		// No client_id, redirect_uri, etc. — fosite will reject the authorize request.
+		resp, err := server.Client().Get(server.URL + "/authorize")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.NotEqual(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("HandleCallback rejects request with no session flash", func(t *testing.T) {
+		// No prior /authorize call, so the session contains no flash data.
+		resp, err := server.Client().Get(server.URL + "/callback")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("HandleToken rejects invalid token request", func(t *testing.T) {
+		resp, err := server.Client().Post(
+			server.URL+"/token",
+			"application/x-www-form-urlencoded",
+			http.NoBody,
+		)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.NotEqual(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("Validate rejects request with no token", func(t *testing.T) {
+		resp, err := server.Client().Get(server.URL + "/resource")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("Validate rejects malformed JWT", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, server.URL+"/resource", nil)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer not.a.valid.jwt")
+		resp, err := server.Client().Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+}
+
+// errLookupDIDDirectory wraps DummyDirectory but returns an error from LookupDID,
+// simulating a user whose DID document cannot be resolved during the callback.
+type errLookupDIDDirectory struct {
+	*pdsclient.DummyDirectory
+}
+
+func (d *errLookupDIDDirectory) LookupDID(_ context.Context, _ syntax.DID) (*identity.Identity, error) {
+	return nil, fmt.Errorf("simulated DID doc lookup failure")
+}
+
+// newClientApp returns a test server that serves OAuth client metadata.
+// The returned URL is the server's base URL; the metadata's client_id uses that URL.
+func newClientApp(t *testing.T, serverCallbackURL string) *httptest.Server {
+	t.Helper()
+	var clientApp *httptest.Server
+	clientApp = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+			ClientId:      clientApp.URL + "/client-metadata.json",
+			RedirectUris:  []string{serverCallbackURL},
+			ResponseTypes: []string{"code"},
+			GrantTypes:    []string{"authorization_code"},
+		})
+	}))
+	t.Cleanup(clientApp.Close)
+	return clientApp
+}
+
+func TestHandleCallbackDIDDocError(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+
+	oauthSrv, err := oauthserver.NewOAuthServer(
+		"testServiceName", "testServiceEndpoint", secret,
+		oauthClient,
+		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
+		&errLookupDIDDirectory{pdsclient.NewDummyDirectory("http://pds.url")},
+		credStore,
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			oauthSrv.HandleAuthorize(w, r)
+		case "/callback":
+			oauthSrv.HandleCallback(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	httpClient := server.Client()
+	httpClient.Jar = jar
+	clientMetadata.RedirectUris = []string{server.URL + "/callback"}
+
+	clientApp := newClientApp(t, server.URL+"/callback")
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		ClientID:    clientApp.URL + "/client-metadata.json",
+		RedirectURL: server.URL + "/callback",
+		Endpoint:    oauth2.Endpoint{AuthURL: server.URL + "/authorize"},
+	}
+
+	req, err := http.NewRequest(http.MethodGet,
+		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+"&handle=did:web:test",
+		nil,
+	)
+	require.NoError(t, err)
+
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}
 
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
@@ -31,10 +232,6 @@ func TestOAuthServerE2E(t *testing.T) {
 	// setup pds credential store
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err, "failed to setup pds credential store")
-
-	// setup user store
-	userStore, err := userstore.NewUserStore(db)
-	require.NoError(t, err, "failed to setup user store")
 
 	// setup oauth server
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -46,12 +243,13 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to generate secret")
 
 	oauthServer, err := oauthserver.NewOAuthServer(
+		"testServiceName",
+		"testServiceEndpoint",
 		secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
-		userStore,
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 

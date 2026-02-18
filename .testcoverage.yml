@@ -22,10 +22,9 @@ exclude:
   # Exclude files or packages matching their paths
   paths:
     - \/mocks\/.*?$
-    - ^cmd # main.go's don't need to be tested
-    - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
+    - ^cmd # main.go's should be tested with integration tests, a separate pathway
+    - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs -- TODO, we should test them.
     - ^internal/telemetry # This is all setup, no logic
     - ^internal/utils
     - dummy_.*\.go
-    - ^internal/oauthserver # TODO: should be able to remove once refresh tokens are implemented
-    - ^internal/pear/jetstream.go # This is all setup code for stream listeners. More approriate for integration tests with a fake jetstream service
+    - ^internal/oauthserver # This is mostly interface satisfying
