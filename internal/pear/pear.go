@@ -23,8 +23,8 @@ type Pear interface {
 	permissions.Store
 
 	// Permissioned repository methods
-	PutRecord(ctx context.Context, did string, collection string, record map[string]any, rkey string, validate *bool, grantees []string) (habitat_syntax.HabitatURI, error)
-	GetRecord(ctx context.Context, collection string, rkey string, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
+	PutRecord(ctx context.Context, callerDID, targetDID, collection string, record map[string]any, rkey string, validate *bool, grantees []string) (habitat_syntax.HabitatURI, error)
+	GetRecord(ctx context.Context, collection, rkey string, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, did syntax.DID, collection string, callerDID syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
@@ -111,13 +111,19 @@ func NewPear(
 // is gated by some higher up level. This should be re-written in the future to not give any incorrect impression.
 func (p *pear) PutRecord(
 	ctx context.Context,
-	did string,
+	callerDID string,
+	targetDID string,
 	collection string,
 	record map[string]any,
 	rkey string,
 	validate *bool,
 	grantees []string,
 ) (habitat_syntax.HabitatURI, error) {
+	if targetDID != callerDID {
+		return "", fmt.Errorf("only owner can put record")
+	}
+
+	did := targetDID
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
 	if len(grantees) > 0 {
 		err := p.permissions.AddReadPermission(

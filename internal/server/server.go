@@ -148,17 +148,6 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: should we be doing this authz check here? or have a more strict separation of concerns?
-	if ownerDID.String() != callerDID.String() {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("only owner can put record"),
-			"only owner can put record",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
 	var rkey string
 	if req.Rkey == "" {
 		rkey = uuid.NewString()
@@ -189,7 +178,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	uri, err := s.pear.PutRecord(r.Context(), ownerDID.String(), req.Collection, record, rkey, &v, parsed)
+	uri, err := s.pear.PutRecord(r.Context(), callerDID.String(), ownerDID.String(), req.Collection, record, rkey, &v, parsed)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,

@@ -96,7 +96,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	uri, err := p.PutRecord(t.Context(), "my-did", coll, val, rkey, &validate, []string{})
+	uri, err := p.PutRecord(t.Context(), "my-did", "my-did", coll, val, rkey, &validate, []string{})
 	require.NoError(t, err)
 	require.Equal(t, habitat_syntax.ConstructHabitatUri("my-did", coll, rkey), uri)
 
@@ -127,7 +127,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, val, unmarshalled)
 
-	_, err = p.PutRecord(t.Context(), "my-did", coll, val, rkey, &validate, []string{})
+	_, err = p.PutRecord(t.Context(), "my-did", "my-did", coll, val, rkey, &validate, []string{})
 	require.NoError(t, err)
 }
 
@@ -142,7 +142,7 @@ func TestListOwnRecords(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	uri, err := p.PutRecord(t.Context(), "my-did", coll, val, rkey, &validate, []string{})
+	uri, err := p.PutRecord(t.Context(), "my-did", "my-did", coll, val, rkey, &validate, []string{})
 	require.NoError(t, err)
 	require.Equal(t, habitat_syntax.ConstructHabitatUri("my-did", coll, rkey), uri)
 
@@ -194,11 +194,11 @@ func TestListRecords(t *testing.T) {
 	coll1 := "my.fake.collection1"
 	coll2 := "my.fake.collection2"
 
-	_, err := p.PutRecord(t.Context(), "my-did", coll1, val, "rkey1", &validate, []string{})
+	_, err := p.PutRecord(t.Context(), "my-did", "my-did", coll1, val, "rkey1", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), "my-did", coll1, val, "rkey2", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), "my-did", "my-did", coll1, val, "rkey2", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), "my-did", coll2, val, "rkey3", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), "my-did", "my-did", coll2, val, "rkey3", &validate, []string{})
 	require.NoError(t, err)
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
@@ -289,7 +289,7 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	validate := true
 
 	// Put the record and grant access to grantee1 and grantee2 at the same time.
-	uri, err := p.PutRecord(t.Context(), ownerDID, coll, val, rkey, &validate, []string{grantee1DID, grantee2DID})
+	uri, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, val, rkey, &validate, []string{grantee1DID, grantee2DID})
 	require.NoError(t, err)
 	require.Equal(t, habitat_syntax.ConstructHabitatUri(ownerDID, coll, rkey), uri)
 
@@ -308,6 +308,22 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(nonGranteeDID))
 	require.Nil(t, got)
 	require.ErrorIs(t, err, ErrUnauthorized)
+}
+
+// TestPutRecordCrossUserUnauthorized verifies that a caller cannot put a record
+// into another user's repo (i.e. callerDID != targetDID is rejected).
+func TestPutRecordCrossUserUnauthorized(t *testing.T) {
+	callerDID := "did:plc:caller"
+	targetDID := "did:plc:target"
+
+	dir := mockIdentities([]string{callerDID, targetDID})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	val := map[string]any{"data": "value"}
+	validate := true
+
+	_, err := p.PutRecord(t.Context(), callerDID, targetDID, "my.fake.collection", val, "some-rkey", &validate, []string{})
+	require.Error(t, err)
 }
 
 // TODO: eventually test permissions with blobs here
@@ -359,19 +375,19 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	coll := "my.fake.collection"
 
 	// Alice creates her own records
-	_, err = p.PutRecord(t.Context(), aliceDID, coll, val, "alice-rkey1", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), aliceDID, aliceDID, coll, val, "alice-rkey1", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), aliceDID, coll, val, "alice-rkey2", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), aliceDID, aliceDID, coll, val, "alice-rkey2", &validate, []string{})
 	require.NoError(t, err)
 
 	// Bob creates records
-	_, err = p.PutRecord(t.Context(), bobDID, coll, val, "bob-rkey1", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), bobDID, bobDID, coll, val, "bob-rkey1", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), bobDID, coll, val, "bob-rkey2", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), bobDID, bobDID, coll, val, "bob-rkey2", &validate, []string{})
 	require.NoError(t, err)
 
 	// Carol creates records
-	_, err = p.PutRecord(t.Context(), carolDID, coll, val, "carol-rkey1", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), carolDID, carolDID, coll, val, "carol-rkey1", &validate, []string{})
 	require.NoError(t, err)
 
 	t.Run("includes records from other users when user has permission", func(t *testing.T) {
@@ -443,7 +459,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("filters by collection", func(t *testing.T) {
 		otherColl := "other.collection"
-		_, err := p.PutRecord(t.Context(), bobDID, otherColl, val, "bob-other-rkey", &validate, []string{})
+		_, err := p.PutRecord(t.Context(), bobDID, bobDID, otherColl, val, "bob-other-rkey", &validate, []string{})
 		require.NoError(t, err)
 		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, otherColl, ""))
 
