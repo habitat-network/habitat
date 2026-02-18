@@ -225,7 +225,7 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts", "record-1")
 	require.NoError(t, err)
 
-	// Should not return multiple permissions for the same record 
+	// Should not return multiple permissions for the same record
 	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts", "record-1")
 	require.NoError(t, err)
 
@@ -241,5 +241,3 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, perms, 2)
 }
-
-func 
