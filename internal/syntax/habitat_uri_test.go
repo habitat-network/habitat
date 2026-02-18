@@ -48,3 +48,20 @@ func TestParseHabitatURI(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestHabitatClique(t *testing.T) {
+	t.Run("valid clique", func(t *testing.T) {
+		uri, err := ParseHabitatClique("habitat://did:plc:abc123/network.habitat.clique/clique-rkey")
+		require.NoError(t, err)
+		require.Equal(t, "did:plc:abc123", uri.Authority().String())
+		require.Equal(t, "network.habitat.clique", uri.Collection().String())
+		require.Equal(t, "clique-rkey", string(uri.RecordKey()))
+		require.Equal(t, "network.habitat.clique/clique-rkey", uri.Path())
+		require.Equal(t, uri, uri.Normalize())
+	})
+
+	t.Run("invalid clique", func(t *testing.T) {
+		_, err := ParseHabitatClique("habitat://did:plc:abc123/network.habitat.not.a.clique/clique-rkey")
+		require.Error(t, err)
+	})
+}
