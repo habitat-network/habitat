@@ -472,11 +472,23 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.RemoveReadPermission(req.Did, callerDID.String(), req.Lexicon)
+	grantees, err := parseGrantees(req.Grantees)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "parsing grantees", http.StatusBadRequest)
 		return
 	}
+	object := req.Collection
+	if req.Rkey != "" {
+		object += "." + req.Rkey
+	}
+	for _, grantee := range grantees {
+		err = s.pear.permissions.RemoveReadPermission(grantee, callerDID.String(), object)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+			return
+		}
+	}
+
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {

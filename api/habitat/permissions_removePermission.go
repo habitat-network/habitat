@@ -4,6 +4,7 @@ package habitat
 
 // NetworkHabitatPermissionsRemovePermissionInput represents the input for network.habitat.permissions.removePermission
 type NetworkHabitatPermissionsRemovePermissionInput struct {
-	Did     string `json:"did"`
-	Lexicon string `json:"lexicon"`
+	Collection string        `json:"collection"`
+	Grantees   []interface{} `json:"grantees"`
+	Rkey       string        `json:"rkey,omitempty"`
 }

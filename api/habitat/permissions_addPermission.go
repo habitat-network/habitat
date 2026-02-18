@@ -6,5 +6,5 @@ package habitat
 type NetworkHabitatPermissionsAddPermissionInput struct {
 	Collection string        `json:"collection"`
 	Grantees   []interface{} `json:"grantees"`
-	Rkey       string        `json:"rkey"`
+	Rkey       string        `json:"rkey,omitempty"`
 }

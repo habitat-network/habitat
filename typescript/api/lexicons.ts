@@ -796,7 +796,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['grantees', 'collection', 'rkey'],
+            required: ['grantees', 'collection'],
             properties: {
               grantees: {
                 type: 'array',
@@ -868,19 +868,31 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['did', 'lexicon'],
+            required: ['grantees', 'collection'],
             properties: {
-              did: {
-                type: 'string',
-                format: 'did',
-                description:
-                  'The DID of the user to revoke read permission from.',
+              grantees: {
+                type: 'array',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
+                  ],
+                },
+                maxLength: 100,
               },
-              lexicon: {
+              collection: {
                 type: 'string',
                 format: 'nsid',
                 description:
-                  'The NSID of the lexicon or record to revoke read permission for.',
+                  'The NSID of the lexicon or record to grant read permission for.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description:
+                  'The Record Key to grant read permissions to, if any.',
+                maxLength: 512,
               },
             },
           },

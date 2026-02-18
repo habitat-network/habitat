@@ -27,7 +27,7 @@ export interface InputSchema {
   /** The NSID of the lexicon or record to grant read permission for. */
   collection: string
   /** The Record Key to grant read permissions to, if any. */
-  rkey: string
+  rkey?: string
 }
 
 export interface CallOptions {

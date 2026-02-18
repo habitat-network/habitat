@@ -3,8 +3,23 @@ import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 
-interface Data {
+// Concrete wire types for the grantee union variants the server parses
+interface DidGranteeObj {
+  $type: "network.habitat.grantee#didGrantee";
   did: string;
+}
+
+// Matches InputSchema from typescript/api/types/network/habitat/permissions/{add,remove}Permission.ts
+interface PermissionInput {
+  grantees: DidGranteeObj[];
+  collection: string;
+  rkey?: string;
+}
+
+interface FormData {
+  grantee: string;
+  collection: string;
+  rkey: string;
 }
 
 export const Route = createFileRoute(
@@ -13,7 +28,7 @@ export const Route = createFileRoute(
   async loader({ context, params }) {
     const response = await context.queryClient.fetchQuery(
       listPermissions(context.authManager),
-    );
+    ) as Record<string, string[]>;
     return response[params.lexiconId];
   },
   component() {
@@ -21,18 +36,24 @@ export const Route = createFileRoute(
     const { authManager } = Route.useRouteContext();
     const params = Route.useParams();
     const people = Route.useLoaderData();
-    const form = useForm<Data>({});
+    const form = useForm<FormData>({
+      defaultValues: { collection: params.lexiconId, rkey: "" },
+    });
+
     const { mutate: add, isPending: isAdding } = useMutation({
-      async mutationFn(data: Data) {
+      async mutationFn(data: FormData) {
+        const body: PermissionInput = {
+          grantees: [{ $type: "network.habitat.grantee#didGrantee", did: data.grantee }],
+          collection: data.collection,
+          ...(data.rkey ? { rkey: data.rkey } : {}),
+        };
         await authManager?.fetch(
           `/xrpc/network.habitat.addPermission`,
           "POST",
-          JSON.stringify({
-            did: data.did,
-            lexicon: params.lexiconId,
-          }),
+          JSON.stringify(body),
+          new Headers({ "Content-Type": "application/json" }),
         );
-        form.reset();
+        form.reset({ collection: params.lexiconId, rkey: "" });
         router.invalidate();
       },
       onError(e) {
@@ -41,15 +62,16 @@ export const Route = createFileRoute(
     });
 
     const { mutate: remove } = useMutation({
-      async mutationFn(data: Data) {
-        // remove permission
+      async mutationFn(grantee: string) {
+        const body: PermissionInput = {
+          grantees: [{ $type: "network.habitat.grantee#didGrantee", did: grantee }],
+          collection: params.lexiconId,
+        };
         await authManager?.fetch(
           `/xrpc/network.habitat.removePermission`,
           "POST",
-          JSON.stringify({
-            did: data.did,
-            lexicon: params.lexiconId,
-          }),
+          JSON.stringify(body),
+          new Headers({ "Content-Type": "application/json" }),
         );
         router.invalidate();
       },
@@ -57,12 +79,27 @@ export const Route = createFileRoute(
         console.error(e);
       },
     });
+
     return (
       <>
         <h3>{params.lexiconId}</h3>
         <form onSubmit={form.handleSubmit((data) => add(data))}>
-          <fieldset role="group">
-            <input type="text" {...form.register("did")} />
+          <fieldset>
+            <input
+              type="text"
+              placeholder="DID (did:plc:...)"
+              {...form.register("grantee")}
+            />
+            <input
+              type="text"
+              placeholder="Collection NSID"
+              {...form.register("collection")}
+            />
+            <input
+              type="text"
+              placeholder="Record key (optional)"
+              {...form.register("rkey")}
+            />
             <button type="submit" aria-busy={isAdding}>
               Add
             </button>
@@ -80,7 +117,7 @@ export const Route = createFileRoute(
               <tr key={person}>
                 <td>{person}</td>
                 <td>
-                  <button type="button" onClick={() => remove({ did: person })}>
+                  <button type="button" onClick={() => remove(person)}>
                     🗑️
                   </button>
                 </td>
