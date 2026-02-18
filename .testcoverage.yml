@@ -28,3 +28,4 @@ exclude:
     - ^internal/utils
     - dummy_.*\.go
     - ^internal/oauthserver # This is mostly interface satisfying
+    - ^internal/server # This is mostly pass-throughs to pear, but we should remove this and add tests since there is non-trivial logic in there.
