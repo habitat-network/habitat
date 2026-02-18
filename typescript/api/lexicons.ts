@@ -732,6 +732,18 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatClique: {
+    lexicon: 1,
+    id: 'network.habitat.clique',
+    defs: {
+      main: {
+        type: 'object',
+        description:
+          "Do we even need anything in here? I think it's just a placeholder.",
+        properties: {},
+      },
+    },
+  },
   NetworkHabitatGrantee: {
     lexicon: 1,
     id: 'network.habitat.grantee',
@@ -1264,6 +1276,7 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatClique: 'network.habitat.clique',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',

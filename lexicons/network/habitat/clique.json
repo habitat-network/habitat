@@ -1,0 +1,11 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.clique",
+    "defs": {
+        "main": {
+            "type": "object",
+            "description": "Do we even need anything in here? I think it's just a placeholder.",
+            "properties": {}
+        }
+    }
+}
