@@ -19,7 +19,6 @@ import (
 
 // The permissionEnforcingRepo wraps a repo, and enforces permissions on any calls.
 type Pear struct {
-	ctx context.Context
 	// The URL at which this repo lives; should match what is in a hosted user's DID doc for the habitat service entry
 	url string
 	// The service name for habitat in the DID doc (different for dev / production)
@@ -44,7 +43,6 @@ var (
 )
 
 func NewPear(
-	ctx context.Context,
 	serviceName string,
 	serviceEndpoint string,
 	dir identity.Directory,
@@ -53,7 +51,6 @@ func NewPear(
 	inbox inbox.Inbox,
 ) *Pear {
 	return &Pear{
-		ctx:         ctx,
 		url:         serviceEndpoint,
 		serviceName: serviceName,
 		dir:         dir,
@@ -172,8 +169,8 @@ var (
 	ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
 )
 
-func (p *Pear) hasRepoForDid(did syntax.DID) (bool, error) {
-	id, err := p.dir.LookupDID(p.ctx, did)
+func (p *Pear) hasRepoForDid(ctx context.Context, did syntax.DID) (bool, error) {
+	id, err := p.dir.LookupDID(ctx, did)
 	if err != nil {
 		return false, err
 	}

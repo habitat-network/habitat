@@ -109,17 +109,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 
-	serviceName := cmd.String(fServiceName)
-	domain := cmd.String(fDomain)
-	serviceEndpoint := "https://" + domain
-	oauthServer, oauthClient := setupOAuthServer(cmd, serviceName, serviceEndpoint, pdsCredStore)
+	oauthServer, oauthClient := setupOAuthServer(cmd, pdsCredStore)
 	pdsClientFactory := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
 
-	pearServer, err := setupPearServer(ctx, serviceName, serviceEndpoint, db, oauthServer)
+	pearServer, err := setupPearServer(cmd, db, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
@@ -148,6 +145,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
 
+	domain := cmd.String(fDomain)
 	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
 		template := `{
   "id": "did:web:%s",
@@ -224,12 +222,14 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 }
 
 func setupPearServer(
-	ctx context.Context,
-	serviceName string,
-	serviceEndpoint string,
+	cmd *cli.Command,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 ) (*pear.Server, error) {
+	serviceName := cmd.String(fServiceName)
+	domain := cmd.String(fDomain)
+	serviceEndpoint := "https://" + domain
+
 	repo, err := repo.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
@@ -246,14 +246,12 @@ func setupPearServer(
 	}
 
 	dir := identity.DefaultDirectory()
-	p := pear.NewPear(ctx, serviceName, serviceEndpoint, dir, permissions, repo, inbox)
+	p := pear.NewPear(serviceName, serviceEndpoint, dir, permissions, repo, inbox)
 	return pear.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
 }
 
 func setupOAuthServer(
 	cmd *cli.Command,
-	serviceName string,
-	serviceEndpoint string,
 	credStore pdscred.PDSCredentialStore,
 ) (*oauthserver.OAuthServer, pdsclient.PdsOAuthClient) {
 	domain := cmd.String(fDomain)
@@ -266,6 +264,9 @@ func setupOAuthServer(
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
+
+	serviceName := cmd.String(fServiceName)
+	serviceEndpoint := "https://" + domain
 	oauthServer, err := oauthserver.NewOAuthServer(
 		serviceName,
 		serviceEndpoint,
