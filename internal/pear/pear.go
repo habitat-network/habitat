@@ -204,20 +204,6 @@ func (p *pear) hasRepoForDid(ctx context.Context, did syntax.DID) (bool, error) 
 	return found.URL == p.url, nil
 }
 
-func (p *pear) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, error) {
-	// Try handling both handles and dids
-	atid, err := syntax.ParseAtIdentifier(didOrHandle)
-	if err != nil {
-		return "", err
-	}
-
-	id, err := p.dir.Lookup(ctx, *atid)
-	if err != nil {
-		return "", err
-	}
-	return id.DID, nil
-}
-
 // TODO: actually enforce permissions here
 func (p *pear) GetBlob(
 	ctx context.Context,
