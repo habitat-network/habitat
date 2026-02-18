@@ -732,6 +732,23 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatGrantee: {
+    lexicon: 1,
+    id: 'network.habitat.grantee',
+    defs: {
+      didGrantee: {
+        type: 'string',
+        format: 'did',
+        description: 'A DID grantee',
+      },
+      cliqueRef: {
+        type: 'string',
+        format: 'uri',
+        description:
+          'A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key',
+      },
+    },
+  },
   NetworkHabitatInternalNotifyOfUpdate: {
     lexicon: 1,
     id: 'network.habitat.internal.notifyOfUpdate',
@@ -779,18 +796,31 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['did', 'lexicon'],
+            required: ['grantees', 'collection'],
             properties: {
-              did: {
-                type: 'string',
-                format: 'did',
-                description: 'The DID of the user to grant read permission to.',
+              grantees: {
+                type: 'array',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
+                  ],
+                },
+                maxLength: 100,
               },
-              lexicon: {
+              collection: {
                 type: 'string',
                 format: 'nsid',
                 description:
                   'The NSID of the lexicon or record to grant read permission for.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description:
+                  'The Record Key to grant read permissions to, if any.',
+                maxLength: 512,
               },
             },
           },
@@ -838,19 +868,31 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['did', 'lexicon'],
+            required: ['grantees', 'collection'],
             properties: {
-              did: {
-                type: 'string',
-                format: 'did',
-                description:
-                  'The DID of the user to revoke read permission from.',
+              grantees: {
+                type: 'array',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
+                  ],
+                },
+                maxLength: 100,
               },
-              lexicon: {
+              collection: {
                 type: 'string',
                 format: 'nsid',
                 description:
-                  'The NSID of the lexicon or record to revoke read permission for.',
+                  'The NSID of the lexicon or record to grant read permission for.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description:
+                  'The Record Key to grant read permissions to, if any.',
+                maxLength: 512,
               },
             },
           },
@@ -1075,28 +1117,6 @@ export const schemaDict = {
     lexicon: 1,
     id: 'network.habitat.repo.putRecord',
     defs: {
-      didGrantee: {
-        type: 'object',
-        required: ['did'],
-        properties: {
-          did: {
-            type: 'string',
-            format: 'did',
-          },
-        },
-      },
-      cliqueRef: {
-        type: 'object',
-        required: ['uri'],
-        properties: {
-          uri: {
-            type: 'string',
-            format: 'uri',
-            description:
-              'A habitat-uri pointing to a clique owner (habitat://<did>/<collection>/<rkey>)',
-          },
-        },
-      },
       main: {
         type: 'procedure',
         description:
@@ -1138,10 +1158,11 @@ export const schemaDict = {
                 items: {
                   type: 'union',
                   refs: [
-                    'lex:network.habitat.repo.putRecord#didGrantee',
-                    'lex:network.habitat.repo.putRecord#cliqueRef',
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
                   ],
                 },
+                maxLength: 100,
               },
             },
           },
@@ -1243,6 +1264,7 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatPermissionsAddPermission:

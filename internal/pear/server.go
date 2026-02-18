@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/repo"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -55,21 +56,9 @@ func NewServer(
 
 var formDecoder = schema.NewDecoder()
 
-type didGrantee string
-
-func (didGrantee) isGrantee() {}
-
-type cliqueGrantee string
-
-func (cliqueGrantee) isGrantee() {}
-
-type grantee interface {
-	isGrantee()
-}
-
 // Parse the grantees input which is typed as an interface
-func parseGrantees(grantees []interface{}) ([]grantee, error) {
-	parsed := make([]grantee, len(grantees))
+func parseGrantees(grantees []interface{}) ([]string, error) {
+	parsed := make([]string, len(grantees))
 	for i, generic := range grantees {
 		unknownGrantee, ok := generic.(map[string]interface{})
 		if !ok {
@@ -82,7 +71,7 @@ func parseGrantees(grantees []interface{}) ([]grantee, error) {
 		}
 
 		switch granteeType {
-		case "network.habitat.repo.putRecord#didGrantee":
+		case "network.habitat.grantee#didGrantee":
 			did, ok := unknownGrantee["did"]
 			if !ok {
 				return nil, fmt.Errorf("malformatted did grantee has no did field: %v", unknownGrantee)
@@ -91,8 +80,12 @@ func parseGrantees(grantees []interface{}) ([]grantee, error) {
 			if !ok {
 				return nil, fmt.Errorf("malformatted did grantee has non-string did field: %v", unknownGrantee)
 			}
-			parsed[i] = didGrantee(asStr)
-		case "network.habitat.repo.putRecord#cliqueRef":
+			_, err := syntax.ParseDID(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("malformed did grantee field: %s", asStr)
+			}
+			parsed[i] = asStr
+		case "network.habitat.grantee#cliqueRef":
 			uri, ok := unknownGrantee["uri"]
 			if !ok {
 				return nil, fmt.Errorf("malformatted clique grantee has no uri field: %v", unknownGrantee)
@@ -101,7 +94,11 @@ func parseGrantees(grantees []interface{}) ([]grantee, error) {
 			if !ok {
 				return nil, fmt.Errorf("malformatted clique grantee has non-string uri field: %v", unknownGrantee)
 			}
-			parsed[i] = cliqueGrantee(asStr)
+			_, err := habitat_syntax.ParseHabitatClique(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("malformed habitat uri grantee field: %s", asStr)
+			}
+			parsed[i] = asStr
 		default:
 			return nil, fmt.Errorf("malformatted grantee has unknown $type of %v: %v", granteeType, unknownGrantee)
 		}
@@ -181,26 +178,8 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-
-		didGrantees := []string{}
-		for _, grantee := range parsed {
-			switch g := grantee.(type) {
-			case didGrantee:
-				didGrantees = append(didGrantees, string(g))
-			case cliqueGrantee:
-				// If we ever run into a non-DID grantee, return an error as this is not yet supported
-				utils.LogAndHTTPError(
-					w,
-					err,
-					fmt.Sprintf("non-DID grantees are not supported: %v", grantee),
-					http.StatusInternalServerError,
-				)
-				return
-			}
-		}
-
 		err = s.pear.permissions.AddReadPermission(
-			didGrantees,
+			parsed,
 			ownerDID.String(),
 			req.Collection+"."+rkey,
 		)
@@ -464,10 +443,17 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
+
+	grantees, err := parseGrantees(req.Grantees)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		return
+	}
 	err = s.pear.permissions.AddReadPermission(
-		[]string{req.Did},
+		grantees,
 		callerDID.String(),
-		req.Lexicon,
+		req.Collection,
+		// TODO: handle record key here after sashanks PR
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
@@ -486,11 +472,23 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.RemoveReadPermission(req.Did, callerDID.String(), req.Lexicon)
+	grantees, err := parseGrantees(req.Grantees)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "parsing grantees", http.StatusBadRequest)
 		return
 	}
+	object := req.Collection
+	if req.Rkey != "" {
+		object += "." + req.Rkey
+	}
+	for _, grantee := range grantees {
+		err = s.pear.permissions.RemoveReadPermission(grantee, callerDID.String(), object)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+			return
+		}
+	}
+
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
