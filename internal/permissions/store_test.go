@@ -193,17 +193,6 @@ func TestStoreDenyOverridesAllow(t *testing.T) {
 	require.True(t, hasPermission)
 }
 
-func TestPermissionStoreEmptyGrantees(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	err = store.AddReadPermission([]string{}, "alice", "network.habitat.posts", "")
-	require.Error(t, err)
-}
-
 func TestAddReadPermission_EmptyCollection(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -235,6 +224,19 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 
 	// Should only return the most powerful permission
 	err = store.AddReadPermission([]string{"bob"}, "alice", "network.habitat.posts", "")
+	require.NoError(t, err)
+
+	perms, err = store.ListReadPermissionsByGrantee("bob", "")
+	require.NoError(t, err)
+	require.Len(t, perms, 2)
+
+	// should not add unnecessary permissions
+	err = store.AddReadPermission(
+		[]string{"bob", "charlie"},
+		"alice",
+		"network.habitat.posts",
+		"record-1",
+	)
 	require.NoError(t, err)
 
 	perms, err = store.ListReadPermissionsByGrantee("bob", "")

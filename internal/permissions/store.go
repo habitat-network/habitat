@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -70,10 +71,6 @@ func NewStore(db *gorm.DB) (*store, error) {
 }
 
 // HasPermission checks if a requester has permission to access a specific record.
-// It checks permissions in the following order:
-// 1. Owner always has access
-// 2. Specific record permissions (exact match)
-// 3. NSID-level permissions (prefix match with .*)
 func (s *store) HasPermission(
 	requester string,
 	owner string,
@@ -108,6 +105,8 @@ func (s *store) HasPermission(
 // AddLexiconReadPermission grants read permission for an entire collection or specific record.
 // If rkey is empty, it grants read permission for the whole collection.
 // Will delete redundant permissions that are covered by the new grant.
+// Will not add redundant permssions that are less powerful than existing ones
+// Will not error in cases where no work is done
 func (s *store) AddReadPermission(
 	grantees []string,
 	owner string,
@@ -117,8 +116,39 @@ func (s *store) AddReadPermission(
 	if collection == "" {
 		return fmt.Errorf("collection is required")
 	}
+	var existingCollectionPermissions []Permission
+	if rkey == "" { /* collection-level permission */
+		// delete redundant allow permissions that are less powerful
+		result := s.db.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("rkey != ''").
+			Where("effect = 'allow'").
+			Delete(&Permission{})
+		if result.Error != nil {
+			return fmt.Errorf("failed to remove redundant allow permissions: %w", result.Error)
+		}
+	} else { /* record-level permission */
+		// check if there are existing grantess with collection-level permissions.
+		// if so, we shouldn't add new ones for those grantees
+		if err := s.db.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ''").Find(&existingCollectionPermissions).Error; err != nil {
+			return fmt.Errorf("failed to query existing collection permissions: %w", err)
+		}
+	}
+	if len(existingCollectionPermissions) == len(grantees) {
+		// all grantess already have collection-level permissions so don't do anything
+		return nil
+	}
+	existingCollectionGrantess := mapset.NewSet[string]()
+	for _, perm := range existingCollectionPermissions {
+		existingCollectionGrantess.Add(perm.Grantee)
+	}
+	// only add permissions for those that don't already have access
+	granteesSet := mapset.NewSet(grantees...).Difference(existingCollectionGrantess)
 	permissions := []Permission{}
-	for _, grantee := range grantees {
+	for grantee := range mapset.Elements(granteesSet) {
 		permissions = append(permissions, Permission{
 			Grantee:    grantee,
 			Owner:      owner,
@@ -127,28 +157,21 @@ func (s *store) AddReadPermission(
 			Rkey:       rkey,
 		})
 	}
-	// Upsert: insert or update on conflict
+	// upsert new permission
 	result := s.db.Clauses(clause.OnConflict{
 		UpdateAll: true,
 	}).Create(&permissions)
 	if result.Error != nil {
 		return fmt.Errorf("failed to add lexicon permission: %w", result.Error)
 	}
-	// delete redundant allow permissions
-	if rkey == "" {
-		result = s.db.Where("grantee IN ?", grantees).
-			Where("owner = ?", owner).
-			Where("rkey != ''").
-			Where("effect = 'allow'").
-			Delete(&Permission{})
-		if result.Error != nil {
-			return fmt.Errorf("failed to remove redundant allow permissions: %w", result.Error)
-		}
-	}
 	return nil
 }
 
-// RemoveLexiconReadPermission removes read permission for an entire lexicon.
+// RemoveLexiconReadPermission removes read permission for an entire collection or specific record.
+// If rkey is empty, it revokes read permission for the whole collection.
+// If the user already has access to the collection, it will add a deny permission for rkey.
+// Otherwise will delete the specific permission if it exists.
+// Will not error if there are no permissions to remove.
 func (s *store) RemoveReadPermission(
 	grantee string,
 	owner string,
@@ -227,25 +250,23 @@ func (s *store) ListReadPermissionsByLexicon(owner string) (map[string][]string,
 	return result, nil
 }
 
-// ListReadPermissionsByUser returns the allow and deny lists for a specific user
-// for a given NSID. This is used to filter records when querying.
+// ListReadPermissionsByUser returns the permissions available to a grantee.
+// If a collection is provided, only permissions for that collection are returned.
 func (s *store) ListReadPermissionsByGrantee(
 	grantee string,
 	collection string,
 ) ([]Permission, error) {
-	// Query all permissions for this grantee/owner combination
-	// that could match the given NSID
-	// object = nsid OR object = nsid.*
 	var permissions []Permission
 	query := s.db.Where("grantee = ?", grantee)
 	if collection != "" {
 		query = query.Where("collection = ?", collection)
 	}
-	// sort permissions by collection and rkey so that empty values appear first
-	if err := query.Order("collection").Order("rkey").Find(&permissions).Error; err != nil {
+	if err := query.Find(&permissions).Error; err != nil {
 		return nil, fmt.Errorf("failed to query permissions: %w", err)
 	}
 	return append(
+		// grant the owner access to all of their own permissions
 		[]Permission{{Grantee: grantee, Owner: grantee, Collection: collection, Effect: "allow"}},
+		// append all others
 		permissions...), nil
 }

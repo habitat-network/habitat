@@ -175,6 +175,8 @@ func (r *repo) GetBlob(
 }
 
 // listRecords implements repo.
+// perms should not include redundant permissions ie
+// if grantee has permission to the collection, perms should not include permissions to specific records in that collection
 func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error) {
 	if len(perms) == 0 {
 		return []Record{}, nil
