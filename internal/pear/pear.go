@@ -70,8 +70,21 @@ func (p *Pear) putRecord(
 	record map[string]any,
 	rkey string,
 	validate *bool,
+	grantees []string,
 ) (habitat_syntax.HabitatURI, error) {
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
+	if len(grantees) > 0 {
+		err := p.permissions.AddReadPermission(
+			grantees,
+			did,
+			collection,
+			rkey,
+		)
+		if err != nil {
+			return "", fmt.Errorf("adding permissions %w", err)
+		}
+	}
+
 	return p.repo.PutRecord(ctx, did, collection, rkey, record, validate)
 }
 

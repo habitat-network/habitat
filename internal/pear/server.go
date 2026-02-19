@@ -58,6 +58,11 @@ var formDecoder = schema.NewDecoder()
 
 // Parse the grantees input which is typed as an interface
 func parseGrantees(grantees []interface{}) ([]string, error) {
+	// Tiny optimization to avoid unnecessary allocations
+	if len(grantees) == 0 {
+		return nil, nil
+	}
+
 	parsed := make([]string, len(grantees))
 	for i, generic := range grantees {
 		unknownGrantee, ok := generic.(map[string]interface{})
@@ -142,6 +147,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: should we be doing this authz check here? or have a more strict separation of concerns?
 	if ownerDID.String() != callerDID.String() {
 		utils.LogAndHTTPError(
 			w,
@@ -170,9 +176,19 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	v := true
+	parsed, err := parseGrantees(req.Grantees)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
-	uri, err := s.pear.putRecord(r.Context(), ownerDID.String(), req.Collection, record, rkey, &v)
+	v := true
+	uri, err := s.pear.putRecord(r.Context(), ownerDID.String(), req.Collection, record, rkey, &v, parsed)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -181,34 +197,6 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError,
 		)
 		return
-	}
-
-	if len(req.Grantees) > 0 {
-		parsed, err := parseGrantees(req.Grantees)
-		if err != nil {
-			utils.LogAndHTTPError(
-				w,
-				err,
-				fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
-				http.StatusInternalServerError,
-			)
-			return
-		}
-		err = s.pear.permissions.AddReadPermission(
-			parsed,
-			ownerDID.String(),
-			req.Collection,
-			rkey,
-		)
-		if err != nil {
-			utils.LogAndHTTPError(
-				w,
-				err,
-				fmt.Sprintf("adding permissions for did %s", ownerDID.String()),
-				http.StatusInternalServerError,
-			)
-			return
-		}
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
