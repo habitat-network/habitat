@@ -326,6 +326,68 @@ func TestPutRecordCrossUserUnauthorized(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestNotifyOfUpdate(t *testing.T) {
+	senderDID := "did:plc:sender"
+	recipientDID := "did:plc:recipient"
+
+	dir := mockIdentities([]string{senderDID, recipientDID})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	collection := "my.fake.collection"
+	rkey := "my-rkey"
+
+	t.Run("succeeds for valid sender and recipient", func(t *testing.T) {
+		err := p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			rkey,
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("is idempotent: same notification twice does not error", func(t *testing.T) {
+		err := p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			rkey,
+		)
+		require.NoError(t, err)
+
+		err = p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			rkey,
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("different rkeys each succeed", func(t *testing.T) {
+		err := p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			"rkey-1",
+		)
+		require.NoError(t, err)
+
+		err = p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			"rkey-2",
+		)
+		require.NoError(t, err)
+	})
+}
+
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]string{"did:example:alice"})
