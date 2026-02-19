@@ -32,7 +32,7 @@ func withIdentityDirectory(dir identity.Directory) option {
 	}
 }
 
-func newPearForTest(t *testing.T, opts ...option) *Pear {
+func newPearForTest(t *testing.T, opts ...option) *pear {
 	db, err := gorm.Open(sqlite.Open(":memory:"))
 	require.NoError(t, err)
 	permissions, err := permissions.NewStore(db)
@@ -96,12 +96,12 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	uri, err := p.putRecord(t.Context(), "my-did", coll, val, rkey, &validate, []string{})
+	uri, err := p.PutRecord(t.Context(), "my-did", "my-did", coll, val, rkey, &validate, []string{})
 	require.NoError(t, err)
 	require.Equal(t, habitat_syntax.ConstructHabitatUri("my-did", coll, rkey), uri)
 
 	// Owner can always access their own records
-	got, err := p.getRecord(t.Context(), coll, rkey, syntax.DID("my-did"), syntax.DID("my-did"))
+	got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID("my-did"), syntax.DID("my-did"))
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
@@ -111,7 +111,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.Equal(t, val, ownerUnmarshalled)
 
 	// Non-owner without permission gets unauthorized
-	got, err = p.getRecord(t.Context(), coll, rkey, syntax.DID("my-did"), syntax.DID("another-did"))
+	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("my-did"), syntax.DID("another-did"))
 	require.Nil(t, got)
 	require.ErrorIs(t, ErrUnauthorized, err)
 
@@ -119,7 +119,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, p.permissions.AddReadPermission([]string{"another-did"}, "my-did", coll, ""))
 
 	// Now non-owner can access
-	got, err = p.getRecord(t.Context(), coll, "my-rkey", syntax.DID("my-did"), syntax.DID("another-did"))
+	got, err = p.GetRecord(t.Context(), coll, "my-rkey", syntax.DID("my-did"), syntax.DID("another-did"))
 	require.NoError(t, err)
 
 	var unmarshalled map[string]any
@@ -127,7 +127,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, val, unmarshalled)
 
-	_, err = p.putRecord(t.Context(), "my-did", coll, val, rkey, &validate, []string{})
+	_, err = p.PutRecord(t.Context(), "my-did", "my-did", coll, val, rkey, &validate, []string{})
 	require.NoError(t, err)
 }
 
@@ -142,11 +142,11 @@ func TestListOwnRecords(t *testing.T) {
 	coll := "my.fake.collection"
 	rkey := "my-rkey"
 	validate := true
-	uri, err := p.putRecord(t.Context(), "my-did", coll, val, rkey, &validate, []string{})
+	uri, err := p.PutRecord(t.Context(), "my-did", "my-did", coll, val, rkey, &validate, []string{})
 	require.NoError(t, err)
 	require.Equal(t, habitat_syntax.ConstructHabitatUri("my-did", coll, rkey), uri)
 
-	records, err := p.listRecords(
+	records, err := p.ListRecords(
 		t.Context(),
 		syntax.DID("my-did"),
 		coll,
@@ -162,7 +162,7 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 
 	// Try to get a record for a DID that doesn't exist on this server
 	// This will return ErrUnauthorized since we no longer check for local repos
-	got, err := p.getRecord(t.Context(), "some.collection", "some-rkey", syntax.DID("did:plc:unknown123"), syntax.DID("did:plc:caller456"))
+	got, err := p.GetRecord(t.Context(), "some.collection", "some-rkey", syntax.DID("did:plc:unknown123"), syntax.DID("did:plc:caller456"))
 	require.Nil(t, got)
 	require.ErrorIs(t, err, ErrUnauthorized)
 }
@@ -173,7 +173,7 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 
 	// Try to list records for a DID that doesn't exist on this server
 	// This will return empty results since we no longer check for local repos
-	records, err := p.listRecords(
+	records, err := p.ListRecords(
 		t.Context(),
 		syntax.DID("did:plc:unknown123"),
 		"some.collection",
@@ -194,15 +194,15 @@ func TestListRecords(t *testing.T) {
 	coll1 := "my.fake.collection1"
 	coll2 := "my.fake.collection2"
 
-	_, err := p.putRecord(t.Context(), "my-did", coll1, val, "rkey1", &validate, []string{})
+	_, err := p.PutRecord(t.Context(), "my-did", "my-did", coll1, val, "rkey1", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.putRecord(t.Context(), "my-did", coll1, val, "rkey2", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), "my-did", "my-did", coll1, val, "rkey2", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.putRecord(t.Context(), "my-did", coll2, val, "rkey3", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), "my-did", "my-did", coll2, val, "rkey3", &validate, []string{})
 	require.NoError(t, err)
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID("my-did"),
 			coll1,
@@ -223,7 +223,7 @@ func TestListRecords(t *testing.T) {
 			),
 		)
 
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID("my-did"),
 			coll1,
@@ -247,7 +247,7 @@ func TestListRecords(t *testing.T) {
 			),
 		)
 
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID("my-did"),
 			coll1,
@@ -262,7 +262,7 @@ func TestListRecords(t *testing.T) {
 
 	t.Run("permissions are scoped to collection", func(t *testing.T) {
 		// reader-did has permission for coll1 but not coll2
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID("my-did"),
 			coll2,
@@ -289,13 +289,13 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	validate := true
 
 	// Put the record and grant access to grantee1 and grantee2 at the same time.
-	uri, err := p.putRecord(t.Context(), ownerDID, coll, val, rkey, &validate, []string{grantee1DID, grantee2DID})
+	uri, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, val, rkey, &validate, []string{grantee1DID, grantee2DID})
 	require.NoError(t, err)
 	require.Equal(t, habitat_syntax.ConstructHabitatUri(ownerDID, coll, rkey), uri)
 
 	// Grantees can read the record.
 	for _, grantee := range []string{grantee1DID, grantee2DID} {
-		got, err := p.getRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(grantee))
+		got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(grantee))
 		require.NoError(t, err, "grantee %s should be able to read the record", grantee)
 		require.NotNil(t, got)
 
@@ -305,9 +305,87 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	}
 
 	// A non-grantee cannot read the record.
-	got, err := p.getRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(nonGranteeDID))
+	got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(nonGranteeDID))
 	require.Nil(t, got)
 	require.ErrorIs(t, err, ErrUnauthorized)
+}
+
+// TestPutRecordCrossUserUnauthorized verifies that a caller cannot put a record
+// into another user's repo (i.e. callerDID != targetDID is rejected).
+func TestPutRecordCrossUserUnauthorized(t *testing.T) {
+	callerDID := "did:plc:caller"
+	targetDID := "did:plc:target"
+
+	dir := mockIdentities([]string{callerDID, targetDID})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	val := map[string]any{"data": "value"}
+	validate := true
+
+	_, err := p.PutRecord(t.Context(), callerDID, targetDID, "my.fake.collection", val, "some-rkey", &validate, []string{})
+	require.Error(t, err)
+}
+
+func TestNotifyOfUpdate(t *testing.T) {
+	senderDID := "did:plc:sender"
+	recipientDID := "did:plc:recipient"
+
+	dir := mockIdentities([]string{senderDID, recipientDID})
+	p := newPearForTest(t, withIdentityDirectory(dir))
+
+	collection := "my.fake.collection"
+	rkey := "my-rkey"
+
+	t.Run("succeeds for valid sender and recipient", func(t *testing.T) {
+		err := p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			rkey,
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("is idempotent: same notification twice does not error", func(t *testing.T) {
+		err := p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			rkey,
+		)
+		require.NoError(t, err)
+
+		err = p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			rkey,
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("different rkeys each succeed", func(t *testing.T) {
+		err := p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			"rkey-1",
+		)
+		require.NoError(t, err)
+
+		err = p.NotifyOfUpdate(
+			t.Context(),
+			syntax.DID(senderDID),
+			syntax.DID(recipientDID),
+			collection,
+			"rkey-2",
+		)
+		require.NoError(t, err)
+	})
 }
 
 // TODO: eventually test permissions with blobs here
@@ -320,13 +398,13 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	blob := []byte("this is my test blob")
 	mtype := "text/plain"
 
-	bmeta, err := pear.uploadBlob(t.Context(), did, blob, mtype)
+	bmeta, err := pear.UploadBlob(t.Context(), did, blob, mtype)
 	require.NoError(t, err)
 	require.NotNil(t, bmeta)
 	require.Equal(t, mtype, bmeta.MimeType)
 	require.Equal(t, int64(len(blob)), bmeta.Size)
 
-	m, gotBlob, err := pear.getBlob(t.Context(), did, bmeta.Ref.String())
+	m, gotBlob, err := pear.GetBlob(t.Context(), did, bmeta.Ref.String())
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
 	require.Equal(t, blob, gotBlob)
@@ -359,26 +437,26 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	coll := "my.fake.collection"
 
 	// Alice creates her own records
-	_, err = p.putRecord(t.Context(), aliceDID, coll, val, "alice-rkey1", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), aliceDID, aliceDID, coll, val, "alice-rkey1", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.putRecord(t.Context(), aliceDID, coll, val, "alice-rkey2", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), aliceDID, aliceDID, coll, val, "alice-rkey2", &validate, []string{})
 	require.NoError(t, err)
 
 	// Bob creates records
-	_, err = p.putRecord(t.Context(), bobDID, coll, val, "bob-rkey1", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), bobDID, bobDID, coll, val, "bob-rkey1", &validate, []string{})
 	require.NoError(t, err)
-	_, err = p.putRecord(t.Context(), bobDID, coll, val, "bob-rkey2", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), bobDID, bobDID, coll, val, "bob-rkey2", &validate, []string{})
 	require.NoError(t, err)
 
 	// Carol creates records
-	_, err = p.putRecord(t.Context(), carolDID, coll, val, "carol-rkey1", &validate, []string{})
+	_, err = p.PutRecord(t.Context(), carolDID, carolDID, coll, val, "carol-rkey1", &validate, []string{})
 	require.NoError(t, err)
 
 	t.Run("includes records from other users when user has permission", func(t *testing.T) {
 		// Grant Alice permission to read Bob's records
 		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, coll, ""))
 
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
@@ -406,7 +484,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("excludes records when user lacks permission", func(t *testing.T) {
 		// Alice doesn't have permission for Carol's records
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
@@ -431,7 +509,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Grant Alice permission to read remote user's records
 		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, remoteDID, coll, ""))
 
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
@@ -443,12 +521,12 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("filters by collection", func(t *testing.T) {
 		otherColl := "other.collection"
-		_, err := p.putRecord(t.Context(), bobDID, otherColl, val, "bob-other-rkey", &validate, []string{})
+		_, err := p.PutRecord(t.Context(), bobDID, bobDID, otherColl, val, "bob-other-rkey", &validate, []string{})
 		require.NoError(t, err)
 		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, otherColl, ""))
 
 		// Query for original collection
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
@@ -458,7 +536,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		require.Len(t, records, 4)
 
 		// Query for other collection
-		records, err = p.listRecords(
+		records, err = p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
 			otherColl,
@@ -479,7 +557,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 			perms.AddReadPermission([]string{aliceDID}, bobDID, coll, "bob-rkey1"),
 		)
 
-		records, err := p.listRecords(
+		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,

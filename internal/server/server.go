@@ -1,4 +1,4 @@
-package pear
+package server
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/repo"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -29,7 +30,7 @@ type authMethods struct {
 
 type Server struct {
 	// Implementation of permission-enforcint atprotocol repo
-	pear *Pear
+	pear pear.Pear
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 
@@ -39,7 +40,7 @@ type Server struct {
 // NewServer returns a pear server.
 func NewServer(
 	dir identity.Directory,
-	pear *Pear,
+	pear pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
 ) *Server {
@@ -147,17 +148,6 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: should we be doing this authz check here? or have a more strict separation of concerns?
-	if ownerDID.String() != callerDID.String() {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("only owner can put record"),
-			"only owner can put record",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
 	var rkey string
 	if req.Rkey == "" {
 		rkey = uuid.NewString()
@@ -188,7 +178,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	uri, err := s.pear.putRecord(r.Context(), ownerDID.String(), req.Collection, record, rkey, &v, parsed)
+	uri, err := s.pear.PutRecord(r.Context(), callerDID.String(), ownerDID.String(), req.Collection, record, rkey, &v, parsed)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -247,24 +237,20 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.getRecord(
-		r.Context(),
-		params.Collection,
-		params.Rkey,
-		targetDID,
-		callerDID,
-	)
+	record, err := s.pear.GetRecord(r.Context(), params.Collection, params.Rkey, targetDID, callerDID)
 	if err != nil {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
 			return
-		} else if errors.Is(err, ErrNotLocalRepo) {
+		} else if errors.Is(err, pear.ErrNotLocalRepo) {
+			// TODO: is this still relevant?
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
 		}
 		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
 		return
 	}
+
 	output := &habitat.NetworkHabitatRepoGetRecordOutput{
 		Uri: fmt.Sprintf(
 			"habitat://%s/%s/%s",
@@ -306,7 +292,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := s.pear.uploadBlob(r.Context(), string(callerDID), bytes, mimeType)
+	blob, err := s.pear.UploadBlob(r.Context(), string(callerDID), bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -341,7 +327,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, blob, err := s.pear.getBlob(r.Context(), params.Did, params.Cid)
+	mimeType, blob, err := s.pear.GetBlob(r.Context(), params.Did, params.Cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -390,9 +376,9 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	repo = did.String()
-	records, err := s.pear.listRecords(r.Context(), did, params.Collection, callerDID)
+	records, err := s.pear.ListRecords(r.Context(), did, params.Collection, callerDID)
 	if err != nil {
-		if errors.Is(err, ErrNotLocalRepo) {
+		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
 		}
@@ -429,7 +415,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	permissions, err := s.pear.permissions.ListReadPermissionsByLexicon(callerDID.String())
+	permissions, err := s.pear.ListReadPermissionsByLexicon(callerDID.String())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
 		return
@@ -460,7 +446,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.permissions.AddReadPermission(
+	err = s.pear.AddReadPermission(
 		grantees,
 		callerDID.String(),
 		req.Collection,
@@ -494,12 +480,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.permissions.RemoveReadPermissions(
-		grantees,
-		callerDID.String(),
-		req.Collection,
-		req.Rkey,
-	)
+	err = s.pear.RemoveReadPermissions(grantees, callerDID.String(), req.Collection, req.Rkey)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
@@ -519,7 +500,7 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.pear.notifyOfUpdate(
+	err = s.pear.NotifyOfUpdate(
 		r.Context(),
 		callerDID,
 		syntax.DID(req.Recipient),

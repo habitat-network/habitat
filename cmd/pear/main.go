@@ -33,6 +33,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
 )
@@ -225,7 +226,7 @@ func setupPearServer(
 	cmd *cli.Command,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
-) (*pear.Server, error) {
+) (*server.Server, error) {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
 	serviceEndpoint := "https://" + domain
@@ -247,7 +248,7 @@ func setupPearServer(
 
 	dir := identity.DefaultDirectory()
 	p := pear.NewPear(serviceName, serviceEndpoint, dir, permissions, repo, inbox)
-	return pear.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
+	return server.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
 }
 
 func setupOAuthServer(
