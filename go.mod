@@ -93,6 +93,7 @@ require (
 )
 
 require (
+	github.com/bradenaw/juniper v0.15.3
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

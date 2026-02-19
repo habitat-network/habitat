@@ -2,7 +2,6 @@ package pear
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -117,7 +116,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.ErrorIs(t, ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, p.permissions.AddReadPermission([]string{"another-did"}, "my-did", coll))
+	require.NoError(t, p.permissions.AddReadPermission([]string{"another-did"}, "my-did", coll, ""))
 
 	// Now non-owner can access
 	got, err = p.getRecord(t.Context(), coll, "my-rkey", syntax.DID("my-did"), syntax.DID("another-did"))
@@ -220,6 +219,7 @@ func TestListRecords(t *testing.T) {
 				[]string{"reader-did"},
 				"my-did",
 				coll1,
+				"",
 			),
 		)
 
@@ -242,7 +242,8 @@ func TestListRecords(t *testing.T) {
 			p.permissions.AddReadPermission(
 				[]string{"specific-reader"},
 				"my-did",
-				fmt.Sprintf("%s.rkey1", coll1),
+				coll1,
+				"rkey1",
 			),
 		)
 
@@ -295,7 +296,6 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 }
 
 func TestListRecordsWithPermissions(t *testing.T) {
-
 	// Note: this test doesn't include any remote users. Querying from remote as well isn't supported yet.
 	// Set up users
 	aliceDID := "did:plc:alice"
@@ -339,7 +339,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("includes records from other users when user has permission", func(t *testing.T) {
 		// Grant Alice permission to read Bob's records
-		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, coll))
+		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, coll, ""))
 
 		records, err := p.listRecords(
 			t.Context(),
@@ -381,13 +381,18 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 		// Verify Carol's record is not included
 		for _, record := range records {
-			require.NotEqual(t, carolDID, record.Did, "Carol's record should not be included without permission")
+			require.NotEqual(
+				t,
+				carolDID,
+				record.Did,
+				"Carol's record should not be included without permission",
+			)
 		}
 	})
 
 	t.Run("includes records from different nodes if they exist in database", func(t *testing.T) {
 		// Grant Alice permission to read remote user's records
-		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, remoteDID, coll))
+		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, remoteDID, coll, ""))
 
 		records, err := p.listRecords(
 			t.Context(),
@@ -403,7 +408,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		otherColl := "other.collection"
 		_, err := p.putRecord(t.Context(), bobDID, otherColl, val, "bob-other-rkey", &validate)
 		require.NoError(t, err)
-		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, otherColl))
+		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, otherColl, ""))
 
 		// Query for original collection
 		records, err := p.listRecords(
@@ -431,8 +436,11 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("returns only specific permitted records", func(t *testing.T) {
 		// Remove full collection permission first, then grant only specific permission
-		require.NoError(t, perms.RemoveReadPermission(aliceDID, bobDID, coll))
-		require.NoError(t, perms.AddReadPermission([]string{aliceDID}, bobDID, fmt.Sprintf("%s.bob-rkey1", coll)))
+		require.NoError(t, perms.RemoveReadPermissions([]string{aliceDID}, bobDID, coll, ""))
+		require.NoError(
+			t,
+			perms.AddReadPermission([]string{aliceDID}, bobDID, coll, "bob-rkey1"),
+		)
 
 		records, err := p.listRecords(
 			t.Context(),
@@ -451,7 +459,12 @@ func TestListRecordsWithPermissions(t *testing.T) {
 				bobRkey1Found = true
 			}
 			if record.Did == bobDID {
-				require.Equal(t, "bob-rkey1", record.Rkey, "Should only have bob-rkey1, not bob-rkey2")
+				require.Equal(
+					t,
+					"bob-rkey1",
+					record.Rkey,
+					"Should only have bob-rkey1, not bob-rkey2",
+				)
 			}
 		}
 		require.True(t, bobRkey1Found, "Should have found bob-rkey1")

@@ -108,66 +108,21 @@ func (p *Pear) listRecords(
 	collection string,
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
-	var allRecords []repo.Record
-
-	// Step 1: Get records from caller's own repo
-	allow, deny, err := p.permissions.ListReadPermissionsByUser(
-		did.String(),
+	perms, err := p.permissions.ListReadPermissionsByGrantee(
 		callerDID.String(),
 		collection,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list permissions: %w", err)
 	}
-
-	ownRecords, err := p.repo.ListRecords(ctx, callerDID.String(), collection, allow, deny)
+	records, err := p.repo.ListRecords(ctx, perms)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list records: %w", err)
 	}
-	allRecords = append(allRecords, ownRecords...)
-
-	// Step 2: Query permissions store to get two lists:
-	// 1. Users with full collection access
-	// 2. Specific records with direct permissions
-	fullAccessOwners, specificRecords, err := p.permissions.ListCrossRepoAccessByCollection(callerDID.String(), collection)
-	if err != nil {
-		return nil, err
-	}
-
-	// Step 3: Query all records for owners with full collection access in a single query
-	if len(fullAccessOwners) > 0 {
-		ownerRecords, err := p.repo.ListRecordsByOwnersDeprecated(fullAccessOwners, collection)
-		if err != nil {
-			return nil, err
-		}
-		allRecords = append(allRecords, ownerRecords...)
-	}
-
-	// Step 4: Query all specific records in a single query
-	if len(specificRecords) > 0 {
-		recordPairs := make([]struct {
-			Owner string
-			Rkey  string
-		}, len(specificRecords))
-		for i, recordPerm := range specificRecords {
-			recordPairs[i] = struct {
-				Owner string
-				Rkey  string
-			}{Owner: recordPerm.Owner, Rkey: recordPerm.Rkey}
-		}
-		specificRecordsResult, err := p.repo.ListSpecificRecordsDeprecated(collection, recordPairs)
-		if err != nil {
-			return nil, err
-		}
-		allRecords = append(allRecords, specificRecordsResult...)
-	}
-
-	return allRecords, nil
+	return records, nil
 }
 
-var (
-	ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
-)
+var ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
 
 func (p *Pear) hasRepoForDid(ctx context.Context, did syntax.DID) (bool, error) {
 	id, err := p.dir.LookupDID(ctx, did)
@@ -197,6 +152,12 @@ func (p *Pear) uploadBlob(ctx context.Context, did string, data []byte, mimeType
 	return p.repo.UploadBlob(ctx, did, data, mimeType)
 }
 
-func (p *Pear) notifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error {
+func (p *Pear) notifyOfUpdate(
+	ctx context.Context,
+	sender syntax.DID,
+	recipient syntax.DID,
+	collection string,
+	rkey string,
+) error {
 	return p.inbox.PutNotification(ctx, sender, recipient, collection, rkey)
 }
