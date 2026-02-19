@@ -259,7 +259,13 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.getRecord(r.Context(), params.Collection, params.Rkey, targetDID, callerDID)
+	record, err := s.pear.getRecord(
+		r.Context(),
+		params.Collection,
+		params.Rkey,
+		targetDID,
+		callerDID,
+	)
 	if err != nil {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
@@ -490,7 +496,6 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: RemoveReadPermission should take grantees list
 	grantees, err := parseGrantees(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -501,7 +506,12 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.permissions.RemoveReadPermissions(grantees, callerDID.String(), req.Collection, req.Rkey)
+	err = s.pear.permissions.RemoveReadPermissions(
+		grantees,
+		callerDID.String(),
+		req.Collection,
+		req.Rkey,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
