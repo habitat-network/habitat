@@ -7,16 +7,18 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
+	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-type Store interface {
+type Enforcer interface {
+	// TODO: should we strongly type all of this stuff?
 	HasPermission(
-		requester string,
-		owner string,
-		nsid string,
-		rkey string,
+		requester syntax.DID,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
 	) (bool, error)
 	AddReadPermission(
 		grantees []Grantee,
@@ -41,10 +43,13 @@ type RecordPermission struct {
 }
 
 type store struct {
+	// Backing data store for some subset of data that this enforcer
 	db *gorm.DB
+
+	xrpcCh xrpcchannel.XrpcChannel
 }
 
-var _ Store = (*store)(nil)
+var _ Enforcer = (*store)(nil)
 
 // Permission represents a permission entry in the database
 type Permission struct {
@@ -74,21 +79,21 @@ func NewStore(db *gorm.DB) (*store, error) {
 
 // HasPermission checks if a requester has permission to access a specific record.
 func (s *store) HasPermission(
-	requester string,
-	owner string,
-	collection string,
-	rkey string,
+	requester syntax.DID,
+	owner syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
 ) (bool, error) {
 	// Owner always has permission
 	if requester == owner {
 		return true, nil
 	}
 	var permission Permission
-	err := s.db.Where("grantee = ?", requester).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
+	err := s.db.Where("grantee = ?", requester.String()).
+		Where("owner = ?", owner.String()).
+		Where("collection = ?", collection.String()).
 		// permissions with empty rkeys grant the entire collection
-		Where("rkey = ? OR rkey = ''", rkey).
+		Where("rkey = ? OR rkey = ''", rkey.String()).
 		// prioritize more specific permission and denies
 		Order("LENGTH(rkey) DESC, effect DESC").
 		Limit(1).

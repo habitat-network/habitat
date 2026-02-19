@@ -20,11 +20,11 @@ import (
 //
 // This is the core of the habitat server.
 type Pear interface {
-	permissions.Store
+	permissions.Enforcer
 
 	// Permissioned repository methods
 	PutRecord(ctx context.Context, callerDID, targetDID, collection string, record map[string]any, rkey string, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
-	GetRecord(ctx context.Context, collection, rkey string, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
+	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, did syntax.DID, collection string, callerDID syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
@@ -45,7 +45,7 @@ type pear struct {
 	dir         identity.Directory
 
 	// Backing for permissions
-	permissions permissions.Store
+	permissions permissions.Enforcer
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
 	repo repo.Repo
@@ -60,8 +60,13 @@ func (p *pear) AddReadPermission(grantees []permissions.Grantee, owner string, c
 }
 
 // HasPermission implements Pear.
-func (p *pear) HasPermission(requester string, owner string, nsid string, rkey string) (bool, error) {
-	return p.permissions.HasPermission(requester, owner, nsid, rkey)
+func (p *pear) HasPermission(
+	requester syntax.DID,
+	owner syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+) (bool, error) {
+	return p.permissions.HasPermission(requester, owner, collection, rkey)
 }
 
 // ListReadPermissionsByGrantee implements Pear.
@@ -92,7 +97,7 @@ func NewPear(
 	serviceName string,
 	serviceEndpoint string,
 	dir identity.Directory,
-	perms permissions.Store,
+	perms permissions.Enforcer,
 	repo repo.Repo,
 	inbox inbox.Inbox,
 ) *pear {
@@ -143,15 +148,15 @@ func (p *pear) PutRecord(
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
 func (p *pear) GetRecord(
 	ctx context.Context,
-	collection string,
-	rkey string,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*repo.Record, error) {
 	// Run permissions before returning to the user
 	authz, err := p.permissions.HasPermission(
-		callerDID.String(),
-		targetDID.String(),
+		callerDID,
+		targetDID,
 		collection,
 		rkey,
 	)
@@ -164,7 +169,7 @@ func (p *pear) GetRecord(
 	}
 
 	// User has permission, return the record
-	return p.repo.GetRecord(ctx, targetDID.String(), collection, rkey)
+	return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
 }
 
 func (p *pear) ListRecords(
