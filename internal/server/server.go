@@ -107,7 +107,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	uri, err := s.pear.PutRecord(r.Context(), callerDID.String(), ownerDID.String(), req.Collection, record, rkey, &v, parsed)
+	uri, err := s.pear.PutRecord(r.Context(), callerDID, ownerDID, syntax.NSID(req.Collection), record, syntax.RecordKey(rkey), &v, parsed)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -166,7 +166,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.GetRecord(r.Context(), params.Collection, params.Rkey, targetDID, callerDID)
+	record, err := s.pear.GetRecord(r.Context(), syntax.NSID(params.Collection), syntax.RecordKey(params.Rkey), targetDID, callerDID)
 	if err != nil {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
@@ -174,6 +174,9 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		} else if errors.Is(err, pear.ErrNotLocalRepo) {
 			// TODO: is this still relevant?
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
+			return
+		} else if errors.Is(err, pear.ErrUnauthorized) {
+			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
@@ -305,7 +308,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	repo = did.String()
-	records, err := s.pear.ListRecords(r.Context(), did, params.Collection, callerDID)
+	records, err := s.pear.ListRecords(r.Context(), did, syntax.NSID(params.Collection), callerDID)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -377,9 +380,9 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	}
 	err = s.pear.AddReadPermission(
 		grantees,
-		callerDID.String(),
-		req.Collection,
-		req.Rkey,
+		callerDID,
+		syntax.NSID(req.Collection),
+		syntax.RecordKey(req.Rkey),
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
@@ -410,7 +413,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.RemoveReadPermissions(grantees, callerDID.String(), req.Collection, req.Rkey)
+	err = s.pear.RemoveReadPermissions(grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return

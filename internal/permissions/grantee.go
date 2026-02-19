@@ -13,13 +13,12 @@ const (
 	CliqueType GranteeType = "clique"
 	DIDType    GranteeType = "did"
 
-	habitatCliqueNSID = syntax.NSID("network.habitat.clique")
+	CliqueNSID = syntax.NSID("network.habitat.clique")
 )
 
 type Grantee interface {
 	isGrantee()
 	String() string
-	Type() GranteeType
 }
 
 type CliqueGrantee habitat_syntax.HabitatURI
@@ -28,10 +27,7 @@ var _ Grantee = CliqueGrantee("")
 
 func (g CliqueGrantee) isGrantee() {}
 func (g CliqueGrantee) String() string {
-	return g.String()
-}
-func (g CliqueGrantee) Type() GranteeType {
-	return CliqueType
+	return string(g)
 }
 
 type DIDGrantee syntax.DID
@@ -40,10 +36,16 @@ var _ Grantee = DIDGrantee("")
 
 func (g DIDGrantee) isGrantee() {}
 func (g DIDGrantee) String() string {
-	return g.String()
+	return string(g)
 }
-func (g DIDGrantee) Type() GranteeType {
-	return DIDType
+
+// Panics if parsing the grantee fails; do not use
+func mustParseGranteeFromString(grantee string) Grantee {
+	g, err := ParseGranteeFromString(grantee)
+	if err != nil {
+		panic("failed to parse grantee")
+	}
+	return g
 }
 
 // Try to parse the string as either a clique or did grantee.
@@ -133,7 +135,7 @@ func parseHabitatClique(raw string) (habitat_syntax.HabitatURI, error) {
 		return "", err
 	}
 
-	if uri.Collection() != habitatCliqueNSID {
+	if uri.Collection() != CliqueNSID {
 		return "", fmt.Errorf("input does not use clique nsid: %s", raw)
 	}
 	return uri, nil
