@@ -1,4 +1,4 @@
-import { listPermissions } from "@/queries/permissions";
+import { listPermissions, type Permission } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
@@ -24,20 +24,28 @@ export const Route = createFileRoute("/_requireAuth/permissions/lexicons/")({
 });
 
 function LexiconPermissions() {
-  const data = Route.useLoaderData() as Record<string, string[]>;
+  const data = Route.useLoaderData() as { permissions: Permission[] };
   const { authManager } = Route.useRouteContext();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const toggle = (lexicon: string) => {
+  const toggle = (collection: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(lexicon)) next.delete(lexicon);
-      else next.add(lexicon);
+      if (next.has(collection)) next.delete(collection);
+      else next.add(collection);
       return next;
     });
   };
+
+  const byCollection = (data.permissions ?? []).reduce<Record<string, Permission[]>>(
+    (acc, perm) => {
+      (acc[perm.collection] ??= []).push(perm);
+      return acc;
+    },
+    {},
+  );
 
   const addForm = useForm<{ grantee: string; collection: string; rkey: string }>(
     { defaultValues: { rkey: "" } },
@@ -87,30 +95,29 @@ function LexiconPermissions() {
       <table>
         <thead>
           <tr>
-            <th>NSID</th>
+            <th>Collection</th>
             <th>Permissions</th>
             <th />
           </tr>
         </thead>
-        {Object.keys(data).map((lexicon) => (
-          <tbody key={lexicon}>
+        {Object.entries(byCollection).map(([collection, perms]) => (
+          <tbody key={collection}>
             <tr>
-              <td>{lexicon}</td>
-              <td>{data[lexicon].length}</td>
+              <td>{collection}</td>
+              <td>{perms.length}</td>
               <td>
-                <button type="button" onClick={() => toggle(lexicon)}>
-                  {expanded.has(lexicon) ? "Collapse" : "Expand"}
+                <button type="button" onClick={() => toggle(collection)}>
+                  {expanded.has(collection) ? "Collapse" : "Expand"}
                 </button>
               </td>
             </tr>
-            {expanded.has(lexicon) && (
+            {expanded.has(collection) && (
               <tr>
                 <td colSpan={3}>
-                  <LexiconDetail
-                    lexicon={lexicon}
-                    people={data[lexicon]}
+                  <CollectionDetail
+                    collection={collection}
+                    permissions={perms}
                     authManager={authManager}
-                    router={router}
                   />
                 </td>
               </tr>
@@ -122,45 +129,24 @@ function LexiconPermissions() {
   );
 }
 
-function LexiconDetail({
-  lexicon,
-  people,
+function CollectionDetail({
+  collection,
+  permissions,
   authManager,
 }: {
-  lexicon: string;
-  people: string[];
+  collection: string;
+  permissions: Permission[];
   authManager: any;
-  router: any;
 }) {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const addForm = useForm<{ grantee: string }>();
-  const { mutate: add, isPending: isAdding } = useMutation({
-    async mutationFn(data: { grantee: string }) {
-      const body: PermissionInput = {
-        grantees: [{ $type: "network.habitat.grantee#didGrantee", did: data.grantee }],
-        collection: lexicon,
-      };
-      await authManager?.fetch(
-        `/xrpc/network.habitat.addPermission`,
-        "POST",
-        JSON.stringify(body),
-        new Headers({ "Content-Type": "application/json" }),
-      );
-      addForm.reset();
-      await queryClient.invalidateQueries({ queryKey: ["permissions"] });
-      router.invalidate();
-    },
-    onError(e: Error) {
-      console.error(e);
-    },
-  });
 
   const { mutate: remove } = useMutation({
-    async mutationFn(grantee: string) {
+    async mutationFn({ grantee, rkey }: { grantee: string; rkey: string }) {
       const body: PermissionInput = {
         grantees: [{ $type: "network.habitat.grantee#didGrantee", did: grantee }],
-        collection: lexicon,
+        collection,
+        ...(rkey ? { rkey } : {}),
       };
       await authManager?.fetch(
         `/xrpc/network.habitat.removePermission`,
@@ -177,39 +163,30 @@ function LexiconDetail({
   });
 
   return (
-    <>
-      <form onSubmit={addForm.handleSubmit((data) => add(data))}>
-        <fieldset>
-          <input
-            type="text"
-            placeholder="DID to add"
-            {...addForm.register("grantee")}
-          />
-          <button type="submit" aria-busy={isAdding}>
-            Add
-          </button>
-        </fieldset>
-      </form>
-      <table>
-        <thead>
-          <tr>
-            <th>Person</th>
-            <th />
+    <table>
+      <thead>
+        <tr>
+          <th>Record Key</th>
+          <th>Person</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        {permissions.map((perm) => (
+          <tr key={`${perm.grantee}:${perm.rkey}`}>
+            <td>{perm.rkey || "*"}</td>
+            <td>{perm.grantee}</td>
+            <td>
+              <button
+                type="button"
+                onClick={() => remove({ grantee: perm.grantee, rkey: perm.rkey })}
+              >
+                Remove
+              </button>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {people.map((person) => (
-            <tr key={person}>
-              <td>{person}</td>
-              <td>
-                <button type="button" onClick={() => remove(person)}>
-                  Remove
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+        ))}
+      </tbody>
+    </table>
   );
 }

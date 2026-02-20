@@ -90,11 +90,6 @@ func (p *pear) ListReadPermissions(
 	return p.permissions.ListReadPermissions(owner, grantee, collection, rkey)
 }
 
-// ListReadPermissionsByLexicon implements Pear.
-func (p *pear) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
-	return p.permissions.ListReadPermissionsByLexicon(owner)
-}
-
 // RemoveReadPermissions implements Pear.
 func (p *pear) RemoveReadPermissions(
 	grantee []permissions.Grantee,

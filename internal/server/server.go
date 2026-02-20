@@ -161,7 +161,6 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	targetDID, err := s.fetchDID(r.Context(), params.Repo)
 	if err != nil {
-		// TODO: write helpful message
 		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
 		return
 	}
@@ -347,13 +346,24 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	permissions, err := s.pear.ListReadPermissionsByLexicon(callerDID.String())
+	permissions, err := s.pear.ListReadPermissions(callerDID, "", "", "")
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
 		return
 	}
 
-	err = json.NewEncoder(w).Encode(permissions)
+	var output habitat.NetworkHabitatPermissionsListPermissionsOutput
+	output.Permissions = make([]habitat.NetworkHabitatPermissionsListPermissionsPermission, len(permissions))
+	for i, p := range permissions {
+		output.Permissions[i] = habitat.NetworkHabitatPermissionsListPermissionsPermission{
+			Collection: p.Collection.String(),
+			Effect:     string(p.Effect),
+			Grantee:    p.Grantee.String(),
+			Rkey:       p.Rkey.String(),
+		}
+	}
+
+	err = json.NewEncoder(w).Encode(output)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "json marshal response", http.StatusInternalServerError)
 		log.Err(err).Msgf("error sending response for ListPermissions request")
@@ -402,7 +412,8 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: RemoveReadPermission should take grantees list
+	fmt.Println("removepermissionsreq", req.Grantees, req.Collection, req.Rkey)
+
 	grantees, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(

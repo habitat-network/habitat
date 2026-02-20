@@ -1,5 +1,19 @@
-import { listPermissions } from "@/queries/permissions";
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { listPermissions, type Permission } from "@/queries/permissions";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
+
+// Concrete wire types matching what the server's parseGrantees expects
+interface DidGranteeObj {
+  $type: "network.habitat.grantee#didGrantee";
+  did: string;
+}
+
+interface PermissionInput {
+  grantees: DidGranteeObj[];
+  collection: string;
+  rkey?: string;
+}
 
 export const Route = createFileRoute("/_requireAuth/permissions/people")({
   async loader({ context }) {
@@ -8,56 +22,123 @@ export const Route = createFileRoute("/_requireAuth/permissions/people")({
   component: PeoplePermissions,
 });
 
-/** Invert the lexicon->dids map into a did->lexicons map */
-function invertPermissions(
-  data: Record<string, string[]>,
-): Record<string, string[]> {
-  const byPerson: Record<string, string[]> = {};
-  for (const [lexicon, dids] of Object.entries(data)) {
-    for (const did of dids) {
-      if (!byPerson[did]) byPerson[did] = [];
-      byPerson[did].push(lexicon);
-    }
-  }
-  return byPerson;
-}
-
 function PeoplePermissions() {
-  const data = Route.useLoaderData() as Record<string, string[]>;
-  const byPerson = invertPermissions(data);
-  const people = Object.keys(byPerson).sort();
+  const data = Route.useLoaderData() as { permissions: Permission[] };
+  const { authManager } = Route.useRouteContext();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (person: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(person)) next.delete(person);
+      else next.add(person);
+      return next;
+    });
+  };
+
+  const byPerson = (data.permissions ?? []).reduce<Record<string, Permission[]>>(
+    (acc, perm) => {
+      (acc[perm.grantee] ??= []).push(perm);
+      return acc;
+    },
+    {},
+  );
 
   return (
-    <>
-      <table>
-        <thead>
+    <table>
+      <thead>
+        <tr>
+          <th>Person</th>
+          <th>Permissions</th>
+          <th />
+        </tr>
+      </thead>
+      {Object.entries(byPerson).map(([person, perms]) => (
+        <tbody key={person}>
           <tr>
-            <th>Person (DID)</th>
-            <th>Permissions</th>
+            <td>{person}</td>
+            <td>{perms.length}</td>
+            <td>
+              <button type="button" onClick={() => toggle(person)}>
+                {expanded.has(person) ? "Collapse" : "Expand"}
+              </button>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {people.length === 0 && (
+          {expanded.has(person) && (
             <tr>
-              <td colSpan={2}>No permissions found.</td>
+              <td colSpan={3}>
+                <PersonDetail
+                  person={person}
+                  permissions={perms}
+                  authManager={authManager}
+                />
+              </td>
             </tr>
           )}
-          {people.map((did) => (
-            <tr key={did}>
-              <td>
-                <Link
-                  to="/permissions/people/$did"
-                  params={{ did }}
-                >
-                  {did}
-                </Link>
-              </td>
-              <td>{byPerson[did].length}</td>
-            </tr>
-          ))}
         </tbody>
-      </table>
-      <Outlet />
-    </>
+      ))}
+    </table>
+  );
+}
+
+function PersonDetail({
+  person,
+  permissions,
+  authManager,
+}: {
+  person: string;
+  permissions: Permission[];
+  authManager: any;
+}) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  const { mutate: remove } = useMutation({
+    async mutationFn({ collection, rkey }: { collection: string; rkey: string }) {
+      const body: PermissionInput = {
+        grantees: [{ $type: "network.habitat.grantee#didGrantee", did: person }],
+        collection,
+        ...(rkey ? { rkey } : {}),
+      };
+      await authManager?.fetch(
+        `/xrpc/network.habitat.removePermission`,
+        "POST",
+        JSON.stringify(body),
+        new Headers({ "Content-Type": "application/json" }),
+      );
+      await queryClient.invalidateQueries({ queryKey: ["permissions"] });
+      router.invalidate();
+    },
+    onError(e: Error) {
+      console.error(e);
+    },
+  });
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Collection</th>
+          <th>Record Key</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        {permissions.map((perm) => (
+          <tr key={`${perm.collection}:${perm.rkey}`}>
+            <td>{perm.collection}</td>
+            <td>{perm.rkey || "*"}</td>
+            <td>
+              <button
+                type="button"
+                onClick={() => remove({ collection: perm.collection, rkey: perm.rkey })}
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

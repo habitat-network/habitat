@@ -8,7 +8,6 @@ import (
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type Enforcer interface {
@@ -32,7 +31,6 @@ type Enforcer interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
-	ListReadPermissionsByLexicon(owner string) (map[string][]string, error)
 	ListReadPermissions(
 		owner syntax.DID,
 		grantee syntax.DID,
@@ -125,7 +123,7 @@ func (s *store) HasDirectPermission(
 		return false, fmt.Errorf("failed to query permission: %w", err)
 	}
 
-	return permission.Effect == "allow", nil
+	return permission.Effect == string(Allow), nil
 }
 
 // AddLexiconReadPermission grants read permission for an entire collection or specific record.
@@ -184,17 +182,21 @@ func (s *store) AddReadPermission(
 		permissions = append(permissions, permission{
 			Grantee:    grantee,
 			Owner:      owner.String(),
-			Effect:     "allow",
+			Effect:     string(Allow),
 			Collection: collection.String(),
 			Rkey:       rkey.String(),
 		})
 	}
-	// upsert new permission
-	result := s.db.Clauses(clause.OnConflict{
-		UpdateAll: true,
-	}).Create(&permissions)
-	if result.Error != nil {
-		return fmt.Errorf("failed to add lexicon permission: %w", result.Error)
+	// Delete any existing permissions (allow or deny) for these grantees+record before inserting fresh allow permissions.
+	if err := s.db.Where("grantee IN ?", grantees).
+		Where("owner = ?", owner).
+		Where("collection = ?", collection).
+		Where("rkey = ?", rkey).
+		Delete(&permission{}).Error; err != nil {
+		return fmt.Errorf("failed to clear existing permissions before insert: %w", err)
+	}
+	if err := s.db.Create(&permissions).Error; err != nil {
+		return fmt.Errorf("failed to add lexicon permission: %w", err)
 	}
 	return nil
 }
@@ -210,6 +212,7 @@ func (s *store) RemoveReadPermissions(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) error {
+	fmt.Println("remove readpermission", granteesTyped, owner, collection, rkey)
 	grantees := xslices.Map(granteesTyped, func(g Grantee) string {
 		return g.String()
 	})
@@ -226,6 +229,7 @@ func (s *store) RemoveReadPermissions(
 		return nil
 	}
 
+	fmt.Println("specific rkey")
 	// Otherwise, the removal is on a specific record key, so add a deny effect on the specific record for a batch of grantees.
 	recordPerms := make([]*permission, len(grantees))
 	for i, grantee := range grantees {
@@ -234,40 +238,24 @@ func (s *store) RemoveReadPermissions(
 			Owner:      owner.String(),
 			Collection: collection.String(),
 			Rkey:       rkey.String(),
-			Effect:     "deny",
+			Effect:     string(Deny),
 		}
 	}
 
-	// Collection-level permission exists, add a deny permission
-	if err := s.db.Clauses(clause.OnConflict{
-		UpdateAll: true,
-	}).Create(recordPerms).Error; err != nil {
+	// Delete any existing permission for this record before inserting the deny.
+	if err := s.db.Where("grantee IN ?", grantees).
+		Where("owner = ?", owner).
+		Where("collection = ?", collection).
+		Where("rkey = ?", rkey).
+		Delete(&permission{}).Error; err != nil {
+		return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
+	}
+
+	fmt.Println("creating deny")
+	if err := s.db.Create(recordPerms).Error; err != nil {
 		return fmt.Errorf("failed to add deny permissions: %w", err)
 	}
 	return nil
-}
-
-// ListReadPermissionsByLexicon returns a map of lexicon NSIDs to lists of grantees
-// who have permission to read that lexicon.
-func (s *store) ListReadPermissionsByLexicon(owner string) (map[string][]string, error) {
-	var permissions []permission
-	err := s.db.Where("owner = ? AND effect = ?", owner, "allow").
-		Find(&permissions).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to query permissions: %w", err)
-	}
-
-	result := make(map[string][]string)
-	for _, perm := range permissions {
-		// The object is stored as the NSID itself (e.g., "network.habitat.posts")
-		// So we can use it directly as the lexicon
-		object := perm.Collection
-		if perm.Rkey != "" {
-			object = fmt.Sprintf("%s.%s", object, perm.Rkey)
-		}
-		result[object] = append(result[object], perm.Grantee)
-	}
-	return result, nil
 }
 
 // ListReadPermissions returns the permissions available to this particular combination of inputs.
@@ -295,7 +283,7 @@ func (s *store) ListReadPermissions(
 		// permissions with empty rkeys grant the entire collection
 		query = query.Where("rkey = ? OR rkey = ''", rkey)
 	}
-
+	query = query.Where("effect = ?", Allow)
 	// prioritize more specific permission and denies
 	query = query.Order("LENGTH(rkey) DESC, effect DESC")
 
