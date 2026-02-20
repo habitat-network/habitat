@@ -23,7 +23,7 @@ import (
 //
 // This is the core of the habitat server.
 type Pear interface {
-	permissions.Enforcer
+	permissions.Store
 
 	// Permissioned repository methods
 	PutRecord(ctx context.Context, callerDID, targetDID syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
@@ -51,7 +51,7 @@ type pear struct {
 	xrpcCh xrpcchannel.XrpcChannel
 
 	// Backing for permissions
-	permissions permissions.Enforcer
+	permissions permissions.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
 	repo repo.Repo
@@ -61,13 +61,13 @@ type pear struct {
 }
 
 // Pass throughs to implement permission.Store
-func (p *pear) AddReadPermission(
+func (p *pear) AddPermissions(
 	grantees []permissions.Grantee,
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) error {
-	return p.permissions.AddReadPermission(grantees, owner, collection, rkey)
+	return p.permissions.AddPermissions(grantees, owner, collection, rkey)
 }
 
 // HasPermission implements Pear.
@@ -80,24 +80,24 @@ func (p *pear) HasDirectPermission(
 	return p.permissions.HasDirectPermission(requester, owner, collection, rkey)
 }
 
-// ListReadPermissionsByGrantee implements Pear.
-func (p *pear) ListReadPermissions(
-	owner syntax.DID,
+// ListReadPermissions implements Pear.
+func (p *pear) ListPermissions(
 	grantee syntax.DID,
+	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) ([]permissions.Permission, error) {
-	return p.permissions.ListReadPermissions(owner, grantee, collection, rkey)
+	return p.permissions.ListPermissions(grantee, owner, collection, rkey)
 }
 
 // RemoveReadPermissions implements Pear.
-func (p *pear) RemoveReadPermissions(
+func (p *pear) RemovePermissions(
 	grantee []permissions.Grantee,
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) error {
-	return p.permissions.RemoveReadPermissions(grantee, owner, collection, rkey)
+	return p.permissions.RemovePermissions(grantee, owner, collection, rkey)
 }
 
 var _ Pear = &pear{}
@@ -116,7 +116,7 @@ func NewPear(
 	serviceEndpoint string,
 	dir identity.Directory,
 	xrpcCh xrpcchannel.XrpcChannel,
-	perms permissions.Enforcer,
+	perms permissions.Store,
 	repo repo.Repo,
 	inbox inbox.Inbox,
 ) *pear {
@@ -163,7 +163,7 @@ func (p *pear) PutRecord(
 	did := targetDID
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
 	if len(grantees) > 0 {
-		err := p.permissions.AddReadPermission(
+		err := p.permissions.AddPermissions(
 			grantees,
 			did,
 			collection,
@@ -240,7 +240,7 @@ func (p *pear) GetRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*repo.Record, error) {
-	perms, err := p.permissions.ListReadPermissions(targetDID, callerDID, collection, rkey)
+	perms, err := p.permissions.ListPermissions(callerDID, targetDID, collection, rkey)
 	if err != nil {
 		return nil, err
 	}
@@ -289,9 +289,9 @@ func (p *pear) ListRecords(
 	collection syntax.NSID,
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
-	perms, err := p.permissions.ListReadPermissions(
-		targetDID,
+	perms, err := p.permissions.ListPermissions(
 		callerDID,
+		targetDID,
 		collection,
 		"", // search for all records in this collection
 	)

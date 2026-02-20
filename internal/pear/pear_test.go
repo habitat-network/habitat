@@ -137,7 +137,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.ErrorIs(t, ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, p.permissions.AddReadPermission([]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, ""))
+	require.NoError(t, p.permissions.AddPermissions([]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, ""))
 
 	// Now non-owner can access
 	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
@@ -236,7 +236,7 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns records with full collection permission", func(t *testing.T) {
 		require.NoError(
 			t,
-			p.permissions.AddReadPermission(
+			p.permissions.AddPermissions(
 				[]permissions.Grantee{permissions.DIDGrantee("did:example:readerid")},
 				syntax.DID("did:example:myid"),
 				coll1,
@@ -260,7 +260,7 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns only specific permitted record", func(t *testing.T) {
 		require.NoError(
 			t,
-			p.permissions.AddReadPermission(
+			p.permissions.AddPermissions(
 				[]permissions.Grantee{permissions.DIDGrantee("did:example:specificreader")},
 				syntax.DID("did:example:myid"),
 				coll1,
@@ -359,7 +359,7 @@ func TestCliqueFlow(t *testing.T) {
 	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(aDID, permissions.CliqueNSID.String(), cliqueRkey.String()))
 
 	// A creates the clique by adding B as a member
-	require.NoError(t, p.permissions.AddReadPermission(
+	require.NoError(t, p.permissions.AddPermissions(
 		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(bDID))},
 		syntax.DID(aDID),
 		permissions.CliqueNSID,
@@ -407,7 +407,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.NotNil(t, got)
 
 	// A adds C to the clique
-	require.NoError(t, p.permissions.AddReadPermission(
+	require.NoError(t, p.permissions.AddPermissions(
 		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(cDID))},
 		syntax.DID(aDID),
 		permissions.CliqueNSID,
@@ -424,7 +424,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.NotNil(t, got)
 
 	// A removes B from the clique
-	require.NoError(t, p.permissions.RemoveReadPermissions(
+	require.NoError(t, p.permissions.RemovePermissions(
 		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(bDID))},
 		syntax.DID(aDID),
 		permissions.CliqueNSID,
@@ -505,7 +505,7 @@ func TestIsCliqueMember(t *testing.T) {
 	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(ownerDID, permissions.CliqueNSID.String(), cliqueRkey.String()))
 
 	// Grant memberDID permission to read the clique record
-	require.NoError(t, p.permissions.AddReadPermission(
+	require.NoError(t, p.permissions.AddPermissions(
 		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(memberDID))},
 		syntax.DID(ownerDID),
 		permissions.CliqueNSID,
@@ -684,7 +684,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("includes records from other users when user has permission", func(t *testing.T) {
 		// Grant Alice permission to read Bob's records
-		require.NoError(t, perms.AddReadPermission([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
+		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
 
 		records, err := p.ListRecords(
 			t.Context(),
@@ -737,7 +737,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("includes records from different nodes if they exist in database", func(t *testing.T) {
 		// Grant Alice permission to read remote user's records
-		require.NoError(t, perms.AddReadPermission([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(remoteDID), coll, ""))
+		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(remoteDID), coll, ""))
 
 		records, err := p.ListRecords(
 			t.Context(),
@@ -753,7 +753,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		otherColl := syntax.NSID("other.collection")
 		_, err := p.PutRecord(t.Context(), syntax.DID(bobDID), syntax.DID(bobDID), otherColl, val, "bob-other-rkey", &validate, []permissions.Grantee{})
 		require.NoError(t, err)
-		require.NoError(t, perms.AddReadPermission([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), otherColl, ""))
+		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), otherColl, ""))
 
 		// Query for original collection
 		records, err := p.ListRecords(
@@ -781,10 +781,10 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("returns only specific permitted records", func(t *testing.T) {
 		// Remove full collection permission first, then grant only specific permission
-		require.NoError(t, perms.RemoveReadPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
+		require.NoError(t, perms.RemovePermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
 		require.NoError(
 			t,
-			perms.AddReadPermission([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey1"),
+			perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey1"),
 		)
 
 		records, err := p.ListRecords(

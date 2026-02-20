@@ -341,12 +341,18 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TODO: this is a confusing name, because our ListPermissions internally takes in a generic query of grantee + owner + collection + rkey
+// and returns the permissions that exist on that combination.
+//
+// However, this is currently only used in the UI to show all the permissions a particular user has granted to other people, as a way of
+// inspecting and easily adding / removing permission grants on your data. We should rename this and/or also make it generic.
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
-	permissions, err := s.pear.ListReadPermissions(callerDID, "", "", "")
+
+	permissions, err := s.pear.ListPermissions("", callerDID, "", "")
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
 		return
@@ -388,7 +394,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.AddReadPermission(
+	err = s.pear.AddPermissions(
 		grantees,
 		callerDID,
 		syntax.NSID(req.Collection),
@@ -424,7 +430,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.RemoveReadPermissions(grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
+	err = s.pear.RemovePermissions(grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return

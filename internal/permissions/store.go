@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type Enforcer interface {
+type Store interface {
 	// Whether the requester is directly granted permission to this record.
 	// If the requester has indirect permissions via cliques, this returns false.
 	HasDirectPermission(
@@ -19,21 +19,21 @@ type Enforcer interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) (bool, error)
-	AddReadPermission(
+	AddPermissions(
 		grantees []Grantee,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
-	RemoveReadPermissions(
+	RemovePermissions(
 		grantee []Grantee,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
-	ListReadPermissions(
-		owner syntax.DID,
+	ListPermissions(
 		grantee syntax.DID,
+		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) ([]Permission, error)
@@ -50,7 +50,7 @@ type store struct {
 	db *gorm.DB
 }
 
-var _ Enforcer = (*store)(nil)
+var _ Store = (*store)(nil)
 
 type Effect string
 
@@ -126,12 +126,12 @@ func (s *store) HasDirectPermission(
 	return permission.Effect == string(Allow), nil
 }
 
-// AddLexiconReadPermission grants read permission for an entire collection or specific record.
+// AddPermissions grants read permission for an entire collection or specific record.
 // If rkey is empty, it grants read permission for the whole collection.
 // Will delete redundant permissions that are covered by the new grant.
 // Will not add redundant permssions that are less powerful than existing ones
 // Will not error in cases where no work is done
-func (s *store) AddReadPermission(
+func (s *store) AddPermissions(
 	granteesTyped []Grantee,
 	owner syntax.DID,
 	collection syntax.NSID,
@@ -202,12 +202,12 @@ func (s *store) AddReadPermission(
 	return nil
 }
 
-// RemoveLexiconReadPermission removes read permission for an entire collection or specific record.
+// RemovePermissions removes read permission for an entire collection or specific record.
 // If rkey is empty, it revokes read permission for the whole collection.
 // If the user already has access to the collection, it will add a deny permission for rkey.
 // Otherwise will delete the specific permission if it exists.
 // Will not error if there are no permissions to remove.
-func (s *store) RemoveReadPermissions(
+func (s *store) RemovePermissions(
 	granteesTyped []Grantee,
 	owner syntax.DID,
 	collection syntax.NSID,
@@ -260,11 +260,11 @@ func (s *store) RemoveReadPermissions(
 	return nil
 }
 
-// ListReadPermissions returns the permissions available to this particular combination of inputs.
+// ListPermissions returns the permissions available to this particular combination of inputs.
 // Any "" inputs are not filtered by.
-func (s *store) ListReadPermissions(
-	owner syntax.DID,
+func (s *store) ListPermissions(
 	grantee syntax.DID,
+	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) ([]Permission, error) {
@@ -285,7 +285,6 @@ func (s *store) ListReadPermissions(
 		// permissions with empty rkeys grant the entire collection
 		query = query.Where("rkey = ? OR rkey = ''", rkey)
 	}
-	query = query.Where("effect = ?", Allow)
 	// prioritize more specific permission and denies
 	query = query.Order("LENGTH(rkey) DESC, effect DESC")
 
