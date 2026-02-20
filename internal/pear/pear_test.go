@@ -475,7 +475,7 @@ func TestIsCliqueMemberRemote(t *testing.T) {
 	})
 
 	t.Run("remote 401 means not a member", func(t *testing.T) {
-		ch := &mockXrpcChannel{response: &http.Response{StatusCode: http.StatusUnauthorized, Body: http.NoBody}}
+		ch := &mockXrpcChannel{response: &http.Response{StatusCode: http.StatusForbidden, Body: http.NoBody}}
 		p := newPearForTest(t, withIdentityDirectory(&dir), withXrpcChannel(ch))
 
 		ok, err := p.isCliqueMember(t.Context(), syntax.DID(callerDID), clique)

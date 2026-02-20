@@ -74,7 +74,12 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
     });
 
     const [fetchedRecord, setFetchedRecord] = React.useState<string>("");
-    const { mutate: get, isPending: getIsPending } = useMutation({
+    const {
+      mutate: get,
+      isPending: getIsPending,
+      status: getStatus,
+      error: getError,
+    } = useMutation({
       async mutationFn(data: getData) {
         const params = new URLSearchParams();
         params.set("collection", data.collection);
@@ -83,9 +88,12 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
         const response = await authManager?.fetch(
           `/xrpc/network.habitat.getRecord?${params.toString()}`,
         );
-        const json = await response?.json();
-        const val = JSON.stringify(json.value);
-        setFetchedRecord(val);
+        if (!response?.ok) {
+          const body = await response?.text();
+          throw new Error(`[${response?.status}] ${body || "Request failed"}`);
+        }
+        const json = await response.json();
+        setFetchedRecord(JSON.stringify(json.value));
       },
     });
 
@@ -193,7 +201,8 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
             <button type="submit" aria-busy={getIsPending}>
               Get Record
             </button>
-            Fetched record: {fetchedRecord}
+            {getStatus === "success" && <pre>Fetched record: {fetchedRecord}</pre>}
+            {getStatus === "error" && <pre style={{ color: "red" }}>{getError?.message}</pre>}
           </form>
         </article>
       </div>
