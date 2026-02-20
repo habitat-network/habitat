@@ -175,7 +175,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
 		} else if errors.Is(err, pear.ErrUnauthorized) {
-			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusUnauthorized)
+			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusForbidden)
 			return
 		}
 		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
