@@ -47,7 +47,7 @@ type Record struct {
 	Did        string `gorm:"primaryKey"`
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
-	Value      string
+	Value      interface{}
 }
 
 type Blob struct {

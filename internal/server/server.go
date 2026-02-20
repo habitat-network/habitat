@@ -202,10 +202,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			params.Rkey,
 		),
 	}
-	if err := json.Unmarshal([]byte(record.Value), &output.Value); err != nil {
-		utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
-		return
-	}
+	output.Value = record.Value
 	if json.NewEncoder(w).Encode(output) != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
@@ -308,13 +305,21 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dids, err := s.fetchDIDs(r.Context(), params.Subjects)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
+	// TODO: fix this
+	if len(params.Subjects) > 0 {
+		utils.LogAndHTTPError(w, err, "don't allow filters by repo yet", http.StatusBadRequest)
 		return
 	}
 
-	records, err := s.pear.ListRecords(r.Context(), dids, syntax.NSID(params.Collection), callerDID)
+	/*
+		dids, err := s.fetchDIDs(r.Context(), params.Subjects)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
+			return
+		}
+	*/
+
+	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(params.Collection))
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -336,10 +341,9 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 				record.Rkey,
 			),
 		}
-		if err := json.Unmarshal([]byte(record.Value), &next.Value); err != nil {
-			utils.LogAndHTTPError(w, err, "unmarshalling record", http.StatusInternalServerError)
-			return
-		}
+		next.Value = record.Value
+		// TODO: next.Cid = ?
+
 		output.Records = append(output.Records, next)
 	}
 	if json.NewEncoder(w).Encode(output) != nil {

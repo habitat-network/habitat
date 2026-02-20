@@ -2,6 +2,7 @@ package pear
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,10 +10,11 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
+	"github.com/habitat-network/habitat/internal/locality"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
-	"github.com/habitat-network/habitat/internal/xrpcchannel"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -28,7 +30,7 @@ type Pear interface {
 	// Permissioned repository methods
 	PutRecord(ctx context.Context, callerDID, targetDID syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
-	ListRecords(ctx context.Context, targetDIDs []syntax.DID, collection syntax.NSID, callerDID syntax.DID) ([]repo.Record, error)
+	ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
 
@@ -48,7 +50,7 @@ type pear struct {
 	dir         identity.Directory
 
 	// Channel to talk to other pear nodes
-	xrpcCh xrpcchannel.XrpcChannel
+	node locality.Node
 
 	// Backing for permissions
 	permissions permissions.Store
@@ -116,7 +118,6 @@ func NewPear(
 	serviceName string,
 	serviceEndpoint string,
 	dir identity.Directory,
-	xrpcCh xrpcchannel.XrpcChannel,
 	perms permissions.Store,
 	repo repo.Repo,
 	inbox inbox.Inbox,
@@ -125,7 +126,6 @@ func NewPear(
 		url:         serviceEndpoint,
 		serviceName: serviceName,
 		dir:         dir,
-		xrpcCh:      xrpcCh,
 		permissions: perms,
 		repo:        repo,
 		inbox:       inbox,
@@ -217,7 +217,7 @@ func (p *pear) isCliqueMember(ctx context.Context, did syntax.DID, clique permis
 		return false, fmt.Errorf("constructing http request: %w", err)
 	}
 
-	resp, err := p.xrpcCh.SendXRPC(ctx, did, owner, req)
+	resp, err := p.node.SendXRPC(ctx, did, owner, req)
 	if err != nil {
 		return false, err
 	}
@@ -233,8 +233,7 @@ func (p *pear) isCliqueMember(ctx context.Context, did syntax.DID, clique permis
 	}
 }
 
-// getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
-func (p *pear) GetRecord(
+func (p *pear) getRecordLocal(
 	ctx context.Context,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
@@ -251,6 +250,83 @@ func (p *pear) GetRecord(
 	}
 
 	return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
+}
+
+func (p *pear) getRecordRemote(
+	ctx context.Context,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	targetDID syntax.DID,
+	callerDID syntax.DID,
+) (*repo.Record, error) {
+	// Otherwise, forward this request to the right repo (the clique member)
+	reqURL, err := url.Parse("/xrpc/network.habitat.getRecord")
+	if err != nil {
+		return nil, err
+	}
+	q := reqURL.Query()
+	q.Set("repo", targetDID.String())
+	q.Set("collection", collection.String())
+	q.Set("rkey", rkey.String())
+	reqURL.RawQuery = q.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		reqURL.String(),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("constructing http request for remote resolve: %w", err)
+	}
+
+	resp, err := p.node.SendXRPC(ctx, callerDID, targetDID, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var rec habitat.NetworkHabitatRepoGetRecordOutput
+		err := json.NewDecoder(resp.Body).Decode(rec)
+		if err != nil {
+			return nil, err
+		}
+
+		return &repo.Record{
+			Did:        targetDID.String(),
+			Collection: collection.String(),
+			Rkey:       rkey.String(),
+			Value:      rec.Value,
+		}, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return nil, ErrUnauthorized
+	default:
+		return nil, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
+	}
+}
+
+// getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
+func (p *pear) GetRecord(
+	ctx context.Context,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	targetDID syntax.DID,
+	callerDID syntax.DID,
+) (*repo.Record, error) {
+	ok, err := p.node.ServesDID(ctx, targetDID)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		return p.getRecordLocal(ctx, collection, rkey, targetDID, callerDID)
+	}
+	return p.getRecordRemote(ctx, collection, rkey, targetDID, callerDID)
 
 	/*
 		perms, err := p.permissions.ListPermissions(callerDID, targetDID, collection, rkey)
@@ -297,7 +373,8 @@ func (p *pear) GetRecord(
 	*/
 }
 
-func (p *pear) ListRecords(
+// Remove once ListRecords() is implemented correctly. Separate so i can still read old code.
+func (p *pear) listRecordsLocal(
 	ctx context.Context,
 	targetDIDs []syntax.DID,
 	collection syntax.NSID,
@@ -322,6 +399,7 @@ func (p *pear) ListRecords(
 
 		perms = append(perms, p...)
 	}
+
 	for _, target := range targetDIDs {
 		p, err := p.permissions.ListPermissions(
 			callerDID,
@@ -341,6 +419,41 @@ func (p *pear) ListRecords(
 		return nil, fmt.Errorf("failed to list records: %w", err)
 	}
 	return records, nil
+}
+
+func (p *pear) listRecordsRemote(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
+	// All the remote record this caller cares about can be resolved via the inbox
+	notifs, err := p.inbox.GetCollectionUpdatesByRecipient(ctx, callerDID, collection)
+	if err != nil {
+		return nil, err
+	}
+
+	records := []repo.Record{}
+	for _, notif := range notifs {
+		record, err := p.getRecordRemote(ctx, collection, syntax.RecordKey(notif.Rkey), syntax.DID(notif.Sender), syntax.DID(notif.Recipient))
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, *record)
+	}
+	return records, nil
+}
+
+// This needs to be renamed
+// TODO: take in targetDIDs as well, ignoring this now for simplicity
+func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
+	// Get records owned by this repo
+	localRecords, err := p.listRecordsLocal(ctx, nil, collection, callerDID)
+	if err != nil {
+		return nil, err
+	}
+
+	remoteRecords, err := p.listRecordsRemote(ctx, callerDID, collection)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(localRecords, remoteRecords...), nil
 }
 
 // Identity helpers
@@ -379,5 +492,5 @@ func (p *pear) NotifyOfUpdate(
 	collection string,
 	rkey string,
 ) error {
-	return p.inbox.PutNotification(ctx, sender, recipient, collection, rkey)
+	return p.inbox.Put(ctx, sender, recipient, syntax.NSID(collection), rkey)
 }
