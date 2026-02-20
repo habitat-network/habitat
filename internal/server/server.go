@@ -140,6 +140,18 @@ func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, 
 	return id.DID, nil
 }
 
+func (s *Server) fetchDIDs(ctx context.Context, didOrHandles []string) ([]syntax.DID, error) {
+	dids := make([]syntax.DID, len(didOrHandles))
+	for i, did := range didOrHandles {
+		resolved, err := s.fetchDID(ctx, did)
+		if err != nil {
+			return nil, err
+		}
+		dids[i] = resolved
+	}
+	return dids, nil
+}
+
 // Find desired did
 // if other did, forward request there
 // if our own did,
@@ -296,18 +308,13 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: this is wrong
-	repo := params.Subjects[0]
-
-	// Handle both @handles and dids
-	did, err := s.fetchDID(r.Context(), repo)
+	dids, err := s.fetchDIDs(r.Context(), params.Subjects)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
 		return
 	}
 
-	repo = did.String()
-	records, err := s.pear.ListRecords(r.Context(), did, syntax.NSID(params.Collection), callerDID)
+	records, err := s.pear.ListRecords(r.Context(), dids, syntax.NSID(params.Collection), callerDID)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -324,7 +331,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		next := habitat.NetworkHabitatListRecordsRecord{
 			Uri: fmt.Sprintf(
 				"habitat://%s/%s/%s",
-				repo,
+				record.Did,
 				params.Collection,
 				record.Rkey,
 			),

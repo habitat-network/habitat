@@ -169,7 +169,7 @@ func TestListOwnRecords(t *testing.T) {
 
 	records, err := p.ListRecords(
 		t.Context(),
-		syntax.DID("did:example:myid"),
+		[]syntax.DID{syntax.DID("did:example:myid")},
 		coll,
 		syntax.DID("did:example:myid"),
 	)
@@ -196,7 +196,7 @@ func TestListRecordsForwardingNotImplemented(t *testing.T) {
 	// This will return empty results since we no longer check for local repos
 	records, err := p.ListRecords(
 		t.Context(),
-		syntax.DID("did:plc:unknown123"),
+		[]syntax.DID{syntax.DID("did:plc:unknown123")},
 		"some.collection",
 		syntax.DID("did:plc:caller456"),
 	)
@@ -225,7 +225,7 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns empty without permissions", func(t *testing.T) {
 		records, err := p.ListRecords(
 			t.Context(),
-			syntax.DID("did:example:myid"),
+			[]syntax.DID{syntax.DID("did:example:myid")},
 			coll1,
 			syntax.DID("did:example:otherid"),
 		)
@@ -246,7 +246,7 @@ func TestListRecords(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			syntax.DID("did:example:myid"),
+			[]syntax.DID{syntax.DID("did:example:myid")},
 			coll1,
 			syntax.DID("did:example:readerid"),
 		)
@@ -270,7 +270,7 @@ func TestListRecords(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			syntax.DID("did:example:myid"),
+			[]syntax.DID{syntax.DID("did:example:myid")},
 			coll1,
 			syntax.DID("did:example:specificreader"),
 		)
@@ -285,7 +285,7 @@ func TestListRecords(t *testing.T) {
 		// did:example:readerid has permission for coll1 but not coll2
 		records, err := p.ListRecords(
 			t.Context(),
-			syntax.DID("did:example:myid"),
+			[]syntax.DID{syntax.DID("did:example:myid")},
 			coll2,
 			syntax.DID("did:example:readerid"),
 		)
@@ -688,7 +688,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			"",
+			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID)},
 			coll,
 			syntax.DID(aliceDID),
 		)
@@ -716,7 +716,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Alice doesn't have permission for Carol's records
 		records, err := p.ListRecords(
 			t.Context(),
-			"",
+			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID), syntax.DID(carolDID)},
 			coll,
 			syntax.DID(aliceDID),
 		)
@@ -741,7 +741,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			"",
+			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID), syntax.DID(remoteDID)},
 			coll,
 			syntax.DID(aliceDID),
 		)
@@ -758,7 +758,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Query for original collection
 		records, err := p.ListRecords(
 			t.Context(),
-			"",
+			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID)},
 			coll,
 			syntax.DID(aliceDID),
 		)
@@ -768,7 +768,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Query for other collection
 		records, err = p.ListRecords(
 			t.Context(),
-			syntax.DID(bobDID),
+			[]syntax.DID{syntax.DID(bobDID)},
 			otherColl,
 			syntax.DID(aliceDID),
 		)
@@ -789,7 +789,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			"",
+			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID)},
 			coll,
 			syntax.DID(aliceDID),
 		)
