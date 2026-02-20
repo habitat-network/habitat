@@ -188,6 +188,7 @@ func (s *store) AddReadPermission(
 		})
 	}
 	// Delete any existing permissions (allow or deny) for these grantees+record before inserting fresh allow permissions.
+	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
 	if err := s.db.Where("grantee IN ?", grantees).
 		Where("owner = ?", owner).
 		Where("collection = ?", collection).
@@ -243,6 +244,7 @@ func (s *store) RemoveReadPermissions(
 	}
 
 	// Delete any existing permission for this record before inserting the deny.
+	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
 	if err := s.db.Where("grantee IN ?", grantees).
 		Where("owner = ?", owner).
 		Where("collection = ?", collection).
