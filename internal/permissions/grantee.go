@@ -72,7 +72,7 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 			return nil, fmt.Errorf("malformatted grantee has no $type field: %v", unknownGrantee)
 		}
 
-		var asStr = ""
+		var asStr string
 		switch granteeType {
 		case "network.habitat.grantee#didGrantee":
 			did, ok := unknownGrantee["did"]

@@ -214,14 +214,18 @@ func (p *pear) isCliqueMember(ctx context.Context, did syntax.DID, clique permis
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("/xrpc/network.habitat.getRecord"),
+		reqURL.String(),
 		nil,
 	)
+	if err != nil {
+		return false, fmt.Errorf("constructing http request: %w", err)
+	}
 
 	resp, err := p.xrpcCh.SendXRPC(ctx, did, owner, req)
 	if err != nil {
 		return false, err
 	}
+	defer func() { _ = resp.Body.Close() }()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
