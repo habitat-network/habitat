@@ -290,7 +290,21 @@ func (p *pear) ListRecords(
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
 
+	// TODO, probably want to split up this API but keeping it as one for ease right now
 	perms := []permissions.Permission{}
+	if len(targetDIDs) == 0 {
+		p, err := p.permissions.ListPermissions(
+			callerDID,
+			"", // search with all owners
+			collection,
+			"", // search for all records in this collection
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list permissions: %w", err)
+		}
+
+		perms = append(perms, p...)
+	}
 	for _, target := range targetDIDs {
 		p, err := p.permissions.ListPermissions(
 			callerDID,
