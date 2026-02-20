@@ -28,7 +28,7 @@ type Pear interface {
 	// Permissioned repository methods
 	PutRecord(ctx context.Context, callerDID, targetDID syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
-	ListRecords(ctx context.Context, did syntax.DID, collection syntax.NSID, callerDID syntax.DID) ([]repo.Record, error)
+	ListRecords(ctx context.Context, targetDID syntax.DID, collection syntax.NSID, callerDID syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
 
@@ -71,13 +71,13 @@ func (p *pear) AddReadPermission(
 }
 
 // HasPermission implements Pear.
-func (p *pear) HasPermission(
+func (p *pear) HasDirectPermission(
 	requester syntax.DID,
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) (bool, error) {
-	return p.permissions.HasPermission(requester, owner, collection, rkey)
+	return p.permissions.HasDirectPermission(requester, owner, collection, rkey)
 }
 
 // ListReadPermissionsByGrantee implements Pear.
@@ -194,7 +194,7 @@ func (p *pear) isCliqueMember(ctx context.Context, did syntax.DID, clique permis
 	}
 
 	if ok {
-		return p.permissions.HasPermission(did, owner, uri.Collection(), uri.RecordKey())
+		return p.permissions.HasDirectPermission(did, owner, uri.Collection(), uri.RecordKey())
 	}
 
 	// Otherwise, forward this request to the right repo (the clique member)
@@ -241,21 +241,6 @@ func (p *pear) GetRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*repo.Record, error) {
-	// Run permissions before returning to the user
-	authz, err := p.permissions.HasPermission(
-		callerDID,
-		targetDID,
-		collection,
-		rkey,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if !authz {
-		return nil, ErrUnauthorized
-	}
-
 	perms, err := p.permissions.ListReadPermissions(targetDID, callerDID, collection, rkey)
 	if err != nil {
 		return nil, err
@@ -284,7 +269,8 @@ func (p *pear) GetRecord(
 	// Otherwise, resolve returned clique grantees to see if a valid permission exists.
 	// TODO: could do these in a batched / parallel way.
 	for _, clique := range cliquesToResolve {
-		if ok, err := p.isCliqueMember(ctx, callerDID, clique); err != nil {
+		ok, err := p.isCliqueMember(ctx, callerDID, clique)
+		if err != nil {
 			return nil, fmt.Errorf("resolving clique membership: %w", err)
 		} else if !ok {
 			return nil, ErrUnauthorized
@@ -300,12 +286,12 @@ func (p *pear) GetRecord(
 
 func (p *pear) ListRecords(
 	ctx context.Context,
-	did syntax.DID,
+	targetDID syntax.DID,
 	collection syntax.NSID,
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
 	perms, err := p.permissions.ListReadPermissions(
-		"", // search for all owners
+		targetDID,
 		callerDID,
 		collection,
 		"", // search for all records in this collection

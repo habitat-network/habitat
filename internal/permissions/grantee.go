@@ -39,15 +39,6 @@ func (g DIDGrantee) String() string {
 	return string(g)
 }
 
-// Panics if parsing the grantee fails; do not use
-func mustParseGranteeFromString(grantee string) Grantee {
-	g, err := ParseGranteeFromString(grantee)
-	if err != nil {
-		panic("failed to parse grantee")
-	}
-	return g
-}
-
 // Try to parse the string as either a clique or did grantee.
 func ParseGranteeFromString(grantee string) (Grantee, error) {
 	did, err := syntax.ParseDID(grantee)

@@ -7,14 +7,14 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
-	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type Enforcer interface {
-	// TODO: should we strongly type all of this stuff?
-	HasPermission(
+	// Whether the requester is directly granted permission to this record.
+	// If the requester has indirect permissions via cliques, this returns false.
+	HasDirectPermission(
 		requester syntax.DID,
 		owner syntax.DID,
 		collection syntax.NSID,
@@ -50,8 +50,6 @@ type RecordPermission struct {
 type store struct {
 	// Backing data store for some subset of data that this enforcer
 	db *gorm.DB
-
-	xrpcCh xrpcchannel.XrpcChannel
 }
 
 var _ Enforcer = (*store)(nil)
@@ -99,7 +97,7 @@ func NewStore(db *gorm.DB) (*store, error) {
 }
 
 // HasPermission checks if a requester has permission to access a specific record.
-func (s *store) HasPermission(
+func (s *store) HasDirectPermission(
 	requester syntax.DID,
 	owner syntax.DID,
 	collection syntax.NSID,
@@ -109,7 +107,7 @@ func (s *store) HasPermission(
 	if requester == owner {
 		return true, nil
 	}
-	var permission Permission
+	var permission permission
 	err := s.db.Where("grantee = ?", requester.String()).
 		Where("owner = ?", owner.String()).
 		Where("collection = ?", collection.String()).
@@ -280,37 +278,48 @@ func (s *store) ListReadPermissions(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) ([]Permission, error) {
-
+	// TODO prevent table scans if all arguments are ""
 	var queried []permission
 	query := s.db
 	if owner.String() != "" {
-		query.Where("owner = ?", owner.String())
+		query = query.Where("owner = ?", owner.String())
 	}
 	if grantee.String() != "" {
-		query.Where("grantee = ?", grantee.String())
+		// The grantee field could also be a clique that includes this direct DID. so ifnore it
+		query = query.Where("grantee = ? OR grantee LIKE ?", grantee.String(), "habitat://%") // check for the habitat uri prefix for cliques
 	}
 	if collection != "" {
 		query = query.Where("collection = ?", collection)
 	}
 	if rkey != "" {
-		query = query.Where("rkey = ?", rkey)
+		// permissions with empty rkeys grant the entire collection
+		query = query.Where("rkey = ? OR rkey = ''", rkey)
 	}
+
+	// prioritize more specific permission and denies
+	query = query.Order("LENGTH(rkey) DESC, effect DESC")
+
 	if err := query.Find(&queried).Error; err != nil {
 		return nil, fmt.Errorf("failed to query permissions: %w", err)
 	}
 
-	permissions := xslices.Map(queried, func(p permission) Permission {
-		return Permission{
+	permissions := make([]Permission, len(queried))
+	for i, p := range queried {
+		grantee, err := ParseGranteeFromString(p.Grantee)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing found grantee in db: %s", grantee)
+		}
+		permissions[i] = Permission{
 			Owner:      syntax.DID(p.Owner),
-			Grantee:    mustParseGranteeFromString(p.Grantee),
+			Grantee:    grantee,
 			Collection: syntax.NSID(p.Collection),
 			Rkey:       syntax.RecordKey(p.Rkey),
 			Effect:     Effect(p.Effect),
 		}
-	})
-	if owner == "" && collection != "" {
+	}
+	if collection != "" && (owner == grantee || owner == "") {
 		// If the request is for a general collection (un-ownered), by default the grantee has permission to their own collections.
-		permissions = append(permissions, Permission{Grantee: DIDGrantee(grantee), Owner: grantee, Collection: collection, Effect: "allow"})
+		permissions = append(permissions, Permission{Grantee: DIDGrantee(grantee), Owner: grantee, Collection: collection, Effect: Allow})
 	}
 	return permissions, nil
 }
