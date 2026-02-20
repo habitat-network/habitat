@@ -12,7 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
-	"github.com/habitat-network/habitat/internal/locality"
+	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 
@@ -43,14 +43,10 @@ type Pear interface {
 
 // The permissionEnforcingRepo wraps a repo, and enforces permissions on any calls.
 type pear struct {
-	// The URL at which this repo lives; should match what is in a hosted user's DID doc for the habitat service entry
-	url string
-	// The service name for habitat in the DID doc (different for dev / production)
-	serviceName string
-	dir         identity.Directory
+	dir identity.Directory
 
 	// Channel to talk to other pear nodes
-	node locality.Node
+	node node.Node
 
 	// Backing for permissions
 	permissions permissions.Store
@@ -115,16 +111,14 @@ var (
 )
 
 func NewPear(
-	serviceName string,
-	serviceEndpoint string,
+	node node.Node,
 	dir identity.Directory,
 	perms permissions.Store,
 	repo repo.Repo,
 	inbox inbox.Inbox,
 ) *pear {
 	return &pear{
-		url:         serviceEndpoint,
-		serviceName: serviceName,
+		node:        node,
 		dir:         dir,
 		permissions: perms,
 		repo:        repo,
@@ -176,61 +170,6 @@ func (p *pear) PutRecord(
 	}
 
 	return p.repo.PutRecord(ctx, did.String(), collection.String(), rkey.String(), record, validate)
-}
-
-func (p *pear) isCliqueMember(ctx context.Context, did syntax.DID, clique permissions.CliqueGrantee) (bool, error) {
-	uri := habitat_syntax.HabitatURI(clique)
-	owner, err := uri.Authority().AsDID()
-	if err != nil {
-		return false, fmt.Errorf("malformed clique authority: %w", err)
-	}
-	ok, err := p.hasRepoForDid(ctx, owner)
-	if err != nil {
-		return false, err
-	}
-
-	if ok {
-		return p.permissions.HasPermission(ctx, did, owner, uri.Collection(), uri.RecordKey())
-	}
-
-	// Otherwise, forward this request to the right repo (the clique member)
-	reqURL, err := url.Parse("/xrpc/network.habitat.getRecord")
-	if err != nil {
-		return false, err
-	}
-	q := reqURL.Query()
-	q.Set("repo", owner.String())
-	q.Set("collection", uri.Collection().String())
-	q.Set("rkey", uri.RecordKey().String())
-	reqURL.RawQuery = q.Encode()
-	if err != nil {
-		return false, err
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		reqURL.String(),
-		nil,
-	)
-	if err != nil {
-		return false, fmt.Errorf("constructing http request: %w", err)
-	}
-
-	resp, err := p.node.SendXRPC(ctx, did, owner, req)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return true, nil
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return false, nil
-	default:
-		return false, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
-	}
 }
 
 func (p *pear) getRecordLocal(
@@ -454,21 +393,6 @@ func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection
 	}
 
 	return append(localRecords, remoteRecords...), nil
-}
-
-// Identity helpers
-func (p *pear) hasRepoForDid(ctx context.Context, did syntax.DID) (bool, error) {
-	id, err := p.dir.LookupDID(ctx, did)
-	if err != nil {
-		return false, err
-	}
-
-	found, ok := id.Services[p.serviceName]
-	if !ok {
-		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
-	}
-
-	return found.URL == p.url, nil
 }
 
 // TODO: actually enforce permissions here

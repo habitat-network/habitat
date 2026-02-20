@@ -11,7 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
-	"github.com/habitat-network/habitat/internal/locality"
+	"github.com/habitat-network/habitat/internal/node"
 	"gorm.io/gorm"
 )
 
@@ -56,7 +56,7 @@ type store struct {
 	db *gorm.DB
 
 	// The store needs to know which DIDs it serves and possibly route requests to other nodes in order resolve permissions.
-	node locality.Node
+	node node.Node
 }
 
 var _ Store = (*store)(nil)

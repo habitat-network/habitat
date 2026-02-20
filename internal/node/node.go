@@ -1,4 +1,4 @@
-package locality
+package node
 
 import (
 	"context"
