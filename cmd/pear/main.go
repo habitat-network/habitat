@@ -35,6 +35,7 @@ import (
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/telemetry"
+	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/urfave/cli/v3"
 )
 
@@ -117,7 +118,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		identity.DefaultDirectory(),
 	)
 
-	pearServer, err := setupPearServer(cmd, db, oauthServer)
+	pearServer, err := setupPearServer(cmd, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
@@ -226,6 +227,7 @@ func setupPearServer(
 	cmd *cli.Command,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
+	clientFactory pdsclient.HttpClientFactory,
 ) (*server.Server, error) {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
@@ -247,7 +249,8 @@ func setupPearServer(
 	}
 
 	dir := identity.DefaultDirectory()
-	p := pear.NewPear(serviceName, serviceEndpoint, dir, permissions, repo, inbox)
+	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
+	p := pear.NewPear(serviceName, serviceEndpoint, dir, xrpcCh, permissions, repo, inbox)
 	return server.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
 }
 

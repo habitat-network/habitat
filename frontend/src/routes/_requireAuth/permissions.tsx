@@ -8,10 +8,10 @@ export const Route = createFileRoute("/_requireAuth/permissions")({
         <nav>
           <ul>
             <li>
-              <Link to="/permissions/lexicons">By NSID</Link>
+              <Link to="/permissions/lexicons">By collection</Link>
             </li>
             <li>
-              <Link to="/permissions/people">People</Link>
+              <Link to="/permissions/people">By person</Link>
             </li>
 
           </ul>
