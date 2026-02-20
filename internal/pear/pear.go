@@ -71,13 +71,14 @@ func (p *pear) AddPermissions(
 }
 
 // HasPermission implements Pear.
-func (p *pear) HasDirectPermission(
+func (p *pear) HasPermission(
+	ctx context.Context,
 	requester syntax.DID,
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) (bool, error) {
-	return p.permissions.HasDirectPermission(requester, owner, collection, rkey)
+	return p.permissions.HasPermission(ctx, requester, owner, collection, rkey)
 }
 
 // ListReadPermissions implements Pear.
@@ -189,7 +190,7 @@ func (p *pear) isCliqueMember(ctx context.Context, did syntax.DID, clique permis
 	}
 
 	if ok {
-		return p.permissions.HasDirectPermission(did, owner, uri.Collection(), uri.RecordKey())
+		return p.permissions.HasPermission(ctx, did, owner, uri.Collection(), uri.RecordKey())
 	}
 
 	// Otherwise, forward this request to the right repo (the clique member)
@@ -240,47 +241,60 @@ func (p *pear) GetRecord(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*repo.Record, error) {
-	perms, err := p.permissions.ListPermissions(callerDID, targetDID, collection, rkey)
+	ok, err := p.permissions.HasPermission(ctx, callerDID, targetDID, collection, rkey)
 	if err != nil {
 		return nil, err
 	}
 
-	// Try to find an explicit allow or deny permission
-	cliquesToResolve := []permissions.CliqueGrantee{}
-	for _, perm := range perms {
-		switch g := perm.Grantee.(type) {
-		case permissions.DIDGrantee:
-			if perm.Grantee.String() != callerDID.String() {
-				// Should never happen
-				return nil, fmt.Errorf("unexpected: found a permission that does not apply to the given query: %v", perm)
-			}
-			// Explicity deny -- return unauthorized
-			if perm.Effect == permissions.Deny {
-				return nil, ErrUnauthorized
-			}
-			// Explicit allow -- return the record
-			return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
-		case permissions.CliqueGrantee:
-			cliquesToResolve = append(cliquesToResolve, g)
-		}
+	if !ok {
+		return nil, ErrUnauthorized
 	}
 
-	// Otherwise, resolve returned clique grantees to see if a valid permission exists.
-	// TODO: could do these in a batched / parallel way.
-	for _, clique := range cliquesToResolve {
-		ok, err := p.isCliqueMember(ctx, callerDID, clique)
+	return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
+
+	/*
+		perms, err := p.permissions.ListPermissions(callerDID, targetDID, collection, rkey)
 		if err != nil {
-			return nil, fmt.Errorf("resolving clique membership: %w", err)
-		} else if !ok {
-			return nil, ErrUnauthorized
-		} else {
-			// User has permission, return the record
-			return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
+			return nil, err
 		}
-	}
 
-	// Default: no relevant permission grants or cliques found; unauthorized.
-	return nil, ErrUnauthorized
+		// Try to find an explicit allow or deny permission
+		cliquesToResolve := []permissions.CliqueGrantee{}
+		for _, perm := range perms {
+			switch g := perm.Grantee.(type) {
+			case permissions.DIDGrantee:
+				if perm.Grantee.String() != callerDID.String() {
+					// Should never happen
+					return nil, fmt.Errorf("unexpected: found a permission that does not apply to the given query: %v", perm)
+				}
+				// Explicity deny -- return unauthorized
+				if perm.Effect == permissions.Deny {
+					return nil, ErrUnauthorized
+				}
+				// Explicit allow -- return the record
+				return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
+			case permissions.CliqueGrantee:
+				cliquesToResolve = append(cliquesToResolve, g)
+			}
+		}
+
+		// Otherwise, resolve returned clique grantees to see if a valid permission exists.
+		// TODO: could do these in a batched / parallel way.
+		for _, clique := range cliquesToResolve {
+			ok, err := p.isCliqueMember(ctx, callerDID, clique)
+			if err != nil {
+				return nil, fmt.Errorf("resolving clique membership: %w", err)
+			} else if !ok {
+				return nil, ErrUnauthorized
+			} else {
+				// User has permission, return the record
+				return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
+			}
+		}
+
+		// Default: no relevant permission grants or cliques found; unauthorized.
+		return nil, ErrUnauthorized
+	*/
 }
 
 func (p *pear) ListRecords(
@@ -289,6 +303,9 @@ func (p *pear) ListRecords(
 	collection syntax.NSID,
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
+	if collection == "" {
+		return nil, fmt.Errorf("only support filtering by a collection")
+	}
 
 	// TODO, probably want to split up this API but keeping it as one for ease right now
 	perms := []permissions.Permission{}

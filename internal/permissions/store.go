@@ -1,19 +1,25 @@
 package permissions
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
+	"github.com/habitat-network/habitat/internal/locality"
 	"gorm.io/gorm"
 )
 
 type Store interface {
 	// Whether the requester is directly granted permission to this record.
 	// If the requester has indirect permissions via cliques, this returns false.
-	HasDirectPermission(
+	HasPermission(
+		ctx context.Context,
 		requester syntax.DID,
 		owner syntax.DID,
 		collection syntax.NSID,
@@ -46,8 +52,11 @@ type RecordPermission struct {
 }
 
 type store struct {
-	// Backing data store for some subset of data that this enforcer
+	// Backing data store for some subset of data that this permissions provider has access to.
 	db *gorm.DB
+
+	// The store needs to know which DIDs it serves and possibly route requests to other nodes in order resolve permissions.
+	node locality.Node
 }
 
 var _ Store = (*store)(nil)
@@ -94,8 +103,50 @@ func NewStore(db *gorm.DB) (*store, error) {
 	return &store{db: db}, nil
 }
 
+func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, clique CliqueGrantee, did syntax.DID) (bool, error) {
+	// Otherwise, forward this request to the right repo (the clique member)
+	reqURL, err := url.Parse("/xrpc/network.habitat.getRecord")
+	if err != nil {
+		return false, err
+	}
+	q := reqURL.Query()
+	q.Set("repo", clique.Owner().String())
+	q.Set("collection", CliqueNSID.String())
+	q.Set("rkey", clique.RecordKey().String())
+	reqURL.RawQuery = q.Encode()
+	if err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		reqURL.String(),
+		nil,
+	)
+	if err != nil {
+		return false, fmt.Errorf("constructing http request: %w", err)
+	}
+
+	resp, err := s.node.SendXRPC(ctx, callerDID, clique.Owner(), req)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return false, nil
+	default:
+		return false, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
+	}
+}
+
 // HasPermission checks if a requester has permission to access a specific record.
-func (s *store) HasDirectPermission(
+func (s *store) HasPermission(
+	ctx context.Context,
 	requester syntax.DID,
 	owner syntax.DID,
 	collection syntax.NSID,
@@ -105,25 +156,104 @@ func (s *store) HasDirectPermission(
 	if requester == owner {
 		return true, nil
 	}
-	var permission permission
-	err := s.db.Where("grantee = ?", requester.String()).
-		Where("owner = ?", owner.String()).
-		Where("collection = ?", collection.String()).
-		// permissions with empty rkeys grant the entire collection
-		Where("rkey = ? OR rkey = ''", rkey.String()).
-		// prioritize more specific permission and denies
-		Order("LENGTH(rkey) DESC, effect DESC").
-		Limit(1).
-		First(&permission).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// No permission found, deny by default
-		return false, nil
-	} else if err != nil {
-		return false, fmt.Errorf("failed to query permission: %w", err)
+
+	permissions, err := s.ListPermissions(requester, owner, collection, rkey)
+	if err != nil {
+		return false, err
 	}
 
-	return permission.Effect == string(Allow), nil
+	localCliques := []CliqueGrantee{}
+	remoteCliques := []CliqueGrantee{}
+	for _, permission := range permissions {
+		switch grantee := permission.Grantee.(type) {
+		case DIDGrantee:
+			// Direct grants to this DID can immediately resolve this request.
+			if grantee.String() != requester.String() {
+				// This should never happen, so return an error
+				// We need to log / measure this
+				return false, fmt.Errorf("invalid permisssion returned from ListPermissions")
+			}
+			// Explicit allow or deny for this DID resolves the request
+			if permission.Effect == Allow {
+				return true, nil
+			} else {
+				return false, nil
+			}
+		case CliqueGrantee:
+			// Otherwise an indirection for looking up cliques may need to happen.
+			ok, err := s.node.ServesDID(ctx, grantee.Owner())
+			if err != nil {
+				return false, err
+			}
+
+			if ok {
+				localCliques = append(localCliques, grantee)
+			} else {
+				remoteCliques = append(remoteCliques, grantee)
+			}
+		}
+	}
+
+	// First try to resolve local cliques
+	// This works if any row matches the requester + clique owner + clique collection + clique rkey
+	query := s.db.Where("grantee = ?", requester.String()).Where("collection = ?", CliqueNSID)
+
+	// build OR pairs for each local clique
+	for i, clique := range localCliques {
+		if i == 0 {
+			query = query.Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
+		} else {
+			query = query.Or("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
+		}
+	}
+
+	var cliquePermission permission
+	// A single row match gives us what we need
+	err = query.Limit(1).First(&cliquePermission).Error
+	if err == nil {
+		// We found a result -- the requester has permission
+		return true, nil
+	}
+
+	var remoteErr error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Resolve remote cliques
+		// TODO: batch for better performance?
+		for _, clique := range remoteCliques {
+			ok, err := s.isRemoteCliqueMember(ctx, owner /* the request originates from the record owner */, clique, requester /* checking membership on the requester */)
+			if err == nil && ok {
+				// Success, membership found, allow permission
+				return true, nil
+			} else if err != nil {
+				// Arbitrarily save the latest error, but continue trying to resolve all memberships in case one succeeds
+				remoteErr = err
+			}
+		}
+	}
+
+	return false, remoteErr
+
+	/*
+		var permission permission
+		err := s.db.Where("grantee = ?", requester.String()).
+			Where("owner = ?", owner.String()).
+			Where("collection = ?", collection.String()).
+			// permissions with empty rkeys grant the entire collection
+			Where("rkey = ? OR rkey = ''", rkey.String()).
+			// prioritize more specific permission and denies
+			Order("LENGTH(rkey) DESC, effect DESC").
+			Limit(1).
+			First(&permission).
+			Error
+		if err == gorm.ErrRecordNotFound {
+			// No permission found, deny by default
+			return false, nil
+		} else if err != nil {
+			return false, fmt.Errorf("failed to query permission: %w", err)
+		}
+
+		return permission.Effect == string(Allow), nil
+	*/
 }
 
 // AddPermissions grants read permission for an entire collection or specific record.
