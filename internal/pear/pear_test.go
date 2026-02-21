@@ -67,6 +67,7 @@ func newPearForTest(t *testing.T, opts ...option) *pear {
 	n := node.New(testServiceName, testServiceEndpoint, o.dir, &mockXrpcChannel{})
 
 	permissions, err := permissions.NewStore(db, n)
+	require.NoError(t, err)
 	p := NewPear(n, o.dir, permissions, repo, inbox)
 	return p
 }

@@ -139,6 +139,7 @@ func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, 
 	return id.DID, nil
 }
 
+/*
 func (s *Server) fetchDIDs(ctx context.Context, didOrHandles []string) ([]syntax.DID, error) {
 	dids := make([]syntax.DID, len(didOrHandles))
 	for i, did := range didOrHandles {
@@ -150,6 +151,7 @@ func (s *Server) fetchDIDs(ctx context.Context, didOrHandles []string) ([]syntax
 	}
 	return dids, nil
 }
+*/
 
 // Find desired did
 // if other did, forward request there
@@ -360,7 +362,6 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: fix later
 	w.WriteHeader(http.StatusInternalServerError)
-	return
 
 	/*
 
