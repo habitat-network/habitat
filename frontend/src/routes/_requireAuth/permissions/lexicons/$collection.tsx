@@ -1,5 +1,5 @@
-import { listPermissions } from "@/queries/permissions";
-import { useMutation } from "@tanstack/react-query";
+import { listPermissions, type Permission } from "@/queries/permissions";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 
@@ -23,21 +23,24 @@ interface FormData {
 }
 
 export const Route = createFileRoute(
-  "/_requireAuth/permissions/lexicons/$lexiconId",
+  "/_requireAuth/permissions/lexicons/$collection",
 )({
   async loader({ context, params }) {
     const response = await context.queryClient.fetchQuery(
       listPermissions(context.authManager),
-    ) as Record<string, string[]>;
-    return response[params.lexiconId];
+    );
+    return (response.permissions ?? []).filter(
+      (p) => p.collection === params.collection,
+    );
   },
   component() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { authManager } = Route.useRouteContext();
     const params = Route.useParams();
-    const people = Route.useLoaderData();
+    const permissions = Route.useLoaderData() as Permission[];
     const form = useForm<FormData>({
-      defaultValues: { collection: params.lexiconId, rkey: "" },
+      defaultValues: { collection: params.collection, rkey: "" },
     });
 
     const { mutate: add, isPending: isAdding } = useMutation({
@@ -53,7 +56,8 @@ export const Route = createFileRoute(
           JSON.stringify(body),
           new Headers({ "Content-Type": "application/json" }),
         );
-        form.reset({ collection: params.lexiconId, rkey: "" });
+        form.reset({ collection: params.collection, rkey: "" });
+        await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();
       },
       onError(e) {
@@ -62,10 +66,11 @@ export const Route = createFileRoute(
     });
 
     const { mutate: remove } = useMutation({
-      async mutationFn(grantee: string) {
+      async mutationFn({ grantee, rkey }: { grantee: string; rkey: string }) {
         const body: PermissionInput = {
           grantees: [{ $type: "network.habitat.grantee#didGrantee", did: grantee }],
-          collection: params.lexiconId,
+          collection: params.collection,
+          ...(rkey ? { rkey } : {}),
         };
         await authManager?.fetch(
           `/xrpc/network.habitat.removePermission`,
@@ -73,6 +78,7 @@ export const Route = createFileRoute(
           JSON.stringify(body),
           new Headers({ "Content-Type": "application/json" }),
         );
+        await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();
       },
       onError(e) {
@@ -82,7 +88,7 @@ export const Route = createFileRoute(
 
     return (
       <>
-        <h3>{params.lexiconId}</h3>
+        <h3>{params.collection}</h3>
         <form onSubmit={form.handleSubmit((data) => add(data))}>
           <fieldset>
             <input
@@ -108,16 +114,21 @@ export const Route = createFileRoute(
         <table>
           <thead>
             <tr>
+              <th>Record Key</th>
               <th>Person</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {people?.map((person) => (
-              <tr key={person}>
-                <td>{person}</td>
+            {permissions?.map((perm) => (
+              <tr key={`${perm.grantee}:${perm.rkey}`}>
+                <td>{perm.rkey || "*"}</td>
+                <td>{perm.grantee}</td>
                 <td>
-                  <button type="button" onClick={() => remove(person)}>
+                  <button
+                    type="button"
+                    onClick={() => remove({ grantee: perm.grantee, rkey: perm.rkey })}
+                  >
                     🗑️
                   </button>
                 </td>

@@ -27,13 +27,16 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
+	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/telemetry"
+	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/urfave/cli/v3"
 )
 
@@ -116,7 +119,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		identity.DefaultDirectory(),
 	)
 
-	pearServer, err := setupPearServer(cmd, db, oauthServer)
+	pearServer, err := setupPearServer(cmd, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
@@ -225,7 +228,8 @@ func setupPearServer(
 	cmd *cli.Command,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
-) (*pear.Server, error) {
+	clientFactory pdsclient.HttpClientFactory,
+) (*server.Server, error) {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
 	serviceEndpoint := "https://" + domain
@@ -235,7 +239,10 @@ func setupPearServer(
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(db)
+	dir := identity.DefaultDirectory()
+	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
+	node := node.New(serviceName, serviceEndpoint, dir, xrpcCh)
+	permissions, err := permissions.NewStore(db, node)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
@@ -245,9 +252,8 @@ func setupPearServer(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	dir := identity.DefaultDirectory()
-	p := pear.NewPear(serviceName, serviceEndpoint, dir, permissions, repo, inbox)
-	return pear.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
+	p := pear.NewPear(node, dir, permissions, repo, inbox)
+	return server.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
 }
 
 func setupOAuthServer(

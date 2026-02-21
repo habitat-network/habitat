@@ -732,6 +732,18 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatClique: {
+    lexicon: 1,
+    id: 'network.habitat.clique',
+    defs: {
+      main: {
+        type: 'object',
+        description:
+          "Do we even need anything in here? I think it's just a placeholder.",
+        properties: {},
+      },
+    },
+  },
   NetworkHabitatGrantee: {
     lexicon: 1,
     id: 'network.habitat.grantee',
@@ -791,7 +803,6 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description: 'Grant read permission to a user for a specific lexicon.',
-        permission: 'authenticated',
         input: {
           encoding: 'application/json',
           schema: {
@@ -832,21 +843,47 @@ export const schemaDict = {
     lexicon: 1,
     id: 'network.habitat.permissions.listPermissions',
     defs: {
+      permission: {
+        type: 'object',
+        required: ['grantee', 'collection', 'effect'],
+        properties: {
+          grantee: {
+            type: 'string',
+            description:
+              'The grantee of the permission — either a DID or a habitat clique URI.',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description:
+              'The NSID of the collection the permission applies to.',
+          },
+          rkey: {
+            type: 'string',
+            description:
+              'The record key the permission applies to. Empty string means the permission covers the entire collection.',
+          },
+          effect: {
+            type: 'string',
+            knownValues: ['allow', 'deny'],
+            description: 'Whether this permission grants or denies access.',
+          },
+        },
+      },
       main: {
         type: 'query',
-        description:
-          'List all read permissions granted by the authenticated user, grouped by lexicon.',
-        permission: 'authenticated',
+        description: 'List read permissions visible to the authenticated user.',
         output: {
           encoding: 'application/json',
           schema: {
             type: 'object',
+            required: ['permissions'],
             properties: {
               permissions: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'ref',
+                  ref: 'lex:network.habitat.permissions.listPermissions#permission',
                 },
               },
             },
@@ -863,7 +900,6 @@ export const schemaDict = {
         type: 'procedure',
         description:
           'Revoke read permission from a user for a specific lexicon.',
-        permission: 'authenticated',
         input: {
           encoding: 'application/json',
           schema: {
@@ -1024,9 +1060,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatListRecords: {
+  NetworkHabitatRepoListRecords: {
     lexicon: 1,
-    id: 'network.habitat.listRecords',
+    id: 'network.habitat.repo.listRecords',
     defs: {
       main: {
         type: 'procedure',
@@ -1048,11 +1084,8 @@ export const schemaDict = {
               },
               collection: {
                 type: 'string',
-                description: 'Filter by specific lexicons',
-                items: {
-                  type: 'string',
-                  format: 'nsid',
-                },
+                format: 'nsid',
+                description: 'Filter by specific lexicon.',
               },
               since: {
                 type: 'string',
@@ -1085,7 +1118,7 @@ export const schemaDict = {
                 type: 'array',
                 items: {
                   type: 'ref',
-                  ref: 'lex:network.habitat.listRecords#record',
+                  ref: 'lex:network.habitat.repo.listRecords#record',
                 },
               },
             },
@@ -1264,6 +1297,7 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatClique: 'network.habitat.clique',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
@@ -1276,7 +1310,7 @@ export const ids = {
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
-  NetworkHabitatListRecords: 'network.habitat.listRecords',
+  NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
 } as const

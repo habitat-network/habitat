@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/habitat-network/habitat/internal/permissions"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -40,12 +41,14 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 }
 
 func TestRepoListRecords(t *testing.T) {
+	ctx := t.Context()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
-	_, err = repo.PutRecord(t.Context(),
+	_, err = repo.PutRecord(
+		t.Context(),
 		"my-did",
 		"network.habitat.collection-1",
 		"key-1",
@@ -54,7 +57,8 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = repo.PutRecord(t.Context(),
+	_, err = repo.PutRecord(
+		ctx,
 		"my-did",
 		"network.habitat.collection-1",
 		"key-2",
@@ -63,7 +67,8 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = repo.PutRecord(t.Context(),
+	_, err = repo.PutRecord(
+		ctx,
 		"my-did",
 		"network.habitat.collection-2",
 		"key-2",
@@ -72,187 +77,61 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	records, err := repo.ListRecords(t.Context(),
-		"my-did",
-		"network.habitat.collection-1",
-		[]string{},
-		[]string{},
-	)
+	records, err := repo.ListRecords(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
 
-	records, err = repo.ListRecords(t.Context(),
-		"my-did",
-		"network.habitat.collection-1",
-		[]string{"network.habitat.collection-1.key-1", "network.habitat.collection-1.key-2"},
-		[]string{},
+	records, err = repo.ListRecords(
+		ctx,
+		[]permissions.Permission{
+			{
+				Owner:      "my-did",
+				Collection: "network.habitat.collection-1",
+				Rkey:       "key-1",
+				Effect:     "allow",
+			},
+			{
+				Owner:      "my-did",
+				Collection: "network.habitat.collection-1",
+				Rkey:       "key-2",
+				Effect:     "allow",
+			},
+		},
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 
-	records, err = repo.ListRecords(t.Context(),
-		"my-did",
-		"network.habitat.collection-1",
-		[]string{"network.habitat.collection-1.*"},
-		[]string{},
+	records, err = repo.ListRecords(
+		ctx,
+		[]permissions.Permission{
+			{
+				Owner:      "my-did",
+				Collection: "network.habitat.collection-1",
+				Effect:     "allow",
+			},
+		},
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 
-	records, err = repo.ListRecords(t.Context(),
-		"my-did",
-		"network.habitat.collection-1",
-		[]string{"network.habitat.collection-1.*"},
-		[]string{"network.habitat.collection-1.key-1"},
+	records, err = repo.ListRecords(
+		ctx,
+		[]permissions.Permission{
+			{
+				Owner:      "my-did",
+				Collection: "network.habitat.collection-1",
+				Effect:     "allow",
+			},
+			{
+				Owner:      "my-did",
+				Collection: "network.habitat.collection-1",
+				Rkey:       "key-1",
+				Effect:     "deny",
+			},
+		},
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
-
-	records, err = repo.ListRecords(t.Context(),
-		"my-did",
-		"network.habitat.collection-2",
-		[]string{"network.habitat.*"},
-		[]string{},
-	)
-	require.NoError(t, err)
-	require.Len(t, records, 1)
-
-	records, err = repo.ListRecords(t.Context(),
-		"my-did",
-		"network.habitat.collection-2",
-		[]string{"network.habitat.*"},
-		[]string{"network.habitat.collection-2.*"},
-	)
-	require.NoError(t, err)
-	require.Len(t, records, 0)
-}
-
-func TestListRecordsByOwnersDeprecated(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	repo, err := NewRepo(db)
-	require.NoError(t, err)
-
-	coll := "test.collection"
-	val := map[string]any{"data": "value"}
-
-	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-1", val, nil)
-	require.NoError(t, err)
-	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-2", val, nil)
-	require.NoError(t, err)
-	_, err = repo.PutRecord(t.Context(), "did:bob", coll, "rkey-1", val, nil)
-	require.NoError(t, err)
-	_, err = repo.PutRecord(t.Context(), "did:carol", coll, "rkey-1", val, nil)
-	require.NoError(t, err)
-	// Record in a different collection — must not appear in results
-	_, err = repo.PutRecord(t.Context(), "did:alice", "other.collection", "rkey-1", val, nil)
-	require.NoError(t, err)
-
-	t.Run("returns empty for empty owner list", func(t *testing.T) {
-		records, err := repo.ListRecordsByOwnersDeprecated([]string{}, coll)
-		require.NoError(t, err)
-		require.Empty(t, records)
-	})
-
-	t.Run("returns all records for a single owner in the collection", func(t *testing.T) {
-		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:alice"}, coll)
-		require.NoError(t, err)
-		require.Len(t, records, 2)
-		for _, r := range records {
-			require.Equal(t, "did:alice", r.Did)
-			require.Equal(t, coll, r.Collection)
-		}
-	})
-
-	t.Run("returns records across multiple owners", func(t *testing.T) {
-		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:alice", "did:bob"}, coll)
-		require.NoError(t, err)
-		require.Len(t, records, 3)
-	})
-
-	t.Run("does not include records from other collections", func(t *testing.T) {
-		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:alice"}, coll)
-		require.NoError(t, err)
-		for _, r := range records {
-			require.Equal(t, coll, r.Collection)
-		}
-	})
-
-	t.Run("returns empty for owner with no records in the collection", func(t *testing.T) {
-		records, err := repo.ListRecordsByOwnersDeprecated([]string{"did:unknown"}, coll)
-		require.NoError(t, err)
-		require.Empty(t, records)
-	})
-}
-
-func TestListSpecificRecordsDeprecated(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	repo, err := NewRepo(db)
-	require.NoError(t, err)
-
-	coll := "test.collection"
-	val := map[string]any{"data": "value"}
-
-	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-1", val, nil)
-	require.NoError(t, err)
-	_, err = repo.PutRecord(t.Context(), "did:alice", coll, "rkey-2", val, nil)
-	require.NoError(t, err)
-	_, err = repo.PutRecord(t.Context(), "did:bob", coll, "rkey-1", val, nil)
-	require.NoError(t, err)
-	_, err = repo.PutRecord(t.Context(), "did:bob", coll, "rkey-2", val, nil)
-	require.NoError(t, err)
-	// Record in a different collection — must not appear in results
-	_, err = repo.PutRecord(t.Context(), "did:alice", "other.collection", "rkey-1", val, nil)
-	require.NoError(t, err)
-
-	type pair = struct{ Owner, Rkey string }
-
-	t.Run("returns empty for empty pairs list", func(t *testing.T) {
-		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{})
-		require.NoError(t, err)
-		require.Empty(t, records)
-	})
-
-	t.Run("returns a single specific record", func(t *testing.T) {
-		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:alice", "rkey-1"}})
-		require.NoError(t, err)
-		require.Len(t, records, 1)
-		require.Equal(t, "did:alice", records[0].Did)
-		require.Equal(t, "rkey-1", records[0].Rkey)
-	})
-
-	t.Run("returns specific records across multiple owners", func(t *testing.T) {
-		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{
-			{"did:alice", "rkey-1"},
-			{"did:bob", "rkey-2"},
-		})
-		require.NoError(t, err)
-		require.Len(t, records, 2)
-	})
-
-	t.Run("does not return other rkeys for the same owner", func(t *testing.T) {
-		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:alice", "rkey-1"}})
-		require.NoError(t, err)
-		require.Len(t, records, 1)
-		require.Equal(t, "rkey-1", records[0].Rkey)
-	})
-
-	t.Run("does not include records from other collections", func(t *testing.T) {
-		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:alice", "rkey-1"}})
-		require.NoError(t, err)
-		for _, r := range records {
-			require.Equal(t, coll, r.Collection)
-		}
-	})
-
-	t.Run("returns empty for non-existent pair", func(t *testing.T) {
-		records, err := repo.ListSpecificRecordsDeprecated(coll, []pair{{"did:unknown", "rkey-1"}})
-		require.NoError(t, err)
-		require.Empty(t, records)
-	})
 }
 
 func TestRepoUploadAndGetBlob(t *testing.T) {
@@ -299,6 +178,10 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 	require.Equal(t, data, gotData)
 
 	// Getting a non-existent blob returns an error
-	_, _, err = repo.GetBlob(t.Context(), did, "bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	_, _, err = repo.GetBlob(
+		t.Context(),
+		did,
+		"bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	)
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
 	"gorm.io/gorm"
@@ -22,10 +22,7 @@ type Repo interface {
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
-	ListRecords(ctx context.Context, did string, collection string, allow []string, deny []string) ([]Record, error)
-	// These will be deprecated by Sashank's incoming PR; leaving in for the refactor
-	ListRecordsByOwnersDeprecated(ownerDIDs []string, collection string) ([]Record, error)
-	ListSpecificRecordsDeprecated(collection string, recordPairs []struct{ Owner, Rkey string }) ([]Record, error)
+	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
 }
 
 // Persist private data within repos that mirror public repos.
@@ -50,7 +47,7 @@ type Record struct {
 	Did        string `gorm:"primaryKey"`
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
-	Value      string
+	Value      []byte
 }
 
 type Blob struct {
@@ -86,7 +83,7 @@ func (r *repo) PutRecord(ctx context.Context, did string, collection string, rke
 	}
 
 	// Store rkey directly (no concatenation with collection)
-	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: string(bytes)}
+	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: bytes}
 	// Always put (even if something exists).
 	err = gorm.G[Record](
 		r.db,
@@ -178,173 +175,43 @@ func (r *repo) GetBlob(
 }
 
 // listRecords implements repo.
-func (r *repo) ListRecords(
-	ctx context.Context,
-	did string,
-	collection string,
-	allow []string,
-	deny []string,
-) ([]Record, error) {
-	if len(allow) == 0 {
+// perms should not include redundant permissions ie
+// if grantee has permission to the collection, perms should not include permissions to specific records in that collection
+func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error) {
+	if len(perms) == 0 {
 		return []Record{}, nil
 	}
 
 	// Start with base query filtering by did and collection
-	query := gorm.G[Record](
-		r.db,
-	).Where("did = ?", did).
-		Where("collection = ?", collection)
+	query := r.db
 
-	// Build OR conditions for allow list
-	// Permissions are stored in format: "collection" or "collection.*" or "collection.rkey"
-	if len(allow) > 0 {
-		// Check if any allow condition grants access to all records in the collection
-		hasWildcard := false
-		specificRkeys := []string{}
-
-		for _, a := range allow {
-			if strings.HasSuffix(a, "*") {
-				// Wildcard match: "collection.*" or "parent.*" - check if it matches this collection
-				prefix := strings.TrimSuffix(a, "*")
-				// Trim trailing dot if present (e.g., "collection.*" -> "collection.")
-				prefix = strings.TrimSuffix(prefix, ".")
-				if prefix == collection || strings.HasPrefix(collection, prefix+".") {
-					// Exact match or parent collection wildcard
-					hasWildcard = true
-					break // If we have a wildcard, we don't need to check specific rkeys
-				}
-			} else if a == collection {
-				// Exact collection match: "collection" - match all rkeys in this collection
-				hasWildcard = true
-				break
-			} else if strings.HasPrefix(a, collection+".") {
-				// Specific record: "collection.rkey" - extract rkey
-				rkey := strings.TrimPrefix(a, collection+".")
-				specificRkeys = append(specificRkeys, rkey)
-			} else {
-				// Fallback: exact match on rkey (for backwards compatibility)
-				specificRkeys = append(specificRkeys, a)
+	allowQuery := r.db
+	for _, perm := range perms {
+		if perm.Effect == permissions.Allow {
+			grantQuery := r.db.Where("did = ?", perm.Owner)
+			if perm.Collection != "" {
+				grantQuery = grantQuery.Where("collection = ?", perm.Collection)
 			}
-		}
-
-		// If we have a wildcard, no need to filter by rkey (collection filter is enough)
-		// Otherwise, filter by specific rkeys
-		if !hasWildcard && len(specificRkeys) > 0 {
-			query = query.Where("rkey IN ?", specificRkeys)
-		}
-		// If hasWildcard is true, we don't add any rkey filter (matches all in collection)
-	}
-
-	// Build deny conditions
-	// Permissions are stored in format: "collection" or "collection.*" or "collection.rkey"
-	hasCollectionDeny := false
-	deniedRkeys := []string{}
-
-	for _, d := range deny {
-		if strings.HasSuffix(d, "*") {
-			// Wildcard deny: "collection.*" or "parent.*" - check if it matches this collection
-			prefix := strings.TrimSuffix(d, "*")
-			// Trim trailing dot if present (e.g., "collection.*" -> "collection.")
-			prefix = strings.TrimSuffix(prefix, ".")
-			// Check exact match first
-			if prefix == collection {
-				hasCollectionDeny = true
-				break
+			if perm.Rkey != "" {
+				// if rkey is not empty
+				grantQuery = grantQuery.Where("rkey = ?", perm.Rkey)
 			}
-			// Check if this is a parent collection wildcard (e.g., "network.habitat.*" matches "network.habitat.collection-2")
-			if strings.HasPrefix(collection, prefix+".") {
-				hasCollectionDeny = true
-				break
-			}
-		} else if d == collection {
-			// Exact collection deny: "collection" - deny all rkeys in this collection
-			hasCollectionDeny = true
-			break
-		} else if strings.HasPrefix(d, collection+".") {
-			// Specific record deny: "collection.rkey" - extract rkey and deny
-			rkey := strings.TrimPrefix(d, collection+".")
-			deniedRkeys = append(deniedRkeys, rkey)
+			// build up allow `OR`s
+			allowQuery = allowQuery.Or(grantQuery)
 		} else {
-			// Fallback: exact deny on rkey (for backwards compatibility)
-			deniedRkeys = append(deniedRkeys, d)
+			// build up deny `NOT`s
+			query = query.Not(r.db.Where("collection = ?", perm.Collection).Where("rkey = ?", perm.Rkey))
 		}
 	}
-
-	// Apply deny conditions
-	if hasCollectionDeny {
-		// Deny all records in this collection - return empty result
-		return []Record{}, nil
-	} else if len(deniedRkeys) > 0 {
-		// Deny specific rkeys
-		query = query.Where("rkey NOT IN ?", deniedRkeys)
-	}
-
-	// Cursor-based pagination -- unimplemented
-	/*
-		if params.Cursor != "" {
-			query = query.Where("rkey > ?", params.Cursor)
-		}
-
-		// Limit
-		if params.Limit != 0 {
-			query = query.Limit(int(params.Limit))
-		}
-	*/
+	query = query.Where(allowQuery)
 
 	// Order by rkey for consistent pagination
 	query = query.Order("rkey ASC")
 
 	// Execute query
-	rows, err := query.Find(ctx)
-	if err != nil {
+	var rows []Record
+	if err := query.Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	return rows, nil
-}
-
-// listRecordsByOwners queries records from multiple owners for a given collection
-func (r *repo) ListRecordsByOwnersDeprecated(ownerDIDs []string, collection string) ([]Record, error) {
-	if len(ownerDIDs) == 0 {
-		return []Record{}, nil
-	}
-
-	query := gorm.G[Record](r.db).
-		Where("did IN ?", ownerDIDs).
-		Where("collection = ?", collection).
-		Order("did ASC, rkey ASC")
-
-	records, err := query.Find(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to query records by owners: %w", err)
-	}
-	return records, nil
-}
-
-// listSpecificRecords queries specific records by a list of (did, rkey) pairs for a given collection
-// recordPairs is a slice of structs with Owner and Rkey fields
-func (r *repo) ListSpecificRecordsDeprecated(collection string, recordPairs []struct{ Owner, Rkey string }) ([]Record, error) {
-	if len(recordPairs) == 0 {
-		return []Record{}, nil
-	}
-
-	// Build OR conditions for (did, rkey) pairs
-	// Format: (did = owner1 AND rkey = rkey1) OR (did = owner2 AND rkey = rkey2) OR ...
-	query := gorm.G[Record](r.db).
-		Where("collection = ?", collection)
-
-	// Build OR conditions using GORM's Or method
-	if len(recordPairs) > 0 {
-		query = query.Where("(did = ? AND rkey = ?)", recordPairs[0].Owner, recordPairs[0].Rkey)
-		for i := 1; i < len(recordPairs); i++ {
-			query = query.Or("(did = ? AND rkey = ?)", recordPairs[i].Owner, recordPairs[i].Rkey)
-		}
-	}
-
-	query = query.Order("did ASC, rkey ASC")
-
-	records, err := query.Find(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to query specific records: %w", err)
-	}
-	return records, nil
 }

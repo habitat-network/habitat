@@ -25,7 +25,7 @@ import { Route as RequireAuthPermissionsLexiconsRouteImport } from './routes/_re
 import { Route as RequireAuthPearTestViewRouteImport } from './routes/_requireAuth/pear-test/view'
 import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './routes/_requireAuth/permissions/lexicons/index'
 import { Route as RequireAuthPermissionsPeopleDidRouteImport } from './routes/_requireAuth/permissions/people/$did'
-import { Route as RequireAuthPermissionsLexiconsLexiconIdRouteImport } from './routes/_requireAuth/permissions/lexicons/$lexiconId'
+import { Route as RequireAuthPermissionsLexiconsCollectionRouteImport } from './routes/_requireAuth/permissions/lexicons/$collection'
 
 const OnboardLocalRoute = OnboardLocalRouteImport.update({
   id: '/onboard-local',
@@ -114,10 +114,10 @@ const RequireAuthPermissionsPeopleDidRoute =
     path: '/$did',
     getParentRoute: () => RequireAuthPermissionsPeopleRoute,
   } as any)
-const RequireAuthPermissionsLexiconsLexiconIdRoute =
-  RequireAuthPermissionsLexiconsLexiconIdRouteImport.update({
-    id: '/$lexiconId',
-    path: '/$lexiconId',
+const RequireAuthPermissionsLexiconsCollectionRoute =
+  RequireAuthPermissionsLexiconsCollectionRouteImport.update({
+    id: '/$collection',
+    path: '/$collection',
     getParentRoute: () => RequireAuthPermissionsLexiconsRoute,
   } as any)
 
@@ -135,7 +135,7 @@ export interface FileRoutesByFullPath {
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
-  '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
@@ -151,7 +151,7 @@ export interface FileRoutesByTo {
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
-  '/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
@@ -171,7 +171,7 @@ export interface FileRoutesById {
   '/_requireAuth/blob-test/': typeof RequireAuthBlobTestIndexRoute
   '/_requireAuth/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
-  '/_requireAuth/permissions/lexicons/$lexiconId': typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  '/_requireAuth/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/_requireAuth/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
 }
@@ -191,7 +191,7 @@ export interface FileRouteTypes {
     | '/blob-test'
     | '/pear-test'
     | '/permissions/'
-    | '/permissions/lexicons/$lexiconId'
+    | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/permissions/lexicons/'
   fileRoutesByTo: FileRoutesByTo
@@ -207,7 +207,7 @@ export interface FileRouteTypes {
     | '/blob-test'
     | '/pear-test'
     | '/permissions'
-    | '/permissions/lexicons/$lexiconId'
+    | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/permissions/lexicons'
   id:
@@ -226,7 +226,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/blob-test/'
     | '/_requireAuth/pear-test/'
     | '/_requireAuth/permissions/'
-    | '/_requireAuth/permissions/lexicons/$lexiconId'
+    | '/_requireAuth/permissions/lexicons/$collection'
     | '/_requireAuth/permissions/people/$did'
     | '/_requireAuth/permissions/lexicons/'
   fileRoutesById: FileRoutesById
@@ -353,25 +353,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPermissionsPeopleDidRouteImport
       parentRoute: typeof RequireAuthPermissionsPeopleRoute
     }
-    '/_requireAuth/permissions/lexicons/$lexiconId': {
-      id: '/_requireAuth/permissions/lexicons/$lexiconId'
-      path: '/$lexiconId'
-      fullPath: '/permissions/lexicons/$lexiconId'
-      preLoaderRoute: typeof RequireAuthPermissionsLexiconsLexiconIdRouteImport
+    '/_requireAuth/permissions/lexicons/$collection': {
+      id: '/_requireAuth/permissions/lexicons/$collection'
+      path: '/$collection'
+      fullPath: '/permissions/lexicons/$collection'
+      preLoaderRoute: typeof RequireAuthPermissionsLexiconsCollectionRouteImport
       parentRoute: typeof RequireAuthPermissionsLexiconsRoute
     }
   }
 }
 
 interface RequireAuthPermissionsLexiconsRouteChildren {
-  RequireAuthPermissionsLexiconsLexiconIdRoute: typeof RequireAuthPermissionsLexiconsLexiconIdRoute
+  RequireAuthPermissionsLexiconsCollectionRoute: typeof RequireAuthPermissionsLexiconsCollectionRoute
   RequireAuthPermissionsLexiconsIndexRoute: typeof RequireAuthPermissionsLexiconsIndexRoute
 }
 
 const RequireAuthPermissionsLexiconsRouteChildren: RequireAuthPermissionsLexiconsRouteChildren =
   {
-    RequireAuthPermissionsLexiconsLexiconIdRoute:
-      RequireAuthPermissionsLexiconsLexiconIdRoute,
+    RequireAuthPermissionsLexiconsCollectionRoute:
+      RequireAuthPermissionsLexiconsCollectionRoute,
     RequireAuthPermissionsLexiconsIndexRoute:
       RequireAuthPermissionsLexiconsIndexRoute,
   }

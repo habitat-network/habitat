@@ -1,6 +1,6 @@
 {
   "lexicon": 1,
-  "id": "network.habitat.listRecords",
+  "id": "network.habitat.repo.listRecords",
   "defs": {
     "main": {
       "type": "procedure",
@@ -23,15 +23,12 @@
             },
             "collection": {
               "type": "string",
-              "description": "Filter by specific lexicons",
-              "items": {
-                "type": "string",
-                "format": "nsid"
-              }
+              "format": "nsid",
+              "description": "Filter by specific lexicon."
             },
             "since": {
               "type": "string",
-              "description": "Allow getting records that are strictly newer or updated since a certain time.",
+              "description": " [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time.",
               "format": "datetime"
             },
             "limit": {
@@ -60,7 +57,7 @@
               "type": "array",
               "items": {
                 "type": "ref",
-                "ref": "network.habitat.listRecords#record"
+                "ref": "network.habitat.repo.listRecords#record"
               }
             }
           }
