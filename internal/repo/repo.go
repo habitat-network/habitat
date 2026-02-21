@@ -18,21 +18,10 @@ import (
 )
 
 type Repo interface {
-	PutRecord(
-		ctx context.Context,
-		did string,
-		collection string,
-		rkey string,
-		rec map[string]any,
-		validate *bool,
-	) (habitat_syntax.HabitatURI, error)
+	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
-	GetBlob(
-		ctx context.Context,
-		did string,
-		cid string,
-	) (string /* mimetype */, []byte /* raw blob */, error)
+	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
 }
 
@@ -54,7 +43,16 @@ type repo struct {
 // repo implements the public type Repo
 var _ Repo = &repo{}
 
+// Exported type that represents a repo record.
 type Record struct {
+	Did        string
+	Collection string
+	Rkey       string
+	Value      map[string]any // A JSON blob
+}
+
+// Internal type for row representation in the database
+type record struct {
 	Did        string `gorm:"primaryKey"`
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
@@ -71,7 +69,7 @@ type Blob struct {
 
 // TODO: create table etc.
 func NewRepo(db *gorm.DB) (*repo, error) {
-	if err := db.AutoMigrate(&Record{}, &Blob{}); err != nil {
+	if err := db.AutoMigrate(&record{}, &Blob{}); err != nil {
 		return nil, err
 	}
 	return &repo{
@@ -82,14 +80,11 @@ func NewRepo(db *gorm.DB) (*repo, error) {
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
 func (r *repo) PutRecord(
 	ctx context.Context,
-	did string,
-	collection string,
-	rkey string,
-	rec map[string]any,
+	rec Record,
 	validate *bool,
 ) (habitat_syntax.HabitatURI, error) {
 	if validate != nil && *validate {
-		err := atdata.Validate(rec)
+		err := atdata.Validate(rec.Value)
 		if err != nil {
 			return "", err
 		}
@@ -98,19 +93,19 @@ func (r *repo) PutRecord(
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
 	err := r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("did = ?", did).
-			Where("collection = ?", collection).
-			Where("rkey = ?", rkey).
-			Delete(&Record{}).
+		if err := tx.Where("did = ?", rec.Did).
+			Where("collection = ?", rec.Collection).
+			Where("rkey = ?", rec.Rkey).
+			Delete(&record{}).
 			Error; err != nil {
 			return err
 		}
-		bytes, err := json.Marshal(rec)
+		bytes, err := json.Marshal(rec.Value)
 		if err != nil {
 			return err
 		}
-		record := Record{Did: did, Rkey: rkey, Collection: collection, Value: bytes}
-		if err := tx.Create(&record).Error; err != nil {
+		r := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
+		if err := tx.Create(&r).Error; err != nil {
 			return err
 		}
 		return nil
@@ -119,7 +114,7 @@ func (r *repo) PutRecord(
 		return "", err
 	}
 
-	return habitat_syntax.ConstructHabitatUri(did, collection, rkey), nil
+	return habitat_syntax.ConstructHabitatUri(rec.Did, rec.Collection, rec.Rkey), nil
 }
 
 var (
@@ -134,7 +129,7 @@ func (r *repo) GetRecord(
 	rkey string,
 ) (*Record, error) {
 	// Query using separate collection and rkey fields
-	row, err := gorm.G[Record](
+	row, err := gorm.G[record](
 		r.db,
 	).Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
 		First(ctx)
@@ -143,7 +138,19 @@ func (r *repo) GetRecord(
 	} else if err != nil {
 		return nil, err
 	}
-	return &row, nil
+
+	var value map[string]any
+	err = json.Unmarshal(row.Value, &value)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Record{
+		Did:        row.Did,
+		Collection: row.Collection,
+		Rkey:       row.Rkey,
+		Value:      value,
+	}, nil
 }
 
 type BlobRef struct {
@@ -240,9 +247,29 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 	query = query.Order("rkey ASC")
 
 	// Execute query
-	var rows []Record
+	var rows []record
 	if err := query.Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	return rows, nil
+
+	records := make([]Record, len(rows))
+	for i, row := range rows {
+
+		var value map[string]any
+		err := json.Unmarshal(row.Value, &value)
+		if err != nil {
+			return nil, err
+		}
+
+		r := Record{
+			Did:        row.Did,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Value:      value,
+		}
+
+		records[i] = r
+	}
+
+	return records, nil
 }

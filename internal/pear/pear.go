@@ -168,7 +168,12 @@ func (p *pear) PutRecord(
 		}
 	}
 
-	return p.repo.PutRecord(ctx, did.String(), collection.String(), rkey.String(), record, validate)
+	return p.repo.PutRecord(ctx, repo.Record{
+		Did:        did.String(),
+		Collection: collection.String(),
+		Rkey:       rkey.String(),
+		Value:      record,
+	}, validate)
 }
 
 func (p *pear) getRecordLocal(
