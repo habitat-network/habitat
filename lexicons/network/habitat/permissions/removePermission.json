@@ -5,7 +5,6 @@
     "main": {
       "type": "procedure",
       "description": "Revoke read permission from a user for a specific lexicon.",
-      "permission": "authenticated",
       "input": {
         "encoding": "application/json",
         "schema": {

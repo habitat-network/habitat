@@ -36,7 +36,6 @@
     "main": {
       "type": "query",
       "description": "List read permissions visible to the authenticated user.",
-      "permission": "authenticated",
       "output": {
         "encoding": "application/json",
         "schema": {

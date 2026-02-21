@@ -5,7 +5,6 @@
     "main": {
       "type": "procedure",
       "description": "Grant read permission to a user for a specific lexicon.",
-      "permission": "authenticated",
       "input": {
         "encoding": "application/json",
         "schema": {

@@ -31,7 +31,7 @@ import * as NetworkHabitatPermissionsRemovePermission from './types/network/habi
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
-import * as NetworkHabitatListRecords from './types/network/habitat/listRecords.js'
+import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
@@ -57,7 +57,7 @@ export * as NetworkHabitatPermissionsRemovePermission from './types/network/habi
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
-export * as NetworkHabitatListRecords from './types/network/habitat/listRecords.js'
+export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
@@ -409,18 +409,6 @@ export class NetworkHabitatNS {
     this.repo = new NetworkHabitatRepoNS(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
   }
-
-  listRecords(
-    data?: NetworkHabitatListRecords.InputSchema,
-    opts?: NetworkHabitatListRecords.CallOptions,
-  ): Promise<NetworkHabitatListRecords.Response> {
-    return this._client.call(
-      'network.habitat.listRecords',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
 }
 
 export class NetworkHabitatInternalNS {
@@ -514,6 +502,18 @@ export class NetworkHabitatRepoNS {
       .catch((e) => {
         throw NetworkHabitatRepoGetRecord.toKnownErr(e)
       })
+  }
+
+  listRecords(
+    data?: NetworkHabitatRepoListRecords.InputSchema,
+    opts?: NetworkHabitatRepoListRecords.CallOptions,
+  ): Promise<NetworkHabitatRepoListRecords.Response> {
+    return this._client.call(
+      'network.habitat.repo.listRecords',
+      opts?.qp,
+      data,
+      opts,
+    )
   }
 
   putRecord(

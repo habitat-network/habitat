@@ -7,5 +7,6 @@
     "noEmit": false,
     "strict": false
   },
+  "include": ["**/*"],
   "references": []
 }
