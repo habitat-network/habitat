@@ -2,7 +2,6 @@ package pear
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -124,10 +123,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
-	var ownerUnmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Value), &ownerUnmarshalled)
-	require.NoError(t, err)
-	require.Equal(t, val, ownerUnmarshalled)
+	require.Equal(t, val, got.Value)
 
 	// Non-owner without permission gets unauthorized
 	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
@@ -140,11 +136,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	// Now non-owner can access
 	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
 	require.NoError(t, err)
-
-	var unmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Value), &unmarshalled)
-	require.NoError(t, err)
-	require.Equal(t, val, unmarshalled)
+	require.Equal(t, val, got.Value)
 
 	_, err = p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll, val, rkey, &validate, []permissions.Grantee{})
 	require.NoError(t, err)
@@ -285,10 +277,7 @@ func TestPutRecordWithGrantees(t *testing.T) {
 		got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(grantee))
 		require.NoError(t, err, "grantee %s should be able to read the record", grantee)
 		require.NotNil(t, got)
-
-		var unmarshalled map[string]any
-		require.NoError(t, json.Unmarshal([]byte(got.Value), &unmarshalled))
-		require.Equal(t, val, unmarshalled)
+		require.Equal(t, val, got.Value)
 	}
 
 	// A non-grantee cannot read the record.
