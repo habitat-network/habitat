@@ -3,7 +3,6 @@ package pear
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -435,7 +434,6 @@ func TestCliqueFlow(t *testing.T) {
 
 	// B can no longer list A's record; only sees its own
 	bRecordsAfterRemoval, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll)
-	fmt.Println(p.ListPermissions(syntax.DID(bDID), "", coll, ""))
 	require.NoError(t, err)
 	require.Len(t, bRecordsAfterRemoval, 1)
 	require.Equal(t, bDID, bRecordsAfterRemoval[0].Did)

@@ -11,7 +11,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -358,34 +357,42 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 // However, this is currently only used in the UI to show all the permissions a particular user has granted to other people, as a way of
 // inspecting and easily adding / removing permission grants on your data. We should rename this and/or also make it generic.
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
-	if !ok {
-		return
-	}
 
-	permissions, err := s.pear.ListPermissions("", callerDID, "", "")
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
-		return
-	}
+	// TODO: fix later
+	w.WriteHeader(http.StatusInternalServerError)
+	return
 
-	var output habitat.NetworkHabitatPermissionsListPermissionsOutput
-	output.Permissions = make([]habitat.NetworkHabitatPermissionsListPermissionsPermission, len(permissions))
-	for i, p := range permissions {
-		output.Permissions[i] = habitat.NetworkHabitatPermissionsListPermissionsPermission{
-			Collection: p.Collection.String(),
-			Effect:     string(p.Effect),
-			Grantee:    p.Grantee.String(),
-			Rkey:       p.Rkey.String(),
+	/*
+
+		callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+		if !ok {
+			return
 		}
-	}
+			permissions, err := s.pear.ListPermissions("", callerDID, "", "")
+			if err != nil {
+				utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
+				return
+			}
 
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "json marshal response", http.StatusInternalServerError)
-		log.Err(err).Msgf("error sending response for ListPermissions request")
-		return
-	}
+
+			var output habitat.NetworkHabitatPermissionsListPermissionsOutput
+			output.Permissions = make([]habitat.NetworkHabitatPermissionsListPermissionsPermission, len(permissions))
+			for i, p := range permissions {
+				output.Permissions[i] = habitat.NetworkHabitatPermissionsListPermissionsPermission{
+					Collection: p.Collection.String(),
+					Effect:     string(p.Effect),
+					Grantee:    p.Grantee.String(),
+					Rkey:       p.Rkey.String(),
+				}
+			}
+
+			err = json.NewEncoder(w).Encode(output)
+			if err != nil {
+				utils.LogAndHTTPError(w, err, "json marshal response", http.StatusInternalServerError)
+				log.Err(err).Msgf("error sending response for ListPermissions request")
+				return
+			}
+	*/
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {

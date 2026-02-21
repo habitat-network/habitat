@@ -86,7 +86,7 @@ func TestStoreMultipleGrantees(t *testing.T) {
 	require.NoError(t, err)
 
 	// List permissions by lexicon
-	permissions, err := store.ListPermissions("", "did:example:alice", "", "")
+	permissions, err := store.listPermissions("", "did:example:alice", "", "")
 	require.NoError(t, err)
 	// Alice gave three permission grants
 	require.Len(t, permissions, 3)
@@ -104,7 +104,7 @@ func TestStoreListByGrantee(t *testing.T) {
 	require.NoError(t, err)
 
 	// List bob's permissions for network.habitat.posts
-	permissions, err := store.ListPermissions("did:example:bob", "", "network.habitat.posts", "")
+	permissions, err := store.listPermissions("did:example:bob", "", "network.habitat.posts", "")
 	slices.SortFunc(permissions, func(a, b Permission) int {
 		if a.Owner < b.Owner {
 			return -1
@@ -124,7 +124,7 @@ func TestStoreListByGrantee(t *testing.T) {
 	require.Equal(t, permissions[1].Effect, Allow)
 
 	// Charlie has no permissions
-	permissions, err = store.ListPermissions("did:example:charlie", "", "network.habitat.posts", "")
+	permissions, err = store.listPermissions("did:example:charlie", "", "network.habitat.posts", "")
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
 	require.Equal(t, permissions[0].Owner.String(), "did:example:charlie")
@@ -180,13 +180,13 @@ func TestStoreMultipleOwners(t *testing.T) {
 	require.True(t, HasPermission)
 
 	// List alice's permissions
-	permissions, err := store.ListPermissions("", "did:example:alice", "", "")
+	permissions, err := store.listPermissions("", "did:example:alice", "", "")
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
 	require.Equal(t, Permission{Grantee: DIDGrantee("did:example:bob"), Owner: "did:example:alice", Collection: "network.habitat.posts", Rkey: "", Effect: Allow}, permissions[0])
 
 	// List charlie's permissions
-	permissions, err = store.ListPermissions("", "did:example:charlie", "", "")
+	permissions, err = store.listPermissions("", "did:example:charlie", "", "")
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
 	require.Equal(t, Permission{Grantee: DIDGrantee("did:example:bob"), Owner: "did:example:charlie", Collection: "network.habitat.likes", Rkey: "", Effect: Allow}, permissions[0])
@@ -272,7 +272,7 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record-1")
 	require.NoError(t, err)
 
-	perms, err := store.ListPermissions("did:example:bob", "", "", "")
+	perms, err := store.listPermissions("did:example:bob", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, perms, 1 /* has direct permission on record */)
 
@@ -280,7 +280,7 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
-	perms, err = store.ListPermissions("did:example:bob", "", "", "")
+	perms, err = store.listPermissions("did:example:bob", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, perms, 1 /* no collection specified so only returns direct permissions */)
 
@@ -293,7 +293,7 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	perms, err = store.ListPermissions("did:example:bob", "", "", "")
+	perms, err = store.listPermissions("did:example:bob", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, perms, 1 /* has direct permission on record */)
 }

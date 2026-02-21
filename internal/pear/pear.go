@@ -79,14 +79,13 @@ func (p *pear) HasPermission(
 	return p.permissions.HasPermission(ctx, requester, owner, collection, rkey)
 }
 
-// ListReadPermissions implements Pear.
-func (p *pear) ListPermissions(
+// ListPermissionsByCollection implements Pear.
+func (p *pear) ListPermissionsByCollection(
+	ctx context.Context,
 	grantee syntax.DID,
-	owner syntax.DID,
 	collection syntax.NSID,
-	rkey syntax.RecordKey,
 ) ([]permissions.Permission, error) {
-	return p.permissions.ListPermissions(grantee, owner, collection, rkey)
+	return p.permissions.ListPermissionsByCollection(ctx, grantee, collection)
 }
 
 // RemoveReadPermissions implements Pear.
@@ -276,7 +275,6 @@ func (p *pear) GetRecord(
 // Remove once ListRecords() is implemented correctly. Separate so i can still read old code.
 func (p *pear) listRecordsLocal(
 	ctx context.Context,
-	targetDIDs []syntax.DID,
 	collection syntax.NSID,
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
@@ -284,34 +282,9 @@ func (p *pear) listRecordsLocal(
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	// TODO, probably want to split up this API but keeping it as one for ease right now
-	perms := []permissions.Permission{}
-	if len(targetDIDs) == 0 {
-		p, err := p.permissions.ListPermissions(
-			callerDID,
-			"", // search with all owners
-			collection,
-			"", // search for all records in this collection
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list permissions: %w", err)
-		}
-
-		perms = append(perms, p...)
-	}
-
-	for _, target := range targetDIDs {
-		p, err := p.permissions.ListPermissions(
-			callerDID,
-			target,
-			collection,
-			"", // search for all records in this collection
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list permissions: %w", err)
-		}
-
-		perms = append(perms, p...)
+	perms, err := p.permissions.ListPermissionsByCollection(ctx, callerDID, collection)
+	if err != nil {
+		return nil, err
 	}
 
 	records, err := p.repo.ListRecords(ctx, perms)
@@ -343,7 +316,7 @@ func (p *pear) listRecordsRemote(ctx context.Context, callerDID syntax.DID, coll
 // TODO: take in targetDIDs as well, ignoring this now for simplicity
 func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
 	// Get records owned by this repo
-	localRecords, err := p.listRecordsLocal(ctx, nil, collection, callerDID)
+	localRecords, err := p.listRecordsLocal(ctx, collection, callerDID)
 	if err != nil {
 		return nil, err
 	}
