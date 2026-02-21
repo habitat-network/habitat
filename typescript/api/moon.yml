@@ -8,7 +8,6 @@ fileGroups:
 workspace:
   inheritedTasks:
     exclude:
-    - build
     - start
     - dev
 tasks:
