@@ -289,11 +289,13 @@ export class HabitatClient {
       );
 
       allRecords = allRecords.concat(
-        response.data.records.map((record) => ({
-          uri: record.uri,
-          cid: record.cid,
-          value: record.value as T,
-        })),
+        response.data.records.map(
+          (record: { uri: string; cid: string; value: unknown }) => ({
+            uri: record.uri,
+            cid: record.cid,
+            value: record.value as T,
+          }),
+        ),
       );
 
       currentCursor = response.data.cursor;
@@ -318,7 +320,8 @@ export class HabitatClient {
       collection,
       rkey,
       record,
-      grantees,
+      // Cast needed: lexicon defines grantees as string unions but codegen wraps with $Typed
+      grantees: grantees as PutPrivateRecordInput<T>["grantees"],
     };
 
     const response = await this.defaultAgent.fetchHandler(
