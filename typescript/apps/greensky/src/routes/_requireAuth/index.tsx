@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
     const bskyFeed = await getBskyFeed(context.authManager);
     const habitatFeed = await getHabitatFeed(context.authManager);
-    return [...habitatFeed, ...bskyFeed.feed];
+    return [...habitatFeed, ...bskyFeed];
   },
   component() {
     const { authManager } = Route.useRouteContext();
@@ -49,7 +49,7 @@ export const Route = createFileRoute("/_requireAuth/")({
             </li>
           </ul>
         </nav>
-        {data.map(({ post }) => {
+        {data.map((post) => {
           return (
             <article key={post.uri}>
               <header>
@@ -117,9 +117,7 @@ interface Post {
   };
 }
 
-async function getBskyFeed(
-  authManager: AuthManager,
-): Promise<{ feed: { post: Post }[] }> {
+async function getBskyFeed(authManager: AuthManager): Promise<Post[]> {
   const headers = new Headers();
   headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
   const params = new URLSearchParams();
@@ -134,55 +132,28 @@ async function getBskyFeed(
     null,
     headers,
   );
-  return feedResponse.json();
+  const feedData: { feed: { post: Post }[] } = await feedResponse.json();
+
+  return feedData.feed.map(({ post }) => post);
 }
 
-async function getHabitatFeed(authManager: AuthManager) {
+async function getHabitatFeed(authManager: AuthManager): Promise<Post[]> {
   const params = new URLSearchParams();
   params.set("limit", "10");
+  params.set("collection", "network.habitat.post");
   const response = await authManager.fetch(
-    `/xrpc/network.habitat.notification.listNotifications?${params.toString()}`,
+    `/xrpc/network.habitat.listRecords?${params.toString()}`,
     "GET",
   );
 
-  const notifications: {
+  const posts: {
     records: {
       uri: string;
       cid: string;
-      value: {
-        originDid: string;
-        collection: string;
-        rkey: string;
-      };
+      value: Post;
     }[];
     cursor?: string;
   } = await response.json();
 
-  const postRequests = notifications.records
-    .filter((record) => {
-      return record.value.collection === "network.habitat.post";
-    })
-    .map(async (notification): Promise<{ post: Post }> => {
-      const params = new URLSearchParams();
-      params.set("collection", notification.value.collection);
-      params.set("rkey", notification.value.rkey);
-      params.set("repo", notification.value.originDid);
-      const response = await authManager.fetch(
-        "/xrpc/network.habitat.getRecord",
-      );
-      const post: { uri: string; value: { text: string } } =
-        await response.json();
-      return {
-        post: {
-          uri: post.uri,
-          record: { text: post.value.text },
-          author: {
-            displayName: notification.value.originDid,
-          },
-        },
-      };
-    });
-
-  const posts = await Promise.all(postRequests);
-  return posts;
+  return posts.records.map(({ value }) => value);
 }
