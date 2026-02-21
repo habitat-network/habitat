@@ -18,10 +18,21 @@ import (
 )
 
 type Repo interface {
-	PutRecord(ctx context.Context, did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error)
+	PutRecord(
+		ctx context.Context,
+		did string,
+		collection string,
+		rkey string,
+		rec map[string]any,
+		validate *bool,
+	) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
-	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
+	GetBlob(
+		ctx context.Context,
+		did string,
+		cid string,
+	) (string /* mimetype */, []byte /* raw blob */, error)
 	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
 }
 
@@ -69,7 +80,14 @@ func NewRepo(db *gorm.DB) (*repo, error) {
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
-func (r *repo) PutRecord(ctx context.Context, did string, collection string, rkey string, rec map[string]any, validate *bool) (habitat_syntax.HabitatURI, error) {
+func (r *repo) PutRecord(
+	ctx context.Context,
+	did string,
+	collection string,
+	rkey string,
+	rec map[string]any,
+	validate *bool,
+) (habitat_syntax.HabitatURI, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec)
 		if err != nil {
@@ -77,25 +95,26 @@ func (r *repo) PutRecord(ctx context.Context, did string, collection string, rke
 		}
 	}
 
-	bytes, err := json.Marshal(rec)
-	if err != nil {
-		return "", err
-	}
-
 	// Store rkey directly (no concatenation with collection)
-	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: bytes}
 	// Always put (even if something exists).
-	err = gorm.G[Record](
-		r.db,
-		clause.OnConflict{
-			Columns: []clause.Column{
-				{Name: "did"},
-				{Name: "collection"},
-				{Name: "rkey"},
-			},
-			DoUpdates: clause.AssignmentColumns([]string{"value"}),
-		},
-	).Create(ctx, &record)
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("did = ?", did).
+			Where("collection = ?", collection).
+			Where("rkey = ?", rkey).
+			Delete(&Record{}).
+			Error; err != nil {
+			return err
+		}
+		bytes, err := json.Marshal(rec)
+		if err != nil {
+			return err
+		}
+		record := Record{Did: did, Rkey: rkey, Collection: collection, Value: bytes}
+		if err := tx.Create(&record).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return "", err
 	}
@@ -108,7 +127,12 @@ var (
 	ErrMultipleRecordsFound = fmt.Errorf("multiple records found for desired query")
 )
 
-func (r *repo) GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error) {
+func (r *repo) GetRecord(
+	ctx context.Context,
+	did string,
+	collection string,
+	rkey string,
+) (*Record, error) {
 	// Query using separate collection and rkey fields
 	row, err := gorm.G[Record](
 		r.db,
@@ -128,7 +152,12 @@ type BlobRef struct {
 	Size     int64          `json:"size"`
 }
 
-func (r *repo) UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error) {
+func (r *repo) UploadBlob(
+	ctx context.Context,
+	did string,
+	data []byte,
+	mimeType string,
+) (*BlobRef, error) {
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
 	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
@@ -200,7 +229,9 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 			allowQuery = allowQuery.Or(grantQuery)
 		} else {
 			// build up deny `NOT`s
-			query = query.Not(r.db.Where("collection = ?", perm.Collection).Where("rkey = ?", perm.Rkey))
+			query = query.Not(
+				r.db.Where("collection = ?", perm.Collection).Where("rkey = ?", perm.Rkey),
+			)
 		}
 	}
 	query = query.Where(allowQuery)
