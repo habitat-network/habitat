@@ -109,7 +109,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 
-	oauthServer, oauthClient := setupOAuthServer(cmd, pdsCredStore)
+	oauthServer, oauthClient := setupOAuthServer(cmd, db, pdsCredStore)
 	pdsClientFactory := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
@@ -252,6 +252,7 @@ func setupPearServer(
 
 func setupOAuthServer(
 	cmd *cli.Command,
+	db *gorm.DB,
 	credStore pdscred.PDSCredentialStore,
 ) (*oauthserver.OAuthServer, pdsclient.PdsOAuthClient) {
 	domain := cmd.String(fDomain)
@@ -275,6 +276,7 @@ func setupOAuthServer(
 		sessions.NewCookieStore([]byte("my super secret signing password")),
 		identity.DefaultDirectory(),
 		credStore,
+		db,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")

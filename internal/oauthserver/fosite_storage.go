@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -15,17 +16,31 @@ import (
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
 	"github.com/ory/fosite/storage"
+	"github.com/ory/fosite/token/jwt"
+	"gorm.io/gorm"
 )
 
 type store struct {
 	memoryStore *storage.MemoryStore
 	strategy    *strategy
+	db          *gorm.DB
 }
 
-func newStore(strat *strategy) *store {
+type OAuthSession struct {
+	Signature string `gorm:"primaryKey"`
+	ClientID  string
+	Subject   string // DID of the user
+	Scopes    string // Space-separated scopes
+	ExpiresAt time.Time
+}
+
+func newStore(strat *strategy, db *gorm.DB) *store {
+	db.AutoMigrate(&OAuthSession{})
+	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
 		memoryStore: storage.NewMemoryStore(),
 		strategy:    strat,
+		db:          db,
 	}
 }
 
@@ -173,12 +188,22 @@ func (s *store) CreateRefreshTokenSession(
 	accessSignature string,
 	request fosite.Requester,
 ) error {
-	panic("not implemented")
+	session := request.GetSession().(*oauth2.JWTSession)
+
+	oauthSession := &OAuthSession{
+		Signature: signature,
+		ClientID:  request.GetClient().GetID(),
+		Subject:   session.JWTClaims.Subject,
+		Scopes:    strings.Join(session.JWTClaims.Scope, " "),
+		ExpiresAt: session.GetExpiresAt(fosite.RefreshToken),
+	}
+
+	return s.db.WithContext(ctx).Create(oauthSession).Error
 }
 
 // DeleteRefreshTokenSession implements oauth2.CoreStorage.
 func (s *store) DeleteRefreshTokenSession(ctx context.Context, signature string) error {
-	panic("not implemented")
+	return s.db.WithContext(ctx).Delete(&OAuthSession{}, "signature = ?", signature).Error
 }
 
 // GetRefreshTokenSession implements oauth2.CoreStorage.
@@ -187,7 +212,36 @@ func (s *store) GetRefreshTokenSession(
 	signature string,
 	session fosite.Session,
 ) (fosite.Requester, error) {
-	panic("not implemented")
+	var oauthSession OAuthSession
+	err := s.db.WithContext(ctx).First(&oauthSession, "signature = ?", signature).Error
+	if err != nil {
+		return nil, errors.Join(fosite.ErrNotFound, err)
+	}
+
+	client, err := s.GetClient(ctx, oauthSession.ClientID)
+	if err != nil {
+		return nil, errors.Join(fosite.ErrNotFound, err)
+	}
+
+	scopes := fosite.Arguments{}
+	if oauthSession.Scopes != "" {
+		scopes = strings.Split(oauthSession.Scopes, " ")
+	}
+
+	jwtSession := &oauth2.JWTSession{
+		JWTClaims: &jwt.JWTClaims{
+			Subject:   oauthSession.Subject,
+			ExpiresAt: oauthSession.ExpiresAt,
+			Scope:     scopes,
+		},
+		JWTHeader: &jwt.Headers{},
+	}
+
+	return &fosite.Request{
+		Client:         client,
+		Session:        jwtSession,
+		RequestedScope: scopes,
+	}, nil
 }
 
 // RotateRefreshToken implements oauth2.CoreStorage.
@@ -196,7 +250,8 @@ func (s *store) RotateRefreshToken(
 	requestID string,
 	refreshTokenSignature string,
 ) (err error) {
-	panic("not implemented")
+	// Revoke the old refresh token by deleting it
+	return s.DeleteRefreshTokenSession(ctx, refreshTokenSignature)
 }
 
 // RevokeRefreshToken implements oauth2.TokenRevocationStorage.

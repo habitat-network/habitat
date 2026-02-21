@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -23,6 +24,7 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
+	"gorm.io/gorm"
 )
 
 const (
@@ -54,6 +56,7 @@ type OAuthServer struct {
 	sessionStore sessions.Store             // Session storage for authorization flow state
 	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
+	config       *fosite.Config
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -82,6 +85,7 @@ func NewOAuthServer(
 	sessionStore sessions.Store,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
+	db *gorm.DB,
 ) (*OAuthServer, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
@@ -90,18 +94,20 @@ func NewOAuthServer(
 	config := &fosite.Config{
 		GlobalSecret:               secretBytes,
 		SendDebugMessagesToClients: true,
+		RefreshTokenScopes:         []string{},
 	}
 	strategy, err := newStrategy(secretBytes, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
-	storage := newStore(strategy)
+	storage := newStore(strategy, db)
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
 	gob.Register(pdsclient.AuthorizeState{})
 	return &OAuthServer{
 		serviceName:     serviceName,
 		serviceEndpoint: serviceEndpoint,
+		config:          config,
 		provider: compose.Compose(
 			config,
 			storage,
@@ -267,7 +273,12 @@ func (o *OAuthServer) HandleCallback(
 		},
 	)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to save user credentials", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"failed to save user credentials",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -280,7 +291,12 @@ func (o *OAuthServer) HandleCallback(
 
 	if endpoint, ok := id.Services[o.serviceName]; !ok || endpoint.URL != o.serviceEndpoint {
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "user's habitat service in DID doc does not match expected service", http.StatusInternalServerError)
+			utils.LogAndHTTPError(
+				w,
+				err,
+				"user's habitat service in DID doc does not match expected service",
+				http.StatusInternalServerError,
+			)
 			return
 		}
 	}
@@ -315,7 +331,7 @@ func (o *OAuthServer) HandleCallback(
 func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	ctx := r.Context()
-	req, err := o.provider.NewAccessRequest(ctx, r, &fosite.DefaultSession{})
+	req, err := o.provider.NewAccessRequest(ctx, r, &oauth2.JWTSession{})
 	if err != nil {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
@@ -358,7 +374,7 @@ func (o *OAuthServer) Validate(
 		r.Context(),
 		fosite.AccessTokenFromRequest(r),
 		fosite.AccessToken,
-		nil,
+		&oauth2.JWTSession{},
 		scopes...,
 	)
 	if err != nil {
@@ -394,4 +410,8 @@ func (o *OAuthServer) Validate(
 		return "", false
 	}
 	return syntax.DID(did), true
+}
+
+func (o *OAuthServer) setAccessTokenLifespan(duration time.Duration) {
+	o.config.AccessTokenLifespan = time.Second
 }
