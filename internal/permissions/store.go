@@ -1,19 +1,25 @@
 package permissions
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
+	"github.com/habitat-network/habitat/internal/node"
 	"gorm.io/gorm"
 )
 
 type Store interface {
 	// Whether the requester is directly granted permission to this record.
 	// If the requester has indirect permissions via cliques, this returns false.
-	HasDirectPermission(
+	HasPermission(
+		ctx context.Context,
 		requester syntax.DID,
 		owner syntax.DID,
 		collection syntax.NSID,
@@ -31,11 +37,14 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
-	ListPermissions(
+	ListPermissionsByCollection(
+		ctx context.Context,
 		grantee syntax.DID,
-		owner syntax.DID,
 		collection syntax.NSID,
-		rkey syntax.RecordKey,
+	) ([]Permission, error)
+	ListPermissionGrants(
+		ctx context.Context,
+		granter syntax.DID,
 	) ([]Permission, error)
 }
 
@@ -46,8 +55,11 @@ type RecordPermission struct {
 }
 
 type store struct {
-	// Backing data store for some subset of data that this enforcer
+	// Backing data store for some subset of data that this permissions provider has access to.
 	db *gorm.DB
+
+	// The store needs to know which DIDs it serves and possibly route requests to other nodes in order resolve permissions.
+	node node.Node
 }
 
 var _ Store = (*store)(nil)
@@ -84,18 +96,90 @@ type permission struct {
 // - Whole NSID prefixes: "network.habitat.*"
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
-func NewStore(db *gorm.DB) (*store, error) {
+func NewStore(db *gorm.DB, node node.Node) (*store, error) {
 	// AutoMigrate will create the table with all indexes defined in the Permission struct
 	err := db.AutoMigrate(&permission{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
 	}
 
-	return &store{db: db}, nil
+	return &store{db: db, node: node}, nil
+}
+
+func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, clique CliqueGrantee, did syntax.DID) (bool, error) {
+	// Otherwise, forward this request to the right repo (the clique member)
+	reqURL, err := url.Parse("/xrpc/network.habitat.getRecord")
+	if err != nil {
+		return false, err
+	}
+	q := reqURL.Query()
+	q.Set("repo", clique.Owner().String())
+	q.Set("collection", CliqueNSID.String())
+	q.Set("rkey", clique.RecordKey().String())
+	reqURL.RawQuery = q.Encode()
+	if err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		reqURL.String(),
+		nil,
+	)
+	if err != nil {
+		return false, fmt.Errorf("constructing http request: %w", err)
+	}
+
+	resp, err := s.node.SendXRPC(ctx, callerDID, clique.Owner(), req)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return false, nil
+	default:
+		return false, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
+	}
+}
+
+func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
+	if requester == clique.Owner() {
+		return true, nil
+	}
+	ok, err := s.node.ServesDID(ctx, clique.Owner())
+	if err != nil {
+		return false, err
+	}
+
+	// Remote clique; need to call out
+	if !ok {
+		return s.isRemoteCliqueMember(ctx, requester, clique, requester)
+	}
+
+	// Local clique
+	var cliquePermission permission
+	err = s.db.Where("grantee = ?", requester.String()).
+		Where("collection = ?", CliqueNSID).Where("effect = ?", Allow).
+		Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey()).
+		First(&cliquePermission).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // HasPermission checks if a requester has permission to access a specific record.
-func (s *store) HasDirectPermission(
+func (s *store) HasPermission(
+	ctx context.Context,
 	requester syntax.DID,
 	owner syntax.DID,
 	collection syntax.NSID,
@@ -105,25 +189,86 @@ func (s *store) HasDirectPermission(
 	if requester == owner {
 		return true, nil
 	}
-	var permission permission
-	err := s.db.Where("grantee = ?", requester.String()).
-		Where("owner = ?", owner.String()).
-		Where("collection = ?", collection.String()).
-		// permissions with empty rkeys grant the entire collection
-		Where("rkey = ? OR rkey = ''", rkey.String()).
-		// prioritize more specific permission and denies
-		Order("LENGTH(rkey) DESC, effect DESC").
-		Limit(1).
-		First(&permission).
-		Error
-	if err == gorm.ErrRecordNotFound {
-		// No permission found, deny by default
-		return false, nil
-	} else if err != nil {
-		return false, fmt.Errorf("failed to query permission: %w", err)
+
+	permissions, err := s.listPermissions(requester, owner, collection, rkey)
+	if err != nil {
+		return false, err
 	}
 
-	return permission.Effect == string(Allow), nil
+	localCliques := []CliqueGrantee{}
+	remoteCliques := []CliqueGrantee{}
+	for _, permission := range permissions {
+		switch grantee := permission.Grantee.(type) {
+		case DIDGrantee:
+			// Direct grants to this DID can immediately resolve this request.
+			if grantee.String() != requester.String() {
+				// This should never happen, so return an error
+				// We need to log / measure this
+				return false, fmt.Errorf("invalid permisssion returned from ListPermissions")
+			}
+			// Explicit allow or deny for this DID resolves the request
+			if permission.Effect == Allow {
+				return true, nil
+			} else {
+				return false, nil
+			}
+		case CliqueGrantee:
+			// Otherwise an indirection for looking up cliques may need to happen.
+			ok, err := s.node.ServesDID(ctx, grantee.Owner())
+			if err != nil {
+				return false, err
+			}
+
+			if ok {
+				localCliques = append(localCliques, grantee)
+			} else {
+				remoteCliques = append(remoteCliques, grantee)
+			}
+		}
+	}
+
+	// First try to resolve local cliques
+	// This works if any row matches the requester + clique owner + clique collection + clique rkey
+	query := s.db.Where("grantee = ?", requester.String()).Where("collection = ?", CliqueNSID).Where("effect = ?", Allow)
+
+	// build OR pairs for each local clique
+	for i, clique := range localCliques {
+		if clique.Owner() == requester {
+			// Owners of the clique always have permission
+			return true, nil
+		}
+		if i == 0 {
+			query = query.Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
+		} else {
+			query = query.Or("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
+		}
+	}
+
+	var cliquePermission permission
+	// A single row match gives us what we need
+	err = query.Limit(1).First(&cliquePermission).Error
+	if err == nil {
+		// We found a result -- the requester has permission
+		return true, nil
+	}
+
+	var remoteErr error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Resolve remote cliques
+		// TODO: batch for better performance?
+		for _, clique := range remoteCliques {
+			ok, err := s.isRemoteCliqueMember(ctx, owner /* the request originates from the record owner */, clique, requester /* checking membership on the requester */)
+			if err == nil && ok {
+				// Success, membership found, allow permission
+				return true, nil
+			} else if err != nil {
+				// Arbitrarily save the latest error, but continue trying to resolve all memberships in case one succeeds
+				remoteErr = err
+			}
+		}
+	}
+
+	return false, remoteErr
 }
 
 // AddPermissions grants read permission for an entire collection or specific record.
@@ -187,6 +332,7 @@ func (s *store) AddPermissions(
 			Rkey:       rkey.String(),
 		})
 	}
+
 	// Delete any existing permissions (allow or deny) for these grantees+record before inserting fresh allow permissions.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
 	if err := s.db.Where("grantee IN ?", grantees).
@@ -213,7 +359,6 @@ func (s *store) RemovePermissions(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) error {
-	fmt.Println("remove readpermission", granteesTyped, owner, collection, rkey)
 	grantees := xslices.Map(granteesTyped, func(g Grantee) string {
 		return g.String()
 	})
@@ -230,7 +375,6 @@ func (s *store) RemovePermissions(
 		return nil
 	}
 
-	fmt.Println("specific rkey")
 	// Otherwise, the removal is on a specific record key, so add a deny effect on the specific record for a batch of grantees.
 	recordPerms := make([]*permission, len(grantees))
 	for i, grantee := range grantees {
@@ -253,16 +397,53 @@ func (s *store) RemovePermissions(
 		return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
 	}
 
-	fmt.Println("creating deny")
 	if err := s.db.Create(recordPerms).Error; err != nil {
 		return fmt.Errorf("failed to add deny permissions: %w", err)
 	}
 	return nil
 }
 
+func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID) ([]Permission, error) {
+	allPermissions, err := s.listPermissions(grantee, "", collection, "")
+	if err != nil {
+		return nil, err
+	}
+
+	relevant := []Permission{}
+	for _, permission := range allPermissions {
+		clique, ok := permission.Grantee.(CliqueGrantee)
+		if !ok {
+			// Directly return specific grants for this DID
+			relevant = append(relevant, permission)
+			continue
+		}
+
+		// Otherwise, it's a clique grantee, so we need to resolve it
+		// TODO: we could potentially be more efficient with the DB query than resolving each independently.
+		ok, err = s.isCliqueMember(ctx, grantee, clique)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			// Keep all other fields of the permission the same
+			permission.Grantee = DIDGrantee(grantee)
+			relevant = append(relevant, permission)
+		}
+		// If this did is not a member of the clique, ignore this permission
+	}
+
+	return relevant, nil
+}
+
+// ListPermissionGrants implements Store.
+func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]Permission, error) {
+	return s.listPermissions("", granter, "", "")
+}
+
 // ListPermissions returns the permissions available to this particular combination of inputs.
 // Any "" inputs are not filtered by.
-func (s *store) ListPermissions(
+func (s *store) listPermissions(
 	grantee syntax.DID,
 	owner syntax.DID,
 	collection syntax.NSID,

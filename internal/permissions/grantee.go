@@ -29,6 +29,13 @@ func (g CliqueGrantee) isGrantee() {}
 func (g CliqueGrantee) String() string {
 	return string(g)
 }
+func (g CliqueGrantee) Owner() syntax.DID {
+	return syntax.DID(habitat_syntax.HabitatURI(g).Authority().String())
+}
+
+func (g CliqueGrantee) RecordKey() syntax.RecordKey {
+	return habitat_syntax.HabitatURI(g).RecordKey()
+}
 
 type DIDGrantee syntax.DID
 
