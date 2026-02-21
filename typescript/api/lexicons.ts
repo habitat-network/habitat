@@ -803,7 +803,6 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description: 'Grant read permission to a user for a specific lexicon.',
-        permission: 'authenticated',
         input: {
           encoding: 'application/json',
           schema: {
@@ -874,7 +873,6 @@ export const schemaDict = {
       main: {
         type: 'query',
         description: 'List read permissions visible to the authenticated user.',
-        permission: 'authenticated',
         output: {
           encoding: 'application/json',
           schema: {
@@ -902,7 +900,6 @@ export const schemaDict = {
         type: 'procedure',
         description:
           'Revoke read permission from a user for a specific lexicon.',
-        permission: 'authenticated',
         input: {
           encoding: 'application/json',
           schema: {
