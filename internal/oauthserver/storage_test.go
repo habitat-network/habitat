@@ -7,12 +7,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetClient(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	secretBytes, err := encrypt.ParseKey(secret)
@@ -21,9 +27,8 @@ func TestGetClient(t *testing.T) {
 		secretBytes,
 		&fosite.Config{})
 	require.NoError(t, err)
-	store := newStore(
-		strat,
-	)
+	store, err := newStore(strat, db)
+	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("url: %s", r.Host)

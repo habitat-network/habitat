@@ -1,4 +1,4 @@
-package oauthserver_test
+package oauthserver
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -26,9 +26,9 @@ import (
 
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
-		_, err := oauthserver.NewOAuthServer(
+		_, err := NewOAuthServer(
 			"name", "endpoint", "not-valid-base64!!!",
-			nil, nil, nil, nil,
+			nil, nil, nil, nil, nil,
 		)
 		require.Error(t, err)
 	})
@@ -39,11 +39,11 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
-	oauthSrv, err := oauthserver.NewOAuthServer(
+	oauthSrv, err := NewOAuthServer(
 		"testServiceName",
 		"testServiceEndpoint",
 		secret,
@@ -51,6 +51,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
+		db,
 	)
 	require.NoError(t, err)
 
@@ -142,7 +143,10 @@ type errLookupDIDDirectory struct {
 	*pdsclient.DummyDirectory
 }
 
-func (d *errLookupDIDDirectory) LookupDID(_ context.Context, _ syntax.DID) (*identity.Identity, error) {
+func (d *errLookupDIDDirectory) LookupDID(
+	_ context.Context,
+	_ syntax.DID,
+) (*identity.Identity, error) {
 	return nil, fmt.Errorf("simulated DID doc lookup failure")
 }
 
@@ -171,18 +175,19 @@ func TestHandleCallbackDIDDocError(t *testing.T) {
 	require.NoError(t, err)
 
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 
-	oauthSrv, err := oauthserver.NewOAuthServer(
+	oauthSrv, err := NewOAuthServer(
 		"testServiceName", "testServiceEndpoint", secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		&errLookupDIDDirectory{pdsclient.NewDummyDirectory("http://pds.url")},
 		credStore,
+		db,
 	)
 	require.NoError(t, err)
 
@@ -212,8 +217,12 @@ func TestHandleCallbackDIDDocError(t *testing.T) {
 		Endpoint:    oauth2.Endpoint{AuthURL: server.URL + "/authorize"},
 	}
 
-	req, err := http.NewRequest(http.MethodGet,
-		config.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+"&handle=did:web:test",
+	req, err := http.NewRequest(
+		http.MethodGet,
+		config.AuthCodeURL(
+			"test-state",
+			oauth2.S256ChallengeOption(verifier),
+		)+"&handle=did:web:test",
 		nil,
 	)
 	require.NoError(t, err)
@@ -235,14 +244,14 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	// setup oauth server
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := oauthserver.NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err, "failed to generate secret")
 
-	oauthServer, err := oauthserver.NewOAuthServer(
+	oauthServer, err := NewOAuthServer(
 		"testServiceName",
 		"testServiceEndpoint",
 		secret,
@@ -250,6 +259,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
+		db,
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -298,7 +308,7 @@ func TestOAuthServerE2E(t *testing.T) {
 					ClientId:      "http://" + r.Host + "/client-metadata.json",
 					RedirectUris:  []string{"http://" + r.Host + "/callback"},
 					ResponseTypes: []string{"code"},
-					GrantTypes:    []string{"authorization_code"},
+					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
 				require.NoError(t, err, "failed to encode client metadata")
 				return
@@ -337,17 +347,40 @@ func TestOAuthServerE2E(t *testing.T) {
 	respBytes, err := io.ReadAll(result.Body)
 	require.NoError(t, err, "failed to read response body")
 	require.NoError(t, result.Body.Close())
-	require.Equal(t, http.StatusOK, result.StatusCode, "authorize request failed: %s", respBytes)
+	require.Equal(
+		t,
+		http.StatusOK,
+		result.StatusCode,
+		"authorize request failed: %s",
+		respBytes,
+	)
 
 	token := &oauth2.Token{}
 	require.NoError(t, json.Unmarshal(respBytes, token), "failed to decode token")
 	require.NotEmpty(t, token.AccessToken, "access token should not be empty")
+	require.NotEmpty(t, token.RefreshToken, "refresh token should not be empty")
 
 	// use server as the oauth client http client because of it has the tls cert
-	oauthClientCtx := context.WithValue(context.Background(), oauth2.HTTPClient, server.Client())
+	oauthClientCtx := context.WithValue(
+		context.Background(),
+		oauth2.HTTPClient,
+		server.Client(),
+	)
 	client := config.Client(oauthClientCtx, token)
 
 	resp, err := client.Get(server.URL + "/resource")
+	require.NoError(t, err, "failed to make resource request")
+	respBytes, err = io.ReadAll(resp.Body)
+	require.NoError(t, err, "failed to read response body")
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
+
+	// force expire the token to test refresh
+	token.Expiry = time.Now().Add(-time.Hour)
+	client = config.Client(oauthClientCtx, token)
+
+	// retry to test refresh
+	resp, err = client.Get(server.URL + "/resource")
 	require.NoError(t, err, "failed to make resource request")
 	respBytes, err = io.ReadAll(resp.Body)
 	require.NoError(t, err, "failed to read response body")
