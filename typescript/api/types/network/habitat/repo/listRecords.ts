@@ -4,12 +4,16 @@
 import { HeadersMap, XRPCError } from '@atproto/xrpc'
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
-import { validate as _validate } from '../../../lexicons'
-import { type $Typed, is$typed as _is$typed, type OmitKey } from '../../../util'
+import { validate as _validate } from '../../../../lexicons'
+import {
+  type $Typed,
+  is$typed as _is$typed,
+  type OmitKey,
+} from '../../../../util'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.listRecords'
+const id = 'network.habitat.repo.listRecords'
 
 export type QueryParams = {}
 
@@ -48,7 +52,7 @@ export function toKnownErr(e: any) {
 }
 
 export interface Record {
-  $type?: 'network.habitat.listRecords#record'
+  $type?: 'network.habitat.repo.listRecords#record'
   /** URI reference to the record, formatted as a habitat-uri. */
   uri: string
   cid: string

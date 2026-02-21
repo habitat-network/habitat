@@ -1063,9 +1063,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatListRecords: {
+  NetworkHabitatRepoListRecords: {
     lexicon: 1,
-    id: 'network.habitat.listRecords',
+    id: 'network.habitat.repo.listRecords',
     defs: {
       main: {
         type: 'procedure',
@@ -1124,7 +1124,7 @@ export const schemaDict = {
                 type: 'array',
                 items: {
                   type: 'ref',
-                  ref: 'lex:network.habitat.listRecords#record',
+                  ref: 'lex:network.habitat.repo.listRecords#record',
                 },
               },
             },
@@ -1316,7 +1316,7 @@ export const ids = {
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
-  NetworkHabitatListRecords: 'network.habitat.listRecords',
+  NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
 } as const

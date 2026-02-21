@@ -1,6 +1,6 @@
 {
   "lexicon": 1,
-  "id": "network.habitat.listRecords",
+  "id": "network.habitat.repo.listRecords",
   "defs": {
     "main": {
       "type": "procedure",
@@ -60,7 +60,7 @@
               "type": "array",
               "items": {
                 "type": "ref",
-                "ref": "network.habitat.listRecords#record"
+                "ref": "network.habitat.repo.listRecords#record"
               }
             }
           }
