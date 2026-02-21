@@ -10,6 +10,9 @@
   "exports": {
     "./*": "./src/*"
   },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {
     "@atproto/api": "^0.18.8",
     "@atproto/identity": "^0.4.10",
