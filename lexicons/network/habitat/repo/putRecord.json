@@ -9,8 +9,12 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["repo", "collection", "rkey", "record"],
-          "nullable": ["swapRecord"],
+          "required": [
+            "repo",
+            "collection",
+            "rkey",
+            "record"
+          ],
           "properties": {
             "repo": {
               "type": "string",
@@ -39,9 +43,13 @@
             "grantees": {
               "type": "array",
               "items": {
-                "type": "string",
-                "format": "did"
-              }
+                "type": "union",
+                "refs": [
+                  "network.habitat.grantee#didGrantee",
+                  "network.habitat.grantee#cliqueRef"
+                ]
+              },
+              "maxLength": 100
             }
           }
         }
@@ -50,12 +58,21 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri"],
+          "required": [
+            "uri"
+          ],
           "properties": {
-            "uri": { "type": "string", "format": "at-uri" },
+            "uri": {
+              "type": "string",
+              "format": "uri",
+              "description": "The habitat-uri of the put-ed object."
+            },
             "validationStatus": {
               "type": "string",
-              "knownValues": ["valid", "unknown"]
+              "knownValues": [
+                "valid",
+                "unknown"
+              ]
             }
           }
         }

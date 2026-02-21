@@ -1,7 +1,12 @@
-node = "24.4.1"
-pnpm = "10.21.0"
 go = "1.25.4"
 golangci-lint = "2.7.2"
+moon = "2.0.0-rc.0"
+node = "24.4.1"
+pnpm = "10.21.0"
 
 [plugins.tools]
 golangci-lint = "https://raw.githubusercontent.com/b4nst/proto-plugins/refs/heads/main/toml/golangci-lint.toml"
+
+[settings]
+auto-install = true
+auto-clean = true

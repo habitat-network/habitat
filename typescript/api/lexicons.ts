@@ -732,52 +732,63 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatNotificationCreateNotification: {
+  NetworkHabitatClique: {
     lexicon: 1,
-    id: 'network.habitat.notification.createNotification',
+    id: 'network.habitat.clique',
+    defs: {
+      main: {
+        type: 'object',
+        description:
+          "Do we even need anything in here? I think it's just a placeholder.",
+        properties: {},
+      },
+    },
+  },
+  NetworkHabitatGrantee: {
+    lexicon: 1,
+    id: 'network.habitat.grantee',
+    defs: {
+      didGrantee: {
+        type: 'string',
+        format: 'did',
+        description: 'A DID grantee',
+      },
+      cliqueRef: {
+        type: 'string',
+        format: 'uri',
+        description:
+          'A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key',
+      },
+    },
+  },
+  NetworkHabitatInternalNotifyOfUpdate: {
+    lexicon: 1,
+    id: 'network.habitat.internal.notifyOfUpdate',
     defs: {
       main: {
         type: 'procedure',
-        description: 'Write a new notification.',
+        description:
+          'Notify another DID that there is an update for them on the fiven record.',
         input: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['repo', 'collection', 'record'],
-            nullable: ['swapRecord'],
+            required: ['collection', 'rkey', 'recipient'],
             properties: {
-              repo: {
+              recipient: {
                 type: 'string',
                 format: 'did',
-                description:
-                  'The handle or DID of the repo (aka, current account).',
+                description: 'The DID to grant permission to (URL parameter).',
               },
               collection: {
                 type: 'string',
                 format: 'nsid',
-                description: 'The NSID of the record collection.',
+                description:
+                  'The NSID of the record collection that the update is for.',
               },
-              record: {
-                type: 'ref',
-                description: 'The record to write.',
-                ref: 'lex:network.habitat.notification.defs#notification',
-              },
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri'],
-            properties: {
-              uri: {
+              rkey: {
                 type: 'string',
-                format: 'at-uri',
-              },
-              validationStatus: {
-                type: 'string',
-                knownValues: ['valid', 'unknown'],
+                description: 'The record key which was updated.',
               },
             },
           },
@@ -785,91 +796,141 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatNotificationDefs: {
+  NetworkHabitatPermissionsAddPermission: {
     lexicon: 1,
-    id: 'network.habitat.notification.defs',
+    id: 'network.habitat.permissions.addPermission',
     defs: {
-      notification: {
-        type: 'object',
-        required: ['did', 'originDid', 'collection', 'rkey'],
-        properties: {
-          did: {
-            type: 'string',
-            format: 'did',
-            description: 'The handle or DID of the target of the notification.',
+      main: {
+        type: 'procedure',
+        description: 'Grant read permission to a user for a specific lexicon.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['grantees', 'collection'],
+            properties: {
+              grantees: {
+                type: 'array',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
+                  ],
+                },
+                maxLength: 100,
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the lexicon or record to grant read permission for.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description:
+                  'The Record Key to grant read permissions to, if any.',
+                maxLength: 512,
+              },
+            },
           },
-          originDid: {
+        },
+      },
+    },
+  },
+  NetworkHabitatPermissionsListPermissions: {
+    lexicon: 1,
+    id: 'network.habitat.permissions.listPermissions',
+    defs: {
+      permission: {
+        type: 'object',
+        required: ['grantee', 'collection', 'effect'],
+        properties: {
+          grantee: {
             type: 'string',
-            format: 'did',
-            description: 'The handle or DID of the origin of the notification.',
+            description:
+              'The grantee of the permission — either a DID or a habitat clique URI.',
           },
           collection: {
             type: 'string',
             format: 'nsid',
-            description: 'The NSID of the record collection.',
+            description:
+              'The NSID of the collection the permission applies to.',
           },
           rkey: {
             type: 'string',
-            format: 'record-key',
-            description: 'The Record Key.',
-            maxLength: 512,
+            description:
+              'The record key the permission applies to. Empty string means the permission covers the entire collection.',
+          },
+          effect: {
+            type: 'string',
+            knownValues: ['allow', 'deny'],
+            description: 'Whether this permission grants or denies access.',
           },
         },
       },
-    },
-  },
-  NetworkHabitatNotificationListNotifications: {
-    lexicon: 1,
-    id: 'network.habitat.notification.listNotifications',
-    defs: {
       main: {
         type: 'query',
-        description: 'List a range of notifications for a given DID',
-        parameters: {
-          type: 'params',
-          properties: {
-            collection: {
-              type: 'string',
-              format: 'nsid',
-              description: 'The NSID of the record type.',
-            },
-          },
-        },
+        description: 'List read permissions visible to the authenticated user.',
         output: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['records'],
+            required: ['permissions'],
             properties: {
-              cursor: {
-                type: 'string',
-              },
-              records: {
+              permissions: {
                 type: 'array',
                 items: {
                   type: 'ref',
-                  ref: 'lex:network.habitat.notification.listNotifications#record',
+                  ref: 'lex:network.habitat.permissions.listPermissions#permission',
                 },
               },
             },
           },
         },
       },
-      record: {
-        type: 'object',
-        required: ['uri', 'cid', 'value'],
-        properties: {
-          uri: {
-            type: 'string',
-            format: 'at-uri',
-          },
-          cid: {
-            type: 'string',
-            format: 'cid',
-          },
-          value: {
-            type: 'ref',
-            ref: 'lex:network.habitat.notification.defs#notification',
+    },
+  },
+  NetworkHabitatPermissionsRemovePermission: {
+    lexicon: 1,
+    id: 'network.habitat.permissions.removePermission',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Revoke read permission from a user for a specific lexicon.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['grantees', 'collection'],
+            properties: {
+              grantees: {
+                type: 'array',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
+                  ],
+                },
+                maxLength: 100,
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the lexicon or record to grant read permission for.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description:
+                  'The Record Key to grant read permissions to, if any.',
+                maxLength: 512,
+              },
+            },
           },
         },
       },
@@ -982,7 +1043,8 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
-                format: 'at-uri',
+                format: 'uri',
+                description: 'The habitat-uri for this record.',
               },
               value: {
                 type: 'unknown',
@@ -1003,36 +1065,43 @@ export const schemaDict = {
     id: 'network.habitat.repo.listRecords',
     defs: {
       main: {
-        type: 'query',
+        type: 'procedure',
         description:
-          'List a range of records in a repository, matching a specific collection',
-        parameters: {
-          type: 'params',
-          required: ['repo', 'collection'],
-          properties: {
-            repo: {
-              type: 'string',
-              format: 'at-identifier',
-              description: 'The handle or DID of the repo.',
-            },
-            collection: {
-              type: 'string',
-              format: 'nsid',
-              description: 'The NSID of the record type.',
-            },
-            limit: {
-              type: 'integer',
-              minimum: 1,
-              maximum: 100,
-              default: 50,
-              description: 'The number of records to return.',
-            },
-            cursor: {
-              type: 'string',
-            },
-            reverse: {
-              type: 'boolean',
-              description: 'Flag to reverse the order of the returned records.',
+          'List records with optional filters for subjects, lexicons, and timestamps.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['subjects', 'collection'],
+            properties: {
+              subjects: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  description:
+                    'Repos (DIDs) to search from to retrieve records.',
+                },
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'Filter by specific lexicon.',
+              },
+              since: {
+                type: 'string',
+                description:
+                  'Allow getting records that are strictly newer or updated since a certain time.',
+                format: 'datetime',
+              },
+              limit: {
+                type: 'integer',
+                description:
+                  '[UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API).',
+              },
+              cursor: {
+                type: 'string',
+                description: '[UNIMPLEMENTED] Cursor of the returned list.',
+              },
             },
           },
         },
@@ -1062,7 +1131,9 @@ export const schemaDict = {
         properties: {
           uri: {
             type: 'string',
-            format: 'at-uri',
+            format: 'uri',
+            description:
+              'URI reference to the record, formatted as a habitat-uri.',
           },
           cid: {
             type: 'string',
@@ -1088,7 +1159,6 @@ export const schemaDict = {
           schema: {
             type: 'object',
             required: ['repo', 'collection', 'rkey', 'record'],
-            nullable: ['swapRecord'],
             properties: {
               repo: {
                 type: 'string',
@@ -1119,9 +1189,13 @@ export const schemaDict = {
               grantees: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
+                  ],
                 },
+                maxLength: 100,
               },
             },
           },
@@ -1134,7 +1208,8 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
-                format: 'at-uri',
+                format: 'uri',
+                description: 'The habitat-uri of the put-ed object.',
               },
               validationStatus: {
                 type: 'string',
@@ -1222,11 +1297,16 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
-  NetworkHabitatNotificationCreateNotification:
-    'network.habitat.notification.createNotification',
-  NetworkHabitatNotificationDefs: 'network.habitat.notification.defs',
-  NetworkHabitatNotificationListNotifications:
-    'network.habitat.notification.listNotifications',
+  NetworkHabitatClique: 'network.habitat.clique',
+  NetworkHabitatGrantee: 'network.habitat.grantee',
+  NetworkHabitatInternalNotifyOfUpdate:
+    'network.habitat.internal.notifyOfUpdate',
+  NetworkHabitatPermissionsAddPermission:
+    'network.habitat.permissions.addPermission',
+  NetworkHabitatPermissionsListPermissions:
+    'network.habitat.permissions.listPermissions',
+  NetworkHabitatPermissionsRemovePermission:
+    'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',

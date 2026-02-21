@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_requireAuth/permissions/lexicons")({
   component() {
     return (
       <>
-        <h2>Lexicons</h2>
+        <h2>NSIDs</h2>
         <Outlet />
       </>
     );

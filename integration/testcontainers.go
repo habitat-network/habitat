@@ -106,10 +106,10 @@ func generateSelfSignedCert(t *testing.T, certDir string) {
 	t.Helper()
 
 	// Generate self-signed certificate using tlscert
-	// Include privi.habitat, pds.example.com, and frontend.habitat for all containers to use
+	// Include pear.habitat, pds.example.com, and frontend.habitat for all containers to use
 	cert := tlscert.SelfSignedFromRequest(tlscert.Request{
 		Name:      "integration-test",
-		Host:      "localhost,127.0.0.1,privi.habitat,pds.example.com,frontend.habitat",
+		Host:      "localhost,127.0.0.1,pear.habitat,pds.example.com,frontend.habitat",
 		ParentDir: certDir,
 	})
 
@@ -195,17 +195,17 @@ func PDSProxyContainerRequest(
 	}
 }
 
-// PriviContainerRequest creates a container request for the Privi service with HTTPS enabled
-func PriviContainerRequest(
+// PearContainerRequest creates a container request for the Pear service with HTTPS enabled
+func PearContainerRequest(
 	networkName, certDir, pgURL string,
 ) testcontainers.GenericContainerRequest {
 	return testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Name:  "integration-privi",
-			Image: "privi:latest",
+			Name:  "integration-pear",
+			Image: "pear:latest",
 			Env: map[string]string{
 				"HABITAT_KEYFILE":              "/tmp/key.jwk",
-				"HABITAT_DOMAIN":               "privi.habitat",
+				"HABITAT_DOMAIN":               "pear.habitat",
 				"HABITAT_PORT":                 "443",
 				"HABITAT_HTTPSCERTS":           "/certs/",
 				"SSL_CERT_FILE":                "/certs/fullchain.pem",
@@ -214,7 +214,7 @@ func PriviContainerRequest(
 			},
 			ExposedPorts:   []string{"443/tcp"},
 			Networks:       []string{networkName},
-			NetworkAliases: map[string][]string{networkName: {"privi.habitat"}},
+			NetworkAliases: map[string][]string{networkName: {"pear.habitat"}},
 			Files: []testcontainers.ContainerFile{
 				{
 					HostFilePath:      filepath.Join(certDir, "fullchain.pem"),
@@ -303,7 +303,7 @@ func StandardIntegrationRequests(
 	return []testcontainers.GenericContainerRequest{
 		PDSContainerRequest(networkName),
 		PDSProxyContainerRequest(networkName, certDir),
-		PriviContainerRequest(networkName, certDir, pgURL),
+		PearContainerRequest(networkName, certDir, pgURL),
 		SeleniumContainerRequest(networkName),
 		FrontendContainerRequest(networkName, certDir),
 	}

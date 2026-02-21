@@ -15,18 +15,19 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.repo.listRecords'
 
-export type QueryParams = {
-  /** The handle or DID of the repo. */
-  repo: string
-  /** The NSID of the record type. */
+export type QueryParams = {}
+
+export interface InputSchema {
+  subjects: string[]
+  /** Filter by specific lexicon. */
   collection: string
-  /** The number of records to return. */
+  /** Allow getting records that are strictly newer or updated since a certain time. */
+  since?: string
+  /** [UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API). */
   limit?: number
+  /** [UNIMPLEMENTED] Cursor of the returned list. */
   cursor?: string
-  /** Flag to reverse the order of the returned records. */
-  reverse?: boolean
 }
-export type InputSchema = undefined
 
 export interface OutputSchema {
   cursor?: string
@@ -36,6 +37,8 @@ export interface OutputSchema {
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
+  qp?: QueryParams
+  encoding?: 'application/json'
 }
 
 export interface Response {
@@ -50,6 +53,7 @@ export function toKnownErr(e: any) {
 
 export interface Record {
   $type?: 'network.habitat.repo.listRecords#record'
+  /** URI reference to the record, formatted as a habitat-uri. */
   uri: string
   cid: string
   value: { [_ in string]: unknown }

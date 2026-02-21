@@ -26,6 +26,7 @@ export type QueryParams = {
 export type InputSchema = undefined
 
 export interface OutputSchema {
+  /** The habitat-uri for this record. */
   uri: string
   value: { [_ in string]: unknown }
 }

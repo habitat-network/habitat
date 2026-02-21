@@ -3,6 +3,6 @@
     "package": "habitat",
     "prefix": "network.habitat",
     "outdir": "api/habitat",
-    "import": "github.com/eagraf/habitat-new/api/habitat"
+    "import": "github.com/habitat-network/habitat/api/habitat"
   }
 ]

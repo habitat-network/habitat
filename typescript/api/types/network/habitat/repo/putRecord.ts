@@ -10,6 +10,7 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
+import type * as NetworkHabitatGrantee from '../grantee.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -28,10 +29,15 @@ export interface InputSchema {
   validate?: boolean
   /** The record to write. */
   record: { [_ in string]: unknown }
-  grantees?: string[]
+  grantees?: (
+    | $Typed<NetworkHabitatGrantee.DidGrantee>
+    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | { $type: string }
+  )[]
 }
 
 export interface OutputSchema {
+  /** The habitat-uri of the put-ed object. */
   uri: string
   validationStatus?: 'valid' | 'unknown' | (string & {})
 }

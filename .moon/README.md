@@ -14,10 +14,12 @@ Each project can define a `moon.yml` file to override and add their own tasks.
 
 https://moonrepo.dev/docs
 
-## Installation
+## Explore
+
+To see all available projects
 
 ```
-brew install moon
+moon query projects
 ```
 
 ## Common tasks

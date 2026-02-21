@@ -1,4 +1,4 @@
-module github.com/eagraf/habitat-new/cmd/didgen
+module github.com/habitat-network/habitat/cmd/didgen
 
 go 1.24
 

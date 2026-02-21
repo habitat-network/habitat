@@ -1,5 +1,6 @@
 import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
+import { decodeJwt } from "jose";
 import { HabitatClient, HabitatAuthedAgentSession } from "./habitatClient";
 import { DidResolver } from "@atproto/identity";
 import { Agent } from "@atproto/api";
@@ -57,9 +58,18 @@ export class AuthManager {
     });
   }
 
-  logout() {
-    // TODO: implement me!!
-  }
+  logout = () => {
+    // Delete all internal state
+    localStorage.removeItem(handleLocalStorageKey);
+    localStorage.removeItem(stateLocalStorageKey);
+    localStorage.removeItem(tokenLocalStorageKey);
+    localStorage.removeItem(didLocalStorageKey);
+    this.accessToken = null;
+    this.did = null;
+    this.handle = null;
+    // Redirect to login page
+    this.onUnauthenticated();
+  };
 
   async maybeExchangeCode(currentUrl: string) {
     const url = new URL(currentUrl);
@@ -78,10 +88,19 @@ export class AuthManager {
         expectedState: state,
       },
     );
+
+    // The DID is encoded in the sub claim of the JWT
+    const decoded = decodeJwt(token.access_token);
+    const did = decoded.sub;
+    if (!did) {
+      throw new Error("Token missing sub claim");
+    }
+
     this.accessToken = token.access_token;
+    this.did = did;
 
     localStorage.setItem(tokenLocalStorageKey, token.access_token);
-    localStorage.setItem(didLocalStorageKey, token.sub as string);
+    localStorage.setItem(didLocalStorageKey, did);
 
     window.location.href = "/";
   }

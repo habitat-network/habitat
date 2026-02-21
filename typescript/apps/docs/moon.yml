@@ -1,8 +1,26 @@
 tasks:
   dev:
-    env:
-      DOMAIN: "$project.${TS_DOMAIN}"
+    args: 
+      - --
+      - --domain
+      - $project.${TS_DOMAIN}
+      - --habitatDomain
+      - pear.${TS_DOMAIN}
     deps:
-      - target: "privi:dev"
+      - target: "pear:dev"
       - target: "funnel:start"
         args: ["5173", "$project"]
+  regenerate:
+    command: moon 
+    args:
+      - generate
+      - web-app
+      - --to
+      - $projectSource
+      - --force
+      - --
+      - --name
+      - $project
+    preset: utility
+    options:
+      runFromWorkspaceRoot: true

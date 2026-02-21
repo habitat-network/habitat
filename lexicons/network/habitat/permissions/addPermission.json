@@ -1,0 +1,44 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.permissions.addPermission",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Grant read permission to a user for a specific lexicon.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "grantees",
+            "collection"
+          ],
+          "properties": {
+            "grantees": {
+              "type": "array",
+              "items": {
+                "type": "union",
+                "refs": [
+                  "network.habitat.grantee#didGrantee",
+                  "network.habitat.grantee#cliqueRef"
+                ]
+              },
+              "maxLength": 100
+            },
+            "collection": {
+              "type": "string",
+              "format": "nsid",
+              "description": "The NSID of the lexicon or record to grant read permission for."
+            },
+            "rkey": {
+              "type": "string",
+              "format": "record-key",
+              "description": "The Record Key to grant read permissions to, if any.",
+              "maxLength": 512
+            }
+          }
+        }
+      }
+    }
+  }
+}
