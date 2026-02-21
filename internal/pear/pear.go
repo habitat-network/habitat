@@ -28,7 +28,7 @@ type Pear interface {
 	// Permissioned repository methods
 	PutRecord(ctx context.Context, callerDID, targetDID syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
-	ListRecords(ctx context.Context, targetDID syntax.DID, collection syntax.NSID, callerDID syntax.DID) ([]repo.Record, error)
+	ListRecords(ctx context.Context, targetDIDs []syntax.DID, collection syntax.NSID, callerDID syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
 
@@ -285,19 +285,40 @@ func (p *pear) GetRecord(
 
 func (p *pear) ListRecords(
 	ctx context.Context,
-	targetDID syntax.DID,
+	targetDIDs []syntax.DID,
 	collection syntax.NSID,
 	callerDID syntax.DID,
 ) ([]repo.Record, error) {
-	perms, err := p.permissions.ListPermissions(
-		callerDID,
-		targetDID,
-		collection,
-		"", // search for all records in this collection
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list permissions: %w", err)
+
+	// TODO, probably want to split up this API but keeping it as one for ease right now
+	perms := []permissions.Permission{}
+	if len(targetDIDs) == 0 {
+		p, err := p.permissions.ListPermissions(
+			callerDID,
+			"", // search with all owners
+			collection,
+			"", // search for all records in this collection
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list permissions: %w", err)
+		}
+
+		perms = append(perms, p...)
 	}
+	for _, target := range targetDIDs {
+		p, err := p.permissions.ListPermissions(
+			callerDID,
+			target,
+			collection,
+			"", // search for all records in this collection
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list permissions: %w", err)
+		}
+
+		perms = append(perms, p...)
+	}
+
 	records, err := p.repo.ListRecords(ctx, perms)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list records: %w", err)
