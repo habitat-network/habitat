@@ -364,17 +364,17 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 
 	var output habitat.NetworkHabitatPermissionsListPermissionsOutput
 	output.Permissions = []habitat.NetworkHabitatPermissionsListPermissionsPermission{}
-	for i, p := range perms {
+	for _, p := range perms {
 		// Only display allows
 		if p.Effect == permissions.Deny {
 			continue
 		}
-		output.Permissions[i] = habitat.NetworkHabitatPermissionsListPermissionsPermission{
+		output.Permissions = append(output.Permissions, habitat.NetworkHabitatPermissionsListPermissionsPermission{
 			Collection: p.Collection.String(),
 			Effect:     string(p.Effect),
 			Grantee:    p.Grantee.String(),
 			Rkey:       p.Rkey.String(),
-		}
+		})
 	}
 
 	err = json.NewEncoder(w).Encode(output)
@@ -425,8 +425,6 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-
-	fmt.Println("removepermissionsreq", req.Grantees, req.Collection, req.Rkey)
 
 	grantees, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
