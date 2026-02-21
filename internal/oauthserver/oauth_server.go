@@ -100,7 +100,10 @@ func NewOAuthServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
-	storage := newStore(strategy, db)
+	storage, err := newStore(strategy, db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create storage: %w", err)
+	}
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
 	gob.Register(pdsclient.AuthorizeState{})

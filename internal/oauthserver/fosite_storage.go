@@ -34,14 +34,17 @@ type OAuthSession struct {
 	ExpiresAt time.Time
 }
 
-func newStore(strat *strategy, db *gorm.DB) *store {
-	db.AutoMigrate(&OAuthSession{})
+func newStore(strat *strategy, db *gorm.DB) (*store, error) {
+	err := db.AutoMigrate(&OAuthSession{})
+	if err != nil {
+		return nil, err
+	}
 	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
 		memoryStore: storage.NewMemoryStore(),
 		strategy:    strat,
 		db:          db,
-	}
+	}, nil
 }
 
 var (
