@@ -1084,11 +1084,8 @@ export const schemaDict = {
               },
               collection: {
                 type: 'string',
-                description: 'Filter by specific lexicons',
-                items: {
-                  type: 'string',
-                  format: 'nsid',
-                },
+                format: 'nsid',
+                description: 'Filter by specific lexicon.',
               },
               since: {
                 type: 'string',

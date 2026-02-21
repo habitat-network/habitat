@@ -19,7 +19,7 @@ export type QueryParams = {}
 
 export interface InputSchema {
   subjects: string[]
-  /** Filter by specific lexicons */
+  /** Filter by specific lexicon. */
   collection: string
   /** Allow getting records that are strictly newer or updated since a certain time. */
   since?: string
