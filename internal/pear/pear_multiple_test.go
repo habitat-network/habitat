@@ -1,12 +1,16 @@
 package pear
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -55,19 +59,14 @@ func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrp
 }
 
 func TestCliqueFlowMultiPear(t *testing.T) {
-	t.Skip("get this working later")
+	t.Skip("this will fail until we implement remote fetches")
 
 	aDID := syntax.DID("did:example:a")
 	bDID := syntax.DID("did:example:b")
 	cDID := syntax.DID("did:example:c")
 
 	mockXRPCs := &mockXrpcChannel{
-		actions: []*http.Response{
-			{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(nil),
-			},
-		},
+		actions: []*http.Response{},
 	}
 	pearAC, pearB := newMultiPears(t, []syntax.DID{aDID, cDID}, []syntax.DID{bDID}, mockXRPCs)
 
@@ -110,17 +109,56 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
+	// This is going to call out to B's pear. So mock an xrpc.
+	bRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
+	require.NoError(t, err)
+	output := &habitat.NetworkHabitatRepoGetRecordOutput{
+		Uri: fmt.Sprintf(
+			"habitat://%s/%s/%s",
+			bDID.String(),
+			coll,
+			bRkey,
+		),
+		Value: bRec.Value,
+	}
+	output.Value = bRec.Value
+
+	body, err := json.Marshal(output)
+	require.NoError(t, err)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     make(http.Header),
+	}
+	mockXRPCs.actions = append(mockXRPCs.actions, resp)
+
 	got, err = pearAC.GetRecord(t.Context(), coll, bRkey, bDID, aDID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
-	got, err = pearB.GetRecord(t.Context(), coll, bRkey, bDID, bDID)
+	// This is going to call out to A's pear. So mock an xrpc.
+	aRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
 	require.NoError(t, err)
-	require.NotNil(t, got)
+	output = &habitat.NetworkHabitatRepoGetRecordOutput{
+		Uri: fmt.Sprintf(
+			"habitat://%s/%s/%s",
+			aDID.String(),
+			coll,
+			aRkey,
+		),
+		Value: aRec.Value,
+	}
+	output.Value = aRec.Value
+	body, err = json.Marshal(output)
+	require.NoError(t, err)
 
-	got, err = pearB.GetRecord(t.Context(), coll, aRkey, aDID, bDID)
-	require.NoError(t, err)
-	require.NotNil(t, got)
+	resp = &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     make(http.Header),
+	}
+	mockXRPCs.actions = append(mockXRPCs.actions, resp)
 
 	// Both A and B can list both records via ListRecords
 	aRecords, err := pearAC.ListRecords(t.Context(), aDID, coll)

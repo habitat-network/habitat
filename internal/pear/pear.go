@@ -2,15 +2,11 @@ package pear
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -106,11 +102,11 @@ func (p *pear) RemovePermissions(
 var _ Pear = &pear{}
 
 var (
-	ErrPublicRecordExists      = fmt.Errorf("a public record exists with the same key")
-	ErrNoPutsOnEncryptedRecord = fmt.Errorf("directly put-ting to this lexicon is not valid")
-	ErrNotLocalRepo            = fmt.Errorf("the desired did does not live on this repo")
-	ErrUnauthorized            = fmt.Errorf("unauthorized request")
-	ErrNoNestedCliques         = errors.New("nested cliques are not allowed")
+	ErrPublicRecordExists     = fmt.Errorf("a public record exists with the same key")
+	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
+	ErrUnauthorized           = fmt.Errorf("unauthorized request")
+	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
+	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
 )
 
 func NewPear(
@@ -194,6 +190,7 @@ func (p *pear) getRecordLocal(
 	return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
 }
 
+/*
 func (p *pear) getRecordRemote(
 	ctx context.Context,
 	collection syntax.NSID,
@@ -256,6 +253,7 @@ func (p *pear) getRecordRemote(
 		return nil, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
 	}
 }
+*/
 
 // getRecord checks permissions on callerDID and then passes through to `repo.getRecord`.
 func (p *pear) GetRecord(
@@ -273,7 +271,10 @@ func (p *pear) GetRecord(
 	if ok {
 		return p.getRecordLocal(ctx, collection, rkey, targetDID, callerDID)
 	}
-	return p.getRecordRemote(ctx, collection, rkey, targetDID, callerDID)
+
+	return nil, ErrRemoteFetchUnsupported
+	// TODO: implement
+	// return p.getRecordRemote(ctx, collection, rkey, targetDID, callerDID)
 }
 
 // Remove once ListRecords() is implemented correctly. Separate so i can still read old code.
@@ -298,6 +299,7 @@ func (p *pear) listRecordsLocal(
 	return records, nil
 }
 
+/*
 func (p *pear) listRecordsRemote(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
 	// All the remote record this caller cares about can be resolved via the inbox
 	notifs, err := p.inbox.GetCollectionUpdatesByRecipient(ctx, callerDID, collection)
@@ -315,6 +317,7 @@ func (p *pear) listRecordsRemote(ctx context.Context, callerDID syntax.DID, coll
 	}
 	return records, nil
 }
+*/
 
 // This needs to be renamed
 // TODO: take in targetDIDs as well, ignoring this now for simplicity
@@ -325,12 +328,15 @@ func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection
 		return nil, err
 	}
 
-	remoteRecords, err := p.listRecordsRemote(ctx, callerDID, collection)
-	if err != nil {
-		return nil, err
-	}
+	/*
+		// TODO: implement
+		remoteRecords, err := p.listRecordsRemote(ctx, callerDID, collection)
+		if err != nil {
+			return nil, err
+		}
+	*/
 
-	return append(localRecords, remoteRecords...), nil
+	return localRecords, nil
 }
 
 // TODO: actually enforce permissions here
