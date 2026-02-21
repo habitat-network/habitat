@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,17 +26,18 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 	key := "test-key"
 	val := map[string]any{"data": "value", "data-1": float64(123), "data-2": true}
 
-	_, err = repo.PutRecord(t.Context(), "my-did", collection, key, val, nil)
+	_, err = repo.PutRecord(t.Context(), Record{
+		Did:        "my-did",
+		Collection: collection,
+		Rkey:       key,
+		Value:      val,
+	}, nil)
 	require.NoError(t, err)
 
 	got, err := repo.GetRecord(t.Context(), "my-did", collection, key)
 	require.NoError(t, err)
 
-	var unmarshalled map[string]any
-	err = json.Unmarshal([]byte(got.Value), &unmarshalled)
-	require.NoError(t, err)
-
-	require.Equal(t, val, unmarshalled)
+	require.Equal(t, val, got.Value)
 }
 
 func TestRepoListRecords(t *testing.T) {
@@ -49,30 +49,36 @@ func TestRepoListRecords(t *testing.T) {
 	require.NoError(t, err)
 	_, err = repo.PutRecord(
 		t.Context(),
-		"my-did",
-		"network.habitat.collection-1",
-		"key-1",
-		map[string]any{"data": "value"},
+		Record{
+			"my-did",
+			"network.habitat.collection-1",
+			"key-1",
+			map[string]any{"data": "value"},
+		},
 		nil,
 	)
 	require.NoError(t, err)
 
 	_, err = repo.PutRecord(
 		ctx,
-		"my-did",
-		"network.habitat.collection-1",
-		"key-2",
-		map[string]any{"data": "value"},
+		Record{
+			"my-did",
+			"network.habitat.collection-1",
+			"key-2",
+			map[string]any{"data": "value"},
+		},
 		nil,
 	)
 	require.NoError(t, err)
 
 	_, err = repo.PutRecord(
 		ctx,
-		"my-did",
-		"network.habitat.collection-2",
-		"key-2",
-		map[string]any{"data": "value"},
+		Record{
+			"my-did",
+			"network.habitat.collection-2",
+			"key-2",
+			map[string]any{"data": "value"},
+		},
 		nil,
 	)
 	require.NoError(t, err)
