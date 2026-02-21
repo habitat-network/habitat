@@ -247,6 +247,109 @@ func TestHasPermissionViaClique(t *testing.T) {
 	require.False(t, hasPermission, "charlie should not have permission without clique membership")
 }
 
+func TestListPermissionsByCollection(t *testing.T) {
+	t.Run("direct permission", func(t *testing.T) {
+		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		require.NoError(t, err)
+
+		store, err := NewStore(db, node.New("test", "test", nil, nil))
+		require.NoError(t, err)
+
+		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+		require.NoError(t, err)
+
+		perms, err := store.ListPermissionsByCollection(t.Context(), "did:example:bob", "network.habitat.posts")
+		require.NoError(t, err)
+		// Should include alice's direct grant and bob's own self-permission
+		require.Len(t, perms, 2)
+		var alicePerm *Permission
+		for i := range perms {
+			if perms[i].Owner == "did:example:alice" {
+				alicePerm = &perms[i]
+			}
+		}
+		require.NotNil(t, alicePerm)
+		require.Equal(t, DIDGrantee("did:example:bob"), alicePerm.Grantee)
+		require.Equal(t, Allow, alicePerm.Effect)
+	})
+
+	t.Run("no external permissions returns only self", func(t *testing.T) {
+		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		require.NoError(t, err)
+
+		store, err := NewStore(db, node.New("test", "test", nil, nil))
+		require.NoError(t, err)
+
+		perms, err := store.ListPermissionsByCollection(t.Context(), "did:example:charlie", "network.habitat.posts")
+		require.NoError(t, err)
+		require.Len(t, perms, 1)
+		require.Equal(t, DIDGrantee("did:example:charlie"), perms[0].Grantee)
+		require.Equal(t, syntax.DID("did:example:charlie"), perms[0].Owner)
+		require.Equal(t, Allow, perms[0].Effect)
+	})
+
+	t.Run("clique permission resolved for member", func(t *testing.T) {
+		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		require.NoError(t, err)
+
+		// Node serves alice, so her clique is resolved locally
+		n := &mockNode{servedDIDs: map[string]bool{"did:example:alice": true}}
+		store, err := NewStore(db, n)
+		require.NoError(t, err)
+
+		clique := CliqueGrantee("habitat://did:example:alice/network.habitat.clique/friends")
+
+		// Alice grants her clique access to her posts
+		err = store.AddPermissions([]Grantee{clique}, "did:example:alice", "network.habitat.posts", "")
+		require.NoError(t, err)
+
+		// Bob is a member of Alice's clique
+		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "friends")
+		require.NoError(t, err)
+
+		perms, err := store.ListPermissionsByCollection(t.Context(), "did:example:bob", "network.habitat.posts")
+		require.NoError(t, err)
+		// Should include: clique grant resolved to bob + bob's own self-permission
+		require.Len(t, perms, 2)
+		var alicePerm *Permission
+		for i := range perms {
+			if perms[i].Owner == "did:example:alice" {
+				alicePerm = &perms[i]
+			}
+		}
+		require.NotNil(t, alicePerm, "should include permission from alice resolved via clique")
+		require.Equal(t, DIDGrantee("did:example:bob"), alicePerm.Grantee, "clique grantee should be resolved to bob's DID")
+		require.Equal(t, Allow, alicePerm.Effect)
+	})
+
+	t.Run("clique permission excluded for non-member", func(t *testing.T) {
+		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		require.NoError(t, err)
+
+		// Node serves alice, so her clique is resolved locally
+		n := &mockNode{servedDIDs: map[string]bool{"did:example:alice": true}}
+		store, err := NewStore(db, n)
+		require.NoError(t, err)
+
+		clique := CliqueGrantee("habitat://did:example:alice/network.habitat.clique/friends")
+
+		// Alice grants her clique access to her posts
+		err = store.AddPermissions([]Grantee{clique}, "did:example:alice", "network.habitat.posts", "")
+		require.NoError(t, err)
+
+		// Bob is a member but charlie is not
+		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "friends")
+		require.NoError(t, err)
+
+		// Charlie is not in the clique and should only see her own self-permission
+		perms, err := store.ListPermissionsByCollection(t.Context(), "did:example:charlie", "network.habitat.posts")
+		require.NoError(t, err)
+		require.Len(t, perms, 1)
+		require.Equal(t, DIDGrantee("did:example:charlie"), perms[0].Grantee)
+		require.Equal(t, syntax.DID("did:example:charlie"), perms[0].Owner)
+	})
+}
+
 func TestAddReadPermission_EmptyCollection(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

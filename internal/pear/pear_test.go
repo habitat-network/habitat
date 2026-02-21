@@ -20,12 +20,13 @@ import (
 )
 
 type mockXrpcChannel struct {
-	response *http.Response
-	err      error
+	actions []*http.Response
 }
 
-func (m *mockXrpcChannel) SendXRPC(_ context.Context, _ syntax.DID, _ syntax.DID, _ *http.Request) (*http.Response, error) {
-	return m.response, m.err
+func (m *mockXrpcChannel) SendXRPC(_ context.Context, _ syntax.DID, _ syntax.DID, r *http.Request) (*http.Response, error) {
+	next := m.actions[0]
+	m.actions = m.actions[1:]
+	return next, nil
 }
 
 var _ xrpcchannel.XrpcChannel = &mockXrpcChannel{}
@@ -36,24 +37,24 @@ const (
 )
 
 type options struct {
-	dir identity.Directory
+	node node.Node
 }
 
 type option func(*options)
 
-func withIdentityDirectory(dir identity.Directory) option {
+func withNode(node node.Node) option {
 	return func(o *options) {
-		o.dir = dir
+		o.node = node
 	}
 }
 
-func newPearForTest(t *testing.T, opts ...option) *pear {
+func newPearForTest(t *testing.T, dir identity.Directory, opts ...option) *pear {
 	db, err := gorm.Open(sqlite.Open(":memory:"))
 	require.NoError(t, err)
 	require.NoError(t, err)
 
 	o := &options{
-		dir: identity.DefaultDirectory(),
+		node: node.New(testServiceName, testServiceEndpoint, dir, &mockXrpcChannel{}),
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -64,19 +65,17 @@ func newPearForTest(t *testing.T, opts ...option) *pear {
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
 
-	n := node.New(testServiceName, testServiceEndpoint, o.dir, &mockXrpcChannel{})
-
-	permissions, err := permissions.NewStore(db, n)
+	permissions, err := permissions.NewStore(db, o.node)
 	require.NoError(t, err)
-	p := NewPear(n, o.dir, permissions, repo, inbox)
+	p := NewPear(o.node, dir, permissions, repo, inbox)
 	return p
 }
 
-func mockIdentities(dids []string) identity.Directory {
+func mockIdentities(dids []syntax.DID) identity.Directory {
 	dir := identity.NewMockDirectory()
 	for _, did := range dids {
 		dir.Insert(identity.Identity{
-			DID: syntax.DID(did),
+			DID: did,
 			Services: map[string]identity.ServiceEndpoint{
 				testServiceName: identity.ServiceEndpoint{
 					URL: testServiceEndpoint,
@@ -88,14 +87,15 @@ func mockIdentities(dids []string) identity.Directory {
 }
 
 func TestMockIdentities(t *testing.T) {
-	dir := mockIdentities([]string{"did:example:myid", "did:example:anotherid"})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	example := syntax.DID("did:example:myid")
+	dir := mockIdentities([]syntax.DID{example})
+	p := newPearForTest(t, dir)
 
-	id, err := dir.LookupDID(t.Context(), syntax.DID("did:example:myid"))
+	id, err := dir.LookupDID(t.Context(), example)
 	require.NoError(t, err)
 	require.Equal(t, id.Services[testServiceName].URL, testServiceEndpoint)
 
-	has, err := p.node.ServesDID(t.Context(), syntax.DID("did:example:myid"))
+	has, err := p.node.ServesDID(t.Context(), example)
 	require.NoError(t, err)
 	require.True(t, has)
 }
@@ -108,8 +108,8 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 		"someKey": "someVal",
 	}
 
-	dir := mockIdentities([]string{"did:example:myid", "did:example:anotherid"})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{"did:example:myid", "did:example:anotherid"})
+	p := newPearForTest(t, dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -154,8 +154,8 @@ func TestListOwnRecords(t *testing.T) {
 	val := map[string]any{
 		"someKey": "someVal",
 	}
-	dir := mockIdentities([]string{"did:example:myid"})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{"did:example:myid"})
+	p := newPearForTest(t, dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -174,21 +174,9 @@ func TestListOwnRecords(t *testing.T) {
 	require.Len(t, records, 1)
 }
 
-func TestGetRecordForwardingNotImplemented(t *testing.T) {
-	dir := mockIdentities([]string{"did:plc:caller456"})
-	p := newPearForTest(t, withIdentityDirectory(dir))
-
-	// Try to get a record for a DID that doesn't exist on this server.
-	// ServesDID returns false for unknown DIDs, so getRecordRemote is called,
-	// which fails since no xrpc channel is configured.
-	got, err := p.GetRecord(t.Context(), "some.collection", "some-rkey", syntax.DID("did:plc:unknown123"), syntax.DID("did:plc:caller456"))
-	require.Nil(t, got)
-	require.Error(t, err)
-}
-
 func TestListRecords(t *testing.T) {
-	dir := mockIdentities([]string{"did:example:myid", "did:example:otherid", "did:example:readerid", "did:example:specificreader"})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{"did:example:myid", "did:example:otherid", "did:example:readerid", "did:example:specificreader"})
+	p := newPearForTest(t, dir)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -274,13 +262,13 @@ func TestListRecords(t *testing.T) {
 
 // TestPutRecordWithGrantees verifies that grantees passed to putRecord gain read access.
 func TestPutRecordWithGrantees(t *testing.T) {
-	ownerDID := "did:plc:owner"
-	grantee1DID := "did:plc:grantee1"
-	grantee2DID := "did:plc:grantee2"
-	nonGranteeDID := "did:plc:nongrantee"
+	ownerDID := syntax.DID("did:plc:owner")
+	grantee1DID := syntax.DID("did:plc:grantee1")
+	grantee2DID := syntax.DID("did:plc:grantee2")
+	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
-	dir := mockIdentities([]string{ownerDID, grantee1DID, grantee2DID, nonGranteeDID})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{ownerDID, grantee1DID, grantee2DID, nonGranteeDID})
+	p := newPearForTest(t, dir)
 
 	val := map[string]any{"data": "secret"}
 	coll := syntax.NSID("my.fake.collection")
@@ -290,10 +278,10 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	// Put the record and grant access to grantee1 and grantee2 at the same time.
 	uri, err := p.PutRecord(t.Context(), syntax.DID(ownerDID), syntax.DID(ownerDID), coll, val, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(syntax.DID(grantee1DID)), permissions.DIDGrantee(syntax.DID(grantee2DID))})
 	require.NoError(t, err)
-	require.Equal(t, habitat_syntax.ConstructHabitatUri(ownerDID, coll.String(), rkey.String()), uri)
+	require.Equal(t, habitat_syntax.ConstructHabitatUri(ownerDID.String(), coll.String(), rkey.String()), uri)
 
 	// Grantees can read the record.
-	for _, grantee := range []string{grantee1DID, grantee2DID} {
+	for _, grantee := range []string{grantee1DID.String(), grantee2DID.String()} {
 		got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(grantee))
 		require.NoError(t, err, "grantee %s should be able to read the record", grantee)
 		require.NotNil(t, got)
@@ -312,11 +300,11 @@ func TestPutRecordWithGrantees(t *testing.T) {
 // TestPutRecordCrossUserUnauthorized verifies that a caller cannot put a record
 // into another user's repo (i.e. callerDID != targetDID is rejected).
 func TestPutRecordCrossUserUnauthorized(t *testing.T) {
-	callerDID := "did:plc:caller"
-	targetDID := "did:plc:target"
+	callerDID := syntax.DID("did:plc:caller")
+	targetDID := syntax.DID("did:plc:target")
 
-	dir := mockIdentities([]string{callerDID, targetDID})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{callerDID, targetDID})
+	p := newPearForTest(t, dir)
 
 	val := map[string]any{"data": "value"}
 	validate := true
@@ -326,15 +314,15 @@ func TestPutRecordCrossUserUnauthorized(t *testing.T) {
 }
 
 func TestCliqueFlow(t *testing.T) {
-	aDID := "did:example:a"
-	bDID := "did:example:b"
-	cDID := "did:example:c"
+	aDID := syntax.DID("did:example:a")
+	bDID := syntax.DID("did:example:b")
+	cDID := syntax.DID("did:example:c")
 
-	dir := mockIdentities([]string{aDID, bDID, cDID})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{aDID, bDID, cDID})
+	p := newPearForTest(t, dir)
 
 	cliqueRkey := syntax.RecordKey("shared-clique")
-	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(aDID, permissions.CliqueNSID.String(), cliqueRkey.String()))
+	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(aDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
 
 	// A creates the clique by adding B as a member
 	require.NoError(t, p.permissions.AddPermissions(
@@ -437,21 +425,21 @@ func TestCliqueFlow(t *testing.T) {
 	bRecordsAfterRemoval, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll)
 	require.NoError(t, err)
 	require.Len(t, bRecordsAfterRemoval, 1)
-	require.Equal(t, bDID, bRecordsAfterRemoval[0].Did)
+	require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)
 }
 
 func TestNestedCliquesProhibited(t *testing.T) {
-	ownerDID := "did:example:cliqueowner"
-	otherOwnerDID := "did:example:otherowner"
+	ownerDID := syntax.DID("did:example:cliqueowner")
+	otherOwnerDID := syntax.DID("did:example:otherowner")
 
-	dir := mockIdentities([]string{ownerDID, otherOwnerDID})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{ownerDID, otherOwnerDID})
+	p := newPearForTest(t, dir)
 
 	val := map[string]any{"members": []string{}}
 	validate := true
 
 	// Granting a CliqueGrantee access to a clique record should be rejected
-	nestedClique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(otherOwnerDID, permissions.CliqueNSID.String(), "other-clique"))
+	nestedClique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(otherOwnerDID.String(), permissions.CliqueNSID.String(), "other-clique"))
 	_, err := p.PutRecord(
 		t.Context(),
 		syntax.DID(ownerDID),
@@ -466,11 +454,11 @@ func TestNestedCliquesProhibited(t *testing.T) {
 }
 
 func TestNotifyOfUpdate(t *testing.T) {
-	senderDID := "did:plc:sender"
-	recipientDID := "did:plc:recipient"
+	senderDID := syntax.DID("did:plc:sender")
+	recipientDID := syntax.DID("did:plc:recipient")
 
-	dir := mockIdentities([]string{senderDID, recipientDID})
-	p := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{senderDID, recipientDID})
+	p := newPearForTest(t, dir)
 
 	collection := "my.fake.collection"
 	rkey := "my-rkey"
@@ -529,8 +517,8 @@ func TestNotifyOfUpdate(t *testing.T) {
 
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
-	dir := mockIdentities([]string{"did:example:alice"})
-	pear := newPearForTest(t, withIdentityDirectory(dir))
+	dir := mockIdentities([]syntax.DID{"did:example:alice"})
+	pear := newPearForTest(t, dir)
 
 	did := "did:example:alice"
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
@@ -552,10 +540,10 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 func TestListRecordsWithPermissions(t *testing.T) {
 	// Note: this test doesn't include any remote users. Querying from remote as well isn't supported yet.
 	// Set up users
-	aliceDID := "did:plc:alice"
-	bobDID := "did:plc:bob"
-	carolDID := "did:plc:carol"
-	remoteDID := "did:plc:remote"
+	aliceDID := syntax.DID("did:plc:alice")
+	bobDID := syntax.DID("did:plc:bob")
+	carolDID := syntax.DID("did:plc:carol")
+	remoteDID := syntax.DID("did:plc:remote")
 
 	// Create a shared database for the test
 	db, err := gorm.Open(sqlite.Open(":memory:"))
@@ -567,7 +555,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	inboxInstance, err := inbox.New(db)
 	require.NoError(t, err)
 	// remoteDID is intentionally not added to mock identities to simulate a different node
-	dir := mockIdentities([]string{aliceDID, bobDID, carolDID})
+	dir := mockIdentities([]syntax.DID{aliceDID, bobDID, carolDID})
 	n := node.New(testServiceName, testServiceEndpoint, dir, &mockXrpcChannel{})
 
 	perms, err := permissions.NewStore(db, n)
@@ -610,7 +598,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		aliceRecords := 0
 		bobRecords := 0
 		for _, record := range records {
-			switch record.Did {
+			switch syntax.DID(record.Did) {
 			case aliceDID:
 				aliceRecords++
 			case bobDID:
@@ -682,7 +670,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		require.NoError(t, err)
 		// Should have 1 record from Bob (Alice doesn't have own records in otherColl)
 		require.Len(t, records, 1)
-		require.Equal(t, bobDID, records[0].Did)
+		require.Equal(t, bobDID.String(), records[0].Did)
 		require.Equal(t, "bob-other-rkey", records[0].Rkey)
 	})
 
@@ -706,10 +694,10 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Verify we have the right records from Bob
 		bobRkey1Found := false
 		for _, record := range records {
-			if record.Did == bobDID && record.Rkey == "bob-rkey1" {
+			if record.Did == bobDID.String() && record.Rkey == "bob-rkey1" {
 				bobRkey1Found = true
 			}
-			if record.Did == bobDID {
+			if record.Did == bobDID.String() {
 				require.Equal(
 					t,
 					"bob-rkey1",

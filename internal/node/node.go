@@ -48,7 +48,9 @@ var (
 // ServesDID implements Node.
 func (n *node) ServesDID(ctx context.Context, did syntax.DID) (bool, error) {
 	id, err := n.dir.LookupDID(ctx, did)
-	if err != nil {
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		return false, nil
+	} else if err != nil {
 		return false, err
 	}
 

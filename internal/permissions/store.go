@@ -42,6 +42,10 @@ type Store interface {
 		grantee syntax.DID,
 		collection syntax.NSID,
 	) ([]Permission, error)
+	ListPermissionGrants(
+		ctx context.Context,
+		granter syntax.DID,
+	) ([]Permission, error)
 }
 
 // RecordPermission represents a specific record permission (owner + rkey)
@@ -430,6 +434,11 @@ func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.
 	}
 
 	return relevant, nil
+}
+
+// ListPermissionGrants implements Store.
+func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]Permission, error) {
+	return s.listPermissions("", granter, "", "")
 }
 
 // ListPermissions returns the permissions available to this particular combination of inputs.

@@ -88,6 +88,11 @@ func (p *pear) ListPermissionsByCollection(
 	return p.permissions.ListPermissionsByCollection(ctx, grantee, collection)
 }
 
+// ListPermissionGrants implements Pear.
+func (p *pear) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]permissions.Permission, error) {
+	return p.permissions.ListPermissionGrants(ctx, granter)
+}
+
 // RemoveReadPermissions implements Pear.
 func (p *pear) RemovePermissions(
 	grantee []permissions.Grantee,
@@ -177,7 +182,6 @@ func (p *pear) getRecordLocal(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*repo.Record, error) {
-	fmt.Println("getrecordlocal", collection, rkey, targetDID, callerDID)
 	ok, err := p.permissions.HasPermission(ctx, callerDID, targetDID, collection, rkey)
 	if err != nil {
 		return nil, err
