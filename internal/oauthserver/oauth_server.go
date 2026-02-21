@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -56,7 +55,6 @@ type OAuthServer struct {
 	sessionStore sessions.Store             // Session storage for authorization flow state
 	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
-	config       *fosite.Config
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -110,7 +108,6 @@ func NewOAuthServer(
 	return &OAuthServer{
 		serviceName:     serviceName,
 		serviceEndpoint: serviceEndpoint,
-		config:          config,
 		provider: compose.Compose(
 			config,
 			storage,
@@ -413,8 +410,4 @@ func (o *OAuthServer) Validate(
 		return "", false
 	}
 	return syntax.DID(did), true
-}
-
-func (o *OAuthServer) setAccessTokenLifespan(duration time.Duration) {
-	o.config.AccessTokenLifespan = time.Second
 }
