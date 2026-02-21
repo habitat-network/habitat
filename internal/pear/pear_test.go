@@ -3,12 +3,14 @@ package pear
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/inbox"
+	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -35,8 +37,7 @@ const (
 )
 
 type options struct {
-	dir    identity.Directory
-	xrpcCh xrpcchannel.XrpcChannel
+	dir identity.Directory
 }
 
 type option func(*options)
@@ -47,16 +48,9 @@ func withIdentityDirectory(dir identity.Directory) option {
 	}
 }
 
-func withXrpcChannel(ch xrpcchannel.XrpcChannel) option {
-	return func(o *options) {
-		o.xrpcCh = ch
-	}
-}
-
 func newPearForTest(t *testing.T, opts ...option) *pear {
 	db, err := gorm.Open(sqlite.Open(":memory:"))
 	require.NoError(t, err)
-	permissions, err := permissions.NewStore(db)
 	require.NoError(t, err)
 
 	o := &options{
@@ -70,7 +64,11 @@ func newPearForTest(t *testing.T, opts ...option) *pear {
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
-	p := NewPear(testServiceName, testServiceEndpoint, o.dir, o.xrpcCh, permissions, repo, inbox)
+
+	n := node.New(testServiceName, testServiceEndpoint, o.dir, &mockXrpcChannel{})
+
+	permissions, err := permissions.NewStore(db, n)
+	p := NewPear(n, o.dir, permissions, repo, inbox)
 	return p
 }
 
@@ -97,7 +95,7 @@ func TestMockIdentities(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, id.Services[testServiceName].URL, testServiceEndpoint)
 
-	has, err := p.hasRepoForDid(t.Context(), syntax.DID("did:example:myid"))
+	has, err := p.node.ServesDID(t.Context(), syntax.DID("did:example:myid"))
 	require.NoError(t, err)
 	require.True(t, has)
 }
@@ -169,9 +167,8 @@ func TestListOwnRecords(t *testing.T) {
 
 	records, err := p.ListRecords(
 		t.Context(),
-		[]syntax.DID{syntax.DID("did:example:myid")},
-		coll,
 		syntax.DID("did:example:myid"),
+		coll,
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
@@ -181,27 +178,12 @@ func TestGetRecordForwardingNotImplemented(t *testing.T) {
 	dir := mockIdentities([]string{"did:plc:caller456"})
 	p := newPearForTest(t, withIdentityDirectory(dir))
 
-	// Try to get a record for a DID that doesn't exist on this server
-	// This will return ErrUnauthorized since we no longer check for local repos
+	// Try to get a record for a DID that doesn't exist on this server.
+	// ServesDID returns false for unknown DIDs, so getRecordRemote is called,
+	// which fails since no xrpc channel is configured.
 	got, err := p.GetRecord(t.Context(), "some.collection", "some-rkey", syntax.DID("did:plc:unknown123"), syntax.DID("did:plc:caller456"))
 	require.Nil(t, got)
-	require.ErrorIs(t, err, ErrUnauthorized)
-}
-
-func TestListRecordsForwardingNotImplemented(t *testing.T) {
-	dir := mockIdentities([]string{"did:plc:caller456"})
-	p := newPearForTest(t, withIdentityDirectory(dir))
-
-	// Try to list records for a DID that doesn't exist on this server
-	// This will return empty results since we no longer check for local repos
-	records, err := p.ListRecords(
-		t.Context(),
-		[]syntax.DID{syntax.DID("did:plc:unknown123")},
-		"some.collection",
-		syntax.DID("did:plc:caller456"),
-	)
-	require.NoError(t, err)
-	require.Empty(t, records)
+	require.Error(t, err)
 }
 
 func TestListRecords(t *testing.T) {
@@ -225,9 +207,8 @@ func TestListRecords(t *testing.T) {
 	t.Run("returns empty without permissions", func(t *testing.T) {
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID("did:example:myid")},
-			coll1,
 			syntax.DID("did:example:otherid"),
+			coll1,
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
@@ -246,9 +227,8 @@ func TestListRecords(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID("did:example:myid")},
-			coll1,
 			syntax.DID("did:example:readerid"),
+			coll1,
 		)
 		require.NoError(t, err)
 		// did:example:readerid has permission to see all did:example:myid's records in coll1
@@ -270,9 +250,8 @@ func TestListRecords(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID("did:example:myid")},
-			coll1,
 			syntax.DID("did:example:specificreader"),
+			coll1,
 		)
 		require.NoError(t, err)
 		// did:example:specificreader has permission only for rkey1
@@ -285,9 +264,8 @@ func TestListRecords(t *testing.T) {
 		// did:example:readerid has permission for coll1 but not coll2
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID("did:example:myid")},
-			coll2,
 			syntax.DID("did:example:readerid"),
+			coll2,
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
@@ -373,11 +351,11 @@ func TestCliqueFlow(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	bauthz, err := p.HasPermission(syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	bauthz, err := p.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, bauthz)
 
-	aauthz, err := p.HasPermission(syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	aauthz, err := p.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, aauthz)
 
@@ -406,6 +384,15 @@ func TestCliqueFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
+	// Both A and B can list both records via ListRecords
+	aRecords, err := p.ListRecords(t.Context(), syntax.DID(aDID), coll)
+	require.NoError(t, err)
+	require.Len(t, aRecords, 2)
+
+	bRecords, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll)
+	require.NoError(t, err)
+	require.Len(t, bRecords, 2)
+
 	// A adds C to the clique
 	require.NoError(t, p.permissions.AddPermissions(
 		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(cDID))},
@@ -422,6 +409,11 @@ func TestCliqueFlow(t *testing.T) {
 	got, err = p.GetRecord(t.Context(), coll, bRkey, syntax.DID(bDID), syntax.DID(cDID))
 	require.NoError(t, err)
 	require.NotNil(t, got)
+
+	// C can also list both records via ListRecords
+	cRecords, err := p.ListRecords(t.Context(), syntax.DID(cDID), coll)
+	require.NoError(t, err)
+	require.Len(t, cRecords, 2)
 
 	// A removes B from the clique
 	require.NoError(t, p.permissions.RemovePermissions(
@@ -440,95 +432,13 @@ func TestCliqueFlow(t *testing.T) {
 	got, err = p.GetRecord(t.Context(), coll, bRkey, syntax.DID(bDID), syntax.DID(bDID))
 	require.NoError(t, err)
 	require.NotNil(t, got)
-}
 
-func TestIsCliqueMemberRemote(t *testing.T) {
-	callerDID := "did:example:caller"
-	remoteOwnerDID := "did:example:remoteowner"
-
-	// remoteOwnerDID is in the directory but with a different service URL,
-	// so hasRepoForDid returns (false, nil) and the xrpc path is taken.
-	dir := identity.NewMockDirectory()
-	dir.Insert(identity.Identity{
-		DID: syntax.DID(callerDID),
-		Services: map[string]identity.ServiceEndpoint{
-			testServiceName: {URL: testServiceEndpoint},
-		},
-	})
-	dir.Insert(identity.Identity{
-		DID: syntax.DID(remoteOwnerDID),
-		Services: map[string]identity.ServiceEndpoint{
-			testServiceName: {URL: "https://remote-node.example.com"},
-		},
-	})
-
-	cliqueRkey := syntax.RecordKey("remote-clique")
-	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(remoteOwnerDID, permissions.CliqueNSID.String(), cliqueRkey.String()))
-
-	t.Run("remote 200 means member", func(t *testing.T) {
-		ch := &mockXrpcChannel{response: &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}}
-		p := newPearForTest(t, withIdentityDirectory(&dir), withXrpcChannel(ch))
-
-		ok, err := p.isCliqueMember(t.Context(), syntax.DID(callerDID), clique)
-		require.NoError(t, err)
-		require.True(t, ok)
-	})
-
-	t.Run("remote 401 means not a member", func(t *testing.T) {
-		ch := &mockXrpcChannel{response: &http.Response{StatusCode: http.StatusForbidden, Body: http.NoBody}}
-		p := newPearForTest(t, withIdentityDirectory(&dir), withXrpcChannel(ch))
-
-		ok, err := p.isCliqueMember(t.Context(), syntax.DID(callerDID), clique)
-		require.NoError(t, err)
-		require.False(t, ok)
-	})
-
-	t.Run("remote 403 means not a member", func(t *testing.T) {
-		ch := &mockXrpcChannel{response: &http.Response{StatusCode: http.StatusForbidden, Body: http.NoBody}}
-		p := newPearForTest(t, withIdentityDirectory(&dir), withXrpcChannel(ch))
-
-		ok, err := p.isCliqueMember(t.Context(), syntax.DID(callerDID), clique)
-		require.NoError(t, err)
-		require.False(t, ok)
-	})
-}
-
-func TestIsCliqueMember(t *testing.T) {
-	ownerDID := "did:example:cliqueowner"
-	memberDID := "did:example:cliquemember"
-	nonMemberDID := "did:example:nonmember"
-
-	dir := mockIdentities([]string{ownerDID, memberDID, nonMemberDID})
-	p := newPearForTest(t, withIdentityDirectory(dir))
-
-	cliqueRkey := syntax.RecordKey("my-clique")
-	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(ownerDID, permissions.CliqueNSID.String(), cliqueRkey.String()))
-
-	// Grant memberDID permission to read the clique record
-	require.NoError(t, p.permissions.AddPermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(memberDID))},
-		syntax.DID(ownerDID),
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
-
-	t.Run("member has access", func(t *testing.T) {
-		ok, err := p.isCliqueMember(t.Context(), syntax.DID(memberDID), clique)
-		require.NoError(t, err)
-		require.True(t, ok)
-	})
-
-	t.Run("non-member does not have access", func(t *testing.T) {
-		ok, err := p.isCliqueMember(t.Context(), syntax.DID(nonMemberDID), clique)
-		require.NoError(t, err)
-		require.False(t, ok)
-	})
-
-	t.Run("owner always has access", func(t *testing.T) {
-		ok, err := p.isCliqueMember(t.Context(), syntax.DID(ownerDID), clique)
-		require.NoError(t, err)
-		require.True(t, ok)
-	})
+	// B can no longer list A's record; only sees its own
+	bRecordsAfterRemoval, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll)
+	fmt.Println(p.ListPermissions(syntax.DID(bDID), "", coll, ""))
+	require.NoError(t, err)
+	require.Len(t, bRecordsAfterRemoval, 1)
+	require.Equal(t, bDID, bRecordsAfterRemoval[0].Did)
 }
 
 func TestNestedCliquesProhibited(t *testing.T) {
@@ -653,14 +563,17 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create pear with the shared database
-	perms, err := permissions.NewStore(db)
-	require.NoError(t, err)
 	repoStore, err := repo.NewRepo(db)
 	require.NoError(t, err)
 	inboxInstance, err := inbox.New(db)
 	require.NoError(t, err)
 	// remoteDID is intentionally not added to mock identities to simulate a different node
-	p := NewPear(testServiceName, testServiceEndpoint, mockIdentities([]string{aliceDID, bobDID, carolDID}), nil, perms, repoStore, inboxInstance)
+	dir := mockIdentities([]string{aliceDID, bobDID, carolDID})
+	n := node.New(testServiceName, testServiceEndpoint, dir, &mockXrpcChannel{})
+
+	perms, err := permissions.NewStore(db, n)
+	require.NoError(t, err)
+	p := NewPear(n, dir, perms, repoStore, inboxInstance)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -688,9 +601,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID)},
-			coll,
 			syntax.DID(aliceDID),
+			coll,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 4) // 2 from Alice's own repo + 2 from Bob with permission
@@ -716,9 +628,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Alice doesn't have permission for Carol's records
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID), syntax.DID(carolDID)},
-			coll,
 			syntax.DID(aliceDID),
+			coll,
 		)
 		require.NoError(t, err)
 		// Should be 4 (2 from Alice + 2 from Bob with permission, but NOT Carol's)
@@ -741,9 +652,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID), syntax.DID(remoteDID)},
-			coll,
 			syntax.DID(aliceDID),
+			coll,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 4)
@@ -758,9 +668,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Query for original collection
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID)},
-			coll,
 			syntax.DID(aliceDID),
+			coll,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 4)
@@ -768,9 +677,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		// Query for other collection
 		records, err = p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID(bobDID)},
-			otherColl,
 			syntax.DID(aliceDID),
+			otherColl,
 		)
 		require.NoError(t, err)
 		// Should have 1 record from Bob (Alice doesn't have own records in otherColl)
@@ -789,9 +697,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 		records, err := p.ListRecords(
 			t.Context(),
-			[]syntax.DID{syntax.DID(aliceDID), syntax.DID(bobDID)},
-			coll,
 			syntax.DID(aliceDID),
+			coll,
 		)
 		require.NoError(t, err)
 		// Should have at least 2 from Alice + 1 specific from Bob (may include remote if it exists)

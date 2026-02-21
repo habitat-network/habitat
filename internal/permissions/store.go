@@ -93,14 +93,14 @@ type permission struct {
 // - Whole NSID prefixes: "network.habitat.*"
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
-func NewStore(db *gorm.DB) (*store, error) {
+func NewStore(db *gorm.DB, node node.Node) (*store, error) {
 	// AutoMigrate will create the table with all indexes defined in the Permission struct
 	err := db.AutoMigrate(&permission{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
 	}
 
-	return &store{db: db}, nil
+	return &store{db: db, node: node}, nil
 }
 
 func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, clique CliqueGrantee, did syntax.DID) (bool, error) {
@@ -196,10 +196,14 @@ func (s *store) HasPermission(
 
 	// First try to resolve local cliques
 	// This works if any row matches the requester + clique owner + clique collection + clique rkey
-	query := s.db.Where("grantee = ?", requester.String()).Where("collection = ?", CliqueNSID)
+	query := s.db.Where("grantee = ?", requester.String()).Where("collection = ?", CliqueNSID).Where("effect = ?", Allow)
 
 	// build OR pairs for each local clique
 	for i, clique := range localCliques {
+		if clique.Owner() == requester {
+			// Owners of the clique always have permission
+			return true, nil
+		}
 		if i == 0 {
 			query = query.Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
 		} else {
@@ -232,28 +236,6 @@ func (s *store) HasPermission(
 	}
 
 	return false, remoteErr
-
-	/*
-		var permission permission
-		err := s.db.Where("grantee = ?", requester.String()).
-			Where("owner = ?", owner.String()).
-			Where("collection = ?", collection.String()).
-			// permissions with empty rkeys grant the entire collection
-			Where("rkey = ? OR rkey = ''", rkey.String()).
-			// prioritize more specific permission and denies
-			Order("LENGTH(rkey) DESC, effect DESC").
-			Limit(1).
-			First(&permission).
-			Error
-		if err == gorm.ErrRecordNotFound {
-			// No permission found, deny by default
-			return false, nil
-		} else if err != nil {
-			return false, fmt.Errorf("failed to query permission: %w", err)
-		}
-
-		return permission.Effect == string(Allow), nil
-	*/
 }
 
 // AddPermissions grants read permission for an entire collection or specific record.
@@ -317,6 +299,7 @@ func (s *store) AddPermissions(
 			Rkey:       rkey.String(),
 		})
 	}
+
 	// Delete any existing permissions (allow or deny) for these grantees+record before inserting fresh allow permissions.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
 	if err := s.db.Where("grantee IN ?", grantees).
@@ -343,7 +326,6 @@ func (s *store) RemovePermissions(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) error {
-	fmt.Println("remove readpermission", granteesTyped, owner, collection, rkey)
 	grantees := xslices.Map(granteesTyped, func(g Grantee) string {
 		return g.String()
 	})
@@ -360,7 +342,6 @@ func (s *store) RemovePermissions(
 		return nil
 	}
 
-	fmt.Println("specific rkey")
 	// Otherwise, the removal is on a specific record key, so add a deny effect on the specific record for a batch of grantees.
 	recordPerms := make([]*permission, len(grantees))
 	for i, grantee := range grantees {
@@ -383,7 +364,6 @@ func (s *store) RemovePermissions(
 		return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
 	}
 
-	fmt.Println("creating deny")
 	if err := s.db.Create(recordPerms).Error; err != nil {
 		return fmt.Errorf("failed to add deny permissions: %w", err)
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
+	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -238,7 +239,10 @@ func setupPearServer(
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(db)
+	dir := identity.DefaultDirectory()
+	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
+	node := node.New(serviceName, serviceEndpoint, dir, xrpcCh)
+	permissions, err := permissions.NewStore(db, node)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
@@ -248,9 +252,7 @@ func setupPearServer(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	dir := identity.DefaultDirectory()
-	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
-	p := pear.NewPear(serviceName, serviceEndpoint, dir, xrpcCh, permissions, repo, inbox)
+	p := pear.NewPear(node, dir, permissions, repo, inbox)
 	return server.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
 }
 

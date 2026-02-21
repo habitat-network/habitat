@@ -45,7 +45,7 @@ type Pear interface {
 type pear struct {
 	dir identity.Directory
 
-	// Channel to talk to other pear nodes
+	// Context about where this pear lives and communicatino channel with other nodes
 	node node.Node
 
 	// Backing for permissions
@@ -106,7 +106,6 @@ var (
 	ErrNoPutsOnEncryptedRecord = fmt.Errorf("directly put-ting to this lexicon is not valid")
 	ErrNotLocalRepo            = fmt.Errorf("the desired did does not live on this repo")
 	ErrUnauthorized            = fmt.Errorf("unauthorized request")
-	ErrNoHabitatServer         = errors.New("no habitat server found for did :%s")
 	ErrNoNestedCliques         = errors.New("nested cliques are not allowed")
 )
 
@@ -179,6 +178,7 @@ func (p *pear) getRecordLocal(
 	targetDID syntax.DID,
 	callerDID syntax.DID,
 ) (*repo.Record, error) {
+	fmt.Println("getrecordlocal", collection, rkey, targetDID, callerDID)
 	ok, err := p.permissions.HasPermission(ctx, callerDID, targetDID, collection, rkey)
 	if err != nil {
 		return nil, err
@@ -231,7 +231,12 @@ func (p *pear) getRecordRemote(
 	switch resp.StatusCode {
 	case http.StatusOK:
 		var rec habitat.NetworkHabitatRepoGetRecordOutput
-		err := json.NewDecoder(resp.Body).Decode(rec)
+		err := json.NewDecoder(resp.Body).Decode(&rec)
+		if err != nil {
+			return nil, err
+		}
+
+		bytes, err := json.Marshal(rec.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -240,7 +245,7 @@ func (p *pear) getRecordRemote(
 			Did:        targetDID.String(),
 			Collection: collection.String(),
 			Rkey:       rkey.String(),
-			Value:      rec.Value,
+			Value:      bytes,
 		}, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return nil, ErrUnauthorized
@@ -266,50 +271,6 @@ func (p *pear) GetRecord(
 		return p.getRecordLocal(ctx, collection, rkey, targetDID, callerDID)
 	}
 	return p.getRecordRemote(ctx, collection, rkey, targetDID, callerDID)
-
-	/*
-		perms, err := p.permissions.ListPermissions(callerDID, targetDID, collection, rkey)
-		if err != nil {
-			return nil, err
-		}
-
-		// Try to find an explicit allow or deny permission
-		cliquesToResolve := []permissions.CliqueGrantee{}
-		for _, perm := range perms {
-			switch g := perm.Grantee.(type) {
-			case permissions.DIDGrantee:
-				if perm.Grantee.String() != callerDID.String() {
-					// Should never happen
-					return nil, fmt.Errorf("unexpected: found a permission that does not apply to the given query: %v", perm)
-				}
-				// Explicity deny -- return unauthorized
-				if perm.Effect == permissions.Deny {
-					return nil, ErrUnauthorized
-				}
-				// Explicit allow -- return the record
-				return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
-			case permissions.CliqueGrantee:
-				cliquesToResolve = append(cliquesToResolve, g)
-			}
-		}
-
-		// Otherwise, resolve returned clique grantees to see if a valid permission exists.
-		// TODO: could do these in a batched / parallel way.
-		for _, clique := range cliquesToResolve {
-			ok, err := p.isCliqueMember(ctx, callerDID, clique)
-			if err != nil {
-				return nil, fmt.Errorf("resolving clique membership: %w", err)
-			} else if !ok {
-				return nil, ErrUnauthorized
-			} else {
-				// User has permission, return the record
-				return p.repo.GetRecord(ctx, targetDID.String(), collection.String(), rkey.String())
-			}
-		}
-
-		// Default: no relevant permission grants or cliques found; unauthorized.
-		return nil, ErrUnauthorized
-	*/
 }
 
 // Remove once ListRecords() is implemented correctly. Separate so i can still read old code.

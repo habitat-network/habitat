@@ -47,7 +47,7 @@ type Record struct {
 	Did        string `gorm:"primaryKey"`
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
-	Value      interface{}
+	Value      []byte
 }
 
 type Blob struct {
@@ -83,7 +83,7 @@ func (r *repo) PutRecord(ctx context.Context, did string, collection string, rke
 	}
 
 	// Store rkey directly (no concatenation with collection)
-	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: string(bytes)}
+	record := Record{Did: did, Rkey: rkey, Collection: collection, Value: bytes}
 	// Always put (even if something exists).
 	err = gorm.G[Record](
 		r.db,
@@ -187,7 +187,7 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 
 	allowQuery := r.db
 	for _, perm := range perms {
-		if perm.Effect == "allow" {
+		if perm.Effect == permissions.Allow {
 			grantQuery := r.db.Where("did = ?", perm.Owner)
 			if perm.Collection != "" {
 				grantQuery = grantQuery.Where("collection = ?", perm.Collection)

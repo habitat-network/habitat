@@ -31,7 +31,7 @@ func TestPutNotificationBasic(t *testing.T) {
 	rkey := "like-1"
 
 	// Put a notification
-	err := inb.PutNotification(ctx, sender, recipient, collection, rkey)
+	err := inb.Put(ctx, sender, recipient, syntax.NSID(collection), rkey)
 	require.NoError(t, err)
 
 	// Verify it was stored with expected values
@@ -53,10 +53,10 @@ func TestPutNotificationMultipleSeparateKeys(t *testing.T) {
 	recipient, _ := syntax.ParseDID("did:plc:recipient456")
 
 	// Put multiple notifications with different keys
-	err := inb.PutNotification(ctx, sender, recipient, "app.bsky.feed.like", "like-1")
+	err := inb.Put(ctx, sender, recipient, "app.bsky.feed.like", "like-1")
 	require.NoError(t, err)
 
-	err = inb.PutNotification(ctx, sender, recipient, "app.bsky.feed.repost", "repost-1")
+	err = inb.Put(ctx, sender, recipient, "app.bsky.feed.repost", "repost-1")
 	require.NoError(t, err)
 
 	// Both notifications should exist
@@ -74,6 +74,49 @@ func TestPutNotificationMultipleSeparateKeys(t *testing.T) {
 	}
 }
 
+func TestGetCollectionUpdatesByRecipient(t *testing.T) {
+	ctx := context.Background()
+	inb, _ := newInboxForTest(t)
+
+	sender, _ := syntax.ParseDID("did:plc:sender123")
+	recipient, _ := syntax.ParseDID("did:plc:recipient456")
+	otherRecipient, _ := syntax.ParseDID("did:plc:other789")
+	likeCollection := syntax.NSID("app.bsky.feed.like")
+	repostCollection := syntax.NSID("app.bsky.feed.repost")
+
+	// Put two likes for the target recipient
+	require.NoError(t, inb.Put(ctx, sender, recipient, likeCollection, "like-1"))
+	require.NoError(t, inb.Put(ctx, sender, recipient, likeCollection, "like-2"))
+
+	// Put a repost for the target recipient (different collection)
+	require.NoError(t, inb.Put(ctx, sender, recipient, repostCollection, "repost-1"))
+
+	// Put a like for a different recipient
+	require.NoError(t, inb.Put(ctx, sender, otherRecipient, likeCollection, "like-3"))
+
+	// Get likes for the target recipient
+	notifs, err := inb.GetCollectionUpdatesByRecipient(ctx, recipient, likeCollection)
+	require.NoError(t, err)
+	require.Len(t, notifs, 2)
+
+	for _, n := range notifs {
+		require.Equal(t, recipient.String(), n.Recipient)
+		require.Equal(t, likeCollection.String(), n.Collection)
+	}
+}
+
+func TestGetCollectionUpdatesByRecipientEmpty(t *testing.T) {
+	ctx := context.Background()
+	inb, _ := newInboxForTest(t)
+
+	recipient, _ := syntax.ParseDID("did:plc:recipient456")
+	likeCollection := syntax.NSID("app.bsky.feed.like")
+
+	notifs, err := inb.GetCollectionUpdatesByRecipient(ctx, recipient, likeCollection)
+	require.NoError(t, err)
+	require.Empty(t, notifs)
+}
+
 func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	ctx := context.Background()
 	inb, db := newInboxForTest(t)
@@ -84,7 +127,7 @@ func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	rkey := "like-1"
 
 	// Put first notification
-	err := inb.PutNotification(ctx, sender, recipient, collection, rkey)
+	err := inb.Put(ctx, sender, recipient, syntax.NSID(collection), rkey)
 	require.NoError(t, err)
 
 	// Get the first notification's UpdatedAt time
@@ -97,7 +140,7 @@ func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Put the same notification again (same sender, recipient, collection, rkey)
-	err = inb.PutNotification(ctx, sender, recipient, collection, rkey)
+	err = inb.Put(ctx, sender, recipient, syntax.NSID(collection), rkey)
 	require.NoError(t, err)
 
 	// Verify only one notification exists (not duplicated)
