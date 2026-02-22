@@ -20,6 +20,9 @@
       "path": "typescript/apps/docs"
     },
     {
+      "path": "typescript/apps/greensky"
+    },
+    {
       "path": "typescript/internal"
     }
   ]
