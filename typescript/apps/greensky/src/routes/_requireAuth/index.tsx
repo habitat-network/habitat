@@ -55,12 +55,12 @@ export const Route = createFileRoute("/_requireAuth/")({
               <header>
                 <span>
                   <img
-                    src={post.author.avatar}
+                    src={post.author?.avatar}
                     width={24}
                     height={24}
                     style={{ marginRight: 8 }}
                   />
-                  {post.author.displayName}
+                  {post.author?.displayName}
                 </span>
               </header>
               {post.record.text}
@@ -108,7 +108,7 @@ export const Route = createFileRoute("/_requireAuth/")({
 
 interface Post {
   uri: string;
-  author: {
+  author?: {
     displayName: string;
     avatar?: string;
   };
@@ -150,10 +150,13 @@ async function getHabitatFeed(authManager: AuthManager): Promise<Post[]> {
     records: {
       uri: string;
       cid: string;
-      value: Post;
+      value: { text: string };
     }[];
     cursor?: string;
   } = await response.json();
 
-  return posts.records.map(({ value }) => value);
+  return posts.records.map(({ uri, value }) => ({
+    uri: uri,
+    record: value,
+  }));
 }

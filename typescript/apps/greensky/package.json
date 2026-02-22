@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "tsc && vite build",
+    "build": "tsc --build && vite build",
     "serve": "vite preview",
     "test": "vitest run"
   },
@@ -14,9 +14,11 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
+    "api": "workspace:*",
     "internal": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
     "vite-tsconfig-paths": "catalog:"
   },
   "devDependencies": {
