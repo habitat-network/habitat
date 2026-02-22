@@ -20,3 +20,15 @@ tasks:
           DOMAIN: frontend.habitat
     options:
       internal: false
+  gh-pages:
+    env:
+      HASH_ROUTING: 'true'
+    deps:
+      - target: ~:build
+      - target: calendar:build
+        env:
+          DOMAIN: ${DOMAIN}/calendar
+          OUT_DIR: $projectRoot/dist/calendar
+    preset: utility
+    options:
+      runDepsInParallel: false

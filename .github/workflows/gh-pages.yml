@@ -36,11 +36,10 @@ jobs:
           auto-install: true
 
       - name: Build
-        run: moon r frontend:build
+        run: moon r frontend:gh-pages
         env:
           DOMAIN: ${{ vars.DOMAIN }}
           HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
-          HASH_ROUTING: true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

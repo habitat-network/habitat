@@ -14,6 +14,10 @@ const cliArgs = util.parseArgs({
       type: "string",
       default: process.env.HABITAT_DOMAIN,
     },
+    outDir: {
+      type: "string",
+      default: process.env.OUT_DIR ?? "dist",
+    },
   },
   allowPositionals: true,
 });
@@ -43,6 +47,9 @@ export default function habitatAppPlugin(options?: {
           server: {
             host: true,
             allowedHosts: [".ts.net"],
+          },
+          build: {
+            outDir: cliArgs.values.outDir,
           },
         };
       },
