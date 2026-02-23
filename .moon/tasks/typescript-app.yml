@@ -27,5 +27,4 @@ tasks:
 
 inheritedBy:
   toolchain: typescript
-  language: typescript
   layer: application
