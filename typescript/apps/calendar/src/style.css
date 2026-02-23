@@ -1,0 +1,63 @@
+/* Calendar App Styles */
+
+body {
+  --pico-primary-background: #bcd979;
+  --pico-primary-border: #9dad6f;
+  --pico-primary-inverse: #2d2925;
+  --pico-primary-hover-background: #9dad6f;
+  --pico-primary-hover-border: #9dad6f;
+}
+
+/* FullCalendar overrides for Pico CSS compatibility */
+.fc {
+  --fc-border-color: var(--pico-muted-border-color);
+  --fc-button-bg-color: var(--pico-primary-background);
+  --fc-button-border-color: var(--pico-primary-border);
+  --fc-button-text-color: var(--pico-primary-inverse);
+  --fc-button-hover-bg-color: var(--pico-primary-hover-background);
+  --fc-button-hover-border-color: var(--pico-primary-hover-border);
+  --fc-button-active-bg-color: var(--pico-primary-hover-background);
+  --fc-button-active-border-color: var(--pico-primary-hover-border);
+  --fc-event-bg-color: var(--pico-primary-background);
+  --fc-event-border-color: var(--pico-primary-border);
+  --fc-event-text-color: var(--pico-primary-inverse);
+  --fc-today-bg-color: rgba(188, 217, 121, 0.15);
+}
+
+.fc .fc-button {
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--pico-border-radius);
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1.25rem;
+}
+
+.fc .fc-daygrid-day-number {
+  padding: 0.25rem 0.5rem;
+}
+
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: var(--pico-muted-border-color);
+}
+
+.fc .fc-daygrid-event {
+  border-radius: var(--pico-border-radius);
+  padding: 0.125rem 0.25rem;
+  font-size: 0.8125rem;
+}
+
+/* Navigation styling */
+nav ul {
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+nav ul li {
+  margin: 0;
+}
