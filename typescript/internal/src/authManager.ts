@@ -19,7 +19,12 @@ interface AuthInfo {
 export class AuthManager {
   private serverDomain: string;
   private store = create(
-    persist<AuthInfo | null>(() => null, { name: "auth-info" }),
+    persist<{ authInfo: AuthInfo | undefined }>(
+      () => ({ authInfo: undefined }),
+      {
+        name: "auth-info",
+      },
+    ),
   );
   private config: client.Configuration;
   private onUnauthenticated: () => void;
@@ -44,7 +49,7 @@ export class AuthManager {
   }
 
   getAuthInfo() {
-    return this.store.getState();
+    return this.store.getState().authInfo;
   }
 
   loginUrl(handle: string, redirectUri: string) {
@@ -60,7 +65,7 @@ export class AuthManager {
 
   logout = () => {
     // Delete all internal state
-    this.store.setState(null);
+    this.store.setState({ authInfo: undefined });
     // Redirect to login page
     this.onUnauthenticated();
   };
@@ -90,7 +95,7 @@ export class AuthManager {
     const serverUrl = "https://" + this.serverDomain;
     const authedSession = new HabitatAuthedAgentSession(serverUrl, this);
     const authedAgent = new Agent(authedSession);
-    const did = this.store.getState()?.did;
+    const did = this.store.getState()?.authInfo?.did;
     if (!did) {
       throw new Error("No DID found");
     }
@@ -104,17 +109,20 @@ export class AuthManager {
     headers?: Headers,
     options?: client.DPoPOptions,
   ) {
-    let state = this.store.getState();
-    if (!state) {
+    let { authInfo } = this.store.getState();
+    if (!authInfo) {
       return this.handleUnauthenticated();
     }
-    if (state.refreshToken && state.expiresAt < Date.now() / 1000 + 5 * 60) {
+    if (
+      authInfo.refreshToken &&
+      authInfo.expiresAt < Date.now() / 1000 + 5 * 60
+    ) {
       try {
         const token = await client.refreshTokenGrant(
           this.config,
-          state.refreshToken,
+          authInfo.refreshToken,
         );
-        state = this.setAuthState(token);
+        authInfo = this.setAuthState(token);
       } catch (e) {
         return this.handleUnauthenticated();
       }
@@ -125,7 +133,7 @@ export class AuthManager {
     headers.append("Habitat-Auth-Method", "oauth");
     const response = await client.fetchProtectedResource(
       this.config,
-      state.accessToken,
+      authInfo.accessToken,
       new URL(url, `https://${this.serverDomain}`),
       method,
       body,
@@ -151,7 +159,7 @@ export class AuthManager {
       refreshToken: token.refresh_token,
       expiresAt: decoded.exp,
     };
-    this.store.setState(state);
+    this.store.setState({ authInfo: state });
     return state;
   }
 
