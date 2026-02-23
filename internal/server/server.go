@@ -300,21 +300,15 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params habitat.NetworkHabitatListRecordsInput
-	err := formDecoder.Decode(&params, r.URL.Query())
+	var input habitat.NetworkHabitatListRecordsInput
+	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "parsing request", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: fix this
-	if len(params.Subjects) > 0 {
-		utils.LogAndHTTPError(w, err, "don't allow filters by repo yet", http.StatusBadRequest)
-		return
-	}
-
-	dids := make([]syntax.DID, len(params.Subjects))
-	for i, subject := range params.Subjects {
+	dids := make([]syntax.DID, len(input.Subjects))
+	for i, subject := range input.Subjects {
 		// TODO: support handles
 		atid, err := syntax.ParseAtIdentifier(subject)
 		if err != nil {
@@ -329,8 +323,9 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		}
 		dids[i] = id.DID
 	}
+	fmt.Println("got a list records req", callerDID, input.Collection, dids)
 
-	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(params.Collection), dids)
+	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(input.Collection), dids)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -348,7 +343,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			Uri: fmt.Sprintf(
 				"habitat://%s/%s/%s",
 				record.Did,
-				params.Collection,
+				input.Collection,
 				record.Rkey,
 			),
 		}

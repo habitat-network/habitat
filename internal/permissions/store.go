@@ -493,7 +493,7 @@ func (s *store) listPermissions(
 	var queried []permission
 	query := s.db
 	if len(owners) > 0 {
-		query = query.Where("owner IN ", owners)
+		query = query.Where("owner IN ?", owners)
 	}
 	if grantee.String() != "" {
 		// The grantee field could also be a clique that includes this direct DID. so ifnore it

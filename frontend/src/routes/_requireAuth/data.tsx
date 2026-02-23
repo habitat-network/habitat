@@ -3,7 +3,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 interface SearchParams {
   lexicon?: string;
@@ -58,9 +58,21 @@ export const Route = createFileRoute("/_requireAuth/data")({
       const repo = repoDid?.trim() || undefined;
 
       if (isPrivate) {
+        /*
         const data = await context.authManager
           .client()
           .listPrivateRecords(lexicon, undefined, undefined, repo);
+        */
+        console.log("lexicon is", lexicon)
+        const response = await context.authManager.fetch(
+          "/xrpc/network.habitat.listRecords",
+          "POST",
+          JSON.stringify({
+            subjects: [repo],
+            collection: lexicon,
+          }),
+        );
+        const data: { records?: any[] } = await response.json();
         return { records: data.records, error: null };
       } else {
         const data = await context.authManager
@@ -84,8 +96,12 @@ function DataDebugger() {
   const navigate = useNavigate({ from: Route.fullPath });
   const router = useRouter();
 
-  // Parse filters from search params
-  const parsedFilters = useMemo(() => parseFilters(filter || ""), [filter]);
+  const [localLexicon, setLocalLexicon] = useState(lexicon || "");
+  const [localRepoDid, setLocalRepoDid] = useState(repoDid || "");
+  const [localFilter, setLocalFilter] = useState(filter || "");
+
+  // Parse filters from local state (client-side only, no fetch needed)
+  const parsedFilters = useMemo(() => parseFilters(localFilter), [localFilter]);
 
   // Update search params
   const updateSearch = (updates: Partial<SearchParams>) => {
@@ -95,8 +111,19 @@ function DataDebugger() {
     });
   };
 
-  // Refresh data by invalidating the router
-  const refresh = () => router.invalidate();
+  // Commit local field values to the URL and re-fetch
+  const refresh = () => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        lexicon: localLexicon || undefined,
+        repoDid: localRepoDid || undefined,
+        filter: localFilter || undefined,
+      }),
+      replace: true,
+    });
+    router.invalidate();
+  };
 
   // Filter records based on parsed filter criteria
   const filteredRecords = useMemo(() => {
@@ -169,10 +196,8 @@ function DataDebugger() {
           <input
             id="lexicon"
             type="text"
-            value={lexicon || ""}
-            onChange={(e) =>
-              updateSearch({ lexicon: e.target.value || undefined })
-            }
+            value={localLexicon}
+            onChange={(e) => setLocalLexicon(e.target.value)}
             placeholder="e.g., app.bsky.feed.post"
             style={{
               border: "1px solid ButtonBorder",
@@ -196,10 +221,8 @@ function DataDebugger() {
           <input
             id="repoDid"
             type="text"
-            value={repoDid || ""}
-            onChange={(e) =>
-              updateSearch({ repoDid: e.target.value || undefined })
-            }
+            value={localRepoDid}
+            onChange={(e) => setLocalRepoDid(e.target.value)}
             placeholder="did:plc:..."
             style={{
               border: "1px solid ButtonBorder",
@@ -224,10 +247,8 @@ function DataDebugger() {
           <input
             id="filter"
             type="text"
-            value={filter || ""}
-            onChange={(e) =>
-              updateSearch({ filter: e.target.value || undefined })
-            }
+            value={localFilter}
+            onChange={(e) => setLocalFilter(e.target.value)}
             placeholder="key:value"
             style={{
               padding: "0.375rem 0.5rem",
