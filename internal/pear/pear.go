@@ -26,7 +26,7 @@ type Pear interface {
 	// Permissioned repository methods
 	PutRecord(ctx context.Context, callerDID, targetDID syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
-	ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error)
+	ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
 
@@ -52,6 +52,11 @@ type pear struct {
 
 	// Manage receiving updates for records (replacement for the Firehose)
 	inbox inbox.Inbox
+}
+
+// ListPermissionsByCollectionFilterOwners implements Pear.
+func (p *pear) ListPermissionsByCollectionFilterOwners(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]permissions.Permission, error) {
+	return p.permissions.ListPermissionsByCollectionFilterOwners(ctx, grantee, collection, owners)
 }
 
 // Pass throughs to implement permission.Store
@@ -287,12 +292,13 @@ func (p *pear) listRecordsLocal(
 	ctx context.Context,
 	collection syntax.NSID,
 	callerDID syntax.DID,
+	subjects []syntax.DID,
 ) ([]repo.Record, error) {
 	if collection == "" {
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	perms, err := p.permissions.ListPermissionsByCollection(ctx, callerDID, collection)
+	perms, err := p.permissions.ListPermissionsByCollectionFilterOwners(ctx, callerDID, collection, subjects)
 	if err != nil {
 		return nil, err
 	}
@@ -326,9 +332,9 @@ func (p *pear) listRecordsRemote(ctx context.Context, callerDID syntax.DID, coll
 
 // This needs to be renamed
 // TODO: take in targetDIDs as well, ignoring this now for simplicity
-func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
+func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error) {
 	// Get records owned by this repo
-	localRecords, err := p.listRecordsLocal(ctx, collection, callerDID)
+	localRecords, err := p.listRecordsLocal(ctx, collection, callerDID, subjects)
 	if err != nil {
 		return nil, err
 	}

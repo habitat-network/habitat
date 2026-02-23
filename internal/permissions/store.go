@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -41,6 +42,12 @@ type Store interface {
 		ctx context.Context,
 		grantee syntax.DID,
 		collection syntax.NSID,
+	) ([]Permission, error)
+	ListPermissionsByCollectionFilterOwners(
+		ctx context.Context,
+		grantee syntax.DID,
+		collection syntax.NSID,
+		owners []syntax.DID,
 	) ([]Permission, error)
 	ListPermissionGrants(
 		ctx context.Context,
@@ -190,7 +197,7 @@ func (s *store) HasPermission(
 		return true, nil
 	}
 
-	permissions, err := s.listPermissions(requester, owner, collection, rkey)
+	permissions, err := s.listPermissions(requester, []syntax.DID{owner}, collection, rkey)
 	if err != nil {
 		return false, err
 	}
@@ -404,7 +411,40 @@ func (s *store) RemovePermissions(
 }
 
 func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID) ([]Permission, error) {
-	allPermissions, err := s.listPermissions(grantee, "", collection, "")
+	allPermissions, err := s.listPermissions(grantee, nil, collection, "")
+	if err != nil {
+		return nil, err
+	}
+
+	relevant := []Permission{}
+	for _, permission := range allPermissions {
+		clique, ok := permission.Grantee.(CliqueGrantee)
+		if !ok {
+			// Directly return specific grants for this DID
+			relevant = append(relevant, permission)
+			continue
+		}
+
+		// Otherwise, it's a clique grantee, so we need to resolve it
+		// TODO: we could potentially be more efficient with the DB query than resolving each independently.
+		ok, err = s.isCliqueMember(ctx, grantee, clique)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			// Keep all other fields of the permission the same
+			permission.Grantee = DIDGrantee(grantee)
+			relevant = append(relevant, permission)
+		}
+		// If this did is not a member of the clique, ignore this permission
+	}
+
+	return relevant, nil
+}
+
+func (s *store) ListPermissionsByCollectionFilterOwners(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
+	allPermissions, err := s.listPermissions(grantee, owners, collection, "")
 	if err != nil {
 		return nil, err
 	}
@@ -438,22 +478,22 @@ func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.
 
 // ListPermissionGrants implements Store.
 func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]Permission, error) {
-	return s.listPermissions("", granter, "", "")
+	return s.listPermissions("", []syntax.DID{granter}, "", "")
 }
 
 // ListPermissions returns the permissions available to this particular combination of inputs.
 // Any "" inputs are not filtered by.
 func (s *store) listPermissions(
 	grantee syntax.DID,
-	owner syntax.DID,
+	owners []syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) ([]Permission, error) {
 	// TODO prevent table scans if all arguments are ""
 	var queried []permission
 	query := s.db
-	if owner.String() != "" {
-		query = query.Where("owner = ?", owner.String())
+	if len(owners) > 0 {
+		query = query.Where("owner IN ", owners)
 	}
 	if grantee.String() != "" {
 		// The grantee field could also be a clique that includes this direct DID. so ifnore it
@@ -487,7 +527,7 @@ func (s *store) listPermissions(
 			Effect:     Effect(p.Effect),
 		}
 	}
-	if collection != "" && (owner == grantee || owner == "") {
+	if collection != "" && (slices.Contains(owners, grantee) || len(owners) == 0) {
 		// If the request is for a general collection (un-ownered), by default the grantee has permission to their own collections.
 		permissions = append(permissions, Permission{Grantee: DIDGrantee(grantee), Owner: grantee, Collection: collection, Effect: Allow})
 	}

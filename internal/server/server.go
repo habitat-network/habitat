@@ -313,7 +313,24 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(params.Collection))
+	dids := make([]syntax.DID, len(params.Subjects))
+	for i, subject := range params.Subjects {
+		// TODO: support handles
+		atid, err := syntax.ParseAtIdentifier(subject)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parsing subject as did or handle", http.StatusBadRequest)
+			return
+		}
+
+		id, err := s.dir.Lookup(r.Context(), *atid)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parsing looking up atid", http.StatusBadRequest)
+			return
+		}
+		dids[i] = id.DID
+	}
+
+	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(params.Collection), dids)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
