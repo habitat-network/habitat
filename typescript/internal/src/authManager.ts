@@ -4,18 +4,23 @@ import { decodeJwt } from "jose";
 import { HabitatClient, HabitatAuthedAgentSession } from "./habitatClient";
 import { DidResolver } from "@atproto/identity";
 import { Agent } from "@atproto/api";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-const handleLocalStorageKey = "handle";
-const didLocalStorageKey = "did";
-const tokenLocalStorageKey = "token";
 const stateLocalStorageKey = "state";
 
-export class AuthManager {
-  handle: string | null;
-  did: string | null;
+interface AuthInfo {
+  did: string;
+  accessToken: string;
+  refreshToken: string | undefined;
+  expiresAt: number;
+}
 
+export class AuthManager {
   private serverDomain: string;
-  private accessToken: string | null = null;
+  private store = create(
+    persist<AuthInfo | null>(() => null, { name: "auth-info" }),
+  );
   private config: client.Configuration;
   private onUnauthenticated: () => void;
 
@@ -33,21 +38,16 @@ export class AuthManager {
       },
       client_id,
     );
-    this.handle = localStorage.getItem(handleLocalStorageKey);
-    this.did = localStorage.getItem(didLocalStorageKey);
-    this.accessToken = localStorage.getItem(tokenLocalStorageKey);
     this.serverDomain = serverDomain;
 
     this.onUnauthenticated = onUnauthenticated;
   }
 
-  isAuthenticated() {
-    return !!this.accessToken;
+  getAuthInfo() {
+    return this.store.getState();
   }
 
   loginUrl(handle: string, redirectUri: string) {
-    this.handle = handle;
-    localStorage.setItem(handleLocalStorageKey, handle);
     const state = client.randomState();
     localStorage.setItem(stateLocalStorageKey, state);
     return client.buildAuthorizationUrl(this.config, {
@@ -60,13 +60,7 @@ export class AuthManager {
 
   logout = () => {
     // Delete all internal state
-    localStorage.removeItem(handleLocalStorageKey);
-    localStorage.removeItem(stateLocalStorageKey);
-    localStorage.removeItem(tokenLocalStorageKey);
-    localStorage.removeItem(didLocalStorageKey);
-    this.accessToken = null;
-    this.did = null;
-    this.handle = null;
+    this.store.setState(null);
     // Redirect to login page
     this.onUnauthenticated();
   };
@@ -88,20 +82,7 @@ export class AuthManager {
         expectedState: state,
       },
     );
-
-    // The DID is encoded in the sub claim of the JWT
-    const decoded = decodeJwt(token.access_token);
-    const did = decoded.sub;
-    if (!did) {
-      throw new Error("Token missing sub claim");
-    }
-
-    this.accessToken = token.access_token;
-    this.did = did;
-
-    localStorage.setItem(tokenLocalStorageKey, token.access_token);
-    localStorage.setItem(didLocalStorageKey, did);
-
+    this.setAuthState(token);
     window.location.href = "/";
   }
 
@@ -109,10 +90,11 @@ export class AuthManager {
     const serverUrl = "https://" + this.serverDomain;
     const authedSession = new HabitatAuthedAgentSession(serverUrl, this);
     const authedAgent = new Agent(authedSession);
-    if (!this.did) {
+    const did = this.store.getState()?.did;
+    if (!did) {
       throw new Error("No DID found");
     }
-    return new HabitatClient(this.did, authedAgent, new DidResolver({}));
+    return new HabitatClient(did, authedAgent, new DidResolver({}));
   }
 
   async fetch(
@@ -122,8 +104,20 @@ export class AuthManager {
     headers?: Headers,
     options?: client.DPoPOptions,
   ) {
-    if (!this.accessToken) {
+    let state = this.store.getState();
+    if (!state) {
       return this.handleUnauthenticated();
+    }
+    if (state.refreshToken && state.expiresAt < Date.now() / 1000 + 5 * 60) {
+      try {
+        const token = await client.refreshTokenGrant(
+          this.config,
+          state.refreshToken,
+        );
+        state = this.setAuthState(token);
+      } catch (e) {
+        return this.handleUnauthenticated();
+      }
     }
     if (!headers) {
       headers = new Headers();
@@ -131,7 +125,7 @@ export class AuthManager {
     headers.append("Habitat-Auth-Method", "oauth");
     const response = await client.fetchProtectedResource(
       this.config,
-      this.accessToken,
+      state.accessToken,
       new URL(url, `https://${this.serverDomain}`),
       method,
       body,
@@ -145,14 +139,26 @@ export class AuthManager {
     return response;
   }
 
+  private setAuthState(token: client.TokenEndpointResponse) {
+    // The DID is encoded in the sub claim of the JWT
+    const decoded = decodeJwt(token.access_token);
+    if (!decoded.sub || !decoded.exp) {
+      throw new Error("Invalid token");
+    }
+    const state = {
+      did: decoded.sub,
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      expiresAt: decoded.exp,
+    };
+    this.store.setState(state);
+    return state;
+  }
+
   private handleUnauthenticated(): Response {
-    this.handle = null;
-    this.accessToken = null;
-    localStorage.removeItem(handleLocalStorageKey);
-    localStorage.removeItem(tokenLocalStorageKey);
-    this.onUnauthenticated();
+    this.logout();
     throw new UnauthenticatedError();
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }
