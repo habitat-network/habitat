@@ -30,6 +30,7 @@ export async function getPrivatePosts(
   if (handle) {
     params.append("subjects", handle);
   }
+  // TODO: use habitat client api
   const response = await authManager.fetch(
     `/xrpc/network.habitat.listRecords?${params}`,
     "GET",
