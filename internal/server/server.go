@@ -35,6 +35,7 @@ type Server struct {
 	dir identity.Directory
 
 	authMethods authMethods
+	decoder     *schema.Decoder
 }
 
 // NewServer returns a pear server.
@@ -51,11 +52,10 @@ func NewServer(
 			oauth:       oauthServer,
 			serviceAuth: serviceAuthMethod,
 		},
+		decoder: schema.NewDecoder(),
 	}
 	return server
 }
-
-var formDecoder = schema.NewDecoder()
 
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +167,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var params habitat.NetworkHabitatRepoGetRecordParams
-	err := formDecoder.Decode(&params, r.URL.Query())
+	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
 		return
@@ -263,7 +263,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	var params habitat.NetworkHabitatRepoGetBlobParams
-	err := formDecoder.Decode(&params, r.URL.Query())
+	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
 		return
@@ -300,15 +300,15 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input habitat.NetworkHabitatListRecordsInput
-	err := json.NewDecoder(r.Body).Decode(&input)
+	var params habitat.NetworkHabitatRepoListRecordsParams
+	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing request", http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "parsing request params", http.StatusBadRequest)
 		return
 	}
 
-	dids := make([]syntax.DID, len(input.Subjects))
-	for i, subject := range input.Subjects {
+	dids := make([]syntax.DID, len(params.Subjects))
+	for i, subject := range params.Subjects {
 		// TODO: support handles
 		atid, err := syntax.ParseAtIdentifier(subject)
 		if err != nil {
@@ -324,7 +324,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		dids[i] = id.DID
 	}
 
-	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(input.Collection), dids)
+	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(params.Collection), dids)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -334,15 +334,15 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output := &habitat.NetworkHabitatListRecordsOutput{
-		Records: []habitat.NetworkHabitatListRecordsRecord{},
+	output := &habitat.NetworkHabitatRepoListRecordsOutput{
+		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
 	}
 	for _, record := range records {
-		next := habitat.NetworkHabitatListRecordsRecord{
+		next := habitat.NetworkHabitatRepoListRecordsRecord{
 			Uri: fmt.Sprintf(
 				"habitat://%s/%s/%s",
 				record.Did,
-				input.Collection,
+				record.Collection,
 				record.Rkey,
 			),
 		}

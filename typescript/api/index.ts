@@ -505,13 +505,13 @@ export class NetworkHabitatRepoNS {
   }
 
   listRecords(
-    data?: NetworkHabitatRepoListRecords.InputSchema,
+    params?: NetworkHabitatRepoListRecords.QueryParams,
     opts?: NetworkHabitatRepoListRecords.CallOptions,
   ): Promise<NetworkHabitatRepoListRecords.Response> {
     return this._client.call(
       'network.habitat.repo.listRecords',
-      opts?.qp,
-      data,
+      params,
+      undefined,
       opts,
     )
   }

@@ -25,16 +25,14 @@ export async function getPrivatePosts(
   authManager: AuthManager,
   handle?: string,
 ): Promise<PrivatePost[]> {
-  const body: { collection: string; subjects?: string[] } = {
-    collection: "app.bsky.feed.post",
-  };
+  const params = new URLSearchParams();
+  params.append("collection", "app.bsky.feed.post");
   if (handle) {
-    body.subjects = [handle];
+    params.append("subjects", handle);
   }
   const response = await authManager.fetch(
-    "/xrpc/network.habitat.listRecords",
-    "POST",
-    JSON.stringify(body),
+    `/xrpc/network.habitat.listRecords?${params}`,
+    "GET",
   );
   const data: { records?: PrivatePost[] } = await response.json();
   return data.records ?? [];

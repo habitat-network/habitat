@@ -331,7 +331,6 @@ func (p *pear) listRecordsRemote(ctx context.Context, callerDID syntax.DID, coll
 */
 
 // This needs to be renamed
-// TODO: take in targetDIDs as well, ignoring this now for simplicity
 func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error) {
 	// Get records owned by this repo
 	localRecords, err := p.listRecordsLocal(ctx, collection, callerDID, subjects)
