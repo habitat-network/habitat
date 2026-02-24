@@ -57,18 +57,10 @@ export const Route = createFileRoute("/_requireAuth/data")({
     try {
       // Use the repo DID if provided, otherwise undefined (uses default)
       const repo = repoDid?.trim() || undefined;
-
       if (isPrivate) {
-        const params = new URLSearchParams();
-        params.append("collection", lexicon);
-        if (repo) {
-          params.append("subjects", repo);
-        }
-        const response = await context.authManager.fetch(
-          `/xrpc/network.habitat.listRecords?${params}`,
-          "GET",
-        );
-        const data: ListPrivateRecordsResponse = await response.json();
+        const data = await context.authManager
+          .client()
+          .listPrivateRecords(lexicon, undefined, undefined, repo ? [repo] : undefined)
         return { records: data.records, error: null };
       } else {
         const data = await context.authManager

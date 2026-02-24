@@ -392,7 +392,6 @@ export class HabitatClient {
 
     const queryParams = new URLSearchParams();
     queryParams.set("collection", collection);
-    queryParams.set("subjects", subjects);
 
     if (limit !== undefined) {
       queryParams.set("limit", limit.toString());
@@ -400,6 +399,13 @@ export class HabitatClient {
     if (cursor) {
       queryParams.set("cursor", cursor);
     }
+
+    if (subjects) {
+      for (const subject of subjects) {
+        queryParams.append("subjects", subject);
+      }
+    }
+
 
     const response = await agent.fetchHandler(
       `/xrpc/network.habitat.listRecords?${queryParams}`,

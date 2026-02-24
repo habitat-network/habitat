@@ -312,7 +312,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		// TODO: support handles
 		atid, err := syntax.ParseAtIdentifier(subject)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parsing subject as did or handle", http.StatusBadRequest)
+			utils.LogAndHTTPError(w, err, fmt.Sprintf("parsing subject as did or handle: %s", subject), http.StatusBadRequest)
 			return
 		}
 

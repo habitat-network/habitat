@@ -47,7 +47,7 @@ func (m *serviceProxyXrpcChannel) SendXRPC(
 ) (*http.Response, error) {
 	atid, err := m.directory.LookupDID(ctx, receiver)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup identity: %w", err)
+		return nil, fmt.Errorf("[xrpc channel]: failed to lookup identity: %w", err)
 	}
 	pearServiceEndpoint := atid.GetServiceEndpoint(m.serviceName)
 	url, err := url.Parse(pearServiceEndpoint)
