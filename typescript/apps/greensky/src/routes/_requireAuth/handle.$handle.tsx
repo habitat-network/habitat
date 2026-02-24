@@ -103,7 +103,6 @@ async function getAuthorFeed(
   handle: string,
 ): Promise<FeedItem[]> {
   const headers = new Headers();
-  headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
   const params = new URLSearchParams();
   params.append("actor", handle);
   params.append("limit", "30");

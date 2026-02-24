@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { getPrivatePosts, getProfile, type Profile } from "../../habitatApi";
+import { getPrivatePosts, getProfile, PrivatePost, type Profile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 
 interface FormData {
@@ -45,22 +45,25 @@ export const Route = createFileRoute("/_requireAuth/")({
     const bskyItems: BskyFeedItem[] = await getBskyFeed(context.authManager);
     const privatePosts = await getPrivatePosts(context.authManager);
 
-    // Parse the DID from the first private post's AT URI (at://DID/collection/rkey)
-    // and use it to fetch the author's profile for display.
-    const did = privatePosts[0]?.uri.split("/")[2];
-    const privateAuthor: Profile | undefined = did
-      ? await getProfile(context.authManager, did)
-      : undefined;
+    const privatePostToFeedEntry = async (post: PrivatePost): Promise<FeedEntry> => {
+      const did = post.uri.split("/")[2];
+      const privateAuthor: Profile | undefined = did
+        ? await getProfile(context.authManager, did)
+        : undefined;
 
-    const entries: FeedEntry[] = [
-      ...privatePosts.map(({ uri, value }): FeedEntry => ({
-        uri,
-        text: value.text,
-        createdAt: value.createdAt,
+      return {
+        uri: post.uri,
+        text: post.value.text,
+        createdAt: post.value.createdAt,
         kind: "private",
         author: privateAuthor,
-        replyToHandle: value.reply !== undefined ? null : undefined,
-      })),
+        replyToHandle: post.value.reply !== undefined ? null : undefined,
+      }
+    }
+    const privateEntries = await Promise.all(privatePosts.map(privatePostToFeedEntry))
+
+    const entries: FeedEntry[] = [
+      ...privateEntries,
       ...bskyItems.map(({ post, reply, reason }): FeedEntry => ({
         uri: post.uri,
         text: post.record.text,
