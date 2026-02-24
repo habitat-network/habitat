@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_requireAuth/forwarding-test")({
   async loader({ context }) {
-    const actor = context.authManager.handle;
+    const authInfo = context.authManager.getAuthInfo();
     const resp = await context.authManager.fetch(
-      `/xrpc/app.bsky.actor.getProfile?actor=${actor}`,
+      `/xrpc/app.bsky.actor.getProfile?actor=${authInfo?.did}`,
     );
     const data: {
       displayName: string;
