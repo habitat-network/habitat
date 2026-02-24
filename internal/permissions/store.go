@@ -370,19 +370,21 @@ func (s *store) AddPermissions(
 		})
 	}
 
-	// Delete any existing permissions (allow or deny) for these grantees+record before inserting fresh allow permissions.
+	// Delete any existing permission for this record before inserting the deny.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
-	if err := s.db.Where("grantee IN ?", grantees).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
-		Where("rkey = ?", rkey).
-		Delete(&permission{}).Error; err != nil {
-		return fmt.Errorf("failed to clear existing permissions before insert: %w", err)
-	}
-	if err := s.db.Create(&permissions).Error; err != nil {
-		return fmt.Errorf("failed to add lexicon permission: %w", err)
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ?", rkey).
+			Delete(&permission{}).Error; err != nil {
+			return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
+		}
+		if err := tx.Create(&permissions).Error; err != nil {
+			return fmt.Errorf("failed to add lexicon permission: %w", err)
+		}
+		return nil
+	})
 }
 
 // RemovePermissions removes read permission for an entire collection or specific record.
@@ -426,18 +428,19 @@ func (s *store) RemovePermissions(
 
 	// Delete any existing permission for this record before inserting the deny.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
-	if err := s.db.Where("grantee IN ?", grantees).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
-		Where("rkey = ?", rkey).
-		Delete(&permission{}).Error; err != nil {
-		return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
-	}
-
-	if err := s.db.Create(recordPerms).Error; err != nil {
-		return fmt.Errorf("failed to add deny permissions: %w", err)
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ?", rkey).
+			Delete(&permission{}).Error; err != nil {
+			return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
+		}
+		if err := tx.Create(recordPerms).Error; err != nil {
+			return fmt.Errorf("failed to add deny permissions: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
