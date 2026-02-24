@@ -123,7 +123,7 @@ export class AuthManager {
           authInfo.refreshToken,
         );
         authInfo = this.setAuthState(token);
-      } catch (e) {
+      } catch {
         return this.handleUnauthenticated();
       }
     }
