@@ -7,7 +7,7 @@ tasks:
     - --habitatDomain
     - pear.${TS_DOMAIN}
     deps:
-      # - target: pear:dev
+      - target: pear:dev
       - target: funnel:start
         args:
           - "6000"

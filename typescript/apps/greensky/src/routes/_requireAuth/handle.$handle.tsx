@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { type PrivatePost, type Profile, getPrivatePosts, getProfile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
+import { NewPostButton } from "./NewPostButton";
 
 interface Author {
   handle: string;
@@ -73,8 +74,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   component() {
     const { handle } = Route.useParams();
     const entries = Route.useLoaderData();
-    // TODO: why isn't authManager type coming through
-    const { authManager } = Route.useRouteContext();
+    const { authManager, myProfile } = Route.useRouteContext();
     return (
       <>
         <nav>
@@ -83,12 +83,18 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
               <Link to="/">← Greensky</Link>
             </li>
             <li>
-              <h2>@{handle}'s feed</h2>
+              <h3>@{handle}'s feed</h3>
             </li>
           </ul>
           <ul>
             <li>
-              <span>@{(authManager as any).handle}</span>
+              <span>@{myProfile?.handle}</span>
+            </li>
+            <li>
+              <NewPostButton authManager={authManager} />
+            </li>
+            <li>
+              <button className="secondary" onClick={authManager.logout}>Logout</button>
             </li>
           </ul>
         </nav>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -34,7 +35,7 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
+	dpopClient, err := p.pdsClientFactory.NewClient(context.Background(), did)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create dpop client")
 		http.Error(w, "failed to create dpop client", http.StatusInternalServerError)
