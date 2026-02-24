@@ -110,6 +110,9 @@ export const Route = createFileRoute("/_requireAuth/")({
           </ul>
           <ul>
             <li>
+              <span>@{(authManager as any).handle}</span>
+            </li>
+            <li>
               <button onClick={() => setModalOpen(true)}>New Post</button>
             </li>
           </ul>

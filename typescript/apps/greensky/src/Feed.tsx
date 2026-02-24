@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+
 export interface FeedEntry {
   uri: string;
   text: string;
@@ -45,17 +47,31 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
               </div>
             )}
             {entry.author && (
-              <span>
-                {entry.author.avatar && (
-                  <img
-                    src={entry.author.avatar}
-                    width={24}
-                    height={24}
-                    style={{ marginRight: 8 }}
-                  />
-                )}
-                {entry.author.displayName ?? entry.author.handle}
-              </span>
+              entry.author.handle ? (
+                <Link to={"/handle/$handle" as any} params={{ handle: entry.author.handle } as any}>
+                  {entry.author.avatar && (
+                    <img
+                      src={entry.author.avatar}
+                      width={24}
+                      height={24}
+                      style={{ marginRight: 8 }}
+                    />
+                  )}
+                  {entry.author.displayName ?? entry.author.handle}
+                </Link>
+              ) : (
+                <span>
+                  {entry.author.avatar && (
+                    <img
+                      src={entry.author.avatar}
+                      width={24}
+                      height={24}
+                      style={{ marginRight: 8 }}
+                    />
+                  )}
+                  {entry.author.displayName}
+                </span>
+              )
             )}
           </header>
           {entry.text}

@@ -323,7 +323,6 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		}
 		dids[i] = id.DID
 	}
-	fmt.Println("got a list records req", callerDID, input.Collection, dids)
 
 	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(input.Collection), dids)
 	if err != nil {

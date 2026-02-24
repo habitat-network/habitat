@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { type PrivatePost, type Profile, getPrivatePosts, getProfile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
@@ -73,12 +73,21 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   component() {
     const { handle } = Route.useParams();
     const entries = Route.useLoaderData();
+    const { authManager } = Route.useRouteContext();
     return (
       <>
         <nav>
           <ul>
             <li>
-              <h2>@{handle}</h2>
+              <Link to="/">← Greensky</Link>
+            </li>
+            <li>
+              <h2>@{handle}'s feed</h2>
+            </li>
+          </ul>
+          <ul>
+            <li>
+              <span>@{(authManager as any).handle}</span>
             </li>
           </ul>
         </nav>
