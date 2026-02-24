@@ -55,8 +55,8 @@ type pear struct {
 }
 
 // ListPermissionsByCollectionFilterOwners implements Pear.
-func (p *pear) ListPermissionsByCollectionFilterOwners(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]permissions.Permission, error) {
-	return p.permissions.ListPermissionsByCollectionFilterOwners(ctx, grantee, collection, owners)
+func (p *pear) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]permissions.Permission, error) {
+	return p.permissions.ListPermissionsByCollection(ctx, grantee, collection, owners)
 }
 
 // Pass throughs to implement permission.Store
@@ -78,15 +78,6 @@ func (p *pear) HasPermission(
 	rkey syntax.RecordKey,
 ) (bool, error) {
 	return p.permissions.HasPermission(ctx, requester, owner, collection, rkey)
-}
-
-// ListPermissionsByCollection implements Pear.
-func (p *pear) ListPermissionsByCollection(
-	ctx context.Context,
-	grantee syntax.DID,
-	collection syntax.NSID,
-) ([]permissions.Permission, error) {
-	return p.permissions.ListPermissionsByCollection(ctx, grantee, collection)
 }
 
 // ListPermissionGrants implements Pear.
@@ -298,7 +289,7 @@ func (p *pear) listRecordsLocal(
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	perms, err := p.permissions.ListPermissionsByCollectionFilterOwners(ctx, callerDID, collection, subjects)
+	perms, err := p.permissions.ListPermissionsByCollection(ctx, callerDID, collection, subjects)
 	if err != nil {
 		return nil, err
 	}
