@@ -49,11 +49,11 @@ func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrp
 		})
 	}
 
-	nodeA := node.New(pearAName, pearAEndpoint, &dirA, mockXrpcCh)
-	nodeB := node.New(pearBName, pearBEndpoint, &dirB, mockXrpcCh)
+	nodeA := node.New(pearAName, pearAEndpoint, dirA, mockXrpcCh)
+	nodeB := node.New(pearBName, pearBEndpoint, dirB, mockXrpcCh)
 
-	pearA := newPearForTest(t, &dirA, withNode(nodeA))
-	pearB := newPearForTest(t, &dirB, withNode(nodeB))
+	pearA := newPearForTest(t, dirA, withNode(nodeA))
+	pearB := newPearForTest(t, dirB, withNode(nodeB))
 
 	return pearA, pearB
 }

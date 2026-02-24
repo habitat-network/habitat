@@ -82,7 +82,7 @@ func mockIdentities(dids []syntax.DID) identity.Directory {
 			},
 		})
 	}
-	return &dir
+	return dir
 }
 
 func TestMockIdentities(t *testing.T) {
