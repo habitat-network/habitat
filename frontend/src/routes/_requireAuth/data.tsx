@@ -3,7 +3,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 interface SearchParams {
   lexicon?: string;
@@ -58,19 +58,14 @@ export const Route = createFileRoute("/_requireAuth/data")({
       const repo = repoDid?.trim() || undefined;
 
       if (isPrivate) {
-        /*
-        const data = await context.authManager
-          .client()
-          .listPrivateRecords(lexicon, undefined, undefined, repo);
-        */
-        console.log("lexicon is", lexicon)
+        const params = new URLSearchParams();
+        params.append("collection", lexicon);
+        if (repo) {
+          params.append("subjects", repo);
+        }
         const response = await context.authManager.fetch(
-          "/xrpc/network.habitat.listRecords",
-          "POST",
-          JSON.stringify({
-            subjects: [repo],
-            collection: lexicon,
-          }),
+          `/xrpc/network.habitat.listRecords?${params}`,
+          "GET",
         );
         const data: { records?: any[] } = await response.json();
         return { records: data.records, error: null };
@@ -96,36 +91,8 @@ function DataDebugger() {
   const navigate = useNavigate({ from: Route.fullPath });
   const router = useRouter();
 
-  const [localLexicon, setLocalLexicon] = useState(lexicon || "");
-  const [localRepoDid, setLocalRepoDid] = useState(repoDid || "");
-  const [localFilter, setLocalFilter] = useState(filter || "");
+  const parsedFilters = useMemo(() => parseFilters(filter || ""), [filter]);
 
-  // Parse filters from local state (client-side only, no fetch needed)
-  const parsedFilters = useMemo(() => parseFilters(localFilter), [localFilter]);
-
-  // Update search params
-  const updateSearch = (updates: Partial<SearchParams>) => {
-    navigate({
-      search: (prev) => ({ ...prev, ...updates }),
-      replace: true,
-    });
-  };
-
-  // Commit local field values to the URL and re-fetch
-  const refresh = () => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        lexicon: localLexicon || undefined,
-        repoDid: localRepoDid || undefined,
-        filter: localFilter || undefined,
-      }),
-      replace: true,
-    });
-    router.invalidate();
-  };
-
-  // Filter records based on parsed filter criteria
   const filteredRecords = useMemo(() => {
     if (!records || records.length === 0) return [];
 
@@ -134,16 +101,13 @@ function DataDebugger() {
     }
 
     return records.filter((record) => {
-      // Check all filter criteria
       for (const [key, value] of Object.entries(parsedFilters)) {
         if (key === "rkey") {
-          // Extract rkey from URI
           const rkey = record.uri?.split("/").pop();
           if (!rkey || !rkey.includes(value)) {
             return false;
           }
         } else {
-          // Check top-level fields in the record value
           const recordValue = record.value as Record<string, unknown>;
           const fieldValue = recordValue[key];
 
@@ -151,9 +115,7 @@ function DataDebugger() {
             return false;
           }
 
-          // Convert to string for comparison
-          const fieldStr = String(fieldValue);
-          if (!fieldStr.includes(value)) {
+          if (!String(fieldValue).includes(value)) {
             return false;
           }
         }
@@ -162,6 +124,22 @@ function DataDebugger() {
       return true;
     });
   }, [records, parsedFilters]);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const isPrivateEl = form.elements.namedItem("isPrivate") as HTMLInputElement;
+    navigate({
+      search: () => ({
+        lexicon: (data.get("lexicon") as string) || undefined,
+        repoDid: (data.get("repoDid") as string) || undefined,
+        filter: (data.get("filter") as string) || undefined,
+        isPrivate: isPrivateEl?.checked || undefined,
+      }),
+      replace: true,
+    });
+  };
 
   return (
     <div style={{ padding: "1.5rem" }}>
@@ -172,7 +150,9 @@ function DataDebugger() {
       </h1>
 
       {/* Top bar with controls */}
-      <div
+      <form
+        key={`${lexicon || ""}-${repoDid || ""}-${filter || ""}-${isPrivate}`}
+        onSubmit={handleSubmit}
         style={{
           display: "flex",
           flexWrap: "wrap",
@@ -195,9 +175,9 @@ function DataDebugger() {
           </label>
           <input
             id="lexicon"
+            name="lexicon"
             type="text"
-            value={localLexicon}
-            onChange={(e) => setLocalLexicon(e.target.value)}
+            defaultValue={lexicon || ""}
             placeholder="e.g., app.bsky.feed.post"
             style={{
               border: "1px solid ButtonBorder",
@@ -220,9 +200,9 @@ function DataDebugger() {
           </label>
           <input
             id="repoDid"
+            name="repoDid"
             type="text"
-            value={localRepoDid}
-            onChange={(e) => setLocalRepoDid(e.target.value)}
+            defaultValue={repoDid || ""}
             placeholder="did:plc:..."
             style={{
               border: "1px solid ButtonBorder",
@@ -246,9 +226,9 @@ function DataDebugger() {
           </label>
           <input
             id="filter"
+            name="filter"
             type="text"
-            value={localFilter}
-            onChange={(e) => setLocalFilter(e.target.value)}
+            defaultValue={filter || ""}
             placeholder="key:value"
             style={{
               padding: "0.375rem 0.5rem",
@@ -273,17 +253,15 @@ function DataDebugger() {
         >
           <input
             type="checkbox"
-            checked={isPrivate || false}
-            onChange={(e) =>
-              updateSearch({ isPrivate: e.target.checked || undefined })
-            }
+            name="isPrivate"
+            defaultChecked={isPrivate || false}
           />
           <span style={{ fontWeight: 500 }}>Private Data</span>
         </label>
 
         {/* Refresh Button */}
         <button
-          onClick={refresh}
+          type="submit"
           style={{
             background: "none",
             border: "none",
@@ -327,7 +305,7 @@ function DataDebugger() {
             ))}
           </div>
         )}
-      </div>
+      </form>
 
       {/* Data Display */}
       <div>
@@ -372,7 +350,7 @@ function DataDebugger() {
               <div>
                 <h3>Error loading records</h3>
                 <p>{error}</p>
-                <button onClick={refresh}>Try again</button>
+                <button onClick={() => router.invalidate()}>Try again</button>
               </div>
             </div>
           </div>
