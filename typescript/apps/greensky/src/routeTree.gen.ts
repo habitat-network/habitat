@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
+import { Route as RequireAuthHandleHandleRouteImport } from './routes/_requireAuth/handle.$handle'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -27,27 +28,40 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthHandleHandleRoute = RequireAuthHandleHandleRouteImport.update({
+  id: '/handle/$handle',
+  path: '/handle/$handle',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/': typeof RequireAuthIndexRoute
+  '/handle/$handle': typeof RequireAuthHandleHandleRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/': typeof RequireAuthIndexRoute
+  '/handle/$handle': typeof RequireAuthHandleHandleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/login': typeof LoginRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
+  '/_requireAuth/handle/$handle': typeof RequireAuthHandleHandleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/login' | '/'
+  fullPaths: '/login' | '/' | '/handle/$handle'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/'
-  id: '__root__' | '/_requireAuth' | '/login' | '/_requireAuth/'
+  to: '/login' | '/' | '/handle/$handle'
+  id:
+    | '__root__'
+    | '/_requireAuth'
+    | '/login'
+    | '/_requireAuth/'
+    | '/_requireAuth/handle/$handle'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,15 +92,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
+    '/_requireAuth/handle/$handle': {
+      id: '/_requireAuth/handle/$handle'
+      path: '/handle/$handle'
+      fullPath: '/handle/$handle'
+      preLoaderRoute: typeof RequireAuthHandleHandleRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
   }
 }
 
 interface RequireAuthRouteChildren {
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
+  RequireAuthHandleHandleRoute: typeof RequireAuthHandleHandleRoute
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthIndexRoute: RequireAuthIndexRoute,
+  RequireAuthHandleHandleRoute: RequireAuthHandleHandleRoute,
 }
 
 const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(

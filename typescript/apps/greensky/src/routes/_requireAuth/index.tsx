@@ -3,21 +3,88 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { getPrivatePosts, getProfile, PrivatePost, type Profile } from "../../habitatApi";
+import { type FeedEntry, Feed } from "../../Feed";
 
 interface FormData {
   content: string;
   private: boolean;
 }
 
+interface BskyAuthor {
+  handle: string;
+  displayName?: string;
+  avatar?: string;
+}
+
+interface BskyPost {
+  uri: string;
+  author?: BskyAuthor;
+  record: {
+    text: string;
+    createdAt?: string;
+  };
+}
+
+interface BskyFeedItem {
+  post: BskyPost;
+  reply?: {
+    parent: {
+      uri: string;
+      author?: BskyAuthor;
+    };
+  };
+  reason?: {
+    $type: string;
+    by: BskyAuthor;
+  };
+}
+
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
-    const bskyFeed = await getBskyFeed(context.authManager);
-    const habitatFeed = await getHabitatFeed(context.authManager);
-    return [...habitatFeed, ...bskyFeed];
+    const bskyItems: BskyFeedItem[] = await getBskyFeed(context.authManager);
+    const privatePosts = await getPrivatePosts(context.authManager);
+
+    const privatePostToFeedEntry = async (post: PrivatePost): Promise<FeedEntry> => {
+      const did = post.uri.split("/")[2];
+      const privateAuthor: Profile | undefined = did
+        ? await getProfile(context.authManager, did)
+        : undefined;
+
+      return {
+        uri: post.uri,
+        text: post.value.text,
+        createdAt: post.value.createdAt,
+        kind: "private",
+        author: privateAuthor,
+        replyToHandle: post.value.reply !== undefined ? null : undefined,
+      }
+    }
+    const privateEntries = await Promise.all(privatePosts.map(privatePostToFeedEntry))
+
+    const entries: FeedEntry[] = [
+      ...privateEntries,
+      ...bskyItems.map(({ post, reply, reason }): FeedEntry => ({
+        uri: post.uri,
+        text: post.record.text,
+        createdAt: post.record.createdAt,
+        kind: "public",
+        author: post.author,
+        replyToHandle: reply !== undefined
+          ? (reply.parent.author?.handle ?? null)
+          : undefined,
+        repostedByHandle:
+          reason?.$type === "app.bsky.feed.defs#reasonRepost"
+            ? reason.by.handle
+            : undefined,
+      })),
+    ];
+
+    return entries;
   },
   component() {
     const { authManager } = Route.useRouteContext();
-    const data = Route.useLoaderData();
+    const entries = Route.useLoaderData();
     const [modalOpen, setModalOpen] = useState(false);
     const { handleSubmit, register } = useForm<FormData>();
     const { mutate: createPost, isPending: createPostIsPending } = useMutation({
@@ -26,9 +93,10 @@ export const Route = createFileRoute("/_requireAuth/")({
           "/xrpc/network.habitat.putRecord",
           "POST",
           JSON.stringify({
-            collection: "network.habitat.post",
+            collection: "app.bsky.feed.post",
             record: {
               text: data.content,
+              createdAt: new Date().toISOString(),
             },
             repo: authManager.handle,
           }),
@@ -45,28 +113,14 @@ export const Route = createFileRoute("/_requireAuth/")({
           </ul>
           <ul>
             <li>
+              <span>@{(authManager as any).handle}</span>
+            </li>
+            <li>
               <button onClick={() => setModalOpen(true)}>New Post</button>
             </li>
           </ul>
         </nav>
-        {data.map((post) => {
-          return (
-            <article key={post.uri}>
-              <header>
-                <span>
-                  <img
-                    src={post.author?.avatar}
-                    width={24}
-                    height={24}
-                    style={{ marginRight: 8 }}
-                  />
-                  {post.author?.displayName}
-                </span>
-              </header>
-              {post.record.text}
-            </article>
-          );
-        })}
+        <Feed entries={entries} />
         <dialog open={modalOpen}>
           <article>
             <h1>New post</h1>
@@ -106,18 +160,7 @@ export const Route = createFileRoute("/_requireAuth/")({
   },
 });
 
-interface Post {
-  uri: string;
-  author?: {
-    displayName: string;
-    avatar?: string;
-  };
-  record: {
-    text: string;
-  };
-}
-
-async function getBskyFeed(authManager: AuthManager): Promise<Post[]> {
+async function getBskyFeed(authManager: AuthManager): Promise<BskyFeedItem[]> {
   const headers = new Headers();
   headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
   const params = new URLSearchParams();
@@ -132,31 +175,6 @@ async function getBskyFeed(authManager: AuthManager): Promise<Post[]> {
     null,
     headers,
   );
-  const feedData: { feed: { post: Post }[] } = await feedResponse.json();
-
-  return feedData.feed.map(({ post }) => post);
-}
-
-async function getHabitatFeed(authManager: AuthManager): Promise<Post[]> {
-  const params = new URLSearchParams();
-  params.set("limit", "10");
-  params.set("collection", "network.habitat.post");
-  const response = await authManager.fetch(
-    `/xrpc/network.habitat.listRecords?${params.toString()}`,
-    "GET",
-  );
-
-  const posts: {
-    records: {
-      uri: string;
-      cid: string;
-      value: { text: string };
-    }[];
-    cursor?: string;
-  } = await response.json();
-
-  return posts.records.map(({ uri, value }) => ({
-    uri: uri,
-    record: value,
-  }));
+  const feedData: { feed: BskyFeedItem[] } = await feedResponse.json();
+  return feedData.feed;
 }

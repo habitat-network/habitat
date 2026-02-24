@@ -161,11 +161,11 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	mockXRPCs.actions = append(mockXRPCs.actions, resp)
 
 	// Both A and B can list both records via ListRecords
-	aRecords, err := pearAC.ListRecords(t.Context(), aDID, coll)
+	aRecords, err := pearAC.ListRecords(t.Context(), aDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, aRecords, 2)
 
-	bRecords, err := pearB.ListRecords(t.Context(), bDID, coll)
+	bRecords, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, bRecords, 2)
 
@@ -187,7 +187,7 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.NotNil(t, got)
 
 	// C can also list both records via ListRecords
-	cRecords, err := pearAC.ListRecords(t.Context(), cDID, coll)
+	cRecords, err := pearAC.ListRecords(t.Context(), cDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, cRecords, 2)
 
@@ -210,7 +210,7 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.NotNil(t, got)
 
 	// B can no longer list A's record; only sees its own
-	bRecordsAfterRemoval, err := pearB.ListRecords(t.Context(), bDID, coll)
+	bRecordsAfterRemoval, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, bRecordsAfterRemoval, 1)
 	require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)

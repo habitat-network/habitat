@@ -3,42 +3,39 @@
   "id": "network.habitat.repo.listRecords",
   "defs": {
     "main": {
-      "type": "procedure",
+      "type": "query",
       "description": "List records with optional filters for subjects, lexicons, and timestamps.",
-      "input": {
-        "encoding": "application/json",
-        "schema": {
-          "type": "object",
-          "required": [
-            "subjects",
-            "collection"
-          ],
-          "properties": {
-            "subjects": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "description": "Repos (DIDs) to search from to retrieve records."
-              }
-            },
-            "collection": {
+      "parameters": {
+        "type": "params",
+        "required": [
+          "subjects",
+          "collection"
+        ],
+        "properties": {
+          "subjects": {
+            "type": "array",
+            "items": {
               "type": "string",
-              "format": "nsid",
-              "description": "Filter by specific lexicon."
-            },
-            "since": {
-              "type": "string",
-              "description": " [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time.",
-              "format": "datetime"
-            },
-            "limit": {
-              "type": "integer",
-              "description": "[UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API)."
-            },
-            "cursor": {
-              "type": "string",
-              "description": "[UNIMPLEMENTED] Cursor of the returned list."
+              "description": "Repos (DIDs) to search from to retrieve records."
             }
+          },
+          "collection": {
+            "type": "string",
+            "format": "nsid",
+            "description": "Filter by specific lexicon."
+          },
+          "since": {
+            "type": "string",
+            "description": " [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time.",
+            "format": "datetime"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "[UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API)."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "[UNIMPLEMENTED] Cursor of the returned list."
           }
         }
       },

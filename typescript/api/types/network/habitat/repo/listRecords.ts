@@ -15,19 +15,18 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.repo.listRecords'
 
-export type QueryParams = {}
-
-export interface InputSchema {
+export type QueryParams = {
   subjects: string[]
   /** Filter by specific lexicon. */
   collection: string
-  /** Allow getting records that are strictly newer or updated since a certain time. */
+  /**  [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time. */
   since?: string
   /** [UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API). */
   limit?: number
   /** [UNIMPLEMENTED] Cursor of the returned list. */
   cursor?: string
 }
+export type InputSchema = undefined
 
 export interface OutputSchema {
   cursor?: string
@@ -37,8 +36,6 @@ export interface OutputSchema {
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {
