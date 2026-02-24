@@ -13,7 +13,8 @@ const (
 	CliqueType GranteeType = "clique"
 	DIDType    GranteeType = "did"
 
-	CliqueNSID = syntax.NSID("network.habitat.clique")
+	CliqueNSID          = syntax.NSID("network.habitat.clique")
+	FollowersCliqueRkey = syntax.RecordKey("followers")
 )
 
 type Grantee interface {

@@ -15,6 +15,11 @@ export interface FeedEntry {
   repostedByHandle?: string;
 }
 
+function bskyUrl(uri: string, handle: string): string {
+  const rkey = uri.split("/").pop();
+  return `https://bsky.app/profile/${handle}/post/${rkey}`;
+}
+
 export function Feed({ entries }: { entries: FeedEntry[] }) {
   const sorted = [...entries].sort((a, b) => {
     if (!a.createdAt && !b.createdAt) return 0;
@@ -30,9 +35,26 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
           key={entry.uri}
           style={{
             outline:
-              entry.kind === "private" ? "2px solid darkgreen" : "2px solid blue",
+              entry.kind === "private" ? "3px solid green" : "3px solid lightblue",
+            position: "relative",
           }}
         >
+          {entry.kind === "public" && entry.author?.handle && (
+            <a
+              href={bskyUrl(entry.uri, entry.author.handle)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                fontSize: "0.75em",
+                textDecoration: "none",
+              }}
+            >
+              ↗🦋
+            </a>
+          )}
           <header>
             {entry.repostedByHandle !== undefined && (
               <div style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}>

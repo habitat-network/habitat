@@ -133,7 +133,7 @@ func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, 
 		return "", err
 	}
 
-	id, err := s.dir.Lookup(ctx, *atid)
+	id, err := s.dir.Lookup(ctx, atid)
 	if err != nil {
 		return "", err
 	}
@@ -316,7 +316,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		id, err := s.dir.Lookup(r.Context(), *atid)
+		id, err := s.dir.Lookup(r.Context(), atid)
 		if err != nil {
 			utils.LogAndHTTPError(w, err, "parsing looking up atid", http.StatusBadRequest)
 			return

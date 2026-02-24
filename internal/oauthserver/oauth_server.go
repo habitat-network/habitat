@@ -159,7 +159,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
-	id, err := o.directory.Lookup(ctx, *atid)
+	id, err := o.directory.Lookup(ctx, atid)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusInternalServerError)
 		return

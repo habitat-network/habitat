@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { type PrivatePost, type Profile, getPrivatePosts, getProfile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
+import { NavBar } from "./NavBar";
 
 interface Author {
   handle: string;
@@ -73,25 +74,17 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   component() {
     const { handle } = Route.useParams();
     const entries = Route.useLoaderData();
-    // TODO: why isn't authManager type coming through
-    const { authManager } = Route.useRouteContext();
+    const { authManager, myProfile } = Route.useRouteContext();
     return (
       <>
-        <nav>
-          <ul>
-            <li>
-              <Link to="/">← Greensky</Link>
-            </li>
-            <li>
-              <h2>@{handle}'s feed</h2>
-            </li>
-          </ul>
-          <ul>
-            <li>
-              <span>@{(authManager as any).handle}</span>
-            </li>
-          </ul>
-        </nav>
+        <NavBar
+          left={<>
+            <li><Link to="/">← Greensky</Link></li>
+            <li><h3>@{handle}'s feed</h3></li>
+          </>}
+          authManager={authManager}
+          myProfile={myProfile}
+        />
         <Feed entries={entries} />
       </>
     );

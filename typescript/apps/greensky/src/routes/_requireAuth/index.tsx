@@ -1,15 +1,8 @@
-import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
 import { getPrivatePosts, getProfile, PrivatePost, type Profile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
-
-interface FormData {
-  content: string;
-  private: boolean;
-}
+import { NavBar } from "./NavBar";
 
 interface BskyAuthor {
   handle: string;
@@ -42,8 +35,10 @@ interface BskyFeedItem {
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
-    const bskyItems: BskyFeedItem[] = await getBskyFeed(context.authManager);
-    const privatePosts = await getPrivatePosts(context.authManager);
+    const [bskyItems, privatePosts] = await Promise.all([
+      getBskyFeed(context.authManager),
+      getPrivatePosts(context.authManager),
+    ]);
 
     const privatePostToFeedEntry = async (post: PrivatePost): Promise<FeedEntry> => {
       const did = post.uri.split("/")[2];
@@ -83,78 +78,16 @@ export const Route = createFileRoute("/_requireAuth/")({
     return entries;
   },
   component() {
-    const { authManager } = Route.useRouteContext();
+    const { authManager, myProfile } = Route.useRouteContext();
     const entries = Route.useLoaderData();
-    const [modalOpen, setModalOpen] = useState(false);
-    const { handleSubmit, register } = useForm<FormData>();
-    const { mutate: createPost, isPending: createPostIsPending } = useMutation({
-      mutationFn: async (data: FormData) => {
-        await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
-            collection: "app.bsky.feed.post",
-            record: {
-              text: data.content,
-              createdAt: new Date().toISOString(),
-            },
-            repo: authManager.handle,
-          }),
-        );
-      },
-    });
     return (
       <>
-        <nav>
-          <ul>
-            <li>
-              <h2>Greensky</h2>
-            </li>
-          </ul>
-          <ul>
-            <li>
-              <span>@{(authManager as any).handle}</span>
-            </li>
-            <li>
-              <button onClick={() => setModalOpen(true)}>New Post</button>
-            </li>
-          </ul>
-        </nav>
+        <NavBar
+          left={<li><h2 style={{ color: "green", fontWeight: "normal" }}>greensky by <a href="https://habitat.network">habitat 🌱</a></h2></li>}
+          authManager={authManager}
+          myProfile={myProfile}
+        />
         <Feed entries={entries} />
-        <dialog open={modalOpen}>
-          <article>
-            <h1>New post</h1>
-            <form
-              onSubmit={handleSubmit(async (data) => {
-                createPost(data, {
-                  onError: (error) => {
-                    alert(error.message);
-                  },
-                  onSuccess: () => {
-                    setModalOpen(false);
-                  },
-                });
-              })}
-            >
-              <textarea
-                placeholder="What's on your mind?"
-                {...register("content")}
-              />
-              <label>
-                <input
-                  type="checkbox"
-                  {...register("private")}
-                  defaultChecked
-                  disabled
-                />
-                Private
-              </label>
-              <button type="submit" aria-busy={createPostIsPending}>
-                Post
-              </button>
-            </form>
-          </article>
-        </dialog>
       </>
     );
   },
@@ -162,7 +95,6 @@ export const Route = createFileRoute("/_requireAuth/")({
 
 async function getBskyFeed(authManager: AuthManager): Promise<BskyFeedItem[]> {
   const headers = new Headers();
-  headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
   const params = new URLSearchParams();
   params.append(
     "feed",

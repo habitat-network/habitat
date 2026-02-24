@@ -102,6 +102,7 @@ var (
 	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
 	ErrUnauthorized           = fmt.Errorf("unauthorized request")
 	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
+	ErrFollowersCliqueRkey    = errors.New("this clique cannot be directly set, it derives from app.bsky.graph.follows of the user")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
 )
 
@@ -142,6 +143,9 @@ func (p *pear) PutRecord(
 	// Cliques in habitat are treated specially, they are a way to delegate permissions to a particular did, which requires some
 	// special handling and coordination.
 	if collection == permissions.CliqueNSID {
+		if rkey == permissions.FollowersCliqueRkey {
+			return "", ErrFollowersCliqueRkey
+		}
 		for _, grantee := range grantees {
 			if _, ok := grantee.(permissions.CliqueGrantee); ok {
 				// No nested cliques allowed -- can't grant a clique permission to a clique

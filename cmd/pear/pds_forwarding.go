@@ -34,18 +34,13 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to create dpop client")
-		http.Error(w, "failed to create dpop client", http.StatusInternalServerError)
-		return
-	}
 	// Only pass body for methods that support it
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
-	req, err := http.NewRequest(r.Method, r.URL.RequestURI(), body)
+
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create forwarding request")
 		http.Error(w, "failed to create forwarding request", http.StatusInternalServerError)
@@ -53,6 +48,14 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Copy headers from original request
 	req.Header = r.Header.Clone()
+
+	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to create dpop client")
+		http.Error(w, "failed to create dpop client", http.StatusInternalServerError)
+		return
+	}
+
 	// Forward the request using the dpopClient
 	resp, err := dpopClient.Do(req)
 	if err != nil {
