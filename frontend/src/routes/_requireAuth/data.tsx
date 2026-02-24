@@ -4,7 +4,6 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { ListPrivateRecordsResponse } from "typescript/internal/src/habitatClient";
 
 interface SearchParams {
   lexicon?: string;
