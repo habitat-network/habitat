@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { getPrivatePosts, getProfile, PrivatePost, type Profile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
-import { NewPostButton } from "./NewPostButton";
+import { NavBar } from "./NavBar";
 
 interface BskyAuthor {
   handle: string;
@@ -82,24 +82,11 @@ export const Route = createFileRoute("/_requireAuth/")({
     const entries = Route.useLoaderData();
     return (
       <>
-        <nav>
-          <ul>
-            <li>
-              <h2>Greensky</h2>
-            </li>
-          </ul>
-          <ul>
-            <li>
-              <span>@{myProfile?.handle}</span>
-            </li>
-            <li>
-              <NewPostButton authManager={authManager} />
-            </li>
-            <li>
-              <button className="secondary" onClick={authManager.logout}>Logout</button>
-            </li>
-          </ul>
-        </nav>
+        <NavBar
+          left={<li><h2 style={{ color: "green", fontWeight: "normal" }}>greensky by <a href="https://habitat.network">habitat 🌱</a></h2></li>}
+          authManager={authManager}
+          myProfile={myProfile}
+        />
         <Feed entries={entries} />
       </>
     );

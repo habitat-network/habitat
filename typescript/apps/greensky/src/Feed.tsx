@@ -30,7 +30,7 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
           key={entry.uri}
           style={{
             outline:
-              entry.kind === "private" ? "2px solid darkgreen" : "2px solid blue",
+              entry.kind === "private" ? "3px solid green" : "3px solid lightblue",
           }}
         >
           <header>

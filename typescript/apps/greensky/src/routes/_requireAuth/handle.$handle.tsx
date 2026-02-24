@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { type PrivatePost, type Profile, getPrivatePosts, getProfile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
-import { NewPostButton } from "./NewPostButton";
+import { NavBar } from "./NavBar";
 
 interface Author {
   handle: string;
@@ -77,27 +77,14 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
     const { authManager, myProfile } = Route.useRouteContext();
     return (
       <>
-        <nav>
-          <ul>
-            <li>
-              <Link to="/">← Greensky</Link>
-            </li>
-            <li>
-              <h3>@{handle}'s feed</h3>
-            </li>
-          </ul>
-          <ul>
-            <li>
-              <span>@{myProfile?.handle}</span>
-            </li>
-            <li>
-              <NewPostButton authManager={authManager} />
-            </li>
-            <li>
-              <button className="secondary" onClick={authManager.logout}>Logout</button>
-            </li>
-          </ul>
-        </nav>
+        <NavBar
+          left={<>
+            <li><Link to="/">← Greensky</Link></li>
+            <li><h3>@{handle}'s feed</h3></li>
+          </>}
+          authManager={authManager}
+          myProfile={myProfile}
+        />
         <Feed entries={entries} />
       </>
     );
