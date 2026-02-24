@@ -4,6 +4,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { ListPrivateRecordsResponse } from "typescript/internal/src/habitatClient";
 
 interface SearchParams {
   lexicon?: string;
@@ -67,7 +68,7 @@ export const Route = createFileRoute("/_requireAuth/data")({
           `/xrpc/network.habitat.listRecords?${params}`,
           "GET",
         );
-        const data: { records?: any[] } = await response.json();
+        const data: ListPrivateRecordsResponse = await response.json();
         return { records: data.records, error: null };
       } else {
         const data = await context.authManager

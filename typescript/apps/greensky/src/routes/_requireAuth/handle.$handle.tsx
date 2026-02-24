@@ -73,6 +73,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   component() {
     const { handle } = Route.useParams();
     const entries = Route.useLoaderData();
+    // TODO: why isn't authManager type coming through
     const { authManager } = Route.useRouteContext();
     return (
       <>
