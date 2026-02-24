@@ -9,7 +9,9 @@ import (
 	"slices"
 	"time"
 
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/node"
@@ -149,10 +151,27 @@ func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, 
 	}
 }
 
+func isFollwersCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
+	client := &xrpc.Client{
+		Host: "https://public.api.bsky.app",
+	}
+
+	output, err := bsky.GraphGetFollowers(ctx, client, clique.Owner().String(), "", 0)
+	if err != nil {
+		return false, err
+	}
+
+	followers := xslices.Map(output.Followers, func(a *bsky.ActorDefs_ProfileView) syntax.DID {
+		return syntax.DID(a.Did)
+	})
+	return slices.Contains(followers, requester), nil
+}
+
 func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
 	if requester == clique.Owner() {
 		return true, nil
 	}
+
 	ok, err := s.node.ServesDID(ctx, clique.Owner())
 	if err != nil {
 		return false, err
@@ -161,6 +180,11 @@ func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique
 	// Remote clique; need to call out
 	if !ok {
 		return s.isRemoteCliqueMember(ctx, requester, clique, requester)
+	}
+
+	// Special case followers clique
+	if clique.RecordKey() == FollowersCliqueRkey {
+		return isFollwersCliqueMember(ctx, requester, clique)
 	}
 
 	// Local clique
@@ -221,10 +245,21 @@ func (s *store) HasPermission(
 				return false, err
 			}
 
-			if ok {
-				localCliques = append(localCliques, grantee)
+			// Kind of inefficient -- this can be looked up from anywhere and doesn't need to be forwarded to local repo
+			if grantee.RecordKey() == FollowersCliqueRkey {
+				follower, err := isFollwersCliqueMember(ctx, requester, grantee)
+				if err != nil {
+					return false, err
+				}
+				if follower {
+					return true, nil
+				}
 			} else {
-				remoteCliques = append(remoteCliques, grantee)
+				if ok {
+					localCliques = append(localCliques, grantee)
+				} else {
+					remoteCliques = append(remoteCliques, grantee)
+				}
 			}
 		}
 	}
