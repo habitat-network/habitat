@@ -45,7 +45,8 @@ func (m *serviceProxyXrpcChannel) SendXRPC(
 	receiver syntax.DID,
 	req *http.Request,
 ) (*http.Response, error) {
-	atid, err := m.directory.LookupDID(ctx, receiver)
+	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	atid, err := m.directory.LookupDID(context.Background(), receiver)
 	if err != nil {
 		return nil, fmt.Errorf("[xrpc channel]: failed to lookup identity: %w", err)
 	}

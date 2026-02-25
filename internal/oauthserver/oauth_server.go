@@ -3,6 +3,7 @@
 package oauthserver
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -283,7 +284,8 @@ func (o *OAuthServer) HandleCallback(
 	}
 
 	// Ensure that habitat serves this user
-	id, err := o.directory.LookupDID(ctx, arf.Did)
+	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	id, err := o.directory.LookupDID(context.Background(), arf.Did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
 		return
