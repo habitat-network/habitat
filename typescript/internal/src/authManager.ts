@@ -52,10 +52,6 @@ export class AuthManager {
     return this.store.getState().authInfo;
   }
 
-  isAuthenticated() {
-    return this.store.getState().authInfo != undefined
-  }
-
   loginUrl(handle: string, redirectUri: string) {
     const state = client.randomState();
     localStorage.setItem(stateLocalStorageKey, state);

@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { HandleResolver, DidResolver, DidDocument } from "@atproto/identity";
 import { AtpAgent } from "@atproto/api";
@@ -150,6 +150,7 @@ const Step2 = ({
     code: string;
     server: string;
   }
+  const navigate = useNavigate();
   const form = useForm<FormData>();
   const { mutate: updateIdentity, isPending } = useMutation({
     mutationFn: async (data: FormData) => {
@@ -188,7 +189,7 @@ const Step2 = ({
     },
     onSuccess: () => {
       confetti();
-      window.location.assign("/");
+      navigate({ to: "/" });
     },
     onError: (error) => {
       alert(error.message);

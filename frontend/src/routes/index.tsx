@@ -1,6 +1,5 @@
 /// <reference types="vite/client" />
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { DidResolver } from "@atproto/identity";
 import { OnboardComponent, habitatServers } from "./onboard";
 
@@ -8,10 +7,27 @@ export const Route = createFileRoute("/")({
   async beforeLoad({ context }) {
     await context.authManager.maybeExchangeCode(window.location.href);
   },
+  async loader({ context }) {
+    const { authManager } = context;
+    if (!authManager.getAuthInfo()) return null;
+
+    const did = authManager.getAuthInfo()!.did;
+    const resolver = new DidResolver({});
+    const didDoc = await resolver.resolve(did);
+
+    const serviceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
+    const hasHabitat = didDoc?.service?.some(
+      (s) => s.id === `#${serviceKey}` && s.type === "HabitatServer",
+    );
+    const handle = didDoc?.alsoKnownAs?.[0]?.replace(/^at:\/\//, "");
+
+    return { hasHabitat, handle };
+  },
+  pendingComponent: () => <p>Loading...</p>,
   component() {
     const { authManager } = Route.useRouteContext();
 
-    if (!authManager.isAuthenticated()) {
+    if (!authManager.getAuthInfo()) {
       return (
         <>
           <h1>Welcome to Habitat!</h1>
@@ -20,34 +36,12 @@ export const Route = createFileRoute("/")({
       );
     }
 
-    return <AuthenticatedHome authManager={authManager} />;
+    return <AuthenticatedHome />;
   },
 });
 
-function AuthenticatedHome({
-  authManager,
-}: {
-  authManager: ReturnType<typeof Route.useRouteContext>["authManager"];
-}) {
-  const did = authManager.getAuthInfo()!.did;
-
-  const { data: didDoc, isLoading } = useQuery({
-    queryKey: ["didDoc", did],
-    queryFn: async () => {
-      const resolver = new DidResolver({});
-      return resolver.resolve(did);
-    },
-  });
-
-  if (isLoading) return <p>Loading...</p>;
-
-  const serviceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
-  const hasHabitat = didDoc?.service?.some(
-    (s) => s.id === `#${serviceKey}` && s.type === "HabitatServer",
-  );
-
-  // alsoKnownAs entries are formatted as "at://handle.bsky.social"
-  const handle = didDoc?.alsoKnownAs?.[0]?.replace(/^at:\/\//, "");
+function AuthenticatedHome() {
+  const { hasHabitat, handle } = Route.useLoaderData()!;
 
   if (!hasHabitat) {
     return import.meta.env.DEV ? (
