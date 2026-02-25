@@ -109,13 +109,9 @@ export const Route = createFileRoute("/_requireAuth/")({
 async function getBskyFeed(authManager: AuthManager): Promise<BskyFeedItem[]> {
   const headers = new Headers();
   const params = new URLSearchParams();
-  params.append(
-    "feed",
-    "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot",
-  );
   params.append("limit", "10");
   const feedResponse = await authManager.fetch(
-    `/xrpc/app.bsky.feed.getFeed?${params.toString()}`,
+    `/xrpc/app.bsky.feed.getTimeline?${params.toString()}`,
     "GET",
     null,
     headers,
