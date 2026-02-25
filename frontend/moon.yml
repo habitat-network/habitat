@@ -27,6 +27,10 @@ tasks:
         env:
           DOMAIN: ${DOMAIN}/calendar
           OUT_DIR: $projectRoot/dist/calendar
+      - target: greensky:build
+        env:
+          DOMAIN: ${DOMAIN}/greensky
+          OUT_DIR: $projectRoot/dist/greensky
     preset: utility
     options:
       runDepsInParallel: false
