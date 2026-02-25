@@ -449,36 +449,6 @@ func (s *store) RemovePermissions(
 	})
 }
 
-/*
-func (s *store) resolvePermissions(ctx context.Context, permissions []Permission) ([]Permission, error) {
-	relevant := []Permission{}
-	for _, permission := range permissions {
-		clique, ok := permission.Grantee.(CliqueGrantee)
-		if !ok {
-			// Directly return specific grants for this DID
-			relevant = append(relevant, permission)
-			continue
-		}
-
-		// Otherwise, it's a clique grantee, so we need to resolve it
-		// TODO: we could potentially be more efficient with the DB query than resolving each independently.
-		ok, err := s.isCliqueMember(ctx, grantee, clique)
-		if err != nil {
-			return nil, err
-		}
-
-		if ok {
-			// Keep all other fields of the permission the same
-			permission.Grantee = DIDGrantee(grantee)
-			relevant = append(relevant, permission)
-		}
-		// If this did is not a member of the clique, ignore this permission
-	}
-
-	return relevant, nil
-}
-*/
-
 func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
 	allPermissions, err := s.listPermissions(grantee, owners, collection, "")
 	if err != nil {
