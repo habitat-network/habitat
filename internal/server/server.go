@@ -369,7 +369,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	perms, err := s.pear.ListPermissionGrants(r.Context(), callerDID)
+	perms, err := s.pear.ListPermissionGrants(r.Context(), callerDID, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
 		return
@@ -416,6 +416,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = s.pear.AddPermissions(
+		callerDID,
 		grantees,
 		callerDID,
 		syntax.NSID(req.Collection),
@@ -449,7 +450,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.RemovePermissions(grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
+	err = s.pear.RemovePermissions(callerDID, grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
