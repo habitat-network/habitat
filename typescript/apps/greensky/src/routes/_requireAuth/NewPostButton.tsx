@@ -1,4 +1,6 @@
-import { useMutation } from "@tanstack/react-query";
+/// <reference types="vite/client" />
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { DidResolver } from "@atproto/identity";
 import { AuthManager } from "internal/authManager.js";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -19,6 +21,20 @@ export function NewPostButton({ authManager }: NewPostButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
+
+  const did = authManager.getAuthInfo()!.did;
+  const { data: didDoc } = useQuery({
+    queryKey: ["didDoc", did],
+    queryFn: async () => {
+      const resolver = new DidResolver({});
+      return resolver.resolve(did);
+    },
+  });
+  const habitatServiceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
+  const isOnboarded = didDoc?.service?.some(
+    (s: { id: string; type: string }) =>
+      s.id === `#${habitatServiceKey}` && s.type === "HabitatServer",
+  );
   const { handleSubmit, register, watch, reset } = useForm<FormData>({
     defaultValues: { visibility: "public" },
   });
@@ -117,46 +133,54 @@ export function NewPostButton({ authManager }: NewPostButtonProps) {
             <button onClick={closeModal} aria-label="Close" rel="prev" />
             <p><strong>New post</strong></p>
           </header>
-          <form
-            onSubmit={handleSubmit(async (data) => {
-              setPostError(null);
-              createPost(data, {
-                onError: (error) => setPostError(error.message),
-                onSuccess: () => closeModal(),
-              });
-            })}
-          >
-            <textarea
-              placeholder="What's on your mind?"
-              {...register("content")}
-            />
-            <fieldset>
-              <label>
-                <input type="radio" value="public" {...register("visibility")} />
-                Public
-              </label>
-              <label>
-                <input type="radio" value="followers" {...register("visibility")} />
-                Followers only
-              </label>
-              <label>
-                <input type="radio" value="specific" {...register("visibility")} />
-                Specific users
-              </label>
-            </fieldset>
-            {visibility === "specific" && (
-              <UserSearch
-                authManager={authManager}
-                specificUsers={specificUsers}
-                onAddUser={handleAddUser}
-                onRemoveUser={(u) => setSpecificUsers((prev) => prev.filter((x) => x !== u))}
+          {!isOnboarded && (
+            <p>
+              To make private posts, you need to be onboarded to habitat.{" "}
+              <a href="https://habitat.network/habitat/onboard">--&gt; Onboard</a>
+            </p>
+          )}
+          {!!isOnboarded && (
+            <form
+              onSubmit={handleSubmit(async (data) => {
+                setPostError(null);
+                createPost(data, {
+                  onError: (error) => setPostError(error.message),
+                  onSuccess: () => closeModal(),
+                });
+              })}
+            >
+              <textarea
+                placeholder="What's on your mind?"
+                {...register("content")}
               />
-            )}
-            {postError && <p>{postError}</p>}
-            <button type="submit" aria-busy={createPostIsPending}>
-              Post
-            </button>
-          </form>
+              <fieldset>
+                <label>
+                  <input type="radio" value="public" {...register("visibility")} />
+                  Public
+                </label>
+                <label>
+                  <input type="radio" value="followers" {...register("visibility")} />
+                  Followers only
+                </label>
+                <label>
+                  <input type="radio" value="specific" {...register("visibility")} />
+                  Specific users
+                </label>
+              </fieldset>
+              {visibility === "specific" && (
+                <UserSearch
+                  authManager={authManager}
+                  specificUsers={specificUsers}
+                  onAddUser={handleAddUser}
+                  onRemoveUser={(u) => setSpecificUsers((prev) => prev.filter((x) => x !== u))}
+                />
+              )}
+              {postError && <p>{postError}</p>}
+              <button type="submit" aria-busy={createPostIsPending}>
+                Post
+              </button>
+            </form>
+          )}
         </article>
       </dialog>
     </>
