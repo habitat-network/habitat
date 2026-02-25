@@ -64,6 +64,8 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: only allow Puts if they have onboarded to habitat. Possibly factor this out into authn.Validate
+
 	var req habitat.NetworkHabitatRepoPutRecordInput
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
