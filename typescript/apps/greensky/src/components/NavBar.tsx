@@ -1,15 +1,16 @@
 import { type ReactNode } from "react";
 import { type AuthManager } from "internal/authManager.js";
-import { type Profile } from "../../habitatApi";
+import { type Profile } from "../habitatApi";
 import { NewPostButton } from "./NewPostButton";
 
 interface NavBarProps {
   left: ReactNode;
   authManager: AuthManager;
   myProfile: Profile | undefined;
+  isOnboarded: boolean;
 }
 
-export function NavBar({ left, authManager, myProfile }: NavBarProps) {
+export function NavBar({ left, authManager, myProfile, isOnboarded }: NavBarProps) {
   return (
     <nav>
       <ul>
@@ -20,7 +21,7 @@ export function NavBar({ left, authManager, myProfile }: NavBarProps) {
           <span>@{myProfile?.handle}</span>
         </li>
         <li>
-          <NewPostButton authManager={authManager} />
+          <NewPostButton authManager={authManager} isOnboarded={isOnboarded} />
         </li>
         <li>
           <button className="secondary" onClick={authManager.logout}>Logout</button>

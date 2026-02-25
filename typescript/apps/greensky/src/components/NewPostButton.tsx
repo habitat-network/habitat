@@ -1,6 +1,4 @@
-/// <reference types="vite/client" />
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { DidResolver } from "@atproto/identity";
+import { useMutation } from "@tanstack/react-query";
 import { AuthManager } from "internal/authManager.js";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -15,26 +13,13 @@ interface FormData {
 
 interface NewPostButtonProps {
   authManager: AuthManager;
+  isOnboarded: boolean;
 }
 
-export function NewPostButton({ authManager }: NewPostButtonProps) {
+export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
-
-  const did = authManager.getAuthInfo()!.did;
-  const { data: didDoc } = useQuery({
-    queryKey: ["didDoc", did],
-    queryFn: async () => {
-      const resolver = new DidResolver({});
-      return resolver.resolve(did);
-    },
-  });
-  const habitatServiceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
-  const isOnboarded = didDoc?.service?.some(
-    (s: { id: string; type: string }) =>
-      s.id === `#${habitatServiceKey}` && s.type === "HabitatServer",
-  );
   const { handleSubmit, register, watch, reset } = useForm<FormData>({
     defaultValues: { visibility: "public" },
   });
@@ -136,7 +121,7 @@ export function NewPostButton({ authManager }: NewPostButtonProps) {
           {!isOnboarded && (
             <p>
               To make private posts, you need to be onboarded to habitat.{" "}
-              <a href="https://habitat.network/habitat/onboard">--&gt; Onboard</a>
+              <a href="https://habitat.network/habitat/#/onboard">--&gt; Onboard</a>
             </p>
           )}
           {!!isOnboarded && (
