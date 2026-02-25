@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as OnboardLocalRouteImport } from './routes/onboard-local'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as OauthLoginRouteImport } from './routes/oauth-login'
+import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as DevtoolsRouteImport } from './routes/devtools'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
@@ -40,6 +42,16 @@ const OnboardRoute = OnboardRouteImport.update({
 const OauthLoginRoute = OauthLoginRouteImport.update({
   id: '/oauth-login',
   path: '/oauth-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRoute = DevtoolsRouteImport.update({
+  id: '/devtools',
+  path: '/devtools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RequireAuthRoute = RequireAuthRouteImport.update({
@@ -123,6 +135,8 @@ const RequireAuthPermissionsLexiconsCollectionRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/devtools': typeof DevtoolsRoute
+  '/explore': typeof ExploreRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/onboard-local': typeof OnboardLocalRoute
@@ -141,6 +155,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/devtools': typeof DevtoolsRoute
+  '/explore': typeof ExploreRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/onboard-local': typeof OnboardLocalRoute
@@ -159,6 +175,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_requireAuth': typeof RequireAuthRouteWithChildren
+  '/devtools': typeof DevtoolsRoute
+  '/explore': typeof ExploreRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/onboard-local': typeof OnboardLocalRoute
@@ -179,6 +197,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/devtools'
+    | '/explore'
     | '/oauth-login'
     | '/onboard'
     | '/onboard-local'
@@ -197,6 +217,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/devtools'
+    | '/explore'
     | '/oauth-login'
     | '/onboard'
     | '/onboard-local'
@@ -214,6 +236,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_requireAuth'
+    | '/devtools'
+    | '/explore'
     | '/oauth-login'
     | '/onboard'
     | '/onboard-local'
@@ -234,6 +258,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
+  DevtoolsRoute: typeof DevtoolsRoute
+  ExploreRoute: typeof ExploreRoute
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
   OnboardLocalRoute: typeof OnboardLocalRoute
@@ -260,6 +286,20 @@ declare module '@tanstack/react-router' {
       path: '/oauth-login'
       fullPath: '/oauth-login'
       preLoaderRoute: typeof OauthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools': {
+      id: '/devtools'
+      path: '/devtools'
+      fullPath: '/devtools'
+      preLoaderRoute: typeof DevtoolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_requireAuth': {
@@ -440,6 +480,8 @@ const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RequireAuthRoute: RequireAuthRouteWithChildren,
+  DevtoolsRoute: DevtoolsRoute,
+  ExploreRoute: ExploreRoute,
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
   OnboardLocalRoute: OnboardLocalRoute,
