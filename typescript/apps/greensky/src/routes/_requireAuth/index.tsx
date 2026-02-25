@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
-import { getPrivatePosts, getPostVisibility, getProfile, PrivatePost, type Profile } from "../../habitatApi";
+import { getPrivatePosts, getPostVisibility, getProfile, PrivatePost, type Profile, type DidGranteePermission } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
@@ -46,6 +46,17 @@ export const Route = createFileRoute("/_requireAuth/")({
         ? await getProfile(context.authManager, did)
         : undefined;
 
+      const granteeDids = (post.permissions ?? [])
+        .filter((p): p is DidGranteePermission => p.$type === 'network.habitat.grantee#didGrantee')
+        .slice(0, 5)
+        .map(p => p.did);
+      const granteeProfiles = await Promise.all(
+        granteeDids.map(granteeDid => getProfile(context.authManager, granteeDid).catch(() => undefined))
+      );
+      const grantees = granteeProfiles
+        .filter((p): p is Profile => p !== undefined && !!p.avatar)
+        .map(p => ({ avatar: p.avatar!, handle: p.handle }));
+
       return {
         uri: post.uri,
         text: post.value.text,
@@ -53,6 +64,7 @@ export const Route = createFileRoute("/_requireAuth/")({
         kind: getPostVisibility(post, did ?? ''),
         author: privateAuthor,
         replyToHandle: post.value.reply !== undefined ? null : undefined,
+        grantees: grantees.length > 0 ? grantees : undefined,
       }
     }
     const privateEntries = await Promise.all(privatePosts.map(privatePostToFeedEntry))

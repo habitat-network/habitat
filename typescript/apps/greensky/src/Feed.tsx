@@ -14,6 +14,7 @@ export interface FeedEntry {
   // undefined = not a reply; null = reply but parent handle unknown; string = reply to this handle
   replyToHandle?: string | null;
   repostedByHandle?: string;
+  grantees?: { avatar: string; handle: string }[];
 }
 
 function bskyUrl(uri: string, handle: string): string {
@@ -57,6 +58,30 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
             >
               ↗🦋
             </a>
+          )}
+          {entry.grantees && entry.grantees.length > 0 && (
+            <div style={{ position: "absolute", top: 8, right: 8, display: "flex" }}>
+              {entry.grantees.map((grantee, i) => (
+                <a
+                  key={grantee.handle}
+                  href={`https://bsky.app/profile/${grantee.handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ marginLeft: i === 0 ? 0 : -6, display: "block" }}
+                >
+                  <img
+                    src={grantee.avatar}
+                    width={24}
+                    height={24}
+                    style={{
+                      borderRadius: "50%",
+                      border: "2px solid white",
+                      display: "block",
+                    }}
+                  />
+                </a>
+              ))}
+            </div>
           )}
           <header>
             <div style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}>
