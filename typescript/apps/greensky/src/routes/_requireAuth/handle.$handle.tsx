@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
 import { type PrivatePost, type Profile, getPrivatePosts, getProfile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
-import { NavBar } from "./NavBar";
+import { NavBar } from "../../components/NavBar";
 
 interface Author {
   handle: string;
@@ -74,7 +74,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   component() {
     const { handle } = Route.useParams();
     const entries = Route.useLoaderData();
-    const { authManager, myProfile } = Route.useRouteContext();
+    const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
     return (
       <>
         <NavBar
@@ -84,6 +84,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           </>}
           authManager={authManager}
           myProfile={myProfile}
+          isOnboarded={isOnboarded}
         />
         <Feed entries={entries} />
       </>

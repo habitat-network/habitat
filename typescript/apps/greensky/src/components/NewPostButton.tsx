@@ -13,9 +13,10 @@ interface FormData {
 
 interface NewPostButtonProps {
   authManager: AuthManager;
+  isOnboarded: boolean;
 }
 
-export function NewPostButton({ authManager }: NewPostButtonProps) {
+export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
@@ -117,46 +118,54 @@ export function NewPostButton({ authManager }: NewPostButtonProps) {
             <button onClick={closeModal} aria-label="Close" rel="prev" />
             <p><strong>New post</strong></p>
           </header>
-          <form
-            onSubmit={handleSubmit(async (data) => {
-              setPostError(null);
-              createPost(data, {
-                onError: (error) => setPostError(error.message),
-                onSuccess: () => closeModal(),
-              });
-            })}
-          >
-            <textarea
-              placeholder="What's on your mind?"
-              {...register("content")}
-            />
-            <fieldset>
-              <label>
-                <input type="radio" value="public" {...register("visibility")} />
-                Public
-              </label>
-              <label>
-                <input type="radio" value="followers" {...register("visibility")} />
-                Followers only
-              </label>
-              <label>
-                <input type="radio" value="specific" {...register("visibility")} />
-                Specific users
-              </label>
-            </fieldset>
-            {visibility === "specific" && (
-              <UserSearch
-                authManager={authManager}
-                specificUsers={specificUsers}
-                onAddUser={handleAddUser}
-                onRemoveUser={(u) => setSpecificUsers((prev) => prev.filter((x) => x !== u))}
+          {!isOnboarded && (
+            <p>
+              To make private posts, you need to be onboarded to habitat.{" "}
+              <a href="https://habitat.network/habitat/#/onboard">--&gt; Onboard</a>
+            </p>
+          )}
+          {!!isOnboarded && (
+            <form
+              onSubmit={handleSubmit(async (data) => {
+                setPostError(null);
+                createPost(data, {
+                  onError: (error) => setPostError(error.message),
+                  onSuccess: () => closeModal(),
+                });
+              })}
+            >
+              <textarea
+                placeholder="What's on your mind?"
+                {...register("content")}
               />
-            )}
-            {postError && <p>{postError}</p>}
-            <button type="submit" aria-busy={createPostIsPending}>
-              Post
-            </button>
-          </form>
+              <fieldset>
+                <label>
+                  <input type="radio" value="public" {...register("visibility")} />
+                  Public
+                </label>
+                <label>
+                  <input type="radio" value="followers" {...register("visibility")} />
+                  Followers only
+                </label>
+                <label>
+                  <input type="radio" value="specific" {...register("visibility")} />
+                  Specific users
+                </label>
+              </fieldset>
+              {visibility === "specific" && (
+                <UserSearch
+                  authManager={authManager}
+                  specificUsers={specificUsers}
+                  onAddUser={handleAddUser}
+                  onRemoveUser={(u) => setSpecificUsers((prev) => prev.filter((x) => x !== u))}
+                />
+              )}
+              {postError && <p>{postError}</p>}
+              <button type="submit" aria-busy={createPostIsPending}>
+                Post
+              </button>
+            </form>
+          )}
         </article>
       </dialog>
     </>
