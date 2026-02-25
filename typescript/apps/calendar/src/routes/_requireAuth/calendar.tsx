@@ -1,6 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { listEvents, type CalendarEvent } from "../../controllers/eventController.ts";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
+import {
+  createEvent,
+  listEvents,
+  type CalendarEvent,
+} from "../../controllers/eventController.ts";
 import { CalendarView } from "../../components/CalendarView.tsx";
+import { CreateEventModal } from "../../components/CreateEventModal.tsx";
+import type { CreateEventInput } from "../../components/EventForm.tsx";
 import type { ListPrivateRecordsResponse } from "internal/habitatClient.ts";
 
 export const Route = createFileRoute("/_requireAuth/calendar")({
@@ -24,6 +32,47 @@ type LoaderData = {
 
 function CalendarPage() {
   const { events } = Route.useLoaderData() as LoaderData;
+  const { authManager } = Route.useRouteContext();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const client = authManager.client();
+  const userDid = authManager.did;
+  if (!userDid) throw new Error("User DID not found");
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [initialEvent, setInitialEvent] = useState<
+    { startsAt: string; endsAt?: string } | undefined
+  >(undefined);
+
+  const createEventMutation = useMutation({
+    mutationFn: ({
+      event,
+      invitedDids,
+    }: {
+      event: CreateEventInput;
+      invitedDids: string[];
+    }) => createEvent(client, userDid, event, invitedDids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      router.invalidate();
+      setModalOpen(false);
+      setInitialEvent(undefined);
+    },
+  });
+
+  function handleDateClick(data: { startsAt: string; endsAt?: string }) {
+    setInitialEvent(data);
+    setModalOpen(true);
+  }
+
+  function handleSelect(data: { startsAt: string; endsAt?: string }) {
+    setInitialEvent(data);
+    setModalOpen(true);
+  }
+
+  function handleSubmit(event: CreateEventInput, invitedDids: string[]) {
+    createEventMutation.mutate({ event, invitedDids });
+  }
 
   return (
     <div>
@@ -44,6 +93,8 @@ function CalendarPage() {
 
       <CalendarView
         events={events.records}
+        onDateClick={handleDateClick}
+        onSelect={handleSelect}
         emptyComponent={
           <p>
             No events with dates to display.{" "}
@@ -51,6 +102,16 @@ function CalendarPage() {
             here.
           </p>
         }
+      />
+
+      <CreateEventModal
+        isOpen={modalOpen}
+        initialEvent={initialEvent}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleSubmit}
+        onCancel={() => setModalOpen(false)}
+        isPending={createEventMutation.isPending}
+        error={createEventMutation.error ?? null}
       />
     </div>
   );
