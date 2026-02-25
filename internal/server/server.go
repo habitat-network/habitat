@@ -207,6 +207,17 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		),
 	}
 	output.Value = record.Value
+
+	// Lookup relevant permissions, if requested
+	if params.IncludePermissions {
+		grantees, err := s.pear.ListAllowGrantsForRecord(r.Context(), callerDID, syntax.DID(record.Did), syntax.NSID(record.Collection), syntax.RecordKey(record.Rkey))
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "listing permissions on fetched records", http.StatusInternalServerError)
+			return
+		}
+		output.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
+	}
+
 	if json.NewEncoder(w).Encode(output) != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
@@ -339,6 +350,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	output := &habitat.NetworkHabitatRepoListRecordsOutput{
 		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
 	}
+
 	for _, record := range records {
 		next := habitat.NetworkHabitatRepoListRecordsRecord{
 			Uri: fmt.Sprintf(
@@ -349,6 +361,16 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			),
 		}
 		next.Value = record.Value
+
+		// Lookup relevant permissions, if requested
+		if params.IncludePermissions {
+			grantees, err := s.pear.ListAllowGrantsForRecord(r.Context(), callerDID, syntax.DID(record.Did), syntax.NSID(record.Collection), syntax.RecordKey(record.Rkey))
+			if err != nil {
+				utils.LogAndHTTPError(w, err, "listing permissions on fetched records", http.StatusInternalServerError)
+				return
+			}
+			next.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
+		}
 		// TODO: next.Cid = ?
 
 		output.Records = append(output.Records, next)

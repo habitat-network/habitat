@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
-import { getPrivatePosts, getProfile, PrivatePost, type Profile } from "../../habitatApi";
+import { getPrivatePosts, getPostVisibility, getProfile, PrivatePost, type Profile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
@@ -50,7 +50,7 @@ export const Route = createFileRoute("/_requireAuth/")({
         uri: post.uri,
         text: post.value.text,
         createdAt: post.value.createdAt,
-        kind: "private",
+        kind: getPostVisibility(post, did ?? ''),
         author: privateAuthor,
         replyToHandle: post.value.reply !== undefined ? null : undefined,
       }

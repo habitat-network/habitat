@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
-import { type PrivatePost, type Profile, getPrivatePosts, getProfile } from "../../habitatApi";
+import { type PrivatePost, type Profile, getPrivatePosts, getPostVisibility, getProfile } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
@@ -41,18 +41,21 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
     const profile: Profile = await getProfile(context.authManager, params.handle);
 
     const entries: FeedEntry[] = [
-      ...privateItems.map(({ uri, value }): FeedEntry => ({
-        uri,
-        text: value.text,
-        createdAt: value.createdAt,
-        kind: "private",
-        author: {
-          handle: profile.handle,
-          displayName: profile.displayName,
-          avatar: profile.avatar,
-        },
-        replyToHandle: value.reply !== undefined ? null : undefined,
-      })),
+      ...privateItems.map((post): FeedEntry => {
+        const authorDid = post.uri.split('/')[2] ?? '';
+        return {
+          uri: post.uri,
+          text: post.value.text,
+          createdAt: post.value.createdAt,
+          kind: getPostVisibility(post, authorDid),
+          author: {
+            handle: profile.handle,
+            displayName: profile.displayName,
+            avatar: profile.avatar,
+          },
+          replyToHandle: post.value.reply !== undefined ? null : undefined,
+        };
+      }),
       ...publicItems.map(({ post, reply, reason }): FeedEntry => ({
         uri: post.uri,
         text: post.record.text,

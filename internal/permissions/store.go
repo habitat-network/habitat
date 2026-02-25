@@ -40,7 +40,7 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
-	ListPermissionsByCollection(
+	ResolvePermissionsForCollection(
 		ctx context.Context,
 		grantee syntax.DID,
 		collection syntax.NSID,
@@ -49,6 +49,12 @@ type Store interface {
 	ListPermissionGrants(
 		ctx context.Context,
 		granter syntax.DID,
+	) ([]Permission, error)
+	ListAllowPermissionsForRecord(
+		ctx context.Context,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
 	) ([]Permission, error)
 }
 
@@ -443,7 +449,37 @@ func (s *store) RemovePermissions(
 	})
 }
 
-func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
+/*
+func (s *store) resolvePermissions(ctx context.Context, permissions []Permission) ([]Permission, error) {
+	relevant := []Permission{}
+	for _, permission := range permissions {
+		clique, ok := permission.Grantee.(CliqueGrantee)
+		if !ok {
+			// Directly return specific grants for this DID
+			relevant = append(relevant, permission)
+			continue
+		}
+
+		// Otherwise, it's a clique grantee, so we need to resolve it
+		// TODO: we could potentially be more efficient with the DB query than resolving each independently.
+		ok, err := s.isCliqueMember(ctx, grantee, clique)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			// Keep all other fields of the permission the same
+			permission.Grantee = DIDGrantee(grantee)
+			relevant = append(relevant, permission)
+		}
+		// If this did is not a member of the clique, ignore this permission
+	}
+
+	return relevant, nil
+}
+*/
+
+func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
 	allPermissions, err := s.listPermissions(grantee, owners, collection, "")
 	if err != nil {
 		return nil, err
@@ -479,6 +515,22 @@ func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.
 // ListPermissionGrants implements Store.
 func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]Permission, error) {
 	return s.listPermissions("", []syntax.DID{granter}, "", "")
+}
+
+// ListPermissionsForRecord implements Store.
+func (s *store) ListAllowPermissionsForRecord(ctx context.Context, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]Permission, error) {
+	if rkey.String() == "" || collection.String() == "" {
+		return nil, fmt.Errorf("this function expects to be called on a particular collection + record key; got collection %s, record %s", collection, rkey)
+	}
+
+	permissions, err := s.listPermissions("", []syntax.DID{owner}, collection, rkey)
+	if err != nil {
+		return nil, err
+	}
+
+	return slices.DeleteFunc(permissions, func(p Permission) bool {
+		return p.Effect != Allow
+	}), nil
 }
 
 // ListPermissions returns the permissions available to this particular combination of inputs.

@@ -1033,6 +1033,11 @@ export const schemaDict = {
               description: 'The Record Key.',
               format: 'record-key',
             },
+            includePermissions: {
+              type: 'boolean',
+              description:
+                'Whether to return the permission grants on this record as part of the response.',
+            },
           },
         },
         output: {
@@ -1048,6 +1053,16 @@ export const schemaDict = {
               },
               value: {
                 type: 'unknown',
+              },
+              permissions: {
+                type: 'array',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#cliqueRef',
+                  ],
+                },
               },
             },
           },
@@ -1083,6 +1098,11 @@ export const schemaDict = {
               type: 'string',
               format: 'nsid',
               description: 'Filter by specific lexicon.',
+            },
+            includePermissions: {
+              type: 'boolean',
+              description:
+                'Whether to return the permission grants on this record as part of the response.',
             },
             since: {
               type: 'string',
@@ -1137,6 +1157,16 @@ export const schemaDict = {
           },
           value: {
             type: 'unknown',
+          },
+          permissions: {
+            type: 'array',
+            items: {
+              type: 'union',
+              refs: [
+                'lex:network.habitat.grantee#didGrantee',
+                'lex:network.habitat.grantee#cliqueRef',
+              ],
+            },
           },
         },
       },

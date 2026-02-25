@@ -7,6 +7,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -52,6 +53,13 @@ type Pear interface {
 		caller syntax.DID,
 		granter syntax.DID,
 	) ([]permissions.Permission, error)
+	ListAllowGrantsForRecord(
+		ctx context.Context,
+		caller syntax.DID,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) ([]permissions.Grantee, error)
 
 	// Repository methods; roughly analgous to com.atproto.repo methods
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
@@ -144,6 +152,29 @@ func (p *pear) ListPermissionGrants(ctx context.Context, caller syntax.DID, gran
 		return nil, ErrUnauthorized
 	}
 	return p.permissions.ListPermissionGrants(ctx, granter)
+}
+
+// ListPermissions implements Pear.
+func (p *pear) ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]permissions.Grantee, error) {
+	// Authz: if the caller has permission, the caller can see who else has permission
+	callerOk, err := p.permissions.HasPermission(ctx, caller, owner, collection, rkey)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the caller doesn't have permission to this record, they can't see who does.
+	if !callerOk {
+		return nil, ErrUnauthorized
+	}
+
+	perms, err := p.permissions.ListAllowPermissionsForRecord(ctx, owner, collection, rkey)
+	if err != nil {
+		return nil, err
+	}
+
+	return xslices.Map(perms, func(p permissions.Permission) permissions.Grantee {
+		return p.Grantee
+	}), nil
 }
 
 var _ Pear = &pear{}
@@ -344,7 +375,7 @@ func (p *pear) listRecordsLocal(
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	perms, err := p.permissions.ListPermissionsByCollection(ctx, caller, collection, subjects)
+	perms, err := p.permissions.ResolvePermissionsForCollection(ctx, caller, collection, subjects)
 	if err != nil {
 		return nil, err
 	}

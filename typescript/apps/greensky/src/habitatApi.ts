@@ -1,5 +1,19 @@
 import { AuthManager } from "internal/authManager.js";
 
+export interface CliqueRefPermission {
+  $type: 'network.habitat.grantee#cliqueRef';
+  uri: string;
+}
+
+export interface DidGranteePermission {
+  $type: 'network.habitat.grantee#didGrantee';
+  did: string;
+}
+
+export type Permission = CliqueRefPermission | DidGranteePermission | { $type: string };
+
+export type PostVisibility = 'public' | 'followers-only' | 'specific-users';
+
 export interface PrivatePostRecord {
   text: string;
   createdAt?: string;
@@ -13,6 +27,20 @@ export interface PrivatePost {
   uri: string;
   cid: string;
   value: PrivatePostRecord;
+  permissions?: Permission[];
+}
+
+export function getPostVisibility(post: PrivatePost, authorDid: string): PostVisibility {
+  const perms = post.permissions;
+  if (!perms || perms.length === 0) return 'public';
+  if (perms.length === 1) {
+    const perm = perms[0];
+    if (perm.$type === 'network.habitat.grantee#cliqueRef') {
+      const followersClique = `habitat://${authorDid}/network.habitat.clique/followers`;
+      if ((perm as CliqueRefPermission).uri === followersClique) return 'followers-only';
+    }
+  }
+  return 'specific-users';
 }
 
 export interface Profile {
@@ -30,6 +58,8 @@ export async function getPrivatePosts(
   if (handle) {
     params.append("subjects", handle);
   }
+  params.append("includePermissions", "true")
+
   // TODO: use habitat client api
   const response = await authManager.fetch(
     `/xrpc/network.habitat.listRecords?${params}`,
