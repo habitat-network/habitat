@@ -21,8 +21,6 @@ tasks:
     options:
       internal: false
   gh-pages:
-    env:
-      HASH_ROUTING: 'true'
     deps:
       - target: ~:build
       - target: calendar:build
