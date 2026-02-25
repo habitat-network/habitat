@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DidResolver } from "@atproto/identity";
 import { OnboardComponent, habitatServers } from "./onboard";

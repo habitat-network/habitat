@@ -55,7 +55,16 @@ export function OnboardComponent({
 }
 
 export const Route = createFileRoute("/onboard")({
-  component: () => <OnboardComponent serverOptions={habitatServers} />,
+  component: () =>
+    import.meta.env.DEV ? (
+      <OnboardComponent
+        serviceKey="habitat_local"
+        title="Onboard (Local)"
+        defaultServer="https://pear.taile529e.ts.net"
+      />
+    ) : (
+      <OnboardComponent serverOptions={habitatServers} />
+    ),
 });
 
 const Step1 = ({

@@ -45,13 +45,6 @@ export const Route = createFileRoute("/devtools")({
         icon: "🍾",
         link: "/onboard",
       },
-      {
-        id: "onboard-local",
-        name: "Habitat Local Onboarding (DID updater)",
-        description: "Join Habitat (local dev) by updating DID",
-        icon: "🍾",
-        link: "/onboard-local",
-      },
     ];
   },
   component() {
