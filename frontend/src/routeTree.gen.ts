@@ -9,9 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as OnboardLocalRouteImport } from './routes/onboard-local'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as OauthLoginRouteImport } from './routes/oauth-login'
+import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as DevtoolsRouteImport } from './routes/devtools'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
@@ -27,11 +28,6 @@ import { Route as RequireAuthPermissionsLexiconsIndexRouteImport } from './route
 import { Route as RequireAuthPermissionsPeopleDidRouteImport } from './routes/_requireAuth/permissions/people/$did'
 import { Route as RequireAuthPermissionsLexiconsCollectionRouteImport } from './routes/_requireAuth/permissions/lexicons/$collection'
 
-const OnboardLocalRoute = OnboardLocalRouteImport.update({
-  id: '/onboard-local',
-  path: '/onboard-local',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OnboardRoute = OnboardRouteImport.update({
   id: '/onboard',
   path: '/onboard',
@@ -40,6 +36,16 @@ const OnboardRoute = OnboardRouteImport.update({
 const OauthLoginRoute = OauthLoginRouteImport.update({
   id: '/oauth-login',
   path: '/oauth-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsRoute = DevtoolsRouteImport.update({
+  id: '/devtools',
+  path: '/devtools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RequireAuthRoute = RequireAuthRouteImport.update({
@@ -123,9 +129,10 @@ const RequireAuthPermissionsLexiconsCollectionRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/devtools': typeof DevtoolsRoute
+  '/explore': typeof ExploreRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
-  '/onboard-local': typeof OnboardLocalRoute
   '/data': typeof RequireAuthDataRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
@@ -141,9 +148,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/devtools': typeof DevtoolsRoute
+  '/explore': typeof ExploreRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
-  '/onboard-local': typeof OnboardLocalRoute
   '/data': typeof RequireAuthDataRoute
   '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
@@ -159,9 +167,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_requireAuth': typeof RequireAuthRouteWithChildren
+  '/devtools': typeof DevtoolsRoute
+  '/explore': typeof ExploreRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
-  '/onboard-local': typeof OnboardLocalRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
@@ -179,9 +188,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/devtools'
+    | '/explore'
     | '/oauth-login'
     | '/onboard'
-    | '/onboard-local'
     | '/data'
     | '/forwarding-test'
     | '/permissions'
@@ -197,9 +207,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/devtools'
+    | '/explore'
     | '/oauth-login'
     | '/onboard'
-    | '/onboard-local'
     | '/data'
     | '/forwarding-test'
     | '/pear-test/view'
@@ -214,9 +225,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_requireAuth'
+    | '/devtools'
+    | '/explore'
     | '/oauth-login'
     | '/onboard'
-    | '/onboard-local'
     | '/_requireAuth/data'
     | '/_requireAuth/forwarding-test'
     | '/_requireAuth/permissions'
@@ -234,20 +246,14 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
+  DevtoolsRoute: typeof DevtoolsRoute
+  ExploreRoute: typeof ExploreRoute
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
-  OnboardLocalRoute: typeof OnboardLocalRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/onboard-local': {
-      id: '/onboard-local'
-      path: '/onboard-local'
-      fullPath: '/onboard-local'
-      preLoaderRoute: typeof OnboardLocalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/onboard': {
       id: '/onboard'
       path: '/onboard'
@@ -260,6 +266,20 @@ declare module '@tanstack/react-router' {
       path: '/oauth-login'
       fullPath: '/oauth-login'
       preLoaderRoute: typeof OauthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools': {
+      id: '/devtools'
+      path: '/devtools'
+      fullPath: '/devtools'
+      preLoaderRoute: typeof DevtoolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_requireAuth': {
@@ -440,9 +460,10 @@ const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RequireAuthRoute: RequireAuthRouteWithChildren,
+  DevtoolsRoute: DevtoolsRoute,
+  ExploreRoute: ExploreRoute,
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
-  OnboardLocalRoute: OnboardLocalRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
