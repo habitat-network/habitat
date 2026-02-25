@@ -7,7 +7,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -167,14 +166,7 @@ func (p *pear) ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, 
 		return nil, ErrUnauthorized
 	}
 
-	perms, err := p.permissions.ListAllowPermissionsForRecord(ctx, owner, collection, rkey)
-	if err != nil {
-		return nil, err
-	}
-
-	return xslices.Map(perms, func(p permissions.Permission) permissions.Grantee {
-		return p.Grantee
-	}), nil
+	return p.permissions.ListAllowedGranteesForRecord(ctx, owner, collection, rkey)
 }
 
 var _ Pear = &pear{}

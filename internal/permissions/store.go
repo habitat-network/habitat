@@ -50,12 +50,12 @@ type Store interface {
 		ctx context.Context,
 		granter syntax.DID,
 	) ([]Permission, error)
-	ListAllowPermissionsForRecord(
+	ListAllowedGranteesForRecord(
 		ctx context.Context,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-	) ([]Permission, error)
+	) ([]Grantee, error)
 }
 
 // RecordPermission represents a specific record permission (owner + rkey)
@@ -518,7 +518,7 @@ func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([
 }
 
 // ListPermissionsForRecord implements Store.
-func (s *store) ListAllowPermissionsForRecord(ctx context.Context, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]Permission, error) {
+func (s *store) ListAllowedGranteesForRecord(ctx context.Context, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]Grantee, error) {
 	if rkey.String() == "" || collection.String() == "" {
 		return nil, fmt.Errorf("this function expects to be called on a particular collection + record key; got collection %s, record %s", collection, rkey)
 	}
@@ -528,9 +528,21 @@ func (s *store) ListAllowPermissionsForRecord(ctx context.Context, owner syntax.
 		return nil, err
 	}
 
-	return slices.DeleteFunc(permissions, func(p Permission) bool {
-		return p.Effect != Allow
-	}), nil
+	denied := make(xmaps.Set[Grantee])
+	for _, p := range permissions {
+		if p.Effect == Deny {
+			denied.Add(p.Grantee)
+		}
+	}
+
+	var allowed []Grantee
+	for _, p := range permissions {
+		if p.Effect == Allow && !denied.Contains(p.Grantee) {
+			allowed = append(allowed, p.Grantee)
+		}
+	}
+
+	return allowed, nil
 }
 
 // ListPermissions returns the permissions available to this particular combination of inputs.
