@@ -47,13 +47,6 @@ type Pear interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
-	ListPermissionsByCollection(
-		ctx context.Context,
-		caller syntax.DID,
-		grantee syntax.DID,
-		collection syntax.NSID,
-		owners []syntax.DID,
-	) ([]permissions.Permission, error)
 	ListPermissionGrants(
 		ctx context.Context,
 		caller syntax.DID,
@@ -89,15 +82,6 @@ type pear struct {
 
 	// Manage receiving updates for records (replacement for the Firehose)
 	inbox inbox.Inbox
-}
-
-// ListPermissionsByCollectionFilterOwners implements Pear.
-func (p *pear) ListPermissionsByCollection(ctx context.Context, caller syntax.DID, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]permissions.Permission, error) {
-	// Authz: only the grantee can see this aggregation (for now, at least)
-	if caller != grantee {
-		return nil, ErrUnauthorized
-	}
-	return p.permissions.ListPermissionsByCollection(ctx, grantee, collection, owners)
 }
 
 // Pass throughs to implement permission.Store

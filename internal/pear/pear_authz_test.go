@@ -192,64 +192,6 @@ func TestRemovePermissions(t *testing.T) {
 	})
 }
 
-// TestListPermissionsByCollection tests the ListPermissionsByCollection pear method's authz logic.
-// The rule: only the grantee can enumerate their own incoming permissions for a collection.
-func TestListPermissionsByCollection(t *testing.T) {
-	ownerDID := syntax.DID("did:plc:owner")
-	granteeDID := syntax.DID("did:plc:grantee")
-	otherDID := syntax.DID("did:plc:other")
-
-	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, otherDID})
-	p := newPearForTest(t, dir)
-
-	coll := syntax.NSID("my.fake.collection")
-	rkey := syntax.RecordKey("my-rkey")
-	validate := true
-
-	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
-	require.NoError(t, err)
-
-	t.Run("caller that is not the grantee gets ErrUnauthorized", func(t *testing.T) {
-		_, err := p.ListPermissionsByCollection(t.Context(), otherDID, granteeDID, coll, nil)
-		require.ErrorIs(t, err, ErrUnauthorized)
-	})
-
-	t.Run("caller == grantee can list their incoming permissions", func(t *testing.T) {
-		perms, err := p.ListPermissionsByCollection(t.Context(), granteeDID, granteeDID, coll, nil)
-		require.NoError(t, err)
-		require.NotEmpty(t, perms)
-
-		found := false
-		for _, perm := range perms {
-			if perm.Owner == ownerDID && perm.Collection == coll {
-				found = true
-			}
-		}
-		require.True(t, found, "expected to find a permission entry for ownerDID's collection")
-	})
-
-	t.Run("owner can list their own permissions for a collection", func(t *testing.T) {
-		perms, err := p.ListPermissionsByCollection(t.Context(), ownerDID, ownerDID, coll, nil)
-		require.NoError(t, err)
-		require.NotEmpty(t, perms)
-	})
-
-	t.Run("filters results by the given owners list", func(t *testing.T) {
-		perms, err := p.ListPermissionsByCollection(t.Context(), granteeDID, granteeDID, coll, []syntax.DID{ownerDID})
-		require.NoError(t, err)
-		for _, perm := range perms {
-			require.Equal(t, ownerDID, perm.Owner, "all returned permissions should be owned by ownerDID")
-		}
-	})
-
-	t.Run("returns empty when grantee has no permissions in the collection from the given owners", func(t *testing.T) {
-		emptyColl := syntax.NSID("empty.collection")
-		perms, err := p.ListPermissionsByCollection(t.Context(), granteeDID, granteeDID, emptyColl, []syntax.DID{ownerDID})
-		require.NoError(t, err)
-		require.Empty(t, perms)
-	})
-}
-
 // TestListPermissionGrants tests the ListPermissionGrants pear method's authz logic.
 // The rule: only the granter can enumerate their own outgoing grants.
 func TestListPermissionGrants(t *testing.T) {
