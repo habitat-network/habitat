@@ -22,7 +22,7 @@ function bskyUrl(uri: string, handle: string): string {
   return `https://bsky.app/profile/${handle}/post/${rkey}`;
 }
 
-export function Feed({ entries }: { entries: FeedEntry[] }) {
+export function Feed({ entries, showPrivatePermalink = true }: { entries: FeedEntry[]; showPrivatePermalink?: boolean }) {
   const sorted = [...entries].sort((a, b) => {
     if (!a.createdAt && !b.createdAt) return 0;
     if (!a.createdAt) return 1;
@@ -61,12 +61,27 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
               ↗🦋
             </a>
           )}
+          {showPrivatePermalink && entry.kind !== "public" && entry.author?.handle && (
+            <Link
+              to={"/$handle/p/$rkey" as any}
+              params={{ handle: entry.author.handle, rkey: entry.uri.split("/").pop()! } as any}
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                fontSize: "0.75em",
+                textDecoration: "none",
+              }}
+            >
+              ↗🌱
+            </Link>
+          )}
           {entry.grantees && entry.grantees.length > 0 && (
             <div
               style={{
                 position: "absolute",
                 top: 8,
-                right: 8,
+                right: showPrivatePermalink && entry.kind !== "public" ? 48 : 8,
                 display: "flex",
               }}
             >

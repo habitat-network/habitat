@@ -80,7 +80,6 @@ export class HabitatAgentSession {
 
   async fetchHandler(pathname: string, init?: RequestInit): Promise<Response> {
     const url = new URL(pathname, this.serverUrl);
-    console.log("url", url.toString());
     const fetchReq = new Request(url.toString(), init);
 
     const response = await fetch(fetchReq);
@@ -138,7 +137,6 @@ export class HabitatClient {
     // Check if we already have an agent for this DID
     const existingAgent = this.agents.get(did);
     if (existingAgent) {
-      console.log(`Using existing agent for DID: ${did}`);
       return existingAgent;
     }
 
