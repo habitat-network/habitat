@@ -24,5 +24,6 @@ catalog:
   react-hook-form: 7.65.0
   typescript: ^5.7.2
   vite: ^7.1.7
+  idb: ^8.0.0
   vite-tsconfig-paths: ^5.1.4
   vitest: ^3.0.5

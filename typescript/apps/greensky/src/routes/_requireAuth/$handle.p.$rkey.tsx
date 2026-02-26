@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  type DidGranteePermission,
   getPrivatePost,
   getProfile,
   getProfiles,
@@ -8,25 +7,41 @@ import {
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
+import { PostReply } from "../../components/PostReply";
+import { ensureCacheFresh, getPrivatePostCache } from "../../privatePostCache";
 
 export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
   async loader({ context, params }) {
+    await ensureCacheFresh(context.authManager);
     const [post, profile] = await Promise.all([
       getPrivatePost(context.authManager, params.handle, params.rkey),
       getProfile(context.authManager, params.handle),
     ]);
 
-    if (!post) return [];
+    if (!post)
+      return {
+        entries: [] as FeedEntry[],
+        replyEntries: [] as FeedEntry[],
+        postClique: undefined as string | undefined,
+        postCid: "",
+      };
 
     const authorDid = post.uri.split("/")[2] ?? "";
-    const granteeDids = (post.permissions ?? [])
-      .filter(
-        (p): p is DidGranteePermission =>
-          p.$type === "network.habitat.grantee#didGrantee",
-      )
-      .slice(0, 5)
-      .map((p) => p.did);
-    const grantees = await getProfiles(context.authManager, granteeDids);
+    const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
+
+    const cache = await getPrivatePostCache();
+    const replyPosts = await cache.getReplies(post.uri);
+
+    const replyAuthorDids = [...new Set(replyPosts.map((r) => r.authorDid))];
+
+    const [grantees, replyAuthorProfiles] = await Promise.all([
+      getProfiles(context.authManager, granteeDids),
+      getProfiles(context.authManager, replyAuthorDids),
+    ]);
+
+    const replyAuthorByDid = new Map(
+      replyAuthorDids.map((did, i) => [did, replyAuthorProfiles[i]]),
+    );
 
     const entry: FeedEntry = {
       uri: post.uri,
@@ -42,11 +57,31 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
       grantees: grantees.length > 0 ? grantees : undefined,
     };
 
-    return [entry];
+    const replyEntries: FeedEntry[] = replyPosts.map((reply) => {
+      const replyAuthorDid = reply.authorDid;
+      const replyAuthor = replyAuthorByDid.get(replyAuthorDid);
+      return {
+        uri: reply.uri,
+        text: reply.value.text,
+        createdAt: reply.value.createdAt,
+        kind: getPostVisibility(reply, replyAuthorDid),
+        author: replyAuthor
+          ? { handle: replyAuthor.handle, avatar: replyAuthor.avatar }
+          : undefined,
+        replyToHandle: null,
+      };
+    });
+
+    return { entries: [entry], replyEntries: replyEntries, postClique: post.clique, postCid: post.cid };
   },
   component() {
     const { handle } = Route.useParams();
-    const entries = Route.useLoaderData();
+    const { entries, replyEntries, postClique, postCid } = Route.useLoaderData() as {
+      entries: FeedEntry[];
+      replyEntries: FeedEntry[];
+      postClique: string | undefined;
+      postCid: string;
+    };
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
     return (
       <>
@@ -65,7 +100,24 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
           myProfile={myProfile}
           isOnboarded={isOnboarded}
         />
-        <Feed entries={entries} showPrivatePermalink={false} />
+        <Feed
+          entries={entries}
+          showPrivatePermalink={false}
+          renderPostActions={(entry) => (
+            <PostReply
+              postUri={entry.uri}
+              postCid={postCid}
+              postClique={postClique}
+              authManager={authManager}
+            />
+          )}
+        />
+        {replyEntries.length > 0 && (
+          <>
+            <h4 style={{ padding: "0 1rem" }}>Replies</h4>
+            <Feed entries={replyEntries} showPrivatePermalink={false} />
+          </>
+        )}
       </>
     );
   },
