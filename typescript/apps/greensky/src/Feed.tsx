@@ -36,7 +36,10 @@ export function Feed({
     if (!a.createdAt && !b.createdAt) return 0;
     if (!a.createdAt) return 1;
     if (!b.createdAt) return -1;
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    const aTime = new Date(a.createdAt).getTime();
+    const bTime = new Date(b.createdAt).getTime();
+    // Put posts without createdAt at the end, but maintain their relative order
+    return aTime - bTime
   });
 
   return (
