@@ -18,7 +18,6 @@ interface NewPostButtonProps {
 
 export function NewPostButton({
   authManager,
-  isOnboarded,
 }: NewPostButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
