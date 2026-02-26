@@ -127,7 +127,7 @@ func (p *pear) HasPermission(
 	// This can probably be optimized in terms of DB queries, but path of least resistance for now.
 	callerOk, err := p.permissions.HasPermission(ctx, caller, owner, collection, rkey)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[pear] error calling permissions.HasPermission: %w", err)
 	}
 
 	// If the caller doesn't have permission to this record, they can't see who does.
