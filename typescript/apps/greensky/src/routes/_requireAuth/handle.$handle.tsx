@@ -7,6 +7,7 @@ import {
   getPrivatePosts,
   getPostVisibility,
   getProfile,
+  getProfiles,
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
@@ -66,16 +67,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
             )
             .slice(0, 5)
             .map((p) => p.did);
-          const granteeProfiles = await Promise.all(
-            granteeDids.map((granteeDid) =>
-              getProfile(context.authManager, granteeDid).catch(
-                () => undefined,
-              ),
-            ),
-          );
-          const grantees = granteeProfiles
-            .filter((p): p is Profile => p !== undefined && !!p.avatar)
-            .map((p) => ({ avatar: p.avatar!, handle: p.handle }));
+          const grantees = await getProfiles(context.authManager, granteeDids);
           return {
             uri: post.uri,
             text: post.value.text,

@@ -51,6 +51,7 @@ export function getPostVisibility(
 }
 
 export interface Profile {
+  did: string;
   handle: string;
   displayName?: string;
   avatar?: string;
@@ -74,6 +75,30 @@ export async function getPrivatePosts(
   );
   const data: { records?: PrivatePost[] } = await response.json();
   return data.records ?? [];
+}
+
+export async function getProfiles(
+  authManager: AuthManager,
+  actors: string[],
+): Promise<{ avatar: string; handle: string }[]> {
+  if (actors.length === 0) return [];
+  const params = new URLSearchParams();
+  for (const actor of actors) {
+    params.append("actors", actor);
+  }
+  const headers = new Headers();
+  headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
+  const response = await authManager.fetch(
+    `/xrpc/app.bsky.actor.getProfiles?${params.toString()}`,
+    "GET",
+    null,
+    headers,
+  );
+  if (!response.ok) return [];
+  const data: { profiles: Profile[] } = await response.json();
+  return data.profiles
+    .filter((p) => !!p.avatar)
+    .map((p) => ({ avatar: p.avatar!, handle: p.handle }));
 }
 
 export async function getProfile(
