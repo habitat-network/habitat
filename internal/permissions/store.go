@@ -40,7 +40,7 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
-	ListPermissionsByCollection(
+	ResolvePermissionsForCollection(
 		ctx context.Context,
 		grantee syntax.DID,
 		collection syntax.NSID,
@@ -50,6 +50,12 @@ type Store interface {
 		ctx context.Context,
 		granter syntax.DID,
 	) ([]Permission, error)
+	ListAllowedGranteesForRecord(
+		ctx context.Context,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) ([]Grantee, error)
 }
 
 // RecordPermission represents a specific record permission (owner + rkey)
@@ -443,7 +449,7 @@ func (s *store) RemovePermissions(
 	})
 }
 
-func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
+func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
 	allPermissions, err := s.listPermissions(grantee, owners, collection, "")
 	if err != nil {
 		return nil, err
@@ -479,6 +485,34 @@ func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.
 // ListPermissionGrants implements Store.
 func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]Permission, error) {
 	return s.listPermissions("", []syntax.DID{granter}, "", "")
+}
+
+// ListPermissionsForRecord implements Store.
+func (s *store) ListAllowedGranteesForRecord(ctx context.Context, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]Grantee, error) {
+	if rkey.String() == "" || collection.String() == "" {
+		return nil, fmt.Errorf("this function expects to be called on a particular collection + record key; got collection %s, record %s", collection, rkey)
+	}
+
+	permissions, err := s.listPermissions("", []syntax.DID{owner}, collection, rkey)
+	if err != nil {
+		return nil, err
+	}
+
+	denied := make(xmaps.Set[Grantee])
+	for _, p := range permissions {
+		if p.Effect == Deny {
+			denied.Add(p.Grantee)
+		}
+	}
+
+	var allowed []Grantee
+	for _, p := range permissions {
+		if p.Effect == Allow && !denied.Contains(p.Grantee) {
+			allowed = append(allowed, p.Grantee)
+		}
+	}
+
+	return allowed, nil
 }
 
 // ListPermissions returns the permissions available to this particular combination of inputs.

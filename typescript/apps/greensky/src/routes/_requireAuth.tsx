@@ -14,10 +14,11 @@ export const Route = createFileRoute("/_requireAuth")({
       new DidResolver({}).resolve(did),
     ]);
     const habitatServiceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
-    const isOnboarded = didDoc?.service?.some(
-      (s: { id: string; type: string }) =>
-        s.id === `#${habitatServiceKey}` && s.type === "HabitatServer",
-    ) ?? false;
+    const isOnboarded =
+      didDoc?.service?.some(
+        (s: { id: string; type: string }) =>
+          s.id === `#${habitatServiceKey}` && s.type === "HabitatServer",
+      ) ?? false;
     return { myProfile, isOnboarded };
   },
   component() {

@@ -10,6 +10,7 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
+import type * as NetworkHabitatGrantee from '../grantee.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -22,6 +23,8 @@ export type QueryParams = {
   collection: string
   /** The Record Key. */
   rkey: string
+  /** Whether to return the permission grants on this record as part of the response. */
+  includePermissions?: boolean
 }
 export type InputSchema = undefined
 
@@ -29,6 +32,11 @@ export interface OutputSchema {
   /** The habitat-uri for this record. */
   uri: string
   value: { [_ in string]: unknown }
+  permissions?: (
+    | $Typed<NetworkHabitatGrantee.DidGrantee>
+    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | { $type: string }
+  )[]
 }
 
 export interface CallOptions {

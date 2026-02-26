@@ -10,12 +10,15 @@ interface NavBarProps {
   isOnboarded: boolean;
 }
 
-export function NavBar({ left, authManager, myProfile, isOnboarded }: NavBarProps) {
+export function NavBar({
+  left,
+  authManager,
+  myProfile,
+  isOnboarded,
+}: NavBarProps) {
   return (
     <nav>
-      <ul>
-        {left}
-      </ul>
+      <ul>{left}</ul>
       <ul>
         <li>
           <span>@{myProfile?.handle}</span>
@@ -24,7 +27,9 @@ export function NavBar({ left, authManager, myProfile, isOnboarded }: NavBarProp
           <NewPostButton authManager={authManager} isOnboarded={isOnboarded} />
         </li>
         <li>
-          <button className="secondary" onClick={authManager.logout}>Logout</button>
+          <button className="secondary" onClick={authManager.logout}>
+            Logout
+          </button>
         </li>
       </ul>
     </nav>

@@ -52,13 +52,20 @@ type Pear interface {
 		caller syntax.DID,
 		granter syntax.DID,
 	) ([]permissions.Permission, error)
+	ListAllowGrantsForRecord(
+		ctx context.Context,
+		caller syntax.DID,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) ([]permissions.Grantee, error)
 
 	// Repository methods; roughly analgous to com.atproto.repo methods
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
-	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
-	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
+	GetBlob(ctx context.Context, did syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
+	UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
 
 	// Inbox / Node-to-node communication related methods
 	NotifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
@@ -144,6 +151,22 @@ func (p *pear) ListPermissionGrants(ctx context.Context, caller syntax.DID, gran
 		return nil, ErrUnauthorized
 	}
 	return p.permissions.ListPermissionGrants(ctx, granter)
+}
+
+// ListPermissions implements Pear.
+func (p *pear) ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]permissions.Grantee, error) {
+	// Authz: if the caller has permission, the caller can see who else has permission
+	callerOk, err := p.permissions.HasPermission(ctx, caller, owner, collection, rkey)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the caller doesn't have permission to this record, they can't see who does.
+	if !callerOk {
+		return nil, ErrUnauthorized
+	}
+
+	return p.permissions.ListAllowedGranteesForRecord(ctx, owner, collection, rkey)
 }
 
 var _ Pear = &pear{}
@@ -344,7 +367,7 @@ func (p *pear) listRecordsLocal(
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	perms, err := p.permissions.ListPermissionsByCollection(ctx, caller, collection, subjects)
+	perms, err := p.permissions.ResolvePermissionsForCollection(ctx, caller, collection, subjects)
 	if err != nil {
 		return nil, err
 	}
@@ -398,15 +421,15 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 // TODO: actually enforce permissions here
 func (p *pear) GetBlob(
 	ctx context.Context,
-	did string,
-	cid string,
+	did syntax.DID,
+	cid syntax.CID,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
-	return p.repo.GetBlob(ctx, did, cid)
+	return p.repo.GetBlob(ctx, did.String(), cid.String())
 }
 
 // TODO: actually enforce permissions here
-func (p *pear) UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error) {
-	return p.repo.UploadBlob(ctx, did, data, mimeType)
+func (p *pear) UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {
+	return p.repo.UploadBlob(ctx, did.String(), data, mimeType)
 }
 
 func (p *pear) NotifyOfUpdate(

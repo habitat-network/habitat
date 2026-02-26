@@ -38,7 +38,7 @@ func TestParseGranteesFromInterface(t *testing.T) {
 	})
 
 	t.Run("multiple grantees", func(t *testing.T) {
-		result, err := ParseGranteesFromInterface([]interface{}{
+		input := []interface{}{
 			map[string]interface{}{
 				"$type": "network.habitat.grantee#didGrantee",
 				"did":   "did:plc:alice",
@@ -51,12 +51,17 @@ func TestParseGranteesFromInterface(t *testing.T) {
 				"$type": "network.habitat.grantee#cliqueRef",
 				"uri":   "habitat://did:plc:alice/network.habitat.clique/team",
 			},
-		})
+		}
+
+		result, err := ParseGranteesFromInterface(input)
 		require.NoError(t, err)
 		require.Len(t, result, 3)
 		require.Equal(t, DIDGrantee("did:plc:alice"), result[0])
 		require.Equal(t, DIDGrantee("did:plc:bob"), result[1])
 		require.Equal(t, CliqueGrantee("habitat://did:plc:alice/network.habitat.clique/team"), result[2])
+
+		constructed := ConstructInterfaceFromGrantees(result)
+		require.Equal(t, constructed, input)
 	})
 
 	t.Run("missing $type field", func(t *testing.T) {

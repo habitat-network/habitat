@@ -10,6 +10,7 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
+import type * as NetworkHabitatGrantee from '../grantee.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -19,6 +20,8 @@ export type QueryParams = {
   subjects: string[]
   /** Filter by specific lexicon. */
   collection: string
+  /** Whether to return the permission grants on this record as part of the response. */
+  includePermissions?: boolean
   /**  [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time. */
   since?: string
   /** [UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API). */
@@ -54,6 +57,11 @@ export interface Record {
   uri: string
   cid: string
   value: { [_ in string]: unknown }
+  permissions?: (
+    | $Typed<NetworkHabitatGrantee.DidGrantee>
+    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | { $type: string }
+  )[]
 }
 
 const hashRecord = 'record'

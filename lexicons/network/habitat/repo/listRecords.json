@@ -24,6 +24,10 @@
             "format": "nsid",
             "description": "Filter by specific lexicon."
           },
+          "includePermissions": {
+            "type": "boolean",
+            "description": "Whether to return the permission grants on this record as part of the response."
+          },
           "since": {
             "type": "string",
             "description": " [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time.",
@@ -80,6 +84,16 @@
         },
         "value": {
           "type": "unknown"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "union",
+            "refs": [
+              "network.habitat.grantee#didGrantee",
+              "network.habitat.grantee#cliqueRef"
+            ]
+          }
         }
       }
     }

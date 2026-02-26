@@ -128,6 +128,32 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 	return parsed, nil
 }
 
+func ConstructInterfaceFromGrantees(grantees []Grantee) []interface{} {
+	// Tiny optimization to avoid unnecessary allocations
+	if len(grantees) == 0 {
+		return nil
+	}
+
+	constructed := make([]any, len(grantees))
+	for i, grantee := range grantees {
+		switch g := grantee.(type) {
+		case DIDGrantee:
+			didGrantee := map[string]any{
+				"$type": "network.habitat.grantee#didGrantee",
+				"did":   g.String(),
+			}
+			constructed[i] = didGrantee
+		case CliqueGrantee:
+			cliqueGrantee := map[string]any{
+				"$type": "network.habitat.grantee#cliqueRef",
+				"uri":   g.String(),
+			}
+			constructed[i] = cliqueGrantee
+		}
+	}
+	return constructed
+}
+
 func parseHabitatClique(raw string) (habitat_syntax.HabitatURI, error) {
 	uri, err := habitat_syntax.ParseHabitatURI(raw)
 	if err != nil {
