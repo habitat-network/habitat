@@ -1,11 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { HandleResolver, DidResolver, DidDocument } from "@atproto/identity";
 import { AtpAgent } from "@atproto/api";
 import { useState } from "react";
 import confetti from "canvas-confetti";
 
+// TODO: can this point to a habitat.network url instead?
 export const habitatServers = ["https://habitat-953995456319.us-west1.run.app"];
 
 interface IntermediateState {
@@ -13,44 +14,82 @@ interface IntermediateState {
   didDoc: DidDocument;
 }
 
-export const Route = createFileRoute("/onboard")({
-  component() {
-    const [step, setStep] = useState(1);
-    const [intermediateState, setIntermediateState] =
-      useState<IntermediateState>();
+export interface OnboardProps {
+  serviceKey?: string;
+  title?: string;
+  serverOptions?: string[];
+  defaultServer?: string;
+  handle?: string;
+}
 
-    return (
-      <>
-        <h1>Onboard</h1>
-        <Step1
-          onIntermediateState={setIntermediateState}
-          onNextStep={() => setStep(2)}
-          active={step === 1}
-        />
-        {<Step2 intermediateState={intermediateState} active={step === 2} />}
-      </>
-    );
-  },
+export function OnboardComponent({
+  serviceKey = "habitat",
+  title = "Onboard",
+  serverOptions,
+  defaultServer,
+  handle,
+}: OnboardProps = {}) {
+  const [step, setStep] = useState(1);
+  const [intermediateState, setIntermediateState] =
+    useState<IntermediateState>();
+
+  return (
+    <>
+      <h1>{title}</h1>
+      <p>To use habitat, we need to onboard you to this service by adding a new field to your DID doc. This adds the habitat service and does not disrupt any existing services you have or your PDS. We need your password to make a signed operation, but this runs completely client-side and we don't store your password anywhere.</p>
+      <Step1
+        onIntermediateState={setIntermediateState}
+        onNextStep={() => setStep(2)}
+        active={step === 1}
+        defaultHandle={handle}
+      />
+      <Step2
+        intermediateState={intermediateState}
+        active={step === 2}
+        serviceKey={serviceKey}
+        serverOptions={serverOptions}
+        defaultServer={defaultServer}
+      />
+    </>
+  );
+}
+
+export const Route = createFileRoute("/onboard")({
+  component: () =>
+    import.meta.env.DEV ? (
+      <OnboardComponent
+        serviceKey="habitat_local"
+        title="Onboard (Local)"
+        defaultServer="https://pear.taile529e.ts.net"
+      />
+    ) : (
+      <OnboardComponent serverOptions={habitatServers} />
+    ),
 });
 
 const Step1 = ({
   onIntermediateState,
   onNextStep,
   active,
+  defaultHandle,
 }: {
   onIntermediateState: (data: IntermediateState) => void;
   onNextStep: () => void;
   active: boolean;
+  defaultHandle?: string;
 }) => {
   interface FormData {
     handle: string;
     password: string;
   }
-  const form = useForm<FormData>();
+  const form = useForm<FormData>({
+    defaultValues: { handle: defaultHandle ?? "you.bsky.social" },
+  });
   const { mutate: requestPlcOperation, isPending } = useMutation({
     mutationFn: async (data: FormData) => {
       const handleResolver = new HandleResolver();
       const did = await handleResolver.resolve(data.handle);
+      console.log("did", did)
       if (!did) throw new Error("Handle not found");
 
       const didResolver = new DidResolver({});
@@ -106,14 +145,21 @@ const Step1 = ({
 const Step2 = ({
   intermediateState,
   active,
+  serviceKey,
+  serverOptions,
+  defaultServer,
 }: {
   intermediateState: IntermediateState | undefined;
   active: boolean;
+  serviceKey: string;
+  serverOptions?: string[];
+  defaultServer?: string;
 }) => {
   interface FormData {
     code: string;
     server: string;
   }
+  const navigate = useNavigate();
   const form = useForm<FormData>();
   const { mutate: updateIdentity, isPending } = useMutation({
     mutationFn: async (data: FormData) => {
@@ -128,7 +174,7 @@ const Step2 = ({
           endpoint: service.serviceEndpoint,
         };
       }
-      services["habitat"] = {
+      services[serviceKey] = {
         type: "HabitatServer",
         endpoint: data.server,
       };
@@ -152,6 +198,7 @@ const Step2 = ({
     },
     onSuccess: () => {
       confetti();
+      navigate({ to: "/" });
     },
     onError: (error) => {
       alert(error.message);
@@ -169,13 +216,21 @@ const Step2 = ({
         </label>
         <label>
           Server
-          <select {...form.register("server")} required>
-            {habitatServers.map((server) => (
-              <option key={server} value={server}>
-                {server}
-              </option>
-            ))}
-          </select>
+          {serverOptions ? (
+            <select {...form.register("server")} required>
+              {serverOptions.map((server) => (
+                <option key={server} value={server}>
+                  {server}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              {...form.register("server")}
+              required
+              defaultValue={defaultServer}
+            />
+          )}
         </label>
         <button type="submit" aria-busy={isPending}>
           Update identity

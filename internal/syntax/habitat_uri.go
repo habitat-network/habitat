@@ -84,13 +84,13 @@ func (n HabitatURI) Authority() syntax.AtIdentifier {
 	parts := strings.SplitN(string(n), "/", 4)
 	if len(parts) < 3 {
 		// something has gone wrong (would not validate)
-		return syntax.AtIdentifier{}
+		return ""
 	}
 	atid, err := syntax.ParseAtIdentifier(parts[2])
 	if err != nil {
-		return syntax.AtIdentifier{}
+		return ""
 	}
-	return *atid
+	return atid
 }
 
 // Returns path segment, without leading slash, as would be used in an atproto repository key. Or empty string if there is no path.
@@ -135,10 +135,6 @@ func (n HabitatURI) RecordKey() syntax.RecordKey {
 
 func (n HabitatURI) Normalize() HabitatURI {
 	auth := n.Authority()
-	if auth.Inner == nil {
-		// invalid AT-URI; return the current value (!)
-		return n
-	}
 	coll := n.Collection()
 	if coll == syntax.NSID("") {
 		return HabitatURI(habitatScheme + auth.Normalize().String())

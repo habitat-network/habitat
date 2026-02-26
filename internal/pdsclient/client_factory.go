@@ -43,7 +43,7 @@ func (f *clientFactoryImpl) NewClient(
 ) (HttpClient, error) {
 	id, err := f.dir.LookupDID(ctx, did)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup did: %w", err)
+		return nil, fmt.Errorf("[pds client factory]: failed to lookup did: error is %w", err)
 	}
 	return newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{}), nil
 }

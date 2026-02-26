@@ -56,11 +56,10 @@ export const Route = createFileRoute("/_requireAuth/data")({
     try {
       // Use the repo DID if provided, otherwise undefined (uses default)
       const repo = repoDid?.trim() || undefined;
-
       if (isPrivate) {
         const data = await context.authManager
           .client()
-          .listPrivateRecords(lexicon, undefined, undefined, repo);
+          .listPrivateRecords(lexicon, undefined, undefined, repo ? [repo] : undefined)
         return { records: data.records, error: null };
       } else {
         const data = await context.authManager
@@ -84,21 +83,8 @@ function DataDebugger() {
   const navigate = useNavigate({ from: Route.fullPath });
   const router = useRouter();
 
-  // Parse filters from search params
   const parsedFilters = useMemo(() => parseFilters(filter || ""), [filter]);
 
-  // Update search params
-  const updateSearch = (updates: Partial<SearchParams>) => {
-    navigate({
-      search: (prev) => ({ ...prev, ...updates }),
-      replace: true,
-    });
-  };
-
-  // Refresh data by invalidating the router
-  const refresh = () => router.invalidate();
-
-  // Filter records based on parsed filter criteria
   const filteredRecords = useMemo(() => {
     if (!records || records.length === 0) return [];
 
@@ -107,16 +93,13 @@ function DataDebugger() {
     }
 
     return records.filter((record) => {
-      // Check all filter criteria
       for (const [key, value] of Object.entries(parsedFilters)) {
         if (key === "rkey") {
-          // Extract rkey from URI
           const rkey = record.uri?.split("/").pop();
           if (!rkey || !rkey.includes(value)) {
             return false;
           }
         } else {
-          // Check top-level fields in the record value
           const recordValue = record.value as Record<string, unknown>;
           const fieldValue = recordValue[key];
 
@@ -124,9 +107,7 @@ function DataDebugger() {
             return false;
           }
 
-          // Convert to string for comparison
-          const fieldStr = String(fieldValue);
-          if (!fieldStr.includes(value)) {
+          if (!String(fieldValue).includes(value)) {
             return false;
           }
         }
@@ -135,6 +116,22 @@ function DataDebugger() {
       return true;
     });
   }, [records, parsedFilters]);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const isPrivateEl = form.elements.namedItem("isPrivate") as HTMLInputElement;
+    navigate({
+      search: () => ({
+        lexicon: (data.get("lexicon") as string) || undefined,
+        repoDid: (data.get("repoDid") as string) || undefined,
+        filter: (data.get("filter") as string) || undefined,
+        isPrivate: isPrivateEl?.checked || undefined,
+      }),
+      replace: true,
+    });
+  };
 
   return (
     <div style={{ padding: "1.5rem" }}>
@@ -145,7 +142,9 @@ function DataDebugger() {
       </h1>
 
       {/* Top bar with controls */}
-      <div
+      <form
+        key={`${lexicon || ""}-${repoDid || ""}-${filter || ""}-${isPrivate}`}
+        onSubmit={handleSubmit}
         style={{
           display: "flex",
           flexWrap: "wrap",
@@ -168,11 +167,9 @@ function DataDebugger() {
           </label>
           <input
             id="lexicon"
+            name="lexicon"
             type="text"
-            value={lexicon || ""}
-            onChange={(e) =>
-              updateSearch({ lexicon: e.target.value || undefined })
-            }
+            defaultValue={lexicon || ""}
             placeholder="e.g., app.bsky.feed.post"
             style={{
               border: "1px solid ButtonBorder",
@@ -195,11 +192,9 @@ function DataDebugger() {
           </label>
           <input
             id="repoDid"
+            name="repoDid"
             type="text"
-            value={repoDid || ""}
-            onChange={(e) =>
-              updateSearch({ repoDid: e.target.value || undefined })
-            }
+            defaultValue={repoDid || ""}
             placeholder="did:plc:..."
             style={{
               border: "1px solid ButtonBorder",
@@ -223,11 +218,9 @@ function DataDebugger() {
           </label>
           <input
             id="filter"
+            name="filter"
             type="text"
-            value={filter || ""}
-            onChange={(e) =>
-              updateSearch({ filter: e.target.value || undefined })
-            }
+            defaultValue={filter || ""}
             placeholder="key:value"
             style={{
               padding: "0.375rem 0.5rem",
@@ -252,17 +245,15 @@ function DataDebugger() {
         >
           <input
             type="checkbox"
-            checked={isPrivate || false}
-            onChange={(e) =>
-              updateSearch({ isPrivate: e.target.checked || undefined })
-            }
+            name="isPrivate"
+            defaultChecked={isPrivate || false}
           />
           <span style={{ fontWeight: 500 }}>Private Data</span>
         </label>
 
         {/* Refresh Button */}
         <button
-          onClick={refresh}
+          type="submit"
           style={{
             background: "none",
             border: "none",
@@ -306,7 +297,7 @@ function DataDebugger() {
             ))}
           </div>
         )}
-      </div>
+      </form>
 
       {/* Data Display */}
       <div>
@@ -351,7 +342,7 @@ function DataDebugger() {
               <div>
                 <h3>Error loading records</h3>
                 <p>{error}</p>
-                <button onClick={refresh}>Try again</button>
+                <button onClick={() => router.invalidate()}>Try again</button>
               </div>
             </div>
           </div>

@@ -159,7 +159,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
-	id, err := o.directory.Lookup(ctx, *atid)
+	id, err := o.directory.Lookup(ctx, atid)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusInternalServerError)
 		return
@@ -285,7 +285,7 @@ func (o *OAuthServer) HandleCallback(
 	// Ensure that habitat serves this user
 	id, err := o.directory.LookupDID(ctx, arf.Did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to lookup did", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
 		return
 	}
 

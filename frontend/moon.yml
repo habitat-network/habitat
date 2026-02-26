@@ -21,14 +21,16 @@ tasks:
     options:
       internal: false
   gh-pages:
-    env:
-      HASH_ROUTING: 'true'
     deps:
       - target: ~:build
       - target: calendar:build
         env:
           DOMAIN: ${DOMAIN}/calendar
           OUT_DIR: $projectRoot/dist/calendar
+      - target: greensky:build
+        env:
+          DOMAIN: ${DOMAIN}/greensky
+          OUT_DIR: $projectRoot/dist/greensky
     preset: utility
     options:
       runDepsInParallel: false

@@ -82,7 +82,7 @@ func mockIdentities(dids []syntax.DID) identity.Directory {
 			},
 		})
 	}
-	return &dir
+	return dir
 }
 
 func TestMockIdentities(t *testing.T) {
@@ -161,6 +161,7 @@ func TestListOwnRecords(t *testing.T) {
 		t.Context(),
 		syntax.DID("did:example:myid"),
 		coll,
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
@@ -189,6 +190,7 @@ func TestListRecords(t *testing.T) {
 			t.Context(),
 			syntax.DID("did:example:otherid"),
 			coll1,
+			nil,
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
@@ -209,6 +211,7 @@ func TestListRecords(t *testing.T) {
 			t.Context(),
 			syntax.DID("did:example:readerid"),
 			coll1,
+			nil,
 		)
 		require.NoError(t, err)
 		// did:example:readerid has permission to see all did:example:myid's records in coll1
@@ -232,6 +235,7 @@ func TestListRecords(t *testing.T) {
 			t.Context(),
 			syntax.DID("did:example:specificreader"),
 			coll1,
+			nil,
 		)
 		require.NoError(t, err)
 		// did:example:specificreader has permission only for rkey1
@@ -246,6 +250,7 @@ func TestListRecords(t *testing.T) {
 			t.Context(),
 			syntax.DID("did:example:readerid"),
 			coll2,
+			nil,
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
@@ -362,11 +367,11 @@ func TestCliqueFlow(t *testing.T) {
 	require.NotNil(t, got)
 
 	// Both A and B can list both records via ListRecords
-	aRecords, err := p.ListRecords(t.Context(), syntax.DID(aDID), coll)
+	aRecords, err := p.ListRecords(t.Context(), syntax.DID(aDID), coll, nil)
 	require.NoError(t, err)
 	require.Len(t, aRecords, 2)
 
-	bRecords, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll)
+	bRecords, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll, nil)
 	require.NoError(t, err)
 	require.Len(t, bRecords, 2)
 
@@ -388,7 +393,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.NotNil(t, got)
 
 	// C can also list both records via ListRecords
-	cRecords, err := p.ListRecords(t.Context(), syntax.DID(cDID), coll)
+	cRecords, err := p.ListRecords(t.Context(), syntax.DID(cDID), coll, nil)
 	require.NoError(t, err)
 	require.Len(t, cRecords, 2)
 
@@ -411,7 +416,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.NotNil(t, got)
 
 	// B can no longer list A's record; only sees its own
-	bRecordsAfterRemoval, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll)
+	bRecordsAfterRemoval, err := p.ListRecords(t.Context(), syntax.DID(bDID), coll, nil)
 	require.NoError(t, err)
 	require.Len(t, bRecordsAfterRemoval, 1)
 	require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)
@@ -579,6 +584,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
+			nil,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 4) // 2 from Alice's own repo + 2 from Bob with permission
@@ -606,6 +612,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
+			nil,
 		)
 		require.NoError(t, err)
 		// Should be 4 (2 from Alice + 2 from Bob with permission, but NOT Carol's)
@@ -630,6 +637,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
+			nil,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 4)
@@ -646,6 +654,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
+			nil,
 		)
 		require.NoError(t, err)
 		require.Len(t, records, 4)
@@ -655,6 +664,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 			t.Context(),
 			syntax.DID(aliceDID),
 			otherColl,
+			nil,
 		)
 		require.NoError(t, err)
 		// Should have 1 record from Bob (Alice doesn't have own records in otherColl)
@@ -675,6 +685,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 			t.Context(),
 			syntax.DID(aliceDID),
 			coll,
+			nil,
 		)
 		require.NoError(t, err)
 		// Should have at least 2 from Alice + 1 specific from Bob (may include remote if it exists)

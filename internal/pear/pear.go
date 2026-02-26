@@ -26,7 +26,7 @@ type Pear interface {
 	// Permissioned repository methods
 	PutRecord(ctx context.Context, callerDID, targetDID syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, targetDID syntax.DID, callerDID syntax.DID) (*repo.Record, error)
-	ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error)
+	ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
 
@@ -54,6 +54,11 @@ type pear struct {
 	inbox inbox.Inbox
 }
 
+// ListPermissionsByCollectionFilterOwners implements Pear.
+func (p *pear) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]permissions.Permission, error) {
+	return p.permissions.ListPermissionsByCollection(ctx, grantee, collection, owners)
+}
+
 // Pass throughs to implement permission.Store
 func (p *pear) AddPermissions(
 	grantees []permissions.Grantee,
@@ -73,15 +78,6 @@ func (p *pear) HasPermission(
 	rkey syntax.RecordKey,
 ) (bool, error) {
 	return p.permissions.HasPermission(ctx, requester, owner, collection, rkey)
-}
-
-// ListPermissionsByCollection implements Pear.
-func (p *pear) ListPermissionsByCollection(
-	ctx context.Context,
-	grantee syntax.DID,
-	collection syntax.NSID,
-) ([]permissions.Permission, error) {
-	return p.permissions.ListPermissionsByCollection(ctx, grantee, collection)
 }
 
 // ListPermissionGrants implements Pear.
@@ -106,6 +102,7 @@ var (
 	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
 	ErrUnauthorized           = fmt.Errorf("unauthorized request")
 	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
+	ErrFollowersCliqueRkey    = errors.New("this clique cannot be directly set, it derives from app.bsky.graph.follows of the user")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
 )
 
@@ -146,6 +143,9 @@ func (p *pear) PutRecord(
 	// Cliques in habitat are treated specially, they are a way to delegate permissions to a particular did, which requires some
 	// special handling and coordination.
 	if collection == permissions.CliqueNSID {
+		if rkey == permissions.FollowersCliqueRkey {
+			return "", ErrFollowersCliqueRkey
+		}
 		for _, grantee := range grantees {
 			if _, ok := grantee.(permissions.CliqueGrantee); ok {
 				// No nested cliques allowed -- can't grant a clique permission to a clique
@@ -287,12 +287,13 @@ func (p *pear) listRecordsLocal(
 	ctx context.Context,
 	collection syntax.NSID,
 	callerDID syntax.DID,
+	subjects []syntax.DID,
 ) ([]repo.Record, error) {
 	if collection == "" {
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	perms, err := p.permissions.ListPermissionsByCollection(ctx, callerDID, collection)
+	perms, err := p.permissions.ListPermissionsByCollection(ctx, callerDID, collection, subjects)
 	if err != nil {
 		return nil, err
 	}
@@ -325,10 +326,9 @@ func (p *pear) listRecordsRemote(ctx context.Context, callerDID syntax.DID, coll
 */
 
 // This needs to be renamed
-// TODO: take in targetDIDs as well, ignoring this now for simplicity
-func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
+func (p *pear) ListRecords(ctx context.Context, callerDID syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error) {
 	// Get records owned by this repo
-	localRecords, err := p.listRecordsLocal(ctx, collection, callerDID)
+	localRecords, err := p.listRecordsLocal(ctx, collection, callerDID, subjects)
 	if err != nil {
 		return nil, err
 	}

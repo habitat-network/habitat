@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/node"
@@ -41,6 +44,7 @@ type Store interface {
 		ctx context.Context,
 		grantee syntax.DID,
 		collection syntax.NSID,
+		owners []syntax.DID,
 	) ([]Permission, error)
 	ListPermissionGrants(
 		ctx context.Context,
@@ -147,10 +151,27 @@ func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, 
 	}
 }
 
+func isFollwersCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
+	client := &xrpc.Client{
+		Host: "https://public.api.bsky.app",
+	}
+
+	output, err := bsky.GraphGetFollowers(ctx, client, clique.Owner().String(), "", 0)
+	if err != nil {
+		return false, err
+	}
+
+	followers := xslices.Map(output.Followers, func(a *bsky.ActorDefs_ProfileView) syntax.DID {
+		return syntax.DID(a.Did)
+	})
+	return slices.Contains(followers, requester), nil
+}
+
 func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
 	if requester == clique.Owner() {
 		return true, nil
 	}
+
 	ok, err := s.node.ServesDID(ctx, clique.Owner())
 	if err != nil {
 		return false, err
@@ -159,6 +180,11 @@ func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique
 	// Remote clique; need to call out
 	if !ok {
 		return s.isRemoteCliqueMember(ctx, requester, clique, requester)
+	}
+
+	// Special case followers clique
+	if clique.RecordKey() == FollowersCliqueRkey {
+		return isFollwersCliqueMember(ctx, requester, clique)
 	}
 
 	// Local clique
@@ -190,7 +216,7 @@ func (s *store) HasPermission(
 		return true, nil
 	}
 
-	permissions, err := s.listPermissions(requester, owner, collection, rkey)
+	permissions, err := s.listPermissions(requester, []syntax.DID{owner}, collection, rkey)
 	if err != nil {
 		return false, err
 	}
@@ -219,10 +245,21 @@ func (s *store) HasPermission(
 				return false, err
 			}
 
-			if ok {
-				localCliques = append(localCliques, grantee)
+			// Kind of inefficient -- this can be looked up from anywhere and doesn't need to be forwarded to local repo
+			if grantee.RecordKey() == FollowersCliqueRkey {
+				follower, err := isFollwersCliqueMember(ctx, requester, grantee)
+				if err != nil {
+					return false, err
+				}
+				if follower {
+					return true, nil
+				}
 			} else {
-				remoteCliques = append(remoteCliques, grantee)
+				if ok {
+					localCliques = append(localCliques, grantee)
+				} else {
+					remoteCliques = append(remoteCliques, grantee)
+				}
 			}
 		}
 	}
@@ -333,19 +370,21 @@ func (s *store) AddPermissions(
 		})
 	}
 
-	// Delete any existing permissions (allow or deny) for these grantees+record before inserting fresh allow permissions.
+	// Delete any existing permission for this record before inserting the deny.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
-	if err := s.db.Where("grantee IN ?", grantees).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
-		Where("rkey = ?", rkey).
-		Delete(&permission{}).Error; err != nil {
-		return fmt.Errorf("failed to clear existing permissions before insert: %w", err)
-	}
-	if err := s.db.Create(&permissions).Error; err != nil {
-		return fmt.Errorf("failed to add lexicon permission: %w", err)
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ?", rkey).
+			Delete(&permission{}).Error; err != nil {
+			return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
+		}
+		if err := tx.Create(&permissions).Error; err != nil {
+			return fmt.Errorf("failed to add lexicon permission: %w", err)
+		}
+		return nil
+	})
 }
 
 // RemovePermissions removes read permission for an entire collection or specific record.
@@ -389,22 +428,23 @@ func (s *store) RemovePermissions(
 
 	// Delete any existing permission for this record before inserting the deny.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
-	if err := s.db.Where("grantee IN ?", grantees).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
-		Where("rkey = ?", rkey).
-		Delete(&permission{}).Error; err != nil {
-		return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
-	}
-
-	if err := s.db.Create(recordPerms).Error; err != nil {
-		return fmt.Errorf("failed to add deny permissions: %w", err)
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ?", rkey).
+			Delete(&permission{}).Error; err != nil {
+			return fmt.Errorf("failed to clear existing permissions before deny insert: %w", err)
+		}
+		if err := tx.Create(recordPerms).Error; err != nil {
+			return fmt.Errorf("failed to add deny permissions: %w", err)
+		}
+		return nil
+	})
 }
 
-func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID) ([]Permission, error) {
-	allPermissions, err := s.listPermissions(grantee, "", collection, "")
+func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
+	allPermissions, err := s.listPermissions(grantee, owners, collection, "")
 	if err != nil {
 		return nil, err
 	}
@@ -438,22 +478,22 @@ func (s *store) ListPermissionsByCollection(ctx context.Context, grantee syntax.
 
 // ListPermissionGrants implements Store.
 func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]Permission, error) {
-	return s.listPermissions("", granter, "", "")
+	return s.listPermissions("", []syntax.DID{granter}, "", "")
 }
 
 // ListPermissions returns the permissions available to this particular combination of inputs.
 // Any "" inputs are not filtered by.
 func (s *store) listPermissions(
 	grantee syntax.DID,
-	owner syntax.DID,
+	owners []syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) ([]Permission, error) {
 	// TODO prevent table scans if all arguments are ""
 	var queried []permission
 	query := s.db
-	if owner.String() != "" {
-		query = query.Where("owner = ?", owner.String())
+	if len(owners) > 0 {
+		query = query.Where("owner IN ?", owners)
 	}
 	if grantee.String() != "" {
 		// The grantee field could also be a clique that includes this direct DID. so ifnore it
@@ -487,7 +527,7 @@ func (s *store) listPermissions(
 			Effect:     Effect(p.Effect),
 		}
 	}
-	if collection != "" && (owner == grantee || owner == "") {
+	if collection != "" && (slices.Contains(owners, grantee) || len(owners) == 0) {
 		// If the request is for a general collection (un-ownered), by default the grantee has permission to their own collections.
 		permissions = append(permissions, Permission{Grantee: DIDGrantee(grantee), Owner: grantee, Collection: collection, Effect: Allow})
 	}

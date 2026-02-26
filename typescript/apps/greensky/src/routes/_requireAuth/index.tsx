@@ -1,125 +1,101 @@
-import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { getPrivatePosts, getProfile, PrivatePost, type Profile } from "../../habitatApi";
+import { type FeedEntry, Feed } from "../../Feed";
+import { NavBar } from "../../components/NavBar";
 
-interface FormData {
-  content: string;
-  private: boolean;
+interface BskyAuthor {
+  handle: string;
+  displayName?: string;
+  avatar?: string;
+}
+
+interface BskyPost {
+  uri: string;
+  author?: BskyAuthor;
+  record: {
+    text: string;
+    createdAt?: string;
+  };
+}
+
+interface BskyFeedItem {
+  post: BskyPost;
+  reply?: {
+    parent: {
+      uri: string;
+      author?: BskyAuthor;
+    };
+  };
+  reason?: {
+    $type: string;
+    by: BskyAuthor;
+  };
 }
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
-    const bskyFeed = await getBskyFeed(context.authManager);
-    const habitatFeed = await getHabitatFeed(context.authManager);
-    return [...habitatFeed, ...bskyFeed];
+    const [bskyItems, privatePosts] = await Promise.all([
+      getBskyFeed(context.authManager),
+      getPrivatePosts(context.authManager),
+    ]);
+
+    const privatePostToFeedEntry = async (post: PrivatePost): Promise<FeedEntry> => {
+      const did = post.uri.split("/")[2];
+      const privateAuthor: Profile | undefined = did
+        ? await getProfile(context.authManager, did)
+        : undefined;
+
+      return {
+        uri: post.uri,
+        text: post.value.text,
+        createdAt: post.value.createdAt,
+        kind: "private",
+        author: privateAuthor,
+        replyToHandle: post.value.reply !== undefined ? null : undefined,
+      }
+    }
+    const privateEntries = await Promise.all(privatePosts.map(privatePostToFeedEntry))
+
+    const entries: FeedEntry[] = [
+      ...privateEntries,
+      ...bskyItems.map(({ post, reply, reason }): FeedEntry => ({
+        uri: post.uri,
+        text: post.record.text,
+        createdAt: post.record.createdAt,
+        kind: "public",
+        author: post.author,
+        replyToHandle: reply !== undefined
+          ? (reply.parent.author?.handle ?? null)
+          : undefined,
+        repostedByHandle:
+          reason?.$type === "app.bsky.feed.defs#reasonRepost"
+            ? reason.by.handle
+            : undefined,
+      })),
+    ];
+
+    return entries;
   },
   component() {
-    const { authManager } = Route.useRouteContext();
-    const data = Route.useLoaderData();
-    const [modalOpen, setModalOpen] = useState(false);
-    const { handleSubmit, register } = useForm<FormData>();
-    const { mutate: createPost, isPending: createPostIsPending } = useMutation({
-      mutationFn: async (data: FormData) => {
-        await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
-            collection: "network.habitat.post",
-            record: {
-              text: data.content,
-            },
-            repo: authManager.handle,
-          }),
-        );
-      },
-    });
+    const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
+    const entries = Route.useLoaderData();
     return (
       <>
-        <nav>
-          <ul>
-            <li>
-              <h2>Greensky</h2>
-            </li>
-          </ul>
-          <ul>
-            <li>
-              <button onClick={() => setModalOpen(true)}>New Post</button>
-            </li>
-          </ul>
-        </nav>
-        {data.map((post) => {
-          return (
-            <article key={post.uri}>
-              <header>
-                <span>
-                  <img
-                    src={post.author?.avatar}
-                    width={24}
-                    height={24}
-                    style={{ marginRight: 8 }}
-                  />
-                  {post.author?.displayName}
-                </span>
-              </header>
-              {post.record.text}
-            </article>
-          );
-        })}
-        <dialog open={modalOpen}>
-          <article>
-            <h1>New post</h1>
-            <form
-              onSubmit={handleSubmit(async (data) => {
-                createPost(data, {
-                  onError: (error) => {
-                    alert(error.message);
-                  },
-                  onSuccess: () => {
-                    setModalOpen(false);
-                  },
-                });
-              })}
-            >
-              <textarea
-                placeholder="What's on your mind?"
-                {...register("content")}
-              />
-              <label>
-                <input
-                  type="checkbox"
-                  {...register("private")}
-                  defaultChecked
-                  disabled
-                />
-                Private
-              </label>
-              <button type="submit" aria-busy={createPostIsPending}>
-                Post
-              </button>
-            </form>
-          </article>
-        </dialog>
+        <NavBar
+          left={<li><h2 style={{ color: "green", fontWeight: "normal" }}>greensky by <a href="https://habitat.network">habitat 🌱</a></h2></li>}
+          authManager={authManager}
+          myProfile={myProfile}
+          isOnboarded={isOnboarded}
+        />
+        <Feed entries={entries} />
       </>
     );
   },
 });
 
-interface Post {
-  uri: string;
-  author?: {
-    displayName: string;
-    avatar?: string;
-  };
-  record: {
-    text: string;
-  };
-}
-
-async function getBskyFeed(authManager: AuthManager): Promise<Post[]> {
+async function getBskyFeed(authManager: AuthManager): Promise<BskyFeedItem[]> {
   const headers = new Headers();
-  headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
   const params = new URLSearchParams();
   params.append(
     "feed",
@@ -132,31 +108,6 @@ async function getBskyFeed(authManager: AuthManager): Promise<Post[]> {
     null,
     headers,
   );
-  const feedData: { feed: { post: Post }[] } = await feedResponse.json();
-
-  return feedData.feed.map(({ post }) => post);
-}
-
-async function getHabitatFeed(authManager: AuthManager): Promise<Post[]> {
-  const params = new URLSearchParams();
-  params.set("limit", "10");
-  params.set("collection", "network.habitat.post");
-  const response = await authManager.fetch(
-    `/xrpc/network.habitat.listRecords?${params.toString()}`,
-    "GET",
-  );
-
-  const posts: {
-    records: {
-      uri: string;
-      cid: string;
-      value: { text: string };
-    }[];
-    cursor?: string;
-  } = await response.json();
-
-  return posts.records.map(({ uri, value }) => ({
-    uri: uri,
-    record: value,
-  }));
+  const feedData: { feed: BskyFeedItem[] } = await feedResponse.json();
+  return feedData.feed;
 }

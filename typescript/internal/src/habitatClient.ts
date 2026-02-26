@@ -384,18 +384,14 @@ export class HabitatClient {
     collection: string,
     limit?: number,
     cursor?: string,
-    repo?: string,
+    subjects?: string[],
     opts?: RequestInit,
   ): Promise<ListPrivateRecordsResponse<T>> {
-    // Determine which repo to query (default to user's own repo)
-    const targetRepo = repo ?? this.defaultDid;
-
     // Get the appropriate agent for this repo's PDS
     const agent = this.defaultAgent;
 
     const queryParams = new URLSearchParams();
     queryParams.set("collection", collection);
-    queryParams.set("repo", targetRepo);
 
     if (limit !== undefined) {
       queryParams.set("limit", limit.toString());
@@ -403,6 +399,13 @@ export class HabitatClient {
     if (cursor) {
       queryParams.set("cursor", cursor);
     }
+
+    if (subjects) {
+      for (const subject of subjects) {
+        queryParams.append("subjects", subject);
+      }
+    }
+
 
     const response = await agent.fetchHandler(
       `/xrpc/network.habitat.listRecords?${queryParams}`,
