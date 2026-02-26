@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthManager } from "internal/authManager.js";
-import { type PrivatePost, type Profile, type DidGranteePermission, getPrivatePosts, getPostVisibility, getProfile } from "../../habitatApi";
+import {
+  type PrivatePost,
+  type Profile,
+  type DidGranteePermission,
+  getPrivatePosts,
+  getPostVisibility,
+  getProfile,
+} from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
@@ -33,54 +40,74 @@ interface FeedItem {
   };
 }
 
-
 export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   async loader({ context, params }) {
-    const publicItems: FeedItem[] = await getAuthorFeed(context.authManager, params.handle);
-    const privateItems: PrivatePost[] = await getPrivatePosts(context.authManager, params.handle);
-    const profile: Profile = await getProfile(context.authManager, params.handle);
+    const publicItems: FeedItem[] = await getAuthorFeed(
+      context.authManager,
+      params.handle,
+    );
+    const privateItems: PrivatePost[] = await getPrivatePosts(
+      context.authManager,
+      params.handle,
+    );
+    const profile: Profile = await getProfile(
+      context.authManager,
+      params.handle,
+    );
 
     const entries: FeedEntry[] = [
-      ...await Promise.all(privateItems.map(async (post): Promise<FeedEntry> => {
-        const authorDid = post.uri.split('/')[2] ?? '';
-        const granteeDids = (post.permissions ?? [])
-          .filter((p): p is DidGranteePermission => p.$type === 'network.habitat.grantee#didGrantee')
-          .slice(0, 5)
-          .map(p => p.did);
-        const granteeProfiles = await Promise.all(
-          granteeDids.map(granteeDid => getProfile(context.authManager, granteeDid).catch(() => undefined))
-        );
-        const grantees = granteeProfiles
-          .filter((p): p is Profile => p !== undefined && !!p.avatar)
-          .map(p => ({ avatar: p.avatar!, handle: p.handle }));
-        return {
+      ...(await Promise.all(
+        privateItems.map(async (post): Promise<FeedEntry> => {
+          const authorDid = post.uri.split("/")[2] ?? "";
+          const granteeDids = (post.permissions ?? [])
+            .filter(
+              (p): p is DidGranteePermission =>
+                p.$type === "network.habitat.grantee#didGrantee",
+            )
+            .slice(0, 5)
+            .map((p) => p.did);
+          const granteeProfiles = await Promise.all(
+            granteeDids.map((granteeDid) =>
+              getProfile(context.authManager, granteeDid).catch(
+                () => undefined,
+              ),
+            ),
+          );
+          const grantees = granteeProfiles
+            .filter((p): p is Profile => p !== undefined && !!p.avatar)
+            .map((p) => ({ avatar: p.avatar!, handle: p.handle }));
+          return {
+            uri: post.uri,
+            text: post.value.text,
+            createdAt: post.value.createdAt,
+            kind: getPostVisibility(post, authorDid),
+            author: {
+              handle: profile.handle,
+              displayName: profile.displayName,
+              avatar: profile.avatar,
+            },
+            replyToHandle: post.value.reply !== undefined ? null : undefined,
+            grantees: grantees.length > 0 ? grantees : undefined,
+          };
+        }),
+      )),
+      ...publicItems.map(
+        ({ post, reply, reason }): FeedEntry => ({
           uri: post.uri,
-          text: post.value.text,
-          createdAt: post.value.createdAt,
-          kind: getPostVisibility(post, authorDid),
-          author: {
-            handle: profile.handle,
-            displayName: profile.displayName,
-            avatar: profile.avatar,
-          },
-          replyToHandle: post.value.reply !== undefined ? null : undefined,
-          grantees: grantees.length > 0 ? grantees : undefined,
-        };
-      })),
-      ...publicItems.map(({ post, reply, reason }): FeedEntry => ({
-        uri: post.uri,
-        text: post.record.text,
-        createdAt: post.record.createdAt,
-        kind: "public",
-        author: post.author,
-        replyToHandle: reply !== undefined
-          ? (reply.parent.author?.handle ?? null)
-          : undefined,
-        repostedByHandle:
-          reason?.$type === "app.bsky.feed.defs#reasonRepost"
-            ? reason.by.handle
-            : undefined,
-      })),
+          text: post.record.text,
+          createdAt: post.record.createdAt,
+          kind: "public",
+          author: post.author,
+          replyToHandle:
+            reply !== undefined
+              ? (reply.parent.author?.handle ?? null)
+              : undefined,
+          repostedByHandle:
+            reason?.$type === "app.bsky.feed.defs#reasonRepost"
+              ? reason.by.handle
+              : undefined,
+        }),
+      ),
     ];
 
     return entries;
@@ -92,10 +119,16 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
     return (
       <>
         <NavBar
-          left={<>
-            <li><Link to="/">← Greensky</Link></li>
-            <li><h3>@{handle}'s feed</h3></li>
-          </>}
+          left={
+            <>
+              <li>
+                <Link to="/">← Greensky</Link>
+              </li>
+              <li>
+                <h3>@{handle}'s feed</h3>
+              </li>
+            </>
+          }
           authManager={authManager}
           myProfile={myProfile}
           isOnboarded={isOnboarded}
@@ -105,7 +138,6 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
     );
   },
 });
-
 
 async function getAuthorFeed(
   authManager: AuthManager,

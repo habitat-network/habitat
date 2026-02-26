@@ -16,7 +16,10 @@ interface NewPostButtonProps {
   isOnboarded: boolean;
 }
 
-export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) {
+export function NewPostButton({
+  authManager,
+  isOnboarded,
+}: NewPostButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) 
             const body = await res.json();
             if (body.message) message = body.message;
             else if (body.error) message = body.error;
-          } catch { }
+          } catch {}
           throw new Error(message);
         }
       }
@@ -78,7 +81,12 @@ export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) 
             repo: did,
             collection: "app.bsky.feed.post",
             record,
-            grantees: [{ $type: "network.habitat.grantee#cliqueRef", uri: `habitat://${did}/network.habitat.clique/followers` }],
+            grantees: [
+              {
+                $type: "network.habitat.grantee#cliqueRef",
+                uri: `habitat://${did}/network.habitat.clique/followers`,
+              },
+            ],
           }),
         );
         await checkResponse(res);
@@ -101,7 +109,10 @@ export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) 
             repo: did,
             collection: "app.bsky.feed.post",
             record,
-            grantees: dids.map((did) => ({ $type: "network.habitat.grantee#didGrantee", did })),
+            grantees: dids.map((did) => ({
+              $type: "network.habitat.grantee#didGrantee",
+              did,
+            })),
           }),
         );
         await checkResponse(res);
@@ -116,12 +127,16 @@ export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) 
         <article>
           <header>
             <button onClick={closeModal} aria-label="Close" rel="prev" />
-            <p><strong>New post</strong></p>
+            <p>
+              <strong>New post</strong>
+            </p>
           </header>
           {!isOnboarded && (
             <p>
               To make private posts, you need to be onboarded to habitat.{" "}
-              <a href="https://habitat.network/habitat/#/onboard">--&gt; Onboard</a>
+              <a href="https://habitat.network/habitat/#/onboard">
+                --&gt; Onboard
+              </a>
             </p>
           )}
           {!!isOnboarded && (
@@ -140,15 +155,27 @@ export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) 
               />
               <fieldset>
                 <label>
-                  <input type="radio" value="public" {...register("visibility")} />
+                  <input
+                    type="radio"
+                    value="public"
+                    {...register("visibility")}
+                  />
                   Public
                 </label>
                 <label>
-                  <input type="radio" value="followers" {...register("visibility")} />
+                  <input
+                    type="radio"
+                    value="followers"
+                    {...register("visibility")}
+                  />
                   Followers only
                 </label>
                 <label>
-                  <input type="radio" value="specific" {...register("visibility")} />
+                  <input
+                    type="radio"
+                    value="specific"
+                    {...register("visibility")}
+                  />
                   Specific users
                 </label>
               </fieldset>
@@ -157,7 +184,9 @@ export function NewPostButton({ authManager, isOnboarded }: NewPostButtonProps) 
                   authManager={authManager}
                   specificUsers={specificUsers}
                   onAddUser={handleAddUser}
-                  onRemoveUser={(u) => setSpecificUsers((prev) => prev.filter((x) => x !== u))}
+                  onRemoveUser={(u) =>
+                    setSpecificUsers((prev) => prev.filter((x) => x !== u))
+                  }
                 />
               )}
               {postError && <p>{postError}</p>}
