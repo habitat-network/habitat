@@ -24,7 +24,7 @@ export function NavBar({
           <span>@{myProfile?.handle}</span>
         </li>
         <li>
-          <NewPostButton authManager={authManager} isOnboarded={isOnboarded} />
+          <NewPostButton authManager={authManager} _isOnboarded={isOnboarded} />
         </li>
         <li>
           <button className="secondary" onClick={authManager.logout}>

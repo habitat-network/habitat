@@ -13,11 +13,12 @@ interface FormData {
 
 interface NewPostButtonProps {
   authManager: AuthManager;
-  isOnboarded: boolean;
+  _isOnboarded: boolean; // TODO: add this later when its not a toy demo and we will actually persist your data
 }
 
 export function NewPostButton({
   authManager,
+  _isOnboarded,
 }: NewPostButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
