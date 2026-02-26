@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import React from "react";
 import type { PostVisibility } from "./habitatApi";
 
 export interface FeedEntry {
@@ -22,12 +23,20 @@ function bskyUrl(uri: string, handle: string): string {
   return `https://bsky.app/profile/${handle}/post/${rkey}`;
 }
 
-export function Feed({ entries, showPrivatePermalink = true }: { entries: FeedEntry[]; showPrivatePermalink?: boolean }) {
+export function Feed({
+  entries,
+  showPrivatePermalink = true,
+  renderPostActions,
+}: {
+  entries: FeedEntry[];
+  showPrivatePermalink?: boolean;
+  renderPostActions?: (entry: FeedEntry) => React.ReactNode;
+}) {
   const sorted = [...entries].sort((a, b) => {
     if (!a.createdAt && !b.createdAt) return 0;
     if (!a.createdAt) return 1;
     if (!b.createdAt) return -1;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
 
   return (
@@ -182,6 +191,7 @@ export function Feed({ entries, showPrivatePermalink = true }: { entries: FeedEn
               ))}
           </header>
           {entry.text}
+          {renderPostActions?.(entry)}
         </article>
       ))}
     </>

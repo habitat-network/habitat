@@ -31,6 +31,8 @@ export interface PrivatePost {
   cid: string;
   value: PrivatePostRecord;
   permissions?: Permission[];
+  clique?: string;
+  resolvedClique?: string[];
 }
 
 export function getPostVisibility(
@@ -97,25 +99,18 @@ async function resolvePostPermissions(
   const perms = post.permissions ?? [];
   const authorDid = post.uri.split("/")[2] ?? "";
   const followersClique = `habitat://${authorDid}/network.habitat.clique/followers`;
-  const nonFollowersCliqueRef = perms.find(
+  const cliqueRef = perms.find(
     (p): p is CliqueRefPermission =>
-      p.$type === "network.habitat.grantee#cliqueRef" &&
-      (p as CliqueRefPermission).uri !== followersClique,
+      p.$type === "network.habitat.grantee#cliqueRef",
   );
-  if (nonFollowersCliqueRef) {
-    const memberDids = await getCliqueMembers(
-      authManager,
-      nonFollowersCliqueRef.uri,
-    );
-    return {
-      ...post,
-      permissions: memberDids.map((did) => ({
-        $type: "network.habitat.grantee#didGrantee" as const,
-        did,
-      })),
-    };
+  if (!cliqueRef) return post;
+
+  if (cliqueRef.uri === followersClique) {
+    return { ...post, clique: cliqueRef.uri };
   }
-  return post;
+
+  const memberDids = await getCliqueMembers(authManager, cliqueRef.uri);
+  return { ...post, clique: cliqueRef.uri, resolvedClique: memberDids };
 }
 
 export async function getPrivatePosts(

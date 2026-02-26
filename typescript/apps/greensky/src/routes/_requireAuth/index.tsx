@@ -7,8 +7,8 @@ import {
   getProfiles,
   PrivatePost,
   type Profile,
-  type DidGranteePermission,
 } from "../../habitatApi";
+import { ensureCacheFresh } from "../../privatePostCache";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
@@ -43,6 +43,7 @@ interface BskyFeedItem {
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
+    await ensureCacheFresh(context.authManager);
     const [bskyItems, privatePosts] = await Promise.all([
       getBskyFeed(context.authManager),
       getPrivatePosts(context.authManager),
@@ -56,13 +57,7 @@ export const Route = createFileRoute("/_requireAuth/")({
         ? await getProfile(context.authManager, did)
         : undefined;
 
-      const granteeDids = (post.permissions ?? [])
-        .filter(
-          (p): p is DidGranteePermission =>
-            p.$type === "network.habitat.grantee#didGrantee",
-        )
-        .slice(0, 5)
-        .map((p) => p.did);
+      const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
       const grantees = await getProfiles(context.authManager, granteeDids);
 
       return {
