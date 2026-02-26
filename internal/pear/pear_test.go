@@ -333,11 +333,11 @@ func TestCliqueFlow(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	bauthz, err := p.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	bauthz, err := p.permissions.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, bauthz)
 
-	aauthz, err := p.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	aauthz, err := p.permissions.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, aauthz)
 

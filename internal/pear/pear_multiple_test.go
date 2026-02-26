@@ -88,11 +88,11 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	bauthz, err := pearAC.HasPermission(t.Context(), bDID, aDID, permissions.CliqueNSID, cliqueRkey)
+	bauthz, err := pearAC.permissions.HasPermission(t.Context(), bDID, aDID, permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, bauthz)
 
-	aauthz, err := pearAC.HasPermission(t.Context(), bDID, aDID, permissions.CliqueNSID, cliqueRkey)
+	aauthz, err := pearAC.permissions.HasPermission(t.Context(), bDID, aDID, permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, aauthz)
 
