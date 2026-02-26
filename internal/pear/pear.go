@@ -11,6 +11,7 @@ import (
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
+	"github.com/rs/zerolog/log"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -209,6 +210,7 @@ func (p *pear) PutRecord(
 	validate *bool,
 	grantees []permissions.Grantee,
 ) (habitat_syntax.HabitatURI, error) {
+	log.Debug().Msgf("[pear] PutRecord called with caller=%s, target=%s, collection=%s, rkey=%s", caller, target, collection, rkey)
 	// Basic authz check -- you can only write to your own repo.
 	if target != caller {
 		return "", fmt.Errorf("only owner can put record")
@@ -342,16 +344,22 @@ func (p *pear) GetRecord(
 	target syntax.DID,
 	caller syntax.DID,
 ) (*repo.Record, error) {
-	ok, err := p.node.ServesDID(ctx, target)
-	if err != nil {
-		return nil, err
-	}
+	log.Debug().Msgf("[pear] GetRecord called with caller=%s, target=%s, collection=%s, rkey=%s", caller, target, collection, rkey)
 
-	if ok {
-		return p.getRecordLocal(ctx, collection, rkey, target, caller)
-	}
+	// For now, we have a centralized service. Until we get the self-hosting working, assume all dids are served by the centralized pear instance running here.
+	/*
+		ok, err := p.node.ServesDID(ctx, target)
+		if err != nil {
+			return nil, err
+		}
 
-	return nil, ErrRemoteFetchUnsupported
+		if ok {
+			return p.getRecordLocal(ctx, collection, rkey, target, caller)
+		}
+	*/
+	return p.getRecordLocal(ctx, collection, rkey, target, caller)
+
+	//return nil, ErrRemoteFetchUnsupported
 	// TODO: implement
 	// return p.getRecordRemote(ctx, collection, rkey, target, caller)
 }
@@ -401,6 +409,7 @@ func (p *pear) listRecordsRemote(ctx context.Context, caller syntax.DID, collect
 
 // This needs to be renamed
 func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error) {
+	log.Debug().Msgf("[pear] ListRecords called with caller=%s, collection=%s, subjects=%v", caller, collection, subjects)
 	// Get records owned by this repo
 	localRecords, err := p.listRecordsLocal(ctx, collection, caller, subjects)
 	if err != nil {

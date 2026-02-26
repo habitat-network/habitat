@@ -14,7 +14,7 @@ export interface FeedEntry {
   // undefined = not a reply; null = reply but parent handle unknown; string = reply to this handle
   replyToHandle?: string | null;
   repostedByHandle?: string;
-  grantees?: { avatar: string; handle: string }[];
+  grantees?: { avatar?: string; handle: string }[];
 }
 
 function bskyUrl(uri: string, handle: string): string {
@@ -78,16 +78,36 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
                   rel="noopener noreferrer"
                   style={{ marginLeft: i === 0 ? 0 : -6, display: "block" }}
                 >
-                  <img
-                    src={grantee.avatar}
-                    width={24}
-                    height={24}
-                    style={{
-                      borderRadius: "50%",
-                      border: "2px solid white",
-                      display: "block",
-                    }}
-                  />
+                  {grantee.avatar ? (
+                    <img
+                      src={grantee.avatar}
+                      width={24}
+                      height={24}
+                      style={{
+                        borderRadius: "50%",
+                        border: "2px solid white",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: "50%",
+                        border: "2px solid white",
+                        background: "#ccc",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 10,
+                        color: "#555",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {grantee.handle[0]?.toUpperCase()}
+                    </div>
+                  )}
                 </a>
               ))}
             </div>

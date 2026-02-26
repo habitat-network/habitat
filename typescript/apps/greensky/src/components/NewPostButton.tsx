@@ -57,7 +57,7 @@ export function NewPostButton({
             const body = await res.json();
             if (body.message) message = body.message;
             else if (body.error) message = body.error;
-          } catch {}
+          } catch { }
           throw new Error(message);
         }
       }
@@ -102,6 +102,23 @@ export function NewPostButton({
             return resolved.did;
           }),
         );
+        const cliqueRes = await authManager.fetch(
+          "/xrpc/network.habitat.putRecord",
+          "POST",
+          JSON.stringify({
+            repo: did,
+            collection: "network.habitat.clique",
+            record,
+            grantees: dids.map((did) => ({
+              $type: "network.habitat.grantee#didGrantee",
+              did,
+            })),
+          }),
+        );
+        await checkResponse(cliqueRes);
+        const data = await cliqueRes.json();
+        const cliqueUri = data.uri
+
         const res = await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
           "POST",
@@ -109,10 +126,12 @@ export function NewPostButton({
             repo: did,
             collection: "app.bsky.feed.post",
             record,
-            grantees: dids.map((did) => ({
-              $type: "network.habitat.grantee#didGrantee",
-              did,
-            })),
+            grantees: [
+              {
+                $type: "network.habitat.grantee#cliqueRef",
+                uri: cliqueUri,
+              },
+            ],
           }),
         );
         await checkResponse(res);
@@ -121,6 +140,7 @@ export function NewPostButton({
   });
 
   return (
+    // For demo / toy purposes, allow people to make private posts without onboarding.
     <>
       <button onClick={() => setModalOpen(true)}>New Post</button>
       <dialog open={modalOpen}>
@@ -131,15 +151,15 @@ export function NewPostButton({
               <strong>New post</strong>
             </p>
           </header>
-          {!isOnboarded && (
+          {/*!isOnboarded && (
             <p>
               To make private posts, you need to be onboarded to habitat.{" "}
               <a href="https://habitat.network/habitat/#/onboard">
                 --&gt; Onboard
               </a>
             </p>
-          )}
-          {!!isOnboarded && (
+          )*/}
+          {/*!!isOnboarded &&*/(
             <form
               onSubmit={handleSubmit(async (data) => {
                 setPostError(null);
