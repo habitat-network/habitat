@@ -64,8 +64,8 @@ type Pear interface {
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
-	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
-	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error)
+	GetBlob(ctx context.Context, did syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
+	UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
 
 	// Inbox / Node-to-node communication related methods
 	NotifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
@@ -421,15 +421,15 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 // TODO: actually enforce permissions here
 func (p *pear) GetBlob(
 	ctx context.Context,
-	did string,
-	cid string,
+	did syntax.DID,
+	cid syntax.CID,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
-	return p.repo.GetBlob(ctx, did, cid)
+	return p.repo.GetBlob(ctx, did.String(), cid.String())
 }
 
 // TODO: actually enforce permissions here
-func (p *pear) UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*repo.BlobRef, error) {
-	return p.repo.UploadBlob(ctx, did, data, mimeType)
+func (p *pear) UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {
+	return p.repo.UploadBlob(ctx, did.String(), data, mimeType)
 }
 
 func (p *pear) NotifyOfUpdate(

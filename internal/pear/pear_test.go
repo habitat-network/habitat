@@ -514,7 +514,7 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:alice"})
 	pear := newPearForTest(t, dir)
 
-	did := "did:example:alice"
+	did := syntax.DID("did:example:alice")
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
 	blob := []byte("this is my test blob")
 	mtype := "text/plain"
@@ -525,7 +525,7 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.Equal(t, mtype, bmeta.MimeType)
 	require.Equal(t, int64(len(blob)), bmeta.Size)
 
-	m, gotBlob, err := pear.GetBlob(t.Context(), did, bmeta.Ref.String())
+	m, gotBlob, err := pear.GetBlob(t.Context(), did, syntax.CID(bmeta.Ref.String()))
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
 	require.Equal(t, blob, gotBlob)
