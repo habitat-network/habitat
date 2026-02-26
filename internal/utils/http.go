@@ -18,6 +18,8 @@ type ErrorMessage struct {
 func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
 	if shouldLog(err) {
 		log.Error().Err(err).Msg(debug)
+	} else {
+		log.Warn().Err(err).Msg(debug)
 	}
 	w.WriteHeader(code)
 	if err != nil {
