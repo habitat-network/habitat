@@ -70,25 +70,27 @@ export class AuthManager {
     this.onUnauthenticated();
   };
 
-  async maybeExchangeCode(currentUrl: string) {
+  async maybeExchangeCode() {
+    const currentUrl = window.location.href;
     const url = new URL(currentUrl);
     if (!url.searchParams.get("code") || !url.searchParams.get("state")) {
-      return;
+      return false;
     }
     const state = localStorage.getItem(stateLocalStorageKey);
     if (!state) {
       throw new Error("No state found");
     }
     localStorage.removeItem(stateLocalStorageKey);
-    const token = await client.authorizationCodeGrant(
-      this.config,
-      new URL(currentUrl),
-      {
-        expectedState: state,
-      },
-    );
+    const token = await client.authorizationCodeGrant(this.config, url, {
+      expectedState: state,
+    });
     this.setAuthState(token);
-    window.location.href = "/";
+    // Remove code and state from URL
+    url.searchParams.delete("code");
+    url.searchParams.delete("state");
+    url.searchParams.delete("scope");
+    window.history.replaceState(null, "", url.toString());
+    return true;
   }
 
   client(): HabitatClient {
