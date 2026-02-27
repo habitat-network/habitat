@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { type AuthManager } from "internal/authManager.js";
 import { type Profile } from "../habitatApi";
 import { NewPostButton } from "./NewPostButton";
+import { Link } from "@tanstack/react-router";
 
 interface NavBarProps {
   left: ReactNode;
@@ -21,7 +22,7 @@ export function NavBar({
       <ul>{left}</ul>
       <ul>
         <li>
-          <span>@{myProfile?.handle}</span>
+          <span><Link to={`/handle/${myProfile?.handle}`}>@{myProfile?.handle}</Link></span>
         </li>
         <li>
           <NewPostButton authManager={authManager} _isOnboarded={isOnboarded} />
