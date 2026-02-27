@@ -95,7 +95,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       ),
     ];
 
-    return entries;
+    return entries.filter((e) => e.replyToHandle === undefined);
   },
   component() {
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
