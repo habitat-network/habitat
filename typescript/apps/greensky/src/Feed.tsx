@@ -50,12 +50,12 @@ export function Feed({
         <article
           key={entry.uri}
           style={{
-            outline:
-              entry.kind === "specific-users"
-                ? "3px solid #E99FED"
-                : entry.kind === "followers-only"
-                  ? "3px solid #2A7047"
-                  : "3px solid #92C0D1",
+            border: "1px solid #e5ede0",
+            borderLeft: entry.kind === "specific-users"
+              ? "4px solid #E99FED"
+              : entry.kind === "followers-only"
+                ? "4px solid #2A7047"
+                : "4px solid #92C0D1",
             position: "relative",
           }}
         >
@@ -114,7 +114,7 @@ export function Feed({
                       height={24}
                       style={{
                         borderRadius: "50%",
-                        border: "2px solid white",
+                        border: "2px solid #F9FFF2",
                         display: "block",
                       }}
                     />
@@ -124,13 +124,13 @@ export function Feed({
                         width: 24,
                         height: 24,
                         borderRadius: "50%",
-                        border: "2px solid white",
-                        background: "#ccc",
+                        border: "2px solid #F9FFF2",
+                        background: "#CAED9F",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         fontSize: 10,
-                        color: "#555",
+                        color: "#2A7047",
                         boxSizing: "border-box",
                       }}
                     >
@@ -142,7 +142,7 @@ export function Feed({
             </div>
           )}
           <header>
-            <div style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}>
+            <div style={{ fontSize: "0.75em", color: "rgba(24, 12, 0, 0.5)", marginBottom: 4 }}>
               {entry.kind === "public"
                 ? "Public"
                 : entry.kind === "followers-only"
@@ -151,14 +151,14 @@ export function Feed({
             </div>
             {entry.repostedByHandle !== undefined && (
               <div
-                style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}
+                style={{ fontSize: "0.75em", color: "rgba(24, 12, 0, 0.5)", marginBottom: 4 }}
               >
                 ↻ reposted by @{entry.repostedByHandle}
               </div>
             )}
             {entry.replyToHandle !== undefined && (
               <div
-                style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}
+                style={{ fontSize: "0.75em", color: "rgba(24, 12, 0, 0.5)", marginBottom: 4 }}
               >
                 {entry.replyToHandle !== null
                   ? `← reply to @${entry.replyToHandle}`

@@ -89,7 +89,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
           left={
             <>
               <li>
-                <Link to="/">← Greensky</Link>
+                <Link to="/">← greensky</Link>
               </li>
               <li>
                 Post by @{handle}

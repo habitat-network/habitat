@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserSearch } from "./UserSearch";
 
-type Visibility = "public" | "followers" | "specific";
+type Visibility = "followers" | "specific";
 
 interface FormData {
   content: string;
@@ -24,7 +24,7 @@ export function NewPostButton({
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
   const { handleSubmit, register, watch, reset } = useForm<FormData>({
-    defaultValues: { visibility: "public" },
+    defaultValues: { visibility: "followers" },
   });
   const visibility = watch("visibility");
 
@@ -62,18 +62,7 @@ export function NewPostButton({
         }
       }
 
-      if (formData.visibility === "public") {
-        const res = await authManager.fetch(
-          "/xrpc/com.atproto.repo.createRecord",
-          "POST",
-          JSON.stringify({
-            repo: did,
-            collection: "app.bsky.feed.post",
-            record,
-          }),
-        );
-        await checkResponse(res);
-      } else if (formData.visibility === "followers") {
+      if (formData.visibility === "followers") {
         const res = await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
           "POST",
@@ -174,14 +163,6 @@ export function NewPostButton({
                 {...register("content")}
               />
               <fieldset>
-                <label>
-                  <input
-                    type="radio"
-                    value="public"
-                    {...register("visibility")}
-                  />
-                  Public
-                </label>
                 <label>
                   <input
                     type="radio"

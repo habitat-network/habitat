@@ -1,0 +1,38 @@
+:root {
+  /* Pico color overrides */
+  --pico-background-color: #F9FFF2;
+  --pico-color: #180C00;
+
+  --pico-primary: #2A7047;
+  --pico-primary-background: #2A7047;
+  --pico-primary-border: #2A7047;
+  --pico-primary-hover-background: #1e5436;
+  --pico-primary-hover-border: #1e5436;
+  --pico-primary-inverse: #F9FFF2;
+
+  --pico-secondary-background: transparent;
+  --pico-secondary-border: #CAED9F;
+  --pico-secondary-color: #180C00;
+  --pico-secondary-hover-background: #CAED9F;
+  --pico-secondary-hover-border: #CAED9F;
+  --pico-secondary-inverse: #180C00;
+
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #e5ede0;
+  --pico-card-sectioning-background-color: #f5fbf0;
+
+  --pico-border-radius: 10px;
+  --pico-font-size: 0.95rem;
+  --pico-line-height: 1.6;
+
+  --pico-form-element-border-color: #CAED9F;
+  --pico-form-element-active-border-color: #2A7047;
+  --pico-form-element-focus-color: rgba(42, 112, 71, 0.15);
+
+  --pico-color-link: #2A7047;
+}
+
+nav {
+  border-bottom: 1px solid #CAED9F;
+  background-color: #F9FFF2;
+}

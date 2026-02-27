@@ -143,41 +143,54 @@ export function UserSearch({
             margin: 0,
             padding: "4px 0",
             listStyle: "none",
-            background: "var(--pico-card-background-color)",
+            background: "#ffffff",
             border: "1px solid var(--pico-form-element-border-color)",
             borderRadius: "var(--pico-border-radius)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+            boxShadow: "0 4px 12px rgba(24, 12, 0, 0.08)",
           }}
         >
           {visibleSuggestions.map((actor) => (
-            <li
+            <SuggestionItem
               key={actor.handle}
-              onClick={() => addUser(actor.handle)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "6px 12px",
-                cursor: "pointer",
-                margin: 0,
-              }}
-            >
-              {actor.avatar && (
-                <img
-                  src={actor.avatar}
-                  width={24}
-                  height={24}
-                  style={{ borderRadius: "50%", flexShrink: 0 }}
-                />
-              )}
-              <span>
-                {actor.displayName && <strong>{actor.displayName}</strong>} @
-                {actor.handle}
-              </span>
-            </li>
+              actor={actor}
+              onAdd={addUser}
+            />
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function SuggestionItem({ actor, onAdd }: { actor: Actor; onAdd: (handle: string) => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <li
+      onClick={() => onAdd(actor.handle)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "6px 12px",
+        cursor: "pointer",
+        margin: 0,
+        background: hovered ? "#F9FFF2" : "transparent",
+      }}
+    >
+      {actor.avatar && (
+        <img
+          src={actor.avatar}
+          width={24}
+          height={24}
+          style={{ borderRadius: "50%", flexShrink: 0 }}
+        />
+      )}
+      <span>
+        {actor.displayName && <strong>{actor.displayName}</strong>} @
+        {actor.handle}
+      </span>
+    </li>
   );
 }
