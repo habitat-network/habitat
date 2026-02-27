@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -50,7 +51,8 @@ func (p *pdsServiceAuthMethod) Validate(
 		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
 		return "", false
 	}
-	id, err := p.directory.LookupDID(r.Context(), issuerDid)
+	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	id, err := p.directory.LookupDID(context.Background(), issuerDid)
 	if err != nil {
 		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
 		return "", false

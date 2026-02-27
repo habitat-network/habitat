@@ -181,7 +181,18 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.GetRecord(r.Context(), syntax.NSID(params.Collection), syntax.RecordKey(params.Rkey), targetDID, callerDID)
+	collection, err := syntax.ParseNSID(params.Collection)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing collection as NSID", http.StatusBadRequest)
+		return
+	}
+	rkey, err := syntax.ParseRecordKey(params.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing rkey as RecordKey", http.StatusBadRequest)
+		return
+	}
+
+	record, err := s.pear.GetRecord(r.Context(), collection, rkey, targetDID, callerDID)
 	if err != nil {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
@@ -202,11 +213,22 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		Uri: fmt.Sprintf(
 			"habitat://%s/%s/%s",
 			targetDID.String(),
-			params.Collection,
-			params.Rkey,
+			collection,
+			rkey,
 		),
 	}
 	output.Value = record.Value
+
+	// Lookup relevant permissions, if requested
+	if params.IncludePermissions {
+		grantees, err := s.pear.ListAllowGrantsForRecord(r.Context(), callerDID, syntax.DID(record.Did), syntax.NSID(record.Collection), syntax.RecordKey(record.Rkey))
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "listing permissions on fetched records", http.StatusInternalServerError)
+			return
+		}
+		output.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
+	}
+
 	if json.NewEncoder(w).Encode(output) != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
@@ -236,7 +258,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := s.pear.UploadBlob(r.Context(), string(callerDID), bytes, mimeType)
+	blob, err := s.pear.UploadBlob(r.Context(), callerDID, bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -271,7 +293,19 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, blob, err := s.pear.GetBlob(r.Context(), params.Did, params.Cid)
+	did, err := syntax.ParseDID(params.Did)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing did", http.StatusBadRequest)
+		return
+	}
+
+	cid, err := syntax.ParseCID(params.Cid)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing cid", http.StatusBadRequest)
+		return
+	}
+
+	mimeType, blob, err := s.pear.GetBlob(r.Context(), did, cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -326,7 +360,13 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		dids[i] = id.DID
 	}
 
-	records, err := s.pear.ListRecords(r.Context(), callerDID, syntax.NSID(params.Collection), dids)
+	collection, err := syntax.ParseNSID(params.Collection)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing collection", http.StatusBadRequest)
+		return
+	}
+
+	records, err := s.pear.ListRecords(r.Context(), callerDID, collection, dids)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
@@ -339,6 +379,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	output := &habitat.NetworkHabitatRepoListRecordsOutput{
 		Records: []habitat.NetworkHabitatRepoListRecordsRecord{},
 	}
+
 	for _, record := range records {
 		next := habitat.NetworkHabitatRepoListRecordsRecord{
 			Uri: fmt.Sprintf(
@@ -349,6 +390,16 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			),
 		}
 		next.Value = record.Value
+
+		// Lookup relevant permissions, if requested
+		if params.IncludePermissions {
+			grantees, err := s.pear.ListAllowGrantsForRecord(r.Context(), callerDID, syntax.DID(record.Did), syntax.NSID(record.Collection), syntax.RecordKey(record.Rkey))
+			if err != nil {
+				utils.LogAndHTTPError(w, err, "listing permissions on fetched records", http.StatusInternalServerError)
+				return
+			}
+			next.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
+		}
 		// TODO: next.Cid = ?
 
 		output.Records = append(output.Records, next)
@@ -369,7 +420,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	perms, err := s.pear.ListPermissionGrants(r.Context(), callerDID)
+	perms, err := s.pear.ListPermissionGrants(r.Context(), callerDID, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
 		return
@@ -416,6 +467,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = s.pear.AddPermissions(
+		callerDID,
 		grantees,
 		callerDID,
 		syntax.NSID(req.Collection),
@@ -449,7 +501,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.RemovePermissions(grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
+	err = s.pear.RemovePermissions(callerDID, grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return

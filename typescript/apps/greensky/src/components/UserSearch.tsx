@@ -24,7 +24,12 @@ interface UserSearchProps {
   onRemoveUser: (handle: string) => void;
 }
 
-export function UserSearch({ authManager, specificUsers, onAddUser, onRemoveUser }: UserSearchProps) {
+export function UserSearch({
+  authManager,
+  specificUsers,
+  onAddUser,
+  onRemoveUser,
+}: UserSearchProps) {
   const [userQuery, setUserQuery] = useState("");
   const debouncedQuery = useDebounce(userQuery, 250);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +40,9 @@ export function UserSearch({ authManager, specificUsers, onAddUser, onRemoveUser
       const params = new URLSearchParams({ q: debouncedQuery, limit: "8" });
       const res = await authManager.fetch(
         `/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,
-        "GET", null, new Headers(),
+        "GET",
+        null,
+        new Headers(),
       );
       const data: { actors: Actor[] } = await res.json();
       return data.actors ?? [];
@@ -82,7 +89,10 @@ export function UserSearch({ authManager, specificUsers, onAddUser, onRemoveUser
             @{u}
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onRemoveUser(u); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveUser(u);
+              }}
               aria-label={`Remove ${u}`}
               style={{
                 all: "unset",
@@ -106,10 +116,15 @@ export function UserSearch({ authManager, specificUsers, onAddUser, onRemoveUser
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              if (visibleSuggestions.length > 0) addUser(visibleSuggestions[0].handle);
+              if (visibleSuggestions.length > 0)
+                addUser(visibleSuggestions[0].handle);
               else if (userQuery.trim()) addUser(userQuery);
             }
-            if (e.key === "Backspace" && !userQuery && specificUsers.length > 0) {
+            if (
+              e.key === "Backspace" &&
+              !userQuery &&
+              specificUsers.length > 0
+            ) {
               onRemoveUser(specificUsers[specificUsers.length - 1]);
             }
           }}
@@ -148,11 +163,16 @@ export function UserSearch({ authManager, specificUsers, onAddUser, onRemoveUser
               }}
             >
               {actor.avatar && (
-                <img src={actor.avatar} width={24} height={24} style={{ borderRadius: "50%", flexShrink: 0 }} />
+                <img
+                  src={actor.avatar}
+                  width={24}
+                  height={24}
+                  style={{ borderRadius: "50%", flexShrink: 0 }}
+                />
               )}
               <span>
-                {actor.displayName && <strong>{actor.displayName}</strong>}
-                {" "}@{actor.handle}
+                {actor.displayName && <strong>{actor.displayName}</strong>} @
+                {actor.handle}
               </span>
             </li>
           ))}

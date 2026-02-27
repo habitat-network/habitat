@@ -47,7 +47,8 @@ var (
 
 // ServesDID implements Node.
 func (n *node) ServesDID(ctx context.Context, did syntax.DID) (bool, error) {
-	id, err := n.dir.LookupDID(ctx, did)
+	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	id, err := n.dir.LookupDID(context.Background(), did)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		return false, nil
 	} else if err != nil {

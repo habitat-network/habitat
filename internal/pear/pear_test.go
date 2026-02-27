@@ -333,11 +333,11 @@ func TestCliqueFlow(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	bauthz, err := p.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	bauthz, err := p.permissions.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, bauthz)
 
-	aauthz, err := p.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	aauthz, err := p.permissions.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
 	require.NoError(t, err)
 	require.True(t, aauthz)
 
@@ -514,7 +514,7 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:alice"})
 	pear := newPearForTest(t, dir)
 
-	did := "did:example:alice"
+	did := syntax.DID("did:example:alice")
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
 	blob := []byte("this is my test blob")
 	mtype := "text/plain"
@@ -525,7 +525,7 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.Equal(t, mtype, bmeta.MimeType)
 	require.Equal(t, int64(len(blob)), bmeta.Size)
 
-	m, gotBlob, err := pear.GetBlob(t.Context(), did, bmeta.Ref.String())
+	m, gotBlob, err := pear.GetBlob(t.Context(), did, syntax.CID(bmeta.Ref.String()))
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
 	require.Equal(t, blob, gotBlob)

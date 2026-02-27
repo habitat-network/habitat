@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
+import type { PostVisibility } from "./habitatApi";
 
 export interface FeedEntry {
   uri: string;
   text: string;
   createdAt?: string;
-  kind: "public" | "private";
+  kind: PostVisibility;
   author?: {
     handle?: string;
     displayName?: string;
@@ -13,6 +14,7 @@ export interface FeedEntry {
   // undefined = not a reply; null = reply but parent handle unknown; string = reply to this handle
   replyToHandle?: string | null;
   repostedByHandle?: string;
+  grantees?: { avatar: string; handle: string }[];
 }
 
 function bskyUrl(uri: string, handle: string): string {
@@ -35,7 +37,11 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
           key={entry.uri}
           style={{
             outline:
-              entry.kind === "private" ? "3px solid green" : "3px solid lightblue",
+              entry.kind === "specific-users"
+                ? "3px solid #E99FED"
+                : entry.kind === "followers-only"
+                  ? "3px solid #2A7047"
+                  : "3px solid #92C0D1",
             position: "relative",
           }}
         >
@@ -55,22 +61,67 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
               ↗🦋
             </a>
           )}
+          {entry.grantees && entry.grantees.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                display: "flex",
+              }}
+            >
+              {entry.grantees.map((grantee, i) => (
+                <a
+                  key={grantee.handle}
+                  href={`https://bsky.app/profile/${grantee.handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ marginLeft: i === 0 ? 0 : -6, display: "block" }}
+                >
+                  <img
+                    src={grantee.avatar}
+                    width={24}
+                    height={24}
+                    style={{
+                      borderRadius: "50%",
+                      border: "2px solid white",
+                      display: "block",
+                    }}
+                  />
+                </a>
+              ))}
+            </div>
+          )}
           <header>
+            <div style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}>
+              {entry.kind === "public"
+                ? "Public"
+                : entry.kind === "followers-only"
+                  ? "Followers only"
+                  : "Specific users only"}
+            </div>
             {entry.repostedByHandle !== undefined && (
-              <div style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}>
+              <div
+                style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}
+              >
                 ↻ reposted by @{entry.repostedByHandle}
               </div>
             )}
             {entry.replyToHandle !== undefined && (
-              <div style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}>
+              <div
+                style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}
+              >
                 {entry.replyToHandle !== null
                   ? `← reply to @${entry.replyToHandle}`
                   : "← reply"}
               </div>
             )}
-            {entry.author && (
-              entry.author.handle ? (
-                <Link to={"/handle/$handle" as any} params={{ handle: entry.author.handle } as any}>
+            {entry.author &&
+              (entry.author.handle ? (
+                <Link
+                  to={"/handle/$handle" as any}
+                  params={{ handle: entry.author.handle } as any}
+                >
                   {entry.author.avatar && (
                     <img
                       src={entry.author.avatar}
@@ -93,8 +144,7 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
                   )}
                   {entry.author.displayName}
                 </span>
-              )
-            )}
+              ))}
           </header>
           {entry.text}
         </article>

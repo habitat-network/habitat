@@ -41,7 +41,8 @@ func (f *clientFactoryImpl) NewClient(
 	ctx context.Context,
 	did syntax.DID,
 ) (HttpClient, error) {
-	id, err := f.dir.LookupDID(ctx, did)
+	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	id, err := f.dir.LookupDID(context.Background(), did)
 	if err != nil {
 		return nil, fmt.Errorf("[pds client factory]: failed to lookup did: error is %w", err)
 	}
