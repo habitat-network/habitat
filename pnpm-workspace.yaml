@@ -3,7 +3,7 @@ packages:
   - camera
   - typescript/internal
   - typescript/apps/*
-  - "typescript/api"
+  - typescript/api
 
 catalog:
   '@tanstack/devtools-vite': ^0.3.11
@@ -23,6 +23,6 @@ catalog:
   react-dom: ^19.2.0
   react-hook-form: 7.65.0
   typescript: ^5.7.2
-  vite: ^7.1.7
+  vite: 7.1.12
   vite-tsconfig-paths: ^5.1.4
   vitest: ^3.0.5

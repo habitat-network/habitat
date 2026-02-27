@@ -119,8 +119,8 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
             {entry.author &&
               (entry.author.handle ? (
                 <Link
-                  to={"/handle/$handle" as any}
-                  params={{ handle: entry.author.handle } as any}
+                  to={"/handle/$handle"}
+                  params={{ handle: entry.author.handle }}
                 >
                   {entry.author.avatar && (
                     <img

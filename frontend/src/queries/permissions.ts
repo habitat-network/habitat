@@ -1,12 +1,6 @@
 import type { AuthManager } from "internal/authManager.ts";
 import { queryOptions } from "@tanstack/react-query";
-
-export interface Permission {
-  grantee: string;
-  collection: string;
-  rkey: string;
-  effect: string;
-}
+import { NetworkHabitatPermissionsListPermissions } from "api";
 
 export function listPermissions(authManager: AuthManager) {
   return queryOptions({
@@ -15,7 +9,8 @@ export function listPermissions(authManager: AuthManager) {
       const response = await authManager?.fetch(
         `/xrpc/network.habitat.listPermissions`,
       );
-      const json: { permissions: Permission[] } = await response?.json();
+      const json: NetworkHabitatPermissionsListPermissions.OutputSchema =
+        await response?.json();
       return json;
     },
   });

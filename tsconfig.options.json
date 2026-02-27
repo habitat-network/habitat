@@ -16,7 +16,11 @@
     "baseUrl": "${configDir}",
     "paths": {
       "@/*": ["${configDir}/src/*"]
-    }
+    },
+    "types": ["vite/client"]
   },
-  "include": ["typescript/globals.d.ts"]
+  "include": [
+    "typescript/globals.d.ts",
+    "${configDir}/src/**/*",
+  ]
 }
