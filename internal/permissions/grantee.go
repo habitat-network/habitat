@@ -43,6 +43,9 @@ type DIDGrantee syntax.DID
 var _ Grantee = DIDGrantee("")
 
 func (g DIDGrantee) isGrantee() {}
+func (g DIDGrantee) DID() syntax.DID {
+	return syntax.DID(g)
+}
 func (g DIDGrantee) String() string {
 	return string(g)
 }
