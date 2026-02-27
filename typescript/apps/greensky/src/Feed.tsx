@@ -32,14 +32,16 @@ export function Feed({
   showPrivatePermalink?: boolean;
   renderPostActions?: (entry: FeedEntry) => React.ReactNode;
 }) {
+  // Reverse chronological, with createdAt missing or 0 at the end.
   const sorted = [...entries].sort((a, b) => {
-    if (!a.createdAt && !b.createdAt) return 0;
-    if (!a.createdAt) return 1;
-    if (!b.createdAt) return -1;
-    const aTime = new Date(a.createdAt).getTime();
-    const bTime = new Date(b.createdAt).getTime();
-    // Put posts without createdAt at the end, but maintain their relative order
-    return aTime - bTime
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    const aEmpty = !aTime;
+    const bEmpty = !bTime;
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return -1;
+    if (bEmpty) return 1;
+    return bTime - aTime;
   });
 
   return (
