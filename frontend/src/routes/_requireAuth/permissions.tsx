@@ -13,7 +13,6 @@ export const Route = createFileRoute("/_requireAuth/permissions")({
             <li>
               <Link to="/permissions/people">By person</Link>
             </li>
-
           </ul>
         </nav>
         <Outlet />

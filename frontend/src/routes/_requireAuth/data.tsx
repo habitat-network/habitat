@@ -59,7 +59,12 @@ export const Route = createFileRoute("/_requireAuth/data")({
       if (isPrivate) {
         const data = await context.authManager
           .client()
-          .listPrivateRecords(lexicon, undefined, undefined, repo ? [repo] : undefined)
+          .listPrivateRecords(
+            lexicon,
+            undefined,
+            undefined,
+            repo ? [repo] : undefined,
+          );
         return { records: data.records, error: null };
       } else {
         const data = await context.authManager
@@ -121,7 +126,9 @@ function DataDebugger() {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
-    const isPrivateEl = form.elements.namedItem("isPrivate") as HTMLInputElement;
+    const isPrivateEl = form.elements.namedItem(
+      "isPrivate",
+    ) as HTMLInputElement;
     navigate({
       search: () => ({
         lexicon: (data.get("lexicon") as string) || undefined,

@@ -36,7 +36,13 @@ export function OnboardComponent({
   return (
     <>
       <h1>{title}</h1>
-      <p>To use habitat, we need to onboard you to this service by adding a new field to your DID doc. This adds the habitat service and does not disrupt any existing services you have or your PDS. We need your password to make a signed operation, but this runs completely client-side and we don't store your password anywhere.</p>
+      <p>
+        To use habitat, we need to onboard you to this service by adding a new
+        field to your DID doc. This adds the habitat service and does not
+        disrupt any existing services you have or your PDS. We need your
+        password to make a signed operation, but this runs completely
+        client-side and we don't store your password anywhere.
+      </p>
       <Step1
         onIntermediateState={setIntermediateState}
         onNextStep={() => setStep(2)}
@@ -89,7 +95,7 @@ const Step1 = ({
     mutationFn: async (data: FormData) => {
       const handleResolver = new HandleResolver();
       const did = await handleResolver.resolve(data.handle);
-      console.log("did", did)
+      console.log("did", did);
       if (!did) throw new Error("Handle not found");
 
       const didResolver = new DidResolver({});

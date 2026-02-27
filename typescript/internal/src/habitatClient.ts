@@ -406,7 +406,6 @@ export class HabitatClient {
       }
     }
 
-
     const response = await agent.fetchHandler(
       `/xrpc/network.habitat.listRecords?${queryParams}`,
       {
