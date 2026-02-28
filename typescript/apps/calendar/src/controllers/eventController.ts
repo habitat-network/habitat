@@ -67,7 +67,7 @@ export async function createEvent(
     EVENT_COLLECTION,
     eventRecord,
     rkey,
-    invitedDids, // Pass as grantees to trigger automatic notification creation
+    { dids: invitedDids },
   );
 }
 
