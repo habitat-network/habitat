@@ -35,8 +35,9 @@ function CalendarPage() {
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
+  console.log("AHHH");
   const client = authManager.client();
-  const userDid = authManager.did;
+  const userDid = authManager.getAuthInfo()?.did;
   if (!userDid) throw new Error("User DID not found");
 
   const [modalOpen, setModalOpen] = useState(false);
