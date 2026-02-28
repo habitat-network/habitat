@@ -12,7 +12,7 @@
       "substitutePath": [
         {
           "from": "${workspaceFolder}",
-          "to": "/go/src/github.com/eagraf/habitat-new"
+          "to": "/go/src/github.com/habitat-network/habitat"
         }
       ],
       "port": 4000,

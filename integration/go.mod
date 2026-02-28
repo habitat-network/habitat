@@ -1,10 +1,10 @@
-module github.com/eagraf/habitat-new/integration
+module github.com/habitat-network/habitat/integration
 
 go 1.25.4
 
-replace github.com/eagraf/habitat-new => ..
+replace github.com/habitat-network/habitat => ..
 
-replace github.com/eagraf/habitat-new/cmd/privi => ../cmd/privi
+replace github.com/habitat-network/habitat/cmd/pear => ../cmd/pear
 
 replace github.com/docker/docker/api => github.com/moby/moby/api v1.52.0
 
@@ -22,6 +22,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tebeka/selenium v0.9.9
 	github.com/testcontainers/testcontainers-go v0.40.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
 	golang.org/x/net v0.47.0
 )
 

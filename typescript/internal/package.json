@@ -10,12 +10,18 @@
   "exports": {
     "./*": "./src/*"
   },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {
     "@atproto/api": "^0.18.8",
     "@atproto/identity": "^0.4.10",
     "@atproto/oauth-client-browser": "^0.3.34",
+    "api": "workspace:*",
+    "jose": "^6.1.3",
     "openid-client": "^6.8.1",
-    "web-vitals": "^4.2.4"
+    "web-vitals": "^4.2.4",
+    "zustand": "^5.0.11"
   },
   "peerDependencies": {
     "@tanstack/react-query": "catalog:",

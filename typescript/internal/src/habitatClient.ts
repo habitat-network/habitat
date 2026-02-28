@@ -5,9 +5,39 @@ import type {
   ComAtprotoRepoListRecords,
 } from "@atproto/api";
 import type { DidDocument, DidResolver } from "@atproto/identity";
+import type {
+  NetworkHabitatRepoGetRecord,
+  NetworkHabitatRepoListRecords,
+  NetworkHabitatRepoPutRecord,
+} from "api";
 import { AuthManager } from "./authManager";
 
-// Response types for HabitatClient
+// Response types for HabitatClient - using generated types with generic overrides
+
+// For putPrivateRecord: use generated OutputSchema
+export type PutPrivateRecordResponse = NetworkHabitatRepoPutRecord.OutputSchema;
+
+// For getPrivateRecord: override value field with generic
+export type GetPrivateRecordResponse<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoGetRecord.OutputSchema,
+  "value"
+> & {
+  value: T;
+};
+
+// For listPrivateRecords: override records array value field with generic
+export type ListPrivateRecordsResponse<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoListRecords.OutputSchema,
+  "records"
+> & {
+  records: Array<
+    Omit<NetworkHabitatRepoListRecords.Record, "value"> & {
+      value: T;
+    }
+  >;
+};
+
+// Legacy response types for public record operations (using atproto types)
 export interface CreateRecordResponse {
   uri: string;
   cid: string;
@@ -16,7 +46,7 @@ export interface CreateRecordResponse {
 export interface GetRecordResponse<T = Record<string, unknown>> {
   uri: string;
   cid?: string;
-  record: T;
+  value: T;
 }
 
 export interface ListRecordsResponse<T = Record<string, unknown>> {
@@ -28,14 +58,17 @@ export interface ListRecordsResponse<T = Record<string, unknown>> {
   cursor?: string;
 }
 
-// Internal types for Habitat private record operations
-// These include 'repo' since they're used in the wire protocol
-interface PutRecordRequest<T = Record<string, unknown>> {
-  collection: string;
-  repo: string;
-  rkey?: string;
+// Input types for Habitat private record operations - using generated types with generic overrides
+export type PutPrivateRecordInput<T = Record<string, unknown>> = Omit<
+  NetworkHabitatRepoPutRecord.InputSchema,
+  "record"
+> & {
   record: T;
-}
+};
+
+export type GetPrivateRecordParams = NetworkHabitatRepoGetRecord.QueryParams;
+export type ListPrivateRecordsParams =
+  NetworkHabitatRepoListRecords.QueryParams;
 
 // HabitatAgentSession implements the Atproto Session interface.
 export class HabitatAgentSession {
@@ -64,16 +97,14 @@ export class HabitatAuthedAgentSession extends HabitatAgentSession {
   }
 
   async fetchHandler(pathname: string, init?: RequestInit): Promise<Response> {
-    const fetchReq = new Request(`${this.serverUrl}${pathname}`, init);
+    const url = `${this.serverUrl}${pathname}`;
+    const method = init?.method ?? "GET";
+    const body = init?.body as string | undefined;
+    const headers = new Headers(init?.headers);
 
-    const response = await this.authManager.fetch(
-      fetchReq.url,
-      fetchReq.method,
-      fetchReq.body,
-      fetchReq.headers,
-    );
+    const response = await this.authManager.fetch(url, method, body, headers);
     if (!response) {
-      throw new Error(`Failed to fetch: ${fetchReq.url}`);
+      throw new Error(`Failed to fetch: ${url}`);
     }
     return response;
   }
@@ -225,7 +256,7 @@ export class HabitatClient {
     return {
       uri: response.data.uri,
       cid: response.data.cid,
-      record: response.data.value as T,
+      value: response.data.value as T,
     };
   }
 
@@ -258,11 +289,13 @@ export class HabitatClient {
       );
 
       allRecords = allRecords.concat(
-        response.data.records.map((record) => ({
-          uri: record.uri,
-          cid: record.cid,
-          value: record.value as T,
-        })),
+        response.data.records.map(
+          (record: { uri: string; cid: string; value: unknown }) => ({
+            uri: record.uri,
+            cid: record.cid,
+            value: record.value as T,
+          }),
+        ),
       );
 
       currentCursor = response.data.cursor;
@@ -277,15 +310,18 @@ export class HabitatClient {
   async putPrivateRecord<T = Record<string, unknown>>(
     collection: string,
     record: T,
-    rkey?: string,
+    rkey: string,
+    grantees?: string[],
     opts?: RequestInit,
-  ): Promise<CreateRecordResponse> {
+  ): Promise<PutPrivateRecordResponse> {
     // Writing private records always happens on the user's own repo
-    const requestBody: PutRecordRequest<T> = {
+    const requestBody: PutPrivateRecordInput<T> = {
       repo: this.defaultDid,
       collection,
       rkey,
       record,
+      // Cast needed: lexicon defines grantees as string unions but codegen wraps with $Typed
+      grantees: grantees as PutPrivateRecordInput<T>["grantees"],
     };
 
     const response = await this.defaultAgent.fetchHandler(
@@ -312,25 +348,20 @@ export class HabitatClient {
   async getPrivateRecord<T = Record<string, unknown>>(
     collection: string,
     rkey: string,
-    cid?: string,
     repo?: string,
     opts?: RequestInit,
-  ): Promise<GetRecordResponse<T>> {
+  ): Promise<GetPrivateRecordResponse<T>> {
     // Determine which repo to query (default to user's own repo)
     const targetRepo = repo ?? this.defaultDid;
 
     // Get the appropriate agent for this repo's PDS
-    const agent = await this.defaultAgent;
+    const agent = this.defaultAgent;
 
     const queryParams = new URLSearchParams({
       repo: targetRepo,
       collection,
       rkey,
     });
-
-    if (cid) {
-      queryParams.set("cid", cid);
-    }
 
     const response = await agent.fetchHandler(
       `/xrpc/network.habitat.getRecord?${queryParams}`,
@@ -353,18 +384,14 @@ export class HabitatClient {
     collection: string,
     limit?: number,
     cursor?: string,
-    repo?: string,
+    subjects?: string[],
     opts?: RequestInit,
-  ): Promise<ListRecordsResponse<T>> {
-    // Determine which repo to query (default to user's own repo)
-    const targetRepo = repo ?? this.defaultDid;
-
+  ): Promise<ListPrivateRecordsResponse<T>> {
     // Get the appropriate agent for this repo's PDS
-    const agent = await this.defaultAgent;
+    const agent = this.defaultAgent;
 
     const queryParams = new URLSearchParams();
     queryParams.set("collection", collection);
-    queryParams.set("repo", targetRepo);
 
     if (limit !== undefined) {
       queryParams.set("limit", limit.toString());
@@ -372,6 +399,13 @@ export class HabitatClient {
     if (cursor) {
       queryParams.set("cursor", cursor);
     }
+
+    if (subjects) {
+      for (const subject of subjects) {
+        queryParams.append("subjects", subject);
+      }
+    }
+
 
     const response = await agent.fetchHandler(
       `/xrpc/network.habitat.listRecords?${queryParams}`,

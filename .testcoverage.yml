@@ -1,5 +1,5 @@
 profile: coverage.out
-local-prefix: "github.com/eagraf/habitat-new"
+local-prefix: "github.com/habitat-network/habitat"
 
 # Holds coverage thresholds percentages, values should be in range [0-100]
 threshold:
@@ -22,12 +22,11 @@ exclude:
   # Exclude files or packages matching their paths
   paths:
     - \/mocks\/.*?$
-    - ^cmd # main.go's don't need to be tested
-    - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs
-    - internal/bffauth/client.go # TODO: remove!!
+    - ^cmd # main.go's should be tested with integration tests, a separate pathway
+    - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs -- TODO, we should test them.
+    - ^internal/telemetry # This is all setup, no logic
     - ^internal/utils
-    - ^internal/bffauth/cmd
-    - ^internal/bffauth/provider.go # File is too small :)
     - dummy_.*\.go
-    - ^internal/oauthserver # TODO: should be able to remove once refresh tokens are implemented
-    - ^internal/privi/jetstream.go # This is all setup code for stream listeners. More approriate for integration tests with a fake jetstream service
+    - ^internal/oauthserver # This is mostly interface satisfying
+    - ^internal/server # This is mostly pass-throughs to pear, but we should remove this and add tests since there is non-trivial logic in there.
+    - ^internal/node # Pass-throughs

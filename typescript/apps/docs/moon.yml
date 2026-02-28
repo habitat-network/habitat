@@ -1,8 +1,1 @@
-tasks:
-  dev:
-    env:
-      DOMAIN: "$project.${TS_DOMAIN}"
-    deps:
-      - target: "privi:dev"
-      - target: "funnel:start"
-        args: ["5173", "$project"]
+layer: application

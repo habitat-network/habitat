@@ -1,0 +1,75 @@
+/**
+ * GENERATED CODE - DO NOT MODIFY
+ */
+import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type ValidationResult, BlobRef } from '@atproto/lexicon'
+import { CID } from 'multiformats/cid'
+import { validate as _validate } from '../../../../lexicons'
+import {
+  type $Typed,
+  is$typed as _is$typed,
+  type OmitKey,
+} from '../../../../util'
+import type * as NetworkHabitatGrantee from '../grantee.js'
+
+const is$typed = _is$typed,
+  validate = _validate
+const id = 'network.habitat.repo.listRecords'
+
+export type QueryParams = {
+  subjects: string[]
+  /** Filter by specific lexicon. */
+  collection: string
+  /** Whether to return the permission grants on this record as part of the response. */
+  includePermissions?: boolean
+  /**  [UNIMPLEMENTED] Allow getting records that are strictly newer or updated since a certain time. */
+  since?: string
+  /** [UNIMPLEMENTED] The number of records to return. (Default value should be 50 to be consistent with atproto API). */
+  limit?: number
+  /** [UNIMPLEMENTED] Cursor of the returned list. */
+  cursor?: string
+}
+export type InputSchema = undefined
+
+export interface OutputSchema {
+  cursor?: string
+  records: Record[]
+}
+
+export interface CallOptions {
+  signal?: AbortSignal
+  headers?: HeadersMap
+}
+
+export interface Response {
+  success: boolean
+  headers: HeadersMap
+  data: OutputSchema
+}
+
+export function toKnownErr(e: any) {
+  return e
+}
+
+export interface Record {
+  $type?: 'network.habitat.repo.listRecords#record'
+  /** URI reference to the record, formatted as a habitat-uri. */
+  uri: string
+  cid: string
+  value: { [_ in string]: unknown }
+  permissions?: (
+    | $Typed<NetworkHabitatGrantee.DidGrantee>
+    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | { $type: string }
+  )[]
+}
+
+const hashRecord = 'record'
+
+export function isRecord<V>(v: V) {
+  return is$typed(v, id, hashRecord)
+}
+
+export function validateRecord<V>(v: V) {
+  return validate<Record & V>(v, id, hashRecord)
+}

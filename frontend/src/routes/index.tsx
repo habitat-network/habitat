@@ -1,92 +1,66 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { DidResolver } from "@atproto/identity";
+import { OnboardComponent, habitatServers } from "./onboard";
 
 export const Route = createFileRoute("/")({
   async beforeLoad({ context }) {
-    await context.authManager.maybeExchangeCode(window.location.href);
+    await context.authManager.maybeExchangeCode();
   },
-  async loader() {
-    return [
-      {
-        id: "permissions",
-        name: "Permissions",
-        description: "Manage permissions for privi",
-        icon: "🔑",
-        link: "/permissions",
-      },
-      {
-        id: "privi-test",
-        name: "Privi Test",
-        description: "Privi Test for getting and putting records",
-        icon: "💿",
-        link: "/privi-test",
-      },
-      {
-        id: "blob-test",
-        name: "Blob Test",
-        description: "Test uploading / getting blobs",
-        icon: "📸",
-        link: "/blob-test",
-      },
-      {
-        id: "forwarding-test",
-        name: "Forwarding Test",
-        description: "Test forwarding",
-        icon: "🦋",
-        link: "/forwarding-test",
-      },
-      {
-        id: "notifications",
-        name: "Notifications",
-        description: "View your notifications",
-        icon: "🔔",
-        link: "/notifications",
-      },
-      {
-        id: "data",
-        name: "Data Debugger",
-        description: "Browse and filter records by lexicon",
-        icon: "🗄️",
-        link: "/data",
-      },
-    ];
+  async loader({ context }) {
+    const { authManager } = context;
+    if (!authManager.getAuthInfo()) return null;
+
+    const did = authManager.getAuthInfo()!.did;
+    const resolver = new DidResolver({});
+    const didDoc = await resolver.resolve(did);
+
+    const serviceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
+    const hasHabitat = didDoc?.service?.some(
+      (s) => s.id === `#${serviceKey}` && s.type === "HabitatServer",
+    );
+    const handle = didDoc?.alsoKnownAs?.[0]?.replace(/^at:\/\//, "");
+
+    return { hasHabitat, handle };
   },
-  component: Wrapper,
+  pendingComponent: () => <p>Loading...</p>,
+  component() {
+    const { authManager } = Route.useRouteContext();
+
+    if (!authManager.getAuthInfo()) {
+      return (
+        <>
+          <h1>Welcome to Habitat!</h1>
+          <p>Please sign in to continue.</p>
+        </>
+      );
+    }
+
+    return <AuthenticatedHome />;
+  },
 });
 
-function Wrapper() {
-  const { authManager } = Route.useRouteContext();
-  return authManager.isAuthenticated() ? (
-    <Shortcuts />
-  ) : (
-    <Link to="/oauth-login">Login</Link>
-  );
-}
+function AuthenticatedHome() {
+  const { hasHabitat, handle } = Route.useLoaderData()!;
 
-function Shortcuts() {
-  const data = Route.useLoaderData();
+  if (!hasHabitat) {
+    return import.meta.env.DEV ? (
+      <OnboardComponent
+        serviceKey="habitat_local"
+        title="Onboard (Local)"
+        defaultServer="https://pear.taile529e.ts.net"
+        handle={handle}
+      />
+    ) : (
+      <OnboardComponent serverOptions={habitatServers} handle={handle} />
+    );
+  }
+
   return (
     <>
-      <h1>Shortcuts</h1>
-      <table>
-        <thead>
-          <tr>
-            <th>App</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map(({ id, name, description, icon, link }) => (
-            <tr key={id}>
-              <td>
-                <Link to={link}>
-                  {icon} {name}
-                </Link>
-              </td>
-              <td>{description}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <h1>Welcome to Habitat!</h1>
+      <Link to="/explore">Manage your data</Link>
+      <br />
+      <Link to="/devtools">Devtools</Link>
     </>
   );
 }

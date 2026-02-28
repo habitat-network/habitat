@@ -94,7 +94,7 @@ func createAccountJWT(
 	return tokenString, nil
 }
 
-func TestPriviOAuthFlow(t *testing.T) {
+func TestPearOAuthFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -113,7 +113,15 @@ func TestPriviOAuthFlow(t *testing.T) {
 		}
 	})
 
-	env := NewTestEnvironment(ctx, t, StandardIntegrationRequests(t, testNetwork.Name, certDir))
+	// Start PostgreSQL container
+	pgURL := NewPostgresContainer(ctx, t, testNetwork.Name)
+	t.Logf("Postgres URL (Docker network): %s", pgURL)
+
+	env := NewTestEnvironment(
+		ctx,
+		t,
+		StandardIntegrationRequests(t, testNetwork.Name, certDir, pgURL),
+	)
 
 	// Extract URLs from named containers
 	pdsProxyHost, err := env.Get("pds-proxy").Host(ctx)
@@ -122,11 +130,11 @@ func TestPriviOAuthFlow(t *testing.T) {
 	require.NoError(t, err)
 	pdsURL := fmt.Sprintf("https://%s:%s", pdsProxyHost, pdsProxyPort.Port())
 
-	priviHost, err := env.Get("privi").Host(ctx)
+	pearHost, err := env.Get("pear").Host(ctx)
 	require.NoError(t, err)
-	priviPort, err := env.Get("privi").MappedPort(ctx, "443")
+	pearPort, err := env.Get("pear").MappedPort(ctx, "443")
 	require.NoError(t, err)
-	priviURL := fmt.Sprintf("https://%s:%s", priviHost, priviPort.Port())
+	pearURL := fmt.Sprintf("https://%s:%s", pearHost, pearPort.Port())
 
 	seleniumHost, err := env.Get("selenium").Host(ctx)
 	require.NoError(t, err)
@@ -134,14 +142,14 @@ func TestPriviOAuthFlow(t *testing.T) {
 	require.NoError(t, err)
 	seleniumURL := fmt.Sprintf("http://%s:%s/wd/hub", seleniumHost, seleniumPort.Port())
 
-	t.Logf("Privi URL: %s", priviURL)
+	t.Logf("Pear URL: %s", pearURL)
 	t.Logf("PDS URL (host): %s", pdsURL)
 	t.Logf("PDS URL (Docker network): https://pds.example.com")
 	t.Logf("Selenium URL: %s", seleniumURL)
 
 	// Load DID keypair from environment
 	// NOTE: The DID document at sashankg.github.io must have serviceEndpoint: "https://pds.example.com"
-	// for Privi (running in Docker) to reach the PDS container via Docker networking
+	// for Pear (running in Docker) to reach the PDS container via Docker networking
 	keyPair, err := loadDIDKeyPairFromEnv()
 	require.NoError(t, err, "INTEGRATION_DID_PRIVKEY environment variable must be set")
 
@@ -247,7 +255,7 @@ func performOAuthLoginWithBrowser(
 	err = loginButton.Click()
 	require.NoError(t, err, "Failed to click login button")
 
-	// Get current URL after redirect (should be at Privi's authorize endpoint)
+	// Get current URL after redirect (should be at Pear's authorize endpoint)
 	currentURL, err = wd.CurrentURL()
 	require.NoError(t, err)
 	t.Logf("Current URL after clicking login: %s", currentURL)

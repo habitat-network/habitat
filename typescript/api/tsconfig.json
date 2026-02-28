@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.options.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "allowImportingTsExtensions": false,
+    "noEmit": false,
+    "strict": false
+  },
+  "include": ["**/*"],
+  "references": []
+}
