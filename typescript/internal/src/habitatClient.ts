@@ -313,13 +313,17 @@ export class HabitatClient {
     opts?: RequestInit,
   ): Promise<PutPrivateRecordResponse> {
     // Writing private records always happens on the user's own repo
+    const formattedGrantees = grantees?.map((did) => ({
+      $type: "network.habitat.grantee#didGrantee" as const,
+      did,
+    }));
+
     const requestBody: PutPrivateRecordInput<T> = {
       repo: this.defaultDid,
       collection,
       rkey,
       record,
-      // Cast needed: lexicon defines grantees as string unions but codegen wraps with $Typed
-      grantees: grantees as PutPrivateRecordInput<T>["grantees"],
+      grantees: formattedGrantees,
     };
 
     const response = await this.defaultAgent.fetchHandler(
