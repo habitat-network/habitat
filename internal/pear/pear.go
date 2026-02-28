@@ -61,48 +61,14 @@ type Pear interface {
 	) ([]permissions.Grantee, error)
 
 	// Repository methods; roughly analgous to com.atproto.repo methods
-	PutRecord(
-		ctx context.Context,
-		caller, target syntax.DID,
-		collection syntax.NSID,
-		record map[string]any,
-		rkey syntax.RecordKey,
-		validate *bool,
-		grantees []permissions.Grantee,
-	) (habitat_syntax.HabitatURI, error)
-	GetRecord(
-		ctx context.Context,
-		collection syntax.NSID,
-		rkey syntax.RecordKey,
-		target syntax.DID,
-		caller syntax.DID,
-	) (*repo.Record, error)
-	ListRecords(
-		ctx context.Context,
-		caller syntax.DID,
-		collection syntax.NSID,
-		subjects []syntax.DID,
-	) ([]repo.Record, error)
-	GetBlob(
-		ctx context.Context,
-		did syntax.DID,
-		cid syntax.CID,
-	) (string /* mimetype */, []byte /* raw blob */, error)
-	UploadBlob(
-		ctx context.Context,
-		did syntax.DID,
-		data []byte,
-		mimeType string,
-	) (*repo.BlobRef, error)
+	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
+	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
+	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
+	GetBlob(ctx context.Context, did syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
+	UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
 
 	// Inbox / Node-to-node communication related methods
-	NotifyOfUpdate(
-		ctx context.Context,
-		sender syntax.DID,
-		recipient syntax.DID,
-		collection string,
-		rkey string,
-	) error
+	NotifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
 }
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -179,11 +145,7 @@ func (p *pear) HasPermission(
 }
 
 // ListPermissionGrants implements Pear.
-func (p *pear) ListPermissionGrants(
-	ctx context.Context,
-	caller syntax.DID,
-	granter syntax.DID,
-) ([]permissions.Permission, error) {
+func (p *pear) ListPermissionGrants(ctx context.Context, caller syntax.DID, granter syntax.DID) ([]permissions.Permission, error) {
 	// Authz: only the granter can see this
 	if caller != granter {
 		return nil, ErrUnauthorized
@@ -192,13 +154,7 @@ func (p *pear) ListPermissionGrants(
 }
 
 // ListPermissions implements Pear.
-func (p *pear) ListAllowGrantsForRecord(
-	ctx context.Context,
-	caller syntax.DID,
-	owner syntax.DID,
-	collection syntax.NSID,
-	rkey syntax.RecordKey,
-) ([]permissions.Grantee, error) {
+func (p *pear) ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]permissions.Grantee, error) {
 	// Authz: if the caller has permission, the caller can see who else has permission
 	callerOk, err := p.permissions.HasPermission(ctx, caller, owner, collection, rkey)
 	if err != nil {
@@ -216,13 +172,11 @@ func (p *pear) ListAllowGrantsForRecord(
 var _ Pear = &pear{}
 
 var (
-	ErrPublicRecordExists  = fmt.Errorf("a public record exists with the same key")
-	ErrNotLocalRepo        = fmt.Errorf("the desired did does not live on this repo")
-	ErrUnauthorized        = fmt.Errorf("unauthorized request")
-	ErrNoNestedCliques     = errors.New("nested cliques are not allowed")
-	ErrFollowersCliqueRkey = errors.New(
-		"this clique cannot be directly set, it derives from app.bsky.graph.follows of the user",
-	)
+	ErrPublicRecordExists     = fmt.Errorf("a public record exists with the same key")
+	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
+	ErrUnauthorized           = fmt.Errorf("unauthorized request")
+	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
+	ErrFollowersCliqueRkey    = errors.New("this clique cannot be directly set, it derives from app.bsky.graph.follows of the user")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
 )
 
@@ -446,12 +400,7 @@ func (p *pear) listRecordsRemote(ctx context.Context, caller syntax.DID, collect
 */
 
 // This needs to be renamed
-func (p *pear) ListRecords(
-	ctx context.Context,
-	caller syntax.DID,
-	collection syntax.NSID,
-	subjects []syntax.DID,
-) ([]repo.Record, error) {
+func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error) {
 	// Get records owned by this repo
 	localRecords, err := p.listRecordsLocal(ctx, collection, caller, subjects)
 	if err != nil {
@@ -479,12 +428,7 @@ func (p *pear) GetBlob(
 }
 
 // TODO: actually enforce permissions here
-func (p *pear) UploadBlob(
-	ctx context.Context,
-	did syntax.DID,
-	data []byte,
-	mimeType string,
-) (*repo.BlobRef, error) {
+func (p *pear) UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {
 	return p.repo.UploadBlob(ctx, did.String(), data, mimeType)
 }
 
