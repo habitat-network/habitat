@@ -1,8 +1,9 @@
-import { listPermissions, type Permission } from "@/queries/permissions";
+import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
+import { Permission } from "api/types/network/habitat/permissions/listPermissions";
 
 // Concrete wire types matching what the server's parseGrantees expects
 interface DidGranteeObj {
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/_requireAuth/permissions/lexicons/")({
 });
 
 function LexiconPermissions() {
-  const data = Route.useLoaderData() as { permissions: Permission[] };
+  const data = Route.useLoaderData();
   const { authManager } = Route.useRouteContext();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -39,21 +40,31 @@ function LexiconPermissions() {
     });
   };
 
-  const byCollection = (data.permissions ?? []).reduce<Record<string, Permission[]>>(
-    (acc, perm) => {
-      (acc[perm.collection] ??= []).push(perm);
-      return acc;
-    },
-    {},
-  );
+  const byCollection = (data.permissions ?? []).reduce<
+    Record<string, Permission[]>
+  >((acc, perm) => {
+    (acc[perm.collection] ??= []).push(perm);
+    return acc;
+  }, {});
 
-  const addForm = useForm<{ grantee: string; collection: string; rkey: string }>(
-    { defaultValues: { rkey: "" } },
-  );
+  const addForm = useForm<{
+    grantee: string;
+    collection: string;
+    rkey: string;
+  }>({ defaultValues: { rkey: "" } });
   const { mutate: addNew, isPending: isAddingNew } = useMutation({
-    async mutationFn(formData: { grantee: string; collection: string; rkey: string }) {
+    async mutationFn(formData: {
+      grantee: string;
+      collection: string;
+      rkey: string;
+    }) {
       const body: PermissionInput = {
-        grantees: [{ $type: "network.habitat.grantee#didGrantee", did: formData.grantee }],
+        grantees: [
+          {
+            $type: "network.habitat.grantee#didGrantee",
+            did: formData.grantee,
+          },
+        ],
         collection: formData.collection,
         ...(formData.rkey ? { rkey: formData.rkey } : {}),
       };
@@ -142,9 +153,17 @@ function CollectionDetail({
   const router = useRouter();
 
   const { mutate: remove } = useMutation({
-    async mutationFn({ grantee, rkey }: { grantee: string; rkey: string }) {
+    async mutationFn({
+      grantee,
+      rkey,
+    }: {
+      grantee: string;
+      rkey: string | undefined;
+    }) {
       const body: PermissionInput = {
-        grantees: [{ $type: "network.habitat.grantee#didGrantee", did: grantee }],
+        grantees: [
+          { $type: "network.habitat.grantee#didGrantee", did: grantee },
+        ],
         collection,
         ...(rkey ? { rkey } : {}),
       };
@@ -179,7 +198,9 @@ function CollectionDetail({
             <td>
               <button
                 type="button"
-                onClick={() => remove({ grantee: perm.grantee, rkey: perm.rkey })}
+                onClick={() =>
+                  remove({ grantee: perm.grantee, rkey: perm.rkey })
+                }
               >
                 Remove
               </button>

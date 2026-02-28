@@ -1,4 +1,4 @@
-import { listPermissions, type Permission } from "@/queries/permissions";
+import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
@@ -38,7 +38,7 @@ export const Route = createFileRoute(
     const queryClient = useQueryClient();
     const { authManager } = Route.useRouteContext();
     const params = Route.useParams();
-    const permissions = Route.useLoaderData() as Permission[];
+    const permissions = Route.useLoaderData();
     const form = useForm<FormData>({
       defaultValues: { collection: params.collection, rkey: "" },
     });
@@ -46,7 +46,9 @@ export const Route = createFileRoute(
     const { mutate: add, isPending: isAdding } = useMutation({
       async mutationFn(data: FormData) {
         const body: PermissionInput = {
-          grantees: [{ $type: "network.habitat.grantee#didGrantee", did: data.grantee }],
+          grantees: [
+            { $type: "network.habitat.grantee#didGrantee", did: data.grantee },
+          ],
           collection: data.collection,
           ...(data.rkey ? { rkey: data.rkey } : {}),
         };
@@ -66,9 +68,17 @@ export const Route = createFileRoute(
     });
 
     const { mutate: remove } = useMutation({
-      async mutationFn({ grantee, rkey }: { grantee: string; rkey: string }) {
+      async mutationFn({
+        grantee,
+        rkey,
+      }: {
+        grantee: string;
+        rkey: string | undefined;
+      }) {
         const body: PermissionInput = {
-          grantees: [{ $type: "network.habitat.grantee#didGrantee", did: grantee }],
+          grantees: [
+            { $type: "network.habitat.grantee#didGrantee", did: grantee },
+          ],
           collection: params.collection,
           ...(rkey ? { rkey } : {}),
         };
@@ -127,7 +137,9 @@ export const Route = createFileRoute(
                 <td>
                   <button
                     type="button"
-                    onClick={() => remove({ grantee: perm.grantee, rkey: perm.rkey })}
+                    onClick={() =>
+                      remove({ grantee: perm.grantee, rkey: perm.rkey })
+                    }
                   >
                     🗑️
                   </button>

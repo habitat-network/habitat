@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 interface HeaderProps {
-  handle: string | null;
+  handle?: string | null;
   onLogout: () => void;
 }
 

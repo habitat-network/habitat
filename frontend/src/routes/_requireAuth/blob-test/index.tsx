@@ -76,7 +76,7 @@ function RouteComponent() {
 
     try {
       const res = await authManager.fetch(
-        `/xrpc/network.habitat.getBlob?cid=${encodeURIComponent(cid)}&did=${authManager.handle}`,
+        `/xrpc/network.habitat.getBlob?cid=${encodeURIComponent(cid)}&did=${authManager.getAuthInfo()?.did}`,
         "GET",
       );
 
