@@ -2,7 +2,6 @@ package pear
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -24,8 +23,6 @@ type mockXrpcChannel struct {
 }
 
 func (m *mockXrpcChannel) SendXRPC(_ context.Context, _ syntax.DID, _ syntax.DID, r *http.Request) (*http.Response, error) {
-	fmt.Println("got sendxrpc req", r)
-	// debug.PrintStack()
 	next := m.actions[0]
 	m.actions = m.actions[1:]
 	return next, nil

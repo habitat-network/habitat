@@ -2,7 +2,6 @@ package inbox
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -81,7 +80,6 @@ func (i *inbox) GetCollectionUpdatesByRecipient(ctx context.Context, recipient s
 // GetUpdatesForClique implements Inbox.
 func (i *inbox) GetUpdatesForClique(ctx context.Context, recipient syntax.DID, cliqueURI string) ([]Notification, error) {
 	var notifs []Notification
-	fmt.Println("get updates called", recipient, cliqueURI)
 
 	err := i.db.Where("recipient = ?", recipient).Where("reason = ?", cliqueURI).Find(&notifs).Error
 	return notifs, err
