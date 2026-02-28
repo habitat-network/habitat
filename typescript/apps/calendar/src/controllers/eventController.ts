@@ -48,7 +48,7 @@ async function createEventNotification(
   targetDid: string,
   eventRkey: string,
 ): Promise<void> {
-  const notification = {
+  const _ = {
     did: targetDid,
     originDid: userDid,
     collection: EVENT_COLLECTION,
