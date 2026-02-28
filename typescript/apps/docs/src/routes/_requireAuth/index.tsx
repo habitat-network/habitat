@@ -6,7 +6,7 @@ export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
     const did = context.authManager.getAuthInfo()?.did;
     const response = await context.authManager.fetch(
-      `/xrpc/network.habitat.listRecords?repo=${did}&collection=com.habitat.docs`,
+      `/xrpc/network.habitat.listRecords?subjects=${did}&collection=com.habitat.docs`,
     );
     const data: {
       records: {

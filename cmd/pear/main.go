@@ -29,6 +29,7 @@ import (
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
@@ -125,6 +126,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
+	p2pServer, err := p2p.NewServer()
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup p2p server")
+	}
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -149,30 +154,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
 
 	domain := cmd.String(fDomain)
-	mux.HandleFunc("/.well-known/did.json", func(w http.ResponseWriter, r *http.Request) {
-		template := `{
-  "id": "did:web:%s",
-  "@context": [
-    "https://www.w3.org/ns/did/v1",
-    "https://w3id.org/security/multikey/v1", 
-    "https://w3id.org/security/suites/secp256k1-2019/v1"
-  ],
-  "service": [
-    {
-      "id": "#habitat",
-      "serviceEndpoint": "https://%s",
-      "type": "HabitatServer"
-    }
-  ]
-}`
-		_, err := fmt.Fprintf(w, template, domain, domain)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
+	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	mux.Handle("/xrpc/", pdsForwarding)
+	// TODO: should we put this behind /p2p instead of / ?
+	mux.HandleFunc("/", p2pServer.HandleLibp2p)
 
 	otelMiddleware := otelhttp.NewMiddleware("habitat-backend" /* TODO: any options here? */)
 
@@ -196,8 +182,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Gracefully shutdown server when context is cancelled
 	eg.Go(func() error {
 		<-egCtx.Done()
+		log.Info().Msg("shutting down p2p server")
+		if err := p2pServer.Close(); err != nil {
+			log.Error().Err(err).Msg("error closing p2p host")
+		}
 		log.Info().Msg("shutting down server")
-		return s.Shutdown(context.Background())
+		if err := s.Shutdown(context.Background()); err != nil {
+			log.Error().Err(err).Msg("error shutting down http server")
+		}
+		return nil
 	})
 
 	// Wait for all goroutines to finish
@@ -206,6 +199,31 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Err(err).Msgf("server shut down returned an error")
 	}
 	return err
+}
+
+func serveDid(domain string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		template := `{
+  "id": "did:web:%s",
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/multikey/v1", 
+    "https://w3id.org/security/suites/secp256k1-2019/v1"
+  ],
+  "service": [
+    {
+      "id": "#habitat",
+      "serviceEndpoint": "https://%s",
+      "type": "HabitatServer"
+    }
+  ]
+}`
+		_, err := fmt.Fprintf(w, template, domain, domain)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 }
 
 func setupDB(cmd *cli.Command) *gorm.DB {
