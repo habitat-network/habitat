@@ -39,7 +39,7 @@ function CalendarPage() {
   const router = useRouter();
   const { rsvps, events } = Route.useLoaderData();
   const client = authManager.client();
-  const userDid = authManager.did;
+  const userDid = authManager.getAuthInfo()?.did;
   if (!userDid) {
     throw new Error("User DID not found");
   }

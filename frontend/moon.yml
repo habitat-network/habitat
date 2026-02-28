@@ -1,11 +1,11 @@
 tasks:
   dev:
     args:
-    - --
-    - --domain
-    - $project.${TS_DOMAIN}
-    - --habitatDomain
-    - pear.${TS_DOMAIN}
+      - --
+      - --domain
+      - $project.${TS_DOMAIN}
+      - --habitatDomain
+      - pear.${TS_DOMAIN}
     deps:
       - target: pear:dev
       - target: funnel:start

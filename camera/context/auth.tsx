@@ -37,8 +37,8 @@ interface AuthContextData {
 }
 
 const AuthContext = createContext<AuthContextData>({
-  signIn: async () => { },
-  signOut: () => { },
+  signIn: async () => {},
+  signOut: () => {},
   token: null,
   isLoading: false,
   fetchWithAuth: fetch,

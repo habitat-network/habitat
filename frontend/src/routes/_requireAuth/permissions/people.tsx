@@ -1,6 +1,7 @@
-import { listPermissions, type Permission } from "@/queries/permissions";
+import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { Permission } from "api/types/network/habitat/permissions/listPermissions";
 import { useState } from "react";
 
 // Concrete wire types matching what the server's parseGrantees expects
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/_requireAuth/permissions/people")({
 });
 
 function PeoplePermissions() {
-  const data = Route.useLoaderData() as { permissions: Permission[] };
+  const data = Route.useLoaderData();
   const { authManager } = Route.useRouteContext();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -36,13 +37,12 @@ function PeoplePermissions() {
     });
   };
 
-  const byPerson = (data.permissions ?? []).reduce<Record<string, Permission[]>>(
-    (acc, perm) => {
-      (acc[perm.grantee] ??= []).push(perm);
-      return acc;
-    },
-    {},
-  );
+  const byPerson = (data.permissions ?? []).reduce<
+    Record<string, Permission[]>
+  >((acc, perm) => {
+    (acc[perm.grantee] ??= []).push(perm);
+    return acc;
+  }, {});
 
   return (
     <table>
@@ -94,9 +94,17 @@ function PersonDetail({
   const router = useRouter();
 
   const { mutate: remove } = useMutation({
-    async mutationFn({ collection, rkey }: { collection: string; rkey: string }) {
+    async mutationFn({
+      collection,
+      rkey,
+    }: {
+      collection: string;
+      rkey: string | undefined;
+    }) {
       const body: PermissionInput = {
-        grantees: [{ $type: "network.habitat.grantee#didGrantee", did: person }],
+        grantees: [
+          { $type: "network.habitat.grantee#didGrantee", did: person },
+        ],
         collection,
         ...(rkey ? { rkey } : {}),
       };
@@ -131,7 +139,9 @@ function PersonDetail({
             <td>
               <button
                 type="button"
-                onClick={() => remove({ collection: perm.collection, rkey: perm.rkey })}
+                onClick={() =>
+                  remove({ collection: perm.collection, rkey: perm.rkey })
+                }
               >
                 Remove
               </button>

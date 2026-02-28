@@ -68,7 +68,9 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
         );
         if (!response.ok) {
           const body = await response.text();
-          throw new Error(body || `Request failed with status ${response.status}`);
+          throw new Error(
+            body || `Request failed with status ${response.status}`,
+          );
         }
       },
     });
@@ -129,7 +131,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
               repo:
               <input
                 type="text"
-                defaultValue={authManager.handle || ""}
+                defaultValue={authManager.getAuthInfo()?.did || ""}
                 {...putForm.register("repo")}
               />
             </label>
@@ -144,22 +146,42 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
             <fieldset>
               <legend>Grantees</legend>
               {fields.map((field, index) => (
-                <div key={field.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+                <div
+                  key={field.id}
+                  style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    alignItems: "center",
+                    marginBottom: "0.5rem",
+                  }}
+                >
                   <select {...putForm.register(`grantees.${index}.type`)}>
                     <option value="did">DID</option>
                     <option value="clique">Clique URI</option>
                   </select>
                   <input
                     type="text"
-                    placeholder={putForm.watch(`grantees.${index}.type`) === "did" ? "did:plc:..." : "habitat://..."}
+                    placeholder={
+                      putForm.watch(`grantees.${index}.type`) === "did"
+                        ? "did:plc:..."
+                        : "habitat://..."
+                    }
                     {...putForm.register(`grantees.${index}.value`)}
                   />
-                  <button type="button" onClick={() => remove(index)} style={{ width: "auto" }}>
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    style={{ width: "auto" }}
+                  >
                     &times;
                   </button>
                 </div>
               ))}
-              <button type="button" onClick={() => append({ type: "did", value: "" })} style={{ width: "auto" }}>
+              <button
+                type="button"
+                onClick={() => append({ type: "did", value: "" })}
+                style={{ width: "auto" }}
+              >
                 + Add Grantee
               </button>
             </fieldset>
@@ -167,7 +189,9 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
               Put Record
             </button>
             {status === "success" && "success"}
-            {status === "error" && <pre style={{ color: "red" }}>{putError?.message}</pre>}
+            {status === "error" && (
+              <pre style={{ color: "red" }}>{putError?.message}</pre>
+            )}
           </form>
         </article>
 
@@ -186,7 +210,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
               repo:
               <input
                 type="text"
-                defaultValue={authManager.handle || ""}
+                defaultValue={authManager.getAuthInfo()?.did || ""}
                 {...getForm.register("repo")}
               />
             </label>
@@ -201,8 +225,12 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
             <button type="submit" aria-busy={getIsPending}>
               Get Record
             </button>
-            {getStatus === "success" && <pre>Fetched record: {fetchedRecord}</pre>}
-            {getStatus === "error" && <pre style={{ color: "red" }}>{getError?.message}</pre>}
+            {getStatus === "success" && (
+              <pre>Fetched record: {fetchedRecord}</pre>
+            )}
+            {getStatus === "error" && (
+              <pre style={{ color: "red" }}>{getError?.message}</pre>
+            )}
           </form>
         </article>
       </div>

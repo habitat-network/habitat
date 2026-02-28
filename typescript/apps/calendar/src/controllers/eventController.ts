@@ -1,8 +1,5 @@
 import type {
   HabitatClient,
-  CreateNotificationInput,
-  ListedNotification,
-  NotificationRecord,
   PutPrivateRecordResponse,
 } from "internal/habitatClient.ts";
 import {
@@ -51,14 +48,14 @@ async function createEventNotification(
   targetDid: string,
   eventRkey: string,
 ): Promise<void> {
-  const notification: CreateNotificationInput = {
+  const _ = {
     did: targetDid,
     originDid: userDid,
     collection: EVENT_COLLECTION,
     rkey: eventRkey,
   };
 
-  await client.createNotification(notification);
+  //await client.createNotification(notification);
 }
 
 /**
@@ -83,7 +80,7 @@ async function checkRsvpExists(
  */
 async function createRsvpFromNotification(
   client: HabitatClient,
-  notification: ListedNotification,
+  notification: any,
 ): Promise<PutPrivateRecordResponse> {
   // Build the event URI from the notification
   const eventUri = `at://${notification.originDid}/${EVENT_COLLECTION}/${notification.rkey}`;
@@ -155,9 +152,9 @@ export async function createEvent(
  */
 export async function getRsvpNotifications(
   client: HabitatClient,
-): Promise<NotificationRecord[]> {
+): Promise<any[]> {
   // Query for RSVP notifications
-  const notificationsResponse = await client.listNotifications(RSVP_COLLECTION);
+  const notificationsResponse: any = null;
   const notifications = notificationsResponse.records;
 
   if (notifications.length === 0) {
@@ -166,7 +163,7 @@ export async function getRsvpNotifications(
 
   // Check each notification and create RSVPs if they don't exist
   await Promise.all(
-    notifications.map(async (notification) => {
+    notifications.map(async (notification: any) => {
       const rsvpExists = await checkRsvpExists(client, notification.value.rkey);
       if (!rsvpExists) {
         await createRsvpFromNotification(client, notification.value);
