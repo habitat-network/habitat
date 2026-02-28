@@ -1,16 +1,11 @@
 {
-  "extends": "{{ workspace_root | path_relative(from = dest_dir) }}/tsconfig.app.json",
-  "include": ["**/*.ts", "**/*.tsx", "{{ workspace_root | path_relative(from = dest_dir) }}/typescript/internal/src/globals.d.ts"],
+  "extends": "../../../tsconfig.options.json",
   "references": [
-    { "path": "{{ workspace_root | path_relative(from = dest_dir) }}/typescript/internal" }
-  ],
-  "compilerOptions": {
-    "types": ["vite/client"],
-    "verbatimModuleSyntax": false,
-    "noUncheckedSideEffectImports": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
+    {
+      "path": "../../api"
+    },
+    {
+      "path": "../../internal"
     }
-  }
+  ]
 }

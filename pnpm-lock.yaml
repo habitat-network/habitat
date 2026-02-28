@@ -58,7 +58,7 @@ catalogs:
       specifier: ^5.7.2
       version: 5.9.3
     vite:
-      specifier: ^7.1.7
+      specifier: 7.1.12
       version: 7.1.12
     vite-tsconfig-paths:
       specifier: ^5.1.4
@@ -71,6 +71,9 @@ importers:
 
   .:
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.3
       oxlint:
         specifier: ^1.28.0
         version: 1.30.0
@@ -80,6 +83,9 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vite:
+        specifier: 'catalog:'
+        version: 7.1.12(@types/node@22.19.3)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
 
   camera:
     dependencies:
@@ -207,6 +213,9 @@ importers:
       '@tanstack/router-plugin':
         specifier: ^1.114.3
         version: 1.133.32(@tanstack/react-router@1.133.32(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.1.12(@types/node@22.19.3)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
+      api:
+        specifier: workspace:*
+        version: link:../typescript/api
       axios:
         specifier: ^1.8.4
         version: 1.12.2
@@ -4025,7 +4034,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    deprecated: Glob versions prior to v9 are no longer supported
 
   global-dirs@0.1.1:
     resolution: {integrity: sha512-NknMLn7F2J7aflwFOlGdNIuCDpN3VGoSoB+aap3KABFWbHVn1TCgFC+np23J8W2BiZbjfEw3BFBycSMv1AFblg==}

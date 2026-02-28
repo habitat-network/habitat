@@ -4,7 +4,7 @@ import { OnboardComponent, habitatServers } from "./onboard";
 
 export const Route = createFileRoute("/")({
   async beforeLoad({ context }) {
-    await context.authManager.maybeExchangeCode(window.location.href);
+    await context.authManager.maybeExchangeCode();
   },
   async loader({ context }) {
     const { authManager } = context;

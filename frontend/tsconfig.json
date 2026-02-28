@@ -5,6 +5,9 @@
   },
   "references": [
     {
+      "path": "../typescript/api"
+    },
+    {
       "path": "../typescript/internal"
     }
   ]

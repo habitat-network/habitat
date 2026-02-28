@@ -1,4 +1,11 @@
 {
   "extends": "../../../tsconfig.options.json",
-  "references": [{ "path": "../../internal" }]
+  "references": [
+    {
+      "path": "../../api"
+    },
+    {
+      "path": "../../internal"
+    }
+  ]
 }

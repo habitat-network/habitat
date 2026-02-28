@@ -2,20 +2,15 @@ import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 
-export const Route = createFileRoute(
-  "/_requireAuth/permissions/people/$did",
-)({
+export const Route = createFileRoute("/_requireAuth/permissions/people/$did")({
   async loader({ context, params }) {
     const data = await context.queryClient.fetchQuery(
       listPermissions(context.authManager),
     );
     // Derive lexicons for this person from the already-cached full map
-    const lexicons: string[] = [];
-    for (const [lexicon, dids] of Object.entries(data)) {
-      if (dids.includes(params.did)) {
-        lexicons.push(lexicon);
-      }
-    }
+    const lexicons = data.permissions
+      .filter((p) => p.grantee === params.did)
+      .map((p) => p.collection + "." + p.rkey);
     return lexicons.sort();
   },
   component: PersonDetail,
