@@ -241,7 +241,14 @@ func setupPearServer(
 
 	dir := identity.DefaultDirectory()
 	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
-	node := node.New(serviceName, serviceEndpoint, dir, xrpcCh)
+	node := node.New(
+		serviceName,
+		serviceEndpoint,
+		dir,
+		xrpcCh,
+		// add self fallback just for medium term public demos
+		node.SelfFallback(),
+	)
 	permissions, err := permissions.NewStore(db, node)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
