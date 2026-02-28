@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
@@ -22,6 +24,7 @@ type Repo interface {
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
+	GetBlobLinks(ctx context.Context, cid syntax.CID) ([]habitat_syntax.HabitatURI, error)
 	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
 }
 
@@ -67,9 +70,17 @@ type Blob struct {
 	Blob     []byte
 }
 
+// Bi-mapping of blob <---> record reference
+// Can be used in permissioning blobs, and for garbage collection of blobs that are unreferenced.
+type link struct {
+	Ref habitat_syntax.HabitatURI `gorm:"primaryKey"`
+	Cid syntax.CID                `gorm:"primaryKey"`
+	Did syntax.DID                `gorm:"primaryKey"`
+}
+
 // TODO: create table etc.
 func NewRepo(db *gorm.DB) (*repo, error) {
-	if err := db.AutoMigrate(&record{}, &Blob{}); err != nil {
+	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
 		return nil, err
 	}
 	return &repo{
@@ -86,13 +97,38 @@ func (r *repo) PutRecord(
 	if validate != nil && *validate {
 		err := atdata.Validate(rec.Value)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("unable to validate record: %w", err)
 		}
 	}
 
+	// TODO: find a way to extraact blobs without marshalling + unmarshalling
+	marshalled, err := json.Marshal(rec.Value)
+	if err != nil {
+		return "", err
+	}
+
+	// atdata.UnmarshalJSON unmarshals the type with structured atdata types, so that ExtractBlobs works
+	// However, atdata.Validate needs to be called on a generic map[string]any (not with the atdata structured types)
+	val, err := atdata.UnmarshalJSON(marshalled)
+	if err != nil {
+		return "", fmt.Errorf("unable to umarshal: %w", err)
+	}
+
+	uri := habitat_syntax.ConstructHabitatUri(rec.Did, rec.Collection, rec.Rkey)
+	blobs := atdata.ExtractBlobs(val)
+	fmt.Println("got blobs", blobs)
+
+	refs := xslices.Map(blobs, func(b atdata.Blob) link {
+		return link{
+			Ref: uri,
+			Cid: syntax.CID(b.Ref.String()),
+			Did: syntax.DID(rec.Did),
+		}
+	})
+
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
-	err := r.db.Transaction(func(tx *gorm.DB) error {
+	err = r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("did = ?", rec.Did).
 			Where("collection = ?", rec.Collection).
 			Where("rkey = ?", rec.Rkey).
@@ -100,7 +136,7 @@ func (r *repo) PutRecord(
 			Error; err != nil {
 			return err
 		}
-		bytes, err := json.Marshal(rec.Value)
+		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
 		}
@@ -108,13 +144,15 @@ func (r *repo) PutRecord(
 		if err := tx.Create(&r).Error; err != nil {
 			return err
 		}
+		if len(refs) > 0 {
+			if err := tx.Create(&refs).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
-	if err != nil {
-		return "", err
-	}
 
-	return habitat_syntax.ConstructHabitatUri(rec.Did, rec.Collection, rec.Rkey), nil
+	return uri, err
 }
 
 var (
@@ -208,6 +246,19 @@ func (r *repo) GetBlob(
 	}
 
 	return row.MimeType, row.Blob, nil
+}
+
+// GetRefs implements Repo.
+func (r *repo) GetBlobLinks(ctx context.Context, cid syntax.CID) ([]habitat_syntax.HabitatURI, error) {
+	var links []link
+	err := r.db.Where("cid = ?", cid).Find(&links).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return xslices.Map(links, func(l link) habitat_syntax.HabitatURI {
+		return l.Ref
+	}), nil
 }
 
 // listRecords implements repo.

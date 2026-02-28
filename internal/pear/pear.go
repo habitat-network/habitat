@@ -64,8 +64,8 @@ type Pear interface {
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
-	GetBlob(ctx context.Context, did syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
-	UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
+	GetBlob(ctx context.Context, caller syntax.DID, did syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
+	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
 
 	// Inbox / Node-to-node communication related methods
 	NotifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
@@ -122,6 +122,7 @@ func (p *pear) RemovePermissions(
 }
 
 // HasPermission implements Pear.
+// Only returns non-ErrUnAuthorized errors
 func (p *pear) HasPermission(
 	ctx context.Context,
 	caller syntax.DID,
@@ -139,7 +140,7 @@ func (p *pear) HasPermission(
 
 	// If the caller doesn't have permission to this record, they can't see who does.
 	if !callerOk {
-		return false, ErrUnauthorized
+		return false, nil
 	}
 	return p.permissions.HasPermission(ctx, requester, owner, collection, rkey)
 }
@@ -421,15 +422,50 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 // TODO: actually enforce permissions here
 func (p *pear) GetBlob(
 	ctx context.Context,
-	did syntax.DID,
+	caller syntax.DID,
+	target syntax.DID,
 	cid syntax.CID,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
-	return p.repo.GetBlob(ctx, did.String(), cid.String())
+	authz := false
+
+	if caller == target {
+		authz = true
+	} else {
+		links, err := p.repo.GetBlobLinks(ctx, cid)
+		if err != nil {
+			return "", nil, err
+		}
+
+		fmt.Println("got links", links)
+
+		// TODO: could be done in parallel
+		for _, uri := range links {
+			ok, err := p.HasPermission(ctx, caller, caller, uri.Authority().DID(), uri.Collection(), uri.RecordKey())
+			if err != nil {
+				return "", nil, err
+			}
+
+			// If any record the caller has access to references this blob, they can see it
+			if ok {
+				authz = true
+				break
+			}
+		}
+	}
+
+	if !authz {
+		return "", nil, ErrUnauthorized
+	}
+
+	return p.repo.GetBlob(ctx, target.String(), cid.String())
 }
 
-// TODO: actually enforce permissions here
-func (p *pear) UploadBlob(ctx context.Context, did syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {
-	return p.repo.UploadBlob(ctx, did.String(), data, mimeType)
+func (p *pear) UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {
+	// You can only upload blobs to your own repo
+	if caller != target {
+		return nil, ErrUnauthorized
+	}
+	return p.repo.UploadBlob(ctx, target.String(), data, mimeType)
 }
 
 func (p *pear) NotifyOfUpdate(

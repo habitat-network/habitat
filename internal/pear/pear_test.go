@@ -519,13 +519,13 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	blob := []byte("this is my test blob")
 	mtype := "text/plain"
 
-	bmeta, err := pear.UploadBlob(t.Context(), did, blob, mtype)
+	bmeta, err := pear.UploadBlob(t.Context(), did, did, blob, mtype)
 	require.NoError(t, err)
 	require.NotNil(t, bmeta)
 	require.Equal(t, mtype, bmeta.MimeType)
 	require.Equal(t, int64(len(blob)), bmeta.Size)
 
-	m, gotBlob, err := pear.GetBlob(t.Context(), did, syntax.CID(bmeta.Ref.String()))
+	m, gotBlob, err := pear.GetBlob(t.Context(), did, did, syntax.CID(bmeta.Ref.String()))
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
 	require.Equal(t, blob, gotBlob)
@@ -708,4 +708,68 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		}
 		require.True(t, bobRkey1Found, "Should have found bob-rkey1")
 	})
+}
+
+// TestGetBlobPermissionsViaRecord verifies that GetBlob only allows access to
+// DIDs that have permission to a record which references the blob.
+func TestGetBlobPermissionsViaRecord(t *testing.T) {
+	aliceDID := syntax.DID("did:example:alice")
+	bobDID := syntax.DID("did:example:bob")
+	charlieDID := syntax.DID("did:example:charlie")
+	dir := mockIdentities([]syntax.DID{aliceDID, bobDID, charlieDID})
+	p := newPearForTest(t, dir)
+
+	// Alice uploads a blob.
+	blobData := []byte("this is my test blob")
+	mtype := "text/plain"
+	bmeta, err := p.UploadBlob(t.Context(), aliceDID, aliceDID, blobData, mtype)
+	require.NoError(t, err)
+
+	// Alice creates a record that references the blob, granting bob access.
+	// Validation is skipped (nil) because atdata.Blob is not a valid JSON-only type.
+	coll := syntax.NSID("my.fake.collection")
+	rkey := syntax.RecordKey("alice-photo")
+
+	cid := syntax.CID(bmeta.Ref.String())
+
+	record := map[string]any{
+		"$type": "app.bsky.feed.post",
+		"text":  "Hello world",
+		"embed": map[string]any{
+			"$type": "app.bsky.embed.images",
+			"images": []any{
+				map[string]any{
+					"alt": "photo",
+					"image": map[string]any{
+						"$type": "blob",
+						"ref": map[string]any{
+							"$link": cid.String(),
+						},
+						"mimeType": "image/jpeg",
+						"size":     4321,
+					},
+				},
+			},
+		},
+	}
+
+	v := true
+	_, err = p.PutRecord(t.Context(), aliceDID, aliceDID, coll, record, rkey, &v, []permissions.Grantee{permissions.DIDGrantee(bobDID)})
+	require.NoError(t, err)
+
+	// Alice (owner of the referencing record) can access the blob.
+	m, got, err := p.GetBlob(t.Context(), aliceDID, aliceDID, cid)
+	require.NoError(t, err)
+	require.Equal(t, mtype, m)
+	require.Equal(t, blobData, got)
+
+	// Bob (granted access to the referencing record) can access the blob.
+	m, got, err = p.GetBlob(t.Context(), bobDID, aliceDID, cid)
+	require.NoError(t, err)
+	require.Equal(t, mtype, m)
+	require.Equal(t, blobData, got)
+
+	// Charlie (no access to any record referencing the blob) cannot access the blob.
+	_, _, err = p.GetBlob(t.Context(), charlieDID, aliceDID, cid)
+	require.ErrorIs(t, err, ErrUnauthorized)
 }
