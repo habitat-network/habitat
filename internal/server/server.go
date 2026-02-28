@@ -466,7 +466,8 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.AddPermissions(
+	_, err = s.pear.AddPermissions(
+		r.Context(),
 		callerDID,
 		grantees,
 		callerDID,
@@ -545,6 +546,7 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		recipient,
 		collection,
 		rkey,
+		req.Reason,
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)

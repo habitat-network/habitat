@@ -355,8 +355,14 @@ func (s *store) AddPermissions(
 		if result.Error != nil {
 			return nil, fmt.Errorf("failed to remove redundant allow permissions: %w", result.Error)
 		}
+		if err := s.db.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ''").Find(&existingCollectionPermissions).Error; err != nil {
+			return nil, fmt.Errorf("failed to query existing collection permissions: %w", err)
+		}
 	} else { /* record-level permission */
-		// check if there are existing grantess with collection-level permissions.
+		// check if there are existing grantees with collection-level permissions.
 		// if so, we shouldn't add new ones for those grantees
 		if err := s.db.Where("grantee IN ?", grantees).
 			Where("owner = ?", owner).
@@ -375,6 +381,7 @@ func (s *store) AddPermissions(
 	for _, perm := range existingCollectionPermissions {
 		existingCollectionGrantees.Add(perm.Grantee)
 	}
+
 	// only add permissions for those that don't already have access
 	granteesSet := xmaps.Difference(xmaps.SetFromSlice(grantees), existingCollectionGrantees)
 	permissions := []permission{}

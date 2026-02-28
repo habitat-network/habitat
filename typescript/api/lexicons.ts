@@ -790,6 +790,11 @@ export const schemaDict = {
                 type: 'string',
                 description: 'The record key which was updated.',
               },
+              reason: {
+                type: 'string',
+                description:
+                  'The reason, or metadata, about this notification. The clique uri if the update was due to shared clique membership.',
+              },
             },
           },
         },

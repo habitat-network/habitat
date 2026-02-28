@@ -140,7 +140,6 @@ func (p *pear) AddPermissions(
 	// Get all records with this permission from both inbox + repo
 	// notify of update to all the added people
 	if collection == permissions.CliqueNSID {
-		fmt.Println("adding cliqque permission", grantees)
 		// This gets everyone in the clique
 		clique := habitat_syntax.ConstructHabitatUri(owner.String(), permissions.CliqueNSID.String(), rkey.String())
 
@@ -160,7 +159,6 @@ func (p *pear) AddPermissions(
 			return nil, err
 		}
 
-		fmt.Println("notifs", notifs)
 		for _, grantee := range added {
 			didGrantee, ok := grantee.(permissions.DIDGrantee)
 			if !ok {
@@ -435,7 +433,6 @@ func (p *pear) PutRecord(
 					continue
 				}
 
-				fmt.Println("put notifying", did, grant.DID(), collection, rkey, g.String())
 				if err = p.NotifyOfUpdate(ctx, did, grant.DID(), collection, rkey, g.String()); err != nil {
 					return "", err
 				}
@@ -645,14 +642,12 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 	// Get records owned by this repo
 	localRecords, err := p.listRecordsLocal(ctx, collection, caller, subjects)
 	if err != nil {
-		fmt.Println("local err", err)
 		return nil, err
 	}
 
 	// TODO: implement
 	remoteRecords, err := p.listRecordsRemote(ctx, caller, collection)
 	if err != nil {
-		fmt.Println("remot err", err)
 		return nil, err
 	}
 

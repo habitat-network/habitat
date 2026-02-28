@@ -290,7 +290,6 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       io.NopCloser(&bytes.Buffer{}),
 	})
-	fmt.Println("-----")
 	bRecordsAfterRemoval, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, bRecordsAfterRemoval, 1)
