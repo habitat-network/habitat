@@ -23,27 +23,52 @@ type node struct {
 
 	dir    identity.Directory
 	xrpcCh xrpcchannel.XrpcChannel
+
+	// options
+	selfFallback bool
 }
 
 var _ Node = &node{}
 
-func New(serviceName, serviceEndpoint string, dir identity.Directory, xrpcCh xrpcchannel.XrpcChannel) Node {
-	return &node{
+func New(
+	serviceName, serviceEndpoint string,
+	dir identity.Directory,
+	xrpcCh xrpcchannel.XrpcChannel,
+	options ...NodeOption,
+) Node {
+	n := &node{
 		serviceName:     serviceName,
 		serviceEndpoint: serviceEndpoint,
 		dir:             dir,
 		xrpcCh:          xrpcCh,
 	}
+	for _, opt := range options {
+		opt(n)
+	}
+	return n
+}
+
+type NodeOption func(*node)
+
+// WithSelfFallback makes the node always return true for ServesDID
+// if the user isn't onboarded. Useful for public demos
+func WithSelfFallback() NodeOption {
+	return func(n *node) {
+		n.selfFallback = true
+	}
 }
 
 // SendXRPC implements Node.
-func (n *node) SendXRPC(ctx context.Context, sender syntax.DID, receiver syntax.DID, req *http.Request) (*http.Response, error) {
+func (n *node) SendXRPC(
+	ctx context.Context,
+	sender syntax.DID,
+	receiver syntax.DID,
+	req *http.Request,
+) (*http.Response, error) {
 	return n.xrpcCh.SendXRPC(ctx, sender, receiver, req)
 }
 
-var (
-	ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
-)
+var ErrNoHabitatServer = errors.New("no habitat server found for did :%s")
 
 // ServesDID implements Node.
 func (n *node) ServesDID(ctx context.Context, did syntax.DID) (bool, error) {
@@ -57,6 +82,9 @@ func (n *node) ServesDID(ctx context.Context, did syntax.DID) (bool, error) {
 
 	found, ok := id.Services[n.serviceName]
 	if !ok {
+		if n.selfFallback {
+			return true, nil
+		}
 		return false, fmt.Errorf(ErrNoHabitatServer.Error(), did.String())
 	}
 
