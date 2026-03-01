@@ -6,8 +6,15 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import habitatPlugins from "internal/habitatAppVitePlugin.ts";
 
 const config = defineConfig({
+  server: {
+    hmr: false, // creates multiple libp2p nodes
+  },
   plugins: [
-    devtools(),
+    devtools({
+      enhancedLogs: {
+        enabled: false,
+      },
+    }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],
