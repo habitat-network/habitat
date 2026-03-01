@@ -116,8 +116,6 @@ func (r *repo) PutRecord(
 
 	uri := habitat_syntax.ConstructHabitatUri(rec.Did, rec.Collection, rec.Rkey)
 	blobs := atdata.ExtractBlobs(val)
-	fmt.Println("got blobs", blobs)
-
 	refs := xslices.Map(blobs, func(b atdata.Blob) link {
 		return link{
 			Ref: uri,
