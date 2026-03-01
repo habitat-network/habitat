@@ -4,9 +4,9 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
-    const did = context.authManager.handle;
+    const did = context.authManager.getAuthInfo()?.did;
     const response = await context.authManager.fetch(
-      `/xrpc/network.habitat.listRecords?repo=${did}&collection=com.habitat.docs`,
+      `/xrpc/network.habitat.listRecords?subjects=${did}&collection=com.habitat.docs`,
     );
     const data: {
       records: {
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_requireAuth/")({
 
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
-        const did = authManager.handle;
+        const did = authManager.getAuthInfo()?.did;
         const response = await authManager.fetch(
           `/xrpc/network.habitat.putRecord`,
           "POST",
@@ -39,10 +39,7 @@ export const Route = createFileRoute("/_requireAuth/")({
             },
           }),
         );
-        if (!response?.ok) {
-          throw new Error("Failed to create doc");
-        }
-        const { uri } = await response.json();
+        const { uri } = await response?.json();
         navigate({
           to: "/$uri",
           params: {
