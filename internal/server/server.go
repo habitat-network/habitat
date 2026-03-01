@@ -258,7 +258,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := s.pear.UploadBlob(r.Context(), callerDID, bytes, mimeType)
+	blob, err := s.pear.UploadBlob(r.Context(), callerDID, callerDID, bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -286,6 +286,11 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth /* TODO: add service auth here when we support fwding blob reqs */)
+	if !ok {
+		return
+	}
+
 	var params habitat.NetworkHabitatRepoGetBlobParams
 	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
@@ -305,7 +310,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, blob, err := s.pear.GetBlob(r.Context(), did, cid)
+	mimeType, blob, err := s.pear.GetBlob(r.Context(), callerDID, did, cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
