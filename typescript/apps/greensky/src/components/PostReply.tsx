@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { AuthManager } from "internal/authManager.js";
+import { AuthManager } from "internal";
 import { useState } from "react";
 
 interface PostReplyProps {

@@ -8,8 +8,7 @@ import {
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import reportWebVitals from "internal/reportWebVitals.ts";
-import { AuthManager } from "internal/authManager.ts";
+import { reportWebVitals, AuthManager } from "internal";
 
 const authManager = new AuthManager(__DOMAIN__, __HABITAT_DOMAIN__, () => {
   router.navigate({ to: "/login" });

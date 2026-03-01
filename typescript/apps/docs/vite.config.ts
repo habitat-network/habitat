@@ -3,7 +3,7 @@ import { devtools } from "@tanstack/devtools-vite";
 import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import habitatPlugins from "internal/habitatAppVitePlugin.ts";
+import habitatPlugins from "internal/habitatAppVitePlugin";
 
 const config = defineConfig({
   server: {

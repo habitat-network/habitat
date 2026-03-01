@@ -1,7 +1,7 @@
 import generateFile from "vite-plugin-generate-file";
-import clientMetadata from "./clientMetadata.ts";
+import clientMetadata from "./clientMetadata";
 import type { Plugin } from "vite";
-import util from "util";
+import util from "node:util";
 
 const cliArgs = util.parseArgs({
   args: process.argv.slice(process.argv.indexOf("--") + 1),

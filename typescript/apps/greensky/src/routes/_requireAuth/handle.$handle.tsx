@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AuthManager } from "internal/authManager.js";
+import { AuthManager } from "internal";
 import {
   type PrivatePost,
   type Profile,
@@ -42,10 +42,7 @@ interface FeedItem {
 
 export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   async loader({ context, params }) {
-    const publicItems: FeedItem[] = await getAuthorFeed(
-      context.authManager,
-      params.handle,
-    );
+    const publicItems: FeedItem[] = [];
     const privateItems: PrivatePost[] = await getPrivatePosts(
       context.authManager,
       params.handle,

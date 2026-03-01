@@ -7,16 +7,32 @@
   "license": "ISC",
   "packageManager": "pnpm@10.21.0",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    "./*": "./src/*"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./habitatAppVitePlugin": {
+      "types": "./dist/habitatAppVitePlugin.d.ts",
+      "import": "./dist/habitatAppVitePlugin.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
   "scripts": {
-    "build": "tsc"
+    "build": "vite build"
   },
   "dependencies": {
     "@atproto/api": "^0.18.8",
     "@atproto/identity": "^0.4.10",
     "@atproto/oauth-client-browser": "^0.3.34",
+    "@base-ui/react": "^1.2.0",
+    "@uidotdev/usehooks": "^2.4.1",
     "api": "workspace:*",
     "jose": "^6.1.3",
     "openid-client": "^6.8.1",
@@ -31,7 +47,9 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
     "vite": "catalog:",
+    "vite-plugin-dts": "^4.5.4",
     "vite-plugin-generate-file": "^0.3.1"
   }
 }

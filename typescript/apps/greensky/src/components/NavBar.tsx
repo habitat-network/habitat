@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { type AuthManager } from "internal/authManager.js";
+import { type AuthManager } from "internal";
 import { type Profile } from "../habitatApi";
 import { NewPostButton } from "./NewPostButton";
 import { Link } from "@tanstack/react-router";

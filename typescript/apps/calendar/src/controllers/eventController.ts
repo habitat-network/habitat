@@ -1,7 +1,7 @@
 import type {
   HabitatClient,
   PutPrivateRecordResponse,
-} from "internal/habitatClient.ts";
+} from "internal";
 import {
   CommunityLexiconCalendarEvent,
   CommunityLexiconCalendarRsvp,

@@ -1,4 +1,4 @@
-import { AuthManager } from "internal/authManager.js";
+import { AuthManager } from "internal";
 
 export interface CliqueRefPermission {
   $type: "network.habitat.grantee#cliqueRef";

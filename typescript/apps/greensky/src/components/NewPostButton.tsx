@@ -1,10 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
-import { AuthManager } from "internal/authManager.js";
+import { AuthManager, UserCombobox } from "internal";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { UserSearch } from "./UserSearch";
 
-type Visibility = "followers" | "specific";
+type Visibility = "public" | "followers" | "specific";
 
 interface FormData {
   content: string;
@@ -20,11 +19,11 @@ export function NewPostButton({
   authManager,
   _isOnboarded,
 }: NewPostButtonProps) {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(true);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
   const { handleSubmit, register, watch, reset } = useForm<FormData>({
-    defaultValues: { visibility: "followers" },
+    defaultValues: { visibility: "specific" },
   });
   const visibility = watch("visibility");
 
@@ -62,7 +61,18 @@ export function NewPostButton({
         }
       }
 
-      if (formData.visibility === "followers") {
+      if (formData.visibility === "public") {
+        const res = await authManager.fetch(
+          "/xrpc/com.atproto.repo.createRecord",
+          "POST",
+          JSON.stringify({
+            repo: did,
+            collection: "app.bsky.feed.post",
+            record,
+          }),
+        );
+        await checkResponse(res);
+      } else if (formData.visibility === "followers") {
         const res = await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
           "POST",
@@ -106,7 +116,7 @@ export function NewPostButton({
         );
         await checkResponse(cliqueRes);
         const data = await cliqueRes.json();
-        const cliqueUri = data.uri
+        const cliqueUri = data.uri;
 
         const res = await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
@@ -148,8 +158,8 @@ export function NewPostButton({
               </a>
             </p>
           )*/}
-          {/*!!isOnboarded &&*/(
-            <form
+          {
+            /*!!isOnboarded &&*/ <form
               onSubmit={handleSubmit(async (data) => {
                 setPostError(null);
                 createPost(data, {
@@ -163,6 +173,14 @@ export function NewPostButton({
                 {...register("content")}
               />
               <fieldset>
+                <label>
+                  <input
+                    type="radio"
+                    value="public"
+                    {...register("visibility")}
+                  />
+                  Public
+                </label>
                 <label>
                   <input
                     type="radio"
@@ -181,21 +199,14 @@ export function NewPostButton({
                 </label>
               </fieldset>
               {visibility === "specific" && (
-                <UserSearch
-                  authManager={authManager}
-                  specificUsers={specificUsers}
-                  onAddUser={handleAddUser}
-                  onRemoveUser={(u) =>
-                    setSpecificUsers((prev) => prev.filter((x) => x !== u))
-                  }
-                />
+                <UserCombobox authManager={authManager} />
               )}
               {postError && <p>{postError}</p>}
               <button type="submit" aria-busy={createPostIsPending}>
                 Post
               </button>
             </form>
-          )}
+          }
         </article>
       </dialog>
     </>
