@@ -57,13 +57,14 @@ func TestHasPermission(t *testing.T) {
 	})
 
 	t.Run("non-grantee caller is unauthorized to check any permissions", func(t *testing.T) {
-		_, err := p.HasPermission(t.Context(), nonGranteeDID, granteeDID, ownerDID, coll, rkey)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		ok, _ := p.HasPermission(t.Context(), nonGranteeDID, granteeDID, ownerDID, coll, rkey)
+		require.False(t, ok)
 	})
 
 	t.Run("non-grantee cannot check even the owner's permission on a record", func(t *testing.T) {
-		_, err := p.HasPermission(t.Context(), nonGranteeDID, ownerDID, ownerDID, coll, rkey)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		ok, _ := p.HasPermission(t.Context(), nonGranteeDID, ownerDID, ownerDID, coll, rkey)
+		require.False(t, ok)
+
 	})
 }
 
