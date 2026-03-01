@@ -7,7 +7,6 @@ import {
   getProfiles,
   PrivatePost,
   type Profile,
-  type DidGranteePermission,
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
@@ -56,13 +55,7 @@ export const Route = createFileRoute("/_requireAuth/")({
         ? await getProfile(context.authManager, did)
         : undefined;
 
-      const granteeDids = (post.permissions ?? [])
-        .filter(
-          (p): p is DidGranteePermission =>
-            p.$type === "network.habitat.grantee#didGrantee",
-        )
-        .slice(0, 5)
-        .map((p) => p.did);
+      const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
       const grantees = await getProfiles(context.authManager, granteeDids);
 
       return {
@@ -100,7 +93,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       ),
     ];
 
-    return entries;
+    return entries.filter((e) => e.replyToHandle === undefined);
   },
   component() {
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();

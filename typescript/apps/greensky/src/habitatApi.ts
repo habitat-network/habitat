@@ -31,6 +31,8 @@ export interface PrivatePost {
   cid: string;
   value: PrivatePostRecord;
   permissions?: Permission[];
+  clique?: string;
+  resolvedClique?: string[];
 }
 
 export function getPostVisibility(
@@ -87,8 +89,28 @@ async function getCliqueMembers(
     )
     .map((p) => p.did);
 
-  console.log("getCLiqueMembers", { cliqueUri, res });
   return res
+}
+
+async function resolvePostPermissions(
+  authManager: AuthManager,
+  post: PrivatePost,
+): Promise<PrivatePost> {
+  const perms = post.permissions ?? [];
+  const authorDid = post.uri.split("/")[2] ?? "";
+  const followersClique = `habitat://${authorDid}/network.habitat.clique/followers`;
+  const cliqueRef = perms.find(
+    (p): p is CliqueRefPermission =>
+      p.$type === "network.habitat.grantee#cliqueRef",
+  );
+  if (!cliqueRef) return post;
+
+  if (cliqueRef.uri === followersClique) {
+    return { ...post, clique: cliqueRef.uri };
+  }
+
+  const memberDids = await getCliqueMembers(authManager, cliqueRef.uri);
+  return { ...post, clique: cliqueRef.uri, resolvedClique: memberDids };
 }
 
 export async function getPrivatePosts(
@@ -110,32 +132,27 @@ export async function getPrivatePosts(
   const data: { records?: PrivatePost[] } = await response.json();
   const posts = data.records ?? [];
 
-  return Promise.all(
-    posts.map(async (post) => {
-      const perms = post.permissions ?? [];
-      const authorDid = post.uri.split("/")[2] ?? "";
-      const followersClique = `habitat://${authorDid}/network.habitat.clique/followers`;
-      const nonFollowersCliqueRef = perms.find(
-        (p): p is CliqueRefPermission =>
-          p.$type === "network.habitat.grantee#cliqueRef" &&
-          (p as CliqueRefPermission).uri !== followersClique,
-      );
-      if (nonFollowersCliqueRef) {
-        const memberDids = await getCliqueMembers(
-          authManager,
-          nonFollowersCliqueRef.uri,
-        );
-        return {
-          ...post,
-          permissions: memberDids.map((did) => ({
-            $type: "network.habitat.grantee#didGrantee" as const,
-            did,
-          })),
-        };
-      }
-      return post;
-    }),
+  return Promise.all(posts.map((post) => resolvePostPermissions(authManager, post)));
+}
+
+export async function getPrivatePost(
+  authManager: AuthManager,
+  repo: string,
+  rkey: string,
+): Promise<PrivatePost | null> {
+  const params = new URLSearchParams();
+  params.append("repo", repo);
+  params.append("collection", "app.bsky.feed.post");
+  params.append("rkey", rkey);
+  params.append("includePermissions", "true");
+
+  const response = await authManager.fetch(
+    `/xrpc/network.habitat.getRecord?${params}`,
+    "GET",
   );
+  if (!response.ok) return null;
+  const post: PrivatePost = await response.json();
+  return resolvePostPermissions(authManager, post);
 }
 
 export async function getProfiles(

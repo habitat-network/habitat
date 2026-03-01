@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import React from "react";
 import type { PostVisibility } from "./habitatApi";
 
 export interface FeedEntry {
@@ -22,12 +23,25 @@ function bskyUrl(uri: string, handle: string): string {
   return `https://bsky.app/profile/${handle}/post/${rkey}`;
 }
 
-export function Feed({ entries }: { entries: FeedEntry[] }) {
+export function Feed({
+  entries,
+  showPrivatePermalink = true,
+  renderPostActions,
+}: {
+  entries: FeedEntry[];
+  showPrivatePermalink?: boolean;
+  renderPostActions?: (entry: FeedEntry) => React.ReactNode;
+}) {
+  // Reverse chronological, with createdAt missing or 0 at the end.
   const sorted = [...entries].sort((a, b) => {
-    if (!a.createdAt && !b.createdAt) return 0;
-    if (!a.createdAt) return 1;
-    if (!b.createdAt) return -1;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    const aEmpty = !aTime;
+    const bEmpty = !bTime;
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return -1;
+    if (bEmpty) return 1;
+    return bTime - aTime;
   });
 
   return (
@@ -61,12 +75,27 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
               ↗🦋
             </a>
           )}
+          {showPrivatePermalink && entry.kind !== "public" && entry.author?.handle && (
+            <Link
+              to={"/$handle/p/$rkey" as any}
+              params={{ handle: entry.author.handle, rkey: entry.uri.split("/").pop()! } as any}
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                fontSize: "0.75em",
+                textDecoration: "none",
+              }}
+            >
+              ↗🌱
+            </Link>
+          )}
           {entry.grantees && entry.grantees.length > 0 && (
             <div
               style={{
                 position: "absolute",
                 top: 8,
-                right: 8,
+                right: showPrivatePermalink && entry.kind !== "public" ? 48 : 8,
                 display: "flex",
               }}
             >
@@ -167,6 +196,7 @@ export function Feed({ entries }: { entries: FeedEntry[] }) {
               ))}
           </header>
           {entry.text}
+          {renderPostActions?.(entry)}
         </article>
       ))}
     </>

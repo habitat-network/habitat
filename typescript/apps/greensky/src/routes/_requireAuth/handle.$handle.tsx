@@ -3,7 +3,6 @@ import { AuthManager } from "internal/authManager.js";
 import {
   type PrivatePost,
   type Profile,
-  type DidGranteePermission,
   getPrivatePosts,
   getPostVisibility,
   getProfile,
@@ -60,13 +59,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
       ...(await Promise.all(
         privateItems.map(async (post): Promise<FeedEntry> => {
           const authorDid = post.uri.split("/")[2] ?? "";
-          const granteeDids = (post.permissions ?? [])
-            .filter(
-              (p): p is DidGranteePermission =>
-                p.$type === "network.habitat.grantee#didGrantee",
-            )
-            .slice(0, 5)
-            .map((p) => p.did);
+          const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
           const grantees = await getProfiles(context.authManager, granteeDids);
           return {
             uri: post.uri,
@@ -114,7 +107,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           left={
             <>
               <li>
-                <Link to="/">← Greensky</Link>
+                <Link to="/">← greensky</Link>
               </li>
               <li>
                 <h3>@{handle}'s feed</h3>
