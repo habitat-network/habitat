@@ -59,8 +59,6 @@ func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrp
 }
 
 func TestCliqueFlowMultiPear(t *testing.T) {
-	t.Skip("this will fail until we implement remote fetches")
-
 	aDID := syntax.DID("did:example:a")
 	bDID := syntax.DID("did:example:b")
 	cDID := syntax.DID("did:example:c")
@@ -72,14 +70,16 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 
 	cliqueRkey := syntax.RecordKey("shared-clique")
 	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(aDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
+	cliqueMembers := []permissions.Grantee{permissions.DIDGrantee(bDID)}
 
 	// A creates the clique by adding B as a member
-	require.NoError(t, pearAC.permissions.AddPermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(bDID)},
+	_, err := pearAC.permissions.AddPermissions(
+		cliqueMembers,
 		aDID,
 		permissions.CliqueNSID,
 		cliqueRkey,
-	))
+	)
+	require.NoError(t, err)
 
 	val := map[string]any{"data": "value"}
 	validate := true
@@ -97,22 +97,61 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.True(t, aauthz)
 
 	// A creates a record and grants access to the clique
+	mockXRPCs.actions = append(mockXRPCs.actions, &http.Response{ /* empty response because notify of update doesn't care about the response */ })
+	// mock out the notify of update
+	// TODO: hook upt he notify of update calls to the mockXRPC
+	err = pearB.NotifyOfUpdate(t.Context(), aDID, bDID, coll, aRkey, clique.String())
+
 	_, err = pearAC.PutRecord(t.Context(), aDID, aDID, coll, val, aRkey, &validate, []permissions.Grantee{clique})
 	require.NoError(t, err)
+	require.Len(t, mockXRPCs.actions, 0)
 
-	// B creates a record and grants access to the same clique
+	// This is going to make an xrpc request to A's node to notify about updates
+	// One request to resolve the clique
+	output := &habitat.NetworkHabitatRepoGetRecordOutput{
+		Uri: fmt.Sprintf(
+			"habitat://%s/%s/%s",
+			aDID.String(),
+			permissions.CliqueNSID,
+			cliqueRkey,
+		),
+		// Value is ignored
+		Value: map[string]any{},
+		Permissions: permissions.ConstructInterfaceFromGrantees(
+			cliqueMembers,
+		),
+	}
+
+	body, err := json.Marshal(output)
+	require.NoError(t, err)
+
+	aCliqueResp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     make(http.Header),
+	}
+	mockXRPCs.actions = append(mockXRPCs.actions, aCliqueResp)
+	mockXRPCs.actions = append(mockXRPCs.actions, &http.Response{ /* empty response because notify of update doesn't care about the response */ })
+
 	_, err = pearB.PutRecord(t.Context(), bDID, bDID, coll, val, bRkey, &validate, []permissions.Grantee{clique})
+	require.NoError(t, err)
+	require.Len(t, mockXRPCs.actions, 0)
+
+	err = pearAC.NotifyOfUpdate(t.Context(), bDID, aDID, coll, bRkey, clique.String())
 	require.NoError(t, err)
 
 	// Both A and B can see both records
+	// A can see its own record
 	got, err := pearAC.GetRecord(t.Context(), coll, aRkey, aDID, aDID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
+	// A can see B's record
 	// This is going to call out to B's pear. So mock an xrpc.
 	bRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
 	require.NoError(t, err)
-	output := &habitat.NetworkHabitatRepoGetRecordOutput{
+
+	bRecOutput := &habitat.NetworkHabitatRepoGetRecordOutput{
 		Uri: fmt.Sprintf(
 			"habitat://%s/%s/%s",
 			bDID.String(),
@@ -123,23 +162,41 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	}
 	output.Value = bRec.Value
 
-	body, err := json.Marshal(output)
+	bRecBody, err := json.Marshal(bRecOutput)
 	require.NoError(t, err)
 
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(body)),
-		Header:     make(http.Header),
+	bRecResp := func() *http.Response {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(bRecBody)),
+			Header:     make(http.Header),
+		}
 	}
-	mockXRPCs.actions = append(mockXRPCs.actions, resp)
+	mockXRPCs.actions = append(mockXRPCs.actions, bRecResp())
 
 	got, err = pearAC.GetRecord(t.Context(), coll, bRkey, bDID, aDID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
+	require.Len(t, mockXRPCs.actions, 0)
 
-	// This is going to call out to A's pear. So mock an xrpc.
-	aRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
+	// Both A and B can list both records via ListRecords
+	// A can see both records
+
+	// A is going to fetch out to B to get the record content based on the inbox notification
+
+	mockXRPCs.actions = append(mockXRPCs.actions, bRecResp())
+	aRecords, err := pearAC.ListRecords(t.Context(), aDID, coll, nil)
 	require.NoError(t, err)
+	require.Len(t, aRecords, 2)
+	require.Len(t, mockXRPCs.actions, 0)
+
+	// B is going to fetch out to A to get the record content based on the inbox notification
+	aRec, err := pearAC.getRecordLocal(t.Context(), coll, aRkey, aDID, aDID)
+	require.NoError(t, err)
+
+	// B is going to fetch the clique from A
+	mockXRPCs.actions = append(mockXRPCs.actions, aCliqueResp)
+
 	output = &habitat.NetworkHabitatRepoGetRecordOutput{
 		Uri: fmt.Sprintf(
 			"habitat://%s/%s/%s",
@@ -149,47 +206,56 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 		),
 		Value: aRec.Value,
 	}
-	output.Value = aRec.Value
+
 	body, err = json.Marshal(output)
 	require.NoError(t, err)
 
-	resp = &http.Response{
+	aRecResp := &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewReader(body)),
 		Header:     make(http.Header),
 	}
-	mockXRPCs.actions = append(mockXRPCs.actions, resp)
-
-	// Both A and B can list both records via ListRecords
-	aRecords, err := pearAC.ListRecords(t.Context(), aDID, coll, nil)
-	require.NoError(t, err)
-	require.Len(t, aRecords, 2)
+	mockXRPCs.actions = append(mockXRPCs.actions, aRecResp)
 
 	bRecords, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, bRecords, 2)
+	require.Len(t, mockXRPCs.actions, 0)
 
 	// A adds C to the clique
-	require.NoError(t, pearAC.permissions.AddPermissions(
+	_, err = pearAC.AddPermissions(
+		t.Context(),
+		aDID,
 		[]permissions.Grantee{permissions.DIDGrantee(cDID)},
 		aDID,
 		permissions.CliqueNSID,
 		cliqueRkey,
-	))
+	)
+	require.NoError(t, err)
+
+	// C should have a notifciation from B
+	notifs, err := pearAC.inbox.GetCollectionUpdatesByRecipient(t.Context(), cDID, coll)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	require.Equal(t, notifs[0].Sender, bDID.String())
 
 	// C can see both records
 	got, err = pearAC.GetRecord(t.Context(), coll, aRkey, aDID, cDID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
+	mockXRPCs.actions = append(mockXRPCs.actions, bRecResp())
 	got, err = pearAC.GetRecord(t.Context(), coll, bRkey, bDID, cDID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
+	require.Len(t, mockXRPCs.actions, 0)
 
 	// C can also list both records via ListRecords
+	mockXRPCs.actions = append(mockXRPCs.actions, bRecResp())
 	cRecords, err := pearAC.ListRecords(t.Context(), cDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, cRecords, 2)
+	require.Len(t, mockXRPCs.actions, 0)
 
 	// A removes B from the clique
 	require.NoError(t, pearAC.permissions.RemovePermissions(
@@ -200,9 +266,14 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	))
 
 	// B can no longer see A's record
+	mockXRPCs.actions = append(mockXRPCs.actions, &http.Response{
+		StatusCode: http.StatusForbidden,
+		Body:       io.NopCloser(&bytes.Buffer{}),
+	})
 	got, err = pearB.GetRecord(t.Context(), coll, aRkey, aDID, bDID)
 	require.Nil(t, got)
 	require.ErrorIs(t, err, ErrUnauthorized)
+	require.Len(t, mockXRPCs.actions, 0)
 
 	// B can still see its own record
 	got, err = pearB.GetRecord(t.Context(), coll, bRkey, bDID, bDID)
@@ -210,8 +281,19 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.NotNil(t, got)
 
 	// B can no longer list A's record; only sees its own
+	// B will resolve the clique
+	mockXRPCs.actions = append(mockXRPCs.actions, &http.Response{
+		StatusCode: http.StatusForbidden,
+		Body:       io.NopCloser(&bytes.Buffer{}),
+	})
+	mockXRPCs.actions = append(mockXRPCs.actions, &http.Response{
+		StatusCode: http.StatusForbidden,
+		Body:       io.NopCloser(&bytes.Buffer{}),
+	})
 	bRecordsAfterRemoval, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
 	require.NoError(t, err)
 	require.Len(t, bRecordsAfterRemoval, 1)
 	require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)
+	require.Len(t, mockXRPCs.actions, 0)
+
 }

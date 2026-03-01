@@ -471,7 +471,8 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
-	err = s.pear.AddPermissions(
+	_, err = s.pear.AddPermissions(
+		r.Context(),
 		callerDID,
 		grantees,
 		callerDID,
@@ -526,12 +527,31 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	recipient, err := syntax.ParseDID(req.Recipient)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing recipient did", http.StatusBadRequest)
+		return
+	}
+
+	collection, err := syntax.ParseNSID(req.Collection)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing collection as NSID", http.StatusBadRequest)
+		return
+	}
+
+	rkey, err := syntax.ParseRecordKey(req.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing rkey as RecordKey", http.StatusBadRequest)
+		return
+	}
+
 	err = s.pear.NotifyOfUpdate(
 		r.Context(),
 		callerDID,
-		syntax.DID(req.Recipient),
-		req.Collection,
-		req.Rkey,
+		recipient,
+		collection,
+		rkey,
+		req.Reason,
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)

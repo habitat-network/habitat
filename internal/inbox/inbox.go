@@ -10,8 +10,9 @@ import (
 )
 
 type Inbox interface {
-	Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection syntax.NSID, rkey string) error
+	Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection syntax.NSID, rkey syntax.RecordKey, reason string) error
 	GetCollectionUpdatesByRecipient(ctx context.Context, recipient syntax.DID, collection syntax.NSID) ([]Notification, error)
+	GetUpdatesForClique(ctx context.Context, recipient syntax.DID, cliqueURI string) ([]Notification, error)
 	// Eventually we might have GetRecordUpdates() or GetBySender()
 }
 
@@ -23,6 +24,7 @@ type Notification struct {
 	Recipient  string `gorm:"primaryKey"`
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
+	Reason     string `gorm:"index"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -42,12 +44,13 @@ func New(db *gorm.DB) (Inbox, error) {
 	return &inbox{db}, nil
 }
 
-func (i *inbox) Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection syntax.NSID, rkey string) error {
+func (i *inbox) Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection syntax.NSID, rkey syntax.RecordKey, reason string) error {
 	notification := &Notification{
 		Sender:     sender.String(),
 		Recipient:  recipient.String(),
 		Collection: collection.String(),
-		Rkey:       rkey,
+		Rkey:       rkey.String(),
+		Reason:     reason,
 	}
 	notification.UpdatedAt = time.Now()
 
@@ -59,6 +62,7 @@ func (i *inbox) Put(ctx context.Context, sender syntax.DID, recipient syntax.DID
 				{Name: "recipient"},
 				{Name: "collection"},
 				{Name: "rkey"},
+				// TODO: what to do with reason here
 			},
 			DoUpdates: clause.AssignmentColumns([]string{"updated_at"}),
 		},
@@ -70,8 +74,13 @@ func (i *inbox) GetCollectionUpdatesByRecipient(ctx context.Context, recipient s
 	var notifs []Notification
 
 	err := i.db.Where("recipient = ?", recipient).Where("collection = ?", collection).Find(&notifs).Error
-	if err != nil {
-		return nil, err
-	}
-	return notifs, nil
+	return notifs, err
+}
+
+// GetUpdatesForClique implements Inbox.
+func (i *inbox) GetUpdatesForClique(ctx context.Context, recipient syntax.DID, cliqueURI string) ([]Notification, error) {
+	var notifs []Notification
+
+	err := i.db.Where("recipient = ?", recipient).Where("reason = ?", cliqueURI).Find(&notifs).Error
+	return notifs, err
 }

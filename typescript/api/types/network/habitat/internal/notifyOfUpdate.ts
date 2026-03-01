@@ -24,6 +24,8 @@ export interface InputSchema {
   collection: string
   /** The record key which was updated. */
   rkey: string
+  /** The reason, or metadata, about this notification. The clique uri if the update was due to shared clique membership. */
+  reason?: string
 }
 
 export interface CallOptions {
