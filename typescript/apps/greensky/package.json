@@ -17,7 +17,6 @@
     "@tanstack/react-router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "api": "workspace:*",
-    "idb": "catalog:",
     "internal": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",

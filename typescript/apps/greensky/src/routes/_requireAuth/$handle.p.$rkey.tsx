@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   getPrivatePost,
+  getPrivatePosts,
   getProfile,
   getProfiles,
   getPostVisibility,
@@ -8,14 +9,13 @@ import {
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 import { PostReply } from "../../components/PostReply";
-import { ensureCacheFresh, getPrivatePostCache } from "../../privatePostCache";
 
 export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
   async loader({ context, params }) {
-    await ensureCacheFresh(context.authManager);
-    const [post, profile] = await Promise.all([
+    const [post, profile, allPosts] = await Promise.all([
       getPrivatePost(context.authManager, params.handle, params.rkey),
       getProfile(context.authManager, params.handle),
+      getPrivatePosts(context.authManager),
     ]);
 
     if (!post)
@@ -29,10 +29,13 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
     const authorDid = post.uri.split("/")[2] ?? "";
     const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
 
-    const cache = await getPrivatePostCache();
-    const replyPosts = await cache.getReplies(post.uri);
+    const replyPosts = allPosts.filter(
+      (p) => p.value.reply?.parent?.uri === post.uri,
+    );
 
-    const replyAuthorDids = [...new Set(replyPosts.map((r) => r.authorDid))];
+    const replyAuthorDids = [
+      ...new Set(replyPosts.map((r) => r.uri.split("/")[2] ?? "")),
+    ];
 
     const [grantees, replyAuthorProfiles] = await Promise.all([
       getProfiles(context.authManager, granteeDids),
@@ -58,7 +61,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
     };
 
     const replyEntries: FeedEntry[] = replyPosts.map((reply) => {
-      const replyAuthorDid = reply.authorDid;
+      const replyAuthorDid = reply.uri.split("/")[2] ?? "";
       const replyAuthor = replyAuthorByDid.get(replyAuthorDid);
       return {
         uri: reply.uri,
@@ -89,7 +92,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
           left={
             <>
               <li>
-                <Link to="/">← Greensky</Link>
+                <Link to="/">← greensky</Link>
               </li>
               <li>
                 Post by @{handle}

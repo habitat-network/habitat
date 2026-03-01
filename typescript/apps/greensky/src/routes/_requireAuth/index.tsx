@@ -8,7 +8,6 @@ import {
   PrivatePost,
   type Profile,
 } from "../../habitatApi";
-import { ensureCacheFresh } from "../../privatePostCache";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
@@ -43,7 +42,6 @@ interface BskyFeedItem {
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
-    await ensureCacheFresh(context.authManager);
     const [bskyItems, privatePosts] = await Promise.all([
       getBskyFeed(context.authManager),
       getPrivatePosts(context.authManager),
