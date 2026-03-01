@@ -24,7 +24,7 @@ type Repo interface {
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
-	GetBlobLinks(ctx context.Context, cid syntax.CID) ([]habitat_syntax.HabitatURI, error)
+	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
 	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
 }
 
@@ -73,9 +73,9 @@ type Blob struct {
 // Bi-mapping of blob <---> record reference
 // Can be used in permissioning blobs, and for garbage collection of blobs that are unreferenced.
 type link struct {
-	Ref habitat_syntax.HabitatURI `gorm:"primaryKey"`
 	Cid syntax.CID                `gorm:"primaryKey"`
 	Did syntax.DID                `gorm:"primaryKey"`
+	Ref habitat_syntax.HabitatURI `gorm:"primaryKey"`
 }
 
 // TODO: create table etc.
@@ -247,9 +247,9 @@ func (r *repo) GetBlob(
 }
 
 // GetRefs implements Repo.
-func (r *repo) GetBlobLinks(ctx context.Context, cid syntax.CID) ([]habitat_syntax.HabitatURI, error) {
+func (r *repo) GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error) {
 	var links []link
-	err := r.db.Where("cid = ?", cid).Find(&links).Error
+	err := r.db.Where("cid = ?", cid).Where("did = ?", did).Find(&links).Error
 	if err != nil {
 		return nil, err
 	}

@@ -64,7 +64,7 @@ type Pear interface {
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
-	GetBlob(ctx context.Context, caller syntax.DID, did syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
+	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
 	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
 
 	// Inbox / Node-to-node communication related methods
@@ -426,17 +426,24 @@ func (p *pear) GetBlob(
 	target syntax.DID,
 	cid syntax.CID,
 ) (string /* mimetype */, []byte /* raw blob */, error) {
+	serves, err := p.node.ServesDID(ctx, target)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// TODO: implement this via xrpc forwarding
+	if !serves {
+		return "", nil, ErrRemoteFetchUnsupported
+	}
 	authz := false
 
 	if caller == target {
 		authz = true
 	} else {
-		links, err := p.repo.GetBlobLinks(ctx, cid)
+		links, err := p.repo.GetBlobLinks(ctx, cid, target)
 		if err != nil {
 			return "", nil, err
 		}
-
-		fmt.Println("got links", links)
 
 		// TODO: could be done in parallel
 		for _, uri := range links {
