@@ -51,7 +51,7 @@ func New(
 type NodeOption func(*node)
 
 // WithSelfFallback makes the node always return true for ServesDID
-// This is useful for public demos where the users aren't onboarded
+// if the user isn't onboarded. Useful for public demos
 func WithSelfFallback() NodeOption {
 	return func(n *node) {
 		n.selfFallback = true
