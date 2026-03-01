@@ -1,0 +1,23 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.21.0",
+  "dependencies": {
+    "@atproto/api": "^0.18.8",
+    "@atproto/lexicon": "^0.4.14",
+    "@atproto/xrpc": "^0.6.12",
+    "multiformats": "^13.4.2"
+  },
+  "devDependencies": {
+    "@atproto/lex-cli": "^0.9.8"
+  }
+}

@@ -8,7 +8,7 @@ import * as SecureStore from "expo-secure-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const clientId = "https://sashankg.github.io/client-metadata.json"; // fake for now
-export const domain = "privi.taile529e.ts.net";
+export const domain = "pear.taile529e.ts.net";
 const redirectUri = makeRedirectUri({
   scheme: "habitat.camera",
   path: "oauth",

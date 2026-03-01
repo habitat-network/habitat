@@ -3,21 +3,28 @@
 package oauthserver
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/gob"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/eagraf/habitat-new/internal/oauthclient"
-	"github.com/eagraf/habitat-new/internal/utils"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
+	"github.com/ory/fosite/handler/oauth2"
+	"gorm.io/gorm"
 )
 
 const (
@@ -32,18 +39,23 @@ const (
 type authRequestFlash struct {
 	Form           url.Values // Original authorization request form data
 	DpopKey        []byte
-	AuthorizeState *oauthclient.AuthorizeState // AT Protocol authorization state
-	Did            syntax.DID                  // DID of the user
+	AuthorizeState *pdsclient.AuthorizeState // AT Protocol authorization state
+	Did            syntax.DID                // DID of the user
 }
 
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
 // for proof-of-possession token binding.
 type OAuthServer struct {
+	// The habitat service name to look up in DID docs.
+	serviceName     string
+	serviceEndpoint string
+
 	provider     fosite.OAuth2Provider
-	sessionStore sessions.Store          // Session storage for authorization flow state
-	oauthClient  oauthclient.OAuthClient // Client for communicating with AT Protocol services
-	directory    identity.Directory      // AT Protocol identity directory for handle resolution
+	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
+	sessionStore sessions.Store             // Session storage for authorization flow state
+	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
+	directory    identity.Directory         // AT Protocol identity directory for handle resolution
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -51,31 +63,52 @@ type OAuthServer struct {
 // The server is configured with:
 //   - Authorization Code Grant with PKCE
 //   - Refresh Token Grant
-//   - HMAC-SHA256 token strategy
+//   - JWT token strategy for access tokens
 //   - Integration with AT Protocol identity directory
+//   - Database storage for OAuth sessions and PDS tokens
 //
 // Parameters:
 //   - oauthClient: Client for AT Protocol OAuth operations
 //   - sessionStore: Store for managing user sessions during authorization flow
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
+//   - db: GORM database connection for storing OAuth sessions
+//   - credStore: Store for PDS credentials
+//   - userStore: Store for managing users (can be nil if not needed)
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
-	oauthClient oauthclient.OAuthClient,
+	serviceName string,
+	serviceEndpoint string,
+	secret string,
+	oauthClient pdsclient.PdsOAuthClient,
 	sessionStore sessions.Store,
 	directory identity.Directory,
-) *OAuthServer {
-	secret := []byte("my super secret signing password")
-	config := &fosite.Config{
-		GlobalSecret:               secret,
-		SendDebugMessagesToClients: true,
+	credStore pdscred.PDSCredentialStore,
+	db *gorm.DB,
+) (*OAuthServer, error) {
+	secretBytes, err := encrypt.ParseKey(secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
-	strategy := newStrategy(secret)
-	storage := newStore(strategy)
+	config := &fosite.Config{
+		GlobalSecret:               secretBytes,
+		SendDebugMessagesToClients: true,
+		RefreshTokenScopes:         []string{},
+	}
+	strategy, err := newStrategy(secretBytes, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create strategy: %w", err)
+	}
+	storage, err := newStore(strategy, db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create storage: %w", err)
+	}
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
-	gob.Register(oauthclient.AuthorizeState{})
+	gob.Register(pdsclient.AuthorizeState{})
 	return &OAuthServer{
+		serviceName:     serviceName,
+		serviceEndpoint: serviceEndpoint,
 		provider: compose.Compose(
 			config,
 			storage,
@@ -83,12 +116,13 @@ func NewOAuthServer(
 			compose.OAuth2AuthorizeExplicitFactory,
 			compose.OAuth2RefreshTokenGrantFactory,
 			compose.OAuth2PKCEFactory,
-			compose.OAuth2TokenIntrospectionFactory,
+			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
+		credStore:    credStore,
 		oauthClient:  oauthClient,
 		sessionStore: sessionStore,
 		directory:    directory,
-	}
+	}, nil
 }
 
 // HandleAuthorize processes OAuth 2.0 authorization requests from the client.
@@ -126,7 +160,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
-	id, err := o.directory.Lookup(ctx, *atid)
+	id, err := o.directory.Lookup(ctx, atid)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusInternalServerError)
 		return
@@ -136,7 +170,7 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to generate key", http.StatusInternalServerError)
 		return
 	}
-	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &nonceProvider{})
+	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	redirect, state, err := o.oauthClient.Authorize(dpopClient, id)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -218,7 +252,7 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
 		return
 	}
-	dpopClient := oauthclient.NewDpopHttpClient(dpopKey, &nonceProvider{})
+	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	tokenInfo, err := o.oauthClient.ExchangeCode(
 		dpopClient,
 		r.URL.Query().Get("code"),
@@ -229,10 +263,50 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to exchange code", http.StatusInternalServerError)
 		return
 	}
+
+	// Store/update user credentials in the database with the PDS tokens
+	err = o.credStore.UpsertCredentials(
+		arf.Did,
+		&pdscred.Credentials{
+			AccessToken:  tokenInfo.AccessToken,
+			RefreshToken: tokenInfo.RefreshToken,
+			DpopKey:      dpopKey,
+		},
+	)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"failed to save user credentials",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	// Ensure that habitat serves this user
+	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	id, err := o.directory.LookupDID(context.Background(), arf.Did)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
+		return
+	}
+
+	if endpoint, ok := id.Services[o.serviceName]; !ok || endpoint.URL != o.serviceEndpoint {
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				err,
+				"user's habitat service in DID doc does not match expected service",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+	}
+
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
-		newAuthorizeSession(authRequest, arf.DpopKey, tokenInfo, arf.Did),
+		newAuthorizeSession(authRequest, arf.Did),
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "failed to create response", http.StatusInternalServerError)
@@ -259,7 +333,7 @@ func (o *OAuthServer) HandleCallback(
 func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	ctx := r.Context()
-	req, err := o.provider.NewAccessRequest(ctx, r, &fosite.DefaultSession{})
+	req, err := o.provider.NewAccessRequest(ctx, r, &oauth2.JWTSession{})
 	if err != nil {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
@@ -269,8 +343,6 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
-	// Set the sub field in the response body with the user's DID
-	resp.SetExtra("sub", req.GetSession().GetSubject())
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
@@ -288,51 +360,56 @@ func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+var _ authn.Method = (*OAuthServer)(nil)
+
+func (o *OAuthServer) CanHandle(r *http.Request) bool {
+	return r.Header.Get("Habitat-Auth-Method") == "oauth"
+}
+
+// Validate's the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (did string, client *oauthclient.DpopHttpClient, ok bool) {
-	ctx := r.Context()
+) (syntax.DID, bool) {
 	_, ar, err := o.provider.IntrospectToken(
 		r.Context(),
 		fosite.AccessTokenFromRequest(r),
 		fosite.AccessToken,
-		nil,
+		&oauth2.JWTSession{},
 		scopes...,
 	)
 	if err != nil {
-		o.provider.WriteIntrospectionError(ctx, w, err)
-		return "", nil, false
+		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
+		// Unfortunately that was returning a 200 http response, so we write our own error here.
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("invalid or expired token: %w", err),
+			http.StatusUnauthorized,
+		)
+		return "", false
 	}
-	session := ar.GetSession().(*authSession)
-	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), session.DpopKey)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
-		return
+	// Get the DID from the session subject (stored in JWT)
+	session := ar.GetSession().(*oauth2.JWTSession)
+	if session.JWTClaims == nil {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("JWT claims not found"),
+			"invalid token",
+			http.StatusUnauthorized,
+		)
+		return "", false
 	}
 
-	return session.Subject, oauthclient.NewDpopHttpClient(
-		dpopKey,
-		&nonceProvider{},
-		oauthclient.WithAccessToken(session.TokenInfo.AccessToken),
-	), true
-}
-
-// This simple implementation stores a single nonce value in memory.
-type nonceProvider struct{ nonce string }
-
-var _ oauthclient.DpopNonceProvider = (*nonceProvider)(nil)
-
-// GetDpopNonce retrieves the current DPoP nonce.
-// Returns the nonce value, whether a nonce is available, and any error.
-func (n *nonceProvider) GetDpopNonce() (string, bool, error) {
-	return n.nonce, true, nil
-}
-
-// SetDpopNonce stores a new DPoP nonce value.
-// This is called when the server returns a new nonce in the DPoP-Nonce header.
-func (n *nonceProvider) SetDpopNonce(nonce string) error {
-	n.nonce = nonce
-	return nil
+	did := session.JWTClaims.Subject
+	if did == "" {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("DID not found in JWT"),
+			"invalid token",
+			http.StatusUnauthorized,
+		)
+		return "", false
+	}
+	return syntax.DID(did), true
 }

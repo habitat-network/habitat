@@ -1,0 +1,59 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.permissions.listPermissions",
+  "defs": {
+    "permission": {
+      "type": "object",
+      "required": [
+        "grantee",
+        "collection",
+        "effect"
+      ],
+      "properties": {
+        "grantee": {
+          "type": "string",
+          "description": "The grantee of the permission — either a DID or a habitat clique URI."
+        },
+        "collection": {
+          "type": "string",
+          "format": "nsid",
+          "description": "The NSID of the collection the permission applies to."
+        },
+        "rkey": {
+          "type": "string",
+          "description": "The record key the permission applies to. Empty string means the permission covers the entire collection."
+        },
+        "effect": {
+          "type": "string",
+          "knownValues": [
+            "allow",
+            "deny"
+          ],
+          "description": "Whether this permission grants or denies access."
+        }
+      }
+    },
+    "main": {
+      "type": "query",
+      "description": "List read permissions visible to the authenticated user.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "permissions"
+          ],
+          "properties": {
+            "permissions": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#permission"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

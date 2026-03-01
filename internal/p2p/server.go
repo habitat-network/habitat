@@ -7,9 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -19,9 +17,8 @@ import (
 )
 
 type Server struct {
-	host        host.Host
-	proxy       *httputil.ReverseProxy
-	connections *expirable.LRU[string, []string]
+	host  host.Host
+	proxy *httputil.ReverseProxy
 }
 
 var _ io.Closer = (*Server)(nil)
@@ -60,9 +57,8 @@ func NewServer() (*Server, error) {
 	}
 	url.Scheme = "http"
 	return &Server{
-		host:        host,
-		proxy:       httputil.NewSingleHostReverseProxy(url),
-		connections: expirable.NewLRU[string, []string](1024, nil, time.Hour*2),
+		host:  host,
+		proxy: httputil.NewSingleHostReverseProxy(url),
 	}, nil
 }
 

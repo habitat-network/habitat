@@ -5,3 +5,7 @@ body {
   --pico-primary-hover-background: #9dad6f;
   --pico-primary-hover-border: #9dad6f;
 }
+
+fieldset[disabled] {
+  opacity: 0.5;
+}

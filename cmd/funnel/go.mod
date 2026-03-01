@@ -1,4 +1,4 @@
-module github.com/eagraf/cmd/funnel
+module github.com/habitat-network/habitat/cmd/funnel
 
 go 1.25.4
 

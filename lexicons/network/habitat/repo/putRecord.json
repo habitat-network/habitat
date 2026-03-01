@@ -9,8 +9,12 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["repo", "collection", "rkey", "record"],
-          "nullable": ["swapRecord"],
+          "required": [
+            "repo",
+            "collection",
+            "rkey",
+            "record"
+          ],
           "properties": {
             "repo": {
               "type": "string",
@@ -33,8 +37,19 @@
               "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
             },
             "record": {
-              "type": "object",
+              "type": "unknown",
               "description": "The record to write."
+            },
+            "grantees": {
+              "type": "array",
+              "items": {
+                "type": "union",
+                "refs": [
+                  "network.habitat.grantee#didGrantee",
+                  "network.habitat.grantee#cliqueRef"
+                ]
+              },
+              "maxLength": 100
             }
           }
         }
@@ -43,12 +58,21 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri"],
+          "required": [
+            "uri"
+          ],
           "properties": {
-            "uri": { "type": "string", "format": "at-uri" },
+            "uri": {
+              "type": "string",
+              "format": "uri",
+              "description": "The habitat-uri of the put-ed object."
+            },
             "validationStatus": {
               "type": "string",
-              "knownValues": ["valid", "unknown"]
+              "knownValues": [
+                "valid",
+                "unknown"
+              ]
             }
           }
         }

@@ -1,51 +1,59 @@
-# https://moonrepo.dev/docs/config/tasks
-$schema: "https://moonrepo.dev/schemas/tasks.json"
-
-# https://moonrepo.dev/docs/config/project#tasks
+$schema: https://moonrepo.dev/schemas/tasks.json
 tasks:
   format-internal:
-    command: "npx prettier --ignore-path @in(0) --ignore-path @in(1)"
+    command: npx
+    args:
+      - prettier
+      - --ignore-path
+      - '@in(0)'
+      - --ignore-path
+      - '@in(1)'
+      - --write
     inputs:
-      - "/.prettierignore"
-      - ".gitignore"
-      - "**/*"
+    - /.prettierignore
+    - .gitignore
+    - '**/*'
     options:
       internal: true
-
   format-check:
-    extends: "format-internal"
+    extends: format-internal
     args:
-      - "--check"
-      - "."
+    - --check
+    - .
     options:
       internal: false
-
   format:
-    extends: "format-internal"
+    extends: format-internal
     args:
-      - "--write"
-      - "."
-    local: true
+    - --write
+    - .
     options:
       internal: false
-
+    preset: server
   lint-check:
-    command: "npx oxlint ."
-
+    command: npx oxlint .
   lint:
-    command: "npx oxlint --fix --fix-suggestions --fix-dangerously ."
-    local: true
-
+    command: npx oxlint --fix --fix-suggestions --fix-dangerously .
+    preset: server
+  install:
+    command: pnpm install
+    preset: utility
   build:
-    command: "pnpm build"
+    deps:
+      - ^:build
+    command: pnpm 
+    args: build
     outputs:
-      - "dist/"
-
+    - dist/
   start:
-    command: "pnpm serve"
-
+    command: pnpm serve
   dev:
-    command: "pnpm dev"
+    command: pnpm dev
     options:
       envFile:
-        - "/dev.env"
+      - /dev.env
+inheritedBy:
+  toolchains: 
+    or: [typescript]
+    not: [go]
+

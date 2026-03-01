@@ -1,16 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import type { AuthManager } from "internal/authManager.ts";
 
-function formatHandle(handle: string | null) {
-  if (!handle) return "";
-  const parts = handle.split(".");
-  if (parts.length > 1) {
-    return `${parts[0]}@${parts.slice(1).join(".")}`;
-  }
-  return handle;
+interface HeaderProps {
+  handle?: string | null;
+  onLogout: () => void;
 }
 
-const Header = ({ authManager }: { authManager: AuthManager }) => {
+const Header = ({ handle, onLogout }: HeaderProps) => {
   return (
     <header>
       <nav>
@@ -19,13 +14,19 @@ const Header = ({ authManager }: { authManager: AuthManager }) => {
             <Link to="/">🌱 Habitat</Link>
           </li>
         </ul>
-        {authManager.isAuthenticated() && (
+        {handle ? (
           <ul>
-            <li>{authManager.handle && formatHandle(authManager.handle)}</li>
+            <li>{handle}</li>
             <li>
-              <button onClick={authManager.logout}>
-                Logout [does nothing right now]
-              </button>
+              <button onClick={onLogout}>Logout</button>
+            </li>
+          </ul>
+        ) : (
+          <ul>
+            <li>
+              <Link to="/oauth-login" role="button">
+                Login
+              </Link>
             </li>
           </ul>
         )}

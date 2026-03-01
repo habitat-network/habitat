@@ -1,25 +1,24 @@
-# https://moonrepo.dev/docs/config/workspace
-$schema: "./cache/schemas/workspace.json"
-
+$schema: ./cache/schemas/workspace.json
 projects:
   sources:
-    frontend: "frontend"
-    camera: "camera"
-    root: "."
-    typescript/internal: "typescript/internal"
-    integration: "integration"
+    frontend: frontend
+    camera: camera
+    root: .
+    typescript/internal: typescript/internal
+    integration: integration
+    typescript/api: typescript/api
+    go/api: api
   globs:
-    - "cmd/*"
-    - "typescript/apps/*"
-
+  - cmd/*
+  - typescript/apps/*
 vcs:
-  manager: "git"
-  defaultBranch: "master"
   hooks:
     pre-commit:
-      - "moon :format --affected --status=staged --no-bail"
+    - moon :format --affected --status=staged --no-bail
+  defaultBranch: master
+  client: git
 docker:
   scaffold:
-    include:
-      - '**/go.mod'
-      - '**/go.sum'
+    configsPhaseGlobs:
+    - '**/go.mod'
+    - '**/go.sum'

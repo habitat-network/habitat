@@ -1,28 +1,28 @@
 tasks:
   didgen:
-    command: "noop"
+    command: noop
     deps:
-      - "didgen:build"
-      - target: "didgen:start"
-        args:
-          - "--pds-url"
-          - "http://pds.example.com:3000"
-          - "--did-host"
-          - "sashankg.github.io"
-          - "--output"
-          - "$workspaceRoot/integration/tmp/did.json"
-    local: true
-    outputs:
-      - "$workspaceRoot/integration/tmp/did.json"
+    - didgen:build
+    - target: didgen:start
+      args:
+      - --pds-url
+      - http://pds.example.com:3000
+      - --did-host
+      - sashankg.github.io
+      - --output
+      - $workspaceRoot/integration/tmp/did.json
     options:
       runDepsInParallel: false
+    outputs:
+    - $workspaceRoot/integration/tmp/did.json
+    preset: server
   test:
     deps:
-      - "privi:docker-build"
-      - "frontend:docker-build"
+    - pear:docker-build
+    - frontend:docker-build
     args:
-      - '-v'
-    local: true
+    - -v
     options:
       envFile:
-        - "/dev.env"
+      - /dev.env
+    preset: server

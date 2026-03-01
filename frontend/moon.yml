@@ -1,19 +1,36 @@
 tasks:
   dev:
-    env:
-      DOMAIN: "$project.${TS_DOMAIN}"
-    inputs:
-      - "$TS_DOMAIN"
+    args:
+      - --
+      - --domain
+      - $project.${TS_DOMAIN}
+      - --habitatDomain
+      - pear.${TS_DOMAIN}
     deps:
-      - target: "privi:dev"
-      - target: "funnel:start"
-        args: ["6000", "frontend"]
-
+      - target: pear:dev
+      - target: funnel:start
+        args:
+          - "6000"
+          - frontend
   docker-build:
     deps:
-      - target: "build"
+      - target: build
         env:
-          HABITAT_DOMAIN: "privi.habitat"
-          DOMAIN: "frontend.habitat"
+          HABITAT_DOMAIN: pear.habitat
+          DOMAIN: frontend.habitat
     options:
       internal: false
+  gh-pages:
+    deps:
+      - target: ~:build
+      - target: calendar:build
+        env:
+          DOMAIN: ${DOMAIN}/calendar
+          OUT_DIR: $projectRoot/dist/calendar
+      - target: greensky:build
+        env:
+          DOMAIN: ${DOMAIN}/greensky
+          OUT_DIR: $projectRoot/dist/greensky
+    preset: utility
+    options:
+      runDepsInParallel: false

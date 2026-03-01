@@ -12,6 +12,7 @@ import reportWebVitals from "internal/reportWebVitals.ts";
 import { AuthManager } from "internal/authManager.ts";
 
 const authManager = new AuthManager(__DOMAIN__, __HABITAT_DOMAIN__, () => {
+  router.invalidate();
   router.navigate({ to: "/oauth-login" });
 });
 const queryClient = new QueryClient();

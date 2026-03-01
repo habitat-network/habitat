@@ -1,0 +1,9 @@
+tasks:
+  generate:
+    deps:
+    - lexgen:build
+    - lexgen:start
+    command: noop
+    options:
+      runDepsInParallel: false
+    preset: server

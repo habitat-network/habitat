@@ -1,0 +1,25 @@
+language: typescript
+
+fileGroups:
+  lexicons:
+    - /lexicons/**/*.json
+
+
+workspace:
+  inheritedTasks:
+    exclude:
+    - start
+    - dev
+tasks:
+  generate:
+    command: pnpx 
+    args:
+    - "@atproto/lex-cli"
+    - gen-api
+    - $projectRoot
+    - "@files(lexicons)"
+    outputs:
+    - types/
+    options:
+      interactive: true
+    preset: server
