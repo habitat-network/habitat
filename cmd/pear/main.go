@@ -247,7 +247,7 @@ func setupPearServer(
 		dir,
 		xrpcCh,
 		// add self fallback just for medium term public demos
-		node.SelfFallback(),
+		node.WithSelfFallback(),
 	)
 	permissions, err := permissions.NewStore(db, node)
 	if err != nil {

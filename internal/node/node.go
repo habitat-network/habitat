@@ -50,7 +50,7 @@ func New(
 
 type NodeOption func(*node)
 
-func SelfFallback() NodeOption {
+func WithSelfFallback() NodeOption {
 	return func(n *node) {
 		n.selfFallback = true
 	}
