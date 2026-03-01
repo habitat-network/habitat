@@ -23,7 +23,7 @@ export function NavBar({
         <ul>{left}</ul>
         <ul>
           <li>
-            <span><Link to={`/handle/${myProfile?.handle}`}>@{myProfile?.handle}</Link></span>
+            {myProfile?.handle && <span><Link to={`/handle/${myProfile?.handle}`}>@{myProfile?.handle}</Link></span>}
           </li>
           <li>
             <NewPostButton authManager={authManager} _isOnboarded={isOnboarded} />
