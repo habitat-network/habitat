@@ -17,8 +17,8 @@ import (
 )
 
 type Server struct {
-	host        host.Host
-	proxy       *httputil.ReverseProxy
+	host  host.Host
+	proxy *httputil.ReverseProxy
 }
 
 var _ io.Closer = (*Server)(nil)
@@ -57,8 +57,8 @@ func NewServer() (*Server, error) {
 	}
 	url.Scheme = "http"
 	return &Server{
-		host:        host,
-		proxy:       httputil.NewSingleHostReverseProxy(url),
+		host:  host,
+		proxy: httputil.NewSingleHostReverseProxy(url),
 	}, nil
 }
 
