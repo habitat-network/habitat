@@ -9,7 +9,6 @@ import {
 import { CalendarView } from "../../components/CalendarView.tsx";
 import { CreateEventModal } from "../../components/CreateEventModal.tsx";
 import type { CreateEventInput } from "../../components/EventForm.tsx";
-import type { ListPrivateRecordsResponse } from "internal/habitatClient.ts";
 
 export const Route = createFileRoute("/_requireAuth/calendar")({
   component: CalendarPage,
@@ -26,22 +25,16 @@ export const Route = createFileRoute("/_requireAuth/calendar")({
   },
 });
 
-type LoaderData = {
-  events: ListPrivateRecordsResponse<CalendarEvent>;
-};
-
 function CalendarPage() {
-  const { events } = Route.useLoaderData() as LoaderData;
+  const { events } = Route.useLoaderData();
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
-  console.log("AHHH");
   const client = authManager.client();
   const userDid = authManager.getAuthInfo()?.did;
   if (!userDid) throw new Error("User DID not found");
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [initialEvent, setInitialEvent] = useState<
+  const [selectedEvent, setSelectedEvent] = useState<
     { startsAt: string; endsAt?: string } | undefined
   >(undefined);
 
@@ -56,19 +49,16 @@ function CalendarPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       router.invalidate();
-      setModalOpen(false);
-      setInitialEvent(undefined);
+      setSelectedEvent(undefined);
     },
   });
 
   function handleDateClick(data: { startsAt: string; endsAt?: string }) {
-    setInitialEvent(data);
-    setModalOpen(true);
+    setSelectedEvent(data);
   }
 
   function handleSelect(data: { startsAt: string; endsAt?: string }) {
-    setInitialEvent(data);
-    setModalOpen(true);
+    setSelectedEvent(data);
   }
 
   function handleSubmit(event: CreateEventInput, invitedDids: string[]) {
@@ -106,11 +96,11 @@ function CalendarPage() {
       />
 
       <CreateEventModal
-        isOpen={modalOpen}
-        initialEvent={initialEvent}
-        onClose={() => setModalOpen(false)}
+        isOpen={selectedEvent !== undefined}
+        initialEvent={selectedEvent}
+        onClose={() => setSelectedEvent(undefined)}
         onSubmit={handleSubmit}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => setSelectedEvent(undefined)}
         isPending={createEventMutation.isPending}
         error={createEventMutation.error ?? null}
       />

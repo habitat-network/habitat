@@ -1,5 +1,4 @@
 import type { CommunityLexiconCalendarEvent } from "api";
-import { useEffect, useRef } from "react";
 import { EventForm, type CreateEventInput } from "./EventForm.tsx";
 
 type InitialEvent = Partial<
@@ -25,16 +24,6 @@ export function CreateEventModal({
   isPending = false,
   error,
 }: CreateEventModalProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      dialogRef.current?.showModal();
-    } else {
-      dialogRef.current?.close();
-    }
-  }, [isOpen]);
-
   function handleCancel() {
     onCancel();
     onClose();
@@ -46,7 +35,7 @@ export function CreateEventModal({
 
   return (
     <dialog
-      ref={dialogRef}
+      open={isOpen}
       onClose={handleClose}
       onCancel={handleClose}
       style={{ maxWidth: "32rem", overflow: "visible" }}
