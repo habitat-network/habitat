@@ -309,21 +309,27 @@ export class HabitatClient {
     collection: string,
     record: T,
     rkey: string,
-    grantees?: string[],
+    grantees?: { dids?: string[]; cliques?: string[] },
     opts?: RequestInit,
   ): Promise<PutPrivateRecordResponse> {
     // Writing private records always happens on the user's own repo
-    const formattedGrantees = grantees?.map((did) => ({
-      $type: "network.habitat.grantee#didGrantee" as const,
-      did,
-    }));
+    const formattedGrantees = [
+      ...(grantees?.dids?.map((did) => ({
+        $type: "network.habitat.grantee#didGrantee" as const,
+        did,
+      })) ?? []),
+      ...(grantees?.cliques?.map((uri) => ({
+        $type: "network.habitat.grantee#cliqueRef" as const,
+        uri,
+      })) ?? []),
+    ];
 
     const requestBody: PutPrivateRecordInput<T> = {
       repo: this.defaultDid,
       collection,
       rkey,
       record,
-      grantees: formattedGrantees,
+      grantees: formattedGrantees.length > 0 ? formattedGrantees : undefined,
     };
 
     const response = await this.defaultAgent.fetchHandler(
