@@ -3,7 +3,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { EventInput } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
-import type { SelectArg } from "@fullcalendar/core";
+import type { DateSelectArg } from "@fullcalendar/core";
 import type { CalendarEvent } from "../controllers/eventController.ts";
 
 export interface EventRecord {
@@ -29,7 +29,9 @@ interface CalendarViewProps {
 }
 
 // Adapts community.lexicon.calendar.event to FullCalendar event input.
-function communityLexicontFullCallendarEventAdapter(record: EventRecord): EventInput {
+function communityLexicontFullCallendarEventAdapter(
+  record: EventRecord,
+): EventInput {
   const { uri, cid, value } = record;
   return {
     id: uri,
@@ -61,8 +63,9 @@ export function CalendarView({
   onSelect,
 }: CalendarViewProps) {
   const displayable = events.filter(isDisplayable);
-  const fullCalendarEvents: EventInput[] =
-    displayable.map(communityLexicontFullCallendarEventAdapter);
+  const fullCalendarEvents: EventInput[] = displayable.map(
+    communityLexicontFullCallendarEventAdapter,
+  );
 
   if (displayable.length === 0 && emptyComponent) {
     return <>{emptyComponent}</>;
@@ -72,13 +75,11 @@ export function CalendarView({
     const start = info.date;
     onDateClick?.({
       startsAt: start.toISOString(),
-      endsAt: info.allDay
-        ? addHours(start, 1).toISOString()
-        : undefined,
+      endsAt: info.allDay ? addHours(start, 1).toISOString() : undefined,
     });
   }
 
-  function handleSelect(info: SelectArg) {
+  function handleSelect(info: DateSelectArg) {
     onSelect?.({
       startsAt: info.start.toISOString(),
       endsAt: info.end.toISOString(),

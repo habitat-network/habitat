@@ -1,9 +1,6 @@
-import type { CommunityLexiconCalendarEvent } from "api";
 import { EventForm, type CreateEventInput } from "./EventForm.tsx";
 
-type InitialEvent = Partial<
-  Omit<CommunityLexiconCalendarEvent.Record, "createdAt">
->;
+type InitialEvent = Partial<CreateEventInput>;
 
 interface CreateEventModalProps {
   isOpen: boolean;

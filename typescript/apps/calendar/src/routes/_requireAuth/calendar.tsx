@@ -1,11 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import {
-  createEvent,
-  listEvents,
-  type CalendarEvent,
-} from "../../controllers/eventController.ts";
+import React, { useState } from "react";
+import { createEvent, listEvents } from "../../controllers/eventController.ts";
 import { CalendarView } from "../../components/CalendarView.tsx";
 import { CreateEventModal } from "../../components/CreateEventModal.tsx";
 import type { CreateEventInput } from "../../components/EventForm.tsx";
@@ -88,9 +84,8 @@ function CalendarPage() {
         onSelect={handleSelect}
         emptyComponent={
           <p>
-            No events with dates to display.{" "}
-            <Link to="/">Create an event</Link> with a start date to see it
-            here.
+            No events with dates to display. <Link to="/">Create an event</Link>{" "}
+            with a start date to see it here.
           </p>
         }
       />

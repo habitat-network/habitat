@@ -95,7 +95,10 @@ export function ActorTypeahead({
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
@@ -104,7 +107,10 @@ export function ActorTypeahead({
   }, []);
 
   function handleInputFocus() {
-    if (availableActors.length > 0 || debouncedQuery.length >= MIN_QUERY_LENGTH) {
+    if (
+      availableActors.length > 0 ||
+      debouncedQuery.length >= MIN_QUERY_LENGTH
+    ) {
       setIsOpen(true);
     }
   }
@@ -119,14 +125,10 @@ export function ActorTypeahead({
     if (!isOpen || availableActors.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlightIndex((i) =>
-        i < availableActors.length - 1 ? i + 1 : 0,
-      );
+      setHighlightIndex((i) => (i < availableActors.length - 1 ? i + 1 : 0));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightIndex((i) =>
-        i > 0 ? i - 1 : availableActors.length - 1,
-      );
+      setHighlightIndex((i) => (i > 0 ? i - 1 : availableActors.length - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
       addActor(availableActors[highlightIndex]);
@@ -137,8 +139,7 @@ export function ActorTypeahead({
 
   function getActorDisplay(did: string): ActorProfile | undefined {
     return (
-      selectedActorInfoRef.current.get(did) ??
-      actors.find((a) => a.did === did)
+      selectedActorInfoRef.current.get(did) ?? actors.find((a) => a.did === did)
     );
   }
 
@@ -161,9 +162,10 @@ export function ActorTypeahead({
         >
           {value.map((did) => {
             const cached = getActorDisplay(did);
-            const labelText = cached?.displayName
-              ?? (cached?.handle ? `@${cached.handle}` : null)
-              ?? did;
+            const labelText =
+              cached?.displayName ??
+              (cached?.handle ? `@${cached.handle}` : null) ??
+              did;
             return (
               <span
                 key={did}
@@ -187,7 +189,11 @@ export function ActorTypeahead({
                     style={{ borderRadius: "50%", flexShrink: 0 }}
                   />
                 )}
-                <span style={{ flexShrink: 0, color: "var(--pico-muted-color)" }}>{labelText}</span>
+                <span
+                  style={{ flexShrink: 0, color: "var(--pico-muted-color)" }}
+                >
+                  {labelText}
+                </span>
                 <button
                   type="button"
                   aria-label={`Remove ${labelText}`}
@@ -254,7 +260,9 @@ export function ActorTypeahead({
           {!isFetching &&
             debouncedQuery.length >= MIN_QUERY_LENGTH &&
             availableActors.length === 0 && (
-              <li style={{ padding: "0.75rem", color: "var(--pico-muted-color)" }}>
+              <li
+                style={{ padding: "0.75rem", color: "var(--pico-muted-color)" }}
+              >
                 No users found
               </li>
             )}
@@ -273,7 +281,9 @@ export function ActorTypeahead({
                   padding: "0.5rem 0.75rem",
                   cursor: "pointer",
                   backgroundColor:
-                    i === highlightIndex ? "rgba(0, 0, 0, 0.08)" : "transparent",
+                    i === highlightIndex
+                      ? "rgba(0, 0, 0, 0.08)"
+                      : "transparent",
                 }}
               >
                 {actor.avatar ? (
@@ -297,9 +307,7 @@ export function ActorTypeahead({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {actor.displayName ? (
                     <>
-                      <div style={{ fontWeight: 500 }}>
-                        {actor.displayName}
-                      </div>
+                      <div style={{ fontWeight: 500 }}>{actor.displayName}</div>
                       <div
                         style={{
                           fontSize: "0.75rem",

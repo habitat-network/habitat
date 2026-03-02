@@ -1,13 +1,15 @@
-import type { CommunityLexiconCalendarEvent } from "api";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { ActorTypeahead } from "./ActorTypeahead.tsx";
 
-/** Event data for creation (lexicon record minus createdAt). */
-export type CreateEventInput = Omit<
-  CommunityLexiconCalendarEvent.Record,
-  "createdAt"
->;
+/** Event data for creation. */
+export interface CreateEventInput {
+  name: string;
+  description?: string;
+  startsAt?: string;
+  endsAt?: string;
+  [k: string]: unknown;
+}
 
 interface EventFormFields {
   name: string;

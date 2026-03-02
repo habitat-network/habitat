@@ -19,6 +19,7 @@ The app is built as an **experimental application** to explore the constraints a
 ### Frontend Stack
 
 The frontend uses:
+
 - **Vite** - Build tool and dev server
 - **TanStack Query** (React Query) - Server state management and data fetching
 - **TanStack Router** - Routing
@@ -40,12 +41,15 @@ Key architectural points:
 The app uses two main lexicon types:
 
 #### Events (`community.lexicon.calendar.event`)
+
 The base data for an event. Will be stored on the event creator's node.
 
 #### RSVPs (`community.lexicon.calendar.rsvp`)
+
 The rsvp to an event. Will be stored on the responder's node. There can be many rsvps for an event, split across many nodes. The Habitat API handles merging this data together.
 
 See the lexicon definitions:
+
 - `lexicons/community/lexicon/calendar/event.json`
 - `lexicons/community/lexicon/calendar/rsvp.json`
 
@@ -56,32 +60,41 @@ See the lexicon definitions:
 This project uses [Moon](https://moonrepo.dev) as the build system. Common commands:
 
 #### Type Checking
+
 ```bash
 moon run calendar:build
 ```
+
 This runs `tsc --build` to type-check the TypeScript code.
 
 #### Running Tests
+
 ```bash
 moon run calendar:test
 ```
+
 This runs `vitest run` to execute the test suite.
 
 #### Development Server
+
 ```bash
 moon run calendar:dev
 ```
+
 This starts the development environment, which includes:
+
 1. **Vite dev server** - Serves the frontend application
 2. **Tailscale Funnel** - Uses `cmd/funnel/main.go` to expose the local server via Tailscale
 
 **Important**: The dev server setup means you can only run **one instance at a time**. The funnel is configured to proxy port 5173 (Vite's default port) to a Tailscale hostname based on the project name.
 
 The dev task also has dependencies:
+
 - `pear:dev` - Starts the Habitat/Pear backend server
 - `funnel:start` - Starts the Tailscale funnel proxy
 
 #### Other Useful Commands
+
 ```bash
 # Format code
 moon run calendar:format
@@ -99,9 +112,11 @@ moon run calendar:lint
 ### Project Structure
 
 The core controller for this project is:
+
 - **`src/controllers/eventController.ts`** - Contains all the business logic for events and RSVPs
 
 This controller provides:
+
 - `createEvent()` - Creates a new event and automatically sends notifications to invited DIDs
 - `listEvents()` - Lists all events the user has access to
 - `listRsvps()` - Lists all RSVPs with their corresponding event info
@@ -121,13 +136,14 @@ Follow the [TanStack Query philosophy](https://tanstack.com/query/latest/docs/fr
 - **Optimistic updates**: Use mutations with optimistic updates for better UX when appropriate
 
 Key principles:
+
 - Don't manually manage loading states, error states, or caching - let TanStack Query handle it
 - Use query invalidation to keep data fresh
 - Structure queries to match the data model and access patterns
 
 ### Code Organization
 
-1. **Separate UX from Controllers**: 
+1. **Separate UX from Controllers**:
    - Keep business logic in controllers (like `eventController.ts`)
    - Keep UI components focused on presentation and user interaction
    - Controllers should be pure functions that work with the `HabitatClient`
@@ -147,6 +163,7 @@ Key principles:
 #### Controller Pattern
 
 Controllers should:
+
 - Accept `HabitatClient` as a parameter (don't create clients inside controllers)
 - Return typed data structures
 - Handle data transformation (like matching RSVPs to events)
