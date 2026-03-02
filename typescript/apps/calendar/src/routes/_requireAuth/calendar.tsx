@@ -42,7 +42,7 @@ export const Route = createFileRoute("/_requireAuth/calendar")({
 });
 
 function CalendarPage() {
-  const { events } = Route.useLoaderData();
+  const { events, invites, rsvps } = Route.useLoaderData();
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -50,12 +50,12 @@ function CalendarPage() {
   const userDid = authManager.getAuthInfo()?.did;
   if (!userDid) throw new Error("User DID not found");
 
-  const [selectedEvent, setSelectedEvent] = useState<
+  // Create event modal state
+  const [newEventData, setNewEventData] = useState<
     { startsAt: string; endsAt?: string } | undefined
   >(undefined);
 
   // Event details modal state
-  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedEventUri, setSelectedEventUri] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
@@ -72,7 +72,7 @@ function CalendarPage() {
       queryClient.invalidateQueries({ queryKey: ["invites"] });
       queryClient.invalidateQueries({ queryKey: ["rsvps"] });
       router.invalidate();
-      setSelectedEvent(undefined);
+      setNewEventData(undefined);
     },
   });
 
@@ -85,11 +85,11 @@ function CalendarPage() {
   });
 
   function handleDateClick(data: { startsAt: string; endsAt?: string }) {
-    setSelectedEvent(data);
+    setNewEventData(data);
   }
 
   function handleSelect(data: { startsAt: string; endsAt?: string }) {
-    setSelectedEvent(data);
+    setNewEventData(data);
   }
 
   function handleSubmit(event: CreateEventInput, invitedDids: string[]) {
@@ -99,7 +99,6 @@ function CalendarPage() {
   function handleEventClick(eventUri: string, event: CalendarEvent) {
     setSelectedEventUri(eventUri);
     setSelectedEvent(event);
-    setDetailsModalOpen(true);
   }
 
   function handleRsvp(eventUri: string, status: RsvpStatus) {
@@ -139,23 +138,26 @@ function CalendarPage() {
       />
 
       <CreateEventModal
-        isOpen={selectedEvent !== undefined}
-        initialEvent={selectedEvent}
-        onClose={() => setSelectedEvent(undefined)}
+        isOpen={newEventData !== undefined}
+        initialEvent={newEventData}
+        onClose={() => setNewEventData(undefined)}
         onSubmit={handleSubmit}
-        onCancel={() => setSelectedEvent(undefined)}
+        onCancel={() => setNewEventData(undefined)}
         isPending={createEventMutation.isPending}
         error={createEventMutation.error ?? null}
       />
 
       <EventDetailsModal
-        isOpen={detailsModalOpen}
+        isOpen={selectedEvent !== null}
         event={selectedEvent}
         eventUri={selectedEventUri}
         invites={invites}
         rsvps={rsvps}
         userDid={userDid}
-        onClose={() => setDetailsModalOpen(false)}
+        onClose={() => {
+          setSelectedEvent(null);
+          setSelectedEventUri(null);
+        }}
         onRsvp={handleRsvp}
         isRsvpPending={rsvpMutation.isPending}
       />

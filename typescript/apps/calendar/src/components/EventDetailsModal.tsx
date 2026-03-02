@@ -575,7 +575,7 @@ function formatLocation(loc: unknown): React.ReactNode {
     return <span>{parts.join(", ")}</span>;
   }
   if ("latitude" in l && "longitude" in l) {
-    return <span>{l.latitude}, {l.longitude}</span>;
+    return <span>{String(l.latitude)}, {String(l.longitude)}</span>;
   }
   return <span>{JSON.stringify(l)}</span>;
 }

@@ -3,7 +3,6 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { EventInput, DateSelectArg, EventClickArg } from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
-import type { DateSelectArg } from "@fullcalendar/core";
 import {
   buildEventDataMap,
   getDisplayableInvites,
