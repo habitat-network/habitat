@@ -1,4 +1,4 @@
-import type { AuthManager } from "internal/authManager.ts";
+import type { AuthManager } from "internal";
 import { queryOptions } from "@tanstack/react-query";
 import { NetworkHabitatPermissionsListPermissions } from "api";
 
