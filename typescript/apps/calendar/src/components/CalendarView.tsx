@@ -1,7 +1,11 @@
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import type { EventInput, DateSelectArg, EventClickArg } from "@fullcalendar/core";
+import type {
+  EventInput,
+  DateSelectArg,
+  EventClickArg,
+} from "@fullcalendar/core";
 import type { DateClickArg } from "@fullcalendar/interaction";
 import {
   buildEventDataMap,
@@ -36,7 +40,10 @@ interface CalendarViewProps {
 }
 
 // Adapts community.lexicon.calendar.event to FullCalendar event input.
-function eventToFullCalendar(record: EventRecord, isInvite: boolean = false): EventInput {
+function eventToFullCalendar(
+  record: EventRecord,
+  isInvite: boolean = false,
+): EventInput {
   const { uri, cid, value } = record;
   return {
     id: uri,
@@ -74,7 +81,11 @@ export function CalendarView({
 
   // Use controller functions for data processing
   const eventDataMap = buildEventDataMap(events, invites, userDid);
-  const displayableInvites = getDisplayableInvites(invites, ownedEventUris, userDid);
+  const displayableInvites = getDisplayableInvites(
+    invites,
+    ownedEventUris,
+    userDid,
+  );
 
   // Convert events to FullCalendar format
   const fullCalendarEvents: EventInput[] = [

@@ -26,10 +26,12 @@ interface EventDetailsModalProps {
   isRsvpPending?: boolean;
 }
 
-async function fetchBlueskyProfile(did: string): Promise<BlueskyProfile | null> {
+async function fetchBlueskyProfile(
+  did: string,
+): Promise<BlueskyProfile | null> {
   try {
     const response = await fetch(
-      `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`
+      `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`,
     );
     if (!response.ok) return null;
     const data = await response.json();
@@ -45,8 +47,12 @@ async function fetchBlueskyProfile(did: string): Promise<BlueskyProfile | null> 
 }
 
 function useBlueskyProfiles(dids: string[]) {
-  const [profiles, setProfiles] = useState<Map<string, BlueskyProfile>>(new Map());
+  const [profiles, setProfiles] = useState<Map<string, BlueskyProfile>>(
+    new Map(),
+  );
   const [loading, setLoading] = useState(false);
+
+  const didsKey = dids.join(",");
 
   useEffect(() => {
     if (dids.length === 0) return;
@@ -69,7 +75,8 @@ function useBlueskyProfiles(dids: string[]) {
       });
       setLoading(false);
     });
-  }, [dids.join(",")]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [didsKey]);
 
   return { profiles, loading };
 }
@@ -82,26 +89,26 @@ function getDidFromUri(uri: string): string | null {
 function formatDateLine(startsAt?: string, endsAt?: string): string {
   if (!startsAt) return "Date not set";
   const start = new Date(startsAt);
-  
+
   const datePart = start.toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
-  
+
   const startTime = start.toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
-  
+
   if (!endsAt) return `${datePart} · ${startTime}`;
-  
+
   const end = new Date(endsAt);
   const endTime = end.toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
-  
+
   return `${datePart} · ${startTime} – ${endTime}`;
 }
 
@@ -119,27 +126,51 @@ function getRsvpBadge(status: string | null): React.ReactNode {
 
   if (status === RSVP_STATUS.GOING) {
     return (
-      <span style={{ ...baseStyle, backgroundColor: "rgba(157, 173, 111, 0.2)", color: "#7a8a56" }}>
+      <span
+        style={{
+          ...baseStyle,
+          backgroundColor: "rgba(157, 173, 111, 0.2)",
+          color: "#7a8a56",
+        }}
+      >
         ✓ Yes
       </span>
     );
   }
   if (status === RSVP_STATUS.NOT_GOING) {
     return (
-      <span style={{ ...baseStyle, backgroundColor: "rgba(196, 125, 125, 0.2)", color: "#a05a5a" }}>
+      <span
+        style={{
+          ...baseStyle,
+          backgroundColor: "rgba(196, 125, 125, 0.2)",
+          color: "#a05a5a",
+        }}
+      >
         ✕ No
       </span>
     );
   }
   if (status === RSVP_STATUS.INTERESTED) {
     return (
-      <span style={{ ...baseStyle, backgroundColor: "rgba(212, 184, 106, 0.2)", color: "#9a8540" }}>
+      <span
+        style={{
+          ...baseStyle,
+          backgroundColor: "rgba(212, 184, 106, 0.2)",
+          color: "#9a8540",
+        }}
+      >
         ? Maybe
       </span>
     );
   }
   return (
-    <span style={{ ...baseStyle, backgroundColor: "var(--pico-muted-border-color)", color: "var(--pico-muted-color)" }}>
+    <span
+      style={{
+        ...baseStyle,
+        backgroundColor: "var(--pico-muted-border-color)",
+        color: "var(--pico-muted-color)",
+      }}
+    >
       Awaiting
     </span>
   );
@@ -335,21 +366,27 @@ export function EventDetailsModal({
 }: EventDetailsModalProps) {
   if (!isOpen || !event || !eventUri) return null;
 
-  const eventInvites = invites.filter((inv) => inv.invite.subject?.uri === eventUri);
-  const eventRsvps = rsvps.filter((rsvp) => rsvp.rsvp.subject?.uri === eventUri);
+  const eventInvites = invites.filter(
+    (inv) => inv.invite.subject?.uri === eventUri,
+  );
+  const eventRsvps = rsvps.filter(
+    (rsvp) => rsvp.rsvp.subject?.uri === eventUri,
+  );
 
   // Get event owner DID from the eventUri
   const eventOwnerDid = getDidFromUri(eventUri);
-  
+
   // Collect all DIDs: invitees + owner
   const allDids = [...eventInvites.map((inv) => inv.invite.invitee)];
   if (eventOwnerDid && !allDids.includes(eventOwnerDid)) {
     allDids.unshift(eventOwnerDid);
   }
-  
+
   const { profiles, loading: profilesLoading } = useBlueskyProfiles(allDids);
 
-  const userRsvp = eventRsvps.find((rsvp) => getDidFromUri(rsvp.uri) === userDid);
+  const userRsvp = eventRsvps.find(
+    (rsvp) => getDidFromUri(rsvp.uri) === userDid,
+  );
   const userInvite = eventInvites.find((inv) => inv.invite.invitee === userDid);
   const isOrganizer = eventOwnerDid === userDid;
   const canRsvp = isOrganizer || userInvite;
@@ -366,9 +403,11 @@ export function EventDetailsModal({
   });
 
   // Calculate RSVP summary
-  const goingCount = guests.filter((g) => g.rsvpStatus === RSVP_STATUS.GOING).length;
+  const goingCount = guests.filter(
+    (g) => g.rsvpStatus === RSVP_STATUS.GOING,
+  ).length;
   const awaitingCount = guests.filter((g) => !g.rsvpStatus).length;
-  
+
   let summaryText = "";
   if (goingCount > 0 && awaitingCount > 0) {
     summaryText = `${goingCount} yes, ${awaitingCount} awaiting`;
@@ -406,9 +445,18 @@ export function EventDetailsModal({
 
           {/* Description */}
           {event.description && (
-            <div style={{ ...styles.section, borderTop: "none", paddingTop: 0 }}>
+            <div
+              style={{ ...styles.section, borderTop: "none", paddingTop: 0 }}
+            >
               <span style={styles.sectionIcon}>📝</span>
-              <div style={{ ...styles.sectionContent, color: "var(--pico-color)", fontSize: "14px", whiteSpace: "pre-wrap" }}>
+              <div
+                style={{
+                  ...styles.sectionContent,
+                  color: "var(--pico-color)",
+                  fontSize: "14px",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {event.description}
               </div>
             </div>
@@ -459,7 +507,11 @@ export function EventDetailsModal({
                         />
                         <div style={styles.guestInfo}>
                           <span style={styles.guestName}>
-                            {profile?.displayName || profile?.handle || (profilesLoading ? "Loading..." : guest.did.slice(0, 24) + "...")}
+                            {profile?.displayName ||
+                              profile?.handle ||
+                              (profilesLoading
+                                ? "Loading..."
+                                : guest.did.slice(0, 24) + "...")}
                             {isYou && " (you)"}
                           </span>
                           {guest.isOrganizer && (
@@ -486,7 +538,10 @@ export function EventDetailsModal({
                       href={uri.uri}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ fontSize: "14px", color: "var(--pico-primary-border)" }}
+                      style={{
+                        fontSize: "14px",
+                        color: "var(--pico-primary-border)",
+                      }}
                     >
                       {uri.name || uri.uri}
                     </a>
@@ -502,7 +557,10 @@ export function EventDetailsModal({
               <span style={styles.sectionIcon}>📍</span>
               <div style={styles.sectionContent}>
                 {event.locations.map((loc, i) => (
-                  <div key={i} style={{ fontSize: "14px", color: "var(--pico-color)" }}>
+                  <div
+                    key={i}
+                    style={{ fontSize: "14px", color: "var(--pico-color)" }}
+                  >
                     {formatLocation(loc)}
                   </div>
                 ))}
@@ -519,7 +577,9 @@ export function EventDetailsModal({
               <button
                 style={{
                   ...styles.rsvpButton,
-                  ...(userRsvp?.rsvp.status === RSVP_STATUS.GOING ? styles.rsvpButtonActive : {}),
+                  ...(userRsvp?.rsvp.status === RSVP_STATUS.GOING
+                    ? styles.rsvpButtonActive
+                    : {}),
                 }}
                 onClick={() => onRsvp(eventUri, RSVP_STATUS.GOING)}
                 disabled={isRsvpPending}
@@ -529,7 +589,9 @@ export function EventDetailsModal({
               <button
                 style={{
                   ...styles.rsvpButton,
-                  ...(userRsvp?.rsvp.status === RSVP_STATUS.NOT_GOING ? styles.rsvpButtonActive : {}),
+                  ...(userRsvp?.rsvp.status === RSVP_STATUS.NOT_GOING
+                    ? styles.rsvpButtonActive
+                    : {}),
                 }}
                 onClick={() => onRsvp(eventUri, RSVP_STATUS.NOT_GOING)}
                 disabled={isRsvpPending}
@@ -539,7 +601,9 @@ export function EventDetailsModal({
               <button
                 style={{
                   ...styles.rsvpButton,
-                  ...(userRsvp?.rsvp.status === RSVP_STATUS.INTERESTED ? styles.rsvpButtonActive : {}),
+                  ...(userRsvp?.rsvp.status === RSVP_STATUS.INTERESTED
+                    ? styles.rsvpButtonActive
+                    : {}),
                 }}
                 onClick={() => onRsvp(eventUri, RSVP_STATUS.INTERESTED)}
                 disabled={isRsvpPending}
@@ -571,11 +635,17 @@ function formatLocation(loc: unknown): React.ReactNode {
     );
   }
   if ("streetAddress" in l) {
-    const parts = [l.streetAddress, l.locality, l.region, l.postalCode].filter(Boolean);
+    const parts = [l.streetAddress, l.locality, l.region, l.postalCode].filter(
+      Boolean,
+    );
     return <span>{parts.join(", ")}</span>;
   }
   if ("latitude" in l && "longitude" in l) {
-    return <span>{String(l.latitude)}, {String(l.longitude)}</span>;
+    return (
+      <span>
+        {String(l.latitude)}, {String(l.longitude)}
+      </span>
+    );
   }
   return <span>{JSON.stringify(l)}</span>;
 }

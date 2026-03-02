@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -8,7 +8,6 @@ import {
   listRsvps,
   createRsvp,
   type CalendarEvent,
-  type InviteWithEvent,
   type RsvpStatus,
 } from "../../controllers/eventController.ts";
 import { CalendarView } from "../../components/CalendarView.tsx";
@@ -57,7 +56,9 @@ function CalendarPage() {
 
   // Event details modal state
   const [selectedEventUri, setSelectedEventUri] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
+    null,
+  );
 
   const createEventMutation = useMutation({
     mutationFn: ({
@@ -77,8 +78,13 @@ function CalendarPage() {
   });
 
   const rsvpMutation = useMutation({
-    mutationFn: ({ eventUri, status }: { eventUri: string; status: RsvpStatus }) =>
-      createRsvp(client, eventUri, status),
+    mutationFn: ({
+      eventUri,
+      status,
+    }: {
+      eventUri: string;
+      status: RsvpStatus;
+    }) => createRsvp(client, eventUri, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rsvps"] });
     },

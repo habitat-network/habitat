@@ -89,7 +89,8 @@ export function getDisplayableInvites(
   return invites.filter((inv) => {
     if (!inv.event?.name || !inv.event?.startsAt) return false;
     if (userDid && inv.invite.invitee !== userDid) return false;
-    if (inv.invite.subject?.uri && ownedEventUris.has(inv.invite.subject.uri)) return false;
+    if (inv.invite.subject?.uri && ownedEventUris.has(inv.invite.subject.uri))
+      return false;
     return true;
   });
 }
@@ -118,7 +119,7 @@ function parseRecordUri(
 
 /**
  * Creates a new calendar event with a clique for permission management.
- * 
+ *
  * This creates:
  * 1. A clique that includes the creator and all invitees
  * 2. The event record, permissioned via the clique
@@ -384,10 +385,7 @@ export async function createRsvp(
     status,
   };
 
-  return client.putPrivateRecord(
-    RSVP_COLLECTION,
-    rsvpRecord,
-    rsvpRkey,
-    { cliques: [cliqueUri] },
-  );
+  return client.putPrivateRecord(RSVP_COLLECTION, rsvpRecord, rsvpRkey, {
+    cliques: [cliqueUri],
+  });
 }
