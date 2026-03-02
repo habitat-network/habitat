@@ -1,9 +1,19 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import React, { useState } from "react";
-import { createEvent, listEvents } from "../../controllers/eventController.ts";
+import { useState } from "react";
+import {
+  createEvent,
+  listEvents,
+  listInvites,
+  listRsvps,
+  createRsvp,
+  type CalendarEvent,
+  type InviteWithEvent,
+  type RsvpStatus,
+} from "../../controllers/eventController.ts";
 import { CalendarView } from "../../components/CalendarView.tsx";
 import { CreateEventModal } from "../../components/CreateEventModal.tsx";
+import { EventDetailsModal } from "../../components/EventDetailsModal.tsx";
 import type { CreateEventInput } from "../../components/EventForm.tsx";
 
 export const Route = createFileRoute("/_requireAuth/calendar")({
@@ -12,12 +22,22 @@ export const Route = createFileRoute("/_requireAuth/calendar")({
     const { authManager, queryClient } = context;
     const client = authManager.client();
 
-    const events = await queryClient.ensureQueryData({
-      queryKey: ["events"],
-      queryFn: () => listEvents(client),
-    });
+    const [events, invites, rsvps] = await Promise.all([
+      queryClient.ensureQueryData({
+        queryKey: ["events"],
+        queryFn: () => listEvents(client),
+      }),
+      queryClient.ensureQueryData({
+        queryKey: ["invites"],
+        queryFn: () => listInvites(client),
+      }),
+      queryClient.ensureQueryData({
+        queryKey: ["rsvps"],
+        queryFn: () => listRsvps(client),
+      }),
+    ]);
 
-    return { events };
+    return { events, invites, rsvps };
   },
 });
 
@@ -34,6 +54,11 @@ function CalendarPage() {
     { startsAt: string; endsAt?: string } | undefined
   >(undefined);
 
+  // Event details modal state
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [selectedEventUri, setSelectedEventUri] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+
   const createEventMutation = useMutation({
     mutationFn: ({
       event,
@@ -44,8 +69,18 @@ function CalendarPage() {
     }) => createEvent(client, userDid, event, invitedDids),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
+      queryClient.invalidateQueries({ queryKey: ["invites"] });
+      queryClient.invalidateQueries({ queryKey: ["rsvps"] });
       router.invalidate();
       setSelectedEvent(undefined);
+    },
+  });
+
+  const rsvpMutation = useMutation({
+    mutationFn: ({ eventUri, status }: { eventUri: string; status: RsvpStatus }) =>
+      createRsvp(client, eventUri, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rsvps"] });
     },
   });
 
@@ -59,6 +94,16 @@ function CalendarPage() {
 
   function handleSubmit(event: CreateEventInput, invitedDids: string[]) {
     createEventMutation.mutate({ event, invitedDids });
+  }
+
+  function handleEventClick(eventUri: string, event: CalendarEvent) {
+    setSelectedEventUri(eventUri);
+    setSelectedEvent(event);
+    setDetailsModalOpen(true);
+  }
+
+  function handleRsvp(eventUri: string, status: RsvpStatus) {
+    rsvpMutation.mutate({ eventUri, status });
   }
 
   return (
@@ -80,8 +125,11 @@ function CalendarPage() {
 
       <CalendarView
         events={events.records}
+        invites={invites}
+        userDid={userDid}
         onDateClick={handleDateClick}
         onSelect={handleSelect}
+        onEventClick={handleEventClick}
         emptyComponent={
           <p>
             No events with dates to display. <Link to="/">Create an event</Link>{" "}
@@ -98,6 +146,18 @@ function CalendarPage() {
         onCancel={() => setSelectedEvent(undefined)}
         isPending={createEventMutation.isPending}
         error={createEventMutation.error ?? null}
+      />
+
+      <EventDetailsModal
+        isOpen={detailsModalOpen}
+        event={selectedEvent}
+        eventUri={selectedEventUri}
+        invites={invites}
+        rsvps={rsvps}
+        userDid={userDid}
+        onClose={() => setDetailsModalOpen(false)}
+        onRsvp={handleRsvp}
+        isRsvpPending={rsvpMutation.isPending}
       />
     </div>
   );

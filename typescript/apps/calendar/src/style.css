@@ -49,6 +49,17 @@ body {
   font-size: 0.8125rem;
 }
 
+/* Invited events - border with transparent background */
+.fc .fc-daygrid-event.calendar-invite {
+  background-color: transparent !important;
+  border: 2px solid var(--pico-primary-background);
+  border-style: dashed;
+}
+
+.fc .fc-daygrid-event.calendar-invite .fc-event-title {
+  color: var(--pico-color);
+}
+
 /* Navigation styling */
 nav ul {
   display: flex;
