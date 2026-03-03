@@ -48,22 +48,21 @@ export class Libp2pConnectionProvider extends ObservableV2<{
     this.topic = topic;
     this.awareness = new awarenessProtocol.Awareness(doc);
     this._handleDocUpdate = (update, origin) => {
-      console.log("handle doc update for topic", this.topic)
       if (origin !== this) {
         const encoder = encoding.createEncoder();
         encoding.writeVarUint(encoder, messageTypes.sync);
         syncProtocol.writeUpdate(encoder, update);
-        console.log("publishing to", this.topic)
-        this.node.services.pubsub.publish(
-          this.topic,
-          encoding.toUint8Array(encoder),
-        ).catch((err: Error) => {
-          if (err.message === "PublishError.NoPeersSubscribedToTopic") {
-            console.log("[pubsub] no peers subscribed yet, update will sync on graft");
-          } else {
-            console.error("[pubsub] publish error", err);
-          }
-        });
+        this.node.services.pubsub
+          .publish(this.topic, encoding.toUint8Array(encoder))
+          .catch((err: Error) => {
+            if (err.message === "PublishError.NoPeersSubscribedToTopic") {
+              console.log(
+                "[pubsub] no peers subscribed yet, update will sync on graft",
+              );
+            } else {
+              console.error("[pubsub] publish error", err);
+            }
+          });
       }
     };
 
@@ -75,14 +74,18 @@ export class Libp2pConnectionProvider extends ObservableV2<{
         encoder,
         awarenessProtocol.encodeAwarenessUpdate(this.awareness, changedClients),
       );
-      console.log("publishing to", this.topic)
-      node.services.pubsub.publish(this.topic, encoding.toUint8Array(encoder)).catch((err: Error) => {
-        if (err.message === "PublishError.NoPeersSubscribedToTopic") {
-          console.log("[pubsub] no peers subscribed yet, awareness will sync on graft");
-        } else {
-          console.error("[pubsub] publish error", err);
-        }
-      });
+      console.log("publishing to", this.topic);
+      node.services.pubsub
+        .publish(this.topic, encoding.toUint8Array(encoder))
+        .catch((err: Error) => {
+          if (err.message === "PublishError.NoPeersSubscribedToTopic") {
+            console.log(
+              "[pubsub] no peers subscribed yet, awareness will sync on graft",
+            );
+          } else {
+            console.error("[pubsub] publish error", err);
+          }
+        });
     };
 
     node.services.pubsub.addEventListener("message", (message) => {
@@ -95,15 +98,14 @@ export class Libp2pConnectionProvider extends ObservableV2<{
           encoding.writeVarUint(encoder, messageTypes.sync);
           syncProtocol.readSyncMessage(decoder, encoder, doc, this);
           if (encoding.length(encoder) > 1) {
-            console.log("publishing to", this.topic)
-            node.services.pubsub.publish(
-              this.topic,
-              encoding.toUint8Array(encoder),
-            ).catch((err: Error) => {
-              if (err.message !== "PublishError.NoPeersSubscribedToTopic") {
-                console.error("[pubsub] publish error", err);
-              }
-            });
+            console.log("publishing to", this.topic);
+            node.services.pubsub
+              .publish(this.topic, encoding.toUint8Array(encoder))
+              .catch((err: Error) => {
+                if (err.message !== "PublishError.NoPeersSubscribedToTopic") {
+                  console.error("[pubsub] publish error", err);
+                }
+              });
           }
           return;
         }
@@ -123,19 +125,23 @@ export class Libp2pConnectionProvider extends ObservableV2<{
     // to have at least one recipient. The topic filter prevents spurious syncs for
     // unrelated gossipsub-internal topics.
     node.services.pubsub.addEventListener("gossipsub:graft", (event) => {
-      const { topic } = (event as CustomEvent<{ peerId: unknown; topic: string }>).detail;
+      const { topic } = (
+        event as CustomEvent<{ peerId: unknown; topic: string }>
+      ).detail;
       if (topic !== this.topic) return;
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageTypes.sync);
       syncProtocol.writeSyncStep1(encoder, doc);
-      console.log("publishing to", this.topic)
-      node.services.pubsub.publish(this.topic, encoding.toUint8Array(encoder)).catch((err: Error) => {
-        if (err.message === "PublishError.NoPeersSubscribedToTopic") {
-          console.log("[pubsub] no peers subscribed yet on graft sync");
-        } else {
-          console.error("[pubsub] publish error", err);
-        }
-      });
+      console.log("publishing to", this.topic);
+      node.services.pubsub
+        .publish(this.topic, encoding.toUint8Array(encoder))
+        .catch((err: Error) => {
+          if (err.message === "PublishError.NoPeersSubscribedToTopic") {
+            console.log("[pubsub] no peers subscribed yet on graft sync");
+          } else {
+            console.error("[pubsub] publish error", err);
+          }
+        });
     });
 
     // Attach update handlers immediately so local changes are captured from the
@@ -144,7 +150,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
     doc.on("update", this._handleDocUpdate);
     this.awareness.on("update", this._awarenessUpdateHandler);
 
-    console.log("subscribing to", this.topic)
+    console.log("subscribing to", this.topic);
     node.services.pubsub.subscribe(this.topic);
   }
 

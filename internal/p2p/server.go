@@ -1,7 +1,6 @@
 package p2p
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,10 +9,13 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/bradenaw/juniper/xmaps"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/libp2p/go-libp2p"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	ma "github.com/multiformats/go-multiaddr"
@@ -25,23 +27,25 @@ import (
 // Entries are removed automatically when a peer disconnects.
 type peerRegistry struct {
 	mu      sync.RWMutex
-	entries map[string]map[string]struct{}
+	entries map[habitat_syntax.HabitatURI]xmaps.Set[peer.ID]
 }
 
 func newPeerRegistry() *peerRegistry {
-	return &peerRegistry{entries: make(map[string]map[string]struct{})}
+	return &peerRegistry{
+		entries: make(map[habitat_syntax.HabitatURI]xmaps.Set[peer.ID]),
+	}
 }
 
-func (pr *peerRegistry) register(topic, peerID string) {
+func (pr *peerRegistry) register(topic habitat_syntax.HabitatURI, peerID peer.ID) {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 	if _, ok := pr.entries[topic]; !ok {
-		pr.entries[topic] = make(map[string]struct{})
+		pr.entries[topic] = xmaps.Set[peer.ID]{}
 	}
-	pr.entries[topic][peerID] = struct{}{}
+	pr.entries[topic].Add(peerID)
 }
 
-func (pr *peerRegistry) remove(peerID string) {
+func (pr *peerRegistry) remove(peerID peer.ID) {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 	for topic, peers := range pr.entries {
@@ -52,29 +56,25 @@ func (pr *peerRegistry) remove(peerID string) {
 	}
 }
 
-func (pr *peerRegistry) peers(topic string) []string {
+func (pr *peerRegistry) peers(topic habitat_syntax.HabitatURI) []string {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
 	result := make([]string, 0, len(pr.entries[topic]))
 	for peerID := range pr.entries[topic] {
-		result = append(result, peerID)
+		result = append(result, peerID.String())
 	}
 	return result
 }
 
-// disconnectNotifee removes peers from the registry when they disconnect.
-type disconnectNotifee struct{ registry *peerRegistry }
-
-func (n *disconnectNotifee) Disconnected(_ network.Network, conn network.Conn) {
-	n.registry.remove(conn.RemotePeer().String())
+func (pr *peerRegistry) Disconnected(_ network.Network, conn network.Conn) {
+	pr.remove(conn.RemotePeer())
 }
-func (n *disconnectNotifee) Listen(network.Network, ma.Multiaddr)      {}
-func (n *disconnectNotifee) ListenClose(network.Network, ma.Multiaddr) {}
-func (n *disconnectNotifee) Connected(network.Network, network.Conn)   {}
+func (pr *peerRegistry) Listen(network.Network, ma.Multiaddr)      {}
+func (pr *peerRegistry) ListenClose(network.Network, ma.Multiaddr) {}
+func (pr *peerRegistry) Connected(network.Network, network.Conn)   {}
 
 type Server struct {
 	host     host.Host
-	ps       *pubsub.PubSub
 	proxy    *httputil.ReverseProxy
 	registry *peerRegistry
 }
@@ -93,11 +93,6 @@ func NewServer() (*Server, error) {
 	}
 	log.Info().Msgf("peer id: %s", host.ID())
 
-	ps, err := pubsub.NewGossipSub(context.Background(), host)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create pubsub: %w", err)
-	}
-
 	addr, err := manet.ToNetAddr(host.Addrs()[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert multiaddr to net.Addr: %w", err)
@@ -109,13 +104,13 @@ func NewServer() (*Server, error) {
 	url.Scheme = "http"
 
 	registry := newPeerRegistry()
-	host.Network().Notify(&disconnectNotifee{registry: registry})
+	// Notify the registry about disconnections
+	host.Network().Notify(registry)
 
 	return &Server{
 		host:     host,
 		proxy:    httputil.NewSingleHostReverseProxy(url),
 		registry: registry,
-		ps:       ps,
 	}, nil
 }
 
@@ -147,13 +142,17 @@ type peersResponse struct {
 func (s *Server) HandlePeers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		topic := r.URL.Query().Get("topic")
-		if topic == "" {
-			http.Error(w, "missing topic query parameter", http.StatusBadRequest)
+		topic, err := habitat_syntax.ParseHabitatURI(r.URL.Query().Get("topic"))
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "topic is not a valid habitat uri", http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(peersResponse{Peers: s.registry.peers(topic)})
+		err = json.NewEncoder(w).Encode(peersResponse{Peers: s.registry.peers(topic)})
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+			return
+		}
 
 	case http.MethodPost:
 		var req registerRequest
@@ -166,7 +165,18 @@ func (s *Server) HandlePeers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.registry.register(req.Topic, req.PeerID)
+		topic, err := habitat_syntax.ParseHabitatURI(req.Topic)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "topic is not a valid habitat uri", http.StatusBadRequest)
+			return
+		}
+
+		peerID, err := peer.Decode(req.PeerID)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "peerID is not valid", http.StatusBadRequest)
+		}
+
+		s.registry.register(topic, peerID)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
