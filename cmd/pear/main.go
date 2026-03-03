@@ -37,6 +37,7 @@ import (
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/telemetry"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/urfave/cli/v3"
 )
@@ -76,10 +77,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Handle shutdown properly so nothing leaks.
 	defer otelClose(context.Background())
 
+	env := utils.GetEnvString("env", "local")
 	// Metric that records a single running process (for testing)
 	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
 		Key:   "env",
-		Value: attribute.StringValue("local"),
+		Value: attribute.StringValue(env),
 	}))
 
 	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))

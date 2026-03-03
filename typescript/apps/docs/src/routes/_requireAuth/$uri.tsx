@@ -23,7 +23,20 @@ import { peerIdFromString } from "@libp2p/peer-id";
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
-    const relayAddr = multiaddr(`/dns4/${__HABITAT_DOMAIN__}/tcp/443/wss`);
+    // Fetch the record
+    const { uri } = params;
+    const [, , docDID, lexicon, rkey] = uri.split("/");
+    const originalRecordResponse = await context.authManager.fetch(
+      `/xrpc/network.habitat.getRecord?repo=${docDID}&collection=${lexicon}&rkey=${rkey}&includePermissions=true`,
+    );
+
+    // The gossipsub topic is also used as the per-document rendezvous key.
+    const habitatUri = `habitat://${docDID}/network.habitat.docs/${rkey}`;
+
+    // TODO: this should look up the habitat service on the doc owner's DID and use that endpoint, not the generic __HABITAT_DOMAIN__. This is left for later.
+    // All user pear nodes are expected to implement the relay address.
+    const domain = __HABITAT_DOMAIN__;
+    const relayAddr = multiaddr(`/dns4/${domain}/tcp/443/wss`);
     // setup libp2p
     const node = await createLibp2p({
       addresses: {
@@ -60,21 +73,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const conn = await node.dial(relayAddr);
     let relayPeerId = conn.remotePeer.toString();
 
-    // fetch original record
-    const { uri } = params;
-    const [, , docDID, lexicon, rkey] = uri.split("/");
-    const originalRecordResponse = await context.authManager.fetch(
-      `/xrpc/network.habitat.getRecord?repo=${docDID}&collection=${lexicon}&rkey=${rkey}&includePermissions=true`,
-    );
-
-    // The gossipsub topic is also used as the per-document rendezvous key.
-    const habitatUri = `habitat://${docDID}/network.habitat.docs/${rkey}`;
-
-
     node.addEventListener("peer:connect", (event) => {
       const peerId = event.detail;
       const isRelay = node.getConnections(peerId)
-        .some((c) => c.remoteAddr.toString().includes(__HABITAT_DOMAIN__));
+        .some((c) => c.remoteAddr.toString().includes(domain));
       if (isRelay) {
         relayPeerId = peerId.toString();
       }
@@ -109,7 +111,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         const decoder = new TextDecoder();
         let buf = "";
         for await (const chunk of stream.source) {
-          const bytes = chunk instanceof Uint8Array ? chunk : (chunk as any).subarray();
+          const bytes = chunk instanceof Uint8Array ? chunk : chunk.subarray();
           buf += decoder.decode(bytes, { stream: true });
           const lines = buf.split("\n");
           buf = lines.pop() ?? "";
