@@ -89,10 +89,13 @@ func (pr *peerRegistry) Connected(network.Network, network.Conn)   {}
 func (pr *peerRegistry) notifySubscribedPeers(topic habitat_syntax.HabitatURI, peerID peer.ID) {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
-	for _, ch := range pr.peersByTopic[topic] {
-		select {
-		case ch <- peerID:
-		default:
+	for other, ch := range pr.peersByTopic[topic] {
+		// Don't send to self
+		if other != peerID {
+			select {
+			case ch <- peerID:
+			default:
+			}
 		}
 	}
 }
@@ -144,7 +147,7 @@ func NewServer(meter metric.Meter) (*Server, error) {
 	host.SetStreamHandler(peerDiscoveryProtocol, func(stream network.Stream) {
 		peerID := stream.Conn().RemotePeer()
 		// Close the stream upon return
-		defer stream.Reset()
+		defer func() { _ = stream.Reset() /* ignore errors on stream close */ }()
 
 		buf := make([]byte, 4096)
 		n, err := stream.Read(buf)
@@ -160,6 +163,8 @@ func NewServer(meter metric.Meter) (*Server, error) {
 		ch := registry.register(topic, peerID)
 		defer registry.deregister(peerID)
 
+		registry.notifySubscribedPeers(topic, peerID)
+
 		// Send existing peers
 		for _, id := range registry.peers(topic) {
 			if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
@@ -168,16 +173,14 @@ func NewServer(meter metric.Meter) (*Server, error) {
 		}
 
 		for {
-			select {
-			case id, ok := <-ch:
-				// channel is closed = deregistered peer.
-				if !ok {
-					return
-				}
-				// error writing to stream = closed; return.
-				if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
-					return
-				}
+			id, ok := <-ch
+			// channel is closed = deregistered peer.
+			if !ok {
+				break
+			}
+			// error writing to stream = closed; return.
+			if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
+				break
 			}
 		}
 	})
