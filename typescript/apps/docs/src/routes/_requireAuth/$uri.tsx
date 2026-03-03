@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       peerDiscovery: [
         bootstrap({
           list: [relayAddr.toString()],
-        }) as any,
+        }),
       ],
       connectionEncrypters: [noise()],
       streamMuxers: [yamux()],
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     });
 
     const conn = await node.dial(relayAddr);
-    const relayPeerId = conn.remotePeer.toString();
+    let relayPeerId = conn.remotePeer.toString();
 
     // fetch original record
     const { uri } = params;
@@ -73,47 +73,50 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // since the relay removes us from the registry when our connection drops.
     registerWithRelay();
     node.addEventListener("peer:connect", (event) => {
-      if (event.detail.toString() === relayPeerId) {
+      const peerId = event.detail;
+      const isRelay = node.getConnections(peerId)
+        .some((c) => c.remoteAddr.toString().includes(__HABITAT_DOMAIN__));
+      if (isRelay) {
+        relayPeerId = peerId.toString();
         registerWithRelay();
+        startPeerDiscovery().catch(() => { });
       }
     });
 
-    async function discoverAndDialPeers(): Promise<void> {
-      let peerIds: string[];
-      try {
-        const res = await fetch(
-          `https://${__HABITAT_DOMAIN__}/p2p/peers?topic=${encodeURIComponent(habitatUri)}`,
-        );
-        if (!res.ok) return;
-        const data: { peers: string[] } = await res.json();
-        peerIds = data.peers;
-      } catch {
-        return;
-      }
-      for (const peerIdStr of peerIds) {
-        // Don't redial self or relay
-        if (peerIdStr === node.peerId.toString()) continue;
-        if (peerIdStr === relayPeerId) continue;
-        if (node.getConnections(peerIdFromString(peerIdStr)).length > 0)
-          continue;
+    async function dialPeer(peerIdStr: string): Promise<void> {
+      if (peerIdStr === node.peerId.toString()) return;
+      if (peerIdStr === relayPeerId) return;
+      if (node.getConnections(peerIdFromString(peerIdStr)).length > 0) return;
+      const circuitAddr = multiaddr(`/p2p/${relayPeerId}/p2p-circuit/p2p/${peerIdStr}`);
+      try { await node.dial(circuitAddr); }
+      catch (e) { console.log("caught error dialing", e, peerIdStr); }
+    }
 
-        const circuitAddr = multiaddr(
-          `/p2p/${relayPeerId}/p2p-circuit/p2p/${peerIdStr}`,
-        );
-        try {
-          await node.dial(circuitAddr);
-        } catch (e) {
-          console.log("caught error dialing", e, peerIdStr);
-          // reservation not ready or peer left — retry next tick
+    async function startPeerDiscovery(): Promise<void> {
+      try {
+        const stream = await node.dialProtocol(
+          peerIdFromString(relayPeerId), "/habitat/peer-discovery/1.0.0");
+        const encoder = new TextEncoder();
+        stream.sink((async function* () { yield encoder.encode(habitatUri + "\n"); })());
+
+        const decoder = new TextDecoder();
+        let buf = "";
+        for await (const chunk of stream.source) {
+          const bytes = chunk instanceof Uint8Array ? chunk : (chunk as any).subarray();
+          buf += decoder.decode(bytes, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            const id = line.trim();
+            if (id) dialPeer(id).catch(() => { });
+          }
         }
+      } catch (e) {
+        console.log("peer discovery stream ended", e);
       }
     }
 
-    await discoverAndDialPeers();
-    const discoveryInterval = window.setInterval(
-      discoverAndDialPeers,
-      500 /* 500ms for testing */,
-    );
+    startPeerDiscovery().catch(() => { });
 
     const data: {
       uri: string;
@@ -217,10 +220,18 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     await fetchAndMerge();
 
+    async function dialRelay(): Promise<string> {
+      const conn = await node.dial(relayAddr);
+      return conn.remotePeer.toString();
+    }
+
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
-        registerWithRelay()
-        fetchAndMerge().catch(() => { });
+        dialRelay().then((p) => { relayPeerId = p; })
+          .then(registerWithRelay)
+          .then(fetchAndMerge)
+          .then(() => startPeerDiscovery())
+          .catch(() => { });
       }
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -234,14 +245,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       rkey,
       did: did,
       docDID: docDID,
-      discoveryInterval,
       onVisibilityChange,
     };
   },
   onLeave({ loaderData }) {
-    if (loaderData?.discoveryInterval !== undefined) {
-      window.clearInterval(loaderData.discoveryInterval);
-    }
     if (loaderData?.onVisibilityChange) {
       document.removeEventListener(
         "visibilitychange",

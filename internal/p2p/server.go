@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/bradenaw/juniper/xmaps"
@@ -25,14 +26,17 @@ import (
 
 // peerRegistry maps gossipsub topic → set of peer ID strings.
 // Entries are removed automatically when a peer disconnects.
+// It also tracks active discovery stream subscriptions for push notifications.
 type peerRegistry struct {
 	mu      sync.RWMutex
 	entries map[habitat_syntax.HabitatURI]xmaps.Set[peer.ID]
+	subs    map[habitat_syntax.HabitatURI][]chan string
 }
 
 func newPeerRegistry() *peerRegistry {
 	return &peerRegistry{
 		entries: make(map[habitat_syntax.HabitatURI]xmaps.Set[peer.ID]),
+		subs:    make(map[habitat_syntax.HabitatURI][]chan string),
 	}
 }
 
@@ -71,7 +75,41 @@ func (pr *peerRegistry) Disconnected(_ network.Network, conn network.Conn) {
 }
 func (pr *peerRegistry) Listen(network.Network, ma.Multiaddr)      {}
 func (pr *peerRegistry) ListenClose(network.Network, ma.Multiaddr) {}
-func (pr *peerRegistry) Connected(network.Network, network.Conn)   {}
+func (pr *peerRegistry) Connected(network.Network, network.Conn) {}
+
+func (pr *peerRegistry) subscribe(topic habitat_syntax.HabitatURI) chan string {
+	ch := make(chan string, 16)
+	pr.mu.Lock()
+	pr.subs[topic] = append(pr.subs[topic], ch)
+	pr.mu.Unlock()
+	return ch
+}
+
+func (pr *peerRegistry) unsubscribe(topic habitat_syntax.HabitatURI, ch chan string) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+	list := pr.subs[topic]
+	for i, c := range list {
+		if c == ch {
+			pr.subs[topic] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+	if len(pr.subs[topic]) == 0 {
+		delete(pr.subs, topic)
+	}
+}
+
+func (pr *peerRegistry) notify(topic habitat_syntax.HabitatURI, peerID string) {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+	for _, ch := range pr.subs[topic] {
+		select {
+		case ch <- peerID:
+		default:
+		}
+	}
+}
 
 type Server struct {
 	host     host.Host
@@ -106,6 +144,49 @@ func NewServer() (*Server, error) {
 	registry := newPeerRegistry()
 	// Notify the registry about disconnections
 	host.Network().Notify(registry)
+
+	const peerDiscoveryProtocol = "/habitat/peer-discovery/1.0.0"
+	host.SetStreamHandler(peerDiscoveryProtocol, func(stream network.Stream) {
+		buf := make([]byte, 4096)
+		n, err := stream.Read(buf)
+		if err != nil {
+			stream.Reset() //nolint:errcheck
+			return
+		}
+		topic, err := habitat_syntax.ParseHabitatURI(strings.TrimSpace(string(buf[:n])))
+		if err != nil {
+			stream.Reset() //nolint:errcheck
+			return
+		}
+
+		ch := registry.subscribe(topic)
+		defer registry.unsubscribe(topic, ch)
+
+		// Send existing peers
+		for _, id := range registry.peers(topic) {
+			if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
+				stream.Reset() //nolint:errcheck
+				return
+			}
+		}
+
+		// Signal when read side closes (browser half-close or disconnect)
+		done := make(chan struct{})
+		go func() { io.Copy(io.Discard, stream); close(done) }() //nolint:errcheck
+
+		for {
+			select {
+			case id := <-ch:
+				if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
+					stream.Reset() //nolint:errcheck
+					return
+				}
+			case <-done:
+				stream.Close() //nolint:errcheck
+				return
+			}
+		}
+	})
 
 	return &Server{
 		host:     host,
@@ -177,6 +258,7 @@ func (s *Server) HandlePeers(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.registry.register(topic, peerID)
+		s.registry.notify(topic, req.PeerID)
 		w.WriteHeader(http.StatusNoContent)
 
 	default:
