@@ -74,7 +74,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
         encoder,
         awarenessProtocol.encodeAwarenessUpdate(this.awareness, changedClients),
       );
-      console.log("publishing to", this.topic);
+
       node.services.pubsub
         .publish(this.topic, encoding.toUint8Array(encoder))
         .catch((err: Error) => {
@@ -98,7 +98,6 @@ export class Libp2pConnectionProvider extends ObservableV2<{
           encoding.writeVarUint(encoder, messageTypes.sync);
           syncProtocol.readSyncMessage(decoder, encoder, doc, this);
           if (encoding.length(encoder) > 1) {
-            console.log("publishing to", this.topic);
             node.services.pubsub
               .publish(this.topic, encoding.toUint8Array(encoder))
               .catch((err: Error) => {
@@ -132,7 +131,6 @@ export class Libp2pConnectionProvider extends ObservableV2<{
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageTypes.sync);
       syncProtocol.writeSyncStep1(encoder, doc);
-      console.log("publishing to", this.topic);
       node.services.pubsub
         .publish(this.topic, encoding.toUint8Array(encoder))
         .catch((err: Error) => {

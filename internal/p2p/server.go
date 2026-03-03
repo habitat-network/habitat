@@ -1,7 +1,6 @@
 package p2p
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,9 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bradenaw/juniper/xmaps"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -24,38 +21,47 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// peerRegistry maps gossipsub topic → set of peer ID strings.
-// Entries are removed automatically when a peer disconnects.
-// It also tracks active discovery stream subscriptions for push notifications.
 type peerRegistry struct {
-	mu      sync.RWMutex
-	entries map[habitat_syntax.HabitatURI]xmaps.Set[peer.ID]
-	subs    map[habitat_syntax.HabitatURI][]chan string
+	mu sync.RWMutex
+
+	// Map of record (gossipsub topics) --> peerID currently subscribed --> channel on which to notify peer of new peers
+	peersByTopic map[habitat_syntax.HabitatURI]map[peer.ID]chan peer.ID
 }
 
 func newPeerRegistry() *peerRegistry {
 	return &peerRegistry{
-		entries: make(map[habitat_syntax.HabitatURI]xmaps.Set[peer.ID]),
-		subs:    make(map[habitat_syntax.HabitatURI][]chan string),
+		mu:           sync.RWMutex{},
+		peersByTopic: make(map[habitat_syntax.HabitatURI]map[peer.ID]chan peer.ID),
 	}
 }
 
-func (pr *peerRegistry) register(topic habitat_syntax.HabitatURI, peerID peer.ID) {
+func (pr *peerRegistry) register(topic habitat_syntax.HabitatURI, peerID peer.ID) chan peer.ID {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	if _, ok := pr.entries[topic]; !ok {
-		pr.entries[topic] = xmaps.Set[peer.ID]{}
+	if _, ok := pr.peersByTopic[topic]; !ok {
+		pr.peersByTopic[topic] = make(map[peer.ID]chan peer.ID)
 	}
-	pr.entries[topic].Add(peerID)
+	ch := make(chan peer.ID)
+	pr.peersByTopic[topic][peerID] = ch
+	return ch
 }
 
-func (pr *peerRegistry) remove(peerID peer.ID) {
+// TODO: there's no reverse map of peer --> subscribed topic so we have to check all of them
+// This could be optimized by adding a reverse map.
+//
+// It's also unclear whether multiple tabs == multiple peers or if different tabs share a peerID for the same client.
+// We need to make sure we support both cases.
+func (pr *peerRegistry) deregister(peerID peer.ID) {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	for topic, peers := range pr.entries {
-		delete(peers, peerID)
-		if len(peers) == 0 {
-			delete(pr.entries, topic)
+	for topic, peers := range pr.peersByTopic {
+		ch, ok := peers[peerID]
+		if ok {
+			close(ch)
+			delete(peers, peerID)
+			if len(peers) == 0 {
+				delete(pr.peersByTopic, topic)
+			}
 		}
 	}
 }
@@ -63,47 +69,24 @@ func (pr *peerRegistry) remove(peerID peer.ID) {
 func (pr *peerRegistry) peers(topic habitat_syntax.HabitatURI) []string {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
-	result := make([]string, 0, len(pr.entries[topic]))
-	for peerID := range pr.entries[topic] {
+	result := make([]string, 0, len(pr.peersByTopic[topic]))
+	for peerID := range pr.peersByTopic[topic] {
 		result = append(result, peerID.String())
 	}
 	return result
 }
 
 func (pr *peerRegistry) Disconnected(_ network.Network, conn network.Conn) {
-	pr.remove(conn.RemotePeer())
+	pr.deregister(conn.RemotePeer())
 }
 func (pr *peerRegistry) Listen(network.Network, ma.Multiaddr)      {}
 func (pr *peerRegistry) ListenClose(network.Network, ma.Multiaddr) {}
-func (pr *peerRegistry) Connected(network.Network, network.Conn) {}
+func (pr *peerRegistry) Connected(network.Network, network.Conn)   {}
 
-func (pr *peerRegistry) subscribe(topic habitat_syntax.HabitatURI) chan string {
-	ch := make(chan string, 16)
-	pr.mu.Lock()
-	pr.subs[topic] = append(pr.subs[topic], ch)
-	pr.mu.Unlock()
-	return ch
-}
-
-func (pr *peerRegistry) unsubscribe(topic habitat_syntax.HabitatURI, ch chan string) {
-	pr.mu.Lock()
-	defer pr.mu.Unlock()
-	list := pr.subs[topic]
-	for i, c := range list {
-		if c == ch {
-			pr.subs[topic] = append(list[:i], list[i+1:]...)
-			break
-		}
-	}
-	if len(pr.subs[topic]) == 0 {
-		delete(pr.subs, topic)
-	}
-}
-
-func (pr *peerRegistry) notify(topic habitat_syntax.HabitatURI, peerID string) {
+func (pr *peerRegistry) notifySubscribedPeers(topic habitat_syntax.HabitatURI, peerID peer.ID) {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
-	for _, ch := range pr.subs[topic] {
+	for _, ch := range pr.peersByTopic[topic] {
 		select {
 		case ch <- peerID:
 		default:
@@ -125,11 +108,16 @@ func NewServer() (*Server, error) {
 		libp2p.Transport(websocket.New),
 		libp2p.ForceReachabilityPublic(),
 		libp2p.EnableRelayService(relay.WithResources((relay.DefaultResources()))),
+
+		// For enabling DCuTr: https://libp2p.io/guides/dcutr/
+		libp2p.EnableNATService(),
+		libp2p.EnableAutoNATv2(),
+		libp2p.EnableHolePunching(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
-	log.Info().Msgf("peer id: %s", host.ID())
+	log.Info().Msgf("p2p server peer id: %s", host.ID())
 
 	addr, err := manet.ToNetAddr(host.Addrs()[0])
 	if err != nil {
@@ -147,43 +135,42 @@ func NewServer() (*Server, error) {
 
 	const peerDiscoveryProtocol = "/habitat/peer-discovery/1.0.0"
 	host.SetStreamHandler(peerDiscoveryProtocol, func(stream network.Stream) {
+		peerID := stream.Conn().RemotePeer()
+		// Close the stream upon return
+		defer stream.Reset()
+
 		buf := make([]byte, 4096)
 		n, err := stream.Read(buf)
 		if err != nil {
-			stream.Reset() //nolint:errcheck
-			return
-		}
-		topic, err := habitat_syntax.ParseHabitatURI(strings.TrimSpace(string(buf[:n])))
-		if err != nil {
-			stream.Reset() //nolint:errcheck
 			return
 		}
 
-		ch := registry.subscribe(topic)
-		defer registry.unsubscribe(topic, ch)
+		topic, err := habitat_syntax.ParseHabitatURI(strings.TrimSpace(string(buf[:n])))
+		if err != nil {
+			return
+		}
+
+		ch := registry.register(topic, peerID)
+		defer registry.deregister(peerID)
 
 		// Send existing peers
 		for _, id := range registry.peers(topic) {
 			if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
-				stream.Reset() //nolint:errcheck
 				return
 			}
 		}
 
-		// Signal when read side closes (browser half-close or disconnect)
-		done := make(chan struct{})
-		go func() { io.Copy(io.Discard, stream); close(done) }() //nolint:errcheck
-
 		for {
 			select {
-			case id := <-ch:
-				if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
-					stream.Reset() //nolint:errcheck
+			case id, ok := <-ch:
+				// channel is closed = deregistered peer.
+				if !ok {
 					return
 				}
-			case <-done:
-				stream.Close() //nolint:errcheck
-				return
+				// error writing to stream = closed; return.
+				if _, err := fmt.Fprintf(stream, "%s\n", id); err != nil {
+					return
+				}
 			}
 		}
 	})
@@ -198,72 +185,6 @@ func NewServer() (*Server, error) {
 func (s *Server) HandleLibp2p(w http.ResponseWriter, r *http.Request) {
 	// just forward to libp2p
 	s.proxy.ServeHTTP(w, r)
-}
-
-type registerRequest struct {
-	PeerID string `json:"peerId"`
-	Topic  string `json:"topic"`
-}
-
-type peersResponse struct {
-	Peers []string `json:"peers"`
-}
-
-// HandlePeers serves per-document peer discovery.
-//
-// POST /p2p/peers  body: {"peerId":"...","topic":"..."}
-//
-//	Register the calling browser as a participant for the given topic.
-//
-// GET  /p2p/peers?topic=<topic>
-//
-//	Return peer IDs of all browsers registered for that topic.
-//
-// Entries are removed automatically when the underlying libp2p connection drops.
-func (s *Server) HandlePeers(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		topic, err := habitat_syntax.ParseHabitatURI(r.URL.Query().Get("topic"))
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "topic is not a valid habitat uri", http.StatusBadRequest)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(w).Encode(peersResponse{Peers: s.registry.peers(topic)})
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
-			return
-		}
-
-	case http.MethodPost:
-		var req registerRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-		if req.PeerID == "" || req.Topic == "" {
-			http.Error(w, "peerId and topic are required", http.StatusBadRequest)
-			return
-		}
-
-		topic, err := habitat_syntax.ParseHabitatURI(req.Topic)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "topic is not a valid habitat uri", http.StatusBadRequest)
-			return
-		}
-
-		peerID, err := peer.Decode(req.PeerID)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "peerID is not valid", http.StatusBadRequest)
-		}
-
-		s.registry.register(topic, peerID)
-		s.registry.notify(topic, req.PeerID)
-		w.WriteHeader(http.StatusNoContent)
-
-	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	}
 }
 
 // Close implements io.Closer.
