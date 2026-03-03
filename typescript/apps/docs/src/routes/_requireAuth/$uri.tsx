@@ -58,8 +58,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // The gossipsub topic is also used as the per-document rendezvous key.
     const habitatUri = `habitat://${docDID}/network.habitat.docs/${rkey}`;
 
-    function registerWithRelay() {
-      fetch(`https://${__HABITAT_DOMAIN__}/p2p/peers`, {
+    async function registerWithRelay() {
+      await fetch(`https://${__HABITAT_DOMAIN__}/p2p/peers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -71,15 +71,14 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     // Register now and re-register whenever the relay connection is re-established,
     // since the relay removes us from the registry when our connection drops.
-    registerWithRelay();
+    await registerWithRelay();
     node.addEventListener("peer:connect", (event) => {
       const peerId = event.detail;
       const isRelay = node.getConnections(peerId)
         .some((c) => c.remoteAddr.toString().includes(__HABITAT_DOMAIN__));
       if (isRelay) {
         relayPeerId = peerId.toString();
-        registerWithRelay();
-        startPeerDiscovery().catch(() => { });
+        registerWithRelay().then(startPeerDiscovery).catch(() => { });
       }
     });
 
@@ -144,188 +143,172 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       )
       .map((g) => g.did);
 
-    async function fetchAndMerge() {
-      // Re-fetch the owner's latest doc (may have changed since initial load)
+    // Fetch and merge edits from all DID grantees (only the owner sees the full list)
+    await Promise.all(
+      granteeDIDs.map(async (granteeDID) => {
+        try {
+          const res = await context.authManager.fetch(
+            `/xrpc/network.habitat.getRecord?repo=${granteeDID}&collection=network.habitat.docs.edit&rkey=${encodeURIComponent(editRkey)}`,
+          );
+          if (!res?.ok) return;
+          const editData: { value: HabitatDoc } = await res.json();
+          if (editData.value.blob) {
+            Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(editData.value.blob));
+          }
+        } catch {
+          /* silently skip */
+        }
+      }),
+    );
+
+    // If non-owner and not already in the grantee list, also fetch own edit
+    if (docDID !== did && !granteeDIDs.includes(did!)) {
       try {
         const res = await context.authManager.fetch(
-          `/xrpc/network.habitat.getRecord?repo=${docDID}&collection=${lexicon}&rkey=${rkey}`,
+          `/xrpc/network.habitat.getRecord?repo=${did}&collection=network.habitat.docs.edit&rkey=${encodeURIComponent(editRkey)}`,
         );
         if (res?.ok) {
-          const latest: { value: HabitatDoc } = await res.json();
-          if (latest.value.blob) {
-            Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(latest.value.blob));
+          const editData: { value: HabitatDoc } = await res.json();
+          if (editData.value.blob) {
+            Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(editData.value.blob));
           }
         }
       } catch {
         /* silently skip */
       }
+    }
 
-      // Fetch and merge edits from all DID grantees (only the owner sees the full list)
-      await Promise.all(
-        granteeDIDs.map(async (granteeDID) => {
-          try {
-            const res = await context.authManager.fetch(
-              `/xrpc/network.habitat.getRecord?repo=${granteeDID}&collection=network.habitat.docs.edit&rkey=${encodeURIComponent(editRkey)}`,
-            );
-            if (!res?.ok) return;
-            const editData: { value: HabitatDoc } = await res.json();
-            if (editData.value.blob) {
-              Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(editData.value.blob));
-            }
-          } catch {
-            /* silently skip */
-          }
+    // Write back the merged state so others see convergence
+    try {
+      await context.authManager.fetch(
+        "/xrpc/network.habitat.putRecord",
+        "POST",
+        JSON.stringify({
+          repo: did,
+          collection:
+            docDID === did
+              ? "network.habitat.docs"
+              : "network.habitat.docs.edit",
+          rkey: docDID === did ? rkey : editRkey,
+          record: {
+            name: data.value.name ?? "Untitled",
+            blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
+          },
         }),
       );
-
-      // If non-owner and not already in the grantee list, also fetch own edit
-      if (docDID !== did && !granteeDIDs.includes(did!)) {
-        try {
-          const res = await context.authManager.fetch(
-            `/xrpc/network.habitat.getRecord?repo=${did}&collection=network.habitat.docs.edit&rkey=${encodeURIComponent(editRkey)}`,
-          );
-          if (res?.ok) {
-            const editData: { value: HabitatDoc } = await res.json();
-            if (editData.value.blob) {
-              Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(editData.value.blob));
-            }
-          }
-        } catch {
-          /* silently skip */
-        }
-      }
-
-      // Write back the merged state so others see convergence
-      try {
-        await context.authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
-            repo: did,
-            collection:
-              docDID === did
-                ? "network.habitat.docs"
-                : "network.habitat.docs.edit",
-            rkey: docDID === did ? rkey : editRkey,
-            record: {
-              name: data.value.name ?? "Untitled",
-              blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
-            },
-          }),
-        );
-      } catch {
-        /* silently skip — will be saved on next edit */
-      }
+    } catch {
+      /* silently skip — will be saved on next edit */
     }
+  }
 
     await fetchAndMerge();
 
     async function dialRelay(): Promise<string> {
-      const conn = await node.dial(relayAddr);
-      return conn.remotePeer.toString();
-    }
+    const conn = await node.dial(relayAddr);
+    return conn.remotePeer.toString();
+  }
 
     function onVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        dialRelay().then((p) => { relayPeerId = p; })
-          .then(registerWithRelay)
-          .then(fetchAndMerge)
-          .then(() => startPeerDiscovery())
-          .catch(() => { });
+  if(document.visibilityState === "visible") {
+    dialRelay().then((p) => { relayPeerId = p; })
+      .then(registerWithRelay)
+      .then(fetchAndMerge)
+      .then(() => startPeerDiscovery())
+      .catch(() => { });
       }
     }
-    document.addEventListener("visibilitychange", onVisibilityChange);
+document.addEventListener("visibilitychange", onVisibilityChange);
 
-    const provider = new Libp2pConnectionProvider(node, ydoc, habitatUri);
+const provider = new Libp2pConnectionProvider(node, ydoc, habitatUri);
 
-    return {
-      provider,
-      node,
-      ydoc,
-      rkey,
-      did: did,
-      docDID: docDID,
-      onVisibilityChange,
-    };
+return {
+  provider,
+  node,
+  ydoc,
+  rkey,
+  did: did,
+  docDID: docDID,
+  onVisibilityChange,
+};
   },
-  onLeave({ loaderData }) {
-    if (loaderData?.onVisibilityChange) {
-      document.removeEventListener(
-        "visibilitychange",
-        loaderData.onVisibilityChange,
-      );
-    }
-    loaderData?.provider.destroy();
-    loaderData?.ydoc.destroy();
-    loaderData?.node.stop();
-  },
-  preloadStaleTime: 1000 * 60 * 60,
+onLeave({ loaderData }) {
+  if (loaderData?.onVisibilityChange) {
+    document.removeEventListener(
+      "visibilitychange",
+      loaderData.onVisibilityChange,
+    );
+  }
+  loaderData?.provider.destroy();
+  loaderData?.ydoc.destroy();
+  loaderData?.node.stop();
+},
+preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { did, docDID, rkey, ydoc, provider, node } = Route.useLoaderData();
-    const { authManager } = Route.useRouteContext();
-    const [dirty, setDirty] = useState(false);
-    const { mutate: save } = useMutation({
-      mutationFn: async ({ editor }: { editor: Editor }) => {
-        const heading = editor.$node("heading")?.textContent;
-        const collection =
-          docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
-        const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
-        await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
-            repo: did,
-            collection: collection,
-            rkey: mappedKey,
-            record: {
-              name: heading ?? "Untitled",
-              blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
-            },
-          }),
-        );
-      },
-      onSuccess: () => setDirty(false),
-    });
-    // debounce
-    const handleUpdate = useMemo(() => {
-      let prevTimeout: number | undefined;
-      return ({ editor }: { editor: Editor }) => {
-        setDirty(true);
-        clearTimeout(prevTimeout);
-        prevTimeout = window.setTimeout(() => {
-          save({ editor });
-        }, 1000);
-      };
-    }, [save]);
-    const editor = useEditor({
-      extensions: [
-        StarterKit.configure({
-          undoRedo: false,
-        }),
-        Collaboration.configure({
-          document: ydoc,
-        }),
-        CollaborationCaret.configure({
-          provider,
-          user: {
-            name: did,
-            color: "#f783ac",
+  const { did, docDID, rkey, ydoc, provider, node } = Route.useLoaderData();
+  const { authManager } = Route.useRouteContext();
+  const [dirty, setDirty] = useState(false);
+  const { mutate: save } = useMutation({
+    mutationFn: async ({ editor }: { editor: Editor }) => {
+      const heading = editor.$node("heading")?.textContent;
+      const collection =
+        docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
+      const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
+      await authManager.fetch(
+        "/xrpc/network.habitat.putRecord",
+        "POST",
+        JSON.stringify({
+          repo: did,
+          collection: collection,
+          rkey: mappedKey,
+          record: {
+            name: heading ?? "Untitled",
+            blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
           },
         }),
-      ],
-      onUpdate: handleUpdate,
-    });
-    return (
-      <>
-        <article>
-          <EditorContent editor={editor} />
-        </article>
-        {dirty ? "🔄 Syncing" : "✅ Synced"}
-        Node id: {node.peerId.toString()}
-      </>
-    );
-  },
-  pendingComponent: () => <article>Loading...</article>,
+      );
+    },
+    onSuccess: () => setDirty(false),
+  });
+  // debounce
+  const handleUpdate = useMemo(() => {
+    let prevTimeout: number | undefined;
+    return ({ editor }: { editor: Editor }) => {
+      setDirty(true);
+      clearTimeout(prevTimeout);
+      prevTimeout = window.setTimeout(() => {
+        save({ editor });
+      }, 1000);
+    };
+  }, [save]);
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        undoRedo: false,
+      }),
+      Collaboration.configure({
+        document: ydoc,
+      }),
+      CollaborationCaret.configure({
+        provider,
+        user: {
+          name: did,
+          color: "#f783ac",
+        },
+      }),
+    ],
+    onUpdate: handleUpdate,
+  });
+  return (
+    <>
+      <article>
+        <EditorContent editor={editor} />
+      </article>
+      {dirty ? "🔄 Syncing" : "✅ Synced"}
+      Node id: {node.peerId.toString()}
+    </>
+  );
+},
+pendingComponent: () => <article>Loading...</article>,
 });
 
 // ES2024 Uint8Array base64 methods (polyfill types for TypeScript < 5.7)

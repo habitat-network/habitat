@@ -3,8 +3,10 @@
   "compilerOptions": {
     "composite": true,
     "declaration": true,
-    "emitDeclarationOnly": true,
-    "noEmit": false
+    "emitDeclarationOnly": false,
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "outDir": "./dist"
   },
   "include": ["src/**/*"],
   "references": [{ "path": "../api" }]

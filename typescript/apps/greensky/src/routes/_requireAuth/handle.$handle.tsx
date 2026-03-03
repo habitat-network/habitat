@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AuthManager } from "internal/authManager.js";
+import { AuthManager } from "internal";
 import {
   type PrivatePost,
   type Profile,

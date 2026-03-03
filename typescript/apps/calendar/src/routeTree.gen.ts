@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
+import { Route as RequireAuthCalendarRouteImport } from './routes/_requireAuth/calendar'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -27,27 +28,40 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthCalendarRoute = RequireAuthCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
+  '/calendar': typeof RequireAuthCalendarRoute
   '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/calendar': typeof RequireAuthCalendarRoute
   '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/_requireAuth/calendar': typeof RequireAuthCalendarRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/login' | '/'
+  fullPaths: '/login' | '/calendar' | '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/'
-  id: '__root__' | '/_requireAuth' | '/login' | '/_requireAuth/'
+  to: '/login' | '/calendar' | '/'
+  id:
+    | '__root__'
+    | '/_requireAuth'
+    | '/login'
+    | '/_requireAuth/calendar'
+    | '/_requireAuth/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,14 +92,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
+    '/_requireAuth/calendar': {
+      id: '/_requireAuth/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof RequireAuthCalendarRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
   }
 }
 
 interface RequireAuthRouteChildren {
+  RequireAuthCalendarRoute: typeof RequireAuthCalendarRoute
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
+  RequireAuthCalendarRoute: RequireAuthCalendarRoute,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
 }
 

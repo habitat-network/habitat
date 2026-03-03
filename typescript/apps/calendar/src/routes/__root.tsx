@@ -1,4 +1,4 @@
-import type { AuthManager } from "internal/authManager.ts";
+import type { AuthManager } from "internal";
 import { type QueryClient } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
