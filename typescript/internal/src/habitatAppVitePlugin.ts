@@ -2,6 +2,7 @@ import generateFile from "vite-plugin-generate-file";
 import clientMetadata from "./clientMetadata";
 import type { Plugin } from "vite";
 import util from "node:util";
+import tailwindcss from "@tailwindcss/vite";
 
 const cliArgs = util.parseArgs({
   args: process.argv.slice(process.argv.indexOf("--") + 1),
@@ -32,6 +33,7 @@ export default function habitatAppPlugin(options?: {
   const hashRouting = options?.hashRouting ?? !!process.env.HASH_ROUTING;
 
   return [
+    tailwindcss(),
     {
       name: "habitat-app-config",
       config() {

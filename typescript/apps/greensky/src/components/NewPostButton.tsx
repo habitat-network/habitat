@@ -1,5 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
 import { AuthManager } from "internal";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Textarea,
+  RadioGroup,
+  RadioGroupItem,
+  Label,
+} from "internal/components/ui";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserSearch } from "./UserSearch";
@@ -23,8 +34,8 @@ export function NewPostButton({
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<string[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
-  const { handleSubmit, register, watch, reset } = useForm<FormData>({
-    defaultValues: { visibility: "followers" },
+  const { handleSubmit, register, watch, reset, setValue } = useForm<FormData>({
+    defaultValues: { visibility: "specific" },
   });
   const visibility = watch("visibility");
 
@@ -131,15 +142,12 @@ export function NewPostButton({
   return (
     // For demo / toy purposes, allow people to make private posts without onboarding.
     <>
-      <button onClick={() => setModalOpen(true)}>New Post</button>
-      <dialog open={modalOpen}>
-        <article>
-          <header>
-            <button onClick={closeModal} aria-label="Close" rel="prev" />
-            <p>
-              <strong>New post</strong>
-            </p>
-          </header>
+      <Button onClick={() => setModalOpen(true)}>New Post</Button>
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New post</DialogTitle>
+          </DialogHeader>
           {/*!isOnboarded && (
             <p>
               To make private posts, you need to be onboarded to habitat.{" "}
@@ -157,47 +165,43 @@ export function NewPostButton({
                   onSuccess: () => closeModal(),
                 });
               })}
+              className="space-y-4"
             >
-              <textarea
+              <Textarea
                 placeholder="What's on your mind?"
                 {...register("content")}
               />
-              <fieldset>
-                <label>
-                  <input
-                    type="radio"
-                    value="followers"
-                    {...register("visibility")}
-                  />
-                  Followers only
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    value="specific"
-                    {...register("visibility")}
-                  />
-                  Specific users
-                </label>
-              </fieldset>
+              <RadioGroup
+                value={visibility}
+                onValueChange={(value) => setValue("visibility", value as Visibility)}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="followers" id="followers" />
+                  <Label htmlFor="followers">Followers only</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="specific" id="specific" />
+                  <Label htmlFor="specific">Specific users</Label>
+                </div>
+              </RadioGroup>
               {visibility === "specific" && (
                 <UserSearch
                   authManager={authManager}
                   specificUsers={specificUsers}
                   onAddUser={handleAddUser}
-                  onRemoveUser={(u) =>
-                    setSpecificUsers((prev) => prev.filter((x) => x !== u))
+                  onRemoveUser={(handle) =>
+                    setSpecificUsers((prev) => prev.filter((u) => u !== handle))
                   }
                 />
               )}
-              {postError && <p>{postError}</p>}
-              <button type="submit" aria-busy={createPostIsPending}>
-                Post
-              </button>
+              {postError && <p className="text-destructive text-sm">{postError}</p>}
+              <Button type="submit" disabled={createPostIsPending}>
+                {createPostIsPending ? "Posting..." : "Post"}
+              </Button>
             </form>
           }
-        </article>
-      </dialog>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

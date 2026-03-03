@@ -62,29 +62,13 @@ export function UserSearch({
     <div>
       <div
         role="group"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: "4px",
-          border: "1px solid var(--pico-form-element-border-color)",
-          borderRadius: "var(--pico-border-radius)",
-          padding: "4px 8px",
-          minHeight: "42px",
-          backgroundColor: "var(--pico-form-element-background-color)",
-          cursor: "text",
-        }}
+        className="flex flex-wrap items-center gap-1 border border-input rounded-lg p-2 min-h-[42px] bg-background cursor-text"
         onClick={() => inputRef.current?.focus()}
       >
         {specificUsers.map((u) => (
           <kbd
             key={u}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              whiteSpace: "nowrap",
-            }}
+            className="inline-flex items-center gap-1 whitespace-nowrap"
           >
             @{u}
             <button
@@ -94,14 +78,8 @@ export function UserSearch({
                 onRemoveUser(u);
               }}
               aria-label={`Remove ${u}`}
-              style={{
-                all: "unset",
-                cursor: "pointer",
-                fontSize: "0.75rem",
-                lineHeight: 1,
-                opacity: 0.5,
-                padding: "0 2px",
-              }}
+              className="cursor-pointer text-xs leading-none opacity-50 px-0.5"
+              style={{ all: "unset" }}
             >
               ✕
             </button>
@@ -128,46 +106,27 @@ export function UserSearch({
               onRemoveUser(specificUsers[specificUsers.length - 1]);
             }
           }}
-          style={{
-            all: "unset",
-            flex: 1,
-            minWidth: "120px",
-            cursor: "text",
-          }}
+          className="flex-1 min-w-[120px] cursor-text"
+          style={{ all: "unset" }}
         />
       </div>
       {visibleSuggestions.length > 0 && (
         <ul
           role="list"
-          style={{
-            margin: 0,
-            padding: "4px 0",
-            listStyle: "none",
-            background: "var(--pico-card-background-color)",
-            border: "1px solid var(--pico-form-element-border-color)",
-            borderRadius: "var(--pico-border-radius)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-          }}
+          className="m-0 py-1 list-none bg-card border border-input rounded-lg shadow-md"
         >
           {visibleSuggestions.map((actor) => (
             <li
               key={actor.handle}
               onClick={() => addUser(actor.handle)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "6px 12px",
-                cursor: "pointer",
-                margin: 0,
-              }}
+              className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-accent m-0"
             >
               {actor.avatar && (
                 <img
                   src={actor.avatar}
                   width={24}
                   height={24}
-                  style={{ borderRadius: "50%", flexShrink: 0 }}
+                  className="rounded-full flex-shrink-0"
                 />
               )}
               <span>
