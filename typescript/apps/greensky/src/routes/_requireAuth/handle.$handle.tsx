@@ -42,7 +42,10 @@ interface FeedItem {
 
 export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   async loader({ context, params }) {
-    const publicItems: FeedItem[] = [];
+    const publicItems: FeedItem[] = await getAuthorFeed(
+      context.authManager,
+      params.handle,
+    );
     const privateItems: PrivatePost[] = await getPrivatePosts(
       context.authManager,
       params.handle,
