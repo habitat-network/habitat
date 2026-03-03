@@ -572,6 +572,39 @@ export const schemaDict = {
       },
     },
   },
+  CommunityLexiconCalendarInvite: {
+    lexicon: 1,
+    id: 'community.lexicon.calendar.invite',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "An invitation to a calendar event. Stored on the inviter's PDS.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'invitee', 'createdAt'],
+          properties: {
+            subject: {
+              type: 'ref',
+              ref: 'lex:com.atproto.repo.strongRef',
+              description: 'Reference to the calendar event.',
+            },
+            invitee: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the person being invited.',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+              description: 'Timestamp when the invitation was created.',
+            },
+          },
+        },
+      },
+    },
+  },
   CommunityLexiconCalendarRsvp: {
     lexicon: 1,
     id: 'community.lexicon.calendar.rsvp',
@@ -1318,6 +1351,7 @@ export const ids = {
   ComAtprotoRepoPutRecord: 'com.atproto.repo.putRecord',
   ComAtprotoRepoStrongRef: 'com.atproto.repo.strongRef',
   CommunityLexiconCalendarEvent: 'community.lexicon.calendar.event',
+  CommunityLexiconCalendarInvite: 'community.lexicon.calendar.invite',
   CommunityLexiconCalendarRsvp: 'community.lexicon.calendar.rsvp',
   CommunityLexiconLocationAddress: 'community.lexicon.location.address',
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',

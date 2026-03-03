@@ -1,0 +1,36 @@
+{
+    "lexicon": 1,
+    "id": "community.lexicon.calendar.invite",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "An invitation to a calendar event. Stored on the inviter's PDS.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "subject",
+                    "invitee",
+                    "createdAt"
+                ],
+                "properties": {
+                    "subject": {
+                        "type": "ref",
+                        "ref": "com.atproto.repo.strongRef",
+                        "description": "Reference to the calendar event."
+                    },
+                    "invitee": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "The DID of the person being invited."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime",
+                        "description": "Timestamp when the invitation was created."
+                    }
+                }
+            }
+        }
+    }
+}

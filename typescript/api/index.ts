@@ -17,6 +17,7 @@ import * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords
 import * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 import * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 import * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
+import * as CommunityLexiconCalendarInvite from './types/community/lexicon/calendar/invite.js'
 import * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
 import * as CommunityLexiconLocationAddress from './types/community/lexicon/location/address.js'
 import * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
@@ -43,6 +44,7 @@ export * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords
 export * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 export * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 export * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
+export * as CommunityLexiconCalendarInvite from './types/community/lexicon/calendar/invite.js'
 export * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
 export * as CommunityLexiconLocationAddress from './types/community/lexicon/location/address.js'
 export * as CommunityLexiconLocationFsq from './types/community/lexicon/location/fsq.js'
@@ -202,11 +204,13 @@ export class CommunityLexiconNS {
 export class CommunityLexiconCalendarNS {
   _client: XrpcClient
   event: CommunityLexiconCalendarEventRecord
+  invite: CommunityLexiconCalendarInviteRecord
   rsvp: CommunityLexiconCalendarRsvpRecord
 
   constructor(client: XrpcClient) {
     this._client = client
     this.event = new CommunityLexiconCalendarEventRecord(client)
+    this.invite = new CommunityLexiconCalendarInviteRecord(client)
     this.rsvp = new CommunityLexiconCalendarRsvpRecord(client)
   }
 }
@@ -289,6 +293,89 @@ export class CommunityLexiconCalendarEventRecord {
       'com.atproto.repo.deleteRecord',
       undefined,
       { collection: 'community.lexicon.calendar.event', ...params },
+      { headers },
+    )
+  }
+}
+
+export class CommunityLexiconCalendarInviteRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: CommunityLexiconCalendarInvite.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'community.lexicon.calendar.invite',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: CommunityLexiconCalendarInvite.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'community.lexicon.calendar.invite',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<CommunityLexiconCalendarInvite.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'community.lexicon.calendar.invite'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<CommunityLexiconCalendarInvite.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'community.lexicon.calendar.invite'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'community.lexicon.calendar.invite', ...params },
       { headers },
     )
   }

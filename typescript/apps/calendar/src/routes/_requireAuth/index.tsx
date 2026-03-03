@@ -3,7 +3,6 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
-  getRsvpNotifications,
   listEvents,
   listRsvps,
 } from "../../controllers/eventController.ts";
@@ -18,8 +17,8 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { authManager, queryClient } = context;
     const client = authManager.client();
 
-    await getRsvpNotifications(client);
-
+    // Fetch everything we need - "fetch the world"
+    // listPrivateRecords now returns all accessible records (own + shared via notifications)
     const [rsvps, events] = await Promise.all([
       queryClient.ensureQueryData({
         queryKey: ["rsvps"],
