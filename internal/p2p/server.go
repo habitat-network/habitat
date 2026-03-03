@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/libp2p/go-libp2p"
@@ -19,6 +21,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type peerRegistry struct {
@@ -98,11 +101,15 @@ type Server struct {
 	host     host.Host
 	proxy    *httputil.ReverseProxy
 	registry *peerRegistry
+
+	// Count the open conns on this server
+	conns      atomic.Int64
+	connsGauge metric.Int64Gauge
 }
 
 var _ io.Closer = (*Server)(nil)
 
-func NewServer() (*Server, error) {
+func NewServer(meter metric.Meter) (*Server, error) {
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
@@ -175,14 +182,27 @@ func NewServer() (*Server, error) {
 		}
 	})
 
+	gauge, err := meter.Int64Gauge("p2p.connections", metric.WithUnit("item"))
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
-		host:     host,
-		proxy:    httputil.NewSingleHostReverseProxy(url),
-		registry: registry,
+		host:       host,
+		proxy:      httputil.NewSingleHostReverseProxy(url),
+		registry:   registry,
+		connsGauge: gauge,
 	}, nil
 }
 
 func (s *Server) HandleLibp2p(w http.ResponseWriter, r *http.Request) {
+	conns := s.conns.Add(1)
+	s.connsGauge.Record(context.Background(), conns)
+
+	defer func() {
+		conns := s.conns.Add(-1)
+		s.connsGauge.Record(context.Background(), conns)
+	}()
 	// just forward to libp2p
 	s.proxy.ServeHTTP(w, r)
 }

@@ -81,6 +81,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		Key:   "env",
 		Value: attribute.StringValue("local"),
 	}))
+
 	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
 	if err != nil {
 		log.Err(err)
@@ -126,7 +127,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
-	p2pServer, err := p2p.NewServer()
+	p2pServer, err := p2p.NewServer(meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
