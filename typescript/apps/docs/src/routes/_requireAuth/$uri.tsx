@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { createLibp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
+import { circuitRelayTransport } from '@libp2p/circuit-relay-v2'
 import { multiaddr } from "@multiformats/multiaddr";
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
@@ -15,30 +16,99 @@ import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { Libp2pConnectionProvider } from "@/connectionProvider";
+import { bootstrap } from '@libp2p/bootstrap'
+import { peerIdFromString } from '@libp2p/peer-id'
+
+
+// const DISCOVERY_PROTOCOL = "/habitat/peer-discovery/1.0.0";
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
+    const relayAddr = multiaddr(`/dns4/${__HABITAT_DOMAIN__}/tcp/443/wss`)
     // setup libp2p
     const node = await createLibp2p({
-      transports: [webSockets()],
+      addresses: {
+        listen: ['/p2p-circuit'],  // ADD THIS
+      },
+      transports: [
+        webSockets(),
+        circuitRelayTransport(),
+      ],
+      peerDiscovery: [
+        bootstrap({
+          list: [relayAddr.toString()]
+        }) as any,
+      ],
       connectionEncrypters: [noise()],
       streamMuxers: [yamux()],
       services: {
         identify: identify(),
-        pubsub: gossipsub(),
+        pubsub: gossipsub({
+          runOnLimitedConnection: true,
+          allowPublishToZeroTopicPeers: true,
+          emitSelf: false,
+        }),
       },
     });
-    const conn = await node.dial(
-      multiaddr(`/dns4/${__HABITAT_DOMAIN__}/tcp/443/wss`),
-    );
-    console.log(`Connected to habitat node ${conn.remotePeer.toString()}`);
+    console.log("addr", `/dns4/${__HABITAT_DOMAIN__}/tcp/443/wss`)
+    console.log("multiaddr1 ", multiaddr(`/dns4/${__HABITAT_DOMAIN__}/tcp/443/wss`))
+    const conn = await node.dial(relayAddr);
+    console.log("my peer id", node.peerId.toString())
+    const relayPeerId = conn.remotePeer.toString();
+    console.log(`Connected to habitat relay ${relayPeerId}`);
 
     // fetch original record
     const { uri } = params;
-    const [, , did, lexicon, rkey] = uri.split("/");
+    const [, , docDID, lexicon, rkey] = uri.split("/");
     const originalRecordResponse = await context.authManager.fetch(
-      `/xrpc/network.habitat.getRecord?repo=${did}&collection=${lexicon}&rkey=${rkey}`,
+      `/xrpc/network.habitat.getRecord?repo=${docDID}&collection=${lexicon}&rkey=${rkey}`,
     );
+
+    // The gossipsub topic is also used as the per-document rendezvous key.
+    const habitatUri = `habitat://${docDID}/network.habitat.docs/${rkey}`;
+
+    // Register with the relay so other browsers editing this document can find us.
+    await fetch(`https://${__HABITAT_DOMAIN__}/p2p/peers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ peerId: node.peerId.toString(), topic: habitatUri }),
+    });
+
+
+    async function discoverAndDialPeers(): Promise<void> {
+      console.log("discovering peers")
+      let peerIds: string[];
+      try {
+        const res = await fetch(
+          `https://${__HABITAT_DOMAIN__}/p2p/peers?topic=${encodeURIComponent(habitatUri)}`
+        );
+        if (!res.ok) return;
+        const data: { peers: string[] } = await res.json();
+        peerIds = data.peers;
+      } catch {
+        return;
+      }
+      for (const peerIdStr of peerIds) {
+        // Don't redial self or relay
+        if (peerIdStr === node.peerId.toString()) continue;
+        if (peerIdStr === relayPeerId) continue;
+        if (node.getConnections(peerIdFromString(peerIdStr)).length > 0) continue;
+        console.log("found new peer", peerIdStr)
+        const circuitAddr = multiaddr(
+          `/p2p/${relayPeerId}/p2p-circuit/p2p/${peerIdStr}`
+        );
+        try {
+          await node.dial(circuitAddr);
+          console.log(`[peer-discovery] connected to ${peerIdStr} via circuit relay`);
+        } catch (e) {
+          console.log("caught error dialing", e, peerIdStr)
+          // reservation not ready or peer left — retry next tick
+        }
+      }
+    }
+
+    await discoverAndDialPeers();
+    const discoveryInterval = window.setInterval(discoverAndDialPeers, 500 /* 500ms for testing */);
 
     const data: {
       uri: string;
@@ -51,9 +121,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
     }
 
-    if (did !== context.authManager.handle) {
+    const did = context.authManager.getAuthInfo()?.did;
+
+    if (docDID !== did) {
       const editsRecordResponse = await context.authManager.fetch(
-        `/xrpc/network.habitat.getRecord?repo=${context.authManager.handle}&collection=com.habitat.docs.edit&rkey=${rkey}`,
+        `/xrpc/network.habitat.getRecord?repo=${did}&collection=network.habitat.docs.edit&rkey=${rkey}`,
       );
       try {
         const data: {
@@ -64,29 +136,33 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         if (data.value.blob) {
           Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
         }
-      } catch {}
+      } catch { }
     }
 
-    const provider = new Libp2pConnectionProvider(node, ydoc);
+    const provider = new Libp2pConnectionProvider(node, ydoc, habitatUri);
 
     return {
       provider,
       node,
       ydoc,
       rkey,
-      did,
+      did: did,
+      docDID: docDID,
+      discoveryInterval,
     };
   },
   onLeave({ loaderData }) {
     console.log("on leave");
+    if (loaderData?.discoveryInterval !== undefined) {
+      window.clearInterval(loaderData.discoveryInterval);
+    }
     loaderData?.provider.destroy();
     loaderData?.ydoc.destroy();
-    loaderData?.node.services.pubsub.unsubscribe("test");
     loaderData?.node.stop();
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { did, rkey, ydoc, provider, node } = Route.useLoaderData();
+    const { did, docDID, rkey, ydoc, provider, node } = Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
     const [dirty, setDirty] = useState(false);
     const { mutate: save } = useMutation({
@@ -96,11 +172,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           "/xrpc/network.habitat.putRecord",
           "POST",
           JSON.stringify({
-            repo: authManager.handle,
+            repo: did,
             collection:
-              did === authManager.handle
-                ? "com.habitat.docs"
-                : "com.habitat.docs.edit",
+              docDID === did
+                ? "network.habitat.docs"
+                : "network.habitat.docs.edit",
             rkey,
             record: {
               name: heading ?? "Untitled",
@@ -108,17 +184,17 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             },
           }),
         );
-        if (did !== authManager.handle) {
+        if (docDID !== did) {
           await authManager.fetch(
-            "/xrpc/network.habitat.notification.createNotification",
+            "/xrpc/network.habitat.putRecord",
             "POST",
             JSON.stringify({
-              repo: authManager.handle,
-              collection: "com.habitat.docs.edit",
+              repo: did,
+              collection: "network.habitat.docs.edit",
               record: {
-                did: did,
-                originDid: authManager.handle,
-                collection: "com.habitat.docs",
+                did: docDID,
+                originDid: did,
+                collection: "network.habitat.docs",
                 rkey,
               },
             }),
@@ -149,7 +225,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         CollaborationCaret.configure({
           provider,
           user: {
-            name: "sashank",
+            name: did,
             color: "#f783ac",
           },
         }),

@@ -157,6 +157,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	mux.Handle("/xrpc/", pdsForwarding)
+	mux.HandleFunc("/p2p/peers", p2pServer.HandlePeers)
 	// TODO: should we put this behind /p2p instead of / ?
 	mux.HandleFunc("/", p2pServer.HandleLibp2p)
 

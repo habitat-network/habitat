@@ -2,33 +2,91 @@ package p2p
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
+	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/rs/zerolog/log"
 )
 
+// peerRegistry maps gossipsub topic → set of peer ID strings.
+// Entries are removed automatically when a peer disconnects.
+type peerRegistry struct {
+	mu      sync.RWMutex
+	entries map[string]map[string]struct{}
+}
+
+func newPeerRegistry() *peerRegistry {
+	return &peerRegistry{entries: make(map[string]map[string]struct{})}
+}
+
+func (pr *peerRegistry) register(topic, peerID string) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+	if _, ok := pr.entries[topic]; !ok {
+		pr.entries[topic] = make(map[string]struct{})
+	}
+	pr.entries[topic][peerID] = struct{}{}
+}
+
+func (pr *peerRegistry) remove(peerID string) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+	for topic, peers := range pr.entries {
+		delete(peers, peerID)
+		if len(peers) == 0 {
+			delete(pr.entries, topic)
+		}
+	}
+}
+
+func (pr *peerRegistry) peers(topic string) []string {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+	result := make([]string, 0, len(pr.entries[topic]))
+	for peerID := range pr.entries[topic] {
+		result = append(result, peerID)
+	}
+	return result
+}
+
+// disconnectNotifee removes peers from the registry when they disconnect.
+type disconnectNotifee struct{ registry *peerRegistry }
+
+func (n *disconnectNotifee) Disconnected(_ network.Network, conn network.Conn) {
+	n.registry.remove(conn.RemotePeer().String())
+}
+func (n *disconnectNotifee) Listen(network.Network, ma.Multiaddr)      {}
+func (n *disconnectNotifee) ListenClose(network.Network, ma.Multiaddr) {}
+func (n *disconnectNotifee) Connected(network.Network, network.Conn)   {}
+
 type Server struct {
-	host  host.Host
-	proxy *httputil.ReverseProxy
+	host     host.Host
+	ps       *pubsub.PubSub
+	proxy    *httputil.ReverseProxy
+	registry *peerRegistry
 }
 
 var _ io.Closer = (*Server)(nil)
 
 func NewServer() (*Server, error) {
 	host, err := libp2p.New(
-		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"),
+		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
 		libp2p.ForceReachabilityPublic(),
-		libp2p.EnableRelayService(),
+		libp2p.EnableRelayService(relay.WithResources((relay.DefaultResources()))),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
@@ -39,14 +97,7 @@ func NewServer() (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pubsub: %w", err)
 	}
-	topic, err := ps.Join("test")
-	if err != nil {
-		return nil, fmt.Errorf("failed to join pubsub topic: %w", err)
-	}
-	_, err = topic.Relay()
-	if err != nil {
-		return nil, fmt.Errorf("failed to relay pubsub topic: %w", err)
-	}
+
 	addr, err := manet.ToNetAddr(host.Addrs()[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert multiaddr to net.Addr: %w", err)
@@ -56,15 +107,71 @@ func NewServer() (*Server, error) {
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
 	url.Scheme = "http"
+
+	registry := newPeerRegistry()
+	host.Network().Notify(&disconnectNotifee{registry: registry})
+
 	return &Server{
-		host:  host,
-		proxy: httputil.NewSingleHostReverseProxy(url),
+		host:     host,
+		proxy:    httputil.NewSingleHostReverseProxy(url),
+		registry: registry,
+		ps:       ps,
 	}, nil
 }
 
 func (s *Server) HandleLibp2p(w http.ResponseWriter, r *http.Request) {
 	// just forward to libp2p
 	s.proxy.ServeHTTP(w, r)
+}
+
+type registerRequest struct {
+	PeerID string `json:"peerId"`
+	Topic  string `json:"topic"`
+}
+
+type peersResponse struct {
+	Peers []string `json:"peers"`
+}
+
+// HandlePeers serves per-document peer discovery.
+//
+// POST /p2p/peers  body: {"peerId":"...","topic":"..."}
+//
+//	Register the calling browser as a participant for the given topic.
+//
+// GET  /p2p/peers?topic=<topic>
+//
+//	Return peer IDs of all browsers registered for that topic.
+//
+// Entries are removed automatically when the underlying libp2p connection drops.
+func (s *Server) HandlePeers(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		topic := r.URL.Query().Get("topic")
+		if topic == "" {
+			http.Error(w, "missing topic query parameter", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(peersResponse{Peers: s.registry.peers(topic)})
+
+	case http.MethodPost:
+		var req registerRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.PeerID == "" || req.Topic == "" {
+			http.Error(w, "peerId and topic are required", http.StatusBadRequest)
+			return
+		}
+
+		s.registry.register(req.Topic, req.PeerID)
+		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // Close implements io.Closer.
