@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { AuthManager } from "internal/authManager.js";
+import { AuthManager } from "internal";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserSearch } from "./UserSearch";
@@ -106,7 +106,7 @@ export function NewPostButton({
         );
         await checkResponse(cliqueRes);
         const data = await cliqueRes.json();
-        const cliqueUri = data.uri
+        const cliqueUri = data.uri;
 
         const res = await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
@@ -148,8 +148,8 @@ export function NewPostButton({
               </a>
             </p>
           )*/}
-          {/*!!isOnboarded &&*/(
-            <form
+          {
+            /*!!isOnboarded &&*/ <form
               onSubmit={handleSubmit(async (data) => {
                 setPostError(null);
                 createPost(data, {
@@ -195,7 +195,7 @@ export function NewPostButton({
                 Post
               </button>
             </form>
-          )}
+          }
         </article>
       </dialog>
     </>
