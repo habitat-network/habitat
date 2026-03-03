@@ -1,6 +1,5 @@
 // Components
 export { default as AuthForm } from "./AuthForm";
-export { default as UserCombobox } from "./components/UserCombobox";
 
 // Managers and Sessions
 export { AuthManager, UnauthenticatedError } from "./authManager";
