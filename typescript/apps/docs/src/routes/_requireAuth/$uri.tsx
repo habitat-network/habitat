@@ -2,7 +2,7 @@ import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { HabitatDoc } from "@/habitatDoc";
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { createLibp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
@@ -21,6 +21,12 @@ import { webRTC } from '@libp2p/webrtc'
 import { webTransport } from '@libp2p/webtransport'
 import { peerIdFromString } from "@libp2p/peer-id";
 
+const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz"
+
+class ForbiddenError extends Error {
+  constructor() { super("forbidden"); }
+}
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
     // Fetch the record
@@ -29,6 +35,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const originalRecordResponse = await context.authManager.fetch(
       `/xrpc/network.habitat.getRecord?repo=${docDID}&collection=${lexicon}&rkey=${rkey}&includePermissions=true`,
     );
+
+    if (originalRecordResponse?.status === 403) {
+      throw new ForbiddenError();
+    }
 
     // The gossipsub topic is also used as the per-document rendezvous key.
     const habitatUri = `habitat://${docDID}/network.habitat.docs/${rkey}`;
@@ -101,15 +111,26 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       console.log(`connection to ${conn.remotePeer}: ${isDirect ? 'direct WebRTC' : isRelayed ? 'relayed' : 'websocket'}`)
     })
 
+
+    async function getServiceAuthToken(): Promise<string> {
+      const response = await context.authManager.fetch(
+        `/xrpc/com.atproto.server.getServiceAuth?aud=${encodeURIComponent(habitatDID)}&lxm=com.atproto.server.getServiceAuth`,
+      );
+      const data = await response?.json();
+      return data.token;
+    }
+
+
     async function startPeerDiscovery(): Promise<void> {
       try {
         const stream = await node.dialProtocol(
           peerIdFromString(relayPeerId), "/habitat/peer-discovery/1.0.0");
-        const credential = context.authManager.getAuthInfo()?.accessToken ?? "";
-        console.log("credential", credential)
+        const oauthToken = context.authManager.getAuthInfo()?.accessToken ?? "";
+        const serviceAuthToken = await getServiceAuthToken()
+
         const encoder = new TextEncoder();
         stream.sink((async function* () {
-          yield encoder.encode(JSON.stringify({ topic: habitatUri, credential }));
+          yield encoder.encode(JSON.stringify({ topic: habitatUri, oauth_token: oauthToken, serviceauth_token: serviceAuthToken }));
         })());
 
         const decoder = new TextDecoder();
@@ -145,7 +166,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
     }
 
-    const did = context.authManager.getAuthInfo()?.did;
+    if (!context.authManager.getAuthInfo()) {
+      throw redirect({ to: "/" });
+    }
+
+    const did = context.authManager.getAuthInfo()!.did;
 
     // editRkey is the rkey used in network.habitat.docs.edit for this doc
     const editRkey = `${docDID}-${rkey}`;
@@ -326,6 +351,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         Node id: {node.peerId.toString()}
       </>
     );
+  },
+  errorComponent({ error }) {
+    if (error instanceof ForbiddenError) {
+      return <p>you do not have permission to view this doc</p>;
+    }
+    return <p>Something went wrong.</p>;
   },
   pendingComponent: () => <article>Loading...</article>,
 });

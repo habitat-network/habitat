@@ -20,7 +20,7 @@ import (
 )
 
 func setupServer(t *testing.T) (multiaddr.Multiaddr, *Server) {
-	p2pServer, err := NewServer(nil, nil, noop.Meter{})
+	p2pServer, err := NewServer(nil, nil, nil, noop.Meter{})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(p2pServer.HandleLibp2p))

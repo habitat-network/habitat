@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,4 +66,9 @@ func (t *testAuthMethod) Validate(
 		return "", false
 	}
 	return syntax.DID("did:web:test"), true
+}
+
+// Validate implements [Method].
+func (t *testAuthMethod) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
+	panic("unimplmeented")
 }

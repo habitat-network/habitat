@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pear"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/libp2p/go-libp2p"
@@ -102,14 +102,19 @@ func (pr *peerRegistry) notifySubscribedPeers(topic habitat_syntax.HabitatURI, p
 	}
 }
 
+type authMethods struct {
+	oauth       authn.Method
+	serviceAuth authn.Method
+}
+
 type Server struct {
 	host     host.Host
 	proxy    *httputil.ReverseProxy
 	registry *peerRegistry
 
 	// For authn/authz
-	oauth *oauthserver.OAuthServer
-	pear  pear.Pear
+	authMethods authMethods
+	pear        pear.Pear
 
 	// Count the open conns on this server
 	conns      atomic.Int64
@@ -118,7 +123,7 @@ type Server struct {
 
 var _ io.Closer = (*Server)(nil)
 
-func NewServer(oauth *oauthserver.OAuthServer, pear pear.Pear, meter metric.Meter) (*Server, error) {
+func NewServer(oauth authn.Method, serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*Server, error) {
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
@@ -155,17 +160,21 @@ func NewServer(oauth *oauthserver.OAuthServer, pear pear.Pear, meter metric.Mete
 	}
 
 	s := &Server{
-		host:       host,
-		proxy:      httputil.NewSingleHostReverseProxy(url),
-		registry:   registry,
-		oauth:      oauth,
+		host:     host,
+		proxy:    httputil.NewSingleHostReverseProxy(url),
+		registry: registry,
+		authMethods: authMethods{
+			oauth:       oauth,
+			serviceAuth: serviceAuth,
+		},
 		pear:       pear,
 		connsGauge: gauge,
 	}
 
 	type discoveryRequest struct {
-		Topic      string `json:"topic"`
-		Credential string `json:"credential"`
+		Topic            string `json:"topic"`
+		OauthToken       string `json:"oauth_token"`
+		ServiceAuthToken string `json:"serviceauth_token"`
 	}
 
 	const peerDiscoveryProtocol = "/habitat/peer-discovery/1.0.0"
@@ -190,7 +199,13 @@ func NewServer(oauth *oauthserver.OAuthServer, pear pear.Pear, meter metric.Mete
 			return
 		}
 
-		did, authn, err := s.oauth.ValidateRaw(ctx, req.Credential)
+		// TODO: should we explicitly accept a different auth method depending on whether the peer belongs to this node or not?
+		did, authn, err := s.authMethods.oauth.ValidateRaw(ctx, req.OauthToken)
+		if err != nil || !authn {
+			// Try service auth method if oauth was not provided or did not authn.
+			did, authn, err = s.authMethods.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
+		}
+
 		if err != nil || !authn {
 			// Ignore this peer -- don't let it know about others and don't let others discover it
 			return
