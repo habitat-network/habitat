@@ -55,13 +55,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
         this.node.services.pubsub
           .publish(this.topic, encoding.toUint8Array(encoder))
           .catch((err: Error) => {
-            if (err.message === "PublishError.NoPeersSubscribedToTopic") {
-              console.log(
-                "[pubsub] no peers subscribed yet, update will sync on graft",
-              );
-            } else {
-              console.error("[pubsub] publish error", err);
-            }
+            console.error("[pubsub] publish error", err);
           });
       }
     };
@@ -78,13 +72,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
       node.services.pubsub
         .publish(this.topic, encoding.toUint8Array(encoder))
         .catch((err: Error) => {
-          if (err.message === "PublishError.NoPeersSubscribedToTopic") {
-            console.log(
-              "[pubsub] no peers subscribed yet, awareness will sync on graft",
-            );
-          } else {
-            console.error("[pubsub] publish error", err);
-          }
+          console.error("[pubsub] publish error", err);
         });
     };
 
@@ -101,9 +89,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
             node.services.pubsub
               .publish(this.topic, encoding.toUint8Array(encoder))
               .catch((err: Error) => {
-                if (err.message !== "PublishError.NoPeersSubscribedToTopic") {
-                  console.error("[pubsub] publish error", err);
-                }
+                console.error("[pubsub] publish error", err);
               });
           }
           return;
@@ -134,11 +120,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
       node.services.pubsub
         .publish(this.topic, encoding.toUint8Array(encoder))
         .catch((err: Error) => {
-          if (err.message === "PublishError.NoPeersSubscribedToTopic") {
-            console.log("[pubsub] no peers subscribed yet on graft sync");
-          } else {
-            console.error("[pubsub] publish error", err);
-          }
+          console.error("[pubsub] publish error", err);
         });
     });
 
