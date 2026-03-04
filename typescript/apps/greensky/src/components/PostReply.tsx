@@ -1,5 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
 import { AuthManager } from "internal";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Textarea,
+} from "internal/components/ui";
 import { useState } from "react";
 
 interface PostReplyProps {
@@ -58,7 +66,7 @@ export function PostReply({
           const body = await res.json();
           if (body.message) message = body.message;
           else if (body.error) message = body.error;
-        } catch {}
+        } catch { }
         throw new Error(message);
       }
     },
@@ -66,27 +74,14 @@ export function PostReply({
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        style={{
-          position: "absolute",
-          bottom: 8,
-          right: 8,
-          fontSize: "0.75em",
-          padding: "2px 8px",
-          cursor: "pointer",
-        }}
-      >
+      <Button onClick={() => setOpen(true)} variant="ghost" size="sm">
         ↩ Reply
-      </button>
-      <dialog open={open}>
-        <article>
-          <header>
-            <button onClick={closeModal} aria-label="Close" rel="prev" />
-            <p>
-              <strong>Reply</strong>
-            </p>
-          </header>
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reply</DialogTitle>
+          </DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -96,19 +91,22 @@ export function PostReply({
                 onSuccess: () => closeModal(),
               });
             }}
+            className="space-y-4"
           >
-            <textarea
+            <Textarea
               placeholder="Write a reply..."
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
-            {replyError && <p>{replyError}</p>}
-            <button type="submit" aria-busy={isPending}>
-              Reply
-            </button>
+            {replyError && (
+              <p className="text-destructive text-sm">{replyError}</p>
+            )}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Replying..." : "Reply"}
+            </Button>
           </form>
-        </article>
-      </dialog>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

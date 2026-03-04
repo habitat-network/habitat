@@ -9,6 +9,7 @@ import {
 import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { reportWebVitals, AuthManager } from "internal";
+import "./index.css";
 
 const authManager = new AuthManager(__DOMAIN__, __HABITAT_DOMAIN__, () => {
   router.navigate({ to: "/login" });

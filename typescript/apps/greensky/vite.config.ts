@@ -16,6 +16,9 @@ const config = defineConfig({
     viteReact(),
     ...habitatPlugins(),
   ],
+  optimizeDeps: {
+    include: ["react", "react-dom", "react/jsx-runtime"],
+  },
 });
 
 export default config;

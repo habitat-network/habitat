@@ -7,17 +7,15 @@ export default defineConfig({
   plugins: [
     react(),
     dts({
-      include: ["src/**/*"],
-      exclude: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+      include: ["src/habitatAppVitePlugin.ts", "src/clientMetadata.ts"],  // Include dependencies
       entryRoot: "src",
-      rollupTypes: true,
+      rollupTypes: false,  // Don't rollup since we're only building the plugin
       copyDtsFiles: false,
     }),
   ],
   build: {
     lib: {
       entry: {
-        index: path.resolve(__dirname, "src/index.ts"),
         habitatAppVitePlugin: path.resolve(
           __dirname,
           "src/habitatAppVitePlugin.ts",
@@ -53,6 +51,7 @@ export default defineConfig({
 
         // Plugin dependencies
         "vite-plugin-generate-file",
+        "@tailwindcss/vite",
 
         // Node.js built-ins (for the Vite plugin)
         "node:util",
