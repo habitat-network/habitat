@@ -220,7 +220,6 @@ func (p *pear) AddPermissions(
 				}
 			}
 		case permissions.DIDGrantee:
-			// TODO: if rkey == "", fetch all the relevant records
 			err := p.NotifyOfUpdate(ctx, owner, g.DID(), collection, rkey, "added_permission")
 			if err != nil {
 				return nil, err
@@ -378,8 +377,7 @@ func (p *pear) PutRecord(
 		return "", fmt.Errorf("putting record: %w", err)
 	}
 
-	// TODO: if someone is added to the clique, fan out notifications about all the records currently in the clique
-	// For now, ignore.
+	// If someone is added to the clique, fan out notifications about all the records currently in the clique
 	if collection == permissions.CliqueNSID {
 		// Get all records that grant permission to this clique
 		clique := permissions.CliqueGrantee(uri)
@@ -767,7 +765,6 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 		return nil, err
 	}
 
-	// TODO: implement
 	remoteRecords, err := p.listRecordsFromInbox(ctx, caller, collection)
 	if err != nil {
 		return nil, err
@@ -776,7 +773,6 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 	return append(localRecords, remoteRecords...), nil
 }
 
-// TODO: actually enforce permissions here
 func (p *pear) GetBlob(
 	ctx context.Context,
 	caller syntax.DID,
