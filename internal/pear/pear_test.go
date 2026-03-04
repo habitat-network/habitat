@@ -1,8 +1,12 @@
 package pear
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -18,14 +22,94 @@ import (
 	"gorm.io/gorm"
 )
 
-type mockXrpcChannel struct {
-	actions []*http.Response
+// xrpcExpectation represents one expected XRPC call and its canned response.
+// path is matched via strings.Contains against the request URL path.
+// times=-1 means unlimited (AnyTimes); times>0 means exactly that many uses.
+type xrpcExpectation struct {
+	path      string
+	times     int
+	remaining int
+	resp      func() *http.Response
 }
 
+func (e *xrpcExpectation) Times(n int) *xrpcExpectation {
+	e.times = n
+	e.remaining = n
+	return e
+}
+
+func (e *xrpcExpectation) AnyTimes() *xrpcExpectation {
+	e.times = -1
+	e.remaining = -1
+	return e
+}
+
+// WillReturn registers the response to return. The body is buffered so the same
+// response can be returned multiple times (safe with Times(n) or AnyTimes()).
+func (e *xrpcExpectation) WillReturn(resp *http.Response) *xrpcExpectation {
+	if resp != nil && resp.Body != nil {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		statusCode := resp.StatusCode
+		header := resp.Header
+		e.resp = func() *http.Response {
+			return &http.Response{
+				StatusCode: statusCode,
+				Body:       io.NopCloser(bytes.NewReader(body)),
+				Header:     header,
+			}
+		}
+	} else {
+		e.resp = func() *http.Response { return resp }
+	}
+	return e
+}
+
+type mockXrpcChannel struct {
+	t            testing.TB
+	expectations []*xrpcExpectation
+}
+
+func newMockXrpcChannel(t testing.TB) *mockXrpcChannel {
+	return &mockXrpcChannel{t: t}
+}
+
+// Expect adds an ordered expectation for an XRPC call whose URL path contains path.
+// Default: expected exactly once. Chain .Times(n) or .AnyTimes() to change.
+func (m *mockXrpcChannel) Expect(path string) *xrpcExpectation {
+	e := &xrpcExpectation{path: path, times: 1, remaining: 1}
+	m.expectations = append(m.expectations, e)
+	return e
+}
+
+// SendXRPC finds the first non-exhausted expectation (FIFO), validates the path,
+// and returns its response. Fails the test if no expectation matches.
 func (m *mockXrpcChannel) SendXRPC(_ context.Context, _ syntax.DID, _ syntax.DID, r *http.Request) (*http.Response, error) {
-	next := m.actions[0]
-	m.actions = m.actions[1:]
-	return next, nil
+	for _, e := range m.expectations {
+		if e.remaining == 0 {
+			continue
+		}
+		if e.path != "" && !strings.Contains(r.URL.Path, e.path) {
+			m.t.Errorf("mockXrpcChannel: expected XRPC call to path containing %q, got %q", e.path, r.URL.Path)
+			return nil, fmt.Errorf("mock: unexpected xrpc path %q", r.URL.Path)
+		}
+		if e.remaining > 0 {
+			e.remaining--
+		}
+		return e.resp(), nil
+	}
+	m.t.Errorf("mockXrpcChannel: unexpected XRPC call to %s (no expectations remaining)", r.URL.Path)
+	return nil, fmt.Errorf("mock: no expectation for xrpc call to %s", r.URL.Path)
+}
+
+// ExpectationsWereMet returns an error if any finite expectation was not fully consumed.
+func (m *mockXrpcChannel) ExpectationsWereMet() error {
+	for _, e := range m.expectations {
+		if e.remaining > 0 {
+			return fmt.Errorf("expectation for %q not met: expected %d call(s), got %d", e.path, e.times, e.times-e.remaining)
+		}
+	}
+	return nil
 }
 
 var _ xrpcchannel.XrpcChannel = &mockXrpcChannel{}
@@ -53,7 +137,7 @@ func newPearForTest(t *testing.T, dir identity.Directory, opts ...option) *pear 
 	require.NoError(t, err)
 
 	o := &options{
-		node: node.New(testServiceName, testServiceEndpoint, dir, &mockXrpcChannel{}),
+		node: node.New(testServiceName, testServiceEndpoint, dir, newMockXrpcChannel(t)),
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -131,7 +215,8 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.ErrorIs(t, ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, p.permissions.AddPermissions([]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, ""))
+	_, err = p.permissions.AddPermissions([]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, "")
+	require.NoError(t, err)
 
 	// Now non-owner can access
 	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
@@ -197,15 +282,13 @@ func TestListRecords(t *testing.T) {
 	})
 
 	t.Run("returns records with full collection permission", func(t *testing.T) {
-		require.NoError(
-			t,
-			p.permissions.AddPermissions(
-				[]permissions.Grantee{permissions.DIDGrantee("did:example:readerid")},
-				syntax.DID("did:example:myid"),
-				coll1,
-				"",
-			),
+		_, err := p.permissions.AddPermissions(
+			[]permissions.Grantee{permissions.DIDGrantee("did:example:readerid")},
+			syntax.DID("did:example:myid"),
+			coll1,
+			"",
 		)
+		require.NoError(t, err)
 
 		records, err := p.ListRecords(
 			t.Context(),
@@ -221,15 +304,13 @@ func TestListRecords(t *testing.T) {
 	})
 
 	t.Run("returns only specific permitted record", func(t *testing.T) {
-		require.NoError(
-			t,
-			p.permissions.AddPermissions(
-				[]permissions.Grantee{permissions.DIDGrantee("did:example:specificreader")},
-				syntax.DID("did:example:myid"),
-				coll1,
-				"rkey1",
-			),
+		_, err := p.permissions.AddPermissions(
+			[]permissions.Grantee{permissions.DIDGrantee("did:example:specificreader")},
+			syntax.DID("did:example:myid"),
+			coll1,
+			"rkey1",
 		)
+		require.NoError(t, err)
 
 		records, err := p.ListRecords(
 			t.Context(),
@@ -319,12 +400,13 @@ func TestCliqueFlow(t *testing.T) {
 	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(aDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
 
 	// A creates the clique by adding B as a member
-	require.NoError(t, p.permissions.AddPermissions(
+	_, err := p.permissions.AddPermissions(
 		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(bDID))},
 		syntax.DID(aDID),
 		permissions.CliqueNSID,
 		cliqueRkey,
-	))
+	)
+	require.NoError(t, err)
 
 	val := map[string]any{"data": "value"}
 	validate := true
@@ -376,12 +458,13 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, bRecords, 2)
 
 	// A adds C to the clique
-	require.NoError(t, p.permissions.AddPermissions(
+	_, err = p.permissions.AddPermissions(
 		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(cDID))},
 		syntax.DID(aDID),
 		permissions.CliqueNSID,
 		cliqueRkey,
-	))
+	)
+	require.NoError(t, err)
 
 	// C can see both records
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(cDID))
@@ -454,8 +537,8 @@ func TestNotifyOfUpdate(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{senderDID, recipientDID})
 	p := newPearForTest(t, dir)
 
-	collection := "my.fake.collection"
-	rkey := "my-rkey"
+	collection := syntax.NSID("my.fake.collection")
+	rkey := syntax.RecordKey("my-rkey")
 
 	t.Run("succeeds for valid sender and recipient", func(t *testing.T) {
 		err := p.NotifyOfUpdate(
@@ -464,6 +547,7 @@ func TestNotifyOfUpdate(t *testing.T) {
 			syntax.DID(recipientDID),
 			collection,
 			rkey,
+			"any",
 		)
 		require.NoError(t, err)
 	})
@@ -475,6 +559,7 @@ func TestNotifyOfUpdate(t *testing.T) {
 			syntax.DID(recipientDID),
 			collection,
 			rkey,
+			"any",
 		)
 		require.NoError(t, err)
 
@@ -484,6 +569,7 @@ func TestNotifyOfUpdate(t *testing.T) {
 			syntax.DID(recipientDID),
 			collection,
 			rkey,
+			"any",
 		)
 		require.NoError(t, err)
 	})
@@ -495,6 +581,7 @@ func TestNotifyOfUpdate(t *testing.T) {
 			syntax.DID(recipientDID),
 			collection,
 			"rkey-1",
+			"any",
 		)
 		require.NoError(t, err)
 
@@ -504,6 +591,7 @@ func TestNotifyOfUpdate(t *testing.T) {
 			syntax.DID(recipientDID),
 			collection,
 			"rkey-2",
+			"any",
 		)
 		require.NoError(t, err)
 	})
@@ -578,8 +666,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("includes records from other users when user has permission", func(t *testing.T) {
 		// Grant Alice permission to read Bob's records
-		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
-
+		_, err = perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "")
+		require.NoError(t, err)
 		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
@@ -631,8 +719,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("includes records from different nodes if they exist in database", func(t *testing.T) {
 		// Grant Alice permission to read remote user's records
-		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(remoteDID), coll, ""))
-
+		_, err = perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(remoteDID), coll, "")
+		require.NoError(t, err)
 		records, err := p.ListRecords(
 			t.Context(),
 			syntax.DID(aliceDID),
@@ -647,8 +735,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		otherColl := syntax.NSID("other.collection")
 		_, err := p.PutRecord(t.Context(), syntax.DID(bobDID), syntax.DID(bobDID), otherColl, val, "bob-other-rkey", &validate, []permissions.Grantee{})
 		require.NoError(t, err)
-		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), otherColl, ""))
-
+		_, err = perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), otherColl, "")
+		require.NoError(t, err)
 		// Query for original collection
 		records, err := p.ListRecords(
 			t.Context(),
@@ -676,10 +764,9 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	t.Run("returns only specific permitted records", func(t *testing.T) {
 		// Remove full collection permission first, then grant only specific permission
 		require.NoError(t, perms.RemovePermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
-		require.NoError(
-			t,
-			perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey1"),
-		)
+
+		_, err = perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey1")
+		require.NoError(t, err)
 
 		records, err := p.ListRecords(
 			t.Context(),

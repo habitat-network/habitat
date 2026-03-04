@@ -5,6 +5,7 @@ package habitat
 // NetworkHabitatInternalNotifyOfUpdateInput represents the input for network.habitat.internal.notifyOfUpdate
 type NetworkHabitatInternalNotifyOfUpdateInput struct {
 	Collection string `json:"collection"`
+	Reason     string `json:"reason,omitempty"`
 	Recipient  string `json:"recipient"`
 	Rkey       string `json:"rkey"`
 }
