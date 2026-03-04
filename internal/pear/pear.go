@@ -867,7 +867,9 @@ func (p *pear) NotifyOfUpdate(
 	}
 
 	resp, err := p.node.SendXRPC(ctx, sender, recipient, req)
-	defer func() { _ = resp.Body.Close() }()
+	if resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 
 	return err
 }
