@@ -16,10 +16,11 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric/noop"
 )
 
 func setupServer(t *testing.T) (multiaddr.Multiaddr, *Server) {
-	p2pServer, err := NewServer()
+	p2pServer, err := NewServer(noop.Meter{})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(p2pServer.HandleLibp2p))

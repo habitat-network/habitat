@@ -39,20 +39,24 @@ export class Libp2pConnectionProvider extends ObservableV2<{
     origin: any,
   ) => void;
 
-  constructor(node: Node, doc: Y.Doc) {
+  topic: string;
+
+  constructor(node: Node, doc: Y.Doc, topic: string) {
     super();
     this.node = node;
     this.doc = doc;
+    this.topic = topic;
     this.awareness = new awarenessProtocol.Awareness(doc);
     this._handleDocUpdate = (update, origin) => {
       if (origin !== this) {
         const encoder = encoding.createEncoder();
         encoding.writeVarUint(encoder, messageTypes.sync);
         syncProtocol.writeUpdate(encoder, update);
-        this.node.services.pubsub.publish(
-          "test",
-          encoding.toUint8Array(encoder),
-        );
+        this.node.services.pubsub
+          .publish(this.topic, encoding.toUint8Array(encoder))
+          .catch((err: Error) => {
+            console.error("[pubsub] publish error", err);
+          });
       }
     };
 
@@ -64,72 +68,74 @@ export class Libp2pConnectionProvider extends ObservableV2<{
         encoder,
         awarenessProtocol.encodeAwarenessUpdate(this.awareness, changedClients),
       );
-      node.services.pubsub.publish("test", encoding.toUint8Array(encoder));
+
+      node.services.pubsub
+        .publish(this.topic, encoding.toUint8Array(encoder))
+        .catch((err: Error) => {
+          console.error("[pubsub] publish error", err);
+        });
     };
 
     node.services.pubsub.addEventListener("message", (message) => {
+      if (message.detail.topic !== this.topic) return;
       const decoder = decoding.createDecoder(message.detail.data);
       const messageType = decoding.readVarUint(decoder);
       switch (messageType) {
         case messageTypes.sync: {
           const encoder = encoding.createEncoder();
-          encoding.writeUint8(encoder, messageTypes.sync);
+          encoding.writeVarUint(encoder, messageTypes.sync);
           syncProtocol.readSyncMessage(decoder, encoder, doc, this);
           if (encoding.length(encoder) > 1) {
-            node.services.pubsub.publish(
-              "test",
-              encoding.toUint8Array(encoder),
-            );
+            node.services.pubsub
+              .publish(this.topic, encoding.toUint8Array(encoder))
+              .catch((err: Error) => {
+                console.error("[pubsub] publish error", err);
+              });
           }
           return;
         }
         case messageTypes.awareness: {
-          const encoder = encoding.createEncoder();
-          encoding.writeUint8(encoder, messageTypes.awareness);
           awarenessProtocol.applyAwarenessUpdate(
             this.awareness,
             decoding.readVarUint8Array(decoder),
             this,
           );
-          if (encoding.length(encoder) > 1) {
-            node.services.pubsub.publish(
-              "test",
-              encoding.toUint8Array(encoder),
-            );
-          }
           return;
         }
       }
     });
 
-    node.services.pubsub.addEventListener("gossipsub:graft", () => {
+    // Send sync step 1 when a peer joins the mesh for this specific topic.
+    // gossipsub:graft fires after the mesh is established, so publish is guaranteed
+    // to have at least one recipient. The topic filter prevents spurious syncs for
+    // unrelated gossipsub-internal topics.
+    node.services.pubsub.addEventListener("gossipsub:graft", (event) => {
+      const { topic } = (
+        event as CustomEvent<{ peerId: unknown; topic: string }>
+      ).detail;
+      if (topic !== this.topic) return;
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageTypes.sync);
       syncProtocol.writeSyncStep1(encoder, doc);
-      node.services.pubsub.publish("test", encoding.toUint8Array(encoder));
-
-      doc.on("update", this._handleDocUpdate);
-      this.awareness.on("update", this._awarenessUpdateHandler);
+      node.services.pubsub
+        .publish(this.topic, encoding.toUint8Array(encoder))
+        .catch((err: Error) => {
+          console.error("[pubsub] publish error", err);
+        });
     });
 
-    node.services.pubsub.addEventListener(
-      "subscription-change",
-      ({ detail }) => {
-        const subscription = detail.subscriptions.find(
-          (sub) => sub.topic === "test",
-        );
-        if (!subscription?.subscribe) {
-          doc.off("update", this._handleDocUpdate);
-          this.awareness.off("update", this._awarenessUpdateHandler);
-        }
-      },
-    );
+    // Attach update handlers immediately so local changes are captured from the
+    // start. Publishes before mesh formation will be dropped silently, but the
+    // sync step 1 exchange on graft ensures both peers converge on the full state.
+    doc.on("update", this._handleDocUpdate);
+    this.awareness.on("update", this._awarenessUpdateHandler);
 
-    node.services.pubsub.subscribe("test");
+    console.log("subscribing to", this.topic);
+    node.services.pubsub.subscribe(this.topic);
   }
 
   destroy(): void {
-    this.node.services.pubsub.unsubscribe("test");
+    this.node.services.pubsub.unsubscribe(this.topic);
     this.awareness.off("update", this._awarenessUpdateHandler);
     this.doc.off("update", this._handleDocUpdate);
   }
