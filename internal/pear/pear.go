@@ -2,9 +2,9 @@ package pear
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -455,14 +455,13 @@ func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target synt
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		var bytes []byte
-		err := json.NewDecoder(resp.Body).Decode(&bytes)
+		slurp, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", nil, err
 		}
 
 		mimeType := resp.Header.Get("Content-Type")
-		return mimeType, bytes, nil
+		return mimeType, slurp, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return "", nil, ErrUnauthorized
 	default:

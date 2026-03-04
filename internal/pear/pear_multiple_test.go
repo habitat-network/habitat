@@ -232,19 +232,18 @@ func TestGetBlobRemote(t *testing.T) {
 	require.NoError(t, err)
 	cid := syntax.CID(bmeta.Ref.String())
 
-	// B fetches A's blob. Since pearB does not serve aDID, it calls getBlobRemote,
-	// which sends a network.habitat.getBlob XRPC. The response body is JSON-encoded []byte;
-	// the Content-Type header carries the MIME type.
-	blobBodyBytes, err := json.Marshal(blobData)
+	blobBodyBytes := bytes.NewBuffer(blobData)
 	require.NoError(t, err)
 
 	header := make(http.Header)
 	header.Set("Content-Type", mimeType)
-	mockXRPCs.actions = append(mockXRPCs.actions, &http.Response{
+	resp := &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(blobBodyBytes)),
+		Body:       io.NopCloser(blobBodyBytes),
 		Header:     header,
-	})
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	mockXRPCs.actions = append(mockXRPCs.actions, resp)
 
 	gotMime, gotBlob, err := pearB.GetBlob(t.Context(), bDID, aDID, cid)
 	require.NoError(t, err)
