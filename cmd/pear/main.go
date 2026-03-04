@@ -123,13 +123,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 		identity.DefaultDirectory(),
 	)
 
-	pearServer, err := setupPearServer(cmd, db, oauthServer, pdsClientFactory)
+	dir := identity.DefaultDirectory()
+	pear, err := setupPear(cmd, dir, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
-	p2pServer, err := p2p.NewServer(meter)
+
+	p2pServer, err := p2p.NewServer(oauthServer, pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
@@ -246,12 +249,13 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPearServer(
+func setupPear(
 	cmd *cli.Command,
+	dir identity.Directory,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	clientFactory pdsclient.HttpClientFactory,
-) (*server.Server, error) {
+) (pear.Pear, error) {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
 	serviceEndpoint := "https://" + domain
@@ -261,7 +265,6 @@ func setupPearServer(
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	dir := identity.DefaultDirectory()
 	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
 	node := node.New(
 		serviceName,
@@ -281,8 +284,7 @@ func setupPearServer(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	p := pear.NewPear(node, dir, permissions, repo, inbox)
-	return server.NewServer(dir, p, oauthServer, authn.NewServiceAuthMethod(dir)), nil
+	return pear.NewPear(node, dir, permissions, repo, inbox), nil
 }
 
 func setupOAuthServer(

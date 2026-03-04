@@ -105,8 +105,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       try {
         const stream = await node.dialProtocol(
           peerIdFromString(relayPeerId), "/habitat/peer-discovery/1.0.0");
+        const credential = context.authManager.getAuthInfo()?.accessToken ?? "";
+        console.log("credential", credential)
         const encoder = new TextEncoder();
-        stream.sink((async function* () { yield encoder.encode(habitatUri + "\n"); })());
+        stream.sink((async function* () {
+          yield encoder.encode(JSON.stringify({ topic: habitatUri, credential }));
+        })());
 
         const decoder = new TextDecoder();
         let buf = "";

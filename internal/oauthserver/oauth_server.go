@@ -413,3 +413,32 @@ func (o *OAuthServer) Validate(
 	}
 	return syntax.DID(did), true
 }
+
+// Validate's the given token and writes an error response to w if validation fails
+func (o *OAuthServer) ValidateRaw(
+	ctx context.Context,
+	token string,
+	scopes ...string,
+) (syntax.DID, bool, error) {
+	_, ar, err := o.provider.IntrospectToken(
+		ctx,
+		token,
+		fosite.AccessToken,
+		&oauth2.JWTSession{},
+		scopes...,
+	)
+	if err != nil {
+		return "", false, fmt.Errorf("invalid or expired token: %w", err)
+	}
+	// Get the DID from the session subject (stored in JWT)
+	session := ar.GetSession().(*oauth2.JWTSession)
+	if session.JWTClaims == nil {
+		return "", false, fmt.Errorf("JWT claims not found")
+	}
+
+	did := session.JWTClaims.Subject
+	if did == "" {
+		return "", false, fmt.Errorf("DID not found in JWT")
+	}
+	return syntax.DID(did), true, nil
+}
