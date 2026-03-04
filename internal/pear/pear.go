@@ -112,22 +112,15 @@ func (p *pear) AddPermissions(
 		return nil, ErrUnauthorized
 	}
 
-	didGrantees := []permissions.DIDGrantee{}
-	cliqueGrantees := []permissions.CliqueGrantee{}
-	for _, grantee := range grantees {
-		switch g := grantee.(type) {
-		case permissions.CliqueGrantee:
-			cliqueGrantees = append(cliqueGrantees, g)
-		case permissions.DIDGrantee:
-			didGrantees = append(didGrantees, g)
+	if collection == permissions.CliqueNSID {
+		for _, grantee := range grantees {
+			if _, ok := grantee.(permissions.CliqueGrantee); ok {
+				// Can't grant a clique permission to another clique
+				return nil, ErrNoNestedCliques
+			}
 		}
-	}
-
-	if collection == permissions.CliqueNSID && len(cliqueGrantees) > 0 {
-		// Can't grant a clique permission to another clique
-		return nil, ErrNoNestedCliques
 	} else if collection == permissions.CliqueNSID && rkey == syntax.RecordKey("") {
-		return nil, fmt.Errorf("adding permissions to the clique collection is not supported right now")
+		return nil, fmt.Errorf("adding permissions to the entire clique collection is not supported right now") // TODO: Does this make sense?
 	}
 
 	added, err := p.permissions.AddPermissions(grantees, owner, collection, rkey)
@@ -504,6 +497,9 @@ func (p *pear) resolveClique(
 			return nil, err
 		}
 		grantees, err = permissions.ParseGranteesFromInterface(perms)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	didGrantees := []permissions.DIDGrantee{}
@@ -846,6 +842,10 @@ func (p *pear) NotifyOfUpdate(
 	}
 
 	reqURL, err := url.Parse("/xrpc/network.habitat.internal.notifyOfUpdate")
+	if err != nil {
+		return err
+	}
+
 	input := habitat.NetworkHabitatInternalNotifyOfUpdateInput{
 		Collection: collection.String(),
 		Recipient:  recipient.String(),
@@ -862,7 +862,12 @@ func (p *pear) NotifyOfUpdate(
 		reqURL.String(),
 		bytes.NewReader(marshalled),
 	)
+	if err != nil {
+		return err
+	}
 
-	_, err = p.node.SendXRPC(ctx, sender, recipient, req)
+	resp, err := p.node.SendXRPC(ctx, sender, recipient, req)
+	defer func() { _ = resp.Body.Close() }()
+
 	return err
 }
