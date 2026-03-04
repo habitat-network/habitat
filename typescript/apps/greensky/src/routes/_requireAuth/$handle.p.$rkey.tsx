@@ -75,16 +75,22 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
       };
     });
 
-    return { entries: [entry], replyEntries: replyEntries, postClique: post.clique, postCid: post.cid };
+    return {
+      entries: [entry],
+      replyEntries: replyEntries,
+      postClique: post.clique,
+      postCid: post.cid,
+    };
   },
   component() {
     const { handle } = Route.useParams();
-    const { entries, replyEntries, postClique, postCid } = Route.useLoaderData() as {
-      entries: FeedEntry[];
-      replyEntries: FeedEntry[];
-      postClique: string | undefined;
-      postCid: string;
-    };
+    const { entries, replyEntries, postClique, postCid } =
+      Route.useLoaderData() as {
+        entries: FeedEntry[];
+        replyEntries: FeedEntry[];
+        postClique: string | undefined;
+        postCid: string;
+      };
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
     return (
       <>
@@ -94,9 +100,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
               <li>
                 <Link to="/">← greensky</Link>
               </li>
-              <li>
-                Post by @{handle}
-              </li>
+              <li>Post by @{handle}</li>
             </>
           }
           authManager={authManager}
@@ -117,7 +121,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         />
         {replyEntries.length > 0 && (
           <>
-            <h4 style={{ padding: "0 1rem" }}>Replies</h4>
+            <h4 className="container my-4">Replies</h4>
             <Feed entries={replyEntries} showPrivatePermalink={false} />
           </>
         )}

@@ -61,7 +61,7 @@ export function Feed({
   });
 
   return (
-    <div className="flex flex-col gap-4 mx-2 w-fit">
+    <div className="flex flex-col gap-4 mx-2 w-full max-w-2xl">
       {sorted.map((entry) => (
         <Card key={entry.uri} size="sm">
           <CardHeader>

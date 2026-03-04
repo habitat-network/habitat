@@ -66,7 +66,7 @@ export function PostReply({
           const body = await res.json();
           if (body.message) message = body.message;
           else if (body.error) message = body.error;
-        } catch {}
+        } catch { }
         throw new Error(message);
       }
     },
@@ -74,12 +74,7 @@ export function PostReply({
 
   return (
     <>
-      <Button
-        onClick={() => setOpen(true)}
-        variant="ghost"
-        size="sm"
-        className="absolute bottom-2 right-2"
-      >
+      <Button onClick={() => setOpen(true)} variant="ghost" size="sm">
         ↩ Reply
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -103,7 +98,9 @@ export function PostReply({
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
-            {replyError && <p className="text-destructive text-sm">{replyError}</p>}
+            {replyError && (
+              <p className="text-destructive text-sm">{replyError}</p>
+            )}
             <Button type="submit" disabled={isPending}>
               {isPending ? "Replying..." : "Reply"}
             </Button>
