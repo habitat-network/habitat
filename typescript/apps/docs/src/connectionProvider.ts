@@ -122,6 +122,23 @@ export class Libp2pConnectionProvider extends ObservableV2<{
         .catch((err: Error) => {
           console.error("[pubsub] publish error", err);
         });
+
+      // Re-broadcast local awareness so cursors reappear after reconnect.
+      // Remote awareness states expire after ~30s of inactivity, so peers
+      // need to re-announce themselves when the mesh is re-established.
+      const awarenessEncoder = encoding.createEncoder();
+      encoding.writeVarUint(awarenessEncoder, messageTypes.awareness);
+      encoding.writeVarUint8Array(
+        awarenessEncoder,
+        awarenessProtocol.encodeAwarenessUpdate(this.awareness, [
+          this.awareness.clientID,
+        ]),
+      );
+      node.services.pubsub
+        .publish(this.topic, encoding.toUint8Array(awarenessEncoder))
+        .catch((err: Error) => {
+          console.error("[pubsub] publish error", err);
+        });
     });
 
     // Attach update handlers immediately so local changes are captured from the
