@@ -2,8 +2,11 @@ package pear
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -419,7 +422,54 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 	return localRecords, nil
 }
 
-// TODO: actually enforce permissions here
+func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error) {
+	// Otherwise, forward this request to the right repo (the clique member)
+	reqURL, err := url.Parse("/xrpc/network.habitat.getBlob")
+	if err != nil {
+		return "", nil, err
+	}
+
+	q := reqURL.Query()
+	q.Set("did", target.String())
+	q.Set("cid", cid.String())
+	reqURL.RawQuery = q.Encode()
+	if err != nil {
+		return "", nil, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		reqURL.String(),
+		nil,
+	)
+	if err != nil {
+		return "", nil, fmt.Errorf("constructing http request for remote resolve: %w", err)
+	}
+
+	resp, err := p.node.SendXRPC(ctx, caller, target, req)
+	if err != nil {
+		return "", nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var bytes []byte
+		err := json.NewDecoder(resp.Body).Decode(&bytes)
+		if err != nil {
+			return "", nil, err
+		}
+
+		mimeType := resp.Header.Get("Content-Type")
+		return mimeType, bytes, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return "", nil, ErrUnauthorized
+	default:
+		return "", nil, fmt.Errorf("unexpected status from remote getBlob: %d", resp.StatusCode)
+	}
+}
+
 func (p *pear) GetBlob(
 	ctx context.Context,
 	caller syntax.DID,
@@ -431,9 +481,8 @@ func (p *pear) GetBlob(
 		return "", nil, err
 	}
 
-	// TODO: implement this via xrpc forwarding
 	if !serves {
-		return "", nil, ErrRemoteFetchUnsupported
+		return p.getBlobRemote(ctx, caller, target, cid)
 	}
 	authz := false
 

@@ -215,3 +215,39 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.Len(t, bRecordsAfterRemoval, 1)
 	require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)
 }
+
+// TestGetBlobRemote verifies that when B requests a blob owned by A (on a remote node),
+// GetBlob forwards the request via a network.habitat.getBlob XRPC and returns the blob data.
+func TestGetBlobRemote(t *testing.T) {
+	aDID := syntax.DID("did:example:a")
+	bDID := syntax.DID("did:example:b")
+
+	mockXRPCs := &mockXrpcChannel{actions: []*http.Response{}}
+	pearA, pearB := newMultiPears(t, []syntax.DID{aDID}, []syntax.DID{bDID}, mockXRPCs)
+
+	// A uploads a blob to their local repo.
+	blobData := []byte("remote blob content")
+	mimeType := "text/plain"
+	bmeta, err := pearA.UploadBlob(t.Context(), aDID, aDID, blobData, mimeType)
+	require.NoError(t, err)
+	cid := syntax.CID(bmeta.Ref.String())
+
+	// B fetches A's blob. Since pearB does not serve aDID, it calls getBlobRemote,
+	// which sends a network.habitat.getBlob XRPC. The response body is JSON-encoded []byte;
+	// the Content-Type header carries the MIME type.
+	blobBodyBytes, err := json.Marshal(blobData)
+	require.NoError(t, err)
+
+	header := make(http.Header)
+	header.Set("Content-Type", mimeType)
+	mockXRPCs.actions = append(mockXRPCs.actions, &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(blobBodyBytes)),
+		Header:     header,
+	})
+
+	gotMime, gotBlob, err := pearB.GetBlob(t.Context(), bDID, aDID, cid)
+	require.NoError(t, err)
+	require.Equal(t, mimeType, gotMime)
+	require.Equal(t, blobData, gotBlob)
+}
