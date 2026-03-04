@@ -1,0 +1,4 @@
+@import "internal/styles.css";
+
+@source "./**/*.{ts,tsx}";
+@source "../../../internal/src/**/*.{ts,tsx}";

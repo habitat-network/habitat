@@ -6,7 +6,11 @@
     "emitDeclarationOnly": false,
     "noEmit": false,
     "allowImportingTsExtensions": false,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src/**/*"],
   "references": [{ "path": "../api" }]

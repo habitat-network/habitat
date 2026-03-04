@@ -1,5 +1,21 @@
 import { Link } from "@tanstack/react-router";
 import React from "react";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardDescription,
+  AvatarGroup,
+  CardFooter,
+  Item,
+  ItemMedia,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemActions,
+  Badge,
+} from "internal/components/ui";
+import { UserAvatar } from "internal";
 import type { PostVisibility } from "./habitatApi";
 
 export interface FeedEntry {
@@ -45,160 +61,111 @@ export function Feed({
   });
 
   return (
-    <>
+    <div className="flex flex-col gap-4 mx-2 w-full max-w-2xl">
       {sorted.map((entry) => (
-        <article
-          key={entry.uri}
-          style={{
-            outline:
-              entry.kind === "specific-users"
-                ? "3px solid #E99FED"
-                : entry.kind === "followers-only"
-                  ? "3px solid #2A7047"
-                  : "3px solid #92C0D1",
-            position: "relative",
-          }}
-        >
-          {entry.kind === "public" && entry.author?.handle && (
-            <a
-              href={bskyUrl(entry.uri, entry.author.handle)}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                fontSize: "0.75em",
-                textDecoration: "none",
-              }}
-            >
-              ↗🦋
-            </a>
-          )}
-          {showPrivatePermalink && entry.kind !== "public" && entry.author?.handle && (
-            <Link
-              to={"/$handle/p/$rkey" as any}
-              params={{ handle: entry.author.handle, rkey: entry.uri.split("/").pop()! } as any}
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                fontSize: "0.75em",
-                textDecoration: "none",
-              }}
-            >
-              ↗🌱
-            </Link>
-          )}
-          {entry.grantees && entry.grantees.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                right: showPrivatePermalink && entry.kind !== "public" ? 48 : 8,
-                display: "flex",
-              }}
-            >
-              {entry.grantees.map((grantee, i) => (
-                <a
-                  key={grantee.handle}
-                  href={`https://bsky.app/profile/${grantee.handle}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ marginLeft: i === 0 ? 0 : -6, display: "block" }}
-                >
-                  {grantee.avatar ? (
-                    <img
-                      src={grantee.avatar}
-                      width={24}
-                      height={24}
-                      style={{
-                        borderRadius: "50%",
-                        border: "2px solid white",
-                        display: "block",
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: "50%",
-                        border: "2px solid white",
-                        background: "#ccc",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 10,
-                        color: "#555",
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      {grantee.handle[0]?.toUpperCase()}
-                    </div>
-                  )}
-                </a>
-              ))}
-            </div>
-          )}
-          <header>
-            <div style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}>
-              {entry.kind === "public"
-                ? "Public"
-                : entry.kind === "followers-only"
-                  ? "Followers only"
-                  : "Specific users only"}
-            </div>
-            {entry.repostedByHandle !== undefined && (
-              <div
-                style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}
-              >
-                ↻ reposted by @{entry.repostedByHandle}
-              </div>
-            )}
-            {entry.replyToHandle !== undefined && (
-              <div
-                style={{ fontSize: "0.75em", color: "gray", marginBottom: 4 }}
-              >
-                {entry.replyToHandle !== null
-                  ? `← reply to @${entry.replyToHandle}`
-                  : "← reply"}
-              </div>
-            )}
-            {entry.author &&
-              (entry.author.handle ? (
-                <Link
-                  to={"/handle/$handle"}
-                  params={{ handle: entry.author.handle }}
-                >
-                  {entry.author.avatar && (
-                    <img
-                      src={entry.author.avatar}
-                      width={24}
-                      height={24}
-                      style={{ marginRight: 8 }}
-                    />
-                  )}
-                  {entry.author.displayName ?? entry.author.handle}
-                </Link>
-              ) : (
-                <span>
-                  {entry.author.avatar && (
-                    <img
-                      src={entry.author.avatar}
-                      width={24}
-                      height={24}
-                      style={{ marginRight: 8 }}
-                    />
-                  )}
-                  {entry.author.displayName}
+        <Card key={entry.uri} size="sm">
+          <CardHeader>
+            <CardDescription className="flex items-center gap-2 flex-wrap">
+              {entry.repostedByHandle && (
+                <span className="text-xs">
+                  ↻ reposted by @{entry.repostedByHandle}
                 </span>
-              ))}
-          </header>
-          {entry.text}
-          {renderPostActions?.(entry)}
-        </article>
+              )}
+              {entry.replyToHandle !== undefined && (
+                <span className="text-xs">
+                  {entry.replyToHandle !== null
+                    ? `← reply to @${entry.replyToHandle}`
+                    : "← reply"}
+                </span>
+              )}
+            </CardDescription>
+            {entry.author && (
+              <Item size="xs" variant="muted">
+                <ItemContent>
+                  <Item
+                    size="xs"
+                    render={
+                      <Link
+                        to={"/handle/$handle"}
+                        params={{ handle: entry.author.handle ?? "" }}
+                        disabled={!entry.author.handle}
+                      />
+                    }
+                  >
+                    <ItemMedia>
+                      <UserAvatar
+                        src={entry.author.avatar}
+                        displayName={entry.author.displayName}
+                        handle={entry.author.handle}
+                      />
+                    </ItemMedia>
+                    <ItemContent>
+                      {entry.author.displayName && (
+                        <ItemTitle>{entry.author.displayName}</ItemTitle>
+                      )}
+                      {entry.author.handle && (
+                        <ItemDescription>
+                          @{entry.author.handle}
+                        </ItemDescription>
+                      )}
+                    </ItemContent>
+                  </Item>
+                </ItemContent>
+                <ItemActions>
+                  <Badge variant="secondary">
+                    {entry.kind === "public"
+                      ? "🌍 Public"
+                      : entry.kind === "followers-only"
+                        ? "🔒 Followers only"
+                        : "👥 Specific users"}
+                  </Badge>
+                  {entry.grantees && entry.grantees.length > 0 && (
+                    <AvatarGroup>
+                      {entry.grantees.map((grantee) => (
+                        <UserAvatar
+                          key={grantee.handle}
+                          src={grantee.avatar}
+                          handle={grantee.handle}
+                          size="sm"
+                          link
+                        />
+                      ))}
+                    </AvatarGroup>
+                  )}
+                  {entry.kind === "public" && entry.author?.handle && (
+                    <a
+                      href={bskyUrl(entry.uri, entry.author.handle)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View in Bluesky"
+                    >
+                      ↗🦋
+                    </a>
+                  )}
+                  {showPrivatePermalink &&
+                    entry.kind !== "public" &&
+                    entry.author?.handle && (
+                      <Link
+                        to={"/$handle/p/$rkey"}
+                        params={{
+                          handle: entry.author.handle,
+                          rkey: entry.uri.split("/").pop()!,
+                        }}
+                        title="Permalink"
+                      >
+                        ↗🌱
+                      </Link>
+                    )}
+                </ItemActions>
+              </Item>
+            )}
+          </CardHeader>
+          <CardContent className="prose">
+            <p className="whitespace-pre-wrap">{entry.text}</p>
+          </CardContent>
+          <CardFooter>{renderPostActions?.(entry)}</CardFooter>
+        </Card>
       ))}
-    </>
+    </div>
   );
 }

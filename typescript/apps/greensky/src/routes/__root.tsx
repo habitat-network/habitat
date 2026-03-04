@@ -12,10 +12,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   staleTime: 1000 * 60 * 60,
   component() {
     return (
-      <>
+      <div className="flex flex-col items-center w-full">
         <Outlet />
         <TanStackRouterDevtools />
-      </>
+      </div>
     );
   },
 });
