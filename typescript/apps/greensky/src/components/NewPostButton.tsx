@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { AuthManager } from "internal";
+import { Actor, AuthManager } from "internal";
 import {
   Button,
   Dialog,
@@ -14,6 +14,7 @@ import {
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserSearch } from "./UserSearch";
+import { UserCombobox } from "internal";
 
 type Visibility = "followers" | "specific";
 
@@ -32,18 +33,12 @@ export function NewPostButton({
   _isOnboarded,
 }: NewPostButtonProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [specificUsers, setSpecificUsers] = useState<string[]>([]);
+  const [specificUsers, setSpecificUsers] = useState<Actor[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
   const { handleSubmit, register, watch, reset, setValue } = useForm<FormData>({
     defaultValues: { visibility: "specific" },
   });
   const visibility = watch("visibility");
-
-  const handleAddUser = (handle: string) => {
-    if (handle && !specificUsers.includes(handle)) {
-      setSpecificUsers((prev) => [...prev, handle]);
-    }
-  };
 
   const closeModal = () => {
     setModalOpen(false);
@@ -92,7 +87,7 @@ export function NewPostButton({
         await checkResponse(res);
       } else {
         const dids = await Promise.all(
-          specificUsers.map(async (handle) => {
+          specificUsers.map(async ({ handle }) => {
             const res = await authManager.fetch(
               `/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`,
               "GET",
@@ -173,7 +168,9 @@ export function NewPostButton({
               />
               <RadioGroup
                 value={visibility}
-                onValueChange={(value) => setValue("visibility", value as Visibility)}
+                onValueChange={(value) =>
+                  setValue("visibility", value as Visibility)
+                }
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="followers" id="followers" />
@@ -185,16 +182,15 @@ export function NewPostButton({
                 </div>
               </RadioGroup>
               {visibility === "specific" && (
-                <UserSearch
+                <UserCombobox
                   authManager={authManager}
-                  specificUsers={specificUsers}
-                  onAddUser={handleAddUser}
-                  onRemoveUser={(handle) =>
-                    setSpecificUsers((prev) => prev.filter((u) => u !== handle))
-                  }
+                  value={specificUsers}
+                  onValueChange={setSpecificUsers}
                 />
               )}
-              {postError && <p className="text-destructive text-sm">{postError}</p>}
+              {postError && (
+                <p className="text-destructive text-sm">{postError}</p>
+              )}
               <Button type="submit" disabled={createPostIsPending}>
                 {createPostIsPending ? "Posting..." : "Post"}
               </Button>

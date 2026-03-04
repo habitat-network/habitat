@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { type AuthManager } from "internal";
-import { Button } from "internal/components/ui";
+import { Button, Separator } from "internal/components/ui";
 import { type Profile } from "../habitatApi";
 import { NewPostButton } from "./NewPostButton";
 import { Link } from "@tanstack/react-router";
@@ -19,8 +19,8 @@ export function NavBar({
   isOnboarded,
 }: NavBarProps) {
   return (
-    <div className="container mx-auto px-4">
-      <nav className="flex items-center justify-between py-4 border-b mb-4">
+    <div className="container mx-auto px-4 flex flex-col items-center">
+      <nav className="flex items-center justify-between py-4 w-full">
         <div className="flex items-center gap-4">{left}</div>
         <div className="flex items-center gap-4">
           {myProfile?.handle && (
@@ -38,7 +38,8 @@ export function NavBar({
           </Button>
         </div>
       </nav>
-      <p className="mt-4 text-sm text-muted-foreground">
+      <Separator />
+      <p className="m-4 text-sm text-muted-foreground prose">
         ✨ This is an experimental demo, to show an app built on top of our
         implementation of permissioned data for ATProtocol. Any posts you create
         through this app are not guaranteed to be persisted and will likely be

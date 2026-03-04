@@ -1,30 +1,42 @@
 import { AuthManager } from "@/authManager";
 import {
   Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { useState } from "react";
 import { useDebounce } from "@uidotdev/usehooks";
 import { useQuery } from "@tanstack/react-query";
+import { UserAvatar } from "./UserAvatar";
 
-interface UserComboboxProps {
-  authManager: AuthManager;
-}
-
-interface Actor {
+export interface Actor {
   handle: string;
   displayName?: string;
   avatar?: string;
 }
 
-const UserCombobox = ({ authManager }: UserComboboxProps) => {
+interface UserComboboxProps {
+  authManager: AuthManager;
+  value?: Actor[];
+  onValueChange: (value: Actor[]) => void;
+}
+
+const UserCombobox = ({
+  authManager,
+  value,
+  onValueChange,
+}: UserComboboxProps) => {
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearchValue = useDebounce(searchValue, 250);
-  const [value, setValue] = useState<Actor[]>([]);
+  const anchor = useComboboxAnchor();
 
   const { data: suggestions = [] } = useQuery<Actor[]>({
     queryKey: ["actorSearch", debouncedSearchValue],
@@ -50,15 +62,32 @@ const UserCombobox = ({ authManager }: UserComboboxProps) => {
       inputValue={searchValue}
       multiple
       value={value}
-      onValueChange={setValue}
+      onValueChange={onValueChange}
     >
-      <ComboboxInput />
-      <ComboboxContent>
+      <ComboboxChips ref={anchor}>
+        {value?.map((actor) => (
+          <ComboboxChip key={actor.handle}>
+            {actor.avatar && (
+              <img
+                src={actor.avatar}
+                width={16}
+                height={16}
+                className="rounded-full flex-shrink-0"
+                alt=""
+              />
+            )}
+            @{actor.handle}
+          </ComboboxChip>
+        ))}
+        <ComboboxChipsInput placeholder="Search by handle…" />
+      </ComboboxChips>
+      <ComboboxContent anchor={anchor}>
         <ComboboxEmpty>No items found.</ComboboxEmpty>
         <ComboboxList>
           {(item: Actor) => (
             <ComboboxItem key={item.handle} value={item}>
-              {item.handle}
+              <UserAvatar src={item.avatar} handle={item.handle} size="sm" />
+              {item.displayName || item.handle}
             </ComboboxItem>
           )}
         </ComboboxList>

@@ -2,6 +2,13 @@ import type { AuthManager } from "./authManager";
 import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { useId } from "react";
+import { Button, Input } from "./components/ui";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+} from "./components/ui/field";
 
 interface AuthFormData {
   handle?: string;
@@ -31,18 +38,23 @@ export default function AuthForm({ authManager, redirectUrl }: AuthFormProps) {
   const errorId = useId();
 
   return (
-    <article>
-      <h1>Login</h1>
-      <form onSubmit={handleSubmit((data) => login(data))}>
-        <input
-          {...register("handle")}
-          aria-invalid={isError || undefined}
-          aria-describedby={errorId}
-        />
-        <small id={errorId}>{error?.message}</small>
-        <button aria-busy={isPending} type="submit">
-          Login
-        </button>
+    <article className="p-4 container flex">
+      <form className="w-full" onSubmit={handleSubmit((data) => login(data))}>
+        <FieldGroup>
+          <FieldLegend>Login</FieldLegend>
+          <Field>
+            <FieldLabel>Handle</FieldLabel>
+            <Input
+              {...register("handle")}
+              aria-invalid={isError || undefined}
+              aria-describedby={errorId}
+            />
+          </Field>
+          <small id={errorId}>{error?.message}</small>
+          <Button aria-busy={isPending} type="submit">
+            Login
+          </Button>
+        </FieldGroup>
       </form>
     </article>
   );

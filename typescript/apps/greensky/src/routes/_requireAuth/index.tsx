@@ -112,9 +112,7 @@ export const Route = createFileRoute("/_requireAuth/")({
           myProfile={myProfile}
           isOnboarded={isOnboarded}
         />
-        <div className="container mx-auto px-4 flex flex-col items-center">
-          <Feed entries={entries} />
-        </div>
+        <Feed entries={entries} />
       </>
     );
   },

@@ -100,10 +100,10 @@ export function Feed({
                       />
                     </ItemMedia>
                     <ItemContent>
-                      <ItemTitle>
-                        {entry.author.displayName ?? entry.author.handle}
-                      </ItemTitle>
-                      {entry.author.handle && entry.author.displayName && (
+                      {entry.author.displayName && (
+                        <ItemTitle>{entry.author.displayName}</ItemTitle>
+                      )}
+                      {entry.author.handle && (
                         <ItemDescription>
                           @{entry.author.handle}
                         </ItemDescription>
@@ -137,6 +137,7 @@ export function Feed({
                       href={bskyUrl(entry.uri, entry.author.handle)}
                       target="_blank"
                       rel="noopener noreferrer"
+                      title="View in Bluesky"
                     >
                       ↗🦋
                     </a>
