@@ -1,8 +1,12 @@
 package pear
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -18,14 +22,94 @@ import (
 	"gorm.io/gorm"
 )
 
-type mockXrpcChannel struct {
-	actions []*http.Response
+// xrpcExpectation represents one expected XRPC call and its canned response.
+// path is matched via strings.Contains against the request URL path.
+// times=-1 means unlimited (AnyTimes); times>0 means exactly that many uses.
+type xrpcExpectation struct {
+	path      string
+	times     int
+	remaining int
+	resp      func() *http.Response
 }
 
+func (e *xrpcExpectation) Times(n int) *xrpcExpectation {
+	e.times = n
+	e.remaining = n
+	return e
+}
+
+func (e *xrpcExpectation) AnyTimes() *xrpcExpectation {
+	e.times = -1
+	e.remaining = -1
+	return e
+}
+
+// WillReturn registers the response to return. The body is buffered so the same
+// response can be returned multiple times (safe with Times(n) or AnyTimes()).
+func (e *xrpcExpectation) WillReturn(resp *http.Response) *xrpcExpectation {
+	if resp != nil && resp.Body != nil {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		statusCode := resp.StatusCode
+		header := resp.Header
+		e.resp = func() *http.Response {
+			return &http.Response{
+				StatusCode: statusCode,
+				Body:       io.NopCloser(bytes.NewReader(body)),
+				Header:     header,
+			}
+		}
+	} else {
+		e.resp = func() *http.Response { return resp }
+	}
+	return e
+}
+
+type mockXrpcChannel struct {
+	t            testing.TB
+	expectations []*xrpcExpectation
+}
+
+func newMockXrpcChannel(t testing.TB) *mockXrpcChannel {
+	return &mockXrpcChannel{t: t}
+}
+
+// Expect adds an ordered expectation for an XRPC call whose URL path contains path.
+// Default: expected exactly once. Chain .Times(n) or .AnyTimes() to change.
+func (m *mockXrpcChannel) Expect(path string) *xrpcExpectation {
+	e := &xrpcExpectation{path: path, times: 1, remaining: 1}
+	m.expectations = append(m.expectations, e)
+	return e
+}
+
+// SendXRPC finds the first non-exhausted expectation (FIFO), validates the path,
+// and returns its response. Fails the test if no expectation matches.
 func (m *mockXrpcChannel) SendXRPC(_ context.Context, _ syntax.DID, _ syntax.DID, r *http.Request) (*http.Response, error) {
-	next := m.actions[0]
-	m.actions = m.actions[1:]
-	return next, nil
+	for _, e := range m.expectations {
+		if e.remaining == 0 {
+			continue
+		}
+		if e.path != "" && !strings.Contains(r.URL.Path, e.path) {
+			m.t.Errorf("mockXrpcChannel: expected XRPC call to path containing %q, got %q", e.path, r.URL.Path)
+			return nil, fmt.Errorf("mock: unexpected xrpc path %q", r.URL.Path)
+		}
+		if e.remaining > 0 {
+			e.remaining--
+		}
+		return e.resp(), nil
+	}
+	m.t.Errorf("mockXrpcChannel: unexpected XRPC call to %s (no expectations remaining)", r.URL.Path)
+	return nil, fmt.Errorf("mock: no expectation for xrpc call to %s", r.URL.Path)
+}
+
+// ExpectationsWereMet returns an error if any finite expectation was not fully consumed.
+func (m *mockXrpcChannel) ExpectationsWereMet() error {
+	for _, e := range m.expectations {
+		if e.remaining > 0 {
+			return fmt.Errorf("expectation for %q not met: expected %d call(s), got %d", e.path, e.times, e.times-e.remaining)
+		}
+	}
+	return nil
 }
 
 var _ xrpcchannel.XrpcChannel = &mockXrpcChannel{}
@@ -53,7 +137,7 @@ func newPearForTest(t *testing.T, dir identity.Directory, opts ...option) *pear 
 	require.NoError(t, err)
 
 	o := &options{
-		node: node.New(testServiceName, testServiceEndpoint, dir, &mockXrpcChannel{}),
+		node: node.New(testServiceName, testServiceEndpoint, dir, newMockXrpcChannel(t)),
 	}
 	for _, opt := range opts {
 		opt(o)

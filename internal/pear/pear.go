@@ -143,7 +143,7 @@ func (p *pear) AddPermissions(
 		// This gets everyone in the clique
 		clique := habitat_syntax.ConstructHabitatUri(owner.String(), permissions.CliqueNSID.String(), rkey.String())
 
-		// TODO: get al
+		// TODO: get all
 		perms, err := p.permissions.ListCliquePermissions(ctx, permissions.CliqueGrantee(clique))
 		if err != nil {
 			return nil, err
@@ -178,7 +178,7 @@ func (p *pear) AddPermissions(
 			}
 
 			if serves {
-				// Only notify about inbox notifs
+				// Only notify about inbox notifs, the did will be able to get the repo records upon list records
 				continue
 			}
 
@@ -190,13 +190,6 @@ func (p *pear) AddPermissions(
 			}
 		}
 		return added, nil
-	}
-
-	// Otherwise, adding permissions for a specific record or collection
-	if rkey == "" {
-		// If it's a whole collection, we need to notify the new grantees about all the records for this collection that
-		// they might care about. TODO: should we remove rkey from notification ?
-		return nil, fmt.Errorf("adding permissions for a whole collection does not notify grantees yet")
 	}
 
 	// Otherwise, it's a specific record, this is the easiest case
@@ -213,7 +206,7 @@ func (p *pear) AddPermissions(
 			}
 			for _, grant := range dids {
 				serves, err := p.node.ServesDID(ctx, grant.DID())
-				if err != nil { // TODO: this could accidentally drop updates
+				if err != nil {
 					return nil, fmt.Errorf("resolving did host for grantee: %w", err)
 				}
 
@@ -388,8 +381,53 @@ func (p *pear) PutRecord(
 	// TODO: if someone is added to the clique, fan out notifications about all the records currently in the clique
 	// For now, ignore.
 	if collection == permissions.CliqueNSID {
+		// Get all records that grant permission to this clique
+		clique := permissions.CliqueGrantee(uri)
+		perms, err := p.permissions.ListCliquePermissions(ctx, clique)
+		if err != nil {
+			return "", err
+		}
+
+		// Get anything in the inbox that granted permission to this clique
+		notifs, err := p.inbox.GetUpdatesForClique(ctx, did, clique.String())
+		if err != nil {
+			return "", err
+		}
+
+		// For each new grantee, notify them about all the records
+		// TODO: batching here would be helpful
+		for _, grantee := range grantees {
+			didGrantee, ok := grantee.(permissions.DIDGrantee)
+			if !ok {
+				log.Err(fmt.Errorf("found a clique grantee getting permission to a clique; should never happen")).Msgf("PutRecord")
+				continue
+			}
+
+			for _, perm := range perms {
+				// Only notify about allowed records.
+				if perm.Effect != permissions.Allow {
+					continue
+				}
+
+				err = p.NotifyOfUpdate(ctx, did, didGrantee.DID(), perm.Collection, perm.Rkey, clique.String())
+				if err != nil {
+					return "", err
+				}
+			}
+
+			for _, notif := range notifs {
+				// TODO, consider having a "fanout notification" that takes in a notification, []DIDs
+				err = p.NotifyOfUpdate(ctx, syntax.DID(notif.Sender), didGrantee.DID(), syntax.NSID(notif.Collection), syntax.RecordKey(notif.Rkey), notif.Reason)
+				if err != nil {
+					return "", err
+				}
+			}
+		}
+
+		// Forward notifications for both of those
 		return uri, nil
 	}
+
 	// Notify grantees of an update to a record they care about (for non-cliques)
 	allGrantees, err := p.permissions.ListAllowedGranteesForRecord(ctx, did, collection, rkey)
 	if err != nil {
@@ -400,7 +438,7 @@ func (p *pear) PutRecord(
 		switch g := grantee.(type) {
 		case permissions.DIDGrantee:
 			serves, err := p.node.ServesDID(ctx, g.DID())
-			if err != nil { // TODO: this could accidentally drop updates
+			if err != nil {
 				return "", fmt.Errorf("resolving did host for grantee: %w", err)
 			}
 
@@ -415,7 +453,7 @@ func (p *pear) PutRecord(
 			}
 
 		case permissions.CliqueGrantee:
-			// TODO: Notify the clique owner of an update to the clique; they are responsible for delivering updates to clique members.
+			// TODO(eventually): Notify the clique owner of an update to the clique; they are responsible for delivering updates to clique members.
 			// For now, since anyone in the clique can query all members in the clique, directly fan out
 			dids, err := p.resolveClique(ctx, did, g.Owner(), g.RecordKey())
 			if errors.Is(err, ErrUnauthorized) {
@@ -425,7 +463,7 @@ func (p *pear) PutRecord(
 			}
 			for _, grant := range dids {
 				serves, err := p.node.ServesDID(ctx, grant.DID())
-				if err != nil { // TODO: this could accidentally drop updates
+				if err != nil { // TODO: this could accidentally drop updates, because the put passed but not the fanout.
 					return "", fmt.Errorf("resolving did host for grantee: %w", err)
 				}
 
@@ -504,6 +542,77 @@ func (p *pear) getRecordLocal(
 	}
 
 	return p.repo.GetRecord(ctx, target.String(), collection.String(), rkey.String())
+}
+
+func (p *pear) listRecordsRemote(
+	ctx context.Context,
+	caller syntax.DID,
+	target syntax.DID,
+	collection syntax.NSID,
+) ([]repo.Record, error) {
+	// Otherwise, forward this request to the right repo (the clique member)
+	reqURL, err := url.Parse("/xrpc/network.habitat.listRecords")
+	if err != nil {
+		return nil, err
+	}
+
+	q := reqURL.Query()
+	q.Set("repo", target.String())
+	q.Set("collection", collection.String())
+
+	reqURL.RawQuery = q.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		reqURL.String(),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("constructing http request for remote resolve: %w", err)
+	}
+
+	resp, err := p.node.SendXRPC(ctx, caller, target, req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var output habitat.NetworkHabitatRepoListRecordsOutput
+		err := json.NewDecoder(resp.Body).Decode(&output)
+		if err != nil {
+			return nil, err
+		}
+
+		records := make([]repo.Record, len(output.Records))
+		for i, orec := range output.Records {
+			val, ok := orec.Value.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("unexpected record value type from remote call: %T", orec.Value)
+			}
+
+			uriParsed, err := habitat_syntax.ParseHabitatURI(orec.Uri)
+			if err != nil {
+				return nil, err
+			}
+			records[i] = repo.Record{
+				Did:        target.String(),
+				Collection: collection.String(),
+				Rkey:       string(uriParsed.RecordKey()),
+				Value:      val,
+			}
+		}
+		return records, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return nil, ErrUnauthorized
+	default:
+		return nil, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
+	}
 }
 
 func (p *pear) getRecordRemote(
@@ -616,6 +725,18 @@ func (p *pear) listRecordsLocal(
 func (p *pear) resolveRecordsFromNotifications(ctx context.Context, caller syntax.DID, notifs []inbox.Notification) ([]repo.Record, error) {
 	records := []repo.Record{}
 	for _, notif := range notifs {
+		// If notification doesn't contain rkey, fetch everything user has access to from remote
+		if notif.Rkey == "" {
+			notifRecords, err := p.listRecordsRemote(ctx, caller, syntax.DID(notif.Sender), syntax.NSID(notif.Collection))
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, notifRecords...)
+			continue
+		}
+
+		// Otherwise, fetch that specific record
 		record, _, err := p.getRecordRemote(ctx, caller, syntax.NSID(notif.Collection), syntax.RecordKey(notif.Rkey), syntax.DID(notif.Sender))
 		if errors.Is(err, ErrUnauthorized) {
 			continue
@@ -628,7 +749,7 @@ func (p *pear) resolveRecordsFromNotifications(ctx context.Context, caller synta
 	return records, nil
 }
 
-func (p *pear) listRecordsRemote(ctx context.Context, caller syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
+func (p *pear) listRecordsFromInbox(ctx context.Context, caller syntax.DID, collection syntax.NSID) ([]repo.Record, error) {
 	// All the remote record this caller cares about can be resolved via the inbox
 	notifs, err := p.inbox.GetCollectionUpdatesByRecipient(ctx, caller, collection)
 	if err != nil {
@@ -647,7 +768,7 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 	}
 
 	// TODO: implement
-	remoteRecords, err := p.listRecordsRemote(ctx, caller, collection)
+	remoteRecords, err := p.listRecordsFromInbox(ctx, caller, collection)
 	if err != nil {
 		return nil, err
 	}
