@@ -6,10 +6,8 @@ import {
   ComboboxChipsInput,
   ComboboxContent,
   ComboboxEmpty,
-  ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  ComboboxValue,
   useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { useState } from "react";

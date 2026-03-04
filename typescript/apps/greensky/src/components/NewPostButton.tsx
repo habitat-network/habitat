@@ -13,7 +13,6 @@ import {
 } from "internal/components/ui";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { UserSearch } from "./UserSearch";
 import { UserCombobox } from "internal";
 
 type Visibility = "followers" | "specific";
