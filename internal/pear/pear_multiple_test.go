@@ -232,18 +232,14 @@ func TestGetBlobRemote(t *testing.T) {
 	require.NoError(t, err)
 	cid := syntax.CID(bmeta.Ref.String())
 
-	blobBodyBytes := bytes.NewBuffer(blobData)
-	require.NoError(t, err)
-
 	header := make(http.Header)
 	header.Set("Content-Type", mimeType)
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(blobBodyBytes),
+		Body:       io.NopCloser(bytes.NewReader(blobData)),
 		Header:     header,
 	}
-	t.Cleanup(func() { _ = resp.Body.Close() })
-	mockXRPCs.actions = append(mockXRPCs.actions, resp)
+	mockXRPCs.actions = append(mockXRPCs.actions, resp) //nolint:bodyclose
 
 	gotMime, gotBlob, err := pearB.GetBlob(t.Context(), bDID, aDID, cid)
 	require.NoError(t, err)
