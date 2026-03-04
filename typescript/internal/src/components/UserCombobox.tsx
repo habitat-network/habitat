@@ -1,4 +1,4 @@
-import { AuthManager } from "@/authManager";
+import { AuthManager } from "../authManager";
 import {
   Combobox,
   ComboboxChip,
@@ -9,7 +9,7 @@ import {
   ComboboxItem,
   ComboboxList,
   useComboboxAnchor,
-} from "@/components/ui/combobox";
+} from "./ui/combobox";
 import { useState } from "react";
 import { useDebounce } from "@uidotdev/usehooks";
 import { useQuery } from "@tanstack/react-query";
