@@ -33,7 +33,7 @@ export default function habitatAppPlugin(options?: {
   const hashRouting = options?.hashRouting ?? !!process.env.HASH_ROUTING;
 
   return [
-    { name: "tailwindcss", ...tailwindcss() },
+    ...tailwindcss(),
     {
       name: "habitat-app-config",
       config() {
