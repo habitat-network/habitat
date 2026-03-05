@@ -20,6 +20,8 @@ import type { PostVisibility } from "./habitatApi";
 
 export interface FeedEntry {
   uri: string;
+  cid?: string;
+  clique?: string;
   text: string;
   createdAt?: string;
   kind: PostVisibility;

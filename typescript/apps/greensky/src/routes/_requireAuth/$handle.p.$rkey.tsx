@@ -65,6 +65,8 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
       const replyAuthor = replyAuthorByDid.get(replyAuthorDid);
       return {
         uri: reply.uri,
+        cid: reply.cid,
+        clique: reply.clique,
         text: reply.value.text,
         createdAt: reply.value.createdAt,
         kind: getPostVisibility(reply, replyAuthorDid),
@@ -122,7 +124,20 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         {replyEntries.length > 0 && (
           <>
             <h4 className="container my-4">Replies</h4>
-            <Feed entries={replyEntries} showPrivatePermalink={false} />
+            <Feed
+              entries={replyEntries}
+              showPrivatePermalink={true}
+              renderPostActions={(entry) =>
+                entry.cid ? (
+                  <PostReply
+                    postUri={entry.uri}
+                    postCid={entry.cid}
+                    postClique={entry.clique}
+                    authManager={authManager}
+                  />
+                ) : null
+              }
+            />
           </>
         )}
       </>
