@@ -271,47 +271,54 @@ func (s *store) HasPermission(
 	}
 
 	// First try to resolve local cliques
-	// This works if any row matches the requester + clique owner + clique collection + clique rkey
-	query := s.db.Where("grantee = ?", requester.String()).Where("collection = ?", CliqueNSID).Where("effect = ?", Allow)
+	if len(localCliques) > 0 {
+		// This works if any row matches the requester + clique owner + clique collection + clique rkey
+		query := s.db.Where("grantee = ?", requester.String()).Where("collection = ?", CliqueNSID).Where("effect = ?", Allow)
 
-	// build OR pairs for each local clique
-	for i, clique := range localCliques {
-		if clique.Owner() == requester {
-			// Owners of the clique always have permission
-			return true, nil
-		}
-		if i == 0 {
-			query = query.Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
-		} else {
-			query = query.Or("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
-		}
-	}
-
-	var cliquePermission permission
-	// A single row match gives us what we need
-	err = query.Limit(1).First(&cliquePermission).Error
-	if err == nil {
-		// We found a result -- the requester has permission
-		return true, nil
-	}
-
-	var remoteErr error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// Resolve remote cliques
-		// TODO: batch for better performance?
-		for _, clique := range remoteCliques {
-			ok, err := s.isRemoteCliqueMember(ctx, owner /* the request originates from the record owner */, clique, requester /* checking membership on the requester */)
-			if err == nil && ok {
-				// Success, membership found, allow permission
+		// build OR pairs for each local clique
+		for i, clique := range localCliques {
+			if clique.Owner() == requester {
+				// Owners of the clique always have permission
 				return true, nil
-			} else if err != nil {
-				// Arbitrarily save the latest error, but continue trying to resolve all memberships in case one succeeds
-				remoteErr = err
+			}
+			if i == 0 {
+				query = query.Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
+			} else {
+				query = query.Or("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
 			}
 		}
+
+		var cliquePermission permission
+		// A single row match gives us what we need
+		err = query.Limit(1).First(&cliquePermission).Error
+		if err == nil {
+			// We found a result -- the requester has permission
+			return true, nil
+		}
 	}
 
-	return false, remoteErr
+	if len(remoteCliques) > 0 {
+		var remoteErr error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Resolve remote cliques
+			// TODO: batch for better performance?
+			for _, clique := range remoteCliques {
+				ok, err := s.isRemoteCliqueMember(ctx, owner /* the request originates from the record owner */, clique, requester /* checking membership on the requester */)
+				if err == nil && ok {
+					// Success, membership found, allow permission
+					return true, nil
+				} else if err != nil {
+					// Arbitrarily save the latest error, but continue trying to resolve all memberships in case one succeeds
+					remoteErr = err
+				}
+			}
+		}
+
+		return false, remoteErr
+	}
+
+	// Default = deny
+	return false, nil
 }
 
 // AddPermissions grants read permission for an entire collection or specific record.

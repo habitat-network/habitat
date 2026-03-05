@@ -1,6 +1,8 @@
 package authn
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,4 +67,49 @@ func (t *testAuthMethod) Validate(
 		return "", false
 	}
 	return syntax.DID("did:web:test"), true
+}
+
+// ValidateRaw implements [Method].
+func (t *testAuthMethod) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
+	if token != t.expectedHeader {
+		return "", false, fmt.Errorf("unexpected token")
+	}
+	if t.fail {
+		return "", false, fmt.Errorf("auth failed")
+	}
+	return syntax.DID("did:web:test"), true, nil
+}
+
+func TestValidateRaw(t *testing.T) {
+	ctx := context.Background()
+
+	// First method handles it successfully.
+	did, ok, err := ValidateRaw(
+		ctx,
+		"foo",
+		&testAuthMethod{expectedHeader: "foo"},
+		&testAuthMethod{expectedHeader: "bar"},
+	)
+	require.True(t, ok)
+	require.NoError(t, err)
+	require.Equal(t, syntax.DID("did:web:test"), did)
+
+	// Matching method fails.
+	_, ok, err = ValidateRaw(
+		ctx,
+		"bar",
+		&testAuthMethod{expectedHeader: "foo"},
+		&testAuthMethod{expectedHeader: "bar", fail: true},
+	)
+	require.False(t, ok)
+	require.Error(t, err)
+
+	// No method matches the token.
+	_, ok, err = ValidateRaw(
+		ctx,
+		"foo",
+		&testAuthMethod{expectedHeader: "bar"},
+	)
+	require.False(t, ok)
+	require.Error(t, err)
 }

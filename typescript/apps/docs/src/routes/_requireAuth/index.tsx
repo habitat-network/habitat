@@ -39,7 +39,8 @@ export const Route = createFileRoute("/_requireAuth/")({
             },
           }),
         );
-        const { uri } = await response?.json();
+
+        const { uri } = await response.json();
         navigate({
           to: "/$uri",
           params: {

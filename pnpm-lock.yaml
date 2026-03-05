@@ -378,6 +378,12 @@ importers:
 
   typescript/apps/docs:
     dependencies:
+      '@atproto/api':
+        specifier: ^0.19.1
+        version: 0.19.1
+      '@atproto/identity':
+        specifier: ^0.4.10
+        version: 0.4.10
       '@chainsafe/libp2p-gossipsub':
         specifier: 14.1.2
         version: 14.1.2
@@ -743,6 +749,9 @@ packages:
 
   '@atproto/api@0.19.0':
     resolution: {integrity: sha512-7u/EGgkIj4bbslGer2RMQPtMWCPvREcpH0mVagaf5om+NcPzUIZeIacWKANVv95BdMJ7jlcHS7xrkEMPmg2dFw==}
+
+  '@atproto/api@0.19.1':
+    resolution: {integrity: sha512-GE94kx6PBsBAUcFne+cX3c77ZVr3/pvfeeG+GtZ1QFE8U9brrXoCoN6qwtOg6PfZk8UvpyCxLyWNfiC2GfCSJg==}
 
   '@atproto/common-web@0.4.17':
     resolution: {integrity: sha512-sfxD8NGxyoxhxmM9EUshEFbWcJ3+JHEOZF4Quk6HsCh1UxpHBmLabT/vEsAkDWl+C/8U0ine0+c/gHyE/OZiQQ==}
@@ -8340,6 +8349,17 @@ snapshots:
       '@atproto/common-web': 0.4.17
       '@atproto/lexicon': 0.6.1
       '@atproto/syntax': 0.4.3
+      '@atproto/xrpc': 0.7.7
+      await-lock: 2.2.2
+      multiformats: 9.9.0
+      tlds: 1.261.0
+      zod: 3.25.76
+
+  '@atproto/api@0.19.1':
+    dependencies:
+      '@atproto/common-web': 0.4.18
+      '@atproto/lexicon': 0.6.2
+      '@atproto/syntax': 0.5.0
       '@atproto/xrpc': 0.7.7
       await-lock: 2.2.2
       multiformats: 9.9.0

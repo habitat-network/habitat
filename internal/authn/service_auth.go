@@ -30,6 +30,31 @@ func (p *pdsServiceAuthMethod) CanHandle(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
 }
 
+func (p *pdsServiceAuthMethod) validateInner(token *jwt.JSONWebToken) (syntax.DID, bool, error) {
+	var claims serviceJwtPayload
+	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return "", false, err
+	}
+	issuerDid, err := syntax.ParseDID(claims.Iss)
+	if err != nil {
+		return "", false, err
+	}
+	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	id, err := p.directory.LookupDID(context.Background(), issuerDid)
+	if err != nil {
+		return "", false, err
+	}
+	publicKey, err := id.PublicKey()
+	if err != nil {
+		return "", false, err
+	}
+	if err := token.Claims(atcryptoVerifier{publicKey}); err != nil {
+		return "", false, err
+	}
+	// TODO: validate Aud and Lxm
+	return issuerDid, true, nil
+}
+
 // Validate implements [Method].
 func (p *pdsServiceAuthMethod) Validate(
 	w http.ResponseWriter,
@@ -41,33 +66,22 @@ func (p *pdsServiceAuthMethod) Validate(
 		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
 		return "", false
 	}
-	var claims serviceJwtPayload
-	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
-	}
-	issuerDid, err := syntax.ParseDID(claims.Iss)
+
+	did, ok, err := p.validateInner(token)
 	if err != nil {
 		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
 		return "", false
 	}
-	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
-	id, err := p.directory.LookupDID(context.Background(), issuerDid)
+	return did, ok
+}
+
+func (p *pdsServiceAuthMethod) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
+	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
+		return "", false, err
 	}
-	publicKey, err := id.PublicKey()
-	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
-	}
-	if err := token.Claims(atcryptoVerifier{publicKey}); err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
-	}
-	// TODO: validate Aud and Lxm
-	return issuerDid, true
+
+	return p.validateInner(parsed)
 }
 
 type serviceJwtPayload struct {

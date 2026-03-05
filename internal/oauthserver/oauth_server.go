@@ -372,44 +372,41 @@ func (o *OAuthServer) Validate(
 	r *http.Request,
 	scopes ...string,
 ) (syntax.DID, bool) {
+	token := fosite.AccessTokenFromRequest(r)
+	did, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
+	if err != nil {
+		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
+		// Unfortunately that was returning a 200 http response, so we write our own error here.
+		utils.WriteHTTPError(w, fmt.Errorf("unable to validate oauth token: %w", err), http.StatusUnauthorized)
+	}
+	return did, ok
+}
+
+// Validate's the given token and writes an error response to w if validation fails
+func (o *OAuthServer) ValidateRaw(
+	ctx context.Context,
+	token string,
+	scopes ...string,
+) (syntax.DID, bool, error) {
 	_, ar, err := o.provider.IntrospectToken(
-		r.Context(),
-		fosite.AccessTokenFromRequest(r),
+		ctx,
+		token,
 		fosite.AccessToken,
 		&oauth2.JWTSession{},
 		scopes...,
 	)
 	if err != nil {
-		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
-		// Unfortunately that was returning a 200 http response, so we write our own error here.
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("invalid or expired token: %w", err),
-			http.StatusUnauthorized,
-		)
-		return "", false
+		return "", false, fmt.Errorf("invalid or expired token: %w", err)
 	}
 	// Get the DID from the session subject (stored in JWT)
 	session := ar.GetSession().(*oauth2.JWTSession)
 	if session.JWTClaims == nil {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("JWT claims not found"),
-			"invalid token",
-			http.StatusUnauthorized,
-		)
-		return "", false
+		return "", false, fmt.Errorf("JWT claims not found")
 	}
 
 	did := session.JWTClaims.Subject
 	if did == "" {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("DID not found in JWT"),
-			"invalid token",
-			http.StatusUnauthorized,
-		)
-		return "", false
+		return "", false, fmt.Errorf("DID not found in JWT")
 	}
-	return syntax.DID(did), true
+	return syntax.DID(did), true, nil
 }

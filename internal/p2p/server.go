@@ -2,15 +2,17 @@ package p2p
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 
+	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/pear"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -105,6 +107,10 @@ type Server struct {
 	proxy    *httputil.ReverseProxy
 	registry *peerRegistry
 
+	// For authn/authz
+	serviceAuth authn.Method
+	pear        pear.Pear
+
 	// Count the open conns on this server
 	conns      atomic.Int64
 	connsGauge metric.Int64Gauge
@@ -112,7 +118,7 @@ type Server struct {
 
 var _ io.Closer = (*Server)(nil)
 
-func NewServer(meter metric.Meter) (*Server, error) {
+func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*Server, error) {
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
@@ -143,20 +149,58 @@ func NewServer(meter metric.Meter) (*Server, error) {
 	// Notify the registry about disconnections
 	host.Network().Notify(registry)
 
+	gauge, err := meter.Int64Gauge("p2p.connections", metric.WithUnit("item"))
+	if err != nil {
+		return nil, err
+	}
+
+	s := &Server{
+		host:        host,
+		proxy:       httputil.NewSingleHostReverseProxy(url),
+		registry:    registry,
+		serviceAuth: serviceAuth,
+		pear:        pear,
+		connsGauge:  gauge,
+	}
+
+	type discoveryRequest struct {
+		Topic            string `json:"topic"`
+		OauthToken       string `json:"oauth_token"`
+		ServiceAuthToken string `json:"serviceauth_token"`
+	}
+
 	const peerDiscoveryProtocol = "/habitat/peer-discovery/1.0.0"
 	host.SetStreamHandler(peerDiscoveryProtocol, func(stream network.Stream) {
 		peerID := stream.Conn().RemotePeer()
+
+		// Context tied to this stream handler
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		// Close the stream upon return
 		defer func() { _ = stream.Reset() /* ignore errors on stream close */ }()
 
-		buf := make([]byte, 4096)
-		n, err := stream.Read(buf)
+		var req discoveryRequest
+		if err := json.NewDecoder(stream).Decode(&req); err != nil {
+			log.Error().Err(err).Str("peer", peerID.String()).Msg("peer-discovery: failed to decode request")
+			return
+		}
+
+		// TODO: validate req.Credential and check topic permissions
+		topic, err := habitat_syntax.ParseHabitatURI(req.Topic)
 		if err != nil {
 			return
 		}
 
-		topic, err := habitat_syntax.ParseHabitatURI(strings.TrimSpace(string(buf[:n])))
-		if err != nil {
+		// Always use service auth here -- the service is p2p peer discovery for habitat.
+		did, authn, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
+		if err != nil || !authn {
+			// Ignore this peer -- don't let it know about others and don't let others discover it
+			return
+		}
+
+		authz, err := s.pear.HasPermission(ctx, did, did, topic.Authority().DID(), topic.Collection(), topic.RecordKey())
+		if err != nil || !authz {
+			// Ignore this peer -- don't let it know about others and don't let others discover it
 			return
 		}
 
@@ -185,17 +229,7 @@ func NewServer(meter metric.Meter) (*Server, error) {
 		}
 	})
 
-	gauge, err := meter.Int64Gauge("p2p.connections", metric.WithUnit("item"))
-	if err != nil {
-		return nil, err
-	}
-
-	return &Server{
-		host:       host,
-		proxy:      httputil.NewSingleHostReverseProxy(url),
-		registry:   registry,
-		connsGauge: gauge,
-	}, nil
+	return s, nil
 }
 
 func (s *Server) HandleLibp2p(w http.ResponseWriter, r *http.Request) {

@@ -9,6 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@atproto/api": "^0.19.1",
+    "@atproto/identity": "^0.4.10",
     "@chainsafe/libp2p-gossipsub": "14.1.2",
     "@chainsafe/libp2p-noise": "16.0.0",
     "@chainsafe/libp2p-yamux": "7.0.1",
