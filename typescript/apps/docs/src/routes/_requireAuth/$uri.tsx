@@ -342,6 +342,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     });
     return (
       <>
+        <p>Logged in as: {did}</p>
         <article>
           <EditorContent editor={editor} />
         </article>

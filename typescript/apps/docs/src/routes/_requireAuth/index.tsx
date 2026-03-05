@@ -51,8 +51,11 @@ export const Route = createFileRoute("/_requireAuth/")({
       },
     });
 
+    const did = authManager.getAuthInfo()?.did;
+
     return (
       <>
+        <p>Logged in as: {did}</p>
         <button type="submit" aria-busy={isPending} onClick={() => create()}>
           New
         </button>
