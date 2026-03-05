@@ -23,6 +23,7 @@ export function PostReply({
   postClique,
   authManager,
 }: PostReplyProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [replyError, setReplyError] = useState<string | null>(null);
@@ -34,6 +35,9 @@ export function PostReply({
   };
 
   const { mutate: submitReply, isPending } = useMutation({
+    onSuccess: () => {
+      router.invalidate();
+    },
     mutationFn: async () => {
       const did = authManager.getAuthInfo()!.did;
       const record = {
