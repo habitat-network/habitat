@@ -14,6 +14,7 @@ import {
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { UserCombobox } from "internal";
+import { useRouter } from "@tanstack/react-router";
 
 type Visibility = "followers" | "specific";
 
@@ -31,6 +32,7 @@ export function NewPostButton({
   authManager,
   _isOnboarded,
 }: NewPostButtonProps) {
+  const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<Actor[]>([]);
   const [postError, setPostError] = useState<string | null>(null);
@@ -47,6 +49,9 @@ export function NewPostButton({
   };
 
   const { mutate: createPost, isPending: createPostIsPending } = useMutation({
+    onSuccess: () => {
+      router.invalidate();
+    },
     mutationFn: async (formData: FormData) => {
       const did = authManager.getAuthInfo()!.did;
       const record = {
