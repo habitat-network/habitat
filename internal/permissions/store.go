@@ -295,7 +295,9 @@ func (s *store) HasPermission(
 			// We found a result -- the requester has permission
 			return true, nil
 		}
-	} else if len(remoteCliques) > 0 {
+	}
+
+	if len(remoteCliques) > 0 {
 		var remoteErr error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Resolve remote cliques
