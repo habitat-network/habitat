@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import React from "react";
+import { AuthManager } from "internal";
+import { PostReply } from "./components/PostReply";
 import {
   Card,
   CardHeader,
@@ -33,6 +35,7 @@ export interface FeedEntry {
   // undefined = not a reply; null = reply but parent handle unknown; string = reply to this handle
   replyToHandle?: string | null;
   repostedByHandle?: string;
+  quotedPost?: { bskyUrl: string; authorHandle: string };
   grantees?: { avatar?: string; handle: string }[];
 }
 
@@ -44,11 +47,11 @@ function bskyUrl(uri: string, handle: string): string {
 export function Feed({
   entries,
   showPrivatePermalink = true,
-  renderPostActions,
+  authManager,
 }: {
   entries: FeedEntry[];
   showPrivatePermalink?: boolean;
-  renderPostActions?: (entry: FeedEntry) => React.ReactNode;
+  authManager?: AuthManager;
 }) {
   // Reverse chronological, with createdAt missing or 0 at the end.
   const sorted = [...entries].sort((a, b) => {
@@ -63,9 +66,19 @@ export function Feed({
   });
 
   return (
-    <div className="flex flex-col gap-4 mx-2 w-full max-w-2xl">
+    <div className="flex flex-col gap-4 w-full max-w-2xl px-2">
       {sorted.map((entry) => (
-        <Card key={entry.uri} size="sm">
+        <Card
+          key={entry.uri}
+          size="sm"
+          className={
+            entry.kind === "public"
+              ? "ring-3 ring-[#92C0D1]"
+              : entry.kind === "followers-only"
+                ? "ring-3 ring-[#2A7047]"
+                : "ring-3 ring-[#FA9EE5]"
+          }
+        >
           <CardHeader>
             <CardDescription className="flex items-center gap-2 flex-wrap">
               {entry.repostedByHandle && (
@@ -80,12 +93,25 @@ export function Feed({
                     : "← reply"}
                 </span>
               )}
+              {entry.quotedPost && (
+                <span className="text-xs">
+                  ↗ quote repost of{" "}
+                  <a
+                    href={entry.quotedPost.bskyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    @{entry.quotedPost.authorHandle}
+                  </a>
+                </span>
+              )}
             </CardDescription>
             {entry.author && (
-              <Item size="xs" variant="muted">
+              <Item size="xs" variant="muted" className="py-1.5">
                 <ItemContent>
                   <Item
                     size="xs"
+                    className="bg-muted hover:!bg-[#F9FFF2]"
                     render={
                       <Link
                         to={"/handle/$handle"}
@@ -102,14 +128,16 @@ export function Feed({
                       />
                     </ItemMedia>
                     <ItemContent>
-                      {entry.author.displayName && (
-                        <ItemTitle>{entry.author.displayName}</ItemTitle>
-                      )}
-                      {entry.author.handle && (
-                        <ItemDescription>
-                          @{entry.author.handle}
-                        </ItemDescription>
-                      )}
+                      <ItemTitle>
+                        {entry.author.displayName && (
+                          <span>{entry.author.displayName}</span>
+                        )}
+                        {entry.author.handle && (
+                          <span className="font-normal text-muted-foreground">
+                            @{entry.author.handle}
+                          </span>
+                        )}
+                      </ItemTitle>
                     </ItemContent>
                   </Item>
                 </ItemContent>
@@ -165,7 +193,16 @@ export function Feed({
           <CardContent className="prose">
             <p className="whitespace-pre-wrap">{entry.text}</p>
           </CardContent>
-          <CardFooter>{renderPostActions?.(entry)}</CardFooter>
+          <CardFooter>
+            {authManager && entry.kind !== "public" && (
+              <PostReply
+                postUri={entry.uri}
+                postCid={entry.cid ?? ""}
+                postClique={entry.clique}
+                authManager={authManager}
+              />
+            )}
+          </CardFooter>
         </Card>
       ))}
     </div>

@@ -4,3 +4,7 @@
 @source "../../../internal/src/**/*.{ts,tsx}";
 
 @import "internal/styles.css";
+
+a, button {
+  touch-action: manipulation;
+}

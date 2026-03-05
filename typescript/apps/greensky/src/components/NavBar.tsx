@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 
 interface NavBarProps {
   left: ReactNode;
+  mobileTitle?: ReactNode;
   authManager: AuthManager;
   myProfile: Profile | undefined;
   isOnboarded: boolean;
@@ -14,20 +15,24 @@ interface NavBarProps {
 
 export function NavBar({
   left,
+  mobileTitle,
   authManager,
   myProfile,
   isOnboarded,
 }: NavBarProps) {
   return (
     <div className="container mx-auto px-4 flex flex-col items-center">
-      <nav className="flex items-center justify-between py-4 w-full">
-        <div className="flex items-center gap-4">{left}</div>
-        <div className="flex items-center gap-4">
+      <nav className="flex items-center py-4 w-full">
+        <ul className="flex-1 flex items-center gap-4 list-none m-0 p-0 text-[green]">{left}</ul>
+        <a href="https://habitat.network" style={{ color: "green" }} className="text-sm">
+          by habitat 🌱
+        </a>
+        <div className="flex-1 flex items-center gap-4 justify-end">
           {myProfile?.handle && (
             <Link
               to="/handle/$handle"
               params={{ handle: myProfile.handle }}
-              className="hover:underline"
+              className="hover:underline hidden sm:inline"
             >
               @{myProfile.handle}
             </Link>
@@ -38,13 +43,14 @@ export function NavBar({
           </Button>
         </div>
       </nav>
+      {mobileTitle && (
+        <div className="sm:hidden w-full pb-2">{mobileTitle}</div>
+      )}
       <Separator />
-      <p className="m-4 text-sm text-muted-foreground prose">
-        ✨ This is an experimental demo, to show an app built on top of our
-        implementation of permissioned data for ATProtocol. Any posts you create
-        through this app are not guaranteed to be persisted and will likely be
-        deleted as we continue to iterate. Click on a user to see a feed of all
-        their Bluesky posts, private + public. Thanks for stopping by! ✨
+      <p className="m-4 text-sm text-muted-foreground prose max-w-none w-full">
+        ✨ This is an experimental demo, to show what it might feel like to use an app with public and permissioned data
+        on ATProtocol and proof out our implementation. Any posts you create through greensky are not guaranteed to persist and will likely be
+        deleted as we iterate. Click on a user to see a feed of all their Bluesky posts, private + public. Thanks for stopping by! ✨
       </p>
     </div>
   );
