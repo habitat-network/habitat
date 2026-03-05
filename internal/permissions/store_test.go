@@ -423,6 +423,22 @@ func TestListAllowedGranteesForRecord(t *testing.T) {
 	})
 }
 
+func TestHasPermissionNoMatchingCollectionAndRkeyHasRandomClique(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	store, err := NewStore(db, node.New("test", "test", nil, nil))
+	require.NoError(t, err)
+
+	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "alice-cliqeu")
+	require.NoError(t, err)
+
+	// No permissions have been added for this collection+rkey
+	hasPermission, err := store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
+	require.NoError(t, err)
+	require.False(t, hasPermission, "should return false when no permissions match the collection+rkey")
+}
+
 func TestAddReadPermission_EmptyCollection(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
