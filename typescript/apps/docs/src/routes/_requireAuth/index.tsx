@@ -15,12 +15,14 @@ export const Route = createFileRoute("/_requireAuth/")({
         value: HabitatDoc;
       }[];
     } = await response?.json();
-    return data;
+    const profile = await context.authManager.client().getSelfProfile()
+
+    return { profile, data };
   },
   staleTime: 1000 * 60 * 60,
   component() {
     const router = useRouter();
-    const { records } = Route.useLoaderData();
+    const { profile, data } = Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
     const navigate = Route.useNavigate();
 
@@ -51,11 +53,10 @@ export const Route = createFileRoute("/_requireAuth/")({
       },
     });
 
-    const did = authManager.getAuthInfo()?.did;
 
     return (
       <>
-        <p>Logged in as: {did}</p>
+        <p>Logged in as: @{profile.handle}</p>
         <button type="submit" aria-busy={isPending} onClick={() => create()}>
           New
         </button>
@@ -66,7 +67,7 @@ export const Route = createFileRoute("/_requireAuth/")({
             </tr>
           </thead>
           <tbody>
-            {records.map((doc) => (
+            {data.records.map((doc) => (
               <tr key={doc.cid}>
                 <td>
                   <Link to="/$uri" params={{ uri: doc.uri }}>

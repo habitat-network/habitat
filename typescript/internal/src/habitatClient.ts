@@ -70,6 +70,14 @@ export type GetPrivateRecordParams = NetworkHabitatRepoGetRecord.QueryParams;
 export type ListPrivateRecordsParams =
   NetworkHabitatRepoListRecords.QueryParams;
 
+export interface Profile {
+  did: string;
+  handle: string;
+  displayName?: string;
+  avatar?: string;
+}
+
+
 // HabitatAgentSession implements the Atproto Session interface.
 export class HabitatAgentSession {
   serverUrl: string;
@@ -430,4 +438,21 @@ export class HabitatClient {
 
     return response.json();
   }
+
+  async getSelfProfile(
+  ): Promise<Profile> {
+    const headers = new Headers();
+    headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
+    const params = new URLSearchParams();
+    params.append("actor", this.defaultDid);
+    const response = await this.defaultAgent.fetchHandler(
+      `/xrpc/app.bsky.actor.getProfile?${params.toString()}`,
+      {
+        method: "GET",
+        headers: headers,
+      }
+    );
+    return response.json();
+  }
+
 }

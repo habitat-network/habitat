@@ -262,13 +262,14 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     const provider = new Libp2pConnectionProvider(node, ydoc, habitatUri);
+    const profile = await context.authManager.client().getSelfProfile()
 
     return {
       provider,
       node,
       ydoc,
       rkey,
-      did: did,
+      profile,
       docDID: docDID,
       onVisibilityChange,
     };
@@ -286,20 +287,21 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { did, docDID, rkey, ydoc, provider, node } = Route.useLoaderData();
+    const { profile, docDID, rkey, ydoc, provider, node } = Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
     const [dirty, setDirty] = useState(false);
+
     const { mutate: save } = useMutation({
       mutationFn: async ({ editor }: { editor: Editor }) => {
         const heading = editor.$node("heading")?.textContent;
         const collection =
-          docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
-        const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
+          docDID === profile.did ? "network.habitat.docs" : "network.habitat.docs.edit";
+        const mappedKey = docDID === profile.did ? rkey : `${docDID}-${rkey}`;
         await authManager.fetch(
           "/xrpc/network.habitat.putRecord",
           "POST",
           JSON.stringify({
-            repo: did,
+            repo: profile.did,
             collection: collection,
             rkey: mappedKey,
             record: {
@@ -333,7 +335,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         CollaborationCaret.configure({
           provider,
           user: {
-            name: did,
+            name: profile.handle,
             color: "#f783ac",
           },
         }),
@@ -342,12 +344,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     });
     return (
       <>
-        <p>Logged in as: {did}</p>
+        <a href="/">My docs</a>
+        <p>Logged in as: @{profile.handle}</p>
         <article>
           <EditorContent editor={editor} />
         </article>
         {dirty ? "🔄 Syncing" : "✅ Synced"}
-        Node id: {node.peerId.toString()}
       </>
     );
   },
