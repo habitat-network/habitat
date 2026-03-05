@@ -263,7 +263,6 @@ func (p *pear) getRecordLocal(
 		return nil, err
 	}
 
-	fmt.Println("who has permission", caller, target, collection, rkey, ok)
 	if !ok {
 		return nil, ErrUnauthorized
 	}

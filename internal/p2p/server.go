@@ -102,18 +102,13 @@ func (pr *peerRegistry) notifySubscribedPeers(topic habitat_syntax.HabitatURI, p
 	}
 }
 
-type authMethods struct {
-	oauth       authn.Method
-	serviceAuth authn.Method
-}
-
 type Server struct {
 	host     host.Host
 	proxy    *httputil.ReverseProxy
 	registry *peerRegistry
 
 	// For authn/authz
-	authMethods authMethods
+	serviceAuth authn.Method
 	pear        pear.Pear
 
 	// Count the open conns on this server
@@ -123,7 +118,7 @@ type Server struct {
 
 var _ io.Closer = (*Server)(nil)
 
-func NewServer(oauth authn.Method, serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*Server, error) {
+func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*Server, error) {
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
@@ -160,15 +155,12 @@ func NewServer(oauth authn.Method, serviceAuth authn.Method, pear pear.Pear, met
 	}
 
 	s := &Server{
-		host:     host,
-		proxy:    httputil.NewSingleHostReverseProxy(url),
-		registry: registry,
-		authMethods: authMethods{
-			oauth:       oauth,
-			serviceAuth: serviceAuth,
-		},
-		pear:       pear,
-		connsGauge: gauge,
+		host:        host,
+		proxy:       httputil.NewSingleHostReverseProxy(url),
+		registry:    registry,
+		serviceAuth: serviceAuth,
+		pear:        pear,
+		connsGauge:  gauge,
 	}
 
 	type discoveryRequest struct {
@@ -199,13 +191,8 @@ func NewServer(oauth authn.Method, serviceAuth authn.Method, pear pear.Pear, met
 			return
 		}
 
-		// TODO: should we explicitly accept a different auth method depending on whether the peer belongs to this node or not?
-		did, authn, err := s.authMethods.oauth.ValidateRaw(ctx, req.OauthToken)
-		if err != nil || !authn {
-			// Try service auth method if oauth was not provided or did not authn.
-			did, authn, err = s.authMethods.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
-		}
-
+		// Always use service auth here -- the service is p2p peer discovery for habitat.
+		did, authn, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
 		if err != nil || !authn {
 			// Ignore this peer -- don't let it know about others and don't let others discover it
 			return

@@ -132,7 +132,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
-	p2pServer, err := p2p.NewServer(oauthServer, authn.NewServiceAuthMethod(dir), pear, meter)
+	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}

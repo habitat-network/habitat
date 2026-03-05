@@ -166,10 +166,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
     }
 
-    if (!context.authManager.getAuthInfo()) {
-      throw redirect({ to: "/" });
-    }
-
     const did = context.authManager.getAuthInfo()!.did;
 
     // editRkey is the rkey used in network.habitat.docs.edit for this doc

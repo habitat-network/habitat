@@ -372,46 +372,14 @@ func (o *OAuthServer) Validate(
 	r *http.Request,
 	scopes ...string,
 ) (syntax.DID, bool) {
-	_, ar, err := o.provider.IntrospectToken(
-		r.Context(),
-		fosite.AccessTokenFromRequest(r),
-		fosite.AccessToken,
-		&oauth2.JWTSession{},
-		scopes...,
-	)
+	token := fosite.AccessTokenFromRequest(r)
+	did, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
 	if err != nil {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("invalid or expired token: %w", err),
-			http.StatusUnauthorized,
-		)
-		return "", false
+		utils.WriteHTTPError(w, fmt.Errorf("unable to validate oauth token: %w", err), http.StatusUnauthorized)
 	}
-	// Get the DID from the session subject (stored in JWT)
-	session := ar.GetSession().(*oauth2.JWTSession)
-	if session.JWTClaims == nil {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("JWT claims not found"),
-			"invalid token",
-			http.StatusUnauthorized,
-		)
-		return "", false
-	}
-
-	did := session.JWTClaims.Subject
-	if did == "" {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("DID not found in JWT"),
-			"invalid token",
-			http.StatusUnauthorized,
-		)
-		return "", false
-	}
-	return syntax.DID(did), true
+	return did, ok
 }
 
 // Validate's the given token and writes an error response to w if validation fails
