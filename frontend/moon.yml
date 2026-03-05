@@ -31,6 +31,10 @@ tasks:
         env:
           DOMAIN: ${DOMAIN}/greensky
           OUT_DIR: $projectRoot/dist/greensky
+      - target: docs:build
+        env:
+          DOMAIN: ${DOMAIN}/docs
+          OUT_DIR: $projectRoot/dist/docs
     preset: utility
     options:
       runDepsInParallel: false
