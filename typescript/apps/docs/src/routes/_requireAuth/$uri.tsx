@@ -2,7 +2,7 @@ import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { HabitatDoc } from "@/habitatDoc";
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { createLibp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
