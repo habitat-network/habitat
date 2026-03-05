@@ -114,6 +114,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     async function getServiceAuthToken(): Promise<string> {
       const response = await context.authManager.fetch(
+        // TODO: lxm is a random atproto lexicon right now because serviceAuth endpoint only accepts valid published lexicons
+        // We need to publish network.habitat.p2p and pass that in here.
         `/xrpc/com.atproto.server.getServiceAuth?aud=${encodeURIComponent(habitatDID)}&lxm=com.atproto.server.getServiceAuth`,
       );
       const data = await response?.json();
