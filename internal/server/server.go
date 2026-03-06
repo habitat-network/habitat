@@ -323,7 +323,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", mimeType)
 	w.Header().Set("Content-Length", contentLen)
-	io.Copy(w, blob)
+	_, err = io.Copy(w, blob)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
