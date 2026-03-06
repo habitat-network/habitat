@@ -55,12 +55,29 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
       params.handle,
     );
 
+    const parentDids = [
+      ...new Set(
+        privateItems
+          .filter((p) => p.value.reply)
+          .map((p) => p.value.reply!.parent.uri.split("/")[2] ?? "")
+          .filter(Boolean),
+      ),
+    ];
+    const parentProfiles = await getProfiles(context.authManager, parentDids);
+    const parentHandleByDid = new Map(
+      parentDids.map((did, i) => [did, parentProfiles[i]?.handle]),
+    );
+
     const entries: FeedEntry[] = [
       ...(await Promise.all(
         privateItems.map(async (post): Promise<FeedEntry> => {
           const authorDid = post.uri.split("/")[2] ?? "";
           const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
           const grantees = await getProfiles(context.authManager, granteeDids);
+          const parentDid = post.value.reply?.parent.uri.split("/")[2];
+          const replyToHandle = post.value.reply
+            ? (parentDid ? (parentHandleByDid.get(parentDid) ?? null) : null)
+            : undefined;
           return {
             uri: post.uri,
             text: post.value.text,
@@ -71,7 +88,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
               displayName: profile.displayName,
               avatar: profile.avatar,
             },
-            replyToHandle: post.value.reply !== undefined ? null : undefined,
+            replyToHandle,
             grantees: grantees.length > 0 ? grantees : undefined,
           };
         }),
@@ -107,9 +124,9 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           left={
             <>
               <li>
-                <Link to="/">← greensky</Link>
+                <Link to="/" className="hover:underline">← greensky</Link>
               </li>
-              <li>
+              <li className="sm:block text-foreground">
                 <h3>@{handle}'s feed</h3>
               </li>
             </>
@@ -118,7 +135,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           myProfile={myProfile}
           isOnboarded={isOnboarded}
         />
-        <Feed entries={entries} />
+        <Feed entries={entries} authManager={authManager} />
       </>
     );
   },

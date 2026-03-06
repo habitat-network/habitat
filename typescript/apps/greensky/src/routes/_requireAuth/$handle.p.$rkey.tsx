@@ -8,7 +8,6 @@ import {
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
-import { PostReply } from "../../components/PostReply";
 
 export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
   async loader({ context, params }) {
@@ -22,8 +21,6 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
       return {
         entries: [] as FeedEntry[],
         replyEntries: [] as FeedEntry[],
-        postClique: undefined as string | undefined,
-        postCid: "",
       };
 
     const authorDid = post.uri.split("/")[2] ?? "";
@@ -48,6 +45,8 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
 
     const entry: FeedEntry = {
       uri: post.uri,
+      cid: post.cid,
+      clique: post.clique,
       text: post.value.text,
       createdAt: post.value.createdAt,
       kind: getPostVisibility(post, authorDid),
@@ -65,32 +64,26 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
       const replyAuthor = replyAuthorByDid.get(replyAuthorDid);
       return {
         uri: reply.uri,
+        cid: reply.cid,
+        clique: reply.clique,
         text: reply.value.text,
         createdAt: reply.value.createdAt,
         kind: getPostVisibility(reply, replyAuthorDid),
         author: replyAuthor
           ? { handle: replyAuthor.handle, avatar: replyAuthor.avatar }
           : undefined,
-        replyToHandle: null,
+        replyToHandle: profile.handle,
       };
     });
 
     return {
       entries: [entry],
       replyEntries: replyEntries,
-      postClique: post.clique,
-      postCid: post.cid,
     };
   },
   component() {
     const { handle } = Route.useParams();
-    const { entries, replyEntries, postClique, postCid } =
-      Route.useLoaderData() as {
-        entries: FeedEntry[];
-        replyEntries: FeedEntry[];
-        postClique: string | undefined;
-        postCid: string;
-      };
+    const { entries, replyEntries } = Route.useLoaderData();
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
     return (
       <>
@@ -98,9 +91,11 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
           left={
             <>
               <li>
-                <Link to="/">← greensky</Link>
+                <Link to="/" className="hover:underline">← greensky</Link>
               </li>
-              <li>Post by @{handle}</li>
+              <li className="sm:block text-foreground">
+                post by @{handle}
+              </li>
             </>
           }
           authManager={authManager}
@@ -110,19 +105,16 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         <Feed
           entries={entries}
           showPrivatePermalink={false}
-          renderPostActions={(entry) => (
-            <PostReply
-              postUri={entry.uri}
-              postCid={postCid}
-              postClique={postClique}
-              authManager={authManager}
-            />
-          )}
+          authManager={authManager}
         />
         {replyEntries.length > 0 && (
           <>
-            <h4 className="container my-4">Replies</h4>
-            <Feed entries={replyEntries} showPrivatePermalink={false} />
+            <h4 className="w-full max-w-2xl mx-2 my-4">Replies</h4>
+            <Feed
+              entries={replyEntries}
+              showPrivatePermalink={true}
+              authManager={authManager}
+            />
           </>
         )}
       </>

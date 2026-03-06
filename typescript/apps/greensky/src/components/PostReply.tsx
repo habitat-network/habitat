@@ -79,7 +79,7 @@ export function PostReply({
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} variant="ghost" size="sm">
+      <Button onClick={() => setOpen(true)} variant="secondary" size="sm">
         ↩ Reply
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
