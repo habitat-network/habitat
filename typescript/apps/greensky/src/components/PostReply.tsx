@@ -93,7 +93,18 @@ export function PostReply({
               setReplyError(null);
               submitReply(undefined, {
                 onError: (error) => setReplyError(error.message),
-                onSuccess: () => closeModal(),
+                onSuccess: () => {
+                  closeModal();
+                  const parts = postUri.split("/");
+                  const handle = parts[2];
+                  const rkey = parts[4];
+                  if (handle && rkey) {
+                    router.navigate({
+                      to: "/$handle/p/$rkey",
+                      params: { handle, rkey },
+                    });
+                  }
+                },
               });
             }}
             className="space-y-4"

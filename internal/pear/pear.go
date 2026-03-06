@@ -271,6 +271,16 @@ func (p *pear) getRecordLocal(
 		return nil, ErrUnauthorized
 	}
 
+	// Special case followers clique -- just intercept the call and return an empty record since we never store anything here
+	// The permissions on this record are fetched from another special cased path
+	if collection == permissions.CliqueNSID && rkey == permissions.FollowersCliqueRkey {
+		return &repo.Record{
+			Did:        target.String(),
+			Collection: collection.String(),
+			Rkey:       rkey.String(),
+		}, nil
+	}
+
 	return p.repo.GetRecord(ctx, target.String(), collection.String(), rkey.String())
 }
 
@@ -381,6 +391,8 @@ func (p *pear) listRecordsLocal(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list records: %w", err)
 	}
+
+	// TODO: consider checking hasPermission here for each record to detect if we ever return inconsistent state
 	return records, nil
 }
 

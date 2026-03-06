@@ -9,12 +9,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/node"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -158,18 +157,17 @@ func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, 
 }
 
 func isFollwersCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
-	client := &xrpc.Client{
-		Host: "https://public.api.bsky.app",
+	cliqueOwner := clique.Owner()
+	if cliqueOwner == requester {
+		// You always "follow yourself"
+		return true, nil
 	}
 
-	output, err := bsky.GraphGetFollowers(ctx, client, clique.Owner().String(), "", 0)
+	followers, err := utils.FetchFollowers(ctx, cliqueOwner)
 	if err != nil {
 		return false, err
 	}
 
-	followers := xslices.Map(output.Followers, func(a *bsky.ActorDefs_ProfileView) syntax.DID {
-		return syntax.DID(a.Did)
-	})
 	return slices.Contains(followers, requester), nil
 }
 

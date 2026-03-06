@@ -35,6 +35,7 @@ export interface FeedEntry {
   repostedByHandle?: string;
   quotedPost?: { bskyUrl: string; authorHandle: string };
   grantees?: { avatar?: string; handle: string }[];
+  isReply?: boolean;
 }
 
 function bskyUrl(uri: string, handle: string): string {
@@ -45,10 +46,12 @@ function bskyUrl(uri: string, handle: string): string {
 export function Feed({
   entries,
   showPrivatePermalink = true,
+  showVisibilityBadge = true,
   authManager,
 }: {
   entries: FeedEntry[];
   showPrivatePermalink?: boolean;
+  showVisibilityBadge?: boolean;
   authManager?: AuthManager;
 }) {
   // Reverse chronological, with createdAt missing or 0 at the end.
@@ -140,14 +143,16 @@ export function Feed({
                   </Item>
                 </ItemContent>
                 <ItemActions>
-                  <Badge variant="secondary">
-                    {entry.kind === "public"
-                      ? "🌍 Public"
-                      : entry.kind === "followers-only"
-                        ? "🔒 Followers only"
-                        : "👥 Specific users"}
-                  </Badge>
-                  {entry.grantees && entry.grantees.length > 0 && (
+                  {showVisibilityBadge && (
+                    <Badge variant="secondary">
+                      {entry.kind === "public"
+                        ? "🌍 Public"
+                        : entry.kind === "followers-only"
+                          ? "🔒 Followers only"
+                          : "👥 Specific users"}
+                    </Badge>
+                  )}
+                  {showVisibilityBadge && entry.grantees && entry.grantees.length > 0 && (
                     <AvatarGroup>
                       {entry.grantees.map((grantee) => (
                         <UserAvatar
@@ -192,12 +197,12 @@ export function Feed({
             <p className="whitespace-pre-wrap">{entry.text}</p>
           </CardContent>
           <CardFooter>
-            {authManager && entry.kind !== "public" && (
+            {entry.kind !== "public" && !entry.isReply && (
               <PostReply
                 postUri={entry.uri}
                 postCid={entry.cid ?? ""}
                 postClique={entry.clique}
-                authManager={authManager}
+                authManager={authManager!}
               />
             )}
           </CardFooter>
