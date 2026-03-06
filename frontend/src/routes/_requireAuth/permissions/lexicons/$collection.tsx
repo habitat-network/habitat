@@ -2,7 +2,6 @@ import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Actor, UserCombobox } from "internal";
-import { act } from "react";
 import { useForm } from "react-hook-form";
 
 // Concrete wire types for the grantee union variants the server parses

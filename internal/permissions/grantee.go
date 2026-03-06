@@ -80,23 +80,28 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 			return nil, fmt.Errorf("malformatted grantee has no $type field: %v", unknownGrantee)
 		}
 
-		var asStr string
+		var grantee Grantee
 		switch granteeType {
 		case "network.habitat.grantee#didGrantee":
-			did, ok := unknownGrantee["did"]
+			asInterface, ok := unknownGrantee["did"]
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted did grantee has no did field: %v",
 					unknownGrantee,
 				)
 			}
-			asStr, ok = did.(string)
+			asStr, ok := asInterface.(string)
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted did grantee has non-string did field: %v",
 					unknownGrantee,
 				)
 			}
+			did, err := syntax.ParseDID(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("malformed DID: %w", err)
+			}
+			grantee = DIDGrantee(did)
 		case "network.habitat.grantee#cliqueRef":
 			uri, ok := unknownGrantee["uri"]
 			if !ok {
@@ -105,23 +110,24 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 					unknownGrantee,
 				)
 			}
-			asStr, ok = uri.(string)
+			asStr, ok := uri.(string)
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted clique grantee has non-string uri field: %v",
 					unknownGrantee,
 				)
 			}
+			clique, err := parseHabitatClique(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("malformed clique: %w", err)
+			}
+			grantee = CliqueGrantee(clique)
 		default:
 			return nil, fmt.Errorf(
 				"malformatted grantee has unknown $type of %v: %v",
 				granteeType,
 				unknownGrantee,
 			)
-		}
-		grantee, err := ParseGranteeFromString(asStr)
-		if err != nil {
-			return nil, err
 		}
 		parsed[i] = grantee
 	}

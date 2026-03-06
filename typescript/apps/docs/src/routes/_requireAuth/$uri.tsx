@@ -286,7 +286,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { profile, docDID, rkey, ydoc, provider, node } = Route.useLoaderData();
+    const { profile, docDID, rkey, ydoc, provider } = Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
     const [dirty, setDirty] = useState(false);
 
