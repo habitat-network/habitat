@@ -1,6 +1,7 @@
 package pear
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -67,7 +68,7 @@ type Pear interface {
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
-	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error)
+	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error)
 	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
 
 	// Inbox / Node-to-node communication related methods
@@ -422,20 +423,17 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 	return localRecords, nil
 }
 
-func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, []byte /* raw blob */, error) {
+func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
 	// Otherwise, forward this request to the right repo (the clique member)
 	reqURL, err := url.Parse("/xrpc/network.habitat.getBlob")
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 
 	q := reqURL.Query()
 	q.Set("did", target.String())
 	q.Set("cid", cid.String())
 	reqURL.RawQuery = q.Encode()
-	if err != nil {
-		return "", nil, err
-	}
 
 	req, err := http.NewRequestWithContext(
 		ctx,
@@ -444,28 +442,24 @@ func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target synt
 		nil,
 	)
 	if err != nil {
-		return "", nil, fmt.Errorf("constructing http request for remote resolve: %w", err)
+		return "", "", nil, fmt.Errorf("constructing http request for remote resolve: %w", err)
 	}
 
 	resp, err := p.node.SendXRPC(ctx, caller, target, req)
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		slurp, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return "", nil, err
-		}
-
 		mimeType := resp.Header.Get("Content-Type")
-		return mimeType, slurp, nil
+		contentLen := resp.Header.Get("Content-Length")
+		return mimeType, contentLen, resp.Body, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return "", nil, ErrUnauthorized
+		return "", "", nil, ErrUnauthorized
 	default:
-		return "", nil, fmt.Errorf("unexpected status from remote getBlob: %d", resp.StatusCode)
+		return "", "", nil, fmt.Errorf("unexpected status from remote getBlob: %d", resp.StatusCode)
 	}
 }
 
@@ -474,10 +468,10 @@ func (p *pear) GetBlob(
 	caller syntax.DID,
 	target syntax.DID,
 	cid syntax.CID,
-) (string /* mimetype */, []byte /* raw blob */, error) {
+) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
 	serves, err := p.node.ServesDID(ctx, target)
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 
 	if !serves {
@@ -490,14 +484,14 @@ func (p *pear) GetBlob(
 	} else {
 		links, err := p.repo.GetBlobLinks(ctx, cid, target)
 		if err != nil {
-			return "", nil, err
+			return "", "", nil, err
 		}
 
 		// TODO: could be done in parallel
 		for _, uri := range links {
 			ok, err := p.HasPermission(ctx, caller, caller, uri.Authority().DID(), uri.Collection(), uri.RecordKey())
 			if err != nil {
-				return "", nil, err
+				return "", "", nil, err
 			}
 
 			// If any record the caller has access to references this blob, they can see it
@@ -509,10 +503,14 @@ func (p *pear) GetBlob(
 	}
 
 	if !authz {
-		return "", nil, ErrUnauthorized
+		return "", "", nil, ErrUnauthorized
 	}
 
-	return p.repo.GetBlob(ctx, target.String(), cid.String())
+	mimeType, blob, err := p.repo.GetBlob(ctx, target.String(), cid.String())
+	if err != nil {
+		return "", "", nil, err
+	}
+	return mimeType, fmt.Sprint(len(blob)), io.NopCloser(bytes.NewReader(blob)), nil
 }
 
 func (p *pear) UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {

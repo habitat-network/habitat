@@ -310,7 +310,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mimeType, blob, err := s.pear.GetBlob(r.Context(), callerDID, did, cid)
+	mimeType, contentLen, blob, err := s.pear.GetBlob(r.Context(), callerDID, did, cid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -322,8 +322,8 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", mimeType)
-	w.Header().Set("Content-Length", fmt.Sprint(len(blob)))
-	_, err = w.Write(blob)
+	w.Header().Set("Content-Length", contentLen)
+	io.Copy(w, blob)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,

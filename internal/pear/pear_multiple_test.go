@@ -234,6 +234,7 @@ func TestGetBlobRemote(t *testing.T) {
 
 	header := make(http.Header)
 	header.Set("Content-Type", mimeType)
+	header.Set("Content-Length", fmt.Sprint(len(blobData)))
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewReader(blobData)),
@@ -241,8 +242,12 @@ func TestGetBlobRemote(t *testing.T) {
 	}
 	mockXRPCs.actions = append(mockXRPCs.actions, resp) //nolint:bodyclose
 
-	gotMime, gotBlob, err := pearB.GetBlob(t.Context(), bDID, aDID, cid)
+	gotMime, contentLen, gotBlob, err := pearB.GetBlob(t.Context(), bDID, aDID, cid)
 	require.NoError(t, err)
 	require.Equal(t, mimeType, gotMime)
-	require.Equal(t, blobData, gotBlob)
+
+	slurp, err := io.ReadAll(gotBlob)
+	require.NoError(t, err)
+	require.Equal(t, blobData, slurp)
+	require.Equal(t, contentLen, fmt.Sprint(len(blobData)))
 }

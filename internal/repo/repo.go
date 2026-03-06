@@ -233,7 +233,7 @@ func (r *repo) GetBlob(
 	ctx context.Context,
 	did string,
 	cid string,
-) (string /* mimetype */, []byte /* raw blob */, error) {
+) (string /* mimetype */, []byte /* blob body */, error) {
 	row, err := gorm.G[Blob](
 		r.db,
 	).Where("did = ? and cid = ?", did, cid).First(ctx)
