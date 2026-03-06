@@ -83,10 +83,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
   },
   component() {
     const { handle } = Route.useParams();
-    const { entries, replyEntries } = Route.useLoaderData() as {
-      entries: FeedEntry[];
-      replyEntries: FeedEntry[];
-    };
+    const { entries, replyEntries } = Route.useLoaderData();
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
     return (
       <>
