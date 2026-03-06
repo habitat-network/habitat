@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { AuthManager } from "internal";
 import {
   getPrivatePosts,
@@ -98,33 +99,13 @@ export const Route = createFileRoute("/_requireAuth/")({
     const privateEntries = await Promise.all(
       privatePosts.map(privatePostToFeedEntry),
     );
+    const filteredPrivateEntries = privateEntries.filter(
+      (e) => e.replyToHandle === undefined,
+    );
 
-    const entries: FeedEntry[] = [
-      ...privateEntries,
-      ...bskyItems.map(
-        ({ post, reply, reason }): FeedEntry => ({
-          uri: post.uri,
-          text: post.record.text,
-          createdAt: post.record.createdAt,
-          kind: "public",
-          author: post.author,
-          replyToHandle:
-            reply !== undefined
-              ? (reply.parent.author?.handle ?? null)
-              : undefined,
-          repostedByHandle:
-            reason?.$type === "app.bsky.feed.defs#reasonRepost"
-              ? reason.by.handle
-              : undefined,
-          quotedPost: quoteRepostInfo(post.embed),
-        }),
-      ),
-    ];
-
-    const allEntries = entries.filter((e) => e.replyToHandle === undefined);
     return {
-      privateEntries: allEntries.filter((e) => e.kind !== "public"),
-      bskyEntries: allEntries.filter((e) => e.kind === "public"),
+      privateEntries: filteredPrivateEntries,
+      initialBskyItems: bskyItems,
       bskyCursor,
     };
   },
@@ -132,82 +113,58 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
     const {
       privateEntries,
-      bskyEntries: initialBskyEntries,
+      initialBskyItems,
       bskyCursor: initialCursor,
     } = Route.useLoaderData();
 
-    const [bskyEntries, setBskyEntries] =
-      useState<FeedEntry[]>(initialBskyEntries);
-    const [cursor, setCursor] = useState<string | undefined>(initialCursor);
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+      useInfiniteQuery({
+        queryKey: ["bskyFeed"],
+        queryFn: ({ pageParam }) => getBskyFeed(authManager, pageParam),
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (lastPage) => lastPage.cursor,
+        initialData: {
+          pages: [{ items: initialBskyItems ?? [], cursor: initialCursor }],
+          pageParams: [undefined],
+        },
+      });
 
-    const sortByTime = (a: FeedEntry, b: FeedEntry) => {
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      if (!aTime && !bTime) return 0;
-      if (!aTime) return -1;
-      if (!bTime) return 1;
-      return bTime - aTime;
-    };
-
-    const sortedAll = [...privateEntries, ...bskyEntries].sort(sortByTime);
-    const lastBskyIndex = sortedAll.reduce(
-      (idx, e, i) => (e.kind === "public" ? i : idx),
-      -1,
+    const bskyEntries: FeedEntry[] = (data?.pages ?? []).flatMap((page) =>
+      page.items
+        .filter((item) => item.reply === undefined)
+        .map(
+          ({ post, reason }): FeedEntry => ({
+            uri: post.uri,
+            text: post.record.text,
+            createdAt: post.record.createdAt,
+            kind: "public",
+            author: post.author,
+            repostedByHandle:
+              reason?.$type === "app.bsky.feed.defs#reasonRepost"
+                ? reason.by.handle
+                : undefined,
+            quotedPost: quoteRepostInfo(post.embed),
+          }),
+        ),
     );
-    const visiblePrivateEntries =
-      lastBskyIndex === -1
-        ? privateEntries
-        : privateEntries.filter(
-            (e) => sortedAll.indexOf(e) <= lastBskyIndex,
-          );
 
-    const entries = [...visiblePrivateEntries, ...bskyEntries];
-    const [isLoading, setIsLoading] = useState(false);
+    const entries = [...privateEntries, ...bskyEntries];
     const sentinelRef = useRef<HTMLDivElement>(null);
-
-    const loadMore = useCallback(async () => {
-      if (!cursor || isLoading) return;
-      setIsLoading(true);
-      try {
-        const { items, cursor: nextCursor } = await getBskyFeed(
-          authManager,
-          cursor,
-        );
-        const newEntries = items
-          .filter((item) => item.reply === undefined)
-          .map(
-            ({ post, reason }): FeedEntry => ({
-              uri: post.uri,
-              text: post.record.text,
-              createdAt: post.record.createdAt,
-              kind: "public",
-              author: post.author,
-              repostedByHandle:
-                reason?.$type === "app.bsky.feed.defs#reasonRepost"
-                  ? reason.by.handle
-                  : undefined,
-              quotedPost: quoteRepostInfo(post.embed),
-            }),
-          );
-        setBskyEntries((prev) => [...prev, ...newEntries]);
-        setCursor(nextCursor);
-      } finally {
-        setIsLoading(false);
-      }
-    }, [cursor, isLoading, authManager]);
 
     useEffect(() => {
       const sentinel = sentinelRef.current;
       if (!sentinel) return;
       const observer = new IntersectionObserver(
         ([entry]) => {
-          if (entry?.isIntersecting) loadMore();
+          if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+          }
         },
         { threshold: 0.1 },
       );
       observer.observe(sentinel);
       return () => observer.disconnect();
-    }, [loadMore]);
+    }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
     return (
       <>
@@ -223,7 +180,7 @@ export const Route = createFileRoute("/_requireAuth/")({
         />
         <Feed entries={entries} authManager={authManager} />
         <div ref={sentinelRef} className="h-4" />
-        {isLoading && (
+        {isFetchingNextPage && (
           <p className="text-sm text-muted-foreground my-4">Loading...</p>
         )}
       </>

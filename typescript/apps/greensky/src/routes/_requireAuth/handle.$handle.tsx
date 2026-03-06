@@ -126,12 +126,11 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
               <li>
                 <Link to="/">← greensky</Link>
               </li>
-              <li className="hidden sm:block text-foreground">
+              <li className="sm:block text-foreground">
                 <h3>@{handle}'s feed</h3>
               </li>
             </>
           }
-          mobileTitle={<h3>@{handle}'s feed</h3>}
           authManager={authManager}
           myProfile={myProfile}
           isOnboarded={isOnboarded}

@@ -93,12 +93,11 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
               <li>
                 <Link to="/">← greensky</Link>
               </li>
-              <li className="hidden sm:block text-foreground">
+              <li className="sm:block text-foreground">
                 post by @{handle}
               </li>
             </>
           }
-          mobileTitle={<span>post by @{handle}</span>}
           authManager={authManager}
           myProfile={myProfile}
           isOnboarded={isOnboarded}

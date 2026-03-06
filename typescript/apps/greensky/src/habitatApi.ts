@@ -41,13 +41,18 @@ export function getPostVisibility(
 ): PostVisibility {
   const perms = post.permissions;
   if (!perms || perms.length === 0) return "public";
-  if (perms.length === 1) {
-    const perm = perms[0];
+  const followersClique = `habitat://${authorDid}/network.habitat.clique/followers`;
+
+  // The get for the record can return many grants (for e.g. if the author gave permissions to a user for the whole collection)
+  // To know if this was a followers post, see if the auther shared this with their followers clique
+  if (perms.some((perm) => {
     if (perm.$type === "network.habitat.grantee#cliqueRef") {
-      const followersClique = `habitat://${authorDid}/network.habitat.clique/followers`;
       if ((perm as CliqueRefPermission).uri === followersClique)
-        return "followers-only";
+        return true;
     }
+    return false
+  })) {
+    return "followers-only";
   }
   return "specific-users";
 }

@@ -7,7 +7,6 @@ import { Link } from "@tanstack/react-router";
 
 interface NavBarProps {
   left: ReactNode;
-  mobileTitle?: ReactNode;
   authManager: AuthManager;
   myProfile: Profile | undefined;
   isOnboarded: boolean;
@@ -15,14 +14,13 @@ interface NavBarProps {
 
 export function NavBar({
   left,
-  mobileTitle,
   authManager,
   myProfile,
   isOnboarded,
 }: NavBarProps) {
   return (
     <div className="container mx-auto px-4 flex flex-col items-center">
-      <nav className="flex items-center py-4 w-full">
+      <nav className="flex flex-wrap items-center py-4 w-full gap-y-2">
         <ul className="flex-1 flex items-center gap-4 list-none m-0 p-0 text-[green]">{left}</ul>
         <a href="https://habitat.network" style={{ color: "green" }} className="text-sm">
           by habitat 🌱
@@ -32,7 +30,7 @@ export function NavBar({
             <Link
               to="/handle/$handle"
               params={{ handle: myProfile.handle }}
-              className="hover:underline hidden sm:inline"
+              className="hover:underline sm:inline"
             >
               @{myProfile.handle}
             </Link>
@@ -43,9 +41,6 @@ export function NavBar({
           </Button>
         </div>
       </nav>
-      {mobileTitle && (
-        <div className="sm:hidden w-full pb-2">{mobileTitle}</div>
-      )}
       <Separator />
       <p className="m-4 text-sm text-muted-foreground prose max-w-none w-full">
         ✨ This is an experimental demo, to show what it might feel like to use an app with public and permissioned data

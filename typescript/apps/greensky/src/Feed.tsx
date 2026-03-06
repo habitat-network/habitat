@@ -80,7 +80,7 @@ export function Feed({
           }
         >
           <CardHeader>
-            <CardDescription className="flex items-center gap-2 flex-wrap">
+            <CardDescription className="flex items-center gap-1 flex-wrap">
               {entry.repostedByHandle && (
                 <span className="text-xs">
                   ↻ reposted by @{entry.repostedByHandle}
@@ -107,7 +107,7 @@ export function Feed({
               )}
             </CardDescription>
             {entry.author && (
-              <Item size="xs" variant="muted" className="py-1.5">
+              <Item size="xs" variant="muted" className="py-2">
                 <ItemContent>
                   <Item
                     size="xs"
