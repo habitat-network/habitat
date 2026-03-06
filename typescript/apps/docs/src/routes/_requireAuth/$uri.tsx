@@ -24,7 +24,7 @@ import { peerIdFromString } from "@libp2p/peer-id";
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz"
 
 class ForbiddenError extends Error {
-  constructor() { super("forbidden"); }
+  constructor(public forbiddenHandle: string) { super("forbidden"); }
 }
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
@@ -35,9 +35,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const originalRecordResponse = await context.authManager.fetch(
       `/xrpc/network.habitat.getRecord?repo=${docDID}&collection=${lexicon}&rkey=${rkey}&includePermissions=true`,
     );
+    const did = context.authManager.getAuthInfo()!.did;
+    const profile = await context.authManager.client().getSelfProfile()
 
     if (originalRecordResponse?.status === 403) {
-      throw new ForbiddenError();
+      throw new ForbiddenError(profile.handle);
     }
 
     // The gossipsub topic is also used as the per-document rendezvous key.
@@ -168,8 +170,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
     }
 
-    const did = context.authManager.getAuthInfo()!.did;
-
     // editRkey is the rkey used in network.habitat.docs.edit for this doc
     const editRkey = `${docDID}-${rkey}`;
 
@@ -262,7 +262,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     const provider = new Libp2pConnectionProvider(node, ydoc, habitatUri);
-    const profile = await context.authManager.client().getSelfProfile()
 
     return {
       provider,
@@ -355,7 +354,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   errorComponent({ error }) {
     if (error instanceof ForbiddenError) {
-      return <p>you do not have permission to view this doc</p>;
+      return <>
+        <p>Logged in as: @{error.forbiddenHandle}</p>
+        <p>You do not have permission to view this doc</p>
+      </>;
     }
     return <p>Something went wrong.</p>;
   },
