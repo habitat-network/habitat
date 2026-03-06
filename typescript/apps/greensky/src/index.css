@@ -20,8 +20,3 @@
     --sidebar-primary-foreground: #F9FFF2;
     --sidebar-accent-foreground: #180C00;
 }
-
-a,
-button {
-    touch-action: manipulation;
-}
