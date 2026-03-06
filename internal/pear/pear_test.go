@@ -2,6 +2,8 @@ package pear
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"testing"
 
@@ -525,10 +527,13 @@ func TestPearUploadAndGetBlob(t *testing.T) {
 	require.Equal(t, mtype, bmeta.MimeType)
 	require.Equal(t, int64(len(blob)), bmeta.Size)
 
-	m, gotBlob, err := pear.GetBlob(t.Context(), did, did, syntax.CID(bmeta.Ref.String()))
+	m, cl, gotBlob, err := pear.GetBlob(t.Context(), did, did, syntax.CID(bmeta.Ref.String()))
+	require.NoError(t, err)
+	slurp, err := io.ReadAll(gotBlob)
+	require.Equal(t, cl, fmt.Sprint(len(slurp)))
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
-	require.Equal(t, blob, gotBlob)
+	require.Equal(t, blob, slurp)
 }
 
 func TestListRecordsWithPermissions(t *testing.T) {
@@ -758,18 +763,24 @@ func TestGetBlobPermissionsViaRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	// Alice (owner of the referencing record) can access the blob.
-	m, got, err := p.GetBlob(t.Context(), aliceDID, aliceDID, cid)
+	m, _, got, err := p.GetBlob(t.Context(), aliceDID, aliceDID, cid)
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
-	require.Equal(t, blobData, got)
+
+	slurp, err := io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, blobData, slurp)
 
 	// Bob (granted access to the referencing record) can access the blob.
-	m, got, err = p.GetBlob(t.Context(), bobDID, aliceDID, cid)
+	m, _, got, err = p.GetBlob(t.Context(), bobDID, aliceDID, cid)
 	require.NoError(t, err)
 	require.Equal(t, mtype, m)
-	require.Equal(t, blobData, got)
+
+	slurp, err = io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, blobData, slurp)
 
 	// Charlie (no access to any record referencing the blob) cannot access the blob.
-	_, _, err = p.GetBlob(t.Context(), charlieDID, aliceDID, cid)
+	_, _, _, err = p.GetBlob(t.Context(), charlieDID, aliceDID, cid)
 	require.ErrorIs(t, err, ErrUnauthorized)
 }
