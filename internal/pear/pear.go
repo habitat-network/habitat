@@ -262,15 +262,6 @@ func (p *pear) getRecordLocal(
 	target syntax.DID,
 	caller syntax.DID,
 ) (*repo.Record, error) {
-	ok, err := p.permissions.HasPermission(ctx, caller, target, collection, rkey)
-	if err != nil {
-		return nil, err
-	}
-
-	if !ok {
-		return nil, ErrUnauthorized
-	}
-
 	// Special case followers clique -- just intercept the call and return an empty record since we never store anything here
 	// The permissions on this record are fetched from another special cased path
 	if collection == permissions.CliqueNSID && rkey == permissions.FollowersCliqueRkey {
@@ -279,6 +270,15 @@ func (p *pear) getRecordLocal(
 			Collection: collection.String(),
 			Rkey:       rkey.String(),
 		}, nil
+	}
+
+	ok, err := p.permissions.HasPermission(ctx, caller, target, collection, rkey)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, ErrUnauthorized
 	}
 
 	return p.repo.GetRecord(ctx, target.String(), collection.String(), rkey.String())

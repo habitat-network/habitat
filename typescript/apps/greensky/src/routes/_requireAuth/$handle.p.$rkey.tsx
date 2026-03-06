@@ -57,7 +57,6 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         displayName: profile.displayName,
         avatar: profile.avatar,
       },
-      replyToHandle: post.value.reply !== undefined ? null : undefined,
       grantees: grantees.length > 0 ? grantees : undefined,
     };
     const replyEntries: FeedEntry[] = replyPosts.map((reply) => {
@@ -74,7 +73,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         author: replyAuthor
           ? { handle: replyAuthor.handle, avatar: replyAuthor.avatar }
           : undefined,
-        replyToHandle: profile.handle,
+        reply: { handle: profile.handle, parentPostUri: post.uri },
       };
     });
 
@@ -114,7 +113,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
             <h4 className="w-full max-w-2xl mx-2 my-4">Replies</h4>
             <Feed
               entries={replyEntries}
-              showPrivatePermalink={true}
+              showPrivatePermalink={false}
               showVisibilityBadge={false}
               authManager={authManager}
             />

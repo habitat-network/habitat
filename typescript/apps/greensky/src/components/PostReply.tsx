@@ -15,6 +15,7 @@ interface PostReplyProps {
   postUri: string;
   postCid: string;
   postClique: string | undefined;
+  postAuthorHandle: string | undefined;
   authManager: AuthManager;
 }
 
@@ -22,6 +23,7 @@ export function PostReply({
   postUri,
   postCid,
   postClique,
+  postAuthorHandle,
   authManager,
 }: PostReplyProps) {
   const router = useRouter();
@@ -96,7 +98,7 @@ export function PostReply({
                 onSuccess: () => {
                   closeModal();
                   const parts = postUri.split("/");
-                  const handle = parts[2];
+                  const handle = postAuthorHandle ?? parts[2];
                   const rkey = parts[4];
                   if (handle && rkey) {
                     router.navigate({

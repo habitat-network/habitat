@@ -156,14 +156,13 @@ func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, 
 	}
 }
 
-func isFollwersCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
-	cliqueOwner := clique.Owner()
-	if cliqueOwner == requester {
+func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (bool, error) {
+	if requester == subject {
 		// You always "follow yourself"
 		return true, nil
 	}
 
-	followers, err := utils.FetchFollowers(ctx, cliqueOwner)
+	followers, err := utils.FetchFollowers(ctx, subject)
 	if err != nil {
 		return false, err
 	}
@@ -188,7 +187,7 @@ func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique
 
 	// Special case followers clique
 	if clique.RecordKey() == FollowersCliqueRkey {
-		return isFollwersCliqueMember(ctx, requester, clique)
+		return isFollower(ctx, requester, clique.Owner())
 	}
 
 	// Local clique
@@ -218,6 +217,11 @@ func (s *store) HasPermission(
 	// Owner always has permission
 	if requester == owner {
 		return true, nil
+	}
+
+	// Special case follower cliquein
+	if collection == CliqueNSID && rkey == "followers" {
+		return isFollower(ctx, requester, owner)
 	}
 
 	permissions, err := s.listPermissions(requester, []syntax.DID{owner}, collection, rkey)
@@ -251,7 +255,7 @@ func (s *store) HasPermission(
 
 			// Kind of inefficient -- this can be looked up from anywhere and doesn't need to be forwarded to local repo
 			if grantee.RecordKey() == FollowersCliqueRkey {
-				follower, err := isFollwersCliqueMember(ctx, requester, grantee)
+				follower, err := isFollower(ctx, requester, grantee.Owner())
 				if err != nil {
 					return false, err
 				}

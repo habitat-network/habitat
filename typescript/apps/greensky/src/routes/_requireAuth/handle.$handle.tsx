@@ -83,9 +83,9 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           createdAt: post.record.createdAt,
           kind: "public",
           author: post.author,
-          replyToHandle:
-            reply !== undefined
-              ? (reply.parent.author?.handle ?? null)
+          reply:
+            reply !== undefined && reply.parent.author?.handle
+              ? { handle: reply.parent.author.handle, parentPostUri: reply.parent.uri }
               : undefined,
           repostedByHandle:
             reason?.$type === "app.bsky.feed.defs#reasonRepost"

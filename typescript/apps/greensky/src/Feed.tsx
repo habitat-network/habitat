@@ -30,8 +30,7 @@ export interface FeedEntry {
     displayName?: string;
     avatar?: string;
   };
-  // undefined = not a reply; null = reply but parent handle unknown; string = reply to this handle
-  replyToHandle?: string | null;
+  reply?: { handle: string; parentPostUri: string };
   repostedByHandle?: string;
   quotedPost?: { bskyUrl: string; authorHandle: string };
   grantees?: { avatar?: string; handle: string }[];
@@ -70,7 +69,7 @@ export function Feed({
     <div className="flex flex-col gap-4 w-full max-w-2xl px-2">
       {sorted.map((entry) => (
         <Card
-          key={entry.uri}
+          key={entry.repostedByHandle ? `${entry.uri}-repost-${entry.repostedByHandle}` : entry.uri}
           size="sm"
           className={
             entry.kind === "public"
@@ -87,11 +86,18 @@ export function Feed({
                   ↻ reposted by @{entry.repostedByHandle}
                 </span>
               )}
-              {entry.replyToHandle !== undefined && (
+              {entry.reply && (
                 <span className="text-xs">
-                  {entry.replyToHandle !== null
-                    ? `← reply to @${entry.replyToHandle}`
-                    : "← reply"}
+                  ← reply to{" "}
+                  <Link
+                    to="/$handle/p/$rkey"
+                    params={{
+                      handle: entry.reply.handle,
+                      rkey: entry.reply.parentPostUri.split("/").pop()!,
+                    }}
+                  >
+                    @{entry.reply.handle}
+                  </Link>
                 </span>
               )}
               {entry.quotedPost && (
@@ -202,6 +208,7 @@ export function Feed({
                 postUri={entry.uri}
                 postCid={entry.cid ?? ""}
                 postClique={entry.clique}
+                postAuthorHandle={entry.author?.handle}
                 authManager={authManager!}
               />
             )}

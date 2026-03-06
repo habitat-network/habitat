@@ -7,8 +7,6 @@ import {
   getPostVisibility,
   getProfile,
   getProfiles,
-  PrivatePost,
-  type Profile,
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
@@ -46,7 +44,13 @@ interface BskyFeedItem {
   reason?: {
     $type: string;
     by: BskyAuthor;
+    indexedAt?: string;
   };
+}
+
+interface FeedPage {
+  entries: FeedEntry[];
+  nextCursor: string | undefined;
 }
 
 export const Route = createFileRoute("/_requireAuth/")({
@@ -57,98 +61,47 @@ export const Route = createFileRoute("/_requireAuth/")({
         getPrivatePosts(context.authManager),
       ]);
 
-    const parentDids = [
-      ...new Set(
-        privatePosts
-          .filter((p) => p.value.reply)
-          .map((p) => p.value.reply!.parent.uri.split("/")[2] ?? "")
-          .filter(Boolean),
-      ),
-    ];
-    const parentProfiles = await getProfiles(context.authManager, parentDids);
-    const parentHandleByDid = new Map(
-      parentDids.map((did, i) => [did, parentProfiles[i]?.handle]),
-    );
-
-    const privatePostToFeedEntry = async (
-      post: PrivatePost,
-    ): Promise<FeedEntry> => {
-      const did = post.uri.split("/")[2];
-      const privateAuthor: Profile | undefined = did
-        ? await getProfile(context.authManager, did)
-        : undefined;
-
-      const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
-      const grantees = await getProfiles(context.authManager, granteeDids);
-
-      const parentDid = post.value.reply?.parent.uri.split("/")[2];
-      const replyToHandle = post.value.reply
-        ? (parentDid ? (parentHandleByDid.get(parentDid) ?? null) : null)
-        : undefined;
-
-      return {
-        uri: post.uri,
-        text: post.value.text,
-        createdAt: post.value.createdAt,
-        kind: getPostVisibility(post, did ?? ""),
-        author: privateAuthor,
-        replyToHandle,
-        grantees: grantees.length > 0 ? grantees : undefined,
-      };
-    };
     const privateEntries = await Promise.all(
-      privatePosts.map(privatePostToFeedEntry),
-    );
-    const filteredPrivateEntries = privateEntries.filter(
-      (e) => e.replyToHandle === undefined,
+      privatePosts.filter((p) => !p.value.reply).map(async (post): Promise<FeedEntry> => {
+        const did = post.uri.split("/")[2] ?? "";
+        const [author, grantees] = await Promise.all([
+          getProfile(context.authManager, did),
+          getProfiles(context.authManager, (post.resolvedClique ?? []).slice(0, 5)),
+        ]);
+        return {
+          uri: post.uri,
+          clique: post.clique,
+          text: post.value.text,
+          createdAt: post.value.createdAt,
+          kind: getPostVisibility(post, did),
+          author,
+          grantees: grantees.length > 0 ? grantees : undefined,
+        };
+      }),
     );
 
     return {
-      privateEntries: filteredPrivateEntries,
-      initialBskyItems: bskyItems,
-      bskyCursor,
+      privateEntries,
+      initialPage: interleavePrivateWithBsky(privateEntries, buildBskyEntries(bskyItems ?? []), bskyCursor, true),
     };
   },
   component() {
     const { authManager, myProfile, isOnboarded } = Route.useRouteContext();
-    const {
-      privateEntries,
-      initialBskyItems,
-      bskyCursor: initialCursor,
-    } = Route.useLoaderData();
+    const { privateEntries, initialPage } = Route.useLoaderData();
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
       useInfiniteQuery({
-        queryKey: ["bskyFeed"],
-        queryFn: ({ pageParam }) => getBskyFeed(authManager, pageParam),
+        queryKey: ["bskyFeed", privateEntries.length],
+        queryFn: ({ pageParam }) => getInterleavedFeed(authManager, privateEntries, pageParam),
         initialPageParam: undefined as string | undefined,
-        getNextPageParam: (lastPage) => lastPage.cursor,
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
         initialData: {
-          pages: [{ items: initialBskyItems ?? [], cursor: initialCursor }],
+          pages: [initialPage],
           pageParams: [undefined],
         },
       });
 
-    const bskyEntries: FeedEntry[] = (data?.pages ?? []).flatMap((page) =>
-      page.items
-        .filter((item) => item.reply === undefined)
-        .map(
-          ({ post, reason }): FeedEntry => ({
-            uri: post.uri,
-            text: post.record.text,
-            createdAt: post.record.createdAt,
-            kind: "public",
-            author: post.author,
-            repostedByHandle:
-              reason?.$type === "app.bsky.feed.defs#reasonRepost"
-                ? reason.by.handle
-                : undefined,
-            quotedPost: quoteRepostInfo(post.embed),
-          }),
-        ),
-    );
-
-    const entries = [...privateEntries, ...bskyEntries];
+    const entries = (data?.pages ?? []).flatMap((page) => page.entries);
     const sentinelRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -214,4 +167,57 @@ function quoteRepostInfo(
   const rkey = uri.split("/").pop();
   if (!rkey) return undefined;
   return { bskyUrl: `https://bsky.app/profile/${handle}/post/${rkey}`, authorHandle: handle };
+}
+
+function buildBskyEntries(items: BskyFeedItem[]): FeedEntry[] {
+  return items
+    .filter((item) => item.reply === undefined)
+    .map(({ post, reason }): FeedEntry => {
+      const isRepost = reason?.$type === "app.bsky.feed.defs#reasonRepost";
+      return {
+        uri: post.uri,
+        text: post.record.text,
+        createdAt: isRepost ? (reason?.indexedAt ?? post.record.createdAt) : post.record.createdAt,
+        kind: "public",
+        author: post.author,
+        repostedByHandle: isRepost ? reason?.by.handle : undefined,
+        quotedPost: quoteRepostInfo(post.embed),
+      };
+    });
+}
+
+function interleavePrivateWithBsky(
+  privateEntries: FeedEntry[],
+  bskyEntries: FeedEntry[],
+  nextCursor: string | undefined,
+  isFirstPage: boolean,
+): FeedPage {
+  const bskyTimes = bskyEntries
+    .map((e) => (e.createdAt ? new Date(e.createdAt).getTime() : 0))
+
+  const pageMinTime = bskyTimes.length > 0 ? Math.min(...bskyTimes) : 0;
+  const pageMaxTime = bskyTimes.length > 0 ? Math.max(...bskyTimes) : 0;
+
+  const privateInRange = privateEntries.filter((e) => {
+    const t = e.createdAt ? new Date(e.createdAt).getTime() : 0;
+    if (isFirstPage) return t >= pageMinTime;
+    return t >= pageMinTime && t < pageMaxTime;
+  });
+
+  const entries = [...privateInRange, ...bskyEntries].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  return { entries, nextCursor };
+}
+
+async function getInterleavedFeed(
+  authManager: AuthManager,
+  privateEntries: FeedEntry[],
+  bskyCursor: string | undefined,
+): Promise<FeedPage> {
+  const { items, cursor: nextCursor } = await getBskyFeed(authManager, bskyCursor);
+  return interleavePrivateWithBsky(privateEntries, buildBskyEntries(items), nextCursor, bskyCursor === undefined);
 }

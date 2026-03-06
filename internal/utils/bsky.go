@@ -23,8 +23,5 @@ func FetchFollowers(ctx context.Context, did syntax.DID) ([]syntax.DID, error) {
 		return syntax.DID(a.Did)
 	})
 
-	// You always follow yourself
-	followers = append(followers, did)
-
 	return followers, nil
 }
