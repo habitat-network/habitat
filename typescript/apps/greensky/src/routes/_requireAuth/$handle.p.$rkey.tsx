@@ -91,7 +91,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
           left={
             <>
               <li>
-                <Link to="/">← greensky</Link>
+                <Link to="/" className="hover:underline">← greensky</Link>
               </li>
               <li className="sm:block text-foreground">
                 post by @{handle}

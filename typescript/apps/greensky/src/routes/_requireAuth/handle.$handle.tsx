@@ -124,7 +124,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           left={
             <>
               <li>
-                <Link to="/">← greensky</Link>
+                <Link to="/" className="hover:underline">← greensky</Link>
               </li>
               <li className="sm:block text-foreground">
                 <h3>@{handle}'s feed</h3>

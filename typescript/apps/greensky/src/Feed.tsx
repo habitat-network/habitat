@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import React from "react";
 import { AuthManager } from "internal";
 import { PostReply } from "./components/PostReply";
 import {
@@ -13,7 +12,6 @@ import {
   ItemMedia,
   ItemContent,
   ItemTitle,
-  ItemDescription,
   ItemActions,
   Badge,
 } from "internal/components/ui";

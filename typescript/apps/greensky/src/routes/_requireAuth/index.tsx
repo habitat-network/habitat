@@ -171,7 +171,7 @@ export const Route = createFileRoute("/_requireAuth/")({
         <NavBar
           left={
             <li>
-              <h2 style={{ color: "green", fontWeight: "normal" }}>greensky</h2>
+              <h2 style={{ color: "green", fontWeight: "normal" }} className="hover:underline">greensky</h2>
             </li>
           }
           authManager={authManager}
