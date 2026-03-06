@@ -1,6 +1,7 @@
 import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { Actor, UserCombobox } from "internal";
 import { useForm } from "react-hook-form";
 
 // Concrete wire types for the grantee union variants the server parses
@@ -17,7 +18,7 @@ interface PermissionInput {
 }
 
 interface FormData {
-  grantee: string;
+  grantees: Actor[];
   collection: string;
   rkey: string;
 }
@@ -40,15 +41,25 @@ export const Route = createFileRoute(
     const params = Route.useParams();
     const permissions = Route.useLoaderData();
     const form = useForm<FormData>({
-      defaultValues: { collection: params.collection, rkey: "" },
+      defaultValues: { grantees: [], collection: params.collection, rkey: "" },
     });
 
     const { mutate: add, isPending: isAdding } = useMutation({
       async mutationFn(data: FormData) {
+        const dids = await Promise.all(
+          data.grantees.map(async (actor) => {
+            const res = await authManager?.fetch(
+              `/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(actor.handle)}`,
+            );
+            const { did } = await res!.json();
+            return did as string;
+          }),
+        );
         const body: PermissionInput = {
-          grantees: [
-            { $type: "network.habitat.grantee#didGrantee", did: data.grantee },
-          ],
+          grantees: dids.map((did) => ({
+            $type: "network.habitat.grantee#didGrantee",
+            did,
+          })),
           collection: data.collection,
           ...(data.rkey ? { rkey: data.rkey } : {}),
         };
@@ -58,7 +69,7 @@ export const Route = createFileRoute(
           JSON.stringify(body),
           new Headers({ "Content-Type": "application/json" }),
         );
-        form.reset({ collection: params.collection, rkey: "" });
+        form.reset({ grantees: [], collection: params.collection, rkey: "" });
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();
       },
@@ -101,10 +112,10 @@ export const Route = createFileRoute(
         <h3>{params.collection}</h3>
         <form onSubmit={form.handleSubmit((data) => add(data))}>
           <fieldset>
-            <input
-              type="text"
-              placeholder="DID (did:plc:...)"
-              {...form.register("grantee")}
+            <UserCombobox
+              authManager={authManager}
+              value={form.watch("grantees")}
+              onValueChange={(actors) => form.setValue("grantees", actors)}
             />
             <input
               type="text"

@@ -1,8 +1,9 @@
 import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useForm } from "react-hook-form";
+import { Actor, UserCombobox } from "internal";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { Permission } from "api/types/network/habitat/permissions/listPermissions";
 
 // Concrete wire types matching what the server's parseGrantees expects
@@ -48,23 +49,30 @@ function LexiconPermissions() {
   }, {});
 
   const addForm = useForm<{
-    grantee: string;
+    grantees: Actor[];
     collection: string;
     rkey: string;
-  }>({ defaultValues: { rkey: "" } });
+  }>({ defaultValues: { grantees: [], rkey: "" } });
   const { mutate: addNew, isPending: isAddingNew } = useMutation({
     async mutationFn(formData: {
-      grantee: string;
+      grantees: Actor[];
       collection: string;
       rkey: string;
     }) {
+      const dids = await Promise.all(
+        formData.grantees.map(async (actor) => {
+          const res = await authManager?.fetch(
+            `/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(actor.handle)}`,
+          );
+          const { did } = await res!.json();
+          return did as string;
+        }),
+      );
       const body: PermissionInput = {
-        grantees: [
-          {
-            $type: "network.habitat.grantee#didGrantee",
-            did: formData.grantee,
-          },
-        ],
+        grantees: dids.map((did) => ({
+          $type: "network.habitat.grantee#didGrantee",
+          did,
+        })),
         collection: formData.collection,
         ...(formData.rkey ? { rkey: formData.rkey } : {}),
       };
@@ -74,7 +82,7 @@ function LexiconPermissions() {
         JSON.stringify(body),
         new Headers({ "Content-Type": "application/json" }),
       );
-      addForm.reset({ rkey: "" });
+      addForm.reset({ grantees: [], rkey: "" });
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
     },
@@ -95,10 +103,11 @@ function LexiconPermissions() {
           Record key (optional)
           <input type="text" {...addForm.register("rkey")} />
         </label>
-        <label>
-          DID
-          <input type="text" {...addForm.register("grantee")} required />
-        </label>
+        <UserCombobox
+          authManager={authManager}
+          value={addForm.watch("grantees")}
+          onValueChange={(actors) => addForm.setValue("grantees", actors)}
+        />
         <button type="submit" aria-busy={isAddingNew}>
           Add
         </button>

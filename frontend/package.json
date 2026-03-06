@@ -22,7 +22,8 @@
     "js-cookie": "^3.0.5",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-hook-form": "catalog:"
+    "react-hook-form": "catalog:",
+    "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
     "@testing-library/dom": "catalog:",
