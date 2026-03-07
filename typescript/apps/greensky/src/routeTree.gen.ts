@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
+import { Route as RequireAuthPrivateRouteImport } from './routes/_requireAuth/private'
 import { Route as RequireAuthHandleHandleRouteImport } from './routes/_requireAuth/handle.$handle'
 import { Route as RequireAuthHandlePRkeyRouteImport } from './routes/_requireAuth/$handle.p.$rkey'
 
@@ -29,6 +30,11 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthPrivateRoute = RequireAuthPrivateRouteImport.update({
+  id: '/private',
+  path: '/private',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 const RequireAuthHandleHandleRoute = RequireAuthHandleHandleRouteImport.update({
   id: '/handle/$handle',
   path: '/handle/$handle',
@@ -42,12 +48,14 @@ const RequireAuthHandlePRkeyRoute = RequireAuthHandlePRkeyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
+  '/private': typeof RequireAuthPrivateRoute
   '/': typeof RequireAuthIndexRoute
   '/handle/$handle': typeof RequireAuthHandleHandleRoute
   '/$handle/p/$rkey': typeof RequireAuthHandlePRkeyRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/private': typeof RequireAuthPrivateRoute
   '/': typeof RequireAuthIndexRoute
   '/handle/$handle': typeof RequireAuthHandleHandleRoute
   '/$handle/p/$rkey': typeof RequireAuthHandlePRkeyRoute
@@ -56,19 +64,26 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/_requireAuth/private': typeof RequireAuthPrivateRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
   '/_requireAuth/handle/$handle': typeof RequireAuthHandleHandleRoute
   '/_requireAuth/$handle/p/$rkey': typeof RequireAuthHandlePRkeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/login' | '/' | '/handle/$handle' | '/$handle/p/$rkey'
+  fullPaths:
+    | '/login'
+    | '/private'
+    | '/'
+    | '/handle/$handle'
+    | '/$handle/p/$rkey'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/' | '/handle/$handle' | '/$handle/p/$rkey'
+  to: '/login' | '/private' | '/' | '/handle/$handle' | '/$handle/p/$rkey'
   id:
     | '__root__'
     | '/_requireAuth'
     | '/login'
+    | '/_requireAuth/private'
     | '/_requireAuth/'
     | '/_requireAuth/handle/$handle'
     | '/_requireAuth/$handle/p/$rkey'
@@ -102,6 +117,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
+    '/_requireAuth/private': {
+      id: '/_requireAuth/private'
+      path: '/private'
+      fullPath: '/private'
+      preLoaderRoute: typeof RequireAuthPrivateRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
     '/_requireAuth/handle/$handle': {
       id: '/_requireAuth/handle/$handle'
       path: '/handle/$handle'
@@ -120,12 +142,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface RequireAuthRouteChildren {
+  RequireAuthPrivateRoute: typeof RequireAuthPrivateRoute
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthHandleHandleRoute: typeof RequireAuthHandleHandleRoute
   RequireAuthHandlePRkeyRoute: typeof RequireAuthHandlePRkeyRoute
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
+  RequireAuthPrivateRoute: RequireAuthPrivateRoute,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthHandleHandleRoute: RequireAuthHandleHandleRoute,
   RequireAuthHandlePRkeyRoute: RequireAuthHandlePRkeyRoute,
