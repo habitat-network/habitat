@@ -154,7 +154,7 @@ export function Feed({
                       {entry.kind === "public"
                         ? "🌍 Public"
                         : entry.kind === "followers-only"
-                          ? "🔒 Followers only"
+                          ? "🔒 Bluesky followers"
                           : "👥 Specific users"}
                     </Badge>
                   )}
