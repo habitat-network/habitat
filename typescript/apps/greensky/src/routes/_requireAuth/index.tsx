@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { AuthManager } from "internal";
@@ -123,9 +123,14 @@ export const Route = createFileRoute("/_requireAuth/")({
       <>
         <NavBar
           left={
-            <li>
-              <h2 style={{ color: "green", fontWeight: "normal" }} className="hover:underline">greensky</h2>
-            </li>
+            <>
+              <li>
+                <h2 style={{ color: "green", fontWeight: "normal" }} className="hover:underline">greensky</h2>
+              </li>
+              <li>
+                <Link to="/private" className="hover:underline text-sm">go to private feed 😏</Link>
+              </li>
+            </>
           }
           authManager={authManager}
           myProfile={myProfile}
