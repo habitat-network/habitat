@@ -9,9 +9,13 @@ import (
 	"github.com/bradenaw/juniper/xslices"
 )
 
+const (
+	host = "https://public.api.bsky.app"
+)
+
 func FetchFollowers(ctx context.Context, did syntax.DID) ([]syntax.DID, error) {
 	client := &xrpc.Client{
-		Host: "https://public.api.bsky.app",
+		Host: host,
 	}
 
 	output, err := bsky.GraphGetFollowers(ctx, client, did.String(), "", 0)
