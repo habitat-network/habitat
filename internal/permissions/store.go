@@ -9,12 +9,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/node"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -157,19 +156,17 @@ func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, 
 	}
 }
 
-func isFollwersCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
-	client := &xrpc.Client{
-		Host: "https://public.api.bsky.app",
+func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (bool, error) {
+	if requester == subject {
+		// You always "follow yourself"
+		return true, nil
 	}
 
-	output, err := bsky.GraphGetFollowers(ctx, client, clique.Owner().String(), "", 0)
+	followers, err := utils.FetchFollowers(ctx, subject)
 	if err != nil {
 		return false, err
 	}
 
-	followers := xslices.Map(output.Followers, func(a *bsky.ActorDefs_ProfileView) syntax.DID {
-		return syntax.DID(a.Did)
-	})
 	return slices.Contains(followers, requester), nil
 }
 
@@ -190,7 +187,7 @@ func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique
 
 	// Special case followers clique
 	if clique.RecordKey() == FollowersCliqueRkey {
-		return isFollwersCliqueMember(ctx, requester, clique)
+		return isFollower(ctx, requester, clique.Owner())
 	}
 
 	// Local clique
@@ -220,6 +217,11 @@ func (s *store) HasPermission(
 	// Owner always has permission
 	if requester == owner {
 		return true, nil
+	}
+
+	// Special case follower cliquein
+	if collection == CliqueNSID && rkey == "followers" {
+		return isFollower(ctx, requester, owner)
 	}
 
 	permissions, err := s.listPermissions(requester, []syntax.DID{owner}, collection, rkey)
@@ -253,7 +255,7 @@ func (s *store) HasPermission(
 
 			// Kind of inefficient -- this can be looked up from anywhere and doesn't need to be forwarded to local repo
 			if grantee.RecordKey() == FollowersCliqueRkey {
-				follower, err := isFollwersCliqueMember(ctx, requester, grantee)
+				follower, err := isFollower(ctx, requester, grantee.Owner())
 				if err != nil {
 					return false, err
 				}

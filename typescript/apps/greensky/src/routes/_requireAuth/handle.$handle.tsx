@@ -55,31 +55,15 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
       params.handle,
     );
 
-    const parentDids = [
-      ...new Set(
-        privateItems
-          .filter((p) => p.value.reply)
-          .map((p) => p.value.reply!.parent.uri.split("/")[2] ?? "")
-          .filter(Boolean),
-      ),
-    ];
-    const parentProfiles = await getProfiles(context.authManager, parentDids);
-    const parentHandleByDid = new Map(
-      parentDids.map((did, i) => [did, parentProfiles[i]?.handle]),
-    );
-
     const entries: FeedEntry[] = [
       ...(await Promise.all(
-        privateItems.map(async (post): Promise<FeedEntry> => {
+        privateItems.filter((p) => !p.value.reply).map(async (post): Promise<FeedEntry> => {
           const authorDid = post.uri.split("/")[2] ?? "";
           const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
           const grantees = await getProfiles(context.authManager, granteeDids);
-          const parentDid = post.value.reply?.parent.uri.split("/")[2];
-          const replyToHandle = post.value.reply
-            ? (parentDid ? (parentHandleByDid.get(parentDid) ?? null) : null)
-            : undefined;
           return {
             uri: post.uri,
+            clique: post.clique,
             text: post.value.text,
             createdAt: post.value.createdAt,
             kind: getPostVisibility(post, authorDid),
@@ -88,7 +72,6 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
               displayName: profile.displayName,
               avatar: profile.avatar,
             },
-            replyToHandle,
             grantees: grantees.length > 0 ? grantees : undefined,
           };
         }),
@@ -100,9 +83,9 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           createdAt: post.record.createdAt,
           kind: "public",
           author: post.author,
-          replyToHandle:
-            reply !== undefined
-              ? (reply.parent.author?.handle ?? null)
+          reply:
+            reply !== undefined && reply.parent.author?.handle
+              ? { handle: reply.parent.author.handle, parentPostUri: reply.parent.uri }
               : undefined,
           repostedByHandle:
             reason?.$type === "app.bsky.feed.defs#reasonRepost"

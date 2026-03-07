@@ -43,22 +43,22 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
       replyAuthorDids.map((did, i) => [did, replyAuthorProfiles[i]]),
     );
 
+    const parentKind = getPostVisibility(post, authorDid);
+
     const entry: FeedEntry = {
       uri: post.uri,
       cid: post.cid,
       clique: post.clique,
       text: post.value.text,
       createdAt: post.value.createdAt,
-      kind: getPostVisibility(post, authorDid),
+      kind: parentKind,
       author: {
         handle: profile.handle,
         displayName: profile.displayName,
         avatar: profile.avatar,
       },
-      replyToHandle: post.value.reply !== undefined ? null : undefined,
       grantees: grantees.length > 0 ? grantees : undefined,
     };
-
     const replyEntries: FeedEntry[] = replyPosts.map((reply) => {
       const replyAuthorDid = reply.uri.split("/")[2] ?? "";
       const replyAuthor = replyAuthorByDid.get(replyAuthorDid);
@@ -68,11 +68,12 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         clique: reply.clique,
         text: reply.value.text,
         createdAt: reply.value.createdAt,
-        kind: getPostVisibility(reply, replyAuthorDid),
+        kind: parentKind,
+        isReply: true,
         author: replyAuthor
           ? { handle: replyAuthor.handle, avatar: replyAuthor.avatar }
           : undefined,
-        replyToHandle: profile.handle,
+        reply: { handle: profile.handle, parentPostUri: post.uri },
       };
     });
 
@@ -112,7 +113,8 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
             <h4 className="w-full max-w-2xl mx-2 my-4">Replies</h4>
             <Feed
               entries={replyEntries}
-              showPrivatePermalink={true}
+              showPrivatePermalink={false}
+              showVisibilityBadge={false}
               authManager={authManager}
             />
           </>

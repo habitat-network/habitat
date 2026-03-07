@@ -30,11 +30,11 @@ export interface FeedEntry {
     displayName?: string;
     avatar?: string;
   };
-  // undefined = not a reply; null = reply but parent handle unknown; string = reply to this handle
-  replyToHandle?: string | null;
+  reply?: { handle: string; parentPostUri: string };
   repostedByHandle?: string;
   quotedPost?: { bskyUrl: string; authorHandle: string };
   grantees?: { avatar?: string; handle: string }[];
+  isReply?: boolean;
 }
 
 function bskyUrl(uri: string, handle: string): string {
@@ -45,10 +45,12 @@ function bskyUrl(uri: string, handle: string): string {
 export function Feed({
   entries,
   showPrivatePermalink = true,
+  showVisibilityBadge = true,
   authManager,
 }: {
   entries: FeedEntry[];
   showPrivatePermalink?: boolean;
+  showVisibilityBadge?: boolean;
   authManager?: AuthManager;
 }) {
   // Reverse chronological, with createdAt missing or 0 at the end.
@@ -67,7 +69,7 @@ export function Feed({
     <div className="flex flex-col gap-4 w-full max-w-2xl px-2">
       {sorted.map((entry) => (
         <Card
-          key={entry.uri}
+          key={entry.repostedByHandle ? `${entry.uri}-repost-${entry.repostedByHandle}` : entry.uri}
           size="sm"
           className={
             entry.kind === "public"
@@ -84,11 +86,18 @@ export function Feed({
                   ↻ reposted by @{entry.repostedByHandle}
                 </span>
               )}
-              {entry.replyToHandle !== undefined && (
+              {entry.reply && (
                 <span className="text-xs">
-                  {entry.replyToHandle !== null
-                    ? `← reply to @${entry.replyToHandle}`
-                    : "← reply"}
+                  ← reply to{" "}
+                  <Link
+                    to="/$handle/p/$rkey"
+                    params={{
+                      handle: entry.reply.handle,
+                      rkey: entry.reply.parentPostUri.split("/").pop()!,
+                    }}
+                  >
+                    @{entry.reply.handle}
+                  </Link>
                 </span>
               )}
               {entry.quotedPost && (
@@ -140,14 +149,16 @@ export function Feed({
                   </Item>
                 </ItemContent>
                 <ItemActions>
-                  <Badge variant="secondary">
-                    {entry.kind === "public"
-                      ? "🌍 Public"
-                      : entry.kind === "followers-only"
-                        ? "🔒 Followers only"
-                        : "👥 Specific users"}
-                  </Badge>
-                  {entry.grantees && entry.grantees.length > 0 && (
+                  {showVisibilityBadge && (
+                    <Badge variant="secondary">
+                      {entry.kind === "public"
+                        ? "🌍 Public"
+                        : entry.kind === "followers-only"
+                          ? "🔒 Bluesky followers"
+                          : "👥 Specific users"}
+                    </Badge>
+                  )}
+                  {showVisibilityBadge && entry.grantees && entry.grantees.length > 0 && (
                     <AvatarGroup>
                       {entry.grantees.map((grantee) => (
                         <UserAvatar
@@ -192,12 +203,13 @@ export function Feed({
             <p className="whitespace-pre-wrap">{entry.text}</p>
           </CardContent>
           <CardFooter>
-            {authManager && entry.kind !== "public" && (
+            {entry.kind !== "public" && !entry.isReply && (
               <PostReply
                 postUri={entry.uri}
                 postCid={entry.cid ?? ""}
                 postClique={entry.clique}
-                authManager={authManager}
+                postAuthorHandle={entry.author?.handle}
+                authManager={authManager!}
               />
             )}
           </CardFooter>

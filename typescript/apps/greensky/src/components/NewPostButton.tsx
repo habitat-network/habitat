@@ -178,7 +178,7 @@ export function NewPostButton({
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="followers" id="followers" />
-                  <Label htmlFor="followers">Followers only</Label>
+                  <Label htmlFor="followers">Bluesky followers only</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="specific" id="specific" />
