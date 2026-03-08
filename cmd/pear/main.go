@@ -12,6 +12,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/contrib/bridges/otelzerolog"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -94,14 +95,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Setup the zerolog logger
-	mw := zerolog.MultiLevelWriter(
-		os.Stdout,
-		telemetry.NewOtelLogWriter(global.GetLoggerProvider().Logger("zerolog")),
-	)
+	hook := otelzerolog.NewHook("habitat" /* otel service name */, otelzerolog.WithLoggerProvider(global.GetLoggerProvider()))
 
 	// Need to set log.Logger so globally anything initialized after here uses the global zerolog Logger
 	// which is now hooked up to open telemetry.
-	log.Logger = zerolog.New(mw).With().Timestamp().Logger()
+	log.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger().Hook(hook)
 
 	// Setup components
 	db := setupDB(cmd)
