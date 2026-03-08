@@ -486,7 +486,6 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println("added permissions", grantees)
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
