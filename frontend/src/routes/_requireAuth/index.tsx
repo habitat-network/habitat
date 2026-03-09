@@ -3,6 +3,7 @@ import { DidResolver } from "@atproto/identity";
 import { OnboardComponent, habitatServers } from "../onboard";
 import { Card, CardTitle, CardDescription, CardFooter, listCollections, UserAvatar } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
+import { CollectionCard } from "@/components/CollectionCard"
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/_requireAuth/")({
 
     // List collections for manage your data preview
     const data = await listCollections(authManager, did)
-    const collections = data.collections;
+    const collections = data.collections.slice(0, 3);  // Just show the first three in the preview
 
     console.log(JSON.stringify(collections))
     // Collect unique DID grantees across all collections
@@ -58,7 +59,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       }
     }
 
-    return { hasHabitat, handle, collections: data.collections, profilesByDid };
+    return { hasHabitat, handle, collections, profilesByDid };
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {
@@ -89,29 +90,20 @@ function ManageDataPreview({ collections, profilesByDid }: ManageDataPreviewProp
           const didGrantees = collection.grantees ? collection.grantees.filter(
             (g) => g.$type === "network.habitat.grantee#didGrantee",
           ) as { did: string }[] : [];
+          const avatars = didGrantees.map((grantee) => {
+            const did = grantee.did;
+            return {
+              did: did,
+              avatar: profilesByDid[did].avatar,
+              handle: profilesByDid[did].handle,
+            }
+          })
+
+          const formatted = { ...collection, grantees: avatars }
           return (
-            <Card key={collection.nsid}>
-              <div className="flex items-center justify-between px-6">
-                <CardTitle>{collection.nsid}</CardTitle>
-                <span className="text-sm text-muted-foreground">{collection.recordCount} {(collection.recordCount > 1) ? "records" : "record"}</span>
-              </div>
-              <CardDescription className="px-6">Last updated: {new Date(collection.lastTouched).toLocaleDateString()}</CardDescription>
-              <CardFooter>
-                <div className="flex gap-1">
-                  {didGrantees.map((g) => {
-                    const profile = profilesByDid[g.did];
-                    return (
-                      <UserAvatar
-                        key={g.did}
-                        src={profile?.avatar}
-                        handle={profile?.handle}
-                        size="sm"
-                      />
-                    );
-                  })}
-                </div>
-              </CardFooter>
-            </Card>
+            <Link to="/collections/$collection" params={{ collection: formatted.nsid }}>
+              <CollectionCard collection={formatted}></CollectionCard>
+            </Link>
           );
         })}
       </div>
