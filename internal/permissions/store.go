@@ -48,6 +48,7 @@ type Store interface {
 	ListPermissionGrants(
 		ctx context.Context,
 		granter syntax.DID,
+		collection syntax.NSID,
 	) ([]Permission, error)
 	ListAllowedGranteesForRecord(
 		ctx context.Context,
@@ -523,8 +524,8 @@ func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syn
 }
 
 // ListPermissionGrants implements Store.
-func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID) ([]Permission, error) {
-	return s.listPermissions("", []syntax.DID{granter}, "", "")
+func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID, collection syntax.NSID) ([]Permission, error) {
+	return s.listPermissions("", []syntax.DID{granter}, collection, "")
 }
 
 // ListPermissionsForRecord implements Store.

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DidResolver } from "@atproto/identity";
 import { OnboardComponent, habitatServers } from "./onboard";
+import { Card, CardDescription } from "internal";
 
 export const Route = createFileRoute("/")({
   async beforeLoad({ context }) {
@@ -20,7 +21,18 @@ export const Route = createFileRoute("/")({
     );
     const handle = didDoc?.alsoKnownAs?.[0]?.replace(/^at:\/\//, "");
 
-    return { hasHabitat, handle };
+    // List collections for manage your data preview
+    const response = await context.authManager.fetch(
+      `/xrpc/network.habitat.repo.listCollections?subject=${did}`,
+    );
+    const data: {
+      collections: any,
+    } = await response?.json();
+
+    // For each collection, get metadata
+
+
+    return { hasHabitat, handle, collections: data.collections };
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {
@@ -39,8 +51,32 @@ export const Route = createFileRoute("/")({
   },
 });
 
+function RecentlyUsed() {
+  return (
+    <p>Fill me in</p>
+  )
+}
+
+interface ManageDataPreviewProps {
+  collections: any[]
+}
+
+
+function ManageDataPreview({ collections }: ManageDataPreviewProps) {
+  console.log(collections)
+  return (
+    <ul>
+      {collections.map((collection) => (
+        <Card>
+          <CardDescription>{collection.nsid}</CardDescription>
+        </Card>
+      ))}
+    </ul>
+  )
+}
+
 function AuthenticatedHome() {
-  const { hasHabitat, handle } = Route.useLoaderData()!;
+  const { hasHabitat, handle, collections } = Route.useLoaderData()!;
 
   if (!hasHabitat) {
     return import.meta.env.DEV ? (
@@ -58,6 +94,8 @@ function AuthenticatedHome() {
   return (
     <>
       <h1>Welcome to Habitat!</h1>
+      <RecentlyUsed></RecentlyUsed>
+      <ManageDataPreview collections={collections} />
       <Link to="/explore">Manage your data</Link>
       <br />
       <Link to="/devtools">Devtools</Link>

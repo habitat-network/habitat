@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -26,6 +27,7 @@ type Repo interface {
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
 	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
+	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
 // Persist private data within repos that mirror public repos.
@@ -60,6 +62,7 @@ type record struct {
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
 	Value      []byte
+	UpdatedAt  time.Time
 }
 
 type Blob struct {
@@ -321,4 +324,22 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 	}
 
 	return records, nil
+}
+
+// Metadata about a collection
+type CollectionMetadata struct {
+	Name        string
+	RecordCount int
+	LastTouched time.Time
+}
+
+func (r *repo) ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error) {
+	var md []CollectionMetadata
+	err := r.db.Model(&record{}).
+		Select("collection as name, COUNT(*) as record_count, MAX(updated_at) as last_touched").
+		Where("did = ?", did).
+		Group("collection").
+		Scan(&md).Error
+
+	return md, err
 }

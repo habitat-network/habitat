@@ -8,9 +8,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -71,6 +73,7 @@ type Pear interface {
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error)
 	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
+	ListCollections(ctx context.Context, caller syntax.DID, subject syntax.DID) ([]CollectionMetadata, error)
 
 	// Inbox / Node-to-node communication related methods
 	NotifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
@@ -156,7 +159,7 @@ func (p *pear) ListPermissionGrants(ctx context.Context, caller syntax.DID, gran
 	if caller != granter {
 		return nil, habitat_err.ErrUnauthorized
 	}
-	return p.permissions.ListPermissionGrants(ctx, granter)
+	return p.permissions.ListPermissionGrants(ctx, granter, "")
 }
 
 // ListPermissions implements Pear.
@@ -433,6 +436,45 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 	*/
 
 	return localRecords, nil
+}
+
+type CollectionMetadata struct {
+	repo.CollectionMetadata
+
+	Grantees []permissions.Grantee
+}
+
+func (p *pear) ListCollections(ctx context.Context, caller syntax.DID, subject syntax.DID) ([]CollectionMetadata, error) {
+	if caller != subject {
+		return nil, ErrUnauthorized
+	}
+
+	collections, err := p.repo.ListCollections(ctx, subject)
+	if err != nil {
+		return nil, err
+	}
+
+	md := make([]CollectionMetadata, len(collections))
+	for i, collection := range collections {
+		perms, err := p.permissions.ListPermissionGrants(ctx, caller, syntax.NSID(collection.Name))
+		if err != nil {
+			return nil, err
+		}
+
+		slices.DeleteFunc(perms, func(p permissions.Permission) bool {
+			return p.Effect == permissions.Deny
+		})
+		grantees := xslices.Map(perms, func(p permissions.Permission) permissions.Grantee {
+			return p.Grantee
+		})
+
+		md[i] = CollectionMetadata{
+			CollectionMetadata: collection,
+			Grantees:           grantees,
+		}
+	}
+
+	return md, nil
 }
 
 func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {

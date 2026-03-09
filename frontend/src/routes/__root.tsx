@@ -3,6 +3,8 @@ import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { AtpAgent } from '@atproto/api'
+
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -16,19 +18,20 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       return { handle: null };
     }
     const actor = authInfo.did;
-    const resp = await context.authManager.fetch(
-      "/xrpc/app.bsky.actor.getProfile?actor=" + actor,
-    );
-    const data: { handle: string } | undefined = await resp?.json();
-    return { handle: data?.handle };
+
+    const agent = new AtpAgent({ service: 'https://public.api.bsky.app' })
+    const response = await agent.getProfile({ actor: actor })
+
+    const profile = response.data
+    return { profile };
   },
   staleTime: 1000 * 60 * 60,
   component() {
     const { authManager } = Route.useRouteContext();
-    const { handle } = Route.useLoaderData();
+    const { profile } = Route.useLoaderData();
     return (
       <>
-        <Header handle={handle} onLogout={authManager.logout} />
+        <Header profile={profile} onLogout={authManager.logout} />
         <Outlet />
         <TanStackRouterDevtools />
       </>
