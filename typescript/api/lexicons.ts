@@ -782,15 +782,27 @@ export const schemaDict = {
     id: 'network.habitat.grantee',
     defs: {
       didGrantee: {
-        type: 'string',
-        format: 'did',
+        type: 'object',
         description: 'A DID grantee',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
       },
       cliqueRef: {
-        type: 'string',
-        format: 'uri',
+        type: 'object',
         description:
           'A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key',
+        required: ['uri'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+          },
+        },
       },
     },
   },
