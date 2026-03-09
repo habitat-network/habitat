@@ -12,8 +12,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
+	"github.com/habitat-network/habitat/internal/bsky"
 	"github.com/habitat-network/habitat/internal/node"
-	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -162,7 +162,7 @@ func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (
 		return true, nil
 	}
 
-	followers, err := utils.FetchFollowers(ctx, subject)
+	followers, err := bsky.FetchFollowers(ctx, subject)
 	if err != nil {
 		return false, err
 	}
