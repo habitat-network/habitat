@@ -26,6 +26,7 @@ exclude:
     - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs -- TODO, we should test them.
     - ^internal/telemetry # This is all setup, no logic
     - ^internal/utils
+    - ^internal/bsky # Pass-throughs to bluesky api
     - dummy_.*\.go
     - ^internal/oauthserver # This is mostly interface satisfying
     - ^internal/server # This is mostly pass-throughs to pear, but we should remove this and add tests since there is non-trivial logic in there.
