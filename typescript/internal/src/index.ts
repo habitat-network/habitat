@@ -12,6 +12,7 @@ export {
   procedure,
   castRecord,
   listPrivateRecords,
+  listCollections,
 } from "./habitatClient";
 export type { TypedRecord } from "./habitatClient";
 

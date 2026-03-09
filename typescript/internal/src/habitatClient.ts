@@ -6,6 +6,7 @@ import type {
 } from "@atproto/api";
 import type {
   NetworkHabitatRepoGetRecord,
+  NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
   NetworkHabitatRepoPutRecord,
 } from "api";
@@ -40,6 +41,10 @@ type QueryEndpoints = {
   "com.atproto.identity.resolveHandle": Query<
     ComAtprotoIdentityResolveHandle.QueryParams,
     ComAtprotoIdentityResolveHandle.OutputSchema
+  >;
+  "network.habitat.repo.listCollections": Query<
+    NetworkHabitatRepoListCollections.QueryParams,
+    NetworkHabitatRepoListCollections.OutputSchema
   >;
 };
 
@@ -174,4 +179,15 @@ export const listPrivateRecords = async <T extends Record<string, unknown>>(
     { authManager },
   );
   return response as ListRecordsResponse<T>;
+};
+
+export const listCollections = async (
+  authManager: AuthManager,
+  subject: string,
+): Promise<NetworkHabitatRepoListCollections.OutputSchema> => {
+  return query(
+    "network.habitat.repo.listCollections",
+    { subject },
+    { authManager },
+  );
 };

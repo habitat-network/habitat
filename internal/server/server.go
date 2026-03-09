@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -453,7 +454,7 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 		grantees := permissions.ConstructInterfaceFromGrantees(c.Grantees)
 		output.Collections[i] = habitat.NetworkHabitatRepoListCollectionsCollectionMetadata{
 			Grantees:    grantees,
-			LastTouched: c.LastTouched.String(), //TODO: is this the right format?
+			LastTouched: c.LastTouched.Format(time.RFC3339Nano),
 			Nsid:        c.Name,
 			RecordCount: int64(c.RecordCount),
 		}

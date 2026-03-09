@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 body {
   --pico-primary-background: #bcd979;
   --pico-primary-border: #9dad6f;
