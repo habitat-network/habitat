@@ -1,7 +1,4 @@
-import type {
-  HabitatClient,
-  PutPrivateRecordResponse,
-} from "internal";
+import type { HabitatClient, PutPrivateRecordResponse } from "internal";
 import {
   CommunityLexiconCalendarEvent,
   CommunityLexiconCalendarRsvp,
@@ -16,26 +13,22 @@ export type Invite = CommunityLexiconCalendarInvite.Record;
 // StrongRef type used by RSVP.subject (matches com.atproto.repo.strongRef)
 export interface StrongRef {
   uri: string;
-  cid: string;
 }
 
 export interface RsvpWithEvent {
   uri: string;
-  cid: string;
   rsvp: Rsvp;
   event: CalendarEvent | null;
 }
 
 export interface InviteWithEvent {
   uri: string;
-  cid: string;
   invite: Invite;
   event: CalendarEvent | null;
 }
 
 export interface EventRecord {
   uri: string;
-  cid: string;
   value: CalendarEvent;
 }
 
@@ -268,7 +261,6 @@ export async function listInvites(
 
     invitesWithEvents.push({
       uri: record.uri,
-      cid: record.cid,
       invite: record.value,
       event,
     });
@@ -332,7 +324,6 @@ export async function listRsvps(
 
     rsvpsWithEvents.push({
       uri: record.uri,
-      cid: record.cid,
       rsvp: record.value,
       event,
     });

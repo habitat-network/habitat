@@ -44,7 +44,7 @@ function eventToFullCalendar(
   record: EventRecord,
   isInvite: boolean = false,
 ): EventInput {
-  const { uri, cid, value } = record;
+  const { uri, value } = record;
   return {
     id: uri,
     title: value.name,
@@ -57,7 +57,6 @@ function eventToFullCalendar(
     classNames: isInvite ? ["calendar-invite"] : [],
     extendedProps: {
       description: value.description,
-      cid,
       isInvite,
     },
   };
@@ -93,7 +92,6 @@ export function CalendarView({
     ...displayableInvites.map((inv) => {
       const record: EventRecord = {
         uri: inv.invite.subject?.uri || inv.uri,
-        cid: inv.cid,
         value: inv.event!,
       };
       return eventToFullCalendar(record, true);
