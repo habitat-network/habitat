@@ -11,6 +11,33 @@ const is$typed = _is$typed,
 const id = 'network.habitat.grantee'
 
 /** A DID grantee */
-export type DidGrantee = string
+export interface DidGrantee {
+  $type?: 'network.habitat.grantee#didGrantee'
+  did: string
+}
+
+const hashDidGrantee = 'didGrantee'
+
+export function isDidGrantee<V>(v: V) {
+  return is$typed(v, id, hashDidGrantee)
+}
+
+export function validateDidGrantee<V>(v: V) {
+  return validate<DidGrantee & V>(v, id, hashDidGrantee)
+}
+
 /** A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key */
-export type CliqueRef = string
+export interface CliqueRef {
+  $type?: 'network.habitat.grantee#cliqueRef'
+  uri: string
+}
+
+const hashCliqueRef = 'cliqueRef'
+
+export function isCliqueRef<V>(v: V) {
+  return is$typed(v, id, hashCliqueRef)
+}
+
+export function validateCliqueRef<V>(v: V) {
+  return validate<CliqueRef & V>(v, id, hashCliqueRef)
+}
