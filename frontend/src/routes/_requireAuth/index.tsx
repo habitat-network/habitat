@@ -1,16 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DidResolver } from "@atproto/identity";
-import { OnboardComponent, habitatServers } from "./onboard";
+import { OnboardComponent, habitatServers } from "../onboard";
 import { Card, CardTitle, CardDescription, CardFooter, listCollections, UserAvatar } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 
-export const Route = createFileRoute("/")({
-  async beforeLoad({ context }) {
-    await context.authManager.maybeExchangeCode();
-  },
+export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
     const { authManager } = context;
-    if (!authManager.getAuthInfo()) return null;
 
     const did = authManager.getAuthInfo()!.did;
     const resolver = new DidResolver({});
@@ -66,17 +62,6 @@ export const Route = createFileRoute("/")({
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {
-    const { authManager } = Route.useRouteContext();
-
-    if (!authManager.getAuthInfo()) {
-      return (
-        <>
-          <h1>Welcome to Habitat!</h1>
-          <p>Please sign in to continue.</p>
-        </>
-      );
-    }
-
     return <AuthenticatedHome />;
   },
 });
