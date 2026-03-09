@@ -24,7 +24,7 @@ export interface InputSchema {
   /** The NSID of the record collection. */
   collection: string
   /** The Record Key. */
-  rkey?: string
+  rkey: string
   /** Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons. */
   validate?: boolean
   /** The record to write. */

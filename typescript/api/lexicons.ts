@@ -331,7 +331,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['repo', 'collection', 'record'],
+            required: ['repo', 'collection', 'rkey', 'record'],
             nullable: ['swapRecord'],
             properties: {
               repo: {
@@ -1225,7 +1225,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['repo', 'collection', 'rkey', 'record'],
+            required: ['repo', 'collection', 'record'],
             properties: {
               repo: {
                 type: 'string',

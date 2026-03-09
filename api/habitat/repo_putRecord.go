@@ -8,7 +8,7 @@ type NetworkHabitatRepoPutRecordInput struct {
 	Grantees   []interface{} `json:"grantees,omitempty"`
 	Record     interface{}   `json:"record"`
 	Repo       string        `json:"repo"`
-	Rkey       string        `json:"rkey"`
+	Rkey       string        `json:"rkey,omitempty"`
 	Validate   bool          `json:"validate,omitempty"`
 }
 

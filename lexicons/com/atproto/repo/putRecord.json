@@ -9,7 +9,7 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["repo", "collection", "record"],
+          "required": ["repo", "collection", "rkey", "record"],
           "nullable": ["swapRecord"],
           "properties": {
             "repo": {
