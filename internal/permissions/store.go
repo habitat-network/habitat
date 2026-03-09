@@ -429,22 +429,53 @@ func (s *store) RemovePermissions(
 		return nil
 	}
 
-	// Otherwise, the removal is on a specific record key, so add a deny effect on the specific record for a batch of grantees.
-	recordPerms := make([]*permission, len(grantees))
-	for i, grantee := range grantees {
-		recordPerms[i] = &permission{
-			Grantee:    grantee,
-			Owner:      owner.String(),
-			Collection: collection.String(),
-			Rkey:       rkey.String(),
-			Effect:     string(Deny),
-		}
-	}
-
-	// Delete any existing permission for this record before inserting the deny.
-	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
+	// Otherwise, the removal is on a specific record key.
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("grantee IN ?", grantees).
+
+		// Delete any existing allows on this record.
+		err := tx.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ?", rkey).
+			Where("effect = ?", Allow).
+			Delete(&permission{}).Error
+		if err != nil {
+			return fmt.Errorf("failed to remove allow permission: %w", err)
+		}
+
+		// For any grantees that have permissions to the whole collection, add a deny
+		var denyGrantees []string
+		err = tx.Model(&permission{}).
+			Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ''").
+			Where("effect = ?", Allow).
+			Pluck("grantee", &denyGrantees).
+			Error
+		if err != nil {
+			return fmt.Errorf("failed to identify collection-level permissions: %w", err)
+		}
+
+		if len(denyGrantees) == 0 {
+			return nil
+		}
+
+		// Only need to add a deny row for people with collection-level permissions
+		recordPerms := make([]*permission, len(grantees))
+		for i, grantee := range denyGrantees {
+			recordPerms[i] = &permission{
+				Grantee:    grantee,
+				Owner:      owner.String(),
+				Collection: collection.String(),
+				Rkey:       rkey.String(),
+				Effect:     string(Deny),
+			}
+		}
+
+		// Delete any existing permission for this record before inserting the deny.
+		// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
+		if err := tx.Where("grantee IN ?", denyGrantees).
 			Where("owner = ?", owner).
 			Where("collection = ?", collection).
 			Where("rkey = ?", rkey).
