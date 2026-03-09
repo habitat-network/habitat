@@ -14,8 +14,6 @@ import { CalendarView } from "../../components/CalendarView.tsx";
 import { CreateEventModal } from "../../components/CreateEventModal.tsx";
 import { EventDetailsModal } from "../../components/EventDetailsModal.tsx";
 import type { CreateEventInput } from "../../components/EventForm.tsx";
-import { AuthManager, castRecord, query } from "internal";
-import { CommunityLexiconCalendarEvent } from "api";
 
 export const Route = createFileRoute("/_requireAuth/calendar")({
   component: CalendarPage,

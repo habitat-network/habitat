@@ -71,13 +71,10 @@ export const Route = createFileRoute("/_requireAuth/data")({
           "com.atproto.repo.listRecords",
           {
             collection: lexicon,
-            repo,
+            repo: repo ?? "",
           },
           { authManager: context.authManager },
         );
-        const data = await context.authManager
-          .client()
-          .listRecords(lexicon, undefined, undefined, repo);
         return { records: data.records, error: null };
       }
     } catch (err) {

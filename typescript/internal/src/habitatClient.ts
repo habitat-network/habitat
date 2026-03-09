@@ -93,7 +93,7 @@ export const query = async <T extends keyof QueryEndpoints>(
       );
     }
     return data;
-  } catch (e) {
+  } catch {
     throw new Error(
       `Failed to fetch: ${response.statusText}, ${response.status}`,
     );
@@ -122,7 +122,7 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
       );
     }
     return data;
-  } catch (e) {
+  } catch {
     throw new Error(
       `Failed to fetch: ${response.statusText}, ${response.status}`,
     );
