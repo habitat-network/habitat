@@ -1188,13 +1188,17 @@ export const schemaDict = {
       },
       record: {
         type: 'object',
-        required: ['uri', 'value'],
+        required: ['uri', 'cid', 'value'],
         properties: {
           uri: {
             type: 'string',
             format: 'uri',
             description:
               'URI reference to the record, formatted as a habitat-uri.',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
           },
           value: {
             type: 'unknown',

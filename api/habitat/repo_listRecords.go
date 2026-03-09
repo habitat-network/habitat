@@ -20,6 +20,7 @@ type NetworkHabitatRepoListRecordsOutput struct {
 
 // NetworkHabitatRepoListRecordsRecord represents a record object
 type NetworkHabitatRepoListRecordsRecord struct {
+	Cid         string        `json:"cid"`
 	Permissions []interface{} `json:"permissions,omitempty"`
 	Uri         string        `json:"uri"`
 	Value       interface{}   `json:"value"`

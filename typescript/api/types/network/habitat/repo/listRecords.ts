@@ -55,6 +55,7 @@ export interface Record {
   $type?: 'network.habitat.repo.listRecords#record'
   /** URI reference to the record, formatted as a habitat-uri. */
   uri: string
+  cid: string
   value: { [_ in string]: unknown }
   permissions?: (
     | $Typed<NetworkHabitatGrantee.DidGrantee>
