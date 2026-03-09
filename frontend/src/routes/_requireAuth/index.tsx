@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DidResolver } from "@atproto/identity";
 import { OnboardComponent, habitatServers } from "../onboard";
-import { Card, CardTitle, CardDescription, CardFooter, listCollections, UserAvatar } from "internal";
+import { listCollections } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 import { CollectionCard } from "@/components/CollectionCard"
 
@@ -100,7 +100,7 @@ function ManageDataPreview({ collections, profilesByDid }: ManageDataPreviewProp
 
           const formatted = { ...collection, grantees: avatars }
           return (
-            <Link to="/collections/$collection" params={{ collection: formatted.nsid }}>
+            <Link to="/collections/$collection" key={formatted.nsid} params={{ collection: formatted.nsid }}>
               <CollectionCard collection={formatted}></CollectionCard>
             </Link>
           );
