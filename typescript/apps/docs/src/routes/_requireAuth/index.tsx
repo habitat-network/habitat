@@ -1,6 +1,7 @@
 import { HabitatDoc } from "@/habitatDoc";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { procedure } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
@@ -27,24 +28,22 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
         const did = authManager.getAuthInfo()?.did;
-        const response = await authManager.fetch(
-          `/xrpc/network.habitat.putRecord`,
-          "POST",
-          JSON.stringify({
-            repo: did,
+        const response = await procedure(
+          "network.habitat.putRecord",
+          {
+            repo: did ?? "",
             collection: "network.habitat.docs",
             record: {
               name: "Untitled",
               blob: null,
             },
-          }),
+          },
+          { authManager },
         );
-
-        const { uri } = await response.json();
         navigate({
           to: "/$uri",
           params: {
-            uri: uri,
+            uri: response.uri,
           },
         });
         router.invalidate({ filter: (x) => x.pathname === "/docs/" });

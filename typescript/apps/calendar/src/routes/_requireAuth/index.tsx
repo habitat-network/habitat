@@ -15,18 +15,17 @@ export const Route = createFileRoute("/_requireAuth/")({
   component: CalendarPage,
   async loader({ context }) {
     const { authManager, queryClient } = context;
-    const client = authManager.client();
 
     // Fetch everything we need - "fetch the world"
     // listPrivateRecords now returns all accessible records (own + shared via notifications)
     const [rsvps, events] = await Promise.all([
       queryClient.ensureQueryData({
         queryKey: ["rsvps"],
-        queryFn: () => listRsvps(client),
+        queryFn: () => listRsvps(authManager),
       }),
       queryClient.ensureQueryData({
         queryKey: ["events"],
-        queryFn: () => listEvents(client),
+        queryFn: () => listEvents(authManager),
       }),
     ]);
     return { rsvps, events };
@@ -37,7 +36,6 @@ function CalendarPage() {
   const { authManager } = Route.useRouteContext();
   const router = useRouter();
   const { rsvps, events } = Route.useLoaderData();
-  const client = authManager.client();
   const userDid = authManager.getAuthInfo()?.did;
   if (!userDid) {
     throw new Error("User DID not found");
@@ -53,7 +51,7 @@ function CalendarPage() {
         .map((d) => d.trim())
         .filter((d) => d.length > 0);
       return createEvent(
-        client,
+        authManager,
         userDid,
         {
           name: data.name,

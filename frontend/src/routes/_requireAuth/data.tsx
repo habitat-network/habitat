@@ -3,6 +3,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
+import { listPrivateRecords, query } from "internal";
 import { useMemo } from "react";
 
 interface SearchParams {
@@ -57,19 +58,23 @@ export const Route = createFileRoute("/_requireAuth/data")({
       // Use the repo DID if provided, otherwise undefined (uses default)
       const repo = repoDid?.trim() || undefined;
       if (isPrivate) {
-        const data = await context.authManager
-          .client()
-          .listPrivateRecords(
-            lexicon,
-            undefined,
-            undefined,
-            repo ? [repo] : undefined,
-          );
+        const data = await listPrivateRecords(
+          context.authManager,
+          lexicon,
+          undefined,
+          undefined,
+          repo ? [repo] : undefined,
+        );
         return { records: data.records, error: null };
       } else {
-        const data = await context.authManager
-          .client()
-          .listRecords(lexicon, undefined, undefined, repo);
+        const data = await query(
+          "com.atproto.repo.listRecords",
+          {
+            collection: lexicon,
+            repo: repo ?? "",
+          },
+          { authManager: context.authManager },
+        );
         return { records: data.records, error: null };
       }
     } catch (err) {

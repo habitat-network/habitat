@@ -1,9 +1,6 @@
 import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
 import { decodeJwt } from "jose";
-import { HabitatClient, HabitatAuthedAgentSession } from "./habitatClient";
-import { DidResolver } from "@atproto/identity";
-import { Agent } from "@atproto/api";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -93,17 +90,6 @@ export class AuthManager {
     return true;
   }
 
-  client(): HabitatClient {
-    const serverUrl = "https://" + this.serverDomain;
-    const authedSession = new HabitatAuthedAgentSession(serverUrl, this);
-    const authedAgent = new Agent(authedSession);
-    const did = this.store.getState()?.authInfo?.did;
-    if (!did) {
-      throw new Error("No DID found");
-    }
-    return new HabitatClient(did, authedAgent, new DidResolver({}));
-  }
-
   async fetch(
     url: string,
     method: string = "GET",
@@ -171,4 +157,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }

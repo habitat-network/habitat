@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "tsc --build && vite build",
+    "build": "tsc --build --force && vite build",
     "serve": "vite preview",
     "test": "vitest run"
   },

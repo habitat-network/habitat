@@ -3,12 +3,12 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
-  listEvents,
   listInvites,
   listRsvps,
   createRsvp,
   type CalendarEvent,
   type RsvpStatus,
+  listEvents,
 } from "../../controllers/eventController.ts";
 import { CalendarView } from "../../components/CalendarView.tsx";
 import { CreateEventModal } from "../../components/CreateEventModal.tsx";
@@ -19,20 +19,19 @@ export const Route = createFileRoute("/_requireAuth/calendar")({
   component: CalendarPage,
   async loader({ context }) {
     const { authManager, queryClient } = context;
-    const client = authManager.client();
 
     const [events, invites, rsvps] = await Promise.all([
       queryClient.ensureQueryData({
         queryKey: ["events"],
-        queryFn: () => listEvents(client),
+        queryFn: () => listEvents(authManager),
       }),
       queryClient.ensureQueryData({
         queryKey: ["invites"],
-        queryFn: () => listInvites(client),
+        queryFn: () => listInvites(authManager),
       }),
       queryClient.ensureQueryData({
         queryKey: ["rsvps"],
-        queryFn: () => listRsvps(client),
+        queryFn: () => listRsvps(authManager),
       }),
     ]);
 
@@ -45,7 +44,6 @@ function CalendarPage() {
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const client = authManager.client();
   const userDid = authManager.getAuthInfo()?.did;
   if (!userDid) throw new Error("User DID not found");
 
@@ -67,7 +65,7 @@ function CalendarPage() {
     }: {
       event: CreateEventInput;
       invitedDids: string[];
-    }) => createEvent(client, userDid, event, invitedDids),
+    }) => createEvent(authManager, userDid, event, invitedDids),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["invites"] });
@@ -84,7 +82,7 @@ function CalendarPage() {
     }: {
       eventUri: string;
       status: RsvpStatus;
-    }) => createRsvp(client, eventUri, status),
+    }) => createRsvp(authManager, eventUri, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rsvps"] });
     },

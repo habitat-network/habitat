@@ -1,7 +1,11 @@
 {
   "plugins": ["react"],
   "rules": {
-    "no-unused-vars": "error",
+    "no-unused-vars": ["error", {
+      "imports": "fix",
+      "varsIgnorePattern": "^_",
+      "argsIgnorePattern": "^_"
+    }],
     "exhaustive-deps": "error",
     "jsx-key": "error"
   },
