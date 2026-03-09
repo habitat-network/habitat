@@ -93,51 +93,42 @@ interface ManageDataPreviewProps {
 }
 
 function ManageDataPreview({ collections, profilesByDid }: ManageDataPreviewProps) {
-  const rows: CollectionMetadata[][] = [];
-  for (let i = 0; i < collections.length; i += 3) {
-    rows.push(collections.slice(i, i + 3));
-  }
-
   return (
     <>
       <Link to="/explore">
         <h4> Manage your data </h4>
       </Link>
 
-      <div>
-        {rows.map((row, i) => (
-          <div key={i} className="grid">
-            {row.map((collection) => {
-              const didGrantees = collection.grantees ? collection.grantees.filter(
-                (g) => g.$type === "network.habitat.grantee#didGrantee",
-              ) as { did: string }[] : [];
-              return (
-                <Card key={collection.nsid}>
-                  <div className="flex items-center justify-between px-6">
-                    <CardTitle>{collection.nsid}</CardTitle>
-                    <span className="text-sm text-muted-foreground">{collection.recordCount} {(collection.recordCount > 1) ? "records" : "record"}</span>
-                  </div>
-                  <CardDescription className="px-6">Last updated: {new Date(collection.lastTouched).toLocaleDateString()}</CardDescription>
-                  <CardFooter>
-                    <div className="flex gap-1">
-                      {didGrantees.map((g) => {
-                        const profile = profilesByDid[g.did];
-                        return (
-                          <UserAvatar
-                            key={g.did}
-                            src={profile?.avatar}
-                            handle={profile?.handle}
-                            size="sm"
-                          />
-                        );
-                      })}
-                    </div>
-                  </CardFooter>
-                </Card>
-              );
-            })}
-          </div>
-        ))}
+      <div className="grid">
+        {collections.map((collection) => {
+          const didGrantees = collection.grantees ? collection.grantees.filter(
+            (g) => g.$type === "network.habitat.grantee#didGrantee",
+          ) as { did: string }[] : [];
+          return (
+            <Card key={collection.nsid}>
+              <div className="flex items-center justify-between px-6">
+                <CardTitle>{collection.nsid}</CardTitle>
+                <span className="text-sm text-muted-foreground">{collection.recordCount} {(collection.recordCount > 1) ? "records" : "record"}</span>
+              </div>
+              <CardDescription className="px-6">Last updated: {new Date(collection.lastTouched).toLocaleDateString()}</CardDescription>
+              <CardFooter>
+                <div className="flex gap-1">
+                  {didGrantees.map((g) => {
+                    const profile = profilesByDid[g.did];
+                    return (
+                      <UserAvatar
+                        key={g.did}
+                        src={profile?.avatar}
+                        handle={profile?.handle}
+                        size="sm"
+                      />
+                    );
+                  })}
+                </div>
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
     </>
   )
