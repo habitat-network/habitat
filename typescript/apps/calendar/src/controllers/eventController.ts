@@ -1,9 +1,15 @@
-import type { HabitatClient, PutPrivateRecordResponse } from "internal";
 import {
   CommunityLexiconCalendarEvent,
   CommunityLexiconCalendarRsvp,
   CommunityLexiconCalendarInvite,
+  NetworkHabitatRepoPutRecord,
 } from "api";
+import {
+  AuthManager,
+  listPrivateRecords,
+  procedure,
+  TypedRecord,
+} from "internal";
 
 // Re-export the lexicon types for convenience
 export type CalendarEvent = CommunityLexiconCalendarEvent.Record;
@@ -27,11 +33,6 @@ export interface InviteWithEvent {
   event: CalendarEvent | null;
 }
 
-export interface EventRecord {
-  uri: string;
-  value: CalendarEvent;
-}
-
 /**
  * Builds a map from event URI to event data, combining owned events and invited events.
  * Filters out events that don't have required fields (name, startsAt).
@@ -42,7 +43,7 @@ export interface EventRecord {
  * @returns Map from event URI to CalendarEvent
  */
 export function buildEventDataMap(
-  events: EventRecord[],
+  events: TypedRecord<CalendarEvent>[],
   invites: InviteWithEvent[],
   userDid?: string,
 ): Map<string, CalendarEvent> {
@@ -125,11 +126,11 @@ function parseRecordUri(
  * @returns The created event record response
  */
 export async function createEvent(
-  client: HabitatClient,
+  authManager: AuthManager,
   userDid: string,
   event: Omit<CalendarEvent, "createdAt">,
   invitedDids: string[] = [],
-): Promise<PutPrivateRecordResponse> {
+): Promise<NetworkHabitatRepoPutRecord.OutputSchema> {
   const eventRkey = crypto.randomUUID();
   const cliqueRkey = `event-${eventRkey}`;
   const cliqueUri = buildCliqueUri(userDid, cliqueRkey);
@@ -137,11 +138,22 @@ export async function createEvent(
 
   // Step 1: Create a clique with the creator and all invitees as members
   // The clique itself grants access to anyone in the list
-  await client.putPrivateRecord(
-    CLIQUE_COLLECTION,
-    {}, // Clique record is empty, membership is defined by grantees
-    cliqueRkey,
-    { dids: [userDid, ...invitedDids] },
+  await procedure(
+    "network.habitat.putRecord",
+    {
+      collection: CLIQUE_COLLECTION,
+      record: {},
+      rkey: cliqueRkey,
+      grantees: [
+        { $type: "network.habitat.grantee#didGrantee", did: userDid },
+        ...invitedDids.map((did) => ({
+          $type: "network.habitat.grantee#didGrantee",
+          did,
+        })),
+      ],
+      repo: userDid,
+    },
+    { authManager },
   );
 
   // Step 2: Create the event, granting access via the clique
@@ -150,11 +162,18 @@ export async function createEvent(
     createdAt,
   } as CalendarEvent;
 
-  const eventResponse = await client.putPrivateRecord<CalendarEvent>(
-    EVENT_COLLECTION,
-    eventRecord,
-    eventRkey,
-    { cliques: [cliqueUri] },
+  const eventResponse = await procedure(
+    "network.habitat.putRecord",
+    {
+      collection: EVENT_COLLECTION,
+      record: eventRecord,
+      rkey: eventRkey,
+      grantees: [
+        { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
+      ],
+      repo: userDid,
+    },
+    { authManager },
   );
 
   // Step 3: Create invite records for each invitee
@@ -169,11 +188,18 @@ export async function createEvent(
       invitee: inviteeDid,
       createdAt,
     };
-    return client.putPrivateRecord(
-      INVITE_COLLECTION,
-      inviteRecord,
-      inviteRkey,
-      { cliques: [cliqueUri] },
+    return procedure(
+      "network.habitat.putRecord",
+      {
+        collection: INVITE_COLLECTION,
+        record: inviteRecord,
+        rkey: inviteRkey,
+        grantees: [
+          { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
+        ],
+        repo: userDid,
+      },
+      { authManager },
     );
   });
 
@@ -190,11 +216,18 @@ export async function createEvent(
       },
       status: "community.lexicon.calendar.rsvp#going",
     };
-    await client.putPrivateRecord(
-      RSVP_COLLECTION,
-      creatorRsvpRecord,
-      creatorRsvpRkey,
-      { cliques: [cliqueUri] },
+    await procedure(
+      "network.habitat.putRecord",
+      {
+        collection: RSVP_COLLECTION,
+        record: creatorRsvpRecord,
+        rkey: creatorRsvpRkey,
+        grantees: [
+          { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
+        ],
+        repo: userDid,
+      },
+      { authManager },
     );
   }
 
@@ -206,8 +239,8 @@ export async function createEvent(
  *
  * @param client - The Habitat client instance
  */
-export async function listEvents(client: HabitatClient) {
-  return client.listPrivateRecords<CalendarEvent>(EVENT_COLLECTION);
+export async function listEvents(authManager: AuthManager) {
+  return listPrivateRecords<CalendarEvent>(authManager, EVENT_COLLECTION);
 }
 
 /**
@@ -217,11 +250,11 @@ export async function listEvents(client: HabitatClient) {
  * @param client - The Habitat client instance
  */
 export async function listInvites(
-  client: HabitatClient,
+  authManager: AuthManager,
 ): Promise<InviteWithEvent[]> {
   const [invitesResponse, eventsResponse] = await Promise.all([
-    client.listPrivateRecords<Invite>(INVITE_COLLECTION),
-    client.listPrivateRecords<CalendarEvent>(EVENT_COLLECTION),
+    listPrivateRecords<Invite>(authManager, INVITE_COLLECTION),
+    listPrivateRecords<CalendarEvent>(authManager, EVENT_COLLECTION),
   ]);
 
   // Build event lookup map: "did/collection/rkey" -> event
@@ -277,12 +310,12 @@ export async function listInvites(
  * @param client - The Habitat client instance
  */
 export async function listRsvps(
-  client: HabitatClient,
+  authManager: AuthManager,
 ): Promise<RsvpWithEvent[]> {
   // Fetch everything we need in parallel - "fetch the world"
   const [rsvpsResponse, eventsResponse] = await Promise.all([
-    client.listPrivateRecords<Rsvp>(RSVP_COLLECTION),
-    client.listPrivateRecords<CalendarEvent>(EVENT_COLLECTION),
+    listPrivateRecords<Rsvp>(authManager, RSVP_COLLECTION),
+    listPrivateRecords<CalendarEvent>(authManager, EVENT_COLLECTION),
   ]);
 
   // Build event lookup map: "did/collection/rkey" -> event
@@ -352,10 +385,10 @@ export type RsvpStatus = (typeof RSVP_STATUS)[keyof typeof RSVP_STATUS];
  * @returns The created/updated RSVP record response
  */
 export async function createRsvp(
-  client: HabitatClient,
+  authManager: AuthManager,
   eventUri: string,
   status: RsvpStatus,
-): Promise<PutPrivateRecordResponse> {
+) {
   const parsed = parseRecordUri(eventUri);
   if (!parsed) {
     throw new Error(`Invalid event URI: ${eventUri}`);
@@ -376,7 +409,19 @@ export async function createRsvp(
     status,
   };
 
-  return client.putPrivateRecord(RSVP_COLLECTION, rsvpRecord, rsvpRkey, {
-    cliques: [cliqueUri],
-  });
+  return procedure(
+    "network.habitat.putRecord",
+    {
+      repo: authManager.getAuthInfo()?.did ?? "",
+      collection: RSVP_COLLECTION,
+      rkey: rsvpRkey,
+      record: rsvpRecord,
+      grantees: [
+        { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
+      ],
+    },
+    {
+      authManager,
+    },
+  );
 }

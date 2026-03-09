@@ -8,11 +8,12 @@ export type { Actor } from "./components/UserCombobox";
 // Managers and Sessions
 export { AuthManager, UnauthenticatedError } from "./authManager";
 export {
-  HabitatClient,
-  HabitatAgentSession,
-  HabitatAuthedAgentSession,
-  getAgent,
+  query,
+  procedure,
+  castRecord,
+  listPrivateRecords,
 } from "./habitatClient";
+export type { TypedRecord } from "./habitatClient";
 
 // Utilities
 export { default as clientMetadata } from "./clientMetadata";
@@ -27,16 +28,3 @@ export * from "./components/ui/input-group";
 export * from "./components/ui/label";
 export * from "./components/ui/radio-group";
 export * from "./components/ui/textarea";
-
-// Types
-export type {
-  CreateRecordResponse,
-  GetRecordResponse,
-  ListRecordsResponse,
-  PutPrivateRecordResponse,
-  GetPrivateRecordResponse,
-  ListPrivateRecordsResponse,
-  PutPrivateRecordInput,
-  GetPrivateRecordParams,
-  ListPrivateRecordsParams,
-} from "./habitatClient";

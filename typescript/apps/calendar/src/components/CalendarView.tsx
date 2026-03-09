@@ -12,10 +12,8 @@ import {
   getDisplayableInvites,
   type CalendarEvent,
   type InviteWithEvent,
-  type EventRecord,
 } from "../controllers/eventController.ts";
-
-export type { EventRecord };
+import type { TypedRecord } from "internal";
 
 export interface CreateEventInitialData {
   startsAt: string;
@@ -24,7 +22,7 @@ export interface CreateEventInitialData {
 
 interface CalendarViewProps {
   /** Lexicon event records from listEvents. Adapts to FullCalendar schema internally. */
-  events: EventRecord[];
+  events: TypedRecord<CalendarEvent>[];
   /** Invites the user has received (with associated events). */
   invites?: InviteWithEvent[];
   /** The current user's DID, used to filter invites for display. */
@@ -41,7 +39,7 @@ interface CalendarViewProps {
 
 // Adapts community.lexicon.calendar.event to FullCalendar event input.
 function eventToFullCalendar(
-  record: EventRecord,
+  record: TypedRecord<CalendarEvent>,
   isInvite: boolean = false,
 ): EventInput {
   const { uri, value } = record;
@@ -62,7 +60,7 @@ function eventToFullCalendar(
   };
 }
 
-function isDisplayable(record: EventRecord): boolean {
+function isDisplayable(record: TypedRecord<CalendarEvent>): boolean {
   return Boolean(record.value?.name && record.value?.startsAt);
 }
 
@@ -90,7 +88,7 @@ export function CalendarView({
   const fullCalendarEvents: EventInput[] = [
     ...displayableEvents.map((e) => eventToFullCalendar(e, false)),
     ...displayableInvites.map((inv) => {
-      const record: EventRecord = {
+      const record: TypedRecord<CalendarEvent> = {
         uri: inv.invite.subject?.uri || inv.uri,
         value: inv.event!,
       };
