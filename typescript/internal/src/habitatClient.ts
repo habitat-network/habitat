@@ -172,10 +172,11 @@ export const listPrivateRecords = async <T extends Record<string, unknown>>(
   limit?: number,
   cursor?: string,
   subjects?: string[],
+  includePermissions?: boolean,
 ): Promise<ListRecordsResponse<T>> => {
   const response = await query(
     "network.habitat.listRecords",
-    { collection, limit, cursor, subjects: subjects ?? [] },
+    { collection, limit, cursor, subjects: subjects ?? [], includePermissions },
     { authManager },
   );
   return response as ListRecordsResponse<T>;

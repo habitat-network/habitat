@@ -23,7 +23,6 @@ export const Route = createFileRoute("/_requireAuth/")({
     const data = await listCollections(authManager, did)
     const collections = data.collections.slice(0, 3);  // Just show the first three in the preview
 
-    console.log(JSON.stringify(collections))
     // Collect unique DID grantees across all collections
     const granteeDids = [
       ...new Set(
