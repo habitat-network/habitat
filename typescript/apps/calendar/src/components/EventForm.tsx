@@ -25,6 +25,7 @@ interface EventFormProps {
   onCancel: () => void;
   isPending?: boolean;
   error?: Error | null;
+  title?: string;
 }
 
 export function EventForm({
@@ -33,6 +34,7 @@ export function EventForm({
   onCancel,
   isPending = false,
   error,
+  title,
 }: EventFormProps) {
   const [invitedDids, setInvitedDids] = useState<string[]>([]);
 
@@ -99,7 +101,7 @@ export function EventForm({
       </div>
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
         <button type="submit" disabled={isPending}>
-          {isPending ? "Creating..." : "Create Event"}
+          {isPending ? "Saving..." : (title ?? "Create Event")}
         </button>
         <button type="button" onClick={onCancel} disabled={isPending}>
           Cancel

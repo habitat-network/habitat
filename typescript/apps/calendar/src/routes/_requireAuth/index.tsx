@@ -3,6 +3,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
+  editEvent,
   listEvents,
   listInvites,
   listRsvps,
@@ -58,6 +59,10 @@ function CalendarPage() {
     null,
   );
 
+  // Edit event modal state
+  const [editingEventUri, setEditingEventUri] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+
   const createEventMutation = useMutation({
     mutationFn: ({
       event,
@@ -75,6 +80,26 @@ function CalendarPage() {
     },
   });
 
+  const editEventMutation = useMutation({
+    mutationFn: ({ event }: { event: CreateEventInput }) => {
+      if (!editingEventUri || !editingEvent) throw new Error("No event to edit");
+      const mergedEvent: CalendarEvent = {
+        ...editingEvent,
+        name: event.name,
+        description: event.description,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+      };
+      return editEvent(authManager, editingEventUri, mergedEvent);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      router.invalidate();
+      setEditingEvent(null);
+      setEditingEventUri(null);
+    },
+  });
+
   const rsvpMutation = useMutation({
     mutationFn: ({
       eventUri,
@@ -84,6 +109,7 @@ function CalendarPage() {
       status: RsvpStatus;
     }) => createRsvp(authManager, eventUri, status),
     onSuccess: () => {
+      router.invalidate();
       queryClient.invalidateQueries({ queryKey: ["rsvps"] });
     },
   });
@@ -103,6 +129,13 @@ function CalendarPage() {
   function handleEventClick(eventUri: string, event: CalendarEvent) {
     setSelectedEventUri(eventUri);
     setSelectedEvent(event);
+  }
+
+  function handleEdit(eventUri: string, event: CalendarEvent) {
+    setSelectedEvent(null);
+    setSelectedEventUri(null);
+    setEditingEventUri(eventUri);
+    setEditingEvent(event);
   }
 
   function handleRsvp(eventUri: string, status: RsvpStatus) {
@@ -145,6 +178,33 @@ function CalendarPage() {
         }}
         onRsvp={handleRsvp}
         isRsvpPending={rsvpMutation.isPending}
+        onEdit={handleEdit}
+      />
+
+      <CreateEventModal
+        isOpen={editingEvent !== null}
+        initialEvent={
+          editingEvent
+            ? {
+              name: editingEvent.name,
+              description: editingEvent.description,
+              startsAt: editingEvent.startsAt,
+              endsAt: editingEvent.endsAt,
+            }
+            : undefined
+        }
+        title="Edit Event"
+        onClose={() => {
+          setEditingEvent(null);
+          setEditingEventUri(null);
+        }}
+        onSubmit={(event) => editEventMutation.mutate({ event })}
+        onCancel={() => {
+          setEditingEvent(null);
+          setEditingEventUri(null);
+        }}
+        isPending={editEventMutation.isPending}
+        error={editEventMutation.error ?? null}
       />
     </div>
   );
