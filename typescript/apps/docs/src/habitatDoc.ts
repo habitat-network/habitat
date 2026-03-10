@@ -1,4 +1,4 @@
-export interface HabitatDoc {
+export type HabitatDoc = {
   name: string;
   blob: string | null;
-}
+};

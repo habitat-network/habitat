@@ -3,6 +3,9 @@ import type {
   ComAtprotoRepoGetRecord,
   ComAtprotoRepoListRecords,
   ComAtprotoIdentityResolveHandle,
+  AppBskyActorSearchActorsTypeahead,
+  AppBskyActorGetProfile,
+  AppBskyActorGetProfiles,
 } from "@atproto/api";
 import type {
   NetworkHabitatRepoGetRecord,
@@ -41,6 +44,18 @@ type QueryEndpoints = {
     ComAtprotoIdentityResolveHandle.QueryParams,
     ComAtprotoIdentityResolveHandle.OutputSchema
   >;
+  "app.bsky.actor.searchActorsTypeahead": Query<
+    AppBskyActorSearchActorsTypeahead.QueryParams,
+    AppBskyActorSearchActorsTypeahead.OutputSchema
+  >;
+  "app.bsky.actor.getProfile": Query<
+    AppBskyActorGetProfile.QueryParams,
+    AppBskyActorGetProfile.OutputSchema
+  >;
+  "app.bsky.actor.getProfiles": Query<
+    AppBskyActorGetProfiles.QueryParams,
+    AppBskyActorGetProfiles.OutputSchema
+  >;
 };
 
 type Procedure<Params, Output> = { params: Params; output: Output };
@@ -60,6 +75,18 @@ interface QueryOptions {
   authManager: AuthManager;
   headers?: Headers;
   fetchOptions?: DPoPOptions;
+}
+
+export class XRPCError extends Error {
+  public status: number;
+  public error: string;
+  public message: string;
+  constructor(status: number, response: { error: string; message: string }) {
+    super(response.error);
+    this.status = status;
+    this.error = response.error;
+    this.message = response.message;
+  }
 }
 
 export const query = async <T extends keyof QueryEndpoints>(
@@ -86,17 +113,11 @@ export const query = async <T extends keyof QueryEndpoints>(
   try {
     const data = await response.json();
     if (!response.ok) {
-      // TODO include data in thrown error
-      console.error(data);
-      throw new Error(
-        `Failed to fetch: ${response.statusText}, ${response.status}`,
-      );
+      throw new XRPCError(response.status, data);
     }
     return data;
   } catch {
-    throw new Error(
-      `Failed to fetch: ${response.statusText}, ${response.status}`,
-    );
+    throw new Error(`Invalid error response: ${response.status}`);
   }
 };
 
@@ -115,17 +136,11 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   try {
     const data = await response.json();
     if (!response.ok) {
-      // TODO include data in thrown error
-      console.error(data);
-      throw new Error(
-        `Failed to fetch: ${response.statusText}, ${response.status}`,
-      );
+      throw new XRPCError(response.status, data);
     }
     return data;
   } catch {
-    throw new Error(
-      `Failed to fetch: ${response.statusText}, ${response.status}`,
-    );
+    throw new Error(`Invalid error response: ${response.status}`);
   }
 };
 

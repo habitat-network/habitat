@@ -40,10 +40,12 @@
     "it-byte-stream": "^2.0.4",
     "lib0": "^0.2.115",
     "libp2p": "2.8.0",
+    "lucide-react": "^0.468.0",
     "multiformats": "^13.3.1",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
+    "tailwindcss": "^4.2.1",
     "vite-tsconfig-paths": "catalog:",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.27"
