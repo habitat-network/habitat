@@ -3,8 +3,7 @@ import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { AtpAgent } from '@atproto/api'
-
+import { AtpAgent } from "@atproto/api";
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -22,10 +21,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     }
     const actor = authInfo.did;
 
-    const agent = new AtpAgent({ service: 'https://public.api.bsky.app' })
-    const response = await agent.getProfile({ actor: actor })
+    const agent = new AtpAgent({ service: "https://public.api.bsky.app" });
+    const response = await agent.getProfile({ actor: actor });
 
-    const profile = response.data
+    const profile = response.data;
     return { profile };
   },
   staleTime: 1000 * 60 * 60,

@@ -3,7 +3,7 @@ import { DidResolver } from "@atproto/identity";
 import { OnboardComponent, habitatServers } from "../onboard";
 import { query } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
-import { CollectionCard } from "@/components/CollectionCard"
+import { CollectionCard } from "@/components/CollectionCard";
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
@@ -26,23 +26,24 @@ export const Route = createFileRoute("/_requireAuth/")({
       { subject: did },
       { authManager },
     );
-    const collections = data.collections.slice(0, 3);  // Just show the first three in the preview
+    const collections = data.collections.slice(0, 3); // Just show the first three in the preview
 
     // Collect unique DID grantees across all collections
     const granteeDids = [
       ...new Set(
         collections.flatMap((c) =>
-          c.grantees ?
-            c.grantees
-              .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
-              .map((g) => (g as { did: string }).did)
-            : []
+          c.grantees
+            ? c.grantees
+                .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
+                .map((g) => (g as { did: string }).did)
+            : [],
         ),
       ),
     ];
 
     // Fetch Bluesky profiles for all DID grantees
-    const profilesByDid: Record<string, { avatar?: string; handle: string }> = {};
+    const profilesByDid: Record<string, { avatar?: string; handle: string }> =
+      {};
     if (granteeDids.length > 0) {
       const headers = new Headers();
       headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
@@ -55,8 +56,9 @@ export const Route = createFileRoute("/_requireAuth/")({
         headers,
       );
       if (resp.ok) {
-        const profileData: { profiles: { did: string; handle: string; avatar?: string }[] } =
-          await resp.json();
+        const profileData: {
+          profiles: { did: string; handle: string; avatar?: string }[];
+        } = await resp.json();
         for (const p of profileData.profiles) {
           profilesByDid[p.did] = { avatar: p.avatar, handle: p.handle };
         }
@@ -72,9 +74,7 @@ export const Route = createFileRoute("/_requireAuth/")({
 });
 
 function RecentlyUsed() {
-  return (
-    <h4> Recently used apps </h4>
-  )
+  return <h4> Recently used apps </h4>;
 }
 
 interface ManageDataPreviewProps {
@@ -82,7 +82,10 @@ interface ManageDataPreviewProps {
   profilesByDid: Record<string, { avatar?: string; handle: string }>;
 }
 
-function ManageDataPreview({ collections, profilesByDid }: ManageDataPreviewProps) {
+function ManageDataPreview({
+  collections,
+  profilesByDid,
+}: ManageDataPreviewProps) {
   return (
     <>
       <Link to="/explore">
@@ -91,32 +94,39 @@ function ManageDataPreview({ collections, profilesByDid }: ManageDataPreviewProp
 
       <div className="grid">
         {collections.map((collection) => {
-          const didGrantees = collection.grantees ? collection.grantees.filter(
-            (g) => g.$type === "network.habitat.grantee#didGrantee",
-          ) as { did: string }[] : [];
+          const didGrantees = collection.grantees
+            ? (collection.grantees.filter(
+                (g) => g.$type === "network.habitat.grantee#didGrantee",
+              ) as { did: string }[])
+            : [];
           const avatars = didGrantees.map((grantee) => {
             const did = grantee.did;
             return {
               did: did,
               avatar: profilesByDid[did].avatar,
               handle: profilesByDid[did].handle,
-            }
-          })
+            };
+          });
 
-          const formatted = { ...collection, grantees: avatars }
+          const formatted = { ...collection, grantees: avatars };
           return (
-            <Link to="/collections/$collection" key={formatted.nsid} params={{ collection: formatted.nsid }}>
+            <Link
+              to="/collections/$collection"
+              key={formatted.nsid}
+              params={{ collection: formatted.nsid }}
+            >
               <CollectionCard collection={formatted}></CollectionCard>
             </Link>
           );
         })}
       </div>
     </>
-  )
+  );
 }
 
 function AuthenticatedHome() {
-  const { hasHabitat, handle, collections, profilesByDid } = Route.useLoaderData()!;
+  const { hasHabitat, handle, collections, profilesByDid } =
+    Route.useLoaderData()!;
 
   if (!hasHabitat) {
     return import.meta.env.DEV ? (
@@ -135,7 +145,10 @@ function AuthenticatedHome() {
     <>
       <h1>Welcome to Habitat!</h1>
       <RecentlyUsed></RecentlyUsed>
-      <ManageDataPreview collections={collections} profilesByDid={profilesByDid} />
+      <ManageDataPreview
+        collections={collections}
+        profilesByDid={profilesByDid}
+      />
       <br />
       <Link to="/devtools">Devtools</Link>
     </>

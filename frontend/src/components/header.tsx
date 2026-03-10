@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { UserAvatar } from "internal";
 import { ProfileViewDetailed } from "@atproto/api/dist/client/types/app/bsky/actor/defs";
 
-
 interface HeaderProps {
   profile?: ProfileViewDetailed;
   onLogout: () => void;
