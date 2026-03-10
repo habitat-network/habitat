@@ -34,8 +34,17 @@ type OAuthSession struct {
 	ExpiresAt time.Time
 }
 
+type ConnectedApp struct {
+	Subject  string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // user DID
+	ClientID string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // client_id URL
+	Scopes   string // Space-separated scopes
+	// GORM auto-managed
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 func newStore(strat *strategy, db *gorm.DB) (*store, error) {
-	err := db.AutoMigrate(&OAuthSession{})
+	err := db.AutoMigrate(&OAuthSession{}, &ConnectedApp{})
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +210,15 @@ func (s *store) CreateRefreshTokenSession(
 		ExpiresAt: session.GetExpiresAt(fosite.RefreshToken),
 	}
 
-	return s.db.WithContext(ctx).Create(oauthSession).Error
+	err := s.db.WithContext(ctx).Create(oauthSession).Error
+	if err != nil {
+		return err
+	}
+
+	return s.db.WithContext(ctx).
+		Where(ConnectedApp{Subject: oauthSession.Subject, ClientID: oauthSession.ClientID}).
+		Assign(ConnectedApp{Scopes: oauthSession.Scopes}).
+		FirstOrCreate(&ConnectedApp{}).Error
 }
 
 // DeleteRefreshTokenSession implements oauth2.CoreStorage.

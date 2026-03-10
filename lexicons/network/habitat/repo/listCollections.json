@@ -4,19 +4,7 @@
     "defs": {
         "main": {
             "type": "query",
-            "description": "List collections for a given user. Must be authenticated as the subject user.",
-            "parameters": {
-                "type": "params",
-                "required": [
-                    "subject"
-                ],
-                "properties": {
-                    "subject": {
-                        "type": "string",
-                        "description": "Repo to search from to retrieve records."
-                    }
-                }
-            },
+            "description": "List collections for a given user. Returns collections for the authenticated user.",
             "output": {
                 "encoding": "application/json",
                 "schema": {

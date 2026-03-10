@@ -26,6 +26,7 @@ import * as CommunityLexiconLocationHthree from './types/community/lexicon/locat
 import * as NetworkHabitatClique from './types/network/habitat/clique.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
+import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
@@ -54,6 +55,7 @@ export * as CommunityLexiconLocationHthree from './types/community/lexicon/locat
 export * as NetworkHabitatClique from './types/network/habitat/clique.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
+export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
@@ -497,6 +499,18 @@ export class NetworkHabitatNS {
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
+  }
+
+  listConnectedApps(
+    params?: NetworkHabitatListConnectedApps.QueryParams,
+    opts?: NetworkHabitatListConnectedApps.CallOptions,
+  ): Promise<NetworkHabitatListConnectedApps.Response> {
+    return this._client.call(
+      'network.habitat.listConnectedApps',
+      params,
+      undefined,
+      opts,
+    )
   }
 }
 

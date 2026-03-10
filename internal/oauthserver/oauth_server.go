@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/sessions"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/node"
@@ -26,6 +28,7 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
@@ -145,6 +148,7 @@ type OAuthServer struct {
 	sessionStore sessions.Store             // Session storage for authorization flow state
 	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
+	storage      *store
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -217,6 +221,7 @@ func NewOAuthServer(
 		sessionStore: sessionStore,
 		directory:    directory,
 		node:         node,
+		storage:      storage,
 	}, nil
 }
 
@@ -527,4 +532,43 @@ func (o *OAuthServer) ValidateRaw(
 		return "", false, fmt.Errorf("DID not found in JWT")
 	}
 	return syntax.DID(did), true, nil
+}
+
+func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := o.Validate(w, r)
+	if !ok {
+		return
+	}
+
+	var rows []ConnectedApp
+	err := o.storage.db.WithContext(r.Context()).
+		Where("subject = ?", callerDID).
+		Find(&rows).Error
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "listing connected apps", http.StatusInternalServerError)
+		return
+	}
+
+	var output habitat.NetworkHabitatListConnectedAppsOutput
+	output.Apps = make([]habitat.NetworkHabitatListConnectedAppsApp, len(rows))
+	for i, row := range rows {
+		fositeClient, err := o.storage.GetClient(r.Context(), row.ClientID)
+		if err != nil {
+			log.Warn().Err(err).Str("clientID", row.ClientID).Msg("failed to fetch client metadata")
+			continue
+		}
+
+		c := fositeClient.(*client)
+		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
+			ClientID:  row.ClientID,
+			ClientUri: c.ClientMetadata.ClientUri,
+			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
+			Name:      c.ClientMetadata.ClientName,
+		}
+	}
+	err = json.NewEncoder(w).Encode(output)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
 }
