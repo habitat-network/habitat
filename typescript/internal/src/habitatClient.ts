@@ -77,7 +77,7 @@ export const query = async <T extends keyof QueryEndpoints>(
     queryParams.set(key, value.toString());
   }
   const response = await options.authManager.fetch(
-    "/xrpc/" + endpoint,
+    "/xrpc/" + endpoint + "?" + queryParams.toString(),
     "GET",
     null,
     options.headers,
