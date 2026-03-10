@@ -165,7 +165,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// TODO: should we put this behind /p2p instead of / ?
 	mux.HandleFunc("/", p2pServer.HandleLibp2p)
 
-	otelMiddleware := otelhttp.NewMiddleware("habitat-backend" /* TODO: any options here? */)
+	otelMiddleware := otelhttp.NewMiddleware(
+		"habitat-backend",
+		// Add extra attributes to every span
+		otelhttp.WithSpanNameFormatter(func(op string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path // e.g. "GET /users"
+		}),
+	)
 
 	s := &http.Server{
 		Handler: otelMiddleware(corsMiddleware(mux)),
