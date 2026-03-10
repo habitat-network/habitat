@@ -69,15 +69,17 @@ export const query = async <T extends keyof QueryEndpoints>(
 ): Promise<QueryEndpoints[T]["output"]> => {
   const queryParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
       for (const v of value) {
         queryParams.append(key, v.toString());
       }
+    } else {
+      queryParams.set(key, value.toString());
     }
-    queryParams.set(key, value.toString());
   }
   const response = await options.authManager.fetch(
-    "/xrpc/" + endpoint,
+    "/xrpc/" + endpoint + "?" + queryParams.toString(),
     "GET",
     null,
     options.headers,
