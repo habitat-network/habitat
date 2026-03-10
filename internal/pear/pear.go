@@ -446,7 +446,7 @@ type CollectionMetadata struct {
 
 func (p *pear) ListCollections(ctx context.Context, caller syntax.DID, subject syntax.DID) ([]CollectionMetadata, error) {
 	if caller != subject {
-		return nil, ErrUnauthorized
+		return nil, habitat_err.ErrUnauthorized
 	}
 
 	collections, err := p.repo.ListCollections(ctx, subject)
@@ -461,7 +461,7 @@ func (p *pear) ListCollections(ctx context.Context, caller syntax.DID, subject s
 			return nil, err
 		}
 
-		slices.DeleteFunc(perms, func(p permissions.Permission) bool {
+		perms = slices.DeleteFunc(perms, func(p permissions.Permission) bool {
 			return p.Effect == permissions.Deny
 		})
 		grantees := xslices.Map(perms, func(p permissions.Permission) permissions.Grantee {

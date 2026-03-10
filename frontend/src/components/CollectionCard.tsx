@@ -1,5 +1,5 @@
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
-import { Card, CardTitle, CardDescription, CardFooter, UserAvatar } from "internal";
+import { Card, CardTitle, CardFooter, UserAvatar } from "internal";
 
 
 export interface CollectionCardProps {
@@ -15,19 +15,21 @@ export function CollectionCard({ collection }: CollectionCardProps) {
                 <CardTitle>{collection.nsid}</CardTitle>
                 <span className="text-sm text-muted-foreground">{collection.recordCount} {(collection.recordCount > 1) ? "records" : "record"}</span>
             </div>
-            <CardDescription className="px-6">Last updated: {new Date(collection.lastTouched).toLocaleDateString()}</CardDescription>
             <CardFooter>
-                <div className="flex gap-1">
-                    {collection.grantees.map((g) => {
-                        return (
-                            <UserAvatar
-                                key={g.did}
-                                src={g.avatar}
-                                handle={g.handle}
-                                size="sm"
-                            />
-                        );
-                    })}
+                <div className="flex items-center justify-between w-full">
+                    <div className="flex gap-1">
+                        {collection.grantees.slice(0, 5).map((g) => {
+                            return (
+                                <UserAvatar
+                                    key={g.did}
+                                    src={g.avatar}
+                                    handle={g.handle}
+                                    size="sm"
+                                />
+                            );
+                        })}
+                    </div>
+                    <span className="text-sm text-muted-foreground">{new Date(collection.lastTouched).toLocaleDateString()}</span>
                 </div>
             </CardFooter>
         </Card>

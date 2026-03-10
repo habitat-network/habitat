@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DidResolver } from "@atproto/identity";
 import { OnboardComponent, habitatServers } from "../onboard";
-import { listCollections } from "internal";
+import { query } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 import { CollectionCard } from "@/components/CollectionCard"
 
@@ -20,7 +20,12 @@ export const Route = createFileRoute("/_requireAuth/")({
     const handle = didDoc?.alsoKnownAs?.[0]?.replace(/^at:\/\//, "");
 
     // List collections for manage your data preview
-    const data = await listCollections(authManager, did)
+
+    const data = await query(
+      "network.habitat.repo.listCollections",
+      { subject: did },
+      { authManager },
+    );
     const collections = data.collections.slice(0, 3);  // Just show the first three in the preview
 
     // Collect unique DID grantees across all collections

@@ -181,14 +181,3 @@ export const listPrivateRecords = async <T extends Record<string, unknown>>(
   );
   return response as ListRecordsResponse<T>;
 };
-
-export const listCollections = async (
-  authManager: AuthManager,
-  subject: string,
-): Promise<NetworkHabitatRepoListCollections.OutputSchema> => {
-  return query(
-    "network.habitat.repo.listCollections",
-    { subject },
-    { authManager },
-  );
-};

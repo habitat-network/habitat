@@ -10,7 +10,6 @@ require (
 	github.com/gorilla/sessions v1.4.0
 	github.com/ipfs/go-cid v0.5.0
 	github.com/libp2p/go-libp2p v0.46.0
-	github.com/libp2p/go-libp2p-pubsub v0.15.0
 	github.com/multiformats/go-multiaddr v0.16.0
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/ory/fosite v0.49.0
@@ -189,7 +188,7 @@ require (
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.15.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.39.0
-	go.opentelemetry.io/otel/metric v1.39.0 // indirect
+	go.opentelemetry.io/otel/metric v1.39.0
 	go.opentelemetry.io/otel/sdk v1.39.0
 	go.opentelemetry.io/otel/sdk/log v0.15.0
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
