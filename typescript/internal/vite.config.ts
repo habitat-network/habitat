@@ -7,9 +7,9 @@ export default defineConfig({
   plugins: [
     react(),
     dts({
-      include: ["src/habitatAppVitePlugin.ts", "src/clientMetadata.ts"],  // Include dependencies
+      include: ["src/habitatAppVitePlugin.ts", "src/clientMetadata.ts"], // Include dependencies
       entryRoot: "src",
-      rollupTypes: false,  // Don't rollup since we're only building the plugin
+      rollupTypes: false, // Don't rollup since we're only building the plugin
       copyDtsFiles: false,
     }),
   ],

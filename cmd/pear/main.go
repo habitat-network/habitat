@@ -150,6 +150,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
+	mux.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
 
 	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -419,6 +420,52 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	if !ok {
+		return
+	}
+
+	var params habitat.NetworkHabitatRepoListCollectionsParams
+	err := s.decoder.Decode(&params, r.URL.Query())
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing request params", http.StatusBadRequest)
+		return
+	}
+
+	did, err := syntax.ParseDID(params.Subject)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing subject DID", http.StatusBadRequest)
+		return
+	}
+
+	collections, err := s.pear.ListCollections(r.Context(), callerDID, did)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "listing collections", http.StatusInternalServerError)
+		return
+	}
+
+	var output habitat.NetworkHabitatRepoListCollectionsOutput
+	output.Collections = make([]habitat.NetworkHabitatRepoListCollectionsCollectionMetadata, len(collections))
+
+	for i, c := range collections {
+		grantees := permissions.ConstructInterfaceFromGrantees(c.Grantees)
+		output.Collections[i] = habitat.NetworkHabitatRepoListCollectionsCollectionMetadata{
+			Grantees:    grantees,
+			LastTouched: c.LastTouched.Format(time.RFC3339Nano),
+			Nsid:        c.Name,
+			RecordCount: int64(c.RecordCount),
+		}
+	}
+
+	err = json.NewEncoder(w).Encode(output)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+
 }
 
 // TODO: this is a confusing name, because our ListPermissions internally takes in a generic query of grantee + owner + collection + rkey

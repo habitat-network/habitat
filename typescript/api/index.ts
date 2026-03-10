@@ -32,6 +32,7 @@ import * as NetworkHabitatPermissionsRemovePermission from './types/network/habi
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
+import * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
@@ -59,6 +60,7 @@ export * as NetworkHabitatPermissionsRemovePermission from './types/network/habi
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
+export * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
@@ -589,6 +591,18 @@ export class NetworkHabitatRepoNS {
       .catch((e) => {
         throw NetworkHabitatRepoGetRecord.toKnownErr(e)
       })
+  }
+
+  listCollections(
+    params?: NetworkHabitatRepoListCollections.QueryParams,
+    opts?: NetworkHabitatRepoListCollections.CallOptions,
+  ): Promise<NetworkHabitatRepoListCollections.Response> {
+    return this._client.call(
+      'network.habitat.repo.listCollections',
+      params,
+      undefined,
+      opts,
+    )
   }
 
   listRecords(

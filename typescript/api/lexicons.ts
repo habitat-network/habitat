@@ -1120,6 +1120,73 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatRepoListCollections: {
+    lexicon: 1,
+    id: 'network.habitat.repo.listCollections',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List collections for a given user. Must be authenticated as the subject user.',
+        parameters: {
+          type: 'params',
+          required: ['subject'],
+          properties: {
+            subject: {
+              type: 'string',
+              description: 'Repo to search from to retrieve records.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collections'],
+            properties: {
+              collections: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.repo.listCollections#collectionMetadata',
+                },
+              },
+            },
+          },
+        },
+      },
+      collectionMetadata: {
+        type: 'object',
+        required: ['nsid', 'recordCount', 'lastTouched', 'grantees'],
+        properties: {
+          nsid: {
+            type: 'string',
+            description: 'The NSID of this collection,',
+          },
+          recordCount: {
+            type: 'integer',
+            description: 'Number of records for this collection.',
+          },
+          lastTouched: {
+            type: 'string',
+            format: 'datetime',
+            description:
+              'The last time a record in this collection was touched.',
+          },
+          grantees: {
+            type: 'array',
+            items: {
+              type: 'union',
+              refs: [
+                'lex:network.habitat.grantee#didGrantee',
+                'lex:network.habitat.grantee#cliqueRef',
+              ],
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatRepoListRecords: {
     lexicon: 1,
     id: 'network.habitat.repo.listRecords',
@@ -1378,6 +1445,7 @@ export const ids = {
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
+  NetworkHabitatRepoListCollections: 'network.habitat.repo.listCollections',
   NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
