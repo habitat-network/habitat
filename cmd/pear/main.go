@@ -114,7 +114,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 
-	oauthServer, oauthClient := setupOAuthServer(cmd, db, pdsCredStore)
+	oauthClient := setupPDSOauthClient(cmd)
 	pdsClientFactory := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
@@ -122,13 +122,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	dir := identity.DefaultDirectory()
-	pear, err := setupPear(cmd, dir, db, oauthServer, pdsClientFactory)
+	node := setupNode(cmd, pdsClientFactory, dir)
+	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter)
+
+	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
 	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
-
-	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
@@ -160,12 +161,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 	domain := cmd.String(fDomain)
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
+	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.Handle("/xrpc/", pdsForwarding)
 
 	// TODO: should we put this behind /p2p instead of / ?
 	mux.HandleFunc("/", p2pServer.HandleLibp2p)
 
-	otelMiddleware := otelhttp.NewMiddleware("habitat-backend" /* TODO: any options here? */)
+	otelMiddleware := otelhttp.NewMiddleware(
+		"habitat-backend",
+		// Add extra attributes to every span
+		otelhttp.WithSpanNameFormatter(func(op string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path // e.g. "GET /users"
+		}),
+	)
 
 	s := &http.Server{
 		Handler: otelMiddleware(corsMiddleware(mux)),
@@ -247,24 +255,16 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	return pearDB
 }
 
-func setupPear(
+func setupNode(
 	cmd *cli.Command,
-	dir identity.Directory,
-	db *gorm.DB,
-	oauthServer *oauthserver.OAuthServer,
 	clientFactory pdsclient.HttpClientFactory,
-) (pear.Pear, error) {
+	dir identity.Directory,
+) node.Node {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
 	serviceEndpoint := "https://" + domain
-
-	repo, err := repo.NewRepo(db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create pear repo: %w", err)
-	}
-
 	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
-	node := node.New(
+	return node.New(
 		serviceName,
 		serviceEndpoint,
 		dir,
@@ -272,6 +272,22 @@ func setupPear(
 		// add self fallback just for medium term public demos
 		node.WithSelfFallback(),
 	)
+}
+
+func setupPear(
+	cmd *cli.Command,
+	dir identity.Directory,
+	node node.Node,
+	db *gorm.DB,
+	oauthServer *oauthserver.OAuthServer,
+	clientFactory pdsclient.HttpClientFactory,
+) (pear.Pear, error) {
+
+	repo, err := repo.NewRepo(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pear repo: %w", err)
+	}
+
 	permissions, err := permissions.NewStore(db, node)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
@@ -285,11 +301,7 @@ func setupPear(
 	return pear.NewPear(node, dir, permissions, repo, inbox), nil
 }
 
-func setupOAuthServer(
-	cmd *cli.Command,
-	db *gorm.DB,
-	credStore pdscred.PDSCredentialStore,
-) (*oauthserver.OAuthServer, pdsclient.PdsOAuthClient) {
+func setupPDSOauthClient(cmd *cli.Command) pdsclient.PdsOAuthClient {
 	domain := cmd.String(fDomain)
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
 		"https://"+domain+"/client-metadata.json", /*clientId*/
@@ -300,23 +312,32 @@ func setupOAuthServer(
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
+	return oauthClient
+}
 
-	serviceName := cmd.String(fServiceName)
-	serviceEndpoint := "https://" + domain
+func setupOAuthServer(
+	cmd *cli.Command,
+	node node.Node,
+	db *gorm.DB,
+	oauthClient pdsclient.PdsOAuthClient,
+	credStore pdscred.PDSCredentialStore,
+	meter metric.Meter,
+) *oauthserver.OAuthServer {
+
 	oauthServer, err := oauthserver.NewOAuthServer(
-		serviceName,
-		serviceEndpoint,
 		cmd.String(fOauthServerSecret),
 		oauthClient,
 		sessions.NewCookieStore([]byte("my super secret signing password")),
+		node,
 		identity.DefaultDirectory(),
 		credStore,
 		db,
+		meter,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")
 	}
-	return oauthServer, oauthClient
+	return oauthServer
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
