@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	habitat_err "github.com/habitat-network/habitat/internal/error"
 	"github.com/rs/zerolog/log"
 )
 
@@ -30,7 +31,7 @@ func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
 }
 
 func shouldLog(err error) bool {
-	return !errors.Is(err, context.Canceled)
+	return !errors.Is(err, context.Canceled) && !errors.Is(err, habitat_err.ErrUnauthorized)
 }
 
 // LogAndHTTPError logs the error before sending and HTTP error response to the provided writer.

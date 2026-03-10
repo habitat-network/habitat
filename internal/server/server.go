@@ -20,8 +20,10 @@ import (
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+
+	habitat_err "github.com/habitat-network/habitat/internal/error"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type authMethods struct {
@@ -202,7 +204,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			// TODO: is this still relevant?
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
-		} else if errors.Is(err, pear.ErrUnauthorized) {
+		} else if errors.Is(err, habitat_err.ErrUnauthorized) {
 			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusForbidden)
 			return
 		}
@@ -401,7 +403,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		if params.IncludePermissions {
 			grantees, err := s.pear.ListAllowGrantsForRecord(r.Context(), callerDID, syntax.DID(record.Did), syntax.NSID(record.Collection), syntax.RecordKey(record.Rkey))
 			if err != nil {
-				if errors.Is(err, pear.ErrUnauthorized) {
+				if errors.Is(err, habitat_err.ErrUnauthorized) {
 					log.Err(fmt.Errorf("list records returned a record but user does not have permission to it")).Msgf("[pear] list records inconsistent state for caller %s on %s", callerDID, habitat_syntax.ConstructHabitatUri(record.Did, record.Collection, record.Rkey))
 				}
 				utils.LogAndHTTPError(w, err, "listing permissions on fetched records", http.StatusInternalServerError)

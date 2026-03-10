@@ -13,9 +13,11 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/stretchr/testify/require"
+
+	habitat_err "github.com/habitat-network/habitat/internal/error"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrpcCh xrpcchannel.XrpcChannel) (*pear, *pear) {
@@ -202,7 +204,7 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	// B can no longer see A's record
 	got, err = pearB.GetRecord(t.Context(), coll, aRkey, aDID, bDID)
 	require.Nil(t, got)
-	require.ErrorIs(t, err, ErrUnauthorized)
+	require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
 	// B can still see its own record
 	got, err = pearB.GetRecord(t.Context(), coll, bRkey, bDID, bDID)
