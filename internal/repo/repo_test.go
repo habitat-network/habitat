@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/permissions"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
@@ -138,6 +139,63 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
+}
+
+func TestRepoListCollections(t *testing.T) {
+	ctx := t.Context()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	did := syntax.DID("did:plc:testuser")
+
+	// No collections yet
+	collections, err := repo.ListCollections(ctx, did)
+	require.NoError(t, err)
+	require.Empty(t, collections)
+
+	// Add records across two collections
+	for _, rec := range []Record{
+		{Did: string(did), Collection: "network.habitat.alpha", Rkey: "key-1", Value: map[string]any{"x": "1"}},
+		{Did: string(did), Collection: "network.habitat.alpha", Rkey: "key-2", Value: map[string]any{"x": "2"}},
+		{Did: string(did), Collection: "network.habitat.beta", Rkey: "key-1", Value: map[string]any{"x": "3"}},
+	} {
+		_, err = repo.PutRecord(ctx, rec, nil)
+		require.NoError(t, err)
+	}
+
+	collections, err = repo.ListCollections(ctx, did)
+	require.NoError(t, err)
+	require.Len(t, collections, 2)
+
+	byName := map[string]CollectionMetadata{}
+	for _, c := range collections {
+		byName[c.Name] = c
+	}
+
+	require.Equal(t, 2, byName["network.habitat.alpha"].RecordCount)
+	require.Equal(t, 1, byName["network.habitat.beta"].RecordCount)
+
+	otherDID := syntax.DID("did:plc:other")
+	// Records for a different DID are not included
+	_, err = repo.PutRecord(ctx, Record{
+		Did:        otherDID.String(),
+		Collection: "network.habitat.otherCollection",
+		Rkey:       "key-1",
+		Value:      map[string]any{"x": "other"},
+	}, nil)
+	require.NoError(t, err)
+
+	collections, err = repo.ListCollections(ctx, did)
+	require.NoError(t, err)
+	require.Len(t, collections, 2)
+
+	collections, err = repo.ListCollections(ctx, otherDID)
+	require.NoError(t, err)
+	require.Len(t, collections, 1)
+
 }
 
 func TestRepoUploadAndGetBlob(t *testing.T) {

@@ -513,6 +513,49 @@ func TestNotifyOfUpdate(t *testing.T) {
 	})
 }
 
+func TestListCollections(t *testing.T) {
+	ownerDID := syntax.DID("did:example:owner")
+	memberDID := syntax.DID("did:example:member")
+	granteeDID := syntax.DID("did:example:grantee")
+
+	dir := mockIdentities([]syntax.DID{ownerDID, memberDID, granteeDID})
+	p := newPearForTest(t, dir)
+
+	// Create a clique owned by owner with member as a member
+	cliqueRkey := syntax.RecordKey("my-clique")
+	require.NoError(t, p.permissions.AddPermissions(
+		[]permissions.Grantee{permissions.DIDGrantee(memberDID)},
+		ownerDID,
+		permissions.CliqueNSID,
+		cliqueRkey,
+	))
+	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(ownerDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
+
+	coll := syntax.NSID("my.fake.collection")
+	validate := true
+
+	// Put a record granting access to both the clique and a specific DID grantee
+	_, err := p.PutRecord(
+		t.Context(),
+		ownerDID,
+		ownerDID,
+		coll,
+		map[string]any{"data": "value"},
+		"my-rkey",
+		&validate,
+		[]permissions.Grantee{clique, permissions.DIDGrantee(granteeDID)},
+	)
+	require.NoError(t, err)
+
+	collections, err := p.ListCollections(t.Context(), ownerDID, ownerDID)
+	require.NoError(t, err)
+	require.Len(t, collections, 1)
+	require.Equal(t, coll.String(), collections[0].Name)
+
+	// Only the DID grantee should be returned, not the clique grantee
+	require.Len(t, collections[0].Grantees, 2)
+}
+
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:alice"})
