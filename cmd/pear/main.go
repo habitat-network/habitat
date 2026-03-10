@@ -301,11 +301,7 @@ func setupOAuthServer(
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
 
-	serviceName := cmd.String(fServiceName)
-	serviceEndpoint := "https://" + domain
 	oauthServer, err := oauthserver.NewOAuthServer(
-		serviceName,
-		serviceEndpoint,
 		cmd.String(fOauthServerSecret),
 		oauthClient,
 		sessions.NewCookieStore([]byte("my super secret signing password")),

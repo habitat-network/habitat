@@ -27,7 +27,7 @@ import (
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
-			"name", "endpoint", "not-valid-base64!!!",
+			"not-valid-base64!!!",
 			nil, nil, nil, nil, nil,
 		)
 		require.Error(t, err)
@@ -44,8 +44,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
-		"testServiceName",
-		"testServiceEndpoint",
 		secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
@@ -182,7 +180,7 @@ func TestHandleCallbackDIDDocError(t *testing.T) {
 	require.NoError(t, err)
 
 	oauthSrv, err := NewOAuthServer(
-		"testServiceName", "testServiceEndpoint", secret,
+		secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		&errLookupDIDDirectory{pdsclient.NewDummyDirectory("http://pds.url")},
@@ -252,8 +250,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to generate secret")
 
 	oauthServer, err := NewOAuthServer(
-		"testServiceName",
-		"testServiceEndpoint",
+
 		secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),

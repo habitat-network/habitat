@@ -47,10 +47,6 @@ type authRequestFlash struct {
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
 // for proof-of-possession token binding.
 type OAuthServer struct {
-	// The habitat service name to look up in DID docs.
-	serviceName     string
-	serviceEndpoint string
-
 	provider     fosite.OAuth2Provider
 	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
 	sessionStore sessions.Store             // Session storage for authorization flow state
@@ -77,8 +73,6 @@ type OAuthServer struct {
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
-	serviceName string,
-	serviceEndpoint string,
 	secret string,
 	oauthClient pdsclient.PdsOAuthClient,
 	sessionStore sessions.Store,
@@ -107,8 +101,6 @@ func NewOAuthServer(
 	gob.Register(&authRequestFlash{})
 	gob.Register(pdsclient.AuthorizeState{})
 	return &OAuthServer{
-		serviceName:     serviceName,
-		serviceEndpoint: serviceEndpoint,
 		provider: compose.Compose(
 			config,
 			storage,
@@ -283,25 +275,28 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	// Ensure that habitat serves this user
-	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
-	id, err := o.directory.LookupDID(context.Background(), arf.Did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
-		return
-	}
-
-	if endpoint, ok := id.Services[o.serviceName]; !ok || endpoint.URL != o.serviceEndpoint {
+	// TODO: we don't require people to be onboarded to the habitat service yet
+	/*
+		// Ensure that habitat serves this user
+		// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+		id, err := o.directory.LookupDID(context.Background(), arf.Did)
 		if err != nil {
-			utils.LogAndHTTPError(
-				w,
-				err,
-				"user's habitat service in DID doc does not match expected service",
-				http.StatusInternalServerError,
-			)
+			utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
 			return
 		}
-	}
+
+		if endpoint, ok := id.Services[o.serviceName]; !ok || endpoint.URL != o.serviceEndpoint {
+			if err != nil {
+				utils.LogAndHTTPError(
+					w,
+					err,
+					"user's habitat service in DID doc does not match expected service",
+					http.StatusInternalServerError,
+				)
+				return
+			}
+		}
+	*/
 
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
