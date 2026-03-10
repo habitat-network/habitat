@@ -7,6 +7,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/rs/zerolog/log"
 )
 
@@ -42,8 +43,7 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to create forwarding request")
-		http.Error(w, "failed to create forwarding request", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to create forwarding request", http.StatusInternalServerError)
 		return
 	}
 	// Copy headers from original request
@@ -51,16 +51,15 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to create dpop client")
-		http.Error(w, "failed to create dpop client", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to create dpop client", http.StatusInternalServerError)
+
 		return
 	}
 
 	// Forward the request using the dpopClient
 	resp, err := dpopClient.Do(req)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to forward request")
-		http.Error(w, "failed to forward request", http.StatusBadGateway)
+		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -75,7 +74,9 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Copy response body
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		// Log error but can't change status code at this point
-		log.Error().Err(err).Msg("failed to copy response body")
+		if utils.ShouldLog(err) {
+			log.Error().Err(err).Msg("[pds forwarding]: failed to copy response body")
+		}
 		return
 	}
 }
