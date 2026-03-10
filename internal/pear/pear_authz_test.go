@@ -6,6 +6,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/stretchr/testify/require"
+
+	habitat_err "github.com/habitat-network/habitat/internal/error"
 )
 
 // TestHasPermission tests the HasPermission pear method's authz logic.
@@ -87,12 +89,12 @@ func TestAddPermissions(t *testing.T) {
 
 	t.Run("non-owner cannot add permissions", func(t *testing.T) {
 		err := p.AddPermissions(nonOwnerDID, []permissions.Grantee{permissions.DIDGrantee(nonOwnerDID)}, ownerDID, coll, rkey)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
 		// The non-owner did not gain access as a result of the failed call
 		got, err := p.GetRecord(t.Context(), coll, rkey, ownerDID, nonOwnerDID)
 		require.Nil(t, got)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 	})
 
 	t.Run("owner can add permissions for a grantee", func(t *testing.T) {
@@ -144,7 +146,7 @@ func TestRemovePermissions(t *testing.T) {
 
 	t.Run("non-owner cannot remove permissions", func(t *testing.T) {
 		err := p.RemovePermissions(nonOwnerDID, []permissions.Grantee{permissions.DIDGrantee(granteeDID)}, ownerDID, coll, rkey)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
 		// Grantee's access is unaffected after the failed remove
 		got, err := p.GetRecord(t.Context(), coll, rkey, ownerDID, granteeDID)
@@ -159,7 +161,7 @@ func TestRemovePermissions(t *testing.T) {
 		// Grantee no longer has access
 		got, err := p.GetRecord(t.Context(), coll, rkey, ownerDID, granteeDID)
 		require.Nil(t, got)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 	})
 
 	t.Run("owner can remove collection-level permission, revoking access to all records in that collection", func(t *testing.T) {
@@ -185,11 +187,11 @@ func TestRemovePermissions(t *testing.T) {
 		// Grantee no longer has access to any record in the collection
 		got, err = p.GetRecord(t.Context(), coll2, rkey2a, ownerDID, granteeDID)
 		require.Nil(t, got)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
 		got, err = p.GetRecord(t.Context(), coll2, rkey2b, ownerDID, granteeDID)
 		require.Nil(t, got)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 	})
 }
 
@@ -210,9 +212,9 @@ func TestListPermissionGrants(t *testing.T) {
 	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
 	require.NoError(t, err)
 
-	t.Run("caller that is not the granter gets ErrUnauthorized", func(t *testing.T) {
+	t.Run("caller that is not the granter gets habitat_err.ErrUnauthorized", func(t *testing.T) {
 		_, err := p.ListPermissionGrants(t.Context(), otherDID, ownerDID)
-		require.ErrorIs(t, err, ErrUnauthorized)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 	})
 
 	t.Run("caller == granter can list their outgoing grants", func(t *testing.T) {

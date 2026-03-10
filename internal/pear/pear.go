@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 
+	habitat_err "github.com/habitat-network/habitat/internal/error"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -105,7 +106,7 @@ func (p *pear) AddPermissions(
 ) error {
 	// Authz: only the owner can modify a permission
 	if caller != owner {
-		return ErrUnauthorized
+		return habitat_err.ErrUnauthorized
 	}
 	return p.permissions.AddPermissions(grantees, owner, collection, rkey)
 }
@@ -120,13 +121,13 @@ func (p *pear) RemovePermissions(
 ) error {
 	// Authz: only the owner can modify a permission
 	if caller != owner {
-		return ErrUnauthorized
+		return habitat_err.ErrUnauthorized
 	}
 	return p.permissions.RemovePermissions(grantee, owner, collection, rkey)
 }
 
 // HasPermission implements Pear.
-// Only returns non-ErrUnAuthorized errors
+// Only returns non-habitat_err.ErrUnauthorized errors
 func (p *pear) HasPermission(
 	ctx context.Context,
 	caller syntax.DID,
@@ -153,7 +154,7 @@ func (p *pear) HasPermission(
 func (p *pear) ListPermissionGrants(ctx context.Context, caller syntax.DID, granter syntax.DID) ([]permissions.Permission, error) {
 	// Authz: only the granter can see this
 	if caller != granter {
-		return nil, ErrUnauthorized
+		return nil, habitat_err.ErrUnauthorized
 	}
 	return p.permissions.ListPermissionGrants(ctx, granter)
 }
@@ -168,7 +169,7 @@ func (p *pear) ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, 
 
 	// If the caller doesn't have permission to this record, they can't see who does.
 	if !callerOk {
-		return nil, ErrUnauthorized
+		return nil, habitat_err.ErrUnauthorized
 	}
 
 	return p.permissions.ListAllowedGranteesForRecord(ctx, owner, collection, rkey)
@@ -179,7 +180,6 @@ var _ Pear = &pear{}
 var (
 	ErrPublicRecordExists     = fmt.Errorf("a public record exists with the same key")
 	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
-	ErrUnauthorized           = fmt.Errorf("unauthorized request")
 	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
 	ErrFollowersCliqueRkey    = errors.New("this clique cannot be directly set, it derives from app.bsky.graph.follows of the user")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
@@ -268,7 +268,7 @@ func (p *pear) getRecordLocal(
 	}
 
 	if !ok {
-		return nil, ErrUnauthorized
+		return nil, habitat_err.ErrUnauthorized
 	}
 
 	// Special case followers clique -- just intercept the call and return an empty record since we never store anything here
@@ -342,7 +342,7 @@ func (p *pear) getRecordRemote(
 			Value:      bytes,
 		}, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return nil, ErrUnauthorized
+		return nil, habitat_err.ErrUnauthorized
 	default:
 		return nil, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
 	}
@@ -469,7 +469,7 @@ func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target synt
 		contentLen := resp.Header.Get("Content-Length")
 		return mimeType, contentLen, resp.Body, nil
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return "", "", nil, ErrUnauthorized
+		return "", "", nil, habitat_err.ErrUnauthorized
 	default:
 		return "", "", nil, fmt.Errorf("unexpected status from remote getBlob: %d", resp.StatusCode)
 	}
@@ -515,7 +515,7 @@ func (p *pear) GetBlob(
 	}
 
 	if !authz {
-		return "", "", nil, ErrUnauthorized
+		return "", "", nil, habitat_err.ErrUnauthorized
 	}
 
 	mimeType, blob, err := p.repo.GetBlob(ctx, target.String(), cid.String())
@@ -528,7 +528,7 @@ func (p *pear) GetBlob(
 func (p *pear) UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {
 	// You can only upload blobs to your own repo
 	if caller != target {
-		return nil, ErrUnauthorized
+		return nil, habitat_err.ErrUnauthorized
 	}
 	return p.repo.UploadBlob(ctx, target.String(), data, mimeType)
 }
