@@ -1,5 +1,5 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
@@ -41,11 +41,26 @@ export const Route = createFileRoute("/_requireAuth/")({
 });
 
 function CalendarPage() {
-  const { events, invites, rsvps } = Route.useLoaderData();
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
-  const router = useRouter();
   const userDid = authManager.getAuthInfo()?.did;
+
+  const eventsQuery = useQuery({
+    queryKey: ["events"],
+    queryFn: () => listEvents(authManager),
+  });
+  const invitesQuery = useQuery({
+    queryKey: ["invites"],
+    queryFn: () => listInvites(authManager),
+  });
+  const rsvpsQuery = useQuery({
+    queryKey: ["rsvps"],
+    queryFn: () => listRsvps(authManager),
+  });
+
+  const events = eventsQuery.data;
+  const invites = invitesQuery.data ?? [];
+  const rsvps = rsvpsQuery.data ?? [];
   if (!userDid) throw new Error("User DID not found");
 
   // Create event modal state
@@ -75,7 +90,6 @@ function CalendarPage() {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["invites"] });
       queryClient.invalidateQueries({ queryKey: ["rsvps"] });
-      router.invalidate();
       setNewEventData(undefined);
     },
   });
@@ -94,7 +108,6 @@ function CalendarPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
-      router.invalidate();
       setEditingEvent(null);
       setEditingEventUri(null);
     },
@@ -109,7 +122,6 @@ function CalendarPage() {
       status: RsvpStatus;
     }) => createRsvp(authManager, eventUri, status),
     onSuccess: () => {
-      router.invalidate();
       queryClient.invalidateQueries({ queryKey: ["rsvps"] });
     },
   });
@@ -141,6 +153,8 @@ function CalendarPage() {
   function handleRsvp(eventUri: string, status: RsvpStatus) {
     rsvpMutation.mutate({ eventUri, status });
   }
+
+  if (!events) return null;
 
   return (
     <div>
