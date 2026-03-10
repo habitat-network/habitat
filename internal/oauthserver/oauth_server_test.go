@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -28,8 +29,8 @@ import (
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
-			"name", "endpoint", "not-valid-base64!!!",
-			nil, nil, nil, nil, nil, noop.Meter{},
+			"not-valid-base64!!!",
+			nil, nil, nil, nil, nil, nil, noop.Meter{},
 		)
 		require.Error(t, err)
 	})
@@ -45,11 +46,10 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
-		"testServiceName",
-		"testServiceEndpoint",
 		secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
+		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 		db,
@@ -170,72 +170,6 @@ func newClientApp(t *testing.T, serverCallbackURL string) *httptest.Server {
 	return clientApp
 }
 
-func TestHandleCallbackDIDDocError(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
-
-	secret, err := encrypt.GenerateKey()
-	require.NoError(t, err)
-
-	oauthSrv, err := NewOAuthServer(
-		"testServiceName", "testServiceEndpoint", secret,
-		oauthClient,
-		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
-		&errLookupDIDDirectory{pdsclient.NewDummyDirectory("http://pds.url")},
-		credStore,
-		db,
-		noop.Meter{},
-	)
-	require.NoError(t, err)
-
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/authorize":
-			oauthSrv.HandleAuthorize(w, r)
-		case "/callback":
-			oauthSrv.HandleCallback(w, r)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer server.Close()
-
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	httpClient := server.Client()
-	httpClient.Jar = jar
-	clientMetadata.RedirectUris = []string{server.URL + "/callback"}
-
-	clientApp := newClientApp(t, server.URL+"/callback")
-	verifier := oauth2.GenerateVerifier()
-	config := &oauth2.Config{
-		ClientID:    clientApp.URL + "/client-metadata.json",
-		RedirectURL: server.URL + "/callback",
-		Endpoint:    oauth2.Endpoint{AuthURL: server.URL + "/authorize"},
-	}
-
-	req, err := http.NewRequest(
-		http.MethodGet,
-		config.AuthCodeURL(
-			"test-state",
-			oauth2.S256ChallengeOption(verifier),
-		)+"&handle=did:web:test",
-		nil,
-	)
-	require.NoError(t, err)
-
-	resp, err := httpClient.Do(req)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-}
-
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -255,11 +189,10 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to generate secret")
 
 	oauthServer, err := NewOAuthServer(
-		"testServiceName",
-		"testServiceEndpoint",
 		secret,
 		oauthClient,
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
+		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 		db,
