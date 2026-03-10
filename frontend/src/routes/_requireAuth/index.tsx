@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DidResolver } from "@atproto/identity";
-import { OnboardComponent, habitatServers } from "../onboard";
 import { query } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 import { CollectionCard } from "@/components/CollectionCard";
@@ -34,8 +33,8 @@ export const Route = createFileRoute("/_requireAuth/")({
         collections.flatMap((c) =>
           c.grantees
             ? c.grantees
-                .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
-                .map((g) => (g as { did: string }).did)
+              .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
+              .map((g) => (g as { did: string }).did)
             : [],
         ),
       ),
@@ -96,8 +95,8 @@ function ManageDataPreview({
         {collections.map((collection) => {
           const didGrantees = collection.grantees
             ? (collection.grantees.filter(
-                (g) => g.$type === "network.habitat.grantee#didGrantee",
-              ) as { did: string }[])
+              (g) => g.$type === "network.habitat.grantee#didGrantee",
+            ) as { did: string }[])
             : [];
           const avatars = didGrantees.map((grantee) => {
             const did = grantee.did;
@@ -128,6 +127,9 @@ function AuthenticatedHome() {
   const { hasHabitat, handle, collections, profilesByDid } =
     Route.useLoaderData()!;
 
+  // For now, don't require the user to be registered with a habitat service. If they do have one,
+  // requests will still be routed there, but allow them to use the centralized one by default.
+  /*
   if (!hasHabitat) {
     return import.meta.env.DEV ? (
       <OnboardComponent
@@ -140,6 +142,7 @@ function AuthenticatedHome() {
       <OnboardComponent serverOptions={habitatServers} handle={handle} />
     );
   }
+  */
 
   return (
     <>
