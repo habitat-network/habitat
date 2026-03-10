@@ -3,7 +3,6 @@ package oauthserver
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -11,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -137,37 +135,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
-}
-
-// errLookupDIDDirectory wraps DummyDirectory but returns an error from LookupDID,
-// simulating a user whose DID document cannot be resolved during the callback.
-type errLookupDIDDirectory struct {
-	*pdsclient.DummyDirectory
-}
-
-func (d *errLookupDIDDirectory) LookupDID(
-	_ context.Context,
-	_ syntax.DID,
-) (*identity.Identity, error) {
-	return nil, fmt.Errorf("simulated DID doc lookup failure")
-}
-
-// newClientApp returns a test server that serves OAuth client metadata.
-// The returned URL is the server's base URL; the metadata's client_id uses that URL.
-func newClientApp(t *testing.T, serverCallbackURL string) *httptest.Server {
-	t.Helper()
-	var clientApp *httptest.Server
-	clientApp = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-			ClientId:      clientApp.URL + "/client-metadata.json",
-			RedirectUris:  []string{serverCallbackURL},
-			ResponseTypes: []string{"code"},
-			GrantTypes:    []string{"authorization_code"},
-		})
-	}))
-	t.Cleanup(clientApp.Close)
-	return clientApp
 }
 
 func TestOAuthServerE2E(t *testing.T) {
