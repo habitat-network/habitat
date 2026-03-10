@@ -19,6 +19,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -28,7 +29,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			"name", "endpoint", "not-valid-base64!!!",
-			nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, noop.Meter{},
 		)
 		require.Error(t, err)
 	})
@@ -52,6 +53,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 		db,
+		noop.Meter{},
 	)
 	require.NoError(t, err)
 
@@ -188,6 +190,7 @@ func TestHandleCallbackDIDDocError(t *testing.T) {
 		&errLookupDIDDirectory{pdsclient.NewDummyDirectory("http://pds.url")},
 		credStore,
 		db,
+		noop.Meter{},
 	)
 	require.NoError(t, err)
 
@@ -260,6 +263,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 		db,
+		noop.Meter{},
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 

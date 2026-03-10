@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -24,6 +25,8 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
 )
 
@@ -43,10 +46,94 @@ type authRequestFlash struct {
 	Did            syntax.DID                // DID of the user
 }
 
+type metrics struct {
+	// Separate context to not cancel metric propagation upon request cancles
+	ctx context.Context
+	// HandleAuthorize
+	authorizeErrCtr     metric.Int64Counter
+	authorizeSuccessCtr metric.Int64Counter
+
+	// HandleCallback
+	callbackErrCtr     metric.Int64Counter
+	callbackSuccessCtr metric.Int64Counter
+}
+
+func newMetrics(meter metric.Meter) (*metrics, error) {
+	authorizeErrCtr, err := meter.Int64Counter("oauth.authorize.err", metric.WithUnit("Item"), metric.WithDescription("counts errors in OAuth /authorize implementation"))
+	if err != nil {
+		return nil, err
+	}
+
+	authorizeSuccessCtr, err := meter.Int64Counter("oauth.authorize.success", metric.WithUnit("Item"), metric.WithDescription("counts successes in OAuth /authorize implementation"))
+	if err != nil {
+		return nil, err
+	}
+
+	callbackErrCtr, err := meter.Int64Counter("oauth.callback.err", metric.WithUnit("Item"), metric.WithDescription("counts errors in OAuth /callback implementation"))
+	if err != nil {
+		return nil, err
+	}
+
+	callbackSuccessCtr, err := meter.Int64Counter("oauth.callback.success", metric.WithUnit("Item"), metric.WithDescription("counts successes in OAuth /callback implementation"))
+	if err != nil {
+		return nil, err
+	}
+
+	return &metrics{
+		ctx:                 context.Background(),
+		authorizeErrCtr:     authorizeErrCtr,
+		authorizeSuccessCtr: authorizeSuccessCtr,
+		callbackErrCtr:      callbackErrCtr,
+		callbackSuccessCtr:  callbackSuccessCtr,
+	}, nil
+}
+
+func (m *metrics) authorizeErr(err error) {
+	m.authorizeErrCtr.Add(
+		m.ctx,
+		1,
+		metric.WithAttributeSet(
+			attribute.NewSet(
+				attribute.String("reason", errReason(err)),
+			),
+		),
+	)
+}
+
+func (m *metrics) authorizeSuccess() {
+	m.authorizeSuccessCtr.Add(
+		m.ctx,
+		1,
+	)
+}
+
+func (m *metrics) callbackErr(err error) {
+	m.callbackErrCtr.Add(
+		m.ctx,
+		1,
+		metric.WithAttributeSet(
+			attribute.NewSet(
+				attribute.String("reason", errReason(err)),
+			),
+		),
+	)
+}
+
+func (m *metrics) callbackSuccess() {
+	m.callbackSuccessCtr.Add(
+		m.ctx,
+		1,
+	)
+}
+
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
 // for proof-of-possession token binding.
 type OAuthServer struct {
+	// Metrics
+	meter   metric.Meter
+	metrics *metrics
+
 	// The habitat service name to look up in DID docs.
 	serviceName     string
 	serviceEndpoint string
@@ -85,6 +172,7 @@ func NewOAuthServer(
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
+	meter metric.Meter,
 ) (*OAuthServer, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
@@ -106,7 +194,15 @@ func NewOAuthServer(
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
 	gob.Register(pdsclient.AuthorizeState{})
+
+	oauthMetrics, err := newMetrics(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	return &OAuthServer{
+		meter:           meter,
+		metrics:         oauthMetrics,
 		serviceName:     serviceName,
 		serviceEndpoint: serviceEndpoint,
 		provider: compose.Compose(
@@ -123,6 +219,14 @@ func NewOAuthServer(
 		sessionStore: sessionStore,
 		directory:    directory,
 	}, nil
+}
+
+func errReason(err error) string {
+	var rfcErr *fosite.RFC6749Error
+	if errors.As(err, &rfcErr) {
+		return rfcErr.ErrorField // "invalid_grant", "invalid_client", etc.
+	}
+	return "unknown"
 }
 
 // HandleAuthorize processes OAuth 2.0 authorization requests from the client.
@@ -147,32 +251,38 @@ func (o *OAuthServer) HandleAuthorize(
 	ctx := r.Context()
 	requester, err := o.provider.NewAuthorizeRequest(ctx, r)
 	if err != nil {
+		o.metrics.authorizeErr(err)
 		o.provider.WriteAuthorizeError(ctx, w, requester, err)
 		return
 	}
 	if r.ParseForm() != nil {
+		o.metrics.authorizeErr(err)
 		utils.LogAndHTTPError(w, err, "failed to parse form", http.StatusBadRequest)
 		return
 	}
 	handle := r.Form.Get("handle")
 	atid, err := syntax.ParseAtIdentifier(handle)
 	if err != nil {
+		o.metrics.authorizeErr(err)
 		utils.LogAndHTTPError(w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
 	id, err := o.directory.Lookup(ctx, atid)
 	if err != nil {
+		o.metrics.authorizeErr(err)
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusInternalServerError)
 		return
 	}
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
+		o.metrics.authorizeErr(err)
 		utils.LogAndHTTPError(w, err, "failed to generate key", http.StatusInternalServerError)
 		return
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	redirect, state, err := o.oauthClient.Authorize(dpopClient, id)
 	if err != nil {
+		o.metrics.authorizeErr(err)
 		utils.LogAndHTTPError(
 			w,
 			err,
@@ -183,6 +293,7 @@ func (o *OAuthServer) HandleAuthorize(
 	}
 	dpopKeyBytes, err := dpopKey.Bytes()
 	if err != nil {
+		o.metrics.authorizeErr(err)
 		utils.LogAndHTTPError(w, err, "failed to serialize key", http.StatusInternalServerError)
 		return
 	}
@@ -194,11 +305,14 @@ func (o *OAuthServer) HandleAuthorize(
 		Did:            id.DID,
 	})
 	if err := authorizeSession.Save(r, w); err != nil {
+		o.metrics.authorizeErr(err)
 		utils.LogAndHTTPError(w, err, "failed to save session", http.StatusInternalServerError)
 		return
 	}
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
+	o.metrics.authorizeSuccess()
+
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -223,32 +337,38 @@ func (o *OAuthServer) HandleCallback(
 	ctx := r.Context()
 	authorizeSession, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to get session", http.StatusInternalServerError)
 		return
 	}
 	flashes := authorizeSession.Flashes()
 	_ = authorizeSession.Save(r, w)
 	if len(flashes) == 0 {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to get auth request flash", http.StatusBadRequest)
 		return
 	}
 	arf, ok := flashes[0].(*authRequestFlash)
 	if !ok {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to parse auth request flash", http.StatusBadRequest)
 		return
 	}
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
 		return
 	}
 	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
 		return
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), arf.DpopKey)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
 		return
 	}
@@ -260,6 +380,7 @@ func (o *OAuthServer) HandleCallback(
 		arf.AuthorizeState,
 	)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to exchange code", http.StatusInternalServerError)
 		return
 	}
@@ -274,6 +395,7 @@ func (o *OAuthServer) HandleCallback(
 		},
 	)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(
 			w,
 			err,
@@ -287,12 +409,14 @@ func (o *OAuthServer) HandleCallback(
 	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
 	id, err := o.directory.LookupDID(context.Background(), arf.Did)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
 		return
 	}
 
 	if endpoint, ok := id.Services[o.serviceName]; !ok || endpoint.URL != o.serviceEndpoint {
 		if err != nil {
+			o.metrics.callbackErr(err)
 			utils.LogAndHTTPError(
 				w,
 				err,
@@ -309,10 +433,12 @@ func (o *OAuthServer) HandleCallback(
 		newAuthorizeSession(authRequest, arf.Did),
 	)
 	if err != nil {
+		o.metrics.callbackErr(err)
 		utils.LogAndHTTPError(w, err, "failed to create response", http.StatusInternalServerError)
 		return
 	}
 	o.provider.WriteAuthorizeResponse(r.Context(), w, authRequest, resp)
+	o.metrics.callbackSuccess()
 }
 
 // HandleToken processes OAuth 2.0 token requests from the client.
