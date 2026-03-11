@@ -13,7 +13,13 @@ import { reportWebVitals, AuthManager } from "internal";
 const authManager = new AuthManager("Habitat Docs", __DOMAIN__, __HABITAT_DOMAIN__, () => {
   router.navigate({ to: "/login" });
 });
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 60,
+    },
+  },
+});
 
 const domainUrl = new URL(`https://${__DOMAIN__}`);
 

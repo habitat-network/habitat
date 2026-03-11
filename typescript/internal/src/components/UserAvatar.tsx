@@ -1,22 +1,20 @@
+import { Actor } from "@/types/Actor";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 
 export interface UserAvatarProps {
-  src?: string;
-  displayName?: string;
-  handle?: string;
+  actor: Actor;
   size?: "default" | "sm" | "lg";
   className?: string;
   link?: boolean;
 }
 
 export function UserAvatar({
-  src,
-  displayName,
-  handle,
+  actor,
   size = "default",
   className,
   link = false,
 }: UserAvatarProps) {
+  const { displayName, handle } = actor;
   // Generate alt text from displayName or handle
   const alt = displayName || (handle ? `@${handle}` : "User");
 
@@ -25,7 +23,7 @@ export function UserAvatar({
 
   const avatar = (
     <Avatar size={size} className={className}>
-      {src && <AvatarImage src={src} alt={alt} />}
+      <AvatarImage src={actor.avatar} alt={alt} />
       <AvatarFallback>{fallbackText}</AvatarFallback>
     </Avatar>
   );

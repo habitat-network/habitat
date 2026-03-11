@@ -3,6 +3,9 @@ import type {
   ComAtprotoRepoGetRecord,
   ComAtprotoRepoListRecords,
   ComAtprotoIdentityResolveHandle,
+  AppBskyActorSearchActorsTypeahead,
+  AppBskyActorGetProfile,
+  AppBskyActorGetProfiles,
 } from "@atproto/api";
 import type {
   NetworkHabitatListConnectedApps,
@@ -43,6 +46,18 @@ type QueryEndpoints = {
     ComAtprotoIdentityResolveHandle.QueryParams,
     ComAtprotoIdentityResolveHandle.OutputSchema
   >;
+  "app.bsky.actor.searchActorsTypeahead": Query<
+    AppBskyActorSearchActorsTypeahead.QueryParams,
+    AppBskyActorSearchActorsTypeahead.OutputSchema
+  >;
+  "app.bsky.actor.getProfile": Query<
+    AppBskyActorGetProfile.QueryParams,
+    AppBskyActorGetProfile.OutputSchema
+  >;
+  "app.bsky.actor.getProfiles": Query<
+    AppBskyActorGetProfiles.QueryParams,
+    AppBskyActorGetProfiles.OutputSchema
+  >;
   "network.habitat.repo.listCollections": Query<
     NetworkHabitatRepoListCollections.QueryParams,
     NetworkHabitatRepoListCollections.OutputSchema
@@ -72,6 +87,18 @@ interface QueryOptions {
   fetchOptions?: DPoPOptions;
 }
 
+export class XRPCError extends Error {
+  public status: number;
+  public error: string;
+  public message: string;
+  constructor(status: number, response: { error: string; message: string }) {
+    super(response.error);
+    this.status = status;
+    this.error = response.error;
+    this.message = response.message;
+  }
+}
+
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
   params: QueryEndpoints[T]["params"],
@@ -98,17 +125,11 @@ export const query = async <T extends keyof QueryEndpoints>(
   try {
     const data = await response.json();
     if (!response.ok) {
-      // TODO include data in thrown error
-      console.error(data);
-      throw new Error(
-        `Failed to fetch: ${response.statusText}, ${response.status}`,
-      );
+      throw new XRPCError(response.status, data);
     }
     return data;
   } catch {
-    throw new Error(
-      `Failed to fetch: ${response.statusText}, ${response.status}`,
-    );
+    throw new Error(`Invalid error response: ${response.status}`);
   }
 };
 
@@ -127,17 +148,11 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   try {
     const data = await response.json();
     if (!response.ok) {
-      // TODO include data in thrown error
-      console.error(data);
-      throw new Error(
-        `Failed to fetch: ${response.statusText}, ${response.status}`,
-      );
+      throw new XRPCError(response.status, data);
     }
     return data;
   } catch {
-    throw new Error(
-      `Failed to fetch: ${response.statusText}, ${response.status}`,
-    );
+    throw new Error(`Invalid error response: ${response.status}`);
   }
 };
 
@@ -157,10 +172,11 @@ export const getPrivateRecord = async <T = Record<string, unknown>>(
   collection: string,
   rkey: string,
   repo: string,
+  includePermissions?: boolean,
 ): Promise<NetworkHabitatRepoGetRecord.OutputSchema & { value: T }> => {
   const response = await query(
     "network.habitat.getRecord",
-    { collection, rkey, repo },
+    { collection, rkey, repo, includePermissions },
     { authManager },
   );
   return response as NetworkHabitatRepoGetRecord.OutputSchema & { value: T };

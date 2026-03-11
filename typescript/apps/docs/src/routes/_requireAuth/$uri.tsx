@@ -16,29 +16,23 @@ import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { Libp2pConnectionProvider } from "@/connectionProvider";
-import { dcutr } from '@libp2p/dcutr'
-import { webRTC } from '@libp2p/webrtc'
-import { webTransport } from '@libp2p/webtransport'
+import { dcutr } from "@libp2p/dcutr";
+import { webRTC } from "@libp2p/webrtc";
+import { webTransport } from "@libp2p/webtransport";
 import { peerIdFromString } from "@libp2p/peer-id";
+import { docQueryOptions } from "@/queries/docs";
+import { XRPCError } from "internal";
 
-const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz"
-
-class ForbiddenError extends Error {
-  constructor() { super("forbidden"); }
-}
+const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
     // Fetch the record
     const { uri } = params;
     const [, , docDID, lexicon, rkey] = uri.split("/");
-    const originalRecordResponse = await context.authManager.fetch(
-      `/xrpc/network.habitat.getRecord?repo=${docDID}&collection=${lexicon}&rkey=${rkey}&includePermissions=true`,
+    const data = await context.queryClient.ensureQueryData(
+      docQueryOptions(uri, context.authManager),
     );
-
-    if (originalRecordResponse?.status === 403) {
-      throw new ForbiddenError();
-    }
 
     // The gossipsub topic is also used as the per-document rendezvous key.
     const habitatUri = `habitat://${docDID}/network.habitat.docs/${rkey}`;
@@ -50,22 +44,17 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // setup libp2p
     const node = await createLibp2p({
       addresses: {
-        listen: [
-          '/p2p-circuit',
-          '/webrtc',
-        ],
+        listen: ["/p2p-circuit", "/webrtc"],
       },
       transports: [
         webRTC({
           rtcConfiguration: {
-            iceServers: [
-              { urls: ['stun:stun.l.google.com:19302'] }
-            ]
-          }
+            iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+          },
         }),
         webTransport(),
         webSockets(),
-        circuitRelayTransport()
+        circuitRelayTransport(),
       ],
       connectionEncrypters: [noise()],
       streamMuxers: [yamux()],
@@ -85,7 +74,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     node.addEventListener("peer:connect", (event) => {
       const peerId = event.detail;
-      const isRelay = node.getConnections(peerId)
+      const isRelay = node
+        .getConnections(peerId)
         .some((c) => c.remoteAddr.toString().includes(domain));
       if (isRelay) {
         relayPeerId = peerId.toString();
@@ -96,21 +86,28 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       if (peerIdStr === node.peerId.toString()) return;
       if (peerIdStr === relayPeerId) return;
       if (node.getConnections(peerIdFromString(peerIdStr)).length > 0) return;
-      const circuitAddr = multiaddr(`/p2p/${relayPeerId}/p2p-circuit/p2p/${peerIdStr}`);
-      try { await node.dial(circuitAddr); }
-      catch (e) { console.log("caught error dialing", e, peerIdStr); }
+      const circuitAddr = multiaddr(
+        `/p2p/${relayPeerId}/p2p-circuit/p2p/${peerIdStr}`,
+      );
+      try {
+        await node.dial(circuitAddr);
+      } catch (e) {
+        console.log("caught error dialing", e, peerIdStr);
+      }
     }
 
-    node.addEventListener('connection:open', (evt) => {
-      const conn = evt.detail
-      const addr = conn.remoteAddr.toString()
+    node.addEventListener("connection:open", (evt) => {
+      const conn = evt.detail;
+      const addr = conn.remoteAddr.toString();
 
-      const isDirect = addr.includes('/webrtc') && !addr.includes('p2p-circuit')
-      const isRelayed = addr.includes('p2p-circuit')
+      const isDirect =
+        addr.includes("/webrtc") && !addr.includes("p2p-circuit");
+      const isRelayed = addr.includes("p2p-circuit");
 
-      console.log(`connection to ${conn.remotePeer}: ${isDirect ? 'direct WebRTC' : isRelayed ? 'relayed' : 'websocket'}`)
-    })
-
+      console.log(
+        `connection to ${conn.remotePeer}: ${isDirect ? "direct WebRTC" : isRelayed ? "relayed" : "websocket"}`,
+      );
+    });
 
     async function getServiceAuthToken(): Promise<string> {
       const response = await context.authManager.fetch(
@@ -122,18 +119,27 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       return data.token;
     }
 
-
     async function startPeerDiscovery(): Promise<void> {
       try {
         const stream = await node.dialProtocol(
-          peerIdFromString(relayPeerId), "/habitat/peer-discovery/1.0.0");
+          peerIdFromString(relayPeerId),
+          "/habitat/peer-discovery/1.0.0",
+        );
         const oauthToken = context.authManager.getAuthInfo()?.accessToken ?? "";
-        const serviceAuthToken = await getServiceAuthToken()
+        const serviceAuthToken = await getServiceAuthToken();
 
         const encoder = new TextEncoder();
-        stream.sink((async function* () {
-          yield encoder.encode(JSON.stringify({ topic: habitatUri, oauth_token: oauthToken, serviceauth_token: serviceAuthToken }));
-        })());
+        stream.sink(
+          (async function*() {
+            yield encoder.encode(
+              JSON.stringify({
+                topic: habitatUri,
+                oauth_token: oauthToken,
+                serviceauth_token: serviceAuthToken,
+              }),
+            );
+          })(),
+        );
 
         const decoder = new TextDecoder();
         let buf = "";
@@ -145,23 +151,14 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           for (const line of lines) {
             const id = line.trim();
             dialPeer(id).catch((e) => {
-              console.log("error dialing peer: ", e)
+              console.log("error dialing peer: ", e);
             });
           }
         }
-      } catch {
-
-      }
+      } catch { }
     }
 
     startPeerDiscovery().catch(() => { });
-
-    const data: {
-      uri: string;
-      cid: string;
-      value: HabitatDoc;
-      permissions?: Array<{ $type: string; did?: string; uri?: string }>;
-    } = await originalRecordResponse?.json();
 
     const ydoc = new Y.Doc();
     if (data.value.blob) {
@@ -178,7 +175,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         (
           g,
         ): g is { $type: "network.habitat.grantee#didGrantee"; did: string } =>
-          g.$type === "network.habitat.grantee#didGrantee" && !!g.did,
+          g.$type === "network.habitat.grantee#didGrantee" && "did" in g,
       )
       .map((g) => g.did);
 
@@ -217,7 +214,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           }
         }),
       );
-
     }
 
     async function writeChanges() {
@@ -251,7 +247,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
-        dialRelay().then((p) => { relayPeerId = p; })
+        dialRelay()
+          .then((p) => {
+            relayPeerId = p;
+          })
           .then(() => startPeerDiscovery())
           .then(refetchDoc)
           .then(mergeOtherEdits)
@@ -341,18 +340,22 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       onUpdate: handleUpdate,
     });
     return (
-      <>
-        <article>
-          <EditorContent editor={editor} />
-        </article>
-        {dirty ? "🔄 Syncing" : "✅ Synced"}
-        Node id: {node.peerId.toString()}
-      </>
+      <div className="flex flex-col h-full">
+        <header className="px-3 py-1 text-right border-b flex justify-between">
+          <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
+          <span>Node id: {node.peerId.toString()}</span>
+        </header>
+        <div className="flex-1 flex flex-col items-center">
+          <EditorContent className="prose w-full" editor={editor} />
+        </div>
+      </div>
     );
   },
   errorComponent({ error }) {
-    if (error instanceof ForbiddenError) {
-      return <p>you do not have permission to view this doc</p>;
+    if (error instanceof XRPCError) {
+      if (error.status === 403) {
+        return <p>you do not have permission to view this doc</p>;
+      }
     }
     return <p>Something went wrong.</p>;
   },

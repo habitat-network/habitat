@@ -69,7 +69,11 @@ export function Feed({
     <div className="flex flex-col gap-4 w-full max-w-2xl px-2">
       {sorted.map((entry) => (
         <Card
-          key={entry.repostedByHandle ? `${entry.uri}-repost-${entry.repostedByHandle}` : entry.uri}
+          key={
+            entry.repostedByHandle
+              ? `${entry.uri}-repost-${entry.repostedByHandle}`
+              : entry.uri
+          }
           size="sm"
           className={
             entry.kind === "public"
@@ -128,11 +132,7 @@ export function Feed({
                     }
                   >
                     <ItemMedia>
-                      <UserAvatar
-                        src={entry.author.avatar}
-                        displayName={entry.author.displayName}
-                        handle={entry.author.handle}
-                      />
+                      <UserAvatar actor={entry.author} />
                     </ItemMedia>
                     <ItemContent>
                       <ItemTitle>
@@ -158,19 +158,20 @@ export function Feed({
                           : "👥 Specific users"}
                     </Badge>
                   )}
-                  {showVisibilityBadge && entry.grantees && entry.grantees.length > 0 && (
-                    <AvatarGroup>
-                      {entry.grantees.map((grantee) => (
-                        <UserAvatar
-                          key={grantee.handle}
-                          src={grantee.avatar}
-                          handle={grantee.handle}
-                          size="sm"
-                          link
-                        />
-                      ))}
-                    </AvatarGroup>
-                  )}
+                  {showVisibilityBadge &&
+                    entry.grantees &&
+                    entry.grantees.length > 0 && (
+                      <AvatarGroup>
+                        {entry.grantees.map((grantee) => (
+                          <UserAvatar
+                            key={grantee.handle}
+                            actor={grantee}
+                            size="sm"
+                            link
+                          />
+                        ))}
+                      </AvatarGroup>
+                    )}
                   {entry.kind === "public" && entry.author?.handle && (
                     <a
                       href={bskyUrl(entry.uri, entry.author.handle)}

@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@source "./**/*.{ts,tsx}";
+@source "../../../internal/src/**/*.{ts,tsx}";
+
+@import "internal/styles.css";
+
+:root {
+    --background: #F9FFF2;
+    --foreground: #180C00;
+    --popover: #F9FFF2;
+    --popover-foreground: #180C00;
+    --primary: #180C00;
+    --primary-foreground: #F9FFF2;
+    --secondary-foreground: #180C00;
+    --accent-foreground: #180C00;
+    --sidebar: #d5ffd5;
+    --sidebar-accent: #adffad;
+    --sidebar-foreground: #180C00;
+    --sidebar-primary: #180C00;
+    --sidebar-primary-foreground: #F9FFF2;
+    --sidebar-accent-foreground: #180C00;
+}

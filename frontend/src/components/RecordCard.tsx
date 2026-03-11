@@ -1,5 +1,11 @@
 import { NetworkHabitatRepoGetRecord } from "api";
-import { Card, CardContent, CardFooter, CardTitle, UserAvatar } from "internal";
+import { UserAvatar } from "internal";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardTitle,
+} from "internal/components/ui";
 
 export type RecordCardProps = Omit<
   NetworkHabitatRepoGetRecord.OutputSchema,
@@ -17,14 +23,7 @@ export function RecordCard(record: RecordCardProps) {
       <CardFooter>
         <div className="flex gap-1">
           {record.grantees.map((g) => {
-            return (
-              <UserAvatar
-                key={g.did}
-                src={g.avatar}
-                handle={g.handle}
-                size="sm"
-              />
-            );
+            return <UserAvatar key={g.did} actor={g} size="sm" />;
           })}
         </div>
       </CardFooter>
