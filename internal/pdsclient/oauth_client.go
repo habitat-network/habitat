@@ -2,6 +2,7 @@ package pdsclient
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -20,6 +21,7 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/oauth2"
 )
 
@@ -59,10 +61,28 @@ type PdsOAuthClient interface {
 }
 
 type oauthClientImpl struct {
+	metrics *metrics
+
 	clientId    string
 	clientUri   string
 	redirectUri string
 	secretJwk   *jose.JSONWebKey
+}
+
+type metrics struct {
+	refreshTokenErrCtr     metric.Int64Counter
+	refreshTokenSuccessCtr metric.Int64Counter
+}
+
+func (m *metrics) refreshTokenErr(err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	m.refreshTokenErrCtr.Add(context.Background(), 1)
+}
+
+func (m *metrics) refreshTokenSuccess() {
+	m.refreshTokenSuccessCtr.Add(context.Background(), 1)
 }
 
 func NewPdsOAuthClient(
@@ -70,6 +90,7 @@ func NewPdsOAuthClient(
 	clientUri string,
 	redirectUri string,
 	secret string,
+	meter metric.Meter,
 ) (PdsOAuthClient, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
@@ -79,7 +100,22 @@ func NewPdsOAuthClient(
 	if err != nil {
 		return nil, err
 	}
+
+	refreshTokenErrCtr, err := meter.Int64Counter("oauth_client.refresh.err", metric.WithDescription("errors on PDS Oauth Client refresh"), metric.WithUnit("item"))
+	if err != nil {
+		return nil, err
+	}
+
+	refreshTokenSuccessCtr, err := meter.Int64Counter("oauth_client.refresh.success", metric.WithDescription("successes on PDS Oauth Client refresh"), metric.WithUnit("item"))
+	if err != nil {
+		return nil, err
+	}
+
 	return &oauthClientImpl{
+		metrics: &metrics{
+			refreshTokenErrCtr:     refreshTokenErrCtr,
+			refreshTokenSuccessCtr: refreshTokenSuccessCtr,
+		},
 		clientId:    clientId,
 		clientUri:   clientUri,
 		redirectUri: redirectUri,
@@ -240,11 +276,13 @@ func (o *oauthClientImpl) RefreshToken(
 ) (*TokenResponse, error) {
 	pr, err := fetchOAuthProtectedResource(identity)
 	if err != nil {
+		o.metrics.refreshTokenErr(err)
 		return nil, err
 	}
 
 	serverMetadata, err := fetchOauthAuthorizationServer(pr)
 	if err != nil {
+		o.metrics.refreshTokenErr(err)
 		return nil, err
 	}
 
@@ -252,6 +290,7 @@ func (o *oauthClientImpl) RefreshToken(
 
 	clientAssertion, err := o.getClientAssertion(issuer)
 	if err != nil {
+		o.metrics.refreshTokenErr(err)
 		return nil, err
 	}
 
@@ -272,6 +311,7 @@ func (o *oauthClientImpl) RefreshToken(
 
 	resp, err := dpopClient.Do(req)
 	if err != nil {
+		o.metrics.refreshTokenErr(err)
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -284,15 +324,18 @@ func (o *oauthClientImpl) RefreshToken(
 
 	rawRefreshResp, err := io.ReadAll(resp.Body)
 	if err != nil {
+		o.metrics.refreshTokenErr(err)
 		return nil, err
 	}
 
 	var tokenResp TokenResponse
 	err = json.NewDecoder(bytes.NewReader(rawRefreshResp)).Decode(&tokenResp)
 	if err != nil {
+		o.metrics.refreshTokenErr(err)
 		return nil, err
 	}
 
+	o.metrics.refreshTokenSuccess()
 	return &tokenResp, nil
 }
 
