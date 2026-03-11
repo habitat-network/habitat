@@ -78,7 +78,7 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
       <div className="flex flex-wrap gap-3">
         {apps.map((app) =>
         (
-          <Card key={app.clientID} size="sm" className="w-24 ring-0 items-center">
+          <Card key={app.clientID} className="ring-0">
             <Link to={app.clientUri}>
               {app.logoUri ? <img src={app.logoUri} alt={app.name} className="w-12 h-12 rounded-lg object-contain" /> : null}
               <CardDescription className="text-xs text-center truncate w-full px-1">{app.name}</CardDescription>
