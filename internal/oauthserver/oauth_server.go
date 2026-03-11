@@ -58,6 +58,9 @@ type metrics struct {
 	// HandleCallback
 	callbackErrCtr     metric.Int64Counter
 	callbackSuccessCtr metric.Int64Counter
+
+	// HandleToken
+	refreshTokenRequestCtr metric.Int64Counter
 }
 
 func newMetrics(meter metric.Meter) (*metrics, error) {
@@ -81,11 +84,17 @@ func newMetrics(meter metric.Meter) (*metrics, error) {
 		return nil, err
 	}
 
+	refreshTokenRequestCtr, err := meter.Int64Counter("oauth.refresh_token.request", metric.WithUnit("Item"), metric.WithDescription("counts request to refresh an OAuth token with habitat"))
+	if err != nil {
+		return nil, err
+	}
+
 	return &metrics{
-		authorizeErrCtr:     authorizeErrCtr,
-		authorizeSuccessCtr: authorizeSuccessCtr,
-		callbackErrCtr:      callbackErrCtr,
-		callbackSuccessCtr:  callbackSuccessCtr,
+		authorizeErrCtr:        authorizeErrCtr,
+		authorizeSuccessCtr:    authorizeSuccessCtr,
+		callbackErrCtr:         callbackErrCtr,
+		callbackSuccessCtr:     callbackSuccessCtr,
+		refreshTokenRequestCtr: refreshTokenRequestCtr,
 	}, nil
 }
 
@@ -460,6 +469,9 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
+	}
+	if req.GetGrantTypes().ExactOne("refresh_token") {
+		o.metrics.refreshTokenRequestCtr.Add(context.Background(), 1)
 	}
 	resp, err := o.provider.NewAccessResponse(ctx, req)
 	if err != nil {

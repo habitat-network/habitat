@@ -114,7 +114,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 
-	oauthClient := setupPDSOauthClient(cmd)
+	domain := cmd.String(fDomain)
+	oauthClient, err := pdsclient.NewPdsOAuthClient(
+		"https://"+domain+"/client-metadata.json", /*clientId*/
+		"https://"+domain,                         /*clientUri*/
+		"https://"+domain+"/oauth-callback",       /*redirectUri*/
+		cmd.String(fOauthClientSecret),
+		meter,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup oauth client")
+	}
 	pdsClientFactory := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
@@ -160,7 +170,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
 
-	domain := cmd.String(fDomain)
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
@@ -301,20 +310,6 @@ func setupPear(
 	}
 
 	return pear.NewPear(node, dir, permissions, repo, inbox), nil
-}
-
-func setupPDSOauthClient(cmd *cli.Command) pdsclient.PdsOAuthClient {
-	domain := cmd.String(fDomain)
-	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		"https://"+domain+"/client-metadata.json", /*clientId*/
-		"https://"+domain,                         /*clientUri*/
-		"https://"+domain+"/oauth-callback",       /*redirectUri*/
-		cmd.String(fOauthClientSecret),
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup oauth client")
-	}
-	return oauthClient
 }
 
 func setupOAuthServer(
