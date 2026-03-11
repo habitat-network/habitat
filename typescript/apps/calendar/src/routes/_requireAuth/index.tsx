@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
@@ -22,15 +22,15 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { authManager, queryClient } = context;
 
     const [events, invites, rsvps] = await Promise.all([
-      queryClient.ensureQueryData({
+      queryClient.fetchQuery({
         queryKey: ["events"],
         queryFn: () => listEvents(authManager),
       }),
-      queryClient.ensureQueryData({
+      queryClient.fetchQuery({
         queryKey: ["invites"],
         queryFn: () => listInvites(authManager),
       }),
-      queryClient.ensureQueryData({
+      queryClient.fetchQuery({
         queryKey: ["rsvps"],
         queryFn: () => listRsvps(authManager),
       }),
@@ -42,25 +42,10 @@ export const Route = createFileRoute("/_requireAuth/")({
 
 function CalendarPage() {
   const { authManager } = Route.useRouteContext();
-  const queryClient = useQueryClient();
+  const router = useRouter();
   const userDid = authManager.getAuthInfo()?.did;
 
-  const eventsQuery = useQuery({
-    queryKey: ["events"],
-    queryFn: () => listEvents(authManager),
-  });
-  const invitesQuery = useQuery({
-    queryKey: ["invites"],
-    queryFn: () => listInvites(authManager),
-  });
-  const rsvpsQuery = useQuery({
-    queryKey: ["rsvps"],
-    queryFn: () => listRsvps(authManager),
-  });
-
-  const events = eventsQuery.data;
-  const invites = invitesQuery.data ?? [];
-  const rsvps = rsvpsQuery.data ?? [];
+  const { events, invites, rsvps } = Route.useLoaderData();
   if (!userDid) throw new Error("User DID not found");
 
   // Create event modal state
@@ -87,9 +72,7 @@ function CalendarPage() {
       invitedDids: string[];
     }) => createEvent(authManager, userDid, event, invitedDids),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["events"] });
-      queryClient.invalidateQueries({ queryKey: ["invites"] });
-      queryClient.invalidateQueries({ queryKey: ["rsvps"] });
+      router.invalidate();
       setNewEventData(undefined);
     },
   });
@@ -107,7 +90,7 @@ function CalendarPage() {
       return editEvent(authManager, editingEventUri, mergedEvent);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["events"] });
+      router.invalidate();
       setEditingEvent(null);
       setEditingEventUri(null);
     },
@@ -122,7 +105,7 @@ function CalendarPage() {
       status: RsvpStatus;
     }) => createRsvp(authManager, eventUri, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["rsvps"] });
+      router.invalidate();
     },
   });
 
@@ -153,8 +136,6 @@ function CalendarPage() {
   function handleRsvp(eventUri: string, status: RsvpStatus) {
     rsvpMutation.mutate({ eventUri, status });
   }
-
-  if (!events) return null;
 
   return (
     <div>
