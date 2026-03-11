@@ -12,4 +12,5 @@ export * from "./label";
 export * from "./radio-group";
 export * from "./separator";
 export * from "./sidebar";
+export * from "./searchbar";
 export * from "./textarea";
