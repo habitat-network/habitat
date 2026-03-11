@@ -14,7 +14,7 @@ const config = defineConfig({
     }),
     tanstackRouter(),
     viteReact(),
-    ...habitatPlugins(),
+    ...habitatPlugins({ name: "greensky" }),
   ],
   optimizeDeps: {
     include: ["react", "react-dom", "react/jsx-runtime"],

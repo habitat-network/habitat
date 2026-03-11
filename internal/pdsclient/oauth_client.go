@@ -27,6 +27,7 @@ type ClientMetadata struct {
 	ClientName              string              `json:"client_name"`
 	ClientId                string              `json:"client_id"`
 	ClientUri               string              `json:"client_uri"`
+	LogoUri                 string              `json:"logo_uri,omitempty"`
 	ApplicationType         string              `json:"application_type"`
 	GrantTypes              []string            `json:"grant_types"`
 	Scope                   string              `json:"scope"`

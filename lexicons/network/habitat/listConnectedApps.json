@@ -49,6 +49,10 @@
                     "type": "string",
                     "format": "datetime",
                     "description": "The last time habitat detected a session with this app."
+                },
+                "logoUri": {
+                    "type": "string",
+                    "description": "The logo URI of this app."
                 }
             }
         }

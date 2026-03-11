@@ -564,6 +564,7 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 			ClientUri: c.ClientMetadata.ClientUri,
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
 			Name:      c.ClientMetadata.ClientName,
+			LogoUri:   c.ClientMetadata.LogoUri,
 		}
 	}
 	err = json.NewEncoder(w).Encode(output)

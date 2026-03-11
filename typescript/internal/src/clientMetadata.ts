@@ -1,9 +1,9 @@
 import type { OAuthClientMetadata } from "@atproto/oauth-client-browser";
 
-export default (domain: string) =>
+export default (clientName: string, domain: string) =>
   ({
     client_id: `https://${domain}/client-metadata.json`,
-    client_name: "Habitat",
+    client_name: clientName,
     client_uri: `https://${domain}`,
     redirect_uris: [`https://${domain}/oauth-login`, `https://${domain}`],
     scope: "atproto transition:generic",
@@ -12,6 +12,7 @@ export default (domain: string) =>
     token_endpoint_auth_method: "none",
     application_type: "web",
     dpop_bound_access_tokens: true,
+    logo_uri: `https://${domain}/habitat.png`,
   }) satisfies Omit<
     OAuthClientMetadata,
     "subject_type" | "authorization_signed_response_alg"

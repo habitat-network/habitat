@@ -12,5 +12,6 @@ type NetworkHabitatListConnectedAppsApp struct {
 	ClientID  string `json:"clientID"`
 	ClientUri string `json:"clientUri"`
 	LastUsed  string `json:"lastUsed"`
+	LogoUri   string `json:"logoUri,omitempty"`
 	Name      string `json:"name"`
 }

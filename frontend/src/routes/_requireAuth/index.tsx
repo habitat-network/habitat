@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { query } from "internal";
+import { Card, CardDescription, query } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
@@ -12,27 +12,6 @@ export const Route = createFileRoute("/_requireAuth/")({
       {},
       { authManager },
     )
-
-    // Fetch logo URIs from each app's client metadata (clientID is a URI to the metadata doc)
-    const logosByClientID: Record<string, string | undefined> = {};
-    await Promise.all(
-      appData.apps.map(async (app) => {
-        console.log("fetching", app.clientID)
-        try {
-          const resp = await fetch(app.clientID);
-          if (resp.ok) {
-            const data = await resp.json();
-            console.log("resp", data)
-            const meta: { logo_uri?: string } = data;
-            logosByClientID[app.clientID] = meta.logo_uri;
-          }
-          console.log("here", logosByClientID)
-        } catch {
-          // ignore
-          console.log("caught")
-        }
-      }),
-    );
 
     // List collections for manage your data preview
     const data = await query(
@@ -79,7 +58,8 @@ export const Route = createFileRoute("/_requireAuth/")({
       }
     }
 
-    return { collections, apps: appData.apps, profilesByDid, logosByClientID };
+    const apps = appData.apps.filter((app) => app.clientUri !== `https://${__DOMAIN__}`)
+    return { collections, apps: apps, profilesByDid };
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {
@@ -89,20 +69,23 @@ export const Route = createFileRoute("/_requireAuth/")({
 
 interface RecentlyUsedProps {
   apps: App[];
-  logosByClientID: Record<string, string | undefined>;
 }
 
-function RecentlyUsed({ apps, logosByClientID }: RecentlyUsedProps) {
+function RecentlyUsed({ apps }: RecentlyUsedProps) {
   return (
     <>
       <h4> Recently used apps </h4>
-      <div>
-        {apps.map((app) => {
-          const logoUri = logosByClientID[app.clientID];
-          return logoUri ? (
-            <img key={app.clientID} src={logoUri} alt={app.name} />
-          ) : null;
-        })}
+      <div className="flex flex-wrap gap-3">
+        {apps.map((app) =>
+        (
+          <Card key={app.clientID} size="sm" className="w-24 ring-0 items-center">
+            <Link to={app.clientUri}>
+              {app.logoUri ? <img src={app.logoUri} alt={app.name} className="w-12 h-12 rounded-lg object-contain" /> : null}
+              <CardDescription className="text-xs text-center truncate w-full px-1">{app.name}</CardDescription>
+            </Link>
+          </Card>
+        )
+        )}
       </div>
     </>
   );
@@ -156,7 +139,7 @@ function ManageDataPreview({
 }
 
 function AuthenticatedHome() {
-  const { collections, apps, profilesByDid, logosByClientID } =
+  const { collections, apps, profilesByDid } =
     Route.useLoaderData()!;
 
   // For now, don't require the user to be registered with a habitat service. If they do have one,
@@ -165,7 +148,7 @@ function AuthenticatedHome() {
   return (
     <>
       <h1>Welcome to Habitat!</h1>
-      <RecentlyUsed apps={apps} logosByClientID={logosByClientID} />
+      <RecentlyUsed apps={apps} />
       <ManageDataPreview
         collections={collections}
         profilesByDid={profilesByDid}

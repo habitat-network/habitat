@@ -43,6 +43,8 @@ export interface App {
   clientUri: string
   /** The last time habitat detected a session with this app. */
   lastUsed: string
+  /** The logo URI of this app. */
+  logoUri?: string
 }
 
 const hashApp = 'app'
