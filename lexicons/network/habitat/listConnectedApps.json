@@ -1,0 +1,60 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.listConnectedApps",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List apps connected to habitat for a given user. Returns connected apps for the authenticated user.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "apps"
+                    ],
+                    "properties": {
+                        "apps": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "network.habitat.listConnectedApps#app"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "app": {
+            "type": "object",
+            "required": [
+                "name",
+                "clientID",
+                "clientUri",
+                "lastUsed"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The name of this app."
+                },
+                "clientID": {
+                    "type": "string",
+                    "description": "The ID of this app."
+                },
+                "clientUri": {
+                    "type": "string",
+                    "description": "The uri of this app."
+                },
+                "lastUsed": {
+                    "type": "string",
+                    "format": "datetime",
+                    "description": "The last time habitat detected a session with this app."
+                },
+                "logoUri": {
+                    "type": "string",
+                    "description": "The logo URI of this app."
+                }
+            }
+        }
+    }
+}

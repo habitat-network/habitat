@@ -14,7 +14,7 @@ const config = defineConfig({
     }),
     tanstackRouter(),
     viteReact(),
-    ...habitatPlugins(),
+    ...habitatPlugins({ name: "Habitat Calendar" }),
   ],
 });
 

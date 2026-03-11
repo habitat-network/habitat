@@ -145,6 +145,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
+	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes
 	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)

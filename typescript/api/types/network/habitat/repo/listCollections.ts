@@ -16,10 +16,7 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.repo.listCollections'
 
-export type QueryParams = {
-  /** Repo to search from to retrieve records. */
-  subject: string
-}
+export type QueryParams = {}
 export type InputSchema = undefined
 
 export interface OutputSchema {

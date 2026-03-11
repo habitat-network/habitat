@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     tanstackRouter({ autoCodeSplitting: true }),
     viteReact(),
-    ...habitatAppPlugin(),
+    ...habitatAppPlugin({ name: "Habitat" }),
   ],
   resolve: {
     alias: {

@@ -10,7 +10,7 @@ import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { reportWebVitals, AuthManager } from "internal";
 
-const authManager = new AuthManager(__DOMAIN__, __HABITAT_DOMAIN__, () => {
+const authManager = new AuthManager("Habitat Calendar", __DOMAIN__, __HABITAT_DOMAIN__, () => {
   router.navigate({ to: "/login" });
 });
 const queryClient = new QueryClient();

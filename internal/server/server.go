@@ -428,20 +428,7 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params habitat.NetworkHabitatRepoListCollectionsParams
-	err := s.decoder.Decode(&params, r.URL.Query())
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing request params", http.StatusBadRequest)
-		return
-	}
-
-	did, err := syntax.ParseDID(params.Subject)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing subject DID", http.StatusBadRequest)
-		return
-	}
-
-	collections, err := s.pear.ListCollections(r.Context(), callerDID, did)
+	collections, err := s.pear.ListCollections(r.Context(), callerDID, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "listing collections", http.StatusInternalServerError)
 		return
@@ -465,7 +452,6 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
-
 }
 
 // TODO: this is a confusing name, because our ListPermissions internally takes in a generic query of grantee + owner + collection + rkey

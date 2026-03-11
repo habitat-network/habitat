@@ -27,11 +27,12 @@ export class AuthManager {
   private onUnauthenticated: () => void;
 
   constructor(
+    appName: string,
     domain: string,
     serverDomain: string,
     onUnauthenticated: () => void,
   ) {
-    const { client_id } = clientMetadata(domain);
+    const { client_id } = clientMetadata(appName, domain);
     this.config = new client.Configuration(
       {
         issuer: `https://${serverDomain}/oauth/authorize`,
@@ -157,4 +158,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }

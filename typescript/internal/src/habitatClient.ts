@@ -5,6 +5,7 @@ import type {
   ComAtprotoIdentityResolveHandle,
 } from "@atproto/api";
 import type {
+  NetworkHabitatListConnectedApps,
   NetworkHabitatRepoGetRecord,
   NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
@@ -45,6 +46,10 @@ type QueryEndpoints = {
   "network.habitat.repo.listCollections": Query<
     NetworkHabitatRepoListCollections.QueryParams,
     NetworkHabitatRepoListCollections.OutputSchema
+  >;
+  "network.habitat.listConnectedApps": Query<
+    NetworkHabitatListConnectedApps.QueryParams,
+    NetworkHabitatListConnectedApps.OutputSchema
   >;
 };
 

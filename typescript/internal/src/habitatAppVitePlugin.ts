@@ -24,6 +24,7 @@ const cliArgs = util.parseArgs({
 });
 
 export default function habitatAppPlugin(options?: {
+  name?: string;
   domain?: string;
   habitatDomain?: string;
   hashRouting?: boolean;
@@ -57,7 +58,7 @@ export default function habitatAppPlugin(options?: {
       },
     },
     generateFile({
-      data: clientMetadata(domain),
+      data: clientMetadata(options?.name ?? "habitat", domain),
       output: "client-metadata.json",
     }),
   ];

@@ -841,6 +841,57 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatListConnectedApps: {
+    lexicon: 1,
+    id: 'network.habitat.listConnectedApps',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List apps connected to habitat for a given user. Returns connected apps for the authenticated user.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['apps'],
+            properties: {
+              apps: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.listConnectedApps#app',
+                },
+              },
+            },
+          },
+        },
+      },
+      app: {
+        type: 'object',
+        required: ['name', 'clientID', 'clientUri', 'lastUsed'],
+        properties: {
+          name: {
+            type: 'string',
+            description: 'The name of this app.',
+          },
+          clientID: {
+            type: 'string',
+            description: 'The ID of this app.',
+          },
+          clientUri: {
+            type: 'string',
+            description: 'The uri of this app.',
+          },
+          lastUsed: {
+            type: 'string',
+            format: 'datetime',
+            description:
+              'The last time habitat detected a session with this app.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatPermissionsAddPermission: {
     lexicon: 1,
     id: 'network.habitat.permissions.addPermission',
@@ -1127,17 +1178,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List collections for a given user. Must be authenticated as the subject user.',
-        parameters: {
-          type: 'params',
-          required: ['subject'],
-          properties: {
-            subject: {
-              type: 'string',
-              description: 'Repo to search from to retrieve records.',
-            },
-          },
-        },
+          'List collections for a given user. Returns collections for the authenticated user.',
         output: {
           encoding: 'application/json',
           schema: {
@@ -1436,6 +1477,7 @@ export const ids = {
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
+  NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
   NetworkHabitatPermissionsListPermissions:
