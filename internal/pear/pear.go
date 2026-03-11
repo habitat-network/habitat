@@ -181,8 +181,6 @@ func (p *pear) ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, 
 var _ Pear = &pear{}
 
 var (
-	ErrPublicRecordExists     = fmt.Errorf("a public record exists with the same key")
-	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
 	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
 	ErrFollowersCliqueRkey    = errors.New("this clique cannot be directly set, it derives from app.bsky.graph.follows of the user")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")

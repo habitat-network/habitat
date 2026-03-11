@@ -137,10 +137,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pear servers")
+		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
-
+	pearServer, err := server.NewServer(meter, dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup pear server")
+	}
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
