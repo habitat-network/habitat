@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/metric/noop"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -30,6 +31,7 @@ func testOAuthClient(t *testing.T) PdsOAuthClient {
 		"https://test.com",
 		"https://test.com/callback",
 		key,
+		&noop.Meter{},
 	)
 	require.NoError(t, err)
 	return client
