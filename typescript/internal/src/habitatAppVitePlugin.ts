@@ -3,6 +3,7 @@ import clientMetadata from "./clientMetadata";
 import type { Plugin } from "vite";
 import util from "node:util";
 import tailwindcss from "@tailwindcss/vite";
+import { devtools } from "@tanstack/devtools-vite";
 
 const cliArgs = util.parseArgs({
   args: process.argv.slice(process.argv.indexOf("--") + 1),
@@ -24,6 +25,7 @@ const cliArgs = util.parseArgs({
 });
 
 export default function habitatAppPlugin(options?: {
+  name?: string;
   domain?: string;
   habitatDomain?: string;
   hashRouting?: boolean;
@@ -33,6 +35,7 @@ export default function habitatAppPlugin(options?: {
   const hashRouting = options?.hashRouting ?? !!process.env.HASH_ROUTING;
 
   return [
+    ...devtools({ eventBusConfig: { port: parseInt(process.env.DEVTOOLS_PORT ?? "42069", 10) } }),
     ...tailwindcss(),
     {
       name: "habitat-app-config",
@@ -49,6 +52,7 @@ export default function habitatAppPlugin(options?: {
           server: {
             host: true,
             allowedHosts: [".ts.net"],
+            port: process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT, 10) : undefined,
           },
           build: {
             outDir: cliArgs.values.outDir,
@@ -57,7 +61,7 @@ export default function habitatAppPlugin(options?: {
       },
     },
     generateFile({
-      data: clientMetadata(domain),
+      data: clientMetadata(options?.name ?? "habitat", domain),
       output: "client-metadata.json",
     }),
   ];

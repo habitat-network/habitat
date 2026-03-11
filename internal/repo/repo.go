@@ -2,9 +2,11 @@ package repo
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -26,6 +28,7 @@ type Repo interface {
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
 	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
+	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
 // Persist private data within repos that mirror public repos.
@@ -60,6 +63,9 @@ type record struct {
 	Collection string `gorm:"primaryKey"`
 	Rkey       string `gorm:"primaryKey"`
 	Value      []byte
+	// Automatically populated by gorm: https://gorm.io/docs/models.html#Declaring-Models
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type Blob struct {
@@ -321,4 +327,68 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 	}
 
 	return records, nil
+}
+
+// Ugly: hack to support SQLITE and Postgres
+type sqlTime struct {
+	inner time.Time
+}
+
+var sqliteTimeFormats = []string{
+	"2006-01-02 15:04:05.999999999-07:00",
+	"2006-01-02 15:04:05-07:00",
+	"2006-01-02T15:04:05Z07:00",
+	"2006-01-02 15:04:05",
+}
+
+func (t *sqlTime) Scan(value any) error {
+	switch v := value.(type) {
+	case time.Time:
+		t.inner = v
+		return nil
+	case string:
+		for _, layout := range sqliteTimeFormats {
+			if parsed, err := time.Parse(layout, v); err == nil {
+				t.inner = parsed
+				return nil
+			}
+		}
+		return fmt.Errorf("sqlTime: cannot parse %q", v)
+	}
+	return fmt.Errorf("sqlTime: unsupported type %T", value)
+}
+
+func (t sqlTime) Value() (driver.Value, error) {
+	return t.inner, nil
+}
+
+// Metadata about a collection
+type CollectionMetadata struct {
+	Name        string
+	RecordCount int
+	LastTouched time.Time
+}
+
+type collectionMetadataRow struct {
+	Name        string
+	RecordCount int
+	LastTouched sqlTime
+}
+
+func (r *repo) ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error) {
+	var rows []collectionMetadataRow
+	err := r.db.Model(&record{}).
+		Select("collection as name, COUNT(*) as record_count, MAX(updated_at) as last_touched").
+		Where("did = ?", did).
+		Group("collection").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	md := make([]CollectionMetadata, len(rows))
+	for i, row := range rows {
+		md[i] = CollectionMetadata{Name: row.Name, RecordCount: row.RecordCount, LastTouched: row.LastTouched.inner}
+	}
+	return md, nil
 }

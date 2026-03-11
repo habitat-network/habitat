@@ -1,3 +1,8 @@
+@import "tailwindcss";
+
+@source "./**/*.{ts,tsx}";
+@source "../../typescript/internal/src/**/*.{ts,tsx}";
+
 body {
   --pico-primary-background: #bcd979;
   --pico-primary-border: #9dad6f;

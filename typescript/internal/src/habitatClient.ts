@@ -8,7 +8,9 @@ import type {
   AppBskyActorGetProfiles,
 } from "@atproto/api";
 import type {
+  NetworkHabitatListConnectedApps,
   NetworkHabitatRepoGetRecord,
+  NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
   NetworkHabitatRepoPutRecord,
 } from "api";
@@ -55,6 +57,14 @@ type QueryEndpoints = {
   "app.bsky.actor.getProfiles": Query<
     AppBskyActorGetProfiles.QueryParams,
     AppBskyActorGetProfiles.OutputSchema
+  >;
+  "network.habitat.repo.listCollections": Query<
+    NetworkHabitatRepoListCollections.QueryParams,
+    NetworkHabitatRepoListCollections.OutputSchema
+  >;
+  "network.habitat.listConnectedApps": Query<
+    NetworkHabitatListConnectedApps.QueryParams,
+    NetworkHabitatListConnectedApps.OutputSchema
   >;
 };
 
@@ -183,10 +193,11 @@ export const listPrivateRecords = async <T extends Record<string, unknown>>(
   limit?: number,
   cursor?: string,
   subjects?: string[],
+  includePermissions?: boolean,
 ): Promise<ListRecordsResponse<T>> => {
   const response = await query(
     "network.habitat.listRecords",
-    { collection, limit, cursor, subjects: subjects ?? [] },
+    { collection, limit, cursor, subjects: subjects ?? [], includePermissions },
     { authManager },
   );
   return response as ListRecordsResponse<T>;

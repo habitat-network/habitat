@@ -1,22 +1,28 @@
 import { Link } from "@tanstack/react-router";
+import { UserAvatar } from "internal";
+import { ProfileViewDetailed } from "@atproto/api/dist/client/types/app/bsky/actor/defs";
 
 interface HeaderProps {
-  handle?: string | null;
+  profile?: ProfileViewDetailed;
   onLogout: () => void;
 }
 
-const Header = ({ handle, onLogout }: HeaderProps) => {
+const Header = ({ profile, onLogout }: HeaderProps) => {
   return (
     <header>
       <nav>
         <ul>
           <li>
-            <Link to="/">🌱 Habitat</Link>
+            <Link to="/">🌱 habitat</Link>
           </li>
         </ul>
-        {handle ? (
+        {profile ? (
           <ul>
-            <li>{handle}</li>
+            <UserAvatar
+              src={profile.avatar}
+              displayName={profile.displayName}
+              handle={profile.handle}
+            />
             <li>
               <button onClick={onLogout}>Logout</button>
             </li>

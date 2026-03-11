@@ -26,12 +26,14 @@ import * as CommunityLexiconLocationHthree from './types/community/lexicon/locat
 import * as NetworkHabitatClique from './types/network/habitat/clique.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
+import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
+import * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
@@ -53,12 +55,14 @@ export * as CommunityLexiconLocationHthree from './types/community/lexicon/locat
 export * as NetworkHabitatClique from './types/network/habitat/clique.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
+export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
+export * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
@@ -496,6 +500,18 @@ export class NetworkHabitatNS {
     this.repo = new NetworkHabitatRepoNS(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
   }
+
+  listConnectedApps(
+    params?: NetworkHabitatListConnectedApps.QueryParams,
+    opts?: NetworkHabitatListConnectedApps.CallOptions,
+  ): Promise<NetworkHabitatListConnectedApps.Response> {
+    return this._client.call(
+      'network.habitat.listConnectedApps',
+      params,
+      undefined,
+      opts,
+    )
+  }
 }
 
 export class NetworkHabitatInternalNS {
@@ -589,6 +605,18 @@ export class NetworkHabitatRepoNS {
       .catch((e) => {
         throw NetworkHabitatRepoGetRecord.toKnownErr(e)
       })
+  }
+
+  listCollections(
+    params?: NetworkHabitatRepoListCollections.QueryParams,
+    opts?: NetworkHabitatRepoListCollections.CallOptions,
+  ): Promise<NetworkHabitatRepoListCollections.Response> {
+    return this._client.call(
+      'network.habitat.repo.listCollections',
+      params,
+      undefined,
+      opts,
+    )
   }
 
   listRecords(

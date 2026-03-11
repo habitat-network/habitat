@@ -1,0 +1,62 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.repo.listCollections",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List collections for a given user. Returns collections for the authenticated user.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "collections"
+                    ],
+                    "properties": {
+                        "collections": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "network.habitat.repo.listCollections#collectionMetadata"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "collectionMetadata": {
+            "type": "object",
+            "required": [
+                "nsid",
+                "recordCount",
+                "lastTouched",
+                "grantees"
+            ],
+            "properties": {
+                "nsid": {
+                    "type": "string",
+                    "description": "The NSID of this collection,"
+                },
+                "recordCount": {
+                    "type": "integer",
+                    "description": "Number of records for this collection."
+                },
+                "lastTouched": {
+                    "type": "string",
+                    "format": "datetime",
+                    "description": "The last time a record in this collection was touched."
+                },
+                "grantees": {
+                    "type": "array",
+                    "items": {
+                        "type": "union",
+                        "refs": [
+                            "network.habitat.grantee#didGrantee",
+                            "network.habitat.grantee#cliqueRef"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}

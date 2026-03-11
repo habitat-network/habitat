@@ -13,11 +13,13 @@ import (
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	habitat_err "github.com/habitat-network/habitat/internal/error"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type mockXrpcChannel struct {
@@ -130,7 +132,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	// Non-owner without permission gets unauthorized
 	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
 	require.Nil(t, got)
-	require.ErrorIs(t, ErrUnauthorized, err)
+	require.ErrorIs(t, habitat_err.ErrUnauthorized, err)
 
 	// Grant permission
 	require.NoError(t, p.permissions.AddPermissions([]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, ""))
@@ -290,7 +292,7 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	// A non-grantee cannot read the record.
 	got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(nonGranteeDID))
 	require.Nil(t, got)
-	require.ErrorIs(t, err, ErrUnauthorized)
+	require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 }
 
 // TestPutRecordCrossUserUnauthorized verifies that a caller cannot put a record
@@ -410,7 +412,7 @@ func TestCliqueFlow(t *testing.T) {
 	// B can no longer see A's record
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(bDID))
 	require.Nil(t, got)
-	require.ErrorIs(t, err, ErrUnauthorized)
+	require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
 	// B can still see its own record
 	got, err = p.GetRecord(t.Context(), coll, bRkey, syntax.DID(bDID), syntax.DID(bDID))
@@ -509,6 +511,49 @@ func TestNotifyOfUpdate(t *testing.T) {
 		)
 		require.NoError(t, err)
 	})
+}
+
+func TestListCollections(t *testing.T) {
+	ownerDID := syntax.DID("did:example:owner")
+	memberDID := syntax.DID("did:example:member")
+	granteeDID := syntax.DID("did:example:grantee")
+
+	dir := mockIdentities([]syntax.DID{ownerDID, memberDID, granteeDID})
+	p := newPearForTest(t, dir)
+
+	// Create a clique owned by owner with member as a member
+	cliqueRkey := syntax.RecordKey("my-clique")
+	require.NoError(t, p.permissions.AddPermissions(
+		[]permissions.Grantee{permissions.DIDGrantee(memberDID)},
+		ownerDID,
+		permissions.CliqueNSID,
+		cliqueRkey,
+	))
+	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(ownerDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
+
+	coll := syntax.NSID("my.fake.collection")
+	validate := true
+
+	// Put a record granting access to both the clique and a specific DID grantee
+	_, err := p.PutRecord(
+		t.Context(),
+		ownerDID,
+		ownerDID,
+		coll,
+		map[string]any{"data": "value"},
+		"my-rkey",
+		&validate,
+		[]permissions.Grantee{clique, permissions.DIDGrantee(granteeDID)},
+	)
+	require.NoError(t, err)
+
+	collections, err := p.ListCollections(t.Context(), ownerDID, ownerDID)
+	require.NoError(t, err)
+	require.Len(t, collections, 1)
+	require.Equal(t, coll.String(), collections[0].Name)
+
+	// Only the DID grantee should be returned, not the clique grantee
+	require.Len(t, collections[0].Grantees, 2)
 }
 
 // TODO: eventually test permissions with blobs here
@@ -782,5 +827,5 @@ func TestGetBlobPermissionsViaRecord(t *testing.T) {
 
 	// Charlie (no access to any record referencing the blob) cannot access the blob.
 	_, _, _, err = p.GetBlob(t.Context(), charlieDID, aliceDID, cid)
-	require.ErrorIs(t, err, ErrUnauthorized)
+	require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 }

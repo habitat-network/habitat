@@ -95,7 +95,6 @@ const Step1 = ({
     mutationFn: async (data: FormData) => {
       const handleResolver = new HandleResolver();
       const did = await handleResolver.resolve(data.handle);
-      console.log("did", did);
       if (!did) throw new Error("Handle not found");
 
       const didResolver = new DidResolver({});

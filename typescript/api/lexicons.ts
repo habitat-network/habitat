@@ -841,6 +841,57 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatListConnectedApps: {
+    lexicon: 1,
+    id: 'network.habitat.listConnectedApps',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List apps connected to habitat for a given user. Returns connected apps for the authenticated user.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['apps'],
+            properties: {
+              apps: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.listConnectedApps#app',
+                },
+              },
+            },
+          },
+        },
+      },
+      app: {
+        type: 'object',
+        required: ['name', 'clientID', 'clientUri', 'lastUsed'],
+        properties: {
+          name: {
+            type: 'string',
+            description: 'The name of this app.',
+          },
+          clientID: {
+            type: 'string',
+            description: 'The ID of this app.',
+          },
+          clientUri: {
+            type: 'string',
+            description: 'The uri of this app.',
+          },
+          lastUsed: {
+            type: 'string',
+            format: 'datetime',
+            description:
+              'The last time habitat detected a session with this app.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatPermissionsAddPermission: {
     lexicon: 1,
     id: 'network.habitat.permissions.addPermission',
@@ -1120,6 +1171,63 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatRepoListCollections: {
+    lexicon: 1,
+    id: 'network.habitat.repo.listCollections',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List collections for a given user. Returns collections for the authenticated user.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collections'],
+            properties: {
+              collections: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.repo.listCollections#collectionMetadata',
+                },
+              },
+            },
+          },
+        },
+      },
+      collectionMetadata: {
+        type: 'object',
+        required: ['nsid', 'recordCount', 'lastTouched', 'grantees'],
+        properties: {
+          nsid: {
+            type: 'string',
+            description: 'The NSID of this collection,',
+          },
+          recordCount: {
+            type: 'integer',
+            description: 'Number of records for this collection.',
+          },
+          lastTouched: {
+            type: 'string',
+            format: 'datetime',
+            description:
+              'The last time a record in this collection was touched.',
+          },
+          grantees: {
+            type: 'array',
+            items: {
+              type: 'union',
+              refs: [
+                'lex:network.habitat.grantee#didGrantee',
+                'lex:network.habitat.grantee#cliqueRef',
+              ],
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatRepoListRecords: {
     lexicon: 1,
     id: 'network.habitat.repo.listRecords',
@@ -1369,6 +1477,7 @@ export const ids = {
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
+  NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
   NetworkHabitatPermissionsListPermissions:
@@ -1378,6 +1487,7 @@ export const ids = {
   NetworkHabitatPhoto: 'network.habitat.photo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
+  NetworkHabitatRepoListCollections: 'network.habitat.repo.listCollections',
   NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',

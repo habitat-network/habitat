@@ -1,6 +1,6 @@
 tasks:
   dev:
-    args: 
+    args:
       - --
       - --domain
       - $project.${TS_DOMAIN}
