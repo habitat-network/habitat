@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -77,7 +76,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ownerDID, err := s.fetchDID(r.Context(), req.Repo)
+	target, err := syntax.ParseAtIdentifier(req.Repo)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
 		return
@@ -113,12 +112,12 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	uri, err := s.pear.PutRecord(r.Context(), callerDID, ownerDID, syntax.NSID(req.Collection), record, syntax.RecordKey(rkey), &v, parsed)
+	uri, err := s.pear.PutRecord(r.Context(), callerDID, target.DID(), syntax.NSID(req.Collection), record, syntax.RecordKey(rkey), &v, parsed)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
 			err,
-			fmt.Sprintf("putting record for did %s", ownerDID.String()),
+			fmt.Sprintf("putting record for did %s", target.DID().String()),
 			http.StatusInternalServerError,
 		)
 		return
@@ -131,40 +130,6 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-
-func (s *Server) fetchDID(ctx context.Context, didOrHandle string) (syntax.DID, error) {
-	// Try handling both handles and dids
-	atid, err := syntax.ParseAtIdentifier(didOrHandle)
-	if err != nil {
-		return "", err
-	}
-
-	id, err := s.dir.Lookup(ctx, atid)
-	if err != nil {
-		return "", err
-	}
-	return id.DID, nil
-}
-
-/*
-func (s *Server) fetchDIDs(ctx context.Context, didOrHandles []string) ([]syntax.DID, error) {
-	dids := make([]syntax.DID, len(didOrHandles))
-	for i, did := range didOrHandles {
-		resolved, err := s.fetchDID(ctx, did)
-		if err != nil {
-			return nil, err
-		}
-		dids[i] = resolved
-	}
-	return dids, nil
-}
-*/
-
-// Find desired did
-// if other did, forward request there
-// if our own did,
-// --> if authInfo matches then fulfill the request
-// --> otherwise verify requester's token via bff auth --> if they have permissions via permission store --> fulfill request
 
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
@@ -179,9 +144,9 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetDID, err := s.fetchDID(r.Context(), params.Repo)
+	target, err := syntax.ParseAtIdentifier(params.Repo)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "identity lookup", http.StatusBadRequest)
+		utils.LogAndHTTPError(w, err, "parsing repo", http.StatusBadRequest)
 		return
 	}
 
@@ -196,7 +161,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := s.pear.GetRecord(r.Context(), collection, rkey, targetDID, callerDID)
+	record, err := s.pear.GetRecord(r.Context(), collection, rkey, target.DID(), callerDID)
 	if err != nil {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
@@ -216,7 +181,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	output := &habitat.NetworkHabitatRepoGetRecordOutput{
 		Uri: fmt.Sprintf(
 			"habitat://%s/%s/%s",
-			targetDID.String(),
+			target.DID().String(),
 			collection,
 			rkey,
 		),
