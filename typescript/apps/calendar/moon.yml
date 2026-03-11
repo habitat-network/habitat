@@ -3,3 +3,10 @@ tasks:
   dev:
     env:
       DEVTOOLS_PORT: '42070'
+      SERVER_PORT: '5173'
+    deps:
+      - target: "pear:dev"
+      - target: "funnel:start"
+        args: ["5173", "$project"]
+    options:
+      mergeDeps: replace
