@@ -1,6 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { DidResolver } from "@atproto/identity";
-import { OnboardComponent, habitatServers } from "../onboard";
 import { query } from "internal";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 import { CollectionCard } from "@/components/CollectionCard";
@@ -8,19 +6,9 @@ import { CollectionCard } from "@/components/CollectionCard";
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
     const { authManager } = context;
-
     const did = authManager.getAuthInfo()!.did;
-    const resolver = new DidResolver({});
-    const didDoc = await resolver.resolve(did);
-
-    const serviceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
-    const hasHabitat = didDoc?.service?.some(
-      (s) => s.id === `#${serviceKey}` && s.type === "HabitatServer",
-    );
-    const handle = didDoc?.alsoKnownAs?.[0]?.replace(/^at:\/\//, "");
 
     // List collections for manage your data preview
-
     const data = await query(
       "network.habitat.repo.listCollections",
       { subject: did },
@@ -34,8 +22,8 @@ export const Route = createFileRoute("/_requireAuth/")({
         collections.flatMap((c) =>
           c.grantees
             ? c.grantees
-                .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
-                .map((g) => (g as { did: string }).did)
+              .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
+              .map((g) => (g as { did: string }).did)
             : [],
         ),
       ),
@@ -65,7 +53,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       }
     }
 
-    return { hasHabitat, handle, collections, profilesByDid };
+    return { collections, profilesByDid };
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {
@@ -96,8 +84,8 @@ function ManageDataPreview({
         {collections.map((collection) => {
           const didGrantees = collection.grantees
             ? (collection.grantees.filter(
-                (g) => g.$type === "network.habitat.grantee#didGrantee",
-              ) as { did: string }[])
+              (g) => g.$type === "network.habitat.grantee#didGrantee",
+            ) as { did: string }[])
             : [];
           const avatars = didGrantees.map((grantee) => {
             const did = grantee.did;
@@ -125,21 +113,11 @@ function ManageDataPreview({
 }
 
 function AuthenticatedHome() {
-  const { hasHabitat, handle, collections, profilesByDid } =
+  const { collections, profilesByDid } =
     Route.useLoaderData()!;
 
-  if (!hasHabitat) {
-    return import.meta.env.DEV ? (
-      <OnboardComponent
-        serviceKey="habitat_local"
-        title="Onboard (Local)"
-        defaultServer="https://pear.taile529e.ts.net"
-        handle={handle}
-      />
-    ) : (
-      <OnboardComponent serverOptions={habitatServers} handle={handle} />
-    );
-  }
+  // For now, don't require the user to be registered with a habitat service. If they do have one,
+  // requests will still be routed there, but allow them to use the centralized one by default.
 
   return (
     <>
