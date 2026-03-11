@@ -70,6 +70,7 @@ type Pear interface {
 	// Repository methods; roughly analgous to com.atproto.repo methods
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
+	DeleteRecord(ctx context.Context, caller syntax.DID, target syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error)
 	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
@@ -186,6 +187,7 @@ var (
 	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
 	ErrFollowersCliqueRkey    = errors.New("this clique cannot be directly set, it derives from app.bsky.graph.follows of the user")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
+	ErrDIDNotServed           = errors.New("DID is not served by this node")
 )
 
 func NewPear(
@@ -372,6 +374,24 @@ func (p *pear) GetRecord(
 	return nil, ErrRemoteFetchUnsupported
 	// TODO: implement
 	// return p.getRecordRemote(ctx, collection, rkey, target, caller)
+}
+
+// DeleteRecord implements Pear.
+func (p *pear) DeleteRecord(ctx context.Context, caller syntax.DID, target syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error {
+	if caller != target {
+		return habitat_err.ErrUnauthorized
+	}
+
+	ok, err := p.node.ServesDID(ctx, target)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return ErrDIDNotServed
+	}
+
+	return p.repo.DeleteRecord(ctx, target.String(), collection.String(), rkey.String())
 }
 
 // Remove once ListRecords() is implemented correctly. Separate so i can still read old code.

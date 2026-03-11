@@ -24,6 +24,7 @@ import (
 type Repo interface {
 	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
+	DeleteRecord(ctx context.Context, did string, collection string, rkey string) error
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
@@ -193,6 +194,11 @@ func (r *repo) GetRecord(
 		Rkey:       row.Rkey,
 		Value:      value,
 	}, nil
+}
+
+// DeleteRecord implements Repo.
+func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, rkey string) error {
+	return r.db.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).Delete(&record{}).Error
 }
 
 type BlobRef struct {
