@@ -249,3 +249,35 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 	)
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }
+
+func TestDeleteRecord(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	ownerDID := syntax.DID("did:example:owner")
+
+	coll := syntax.NSID("my.fake.collection")
+	rkey := syntax.RecordKey("my-rkey")
+	validate := true
+	val := map[string]any{"key": "val"}
+
+	_, err = repo.PutRecord(t.Context(), Record{
+		Did:        string(ownerDID),
+		Collection: coll.String(),
+		Rkey:       rkey.String(),
+		Value:      val,
+	}, &validate)
+	require.NoError(t, err)
+	t.Run("basic delete", func(t *testing.T) {
+		err := repo.DeleteRecord(t.Context(), ownerDID.String(), coll.String(), rkey.String())
+		require.NoError(t, err)
+	})
+
+	t.Run("deleting record that doesn't exist is non-error and no-op", func(t *testing.T) {
+		err := repo.DeleteRecord(t.Context(), ownerDID.String(), coll.String(), "some-key")
+		require.NoError(t, err)
+	})
+}

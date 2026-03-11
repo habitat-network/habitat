@@ -586,7 +586,6 @@ func TestDeleteRecord(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-
 	t.Run("DID not served by this node returns error", func(t *testing.T) {
 		unknownDID := syntax.DID("did:example:unknown")
 		err := p.DeleteRecord(t.Context(), unknownDID, unknownDID, coll, rkey)
