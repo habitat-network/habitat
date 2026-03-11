@@ -19,6 +19,7 @@ export const docQueryOptions = (uri: string, authManager: AuthManager) => {
         "network.habitat.docs",
         rkey,
         docDID,
+        true,
       ),
   });
 };

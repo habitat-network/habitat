@@ -162,10 +162,11 @@ export const getPrivateRecord = async <T = Record<string, unknown>>(
   collection: string,
   rkey: string,
   repo: string,
+  includePermissions?: boolean,
 ): Promise<NetworkHabitatRepoGetRecord.OutputSchema & { value: T }> => {
   const response = await query(
     "network.habitat.getRecord",
-    { collection, rkey, repo },
+    { collection, rkey, repo, includePermissions },
     { authManager },
   );
   return response as NetworkHabitatRepoGetRecord.OutputSchema & { value: T };

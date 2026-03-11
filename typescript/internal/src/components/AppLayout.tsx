@@ -1,15 +1,13 @@
 import { ReactNode } from "react";
 import { Actor } from "@/types/Actor";
-import { UserAvatar } from "./UserAvatar";
+
 import { HabitatLogo } from "./HabitatLogo";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "./ui/dropdown-menu";
-import { Item, ItemContent, ItemTitle, ItemDescription } from "./ui/item";
 import {
   Sidebar,
   SidebarProvider,
