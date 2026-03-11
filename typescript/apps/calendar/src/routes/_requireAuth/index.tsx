@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
+  editEvent,
   listEvents,
   listInvites,
   listRsvps,
@@ -21,15 +22,15 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { authManager, queryClient } = context;
 
     const [events, invites, rsvps] = await Promise.all([
-      queryClient.ensureQueryData({
+      queryClient.fetchQuery({
         queryKey: ["events"],
         queryFn: () => listEvents(authManager),
       }),
-      queryClient.ensureQueryData({
+      queryClient.fetchQuery({
         queryKey: ["invites"],
         queryFn: () => listInvites(authManager),
       }),
-      queryClient.ensureQueryData({
+      queryClient.fetchQuery({
         queryKey: ["rsvps"],
         queryFn: () => listRsvps(authManager),
       }),
@@ -40,11 +41,11 @@ export const Route = createFileRoute("/_requireAuth/")({
 });
 
 function CalendarPage() {
-  const { events, invites, rsvps } = Route.useLoaderData();
   const { authManager } = Route.useRouteContext();
-  const queryClient = useQueryClient();
   const router = useRouter();
   const userDid = authManager.getAuthInfo()?.did;
+
+  const { events, invites, rsvps } = Route.useLoaderData();
   if (!userDid) throw new Error("User DID not found");
 
   // Create event modal state
@@ -53,10 +54,10 @@ function CalendarPage() {
   >(undefined);
 
   // Event details modal state
-  const [selectedEventUri, setSelectedEventUri] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
-    null,
-  );
+  const [selectedEvent, setSelectedEvent] = useState<{ uri: string, cal: CalendarEvent } | null>(null);
+
+  // Edit event modal state
+  const [editingEvent, setEditingEvent] = useState<{ uri: string, cal: CalendarEvent } | null>(null);
 
   const createEventMutation = useMutation({
     mutationFn: ({
@@ -67,11 +68,26 @@ function CalendarPage() {
       invitedDids: string[];
     }) => createEvent(authManager, userDid, event, invitedDids),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["events"] });
-      queryClient.invalidateQueries({ queryKey: ["invites"] });
-      queryClient.invalidateQueries({ queryKey: ["rsvps"] });
       router.invalidate();
       setNewEventData(undefined);
+    },
+  });
+
+  const editEventMutation = useMutation({
+    mutationFn: ({ event }: { event: CreateEventInput }) => {
+      if (!editingEvent) throw new Error("No event to edit");
+      const mergedEvent: CalendarEvent = {
+        ...editingEvent.cal,
+        name: event.name,
+        description: event.description,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+      };
+      return editEvent(authManager, editingEvent.uri, mergedEvent);
+    },
+    onSuccess: () => {
+      router.invalidate();
+      setEditingEvent(null)
     },
   });
 
@@ -84,7 +100,7 @@ function CalendarPage() {
       status: RsvpStatus;
     }) => createRsvp(authManager, eventUri, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["rsvps"] });
+      router.invalidate();
     },
   });
 
@@ -101,8 +117,15 @@ function CalendarPage() {
   }
 
   function handleEventClick(eventUri: string, event: CalendarEvent) {
-    setSelectedEventUri(eventUri);
-    setSelectedEvent(event);
+    setSelectedEvent({
+      uri: eventUri,
+      cal: event,
+    });
+  }
+
+  function handleEdit(eventUri: string, event: CalendarEvent) {
+    setSelectedEvent(null);
+    setEditingEvent({ uri: eventUri, cal: event });
   }
 
   function handleRsvp(eventUri: string, status: RsvpStatus) {
@@ -134,17 +157,41 @@ function CalendarPage() {
 
       <EventDetailsModal
         isOpen={selectedEvent !== null}
-        event={selectedEvent}
-        eventUri={selectedEventUri}
+        event={selectedEvent?.cal ?? null}
+        eventUri={selectedEvent?.uri ?? null}
         invites={invites}
         rsvps={rsvps}
         userDid={userDid}
         onClose={() => {
           setSelectedEvent(null);
-          setSelectedEventUri(null);
         }}
         onRsvp={handleRsvp}
         isRsvpPending={rsvpMutation.isPending}
+        onEdit={handleEdit}
+      />
+
+      <CreateEventModal
+        isOpen={editingEvent !== null}
+        initialEvent={
+          editingEvent
+            ? {
+              name: editingEvent.cal.name,
+              description: editingEvent.cal.description,
+              startsAt: editingEvent.cal.startsAt,
+              endsAt: editingEvent.cal.endsAt,
+            }
+            : undefined
+        }
+        title="Edit Event"
+        onClose={() => {
+          setEditingEvent(null);
+        }}
+        onSubmit={(event) => editEventMutation.mutate({ event })}
+        onCancel={() => {
+          setEditingEvent(null);
+        }}
+        isPending={editEventMutation.isPending}
+        error={editEventMutation.error ?? null}
       />
     </div>
   );

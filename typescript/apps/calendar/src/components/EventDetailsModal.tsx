@@ -24,6 +24,7 @@ interface EventDetailsModalProps {
   onClose: () => void;
   onRsvp: (eventUri: string, status: RsvpStatus) => void;
   isRsvpPending?: boolean;
+  onEdit?: (eventUri: string, event: CalendarEvent) => void;
 }
 
 async function fetchBlueskyProfile(
@@ -363,6 +364,7 @@ export function EventDetailsModal({
   onClose,
   onRsvp,
   isRsvpPending = false,
+  onEdit,
 }: EventDetailsModalProps) {
   if (!isOpen || !event || !eventUri) return null;
 
@@ -425,6 +427,15 @@ export function EventDetailsModal({
       <div style={styles.card} onClick={(e) => e.stopPropagation()}>
         {/* Header with close button */}
         <div style={styles.header}>
+          {isOrganizer && onEdit && (
+            <button
+              style={styles.iconButton}
+              onClick={() => onEdit(eventUri, event)}
+              title="Edit event"
+            >
+              ✏️
+            </button>
+          )}
           <button style={styles.iconButton} onClick={onClose} title="Close">
             ✕
           </button>

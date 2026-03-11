@@ -10,6 +10,7 @@ interface CreateEventModalProps {
   onCancel: () => void;
   isPending?: boolean;
   error?: Error | null;
+  title?: string;
 }
 
 export function CreateEventModal({
@@ -20,6 +21,7 @@ export function CreateEventModal({
   onCancel,
   isPending = false,
   error,
+  title,
 }: CreateEventModalProps) {
   function handleCancel() {
     onCancel();
@@ -45,7 +47,7 @@ export function CreateEventModal({
             className="close"
             onClick={handleCancel}
           />
-          <h2>Create Event</h2>
+          <h2>{title ?? "Create Event"}</h2>
         </header>
         <EventForm
           key={initialEvent?.startsAt ?? "new"}
@@ -54,6 +56,7 @@ export function CreateEventModal({
           onCancel={handleCancel}
           isPending={isPending}
           error={error}
+          title={title}
         />
       </article>
     </dialog>

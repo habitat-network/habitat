@@ -375,6 +375,31 @@ export const RSVP_STATUS = {
 export type RsvpStatus = (typeof RSVP_STATUS)[keyof typeof RSVP_STATUS];
 
 /**
+ * Edits an existing calendar event in-place (overwrites by rkey).
+ * Does not touch invites or RSVPs.
+ */
+export async function editEvent(
+  authManager: AuthManager,
+  eventUri: string,
+  event: CalendarEvent,
+): Promise<NetworkHabitatRepoPutRecord.OutputSchema> {
+  const parsed = parseRecordUri(eventUri);
+  if (!parsed) throw new Error(`Invalid event URI: ${eventUri}`);
+  const cliqueUri = buildCliqueUri(parsed.did, `event-${parsed.rkey}`);
+  return procedure(
+    "network.habitat.putRecord",
+    {
+      collection: EVENT_COLLECTION,
+      record: event,
+      rkey: parsed.rkey,
+      grantees: [{ $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri }],
+      repo: parsed.did,
+    },
+    { authManager },
+  );
+}
+
+/**
  * Creates or updates an RSVP for an event.
  * The RSVP is stored on the user's PDS and permissioned via the event's clique.
  * Uses a deterministic rkey derived from the event so updates overwrite the existing RSVP.
