@@ -3,6 +3,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   createEvent,
+  deleteEvent,
   editEvent,
   listEvents,
   listInvites,
@@ -91,6 +92,15 @@ function CalendarPage() {
     },
   });
 
+  const deleteEventMutation = useMutation({
+    mutationFn: ({ eventUri }: { eventUri: string }) =>
+      deleteEvent(authManager, eventUri),
+    onSuccess: () => {
+      router.invalidate();
+      setSelectedEvent(null);
+    },
+  });
+
   const rsvpMutation = useMutation({
     mutationFn: ({
       eventUri,
@@ -126,6 +136,10 @@ function CalendarPage() {
   function handleEdit(eventUri: string, event: CalendarEvent) {
     setSelectedEvent(null);
     setEditingEvent({ uri: eventUri, cal: event });
+  }
+
+  function handleDelete(eventUri: string) {
+    deleteEventMutation.mutate({ eventUri });
   }
 
   function handleRsvp(eventUri: string, status: RsvpStatus) {
@@ -168,6 +182,7 @@ function CalendarPage() {
         onRsvp={handleRsvp}
         isRsvpPending={rsvpMutation.isPending}
         onEdit={handleEdit}
+        onDelete={handleDelete}
       />
 
       <CreateEventModal

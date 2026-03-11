@@ -9,6 +9,7 @@ import type {
 } from "@atproto/api";
 import type {
   NetworkHabitatListConnectedApps,
+  NetworkHabitatRepoDeleteRecord,
   NetworkHabitatRepoGetRecord,
   NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
@@ -78,6 +79,10 @@ type ProcedureEndpoints = {
   "network.habitat.putRecord": Procedure<
     NetworkHabitatRepoPutRecord.InputSchema,
     NetworkHabitatRepoPutRecord.OutputSchema
+  >;
+  "network.habitat.repo.deleteRecord": Procedure<
+    NetworkHabitatRepoDeleteRecord.InputSchema,
+    NetworkHabitatRepoDeleteRecord.Response
   >;
 };
 
