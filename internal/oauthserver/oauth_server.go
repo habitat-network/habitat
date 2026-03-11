@@ -561,10 +561,10 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		c := fositeClient.(*client)
 		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: c.ClientMetadata.ClientUri,
+			ClientUri: c.ClientUri,
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      c.ClientMetadata.ClientName,
-			LogoUri:   c.ClientMetadata.LogoUri,
+			Name:      c.ClientName,
+			LogoUri:   c.LogoUri,
 		}
 	}
 	err = json.NewEncoder(w).Encode(output)
