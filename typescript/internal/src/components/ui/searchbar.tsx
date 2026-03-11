@@ -1,12 +1,10 @@
-import { useRef } from "react";
-
 interface SearchBarProps {
     placeholder?: string;
     onSearch?: (value: string) => void;
     disabled?: boolean
 }
 
-export function SearchBar({ placeholder = "Search for anything...", onSearch, disabled = false }: SearchBarProps) {
+export function SearchBar({ placeholder = "Search for anything...", disabled = false }: SearchBarProps) {
 
     return (
         <div className="w-full min-w-[200px]">
