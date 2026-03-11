@@ -14,7 +14,8 @@
     --primary-foreground: #F9FFF2;
     --secondary-foreground: #180C00;
     --accent-foreground: #180C00;
-    --sidebar: #F9FFF2;
+    --sidebar: #d5ffd5;
+    --sidebar-accent: #adffad;
     --sidebar-foreground: #180C00;
     --sidebar-primary: #180C00;
     --sidebar-primary-foreground: #F9FFF2;
