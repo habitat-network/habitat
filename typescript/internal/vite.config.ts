@@ -52,6 +52,7 @@ export default defineConfig({
         // Plugin dependencies
         "vite-plugin-generate-file",
         "@tailwindcss/vite",
+        "@tanstack/devtools-vite",
 
         // Node.js built-ins (for the Vite plugin)
         "node:util",
