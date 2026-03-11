@@ -54,14 +54,10 @@ function CalendarPage() {
   >(undefined);
 
   // Event details modal state
-  const [selectedEventUri, setSelectedEventUri] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
-    null,
-  );
+  const [selectedEvent, setSelectedEvent] = useState<{ uri: string, cal: CalendarEvent } | null>(null);
 
   // Edit event modal state
-  const [editingEventUri, setEditingEventUri] = useState<string | null>(null);
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<{ uri: string, cal: CalendarEvent } | null>(null);
 
   const createEventMutation = useMutation({
     mutationFn: ({
@@ -79,20 +75,19 @@ function CalendarPage() {
 
   const editEventMutation = useMutation({
     mutationFn: ({ event }: { event: CreateEventInput }) => {
-      if (!editingEventUri || !editingEvent) throw new Error("No event to edit");
+      if (!editingEvent) throw new Error("No event to edit");
       const mergedEvent: CalendarEvent = {
-        ...editingEvent,
+        ...editingEvent.cal,
         name: event.name,
         description: event.description,
         startsAt: event.startsAt,
         endsAt: event.endsAt,
       };
-      return editEvent(authManager, editingEventUri, mergedEvent);
+      return editEvent(authManager, editingEvent.uri, mergedEvent);
     },
     onSuccess: () => {
       router.invalidate();
-      setEditingEvent(null);
-      setEditingEventUri(null);
+      setEditingEvent(null)
     },
   });
 
@@ -122,15 +117,15 @@ function CalendarPage() {
   }
 
   function handleEventClick(eventUri: string, event: CalendarEvent) {
-    setSelectedEventUri(eventUri);
-    setSelectedEvent(event);
+    setSelectedEvent({
+      uri: eventUri,
+      cal: event,
+    });
   }
 
   function handleEdit(eventUri: string, event: CalendarEvent) {
     setSelectedEvent(null);
-    setSelectedEventUri(null);
-    setEditingEventUri(eventUri);
-    setEditingEvent(event);
+    setEditingEvent({ uri: eventUri, cal: event });
   }
 
   function handleRsvp(eventUri: string, status: RsvpStatus) {
@@ -162,14 +157,13 @@ function CalendarPage() {
 
       <EventDetailsModal
         isOpen={selectedEvent !== null}
-        event={selectedEvent}
-        eventUri={selectedEventUri}
+        event={selectedEvent?.cal ?? null}
+        eventUri={selectedEvent?.uri ?? null}
         invites={invites}
         rsvps={rsvps}
         userDid={userDid}
         onClose={() => {
           setSelectedEvent(null);
-          setSelectedEventUri(null);
         }}
         onRsvp={handleRsvp}
         isRsvpPending={rsvpMutation.isPending}
@@ -181,22 +175,20 @@ function CalendarPage() {
         initialEvent={
           editingEvent
             ? {
-              name: editingEvent.name,
-              description: editingEvent.description,
-              startsAt: editingEvent.startsAt,
-              endsAt: editingEvent.endsAt,
+              name: editingEvent.cal.name,
+              description: editingEvent.cal.description,
+              startsAt: editingEvent.cal.startsAt,
+              endsAt: editingEvent.cal.endsAt,
             }
             : undefined
         }
         title="Edit Event"
         onClose={() => {
           setEditingEvent(null);
-          setEditingEventUri(null);
         }}
         onSubmit={(event) => editEventMutation.mutate({ event })}
         onCancel={() => {
           setEditingEvent(null);
-          setEditingEventUri(null);
         }}
         isPending={editEventMutation.isPending}
         error={editEventMutation.error ?? null}
