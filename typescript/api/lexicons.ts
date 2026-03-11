@@ -1056,6 +1056,42 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatRepoDeleteRecord: {
+    lexicon: 1,
+    id: 'network.habitat.repo.deleteRecord',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Delete a repository record, or ensure it doesn't exist. Requires auth, implemented by PDS.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repo', 'collection', 'rkey'],
+            properties: {
+              repo: {
+                type: 'string',
+                format: 'at-identifier',
+                description:
+                  'The handle or DID of the repo (aka, current account).',
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'The NSID of the record collection.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description: 'The Record Key.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatRepoGetBlob: {
     lexicon: 1,
     id: 'network.habitat.repo.getBlob',
@@ -1485,6 +1521,7 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
+  NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
   NetworkHabitatRepoListCollections: 'network.habitat.repo.listCollections',
