@@ -7,7 +7,7 @@ import habitatPlugins from "internal/habitatAppVitePlugin";
 
 const config = defineConfig({
   plugins: [
-    devtools(),
+    devtools({ eventBusConfig: { port: parseInt(process.env.DEVTOOLS_PORT ?? "42069", 10) } }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],

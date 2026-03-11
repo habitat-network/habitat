@@ -11,9 +11,8 @@ const config = defineConfig({
   },
   plugins: [
     devtools({
-      enhancedLogs: {
-        enabled: false,
-      },
+      enhancedLogs: { enabled: false },
+      eventBusConfig: { port: parseInt(process.env.DEVTOOLS_PORT ?? "42069", 10) },
     }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({

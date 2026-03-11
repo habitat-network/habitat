@@ -20,6 +20,15 @@ tasks:
           DOMAIN: frontend.habitat
     options:
       internal: false
+  dev-all:
+    deps:
+      - target: ~:dev
+      - target: greensky:dev
+      - target: calendar:dev
+      - target: docs:dev
+    options:
+      persistent: true
+      runInCI: false
   gh-pages:
     deps:
       - target: ~:build
