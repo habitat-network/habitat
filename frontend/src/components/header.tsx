@@ -18,11 +18,7 @@ const Header = ({ profile, onLogout }: HeaderProps) => {
         </ul>
         {profile ? (
           <ul>
-            <UserAvatar
-              src={profile.avatar}
-              displayName={profile.displayName}
-              handle={profile.handle}
-            />
+            <UserAvatar actor={profile} />
             <li>
               <button onClick={onLogout}>Logout</button>
             </li>

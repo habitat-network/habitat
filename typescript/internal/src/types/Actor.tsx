@@ -1,5 +1,5 @@
 export interface Actor {
-  handle: string;
+  handle?: string;
   displayName?: string;
   avatar?: string;
 }

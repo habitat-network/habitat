@@ -84,7 +84,7 @@ const UserCombobox = ({
         <ComboboxList>
           {(item: Actor) => (
             <ComboboxItem key={item.handle} value={item}>
-              <UserAvatar src={item.avatar} handle={item.handle} size="sm" />
+              <UserAvatar actor={item} size="sm" />
               {item.displayName || item.handle}
             </ComboboxItem>
           )}

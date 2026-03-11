@@ -21,14 +21,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
         <div className="flex items-center justify-between w-full">
           <div className="flex gap-1">
             {collection.grantees.slice(0, 5).map((g) => {
-              return (
-                <UserAvatar
-                  key={g.did}
-                  src={g.avatar}
-                  handle={g.handle}
-                  size="sm"
-                />
-              );
+              return <UserAvatar key={g.did} actor={g} size="sm" />;
             })}
           </div>
           <span className="text-sm text-muted-foreground">
