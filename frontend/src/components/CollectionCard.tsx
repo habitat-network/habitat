@@ -1,5 +1,6 @@
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
-import { Card, CardTitle, CardFooter, UserAvatar } from "internal";
+import { UserAvatar } from "internal";
+import { Card, CardFooter, CardTitle } from "internal/components/ui";
 
 export interface CollectionCardProps {
   collection: Omit<CollectionMetadata, "grantees"> & {

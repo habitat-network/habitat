@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Card, CardDescription, query } from "internal";
+import { query } from "internal";
+import { Card, CardDescription } from "internal/components/ui";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
@@ -11,7 +12,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       "network.habitat.listConnectedApps",
       {},
       { authManager },
-    )
+    );
 
     // List collections for manage your data preview
     const data = await query(
@@ -58,7 +59,9 @@ export const Route = createFileRoute("/_requireAuth/")({
       }
     }
 
-    const apps = appData.apps.filter((app) => app.clientUri !== `https://${__DOMAIN__}`)
+    const apps = appData.apps.filter(
+      (app) => app.clientUri !== `https://${__DOMAIN__}`,
+    );
     return { collections, apps: apps, profilesByDid };
   },
   pendingComponent: () => <p>Loading...</p>,
@@ -76,16 +79,22 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
     <>
       <h4> Recently used apps </h4>
       <div className="flex flex-wrap gap-3">
-        {apps.map((app) =>
-        (
+        {apps.map((app) => (
           <Card key={app.clientID} className="ring-0">
             <Link to={app.clientUri}>
-              {app.logoUri ? <img src={app.logoUri} alt={app.name} className="w-12 h-12 rounded-lg object-contain" /> : null}
-              <CardDescription className="text-xs text-center truncate w-full px-1">{app.name}</CardDescription>
+              {app.logoUri ? (
+                <img
+                  src={app.logoUri}
+                  alt={app.name}
+                  className="w-12 h-12 rounded-lg object-contain"
+                />
+              ) : null}
+              <CardDescription className="text-xs text-center truncate w-full px-1">
+                {app.name}
+              </CardDescription>
             </Link>
           </Card>
-        )
-        )}
+        ))}
       </div>
     </>
   );
@@ -139,8 +148,7 @@ function ManageDataPreview({
 }
 
 function AuthenticatedHome() {
-  const { collections, apps, profilesByDid } =
-    Route.useLoaderData()!;
+  const { collections, apps, profilesByDid } = Route.useLoaderData()!;
 
   // For now, don't require the user to be registered with a habitat service. If they do have one,
   // requests will still be routed there, but allow them to use the centralized one by default.

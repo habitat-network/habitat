@@ -1,5 +1,11 @@
 import { NetworkHabitatRepoGetRecord } from "api";
-import { Card, CardContent, CardFooter, CardTitle, UserAvatar } from "internal";
+import { UserAvatar } from "internal";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardTitle,
+} from "internal/components/ui";
 
 export type RecordCardProps = Omit<
   NetworkHabitatRepoGetRecord.OutputSchema,
