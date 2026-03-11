@@ -143,7 +143,7 @@ func (s *Server) handlePearErr(w http.ResponseWriter, route string, err error) {
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(PutRecord, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(PutRecord, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -218,7 +218,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(GetRecord, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(GetRecord, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
@@ -293,7 +293,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(UploadBlob, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(UploadBlob, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -346,7 +346,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(GetBlob, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(GetBlob, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth /* TODO: add service auth here when we support fwding blob reqs */)
 	if !ok {
@@ -400,7 +400,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(ListRecords, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(ListRecords, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
@@ -490,7 +490,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(ListCollections, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(ListCollections, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -533,7 +533,7 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 // inspecting and easily adding / removing permission grants on your data. We should rename this and/or also make it generic.
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(ListPermissions, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(ListPermissions, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -572,7 +572,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(AddPermission, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(AddPermission, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -609,7 +609,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(RemovePermission, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(RemovePermission, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -645,7 +645,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	defer s.metrics.reportRouteLatency(NotifyOfUpdate, time.Since(start).Nanoseconds())
+	defer func() { s.metrics.reportRouteLatency(NotifyOfUpdate, time.Since(start).Nanoseconds()) }()
 
 	callerDID, ok := authn.Validate(w, r, s.authMethods.serviceAuth)
 	if !ok {
