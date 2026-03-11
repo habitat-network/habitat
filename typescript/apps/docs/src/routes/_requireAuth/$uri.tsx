@@ -340,13 +340,15 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       onUpdate: handleUpdate,
     });
     return (
-      <>
-        <article>
-          <EditorContent editor={editor} />
-        </article>
-        {dirty ? "🔄 Syncing" : "✅ Synced"}
-        Node id: {node.peerId.toString()}
-      </>
+      <div className="flex flex-col h-full">
+        <header className="px-3 py-1 text-right border-b flex justify-between">
+          <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
+          <span>Node id: {node.peerId.toString()}</span>
+        </header>
+        <div className="flex-1 flex flex-col items-center">
+          <EditorContent className="prose w-full" editor={editor} />
+        </div>
+      </div>
     );
   },
   errorComponent({ error }) {

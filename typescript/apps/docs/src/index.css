@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @source "./**/*.{ts,tsx}";
 @source "../../../internal/src/**/*.{ts,tsx}";
