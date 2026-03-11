@@ -54,6 +54,7 @@
     "react-hook-form": "catalog:"
   },
   "devDependencies": {
+    "@tanstack/devtools-vite": "catalog:",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.1",
     "@types/node": "catalog:",
