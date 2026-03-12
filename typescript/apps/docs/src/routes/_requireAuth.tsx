@@ -1,5 +1,5 @@
 import { procedure } from "internal";
-import { HabitatDoc } from "@/habitatDoc";
+
 import { useMutation } from "@tanstack/react-query";
 import { docsListQueryOptions } from "@/queries/docs";
 import { profileQueryOptions } from "@/queries/profile";
@@ -21,7 +21,7 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { FileTextIcon, PlusIcon } from "lucide-react";
-import { SidebarMenuAction } from "internal/components/ui";
+
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
