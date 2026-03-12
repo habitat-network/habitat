@@ -2,7 +2,6 @@ $schema: ./cache/schemas/workspace.json
 projects:
   sources:
     frontend: frontend
-    camera: camera
     root: .
     typescript/internal: typescript/internal
     integration: integration
