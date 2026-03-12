@@ -31,6 +31,7 @@ import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+import * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
 import * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
@@ -60,6 +61,7 @@ export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+export * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
 export * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
@@ -583,6 +585,18 @@ export class NetworkHabitatRepoNS {
 
   constructor(client: XrpcClient) {
     this._client = client
+  }
+
+  deleteRecord(
+    data?: NetworkHabitatRepoDeleteRecord.InputSchema,
+    opts?: NetworkHabitatRepoDeleteRecord.CallOptions,
+  ): Promise<NetworkHabitatRepoDeleteRecord.Response> {
+    return this._client.call(
+      'network.habitat.repo.deleteRecord',
+      opts?.qp,
+      data,
+      opts,
+    )
   }
 
   getBlob(

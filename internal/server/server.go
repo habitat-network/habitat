@@ -253,6 +253,36 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	if !ok {
+		return
+	}
+
+	req := &habitat.NetworkHabitatRepoDeleteRecordInput{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		return
+	}
+
+	repo, err := syntax.ParseAtIdentifier(req.Repo)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse repo", http.StatusBadRequest)
+		return
+	}
+
+	err = s.pear.DeleteRecord(r.Context(), callerDID, repo.DID(), syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
+	if err != nil {
+		if errors.Is(err, habitat_err.ErrUnauthorized) {
+			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusForbidden)
+			return
+		}
+		utils.LogAndHTTPError(w, err, "error deleting record", http.StatusInternalServerError)
+		return
+	}
+}
+
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth /* TODO: add service auth here when we support fwding blob reqs */)

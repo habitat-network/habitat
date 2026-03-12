@@ -556,6 +556,43 @@ func TestListCollections(t *testing.T) {
 	require.Len(t, collections[0].Grantees, 2)
 }
 
+func TestDeleteRecord(t *testing.T) {
+	ownerDID := syntax.DID("did:example:owner")
+	otherDID := syntax.DID("did:example:other")
+
+	dir := mockIdentities([]syntax.DID{ownerDID, otherDID})
+	p := newPearForTest(t, dir)
+
+	coll := syntax.NSID("my.fake.collection")
+	rkey := syntax.RecordKey("my-rkey")
+	validate := true
+	val := map[string]any{"key": "val"}
+
+	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, val, rkey, &validate, []permissions.Grantee{})
+	require.NoError(t, err)
+
+	t.Run("non-owner cannot delete", func(t *testing.T) {
+		err := p.DeleteRecord(t.Context(), otherDID, ownerDID, coll, rkey)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
+	})
+
+	t.Run("owner can delete their record", func(t *testing.T) {
+		err := p.DeleteRecord(t.Context(), ownerDID, ownerDID, coll, rkey)
+		require.NoError(t, err)
+	})
+
+	t.Run("deleting record that doesn't exist is non-error and no-op", func(t *testing.T) {
+		err := p.DeleteRecord(t.Context(), ownerDID, ownerDID, coll, "some-other-rkey")
+		require.NoError(t, err)
+	})
+
+	t.Run("DID not served by this node returns error", func(t *testing.T) {
+		unknownDID := syntax.DID("did:example:unknown")
+		err := p.DeleteRecord(t.Context(), unknownDID, unknownDID, coll, rkey)
+		require.ErrorIs(t, err, ErrDIDNotServed)
+	})
+}
+
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:alice"})
