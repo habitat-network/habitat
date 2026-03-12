@@ -400,6 +400,22 @@ export async function editEvent(
 }
 
 /**
+ * Deletes a calendar event by URI.
+ */
+export async function deleteEvent(
+  authManager: AuthManager,
+  eventUri: string,
+): Promise<void> {
+  const parsed = parseRecordUri(eventUri);
+  if (!parsed) throw new Error(`Invalid event URI: ${eventUri}`);
+  await procedure(
+    "network.habitat.repo.deleteRecord",
+    { repo: parsed.did, collection: parsed.collection, rkey: parsed.rkey },
+    { authManager },
+  );
+}
+
+/**
  * Creates or updates an RSVP for an event.
  * The RSVP is stored on the user's PDS and permissioned via the event's clique.
  * Uses a deterministic rkey derived from the event so updates overwrite the existing RSVP.

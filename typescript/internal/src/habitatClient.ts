@@ -9,6 +9,7 @@ import type {
 } from "@atproto/api";
 import type {
   NetworkHabitatListConnectedApps,
+  NetworkHabitatRepoDeleteRecord,
   NetworkHabitatRepoGetRecord,
   NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
@@ -79,6 +80,10 @@ type ProcedureEndpoints = {
     NetworkHabitatRepoPutRecord.InputSchema,
     NetworkHabitatRepoPutRecord.OutputSchema
   >;
+  "network.habitat.repo.deleteRecord": Procedure<
+    NetworkHabitatRepoDeleteRecord.InputSchema,
+    NetworkHabitatRepoDeleteRecord.Response
+  >;
 };
 
 interface QueryOptions {
@@ -145,15 +150,12 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
     options.headers,
     options.fetchOptions,
   );
-  try {
-    const data = await response.json();
-    if (!response.ok) {
-      throw new XRPCError(response.status, data);
-    }
-    return data;
-  } catch {
-    throw new Error(`Invalid error response: ${response.status}`);
+
+  const data = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new XRPCError(response.status, data);
   }
+  return data;
 };
 
 export const castRecord = <T extends Record<string, unknown>>(record: {
