@@ -30,12 +30,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // Fetch the record
     const { uri } = params;
     const [, , docDID, lexicon, rkey] = uri.split("/");
-    const data = await context.queryClient.ensureQueryData(
+    const data = await context.queryClient.fetchQuery(
       docQueryOptions(uri, context.authManager),
     );
-
-    // The gossipsub topic is also used as the per-document rendezvous key.
-    const habitatUri = `habitat://${docDID}/network.habitat.docs/${rkey}`;
 
     // TODO: this should look up the habitat service on the doc owner's DID and use that endpoint, not the generic __HABITAT_DOMAIN__. This is left for later.
     // All user pear nodes are expected to implement the relay address.
@@ -71,16 +68,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     const conn = await node.dial(relayAddr);
     let relayPeerId = conn.remotePeer.toString();
-
-    node.addEventListener("peer:connect", (event) => {
-      const peerId = event.detail;
-      const isRelay = node
-        .getConnections(peerId)
-        .some((c) => c.remoteAddr.toString().includes(domain));
-      if (isRelay) {
-        relayPeerId = peerId.toString();
-      }
-    });
 
     async function dialPeer(peerIdStr: string): Promise<void> {
       if (peerIdStr === node.peerId.toString()) return;
@@ -125,7 +112,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           peerIdFromString(relayPeerId),
           "/habitat/peer-discovery/1.0.0",
         );
-        const oauthToken = context.authManager.getAuthInfo()?.accessToken ?? "";
         const serviceAuthToken = await getServiceAuthToken();
 
         const encoder = new TextEncoder();
@@ -133,8 +119,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           (async function*() {
             yield encoder.encode(
               JSON.stringify({
-                topic: habitatUri,
-                oauth_token: oauthToken,
+                topic: uri,
                 serviceauth_token: serviceAuthToken,
               }),
             );
@@ -260,7 +245,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     }
     document.addEventListener("visibilitychange", onVisibilityChange);
 
-    const provider = new Libp2pConnectionProvider(node, ydoc, habitatUri);
+    const provider = new Libp2pConnectionProvider(node, ydoc, uri);
 
     return {
       provider,
