@@ -321,24 +321,27 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         }, 1000);
       };
     }, [save]);
-    const editor = useEditor({
-      extensions: [
-        StarterKit.configure({
-          undoRedo: false,
-        }),
-        Collaboration.configure({
-          document: ydoc,
-        }),
-        CollaborationCaret.configure({
-          provider,
-          user: {
-            name: did,
-            color: "#f783ac",
-          },
-        }),
-      ],
-      onUpdate: handleUpdate,
-    });
+    const editor = useEditor(
+      {
+        extensions: [
+          StarterKit.configure({
+            undoRedo: false,
+          }),
+          Collaboration.configure({
+            document: ydoc,
+          }),
+          CollaborationCaret.configure({
+            provider,
+            user: {
+              name: did,
+              color: "#f783ac",
+            },
+          }),
+        ],
+        onUpdate: handleUpdate,
+      },
+      [ydoc],
+    );
     return (
       <div className="flex flex-col h-full">
         <header className="px-3 py-1 text-right border-b flex justify-between">
