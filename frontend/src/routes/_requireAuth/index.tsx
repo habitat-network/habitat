@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { query } from "internal";
-import { Card, CardDescription } from "internal/components/ui";
+import { Card, CardDescription, SearchBar } from "internal/components/ui";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
@@ -40,7 +40,6 @@ export const Route = createFileRoute("/_requireAuth/")({
       {};
     if (granteeDids.length > 0) {
       const headers = new Headers();
-      headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
       const params = new URLSearchParams();
       for (const did of granteeDids) params.append("actors", did);
       const resp = await authManager.fetch(
@@ -143,6 +142,9 @@ function ManageDataPreview({
           );
         })}
       </div>
+      <div className="flex justify-end mt-1">
+        <Link to="/collections" className="text-sm !no-underline">See all →</Link>
+      </div>
     </>
   );
 }
@@ -156,6 +158,7 @@ function AuthenticatedHome() {
   return (
     <>
       <h1>Welcome to Habitat!</h1>
+      <SearchBar disabled={true} placeholder="Search your data for anything ... coming soon!"></SearchBar>
       <RecentlyUsed apps={apps} />
       <ManageDataPreview
         collections={collections}

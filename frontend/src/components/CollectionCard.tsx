@@ -11,7 +11,7 @@ export interface CollectionCardProps {
 export function CollectionCard({ collection }: CollectionCardProps) {
   return (
     <Card key={collection.nsid}>
-      <div className="flex items-center justify-between px-6">
+      <div className="flex flex-col px-6">
         <CardTitle>{collection.nsid}</CardTitle>
         <span className="text-sm text-muted-foreground">
           {collection.recordCount}{" "}
