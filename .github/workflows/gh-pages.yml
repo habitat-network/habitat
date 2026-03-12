@@ -35,12 +35,38 @@ jobs:
         with:
           auto-install: true
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .prototools
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
       - name: Build
         run: moon r frontend:gh-pages
         env:
           DOMAIN: ${{ vars.DOMAIN }}
           HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
           HASH_ROUTING: true
+
+      - name: Generate OpenAPI spec
+        run: pnpm --filter xrpc-openapi-gen run generate
+
+      - name: Generate API doc pages
+        run: pnpm --filter api-docs run gen-api-docs
+
+      - name: Build API docs
+        run: pnpm --filter api-docs run build
+        env:
+          BASE_URL: /habitat/api/
+
+      - name: Merge API docs into frontend dist
+        run: mkdir -p frontend/dist/api && cp -r api-docs/build/. frontend/dist/api/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
