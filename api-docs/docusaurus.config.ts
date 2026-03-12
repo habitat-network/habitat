@@ -47,7 +47,7 @@ const config: Config = {
         docsPluginId: 'classic',
         config: {
           habitat: {
-            specPath: '../typescript/docs/spec/api.json',
+            specPath: '../typescript/xrpc-openapi-gen/spec/api.json',
             outputDir: 'docs/api',
             sidebarOptions: { groupPathsBy: 'tag' },
           },
