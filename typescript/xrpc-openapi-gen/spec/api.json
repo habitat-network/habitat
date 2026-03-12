@@ -1,0 +1,727 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Habitat API",
+    "summary": "OpenAPI spec generated from Habitat's AT Protocol lexicons.",
+    "description": "Welcome to the Habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned @habitat.network on Bluesky and habitat.leaflet.pub for formal releases.",
+    "version": "0.0.0",
+    "license": {
+      "name": "MIT License",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://habitat.network/xrpc",
+      "description": "Habitat XRPC server"
+    }
+  ],
+  "paths": {
+    "/network.habitat.internal.notifyOfUpdate": {
+      "post": {
+        "tags": [
+          "network.habitat.internal"
+        ],
+        "summary": "network.habitat.internal.notifyOfUpdate",
+        "description": "Notify another DID that there is an update for them on the fiven record.",
+        "operationId": "network.habitat.internal.notifyOfUpdate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "collection",
+                  "rkey",
+                  "recipient"
+                ],
+                "properties": {
+                  "recipient": {
+                    "type": "string",
+                    "description": "The DID to grant permission to (URL parameter).",
+                    "format": "did"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the record collection that the update is for.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The record key which was updated."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.permissions.addPermission": {
+      "post": {
+        "tags": [
+          "network.habitat.permissions"
+        ],
+        "summary": "network.habitat.permissions.addPermission",
+        "description": "Grant read permission to a user for a specific lexicon.",
+        "operationId": "network.habitat.permissions.addPermission",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
+                "properties": {
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the lexicon or record to grant read permission for.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key to grant read permissions to, if any.",
+                    "format": "record-key",
+                    "maxLength": 512
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.permissions.removePermission": {
+      "post": {
+        "tags": [
+          "network.habitat.permissions"
+        ],
+        "summary": "network.habitat.permissions.removePermission",
+        "description": "Revoke read permission from a user for a specific lexicon.",
+        "operationId": "network.habitat.permissions.removePermission",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
+                "properties": {
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the lexicon or record to grant read permission for.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key to grant read permissions to, if any.",
+                    "format": "record-key",
+                    "maxLength": 512
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.repo.deleteRecord": {
+      "post": {
+        "tags": [
+          "network.habitat.repo"
+        ],
+        "summary": "network.habitat.repo.deleteRecord",
+        "description": "Delete a repository record, or ensure it doesn't exist. Requires auth, implemented by PDS.",
+        "operationId": "network.habitat.repo.deleteRecord",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "repo",
+                  "collection",
+                  "rkey"
+                ],
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "description": "The handle or DID of the repo (aka, current account).",
+                    "format": "at-identifier"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the record collection.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key.",
+                    "format": "record-key"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.repo.putRecord": {
+      "post": {
+        "tags": [
+          "network.habitat.repo"
+        ],
+        "summary": "network.habitat.repo.putRecord",
+        "description": "Write a repository record, creating or updating it as needed.",
+        "operationId": "network.habitat.repo.putRecord",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "repo",
+                  "collection",
+                  "record"
+                ],
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "description": "The handle or DID of the repo (aka, current account).",
+                    "format": "at-identifier"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the record collection.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key.",
+                    "format": "record-key",
+                    "maxLength": 512
+                  },
+                  "validate": {
+                    "type": "boolean",
+                    "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
+                  },
+                  "record": {},
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "The habitat-uri of the put-ed object.",
+                      "format": "uri"
+                    },
+                    "validationStatus": {
+                      "type": "string",
+                      "enum": [
+                        "valid",
+                        "unknown"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.repo.uploadBlob": {
+      "post": {
+        "tags": [
+          "network.habitat.repo"
+        ],
+        "summary": "network.habitat.repo.uploadBlob",
+        "description": "Upload a new blob, to be referenced from a repository record. The blob will be deleted if it is not referenced within a time window (eg, minutes). Blob restrictions (mimetype, size, etc) are enforced when the reference is created. Requires auth, implemented by PDS.",
+        "operationId": "network.habitat.repo.uploadBlob",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "*/*": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "blob"
+                  ],
+                  "properties": {
+                    "blob": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "cid": {
+                      "type": "string",
+                      "format": "cid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "network.habitat.clique": {
+        "type": "object",
+        "description": "Do we even need anything in here? I think it's just a placeholder.",
+        "properties": {}
+      },
+      "network.habitat.grantee.didGrantee": {
+        "type": "object",
+        "description": "A DID grantee",
+        "required": [
+          "did"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          }
+        }
+      },
+      "network.habitat.grantee.cliqueRef": {
+        "type": "object",
+        "description": "A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key",
+        "required": [
+          "uri"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "network.habitat.listConnectedApps.app": {
+        "type": "object",
+        "required": [
+          "name",
+          "clientID",
+          "clientUri",
+          "lastUsed"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of this app."
+          },
+          "clientID": {
+            "type": "string",
+            "description": "The ID of this app."
+          },
+          "clientUri": {
+            "type": "string",
+            "description": "The uri of this app."
+          },
+          "lastUsed": {
+            "type": "string",
+            "description": "The last time habitat detected a session with this app.",
+            "format": "date-time"
+          },
+          "logoUri": {
+            "type": "string",
+            "description": "The logo URI of this app."
+          }
+        }
+      },
+      "network.habitat.photo": {
+        "type": "object",
+        "required": [
+          "ref"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "format": "binary"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.permissions.listPermissions.permission": {
+        "type": "object",
+        "required": [
+          "grantee",
+          "collection",
+          "effect"
+        ],
+        "properties": {
+          "grantee": {
+            "type": "string",
+            "description": "The grantee of the permission — either a DID or a habitat clique URI."
+          },
+          "collection": {
+            "type": "string",
+            "description": "The NSID of the collection the permission applies to.",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "description": "The record key the permission applies to. Empty string means the permission covers the entire collection."
+          },
+          "effect": {
+            "type": "string",
+            "description": "Whether this permission grants or denies access.",
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          }
+        }
+      },
+      "network.habitat.repo.listCollections.collectionMetadata": {
+        "type": "object",
+        "required": [
+          "nsid",
+          "recordCount",
+          "lastTouched",
+          "grantees"
+        ],
+        "properties": {
+          "nsid": {
+            "type": "string",
+            "description": "The NSID of this collection,"
+          },
+          "recordCount": {
+            "type": "integer"
+          },
+          "lastTouched": {
+            "type": "string",
+            "description": "The last time a record in this collection was touched.",
+            "format": "date-time"
+          },
+          "grantees": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                },
+                {
+                  "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "network.habitat.repo.listRecords.record": {
+        "type": "object",
+        "required": [
+          "uri",
+          "value"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "URI reference to the record, formatted as a habitat-uri.",
+            "format": "uri"
+          },
+          "value": {},
+          "permissions": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                },
+                {
+                  "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "network.habitat.clique"
+    },
+    {
+      "name": "network.habitat.grantee"
+    },
+    {
+      "name": "network.habitat.listConnectedApps"
+    },
+    {
+      "name": "network.habitat.photo"
+    },
+    {
+      "name": "network.habitat.internal"
+    },
+    {
+      "name": "network.habitat.permissions"
+    },
+    {
+      "name": "network.habitat.repo"
+    }
+  ]
+}
