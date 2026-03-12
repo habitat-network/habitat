@@ -25,6 +25,7 @@ export class AuthManager {
   );
   private config: client.Configuration;
   private onUnauthenticated: () => void;
+  private refreshPromise: Promise<void> | undefined;
 
   constructor(
     appName: string,
@@ -106,13 +107,26 @@ export class AuthManager {
       authInfo.refreshToken &&
       authInfo.expiresAt < Date.now() / 1000 + 5 * 60
     ) {
-      try {
-        const token = await client.refreshTokenGrant(
-          this.config,
-          authInfo.refreshToken,
-        );
-        authInfo = this.setAuthState(token);
-      } catch {
+      if (this.refreshPromise) {
+        // if there is an refresh request in flight, wait for it
+        await this.refreshPromise;
+      } else {
+        try {
+          // otherwise, start one
+          this.refreshPromise = client
+            .refreshTokenGrant(this.config, authInfo.refreshToken)
+            .then((token) => {
+              this.setAuthState(token);
+            });
+          // and wait for it
+          await this.refreshPromise;
+        } catch {
+          return this.handleUnauthenticated();
+        }
+      }
+      // get the refreshed authInfo
+      authInfo = this.store.getState().authInfo;
+      if (!authInfo) {
         return this.handleUnauthenticated();
       }
     }
