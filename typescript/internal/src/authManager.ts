@@ -107,22 +107,20 @@ export class AuthManager {
       authInfo.refreshToken &&
       authInfo.expiresAt < Date.now() / 1000 + 5 * 60
     ) {
-      if (this.refreshPromise) {
-        // if there is an refresh request in flight, wait for it
+      if (!this.refreshPromise) {
+        this.refreshPromise = client
+          .refreshTokenGrant(this.config, authInfo.refreshToken)
+          .then((token) => {
+            this.setAuthState(token);
+          })
+          .finally(() => {
+            this.refreshPromise = undefined;
+          });
+      }
+      try {
         await this.refreshPromise;
-      } else {
-        try {
-          // otherwise, start one
-          this.refreshPromise = client
-            .refreshTokenGrant(this.config, authInfo.refreshToken)
-            .then((token) => {
-              this.setAuthState(token);
-            });
-          // and wait for it
-          await this.refreshPromise;
-        } catch {
-          return this.handleUnauthenticated();
-        }
+      } catch {
+        return this.handleUnauthenticated();
       }
       // get the refreshed authInfo
       authInfo = this.store.getState().authInfo;
