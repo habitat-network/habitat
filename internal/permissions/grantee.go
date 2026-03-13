@@ -47,6 +47,17 @@ func (g DIDGrantee) String() string {
 	return string(g)
 }
 
+// Represents a grantee as V2 cliques -- formalized.
+type CliqueGranteeV2 habitat_syntax.Clique
+
+// isGrantee implements Grantee.
+func (c CliqueGranteeV2) isGrantee() {}
+func (c CliqueGranteeV2) String() string {
+	return string(c)
+}
+
+var _ Grantee = CliqueGranteeV2("")
+
 // Try to parse the string as either a clique or did grantee.
 func ParseGranteeFromString(grantee string) (Grantee, error) {
 	did, err := syntax.ParseDID(grantee)
@@ -80,7 +91,7 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 			return nil, fmt.Errorf("malformatted grantee has no $type field: %v", unknownGrantee)
 		}
 
-		var asStr string
+		var grantee Grantee
 		switch granteeType {
 		case "network.habitat.grantee#didGrantee":
 			did, ok := unknownGrantee["did"]
@@ -90,13 +101,18 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 					unknownGrantee,
 				)
 			}
-			asStr, ok = did.(string)
+			asStr, ok := did.(string)
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted did grantee has non-string did field: %v",
 					unknownGrantee,
 				)
 			}
+			parsedDID, err := syntax.ParseDID(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing did grantee: %w", err)
+			}
+			grantee = DIDGrantee(parsedDID)
 		case "network.habitat.grantee#cliqueRef":
 			uri, ok := unknownGrantee["uri"]
 			if !ok {
@@ -105,23 +121,24 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 					unknownGrantee,
 				)
 			}
-			asStr, ok = uri.(string)
+			asStr, ok := uri.(string)
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted clique grantee has non-string uri field: %v",
 					unknownGrantee,
 				)
 			}
+			clique, err := parseHabitatClique(asStr)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing clique grantee (v1): %w", err)
+			}
+			grantee = CliqueGrantee(clique)
 		default:
 			return nil, fmt.Errorf(
 				"malformatted grantee has unknown $type of %v: %v",
 				granteeType,
 				unknownGrantee,
 			)
-		}
-		grantee, err := ParseGranteeFromString(asStr)
-		if err != nil {
-			return nil, err
 		}
 		parsed[i] = grantee
 	}

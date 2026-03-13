@@ -12,12 +12,12 @@ import (
 )
 
 // This package manages cliques, a way to delegate permissions to other users and have shared group experiences.
-type Key string
+type Ref string
 
 // cliqueMember is the GORM model. Fields must be exported for GORM to read/write them.
 type cliqueMember struct {
 	Owner  string `gorm:"primaryKey"`
-	Key    Key    `gorm:"primaryKey"`
+	Key    string `gorm:"primaryKey"`
 	Member string `gorm:"primaryKey"`
 	// scopes []string // TODO: add this later
 
@@ -26,10 +26,11 @@ type cliqueMember struct {
 }
 
 type Store interface {
-	CreateClique(owner syntax.DID, members []syntax.DID) (Key, error)
-	GetMembers(owner syntax.DID, key Key) ([]syntax.DID, error)
-	AddMember(owner syntax.DID, key Key, member syntax.DID) error
-	IsMember(owner syntax.DID, key Key, maybeMember syntax.DID) (bool, error)
+	CreateClique(owner syntax.DID, members []syntax.DID) (Ref, error)
+	GetMembers(owner syntax.DID, key string) ([]syntax.DID, error)
+	AddMember(owner syntax.DID, key string, member syntax.DID) error
+	RemoveMember(owner syntax.DID, key string, member syntax.DID) error
+	IsMember(owner syntax.DID, key string, maybeMember syntax.DID) (bool, error)
 }
 
 type store struct {
@@ -47,13 +48,13 @@ func NewStore(db *gorm.DB) (*store, error) {
 }
 
 var (
-	ErrCliqueNotFound = errors.New("no matching clique found")
+	ErrCliqueNotFound     = errors.New("no matching clique found")
+	ErrSelfIsAlwaysMember = errors.New("self is always member of a clique")
 )
 
 // CreateClique creates a clique owned by owner, with members, and returns the key of this clique.
-func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (Key, error) {
-
-	key := Key(uuid.New().String())
+func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (Ref, error) {
+	key := uuid.New().String()
 	rows := make([]cliqueMember, len(members))
 
 	for i, m := range members {
@@ -76,11 +77,11 @@ func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (Key, error
 		return "", err
 	}
 
-	return key, nil
+	return Ref(fmt.Sprintf("%s:%s", owner, key)), nil
 }
 
 // GetMembers returns all members of the clique identified by (owner, key).
-func (s *store) GetMembers(owner syntax.DID, key Key) ([]syntax.DID, error) {
+func (s *store) GetMembers(owner syntax.DID, key string) ([]syntax.DID, error) {
 	var members []string
 	err := s.db.Model(cliqueMember{}).Where("owner = ? AND key = ?", owner.String(), key).Pluck("member", &members).Error
 	if err != nil {
@@ -93,7 +94,7 @@ func (s *store) GetMembers(owner syntax.DID, key Key) ([]syntax.DID, error) {
 }
 
 // AddMember adds a member to an existing clique. No-ops if already a member.
-func (s *store) AddMember(owner syntax.DID, key Key, member syntax.DID) error {
+func (s *store) AddMember(owner syntax.DID, key string, member syntax.DID) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		// First check existence of the clique
 		var ownerMembership cliqueMember
@@ -115,7 +116,7 @@ func (s *store) AddMember(owner syntax.DID, key Key, member syntax.DID) error {
 
 // IsMember returns true if maybeMember is in the clique identified by (owner, key).
 // The owner is always considered a member of their own cliques.
-func (s *store) IsMember(owner syntax.DID, key Key, maybeMember syntax.DID) (bool, error) {
+func (s *store) IsMember(owner syntax.DID, key string, maybeMember syntax.DID) (bool, error) {
 	var row cliqueMember
 	err := s.db.
 		Where("owner = ? AND key = ? AND member = ?", owner.String(), key, maybeMember.String()).
@@ -129,4 +130,12 @@ func (s *store) IsMember(owner syntax.DID, key Key, maybeMember syntax.DID) (boo
 	}
 
 	return true, nil
+}
+
+// RemoveMember implements Store.
+func (s *store) RemoveMember(owner syntax.DID, key string, member syntax.DID) error {
+	if owner == member {
+		return ErrSelfIsAlwaysMember
+	}
+	return s.db.Where("owner = ? AND key = ? AND member = ?").Delete(&cliqueMember{}).Error
 }
