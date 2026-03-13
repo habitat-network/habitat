@@ -153,7 +153,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Order of middlewares = order of "Use" called
 	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
-	mux.Use(otelmux.Middleware("pear-server"))
+	mux.Use(otelmux.Middleware("habitat-server"))
 	mux.Use(corsMiddleware)
 
 	// auth routes
