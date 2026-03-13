@@ -5,6 +5,9 @@
   ],
   "references": [
     {
+      "path": "api-docs"
+    },
+    {
       "path": "camera"
     },
     {

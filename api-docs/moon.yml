@@ -1,12 +1,18 @@
 tasks:
-  build:
-    command: pnpm run build
+  dev:
+    command: pnpm
+    args: start
     deps:
       - xrpc-openapi-gen:generate
-    inputs:
-      - docs/**
-      - src/**
-      - docusaurus.config.ts
-      - sidebars.ts
+    options:
+      persistent: true
+      mergeDeps: replace
+      mergeArgs: replace
+  build:
+    deps:
+      - xrpc-openapi-gen:generate
     outputs:
       - build
+    options:
+      mergeDeps: replace
+      mergeOutputs: replace
