@@ -5,6 +5,7 @@ import { AuthManager, getPrivateRecord, listPrivateRecords } from "internal";
 export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
     queryKey: ["docs"],
+    staleTime: 1000 * 60 * 5,
     queryFn: () =>
       listPrivateRecords<HabitatDoc>(authManager, "network.habitat.docs"),
   });
