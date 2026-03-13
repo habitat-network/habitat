@@ -1,0 +1,12 @@
+tasks:
+  build:
+    command: pnpm run build
+    deps:
+      - xrpc-openapi-gen:generate
+    inputs:
+      - docs/**
+      - src/**
+      - docusaurus.config.ts
+      - sidebars.ts
+    outputs:
+      - build
