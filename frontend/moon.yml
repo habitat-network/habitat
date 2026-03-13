@@ -44,6 +44,10 @@ tasks:
         env:
           DOMAIN: ${DOMAIN}/docs
           OUT_DIR: $projectRoot/dist/docs
+      - target: api-docs:build
+        env:
+          BASE_URL: /habitat/api/
+          OUT_DIR: $projectRoot/dist/api
     preset: utility
     options:
       runDepsInParallel: false

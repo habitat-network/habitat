@@ -90,172 +90,6 @@
         }
       }
     },
-    "/network.habitat.permissions.addPermission": {
-      "post": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.addPermission",
-        "description": "Grant read permission to a user for a specific lexicon.",
-        "operationId": "network.habitat.permissions.addPermission",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "grantees",
-                  "collection"
-                ],
-                "properties": {
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the lexicon or record to grant read permission for.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key to grant read permissions to, if any.",
-                    "format": "record-key",
-                    "maxLength": 512
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.permissions.removePermission": {
-      "post": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.removePermission",
-        "description": "Revoke read permission from a user for a specific lexicon.",
-        "operationId": "network.habitat.permissions.removePermission",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "grantees",
-                  "collection"
-                ],
-                "properties": {
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the lexicon or record to grant read permission for.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key to grant read permissions to, if any.",
-                    "format": "record-key",
-                    "maxLength": 512
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.repo.deleteRecord": {
       "post": {
         "tags": [
@@ -515,6 +349,172 @@
           }
         }
       }
+    },
+    "/network.habitat.permissions.addPermission": {
+      "post": {
+        "tags": [
+          "network.habitat.permissions"
+        ],
+        "summary": "network.habitat.permissions.addPermission",
+        "description": "Grant read permission to a user for a specific lexicon.",
+        "operationId": "network.habitat.permissions.addPermission",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
+                "properties": {
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the lexicon or record to grant read permission for.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key to grant read permissions to, if any.",
+                    "format": "record-key",
+                    "maxLength": 512
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.permissions.removePermission": {
+      "post": {
+        "tags": [
+          "network.habitat.permissions"
+        ],
+        "summary": "network.habitat.permissions.removePermission",
+        "description": "Revoke read permission from a user for a specific lexicon.",
+        "operationId": "network.habitat.permissions.removePermission",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
+                "properties": {
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the lexicon or record to grant read permission for.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key to grant read permissions to, if any.",
+                    "format": "record-key",
+                    "maxLength": 512
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -598,37 +598,6 @@
           }
         }
       },
-      "network.habitat.permissions.listPermissions.permission": {
-        "type": "object",
-        "required": [
-          "grantee",
-          "collection",
-          "effect"
-        ],
-        "properties": {
-          "grantee": {
-            "type": "string",
-            "description": "The grantee of the permission — either a DID or a habitat clique URI."
-          },
-          "collection": {
-            "type": "string",
-            "description": "The NSID of the collection the permission applies to.",
-            "format": "nsid"
-          },
-          "rkey": {
-            "type": "string",
-            "description": "The record key the permission applies to. Empty string means the permission covers the entire collection."
-          },
-          "effect": {
-            "type": "string",
-            "description": "Whether this permission grants or denies access.",
-            "enum": [
-              "allow",
-              "deny"
-            ]
-          }
-        }
-      },
       "network.habitat.repo.listCollections.collectionMetadata": {
         "type": "object",
         "required": [
@@ -692,6 +661,37 @@
             }
           }
         }
+      },
+      "network.habitat.permissions.listPermissions.permission": {
+        "type": "object",
+        "required": [
+          "grantee",
+          "collection",
+          "effect"
+        ],
+        "properties": {
+          "grantee": {
+            "type": "string",
+            "description": "The grantee of the permission — either a DID or a habitat clique URI."
+          },
+          "collection": {
+            "type": "string",
+            "description": "The NSID of the collection the permission applies to.",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "description": "The record key the permission applies to. Empty string means the permission covers the entire collection."
+          },
+          "effect": {
+            "type": "string",
+            "description": "Whether this permission grants or denies access.",
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -718,10 +718,10 @@
       "name": "network.habitat.internal"
     },
     {
-      "name": "network.habitat.permissions"
+      "name": "network.habitat.repo"
     },
     {
-      "name": "network.habitat.repo"
+      "name": "network.habitat.permissions"
     }
   ]
 }
