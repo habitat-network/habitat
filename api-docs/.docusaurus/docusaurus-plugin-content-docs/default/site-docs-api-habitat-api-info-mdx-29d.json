@@ -1,0 +1,24 @@
+{
+  "id": "api/habitat-api",
+  "title": "Habitat API",
+  "description": "Welcome to the Habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned @habitat.network on Bluesky and habitat.leaflet.pub for formal releases.",
+  "source": "@site/docs/api/habitat-api.info.mdx",
+  "sourceDirName": "api",
+  "slug": "/api/habitat-api",
+  "permalink": "/docs/api/habitat-api",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": null,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 0,
+  "frontMatter": {
+    "id": "habitat-api",
+    "title": "Habitat API",
+    "description": "Welcome to the Habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned @habitat.network on Bluesky and habitat.leaflet.pub for formal releases.",
+    "sidebar_label": "Introduction",
+    "sidebar_position": 0,
+    "hide_title": true,
+    "custom_edit_url": null
+  }
+}

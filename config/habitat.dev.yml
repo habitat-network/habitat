@@ -1,8 +1,0 @@
-reverse_proxy_rules:
-  - type: redirect
-    matcher: /atphoto_api
-    target: http://host.docker.internal:5002
-
-  - type: redirect
-    matcher: /atphoto
-    target: http://host.docker.internal:5173/atphoto

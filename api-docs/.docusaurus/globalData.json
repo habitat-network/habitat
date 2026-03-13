@@ -1,0 +1,49 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/docs",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/docs",
+          "mainDocId": "api/habitat-api",
+          "docs": [
+            {
+              "id": "api/habitat-api",
+              "path": "/docs/api/habitat-api"
+            },
+            {
+              "id": "api/network-habitat-internal-notify-of-update",
+              "path": "/docs/api/network-habitat-internal-notify-of-update"
+            },
+            {
+              "id": "api/network-habitat-permissions-add-permission",
+              "path": "/docs/api/network-habitat-permissions-add-permission"
+            },
+            {
+              "id": "api/network-habitat-permissions-remove-permission",
+              "path": "/docs/api/network-habitat-permissions-remove-permission"
+            },
+            {
+              "id": "api/network-habitat-repo-delete-record",
+              "path": "/docs/api/network-habitat-repo-delete-record"
+            },
+            {
+              "id": "api/network-habitat-repo-put-record",
+              "path": "/docs/api/network-habitat-repo-put-record"
+            },
+            {
+              "id": "api/network-habitat-repo-upload-blob",
+              "path": "/docs/api/network-habitat-repo-upload-blob"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {}
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}
