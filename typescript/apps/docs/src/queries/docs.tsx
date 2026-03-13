@@ -1,6 +1,13 @@
 import { HabitatDoc } from "@/habitatDoc";
-import { queryOptions } from "@tanstack/react-query";
-import { AuthManager, getPrivateRecord, listPrivateRecords } from "internal";
+import { mutationOptions, queryOptions } from "@tanstack/react-query";
+import {
+  AuthManager,
+  getPrivateRecord,
+  listPrivateRecords,
+  procedure,
+  query,
+  TypedRecord,
+} from "internal";
 
 export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
@@ -24,3 +31,134 @@ export const docQueryOptions = (uri: string, authManager: AuthManager) => {
       ),
   });
 };
+
+export const docEditorsQueryOptions = (
+  editorCliqueUri: string,
+  authManager: AuthManager,
+) =>
+  queryOptions({
+    queryKey: ["editors", editorCliqueUri],
+    queryFn: async () => {
+      const [, , editorCliqueDID, , editorCliqueRkey] =
+        editorCliqueUri?.split("/") ?? [];
+      if (!editorCliqueDID || !editorCliqueRkey) {
+        return [];
+      }
+      const { permissions } = await query(
+        "network.habitat.getRecord",
+        {
+          collection: "network.habitat.clique",
+          rkey: editorCliqueRkey,
+          repo: editorCliqueDID,
+          includePermissions: true,
+        },
+        { authManager },
+      );
+      return permissions ?? [];
+    },
+  });
+
+export const editorProfilesQueryOptions = (
+  editorCliqueUri: string | undefined,
+  authManager: AuthManager,
+) =>
+  queryOptions({
+    queryKey: ["editor", editorCliqueUri, "profiles"],
+    queryFn: async ({ client }) => {
+      if (!editorCliqueUri) {
+        return [];
+      }
+      const permissions = await client.fetchQuery(
+        docEditorsQueryOptions(editorCliqueUri, authManager),
+      );
+      const dids = permissions
+        ?.filter((grantee) => "did" in grantee)
+        .map((grantee) => grantee.did);
+      if (!dids) {
+        return [];
+      }
+      const { profiles } = await query(
+        "app.bsky.actor.getProfiles",
+        {
+          actors: dids,
+        },
+        { authManager },
+      );
+      return profiles;
+    },
+  });
+
+export const docEditsQueryOptions = (
+  ownerRecord: TypedRecord<HabitatDoc>,
+  authManager: AuthManager,
+) =>
+  queryOptions({
+    queryKey: ["edits", ownerRecord.uri],
+    queryFn: async ({ client }) => {
+      if (!ownerRecord.value.editorClique) {
+        return [];
+      }
+      const permissions = await client.fetchQuery(
+        docEditorsQueryOptions(ownerRecord.value.editorClique, authManager),
+      );
+      if (!permissions) {
+        return [];
+      }
+
+      const [, , ownerDID, , ownerRkey] = ownerRecord.uri.split("/");
+      // editRkey is the rkey used in network.habitat.docs.edit for this doc
+      const editRkey = `${ownerDID}-${ownerRkey}`;
+      return Promise.all(
+        permissions.map(async (grantee) => {
+          if (
+            grantee.$type !== "network.habitat.grantee#didGrantee" ||
+            !("did" in grantee)
+          ) {
+            return;
+          }
+          try {
+            return getPrivateRecord<HabitatDoc>(
+              authManager,
+              "network.habitat.docs.edit",
+              editRkey,
+              grantee.did,
+            );
+          } catch {
+            /* silently skip */
+          }
+        }),
+      );
+    },
+  });
+
+export const addPermissionMutationOptions = (authManager: AuthManager) =>
+  mutationOptions({
+    mutationFn: async ({
+      grantees,
+      editorCliqueUri,
+    }: {
+      grantees: string[];
+      editorCliqueUri: string | undefined;
+    }) => {
+      if (!editorCliqueUri) return;
+      const [, , collection, , rkey] = editorCliqueUri.split("/");
+      return procedure(
+        "network.habitat.addPermission",
+        {
+          grantees: grantees.map((grantee) => ({
+            $type: "network.habitat.grantee#didGrantee",
+            did: grantee,
+          })),
+          collection,
+          rkey,
+        },
+        { authManager },
+      );
+    },
+    onSuccess: (_, { editorCliqueUri }, __, { client }) => {
+      if (!editorCliqueUri) return;
+      client.invalidateQueries(
+        docEditorsQueryOptions(editorCliqueUri, authManager),
+      );
+    },
+  });

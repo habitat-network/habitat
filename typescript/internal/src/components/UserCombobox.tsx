@@ -14,12 +14,7 @@ import { useState } from "react";
 import { useDebounce } from "@uidotdev/usehooks";
 import { useQuery } from "@tanstack/react-query";
 import { UserAvatar } from "./UserAvatar";
-
-export interface Actor {
-  handle: string;
-  displayName?: string;
-  avatar?: string;
-}
+import { Actor } from "@/types/Actor";
 
 interface UserComboboxProps {
   authManager: AuthManager;
