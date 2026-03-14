@@ -69,6 +69,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
         awarenessProtocol.encodeAwarenessUpdate(this.awareness, changedClients),
       );
 
+      console.log("publishing awareness update");
       node.services.pubsub
         .publish(this.topic, encoding.toUint8Array(encoder))
         .catch((err: Error) => {
@@ -80,6 +81,7 @@ export class Libp2pConnectionProvider extends ObservableV2<{
       if (message.detail.topic !== this.topic) return;
       const decoder = decoding.createDecoder(message.detail.data);
       const messageType = decoding.readVarUint(decoder);
+      console.log("messageType", messageType);
       switch (messageType) {
         case messageTypes.sync: {
           const encoder = encoding.createEncoder();
@@ -149,6 +151,19 @@ export class Libp2pConnectionProvider extends ObservableV2<{
 
     console.log("subscribing to", this.topic);
     node.services.pubsub.subscribe(this.topic);
+
+    node.addEventListener("connection:open", (evt) => {
+      const conn = evt.detail;
+      const addr = conn.remoteAddr.toString();
+
+      const isDirect =
+        addr.includes("/webrtc") && !addr.includes("p2p-circuit");
+      const isRelayed = addr.includes("p2p-circuit");
+
+      console.log(
+        `connection to ${conn.remotePeer}: ${isDirect ? "direct WebRTC" : isRelayed ? "relayed" : "websocket"}`,
+      );
+    });
   }
 
   destroy(): void {

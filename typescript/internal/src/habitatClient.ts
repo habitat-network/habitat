@@ -6,6 +6,7 @@ import type {
   AppBskyActorSearchActorsTypeahead,
   AppBskyActorGetProfile,
   AppBskyActorGetProfiles,
+  ComAtprotoServerGetServiceAuth,
 } from "@atproto/api";
 import type {
   NetworkHabitatListConnectedApps,
@@ -14,6 +15,7 @@ import type {
   NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
   NetworkHabitatRepoPutRecord,
+  NetworkHabitatPermissionsAddPermission,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -34,6 +36,10 @@ type QueryEndpoints = {
   "com.atproto.repo.getRecord": Query<
     ComAtprotoRepoGetRecord.QueryParams,
     ComAtprotoRepoGetRecord.OutputSchema
+  >;
+  "com.atproto.server.getServiceAuth": Query<
+    ComAtprotoServerGetServiceAuth.QueryParams,
+    ComAtprotoServerGetServiceAuth.OutputSchema
   >;
   "network.habitat.getRecord": Query<
     NetworkHabitatRepoGetRecord.QueryParams,
@@ -83,6 +89,10 @@ type ProcedureEndpoints = {
   "network.habitat.repo.deleteRecord": Procedure<
     NetworkHabitatRepoDeleteRecord.InputSchema,
     NetworkHabitatRepoDeleteRecord.Response
+  >;
+  "network.habitat.addPermission": Procedure<
+    NetworkHabitatPermissionsAddPermission.InputSchema,
+    NetworkHabitatPermissionsAddPermission.Response
   >;
 };
 

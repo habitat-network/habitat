@@ -165,7 +165,6 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 
 	type discoveryRequest struct {
 		Topic            string `json:"topic"`
-		OauthToken       string `json:"oauth_token"`
 		ServiceAuthToken string `json:"serviceauth_token"`
 	}
 
@@ -181,7 +180,10 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 
 		var req discoveryRequest
 		if err := json.NewDecoder(stream).Decode(&req); err != nil {
-			log.Error().Err(err).Str("peer", peerID.String()).Msg("peer-discovery: failed to decode request")
+			log.Error().
+				Err(err).
+				Str("peer", peerID.String()).
+				Msg("peer-discovery: failed to decode request")
 			return
 		}
 
@@ -198,7 +200,14 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 			return
 		}
 
-		authz, err := s.pear.HasPermission(ctx, did, did, topic.Authority().DID(), topic.Collection(), topic.RecordKey())
+		authz, err := s.pear.HasPermission(
+			ctx,
+			did,
+			did,
+			topic.Authority().DID(),
+			topic.Collection(),
+			topic.RecordKey(),
+		)
 		if err != nil || !authz {
 			// Ignore this peer -- don't let it know about others and don't let others discover it
 			return

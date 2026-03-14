@@ -21,7 +21,7 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { FileTextIcon, PlusIcon } from "lucide-react";
-
+import { HabitatDoc } from "@/habitatDoc";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
@@ -47,15 +47,23 @@ export const Route = createFileRoute("/_requireAuth")({
     const navigate = Route.useNavigate();
 
     const currentUri = useRouterState({
-      select: (state) => {
-        return state.matches.find((x) => x.routeId === "/_requireAuth/$uri")
-          ?.params.uri;
-      },
+      select: (state) =>
+        state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
+          .uri,
     });
 
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
         const did = authManager.getAuthInfo()?.did;
+        const clique = await procedure(
+          "network.habitat.putRecord",
+          {
+            record: {},
+            repo: did ?? "",
+            collection: "network.habitat.clique",
+          },
+          { authManager },
+        );
         const response = await procedure(
           "network.habitat.putRecord",
           {
@@ -64,7 +72,14 @@ export const Route = createFileRoute("/_requireAuth")({
             record: {
               name: "Untitled",
               blob: null,
-            },
+              editorClique: clique.uri,
+            } satisfies HabitatDoc,
+            grantees: [
+              {
+                $type: "network.habitat.grantee#cliqueRef",
+                uri: clique.uri,
+              },
+            ],
           },
           { authManager },
         );
