@@ -2,7 +2,7 @@ go:
   version: null
   tidyOnChange: true
   bins:
-  - github.com/vladopajic/go-test-coverage/v2@latest
+  - github.com/vladopajic/go-test-coverage/v2@2.18.3
   - github.com/air-verse/air@latest
 node:
   version: null
