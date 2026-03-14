@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/bridges/otelzerolog"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log/global"
@@ -24,6 +24,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -148,7 +149,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
-	mux := http.NewServeMux()
+	mux := mux.NewRouter()
+
+	// Order of middlewares = order of "Use" called
+	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
+	mux.Use(otelmux.Middleware("habitat-server"))
+	mux.Use(corsMiddleware)
 
 	// auth routes
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
@@ -179,16 +185,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// TODO: should we put this behind /p2p instead of / ?
 	mux.HandleFunc("/", p2pServer.HandleLibp2p)
 
-	otelMiddleware := otelhttp.NewMiddleware(
-		"habitat-backend",
-		// Add extra attributes to every span
-		otelhttp.WithSpanNameFormatter(func(op string, r *http.Request) string {
-			return r.Method + " " + r.URL.Path // e.g. "GET /users"
-		}),
-	)
-
 	s := &http.Server{
-		Handler: otelMiddleware(corsMiddleware(mux)),
+		Handler: mux,
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
