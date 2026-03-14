@@ -11,7 +11,6 @@ import (
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/internal/clique"
-	"github.com/habitat-network/habitat/internal/node"
 	"gorm.io/gorm"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
@@ -69,9 +68,6 @@ type store struct {
 	// Backing data store for some subset of data that this permissions provider has access to.
 	db *gorm.DB
 
-	// The store needs to know which DIDs it serves and possibly route requests to other nodes in order resolve permissions.
-	node node.Node
-
 	// To look up cliques
 	cliqueStore clique.Store
 }
@@ -110,14 +106,14 @@ type permission struct {
 // - Whole NSID prefixes: "network.habitat.*"
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
-func NewStore(db *gorm.DB, node node.Node) (*store, error) {
+func NewStore(db *gorm.DB) (*store, error) {
 	// AutoMigrate will create the table with all indexes defined in the Permission struct
 	err := db.AutoMigrate(&permission{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
 	}
 
-	return &store{db: db, node: node}, nil
+	return &store{db: db}, nil
 }
 
 func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, clique habitat_syntax.Clique, did syntax.DID) (bool, error) {
@@ -169,13 +165,7 @@ func (s *store) HasPermission(
 				return false, nil
 			}
 		case habitat_syntax.Clique:
-			// Otherwise an indirection for looking up cliques may need to happen.
-			ok, err := s.node.ServesDID(ctx, grantee.Authority())
-			if err != nil {
-				return false, err
-			}
-
-			ok, err = s.isCliqueMember(ctx, requester, grantee)
+			ok, err := s.isCliqueMember(ctx, requester, grantee)
 			if err != nil {
 				return false, err
 			}

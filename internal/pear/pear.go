@@ -225,6 +225,8 @@ func (p *pear) PutRecord(
 		return "", fmt.Errorf("only owner can put record")
 	}
 
+	// TODO: ensure the caller is a member of a clique before adding it to their grantees.
+
 	did := target
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
 	if len(grantees) > 0 {
