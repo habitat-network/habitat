@@ -1,4 +1,6 @@
 tasks:
+  build:
+    deps: []
   start:
     options:
       runFromWorkspaceRoot: true

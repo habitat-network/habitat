@@ -48,7 +48,7 @@ export interface CollectionMetadata {
   lastTouched: string
   grantees: (
     | $Typed<NetworkHabitatGrantee.DidGrantee>
-    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | $Typed<NetworkHabitatGrantee.Clique>
     | { $type: string }
   )[]
 }

@@ -1,19 +1,24 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.clique.getMembers",
+    "id": "network.habitat.clique.isMember",
     "defs": {
         "main": {
             "type": "query",
-            "description": "See the member(s) to a clique. The clique must be readable by the caller.",
+            "description": "See if a user belongs to a clique. The clique must be readable by the caller.",
             "parameters": {
                 "type": "params",
                 "required": [
-                    "clique"
+                    "clique",
+                    "did"
                 ],
                 "properties": {
                     "clique": {
                         "type": "string",
                         "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
+                    },
+                    "did": {
+                        "type": "string",
+                        "format": "did"
                     }
                 }
             }

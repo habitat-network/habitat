@@ -9,14 +9,21 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+const (
+	ReservedCliqueNSID = "network.habitat.clique"
+)
+
 var CliqueRefRegex = regexp.MustCompile(`^clique:(?P<authority>[a-zA-Z0-9._:%-]+)(\/(?P<key>[a-zA-Z0-9-.]+))$`)
 
-func ConstructClique(owner syntax.DID, key string) string {
-	return fmt.Sprintf("clique:%s/%s", owner, key)
+func ConstructClique(owner syntax.DID, key string) Clique {
+	return Clique(fmt.Sprintf("clique:%s/%s", owner, key))
 }
 
 // A string that matches CliqueRefRegex
 type Clique string
+
+// Clique implements Grantee.
+func (c Clique) IsGrantee() {}
 
 func ParseClique(raw string) (Clique, error) {
 	if len(raw) > 8192 {

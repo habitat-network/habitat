@@ -1,0 +1,90 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.repo.createRecord",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a pear repository record, creating it if it does not exist already, or updating it as needed.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "repo",
+                        "collection",
+                        "record"
+                    ],
+                    "properties": {
+                        "repo": {
+                            "type": "string",
+                            "format": "at-identifier",
+                            "description": "The handle or DID of the repo (aka, current account)."
+                        },
+                        "collection": {
+                            "type": "string",
+                            "format": "nsid",
+                            "description": "The NSID of the record collection."
+                        },
+                        "rkey": {
+                            "type": "string",
+                            "format": "record-key",
+                            "description": "The Record Key.",
+                            "maxLength": 512
+                        },
+                        "validate": {
+                            "type": "boolean",
+                            "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
+                        },
+                        "record": {
+                            "type": "unknown",
+                            "description": "The record to write."
+                        },
+                        "createGranteesClique": {
+                            "type": "boolean",
+                            "description": "Whether to create a clique with the given grantees. If true, all grantees must be DIDs, and the created clique ref is returned."
+                        },
+                        "grantees": {
+                            "type": "array",
+                            "description": "Any grantees to set for this record",
+                            "items": {
+                                "type": "union",
+                                "refs": [
+                                    "network.habitat.grantee#didGrantee",
+                                    "network.habitat.grantee#clique"
+                                ]
+                            },
+                            "maxLength": 100
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "The habitat-uri of the put-ed object."
+                        },
+                        "validationStatus": {
+                            "type": "string",
+                            "knownValues": [
+                                "valid",
+                                "unknown"
+                            ]
+                        },
+                        "clique": {
+                            "type": "string",
+                            "description": "If a clique was created, return its ref, formatted like clique:<owner did>/<clique key>"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -27,18 +27,18 @@ var (
 func TestCreateClique(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{alice, bob})
+	clique, err := s.CreateClique(owner, []syntax.DID{alice, bob})
 	require.NoError(t, err)
-	require.NotEmpty(t, key)
+	require.NotEmpty(t, clique)
 }
 
 func TestGetMembers(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{alice, bob})
+	clique, err := s.CreateClique(owner, []syntax.DID{alice, bob})
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, key)
+	members, err := s.GetMembers(owner, clique.Key())
 	require.NoError(t, err)
 	// owner is always added as a member
 	require.ElementsMatch(t, []syntax.DID{owner, alice, bob}, members)
@@ -47,10 +47,10 @@ func TestGetMembers(t *testing.T) {
 func TestGetMembers_Empty(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{})
+	clique, err := s.CreateClique(owner, []syntax.DID{})
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, key)
+	members, err := s.GetMembers(owner, clique.Key())
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{owner}, members)
 }
@@ -58,13 +58,13 @@ func TestGetMembers_Empty(t *testing.T) {
 func TestAddMember(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{alice})
+	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	err = s.AddMember(owner, key, bob)
+	err = s.AddMember(owner, clique.Key(), bob)
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, key)
+	members, err := s.GetMembers(owner, clique.Key())
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{owner, alice, bob}, members)
 }
@@ -72,13 +72,13 @@ func TestAddMember(t *testing.T) {
 func TestAddMember_Idempotent(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{alice})
+	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	err = s.AddMember(owner, key, alice)
+	err = s.AddMember(owner, clique.Key(), alice)
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, key)
+	members, err := s.GetMembers(owner, clique.Key())
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{owner, alice}, members)
 }
@@ -86,17 +86,17 @@ func TestAddMember_Idempotent(t *testing.T) {
 func TestAddMember_CliqueNotFound(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.AddMember(owner, Key("nonexistent-key"), bob)
+	err := s.AddMember(owner, "nonexistent-key", bob)
 	require.ErrorIs(t, err, ErrCliqueNotFound)
 }
 
 func TestIsMember_True(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{alice})
+	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(owner, key, alice)
+	isMember, err := s.IsMember(owner, clique.Key(), alice)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
@@ -104,10 +104,10 @@ func TestIsMember_True(t *testing.T) {
 func TestIsMember_OwnerIsAlwaysMember(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{})
+	clique, err := s.CreateClique(owner, []syntax.DID{})
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(owner, key, owner)
+	isMember, err := s.IsMember(owner, clique.Key(), owner)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
@@ -115,10 +115,10 @@ func TestIsMember_OwnerIsAlwaysMember(t *testing.T) {
 func TestIsMember_False(t *testing.T) {
 	s := newTestStore(t)
 
-	key, err := s.CreateClique(owner, []syntax.DID{alice})
+	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(owner, key, bob)
+	isMember, err := s.IsMember(owner, clique.Key(), bob)
 	require.NoError(t, err)
 	require.False(t, isMember)
 }

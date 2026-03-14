@@ -58,7 +58,7 @@ export interface Record {
   value: { [_ in string]: unknown }
   permissions?: (
     | $Typed<NetworkHabitatGrantee.DidGrantee>
-    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | $Typed<NetworkHabitatGrantee.Clique>
     | { $type: string }
   )[]
 }

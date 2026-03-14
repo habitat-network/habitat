@@ -1,0 +1,25 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.clique.createClique",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a clique. The clique is owned by the caller.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "clique"
+                    ],
+                    "properties": {
+                        "clique": {
+                            "type": "string",
+                            "description": "A clique reference, formatted like 'clique:<owner did>/<clique key>'"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Revoke read permission from a user for a specific lexicon.",
+      "description": "Revoke read permission from a user or a clique for a specific lexicon or record.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -20,7 +20,7 @@
                 "type": "union",
                 "refs": [
                   "network.habitat.grantee#didGrantee",
-                  "network.habitat.grantee#cliqueRef"
+                  "network.habitat.grantee#clique"
                 ]
               },
               "maxLength": 100

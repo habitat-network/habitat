@@ -1,18 +1,20 @@
 package clique
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-)
 
-// This package manages cliques, a way to delegate permissions to other users and have shared group experiences.
-type Ref string
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
+)
 
 // cliqueMember is the GORM model. Fields must be exported for GORM to read/write them.
 type cliqueMember struct {
@@ -26,11 +28,12 @@ type cliqueMember struct {
 }
 
 type Store interface {
-	CreateClique(owner syntax.DID, members []syntax.DID) (Ref, error)
+	CreateClique(owner syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error)
 	GetMembers(owner syntax.DID, key string) ([]syntax.DID, error)
 	AddMember(owner syntax.DID, key string, member syntax.DID) error
 	RemoveMember(owner syntax.DID, key string, member syntax.DID) error
 	IsMember(owner syntax.DID, key string, maybeMember syntax.DID) (bool, error)
+	IsAnyCliqueMember(cliques []habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
 }
 
 type store struct {
@@ -53,7 +56,7 @@ var (
 )
 
 // CreateClique creates a clique owned by owner, with members, and returns the key of this clique.
-func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (Ref, error) {
+func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error) {
 	key := uuid.New().String()
 	rows := make([]cliqueMember, len(members))
 
@@ -77,7 +80,7 @@ func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (Ref, error
 		return "", err
 	}
 
-	return Ref(fmt.Sprintf("%s:%s", owner, key)), nil
+	return habitat_syntax.ConstructClique(owner, key), nil
 }
 
 // GetMembers returns all members of the clique identified by (owner, key).
@@ -138,4 +141,24 @@ func (s *store) RemoveMember(owner syntax.DID, key string, member syntax.DID) er
 		return ErrSelfIsAlwaysMember
 	}
 	return s.db.Where("owner = ? AND key = ? AND member = ?").Delete(&cliqueMember{}).Error
+}
+
+// IsAnyCliqueMember implements Store.
+func (s *store) IsAnyCliqueMember(cliques []habitat_syntax.Clique, maybeMember syntax.DID) (bool, error) {
+	panic("unimplemented")
+}
+
+// Helper functions
+func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (bool, error) {
+	if requester == subject {
+		// You always "follow yourself"
+		return true, nil
+	}
+
+	followers, err := utils.FetchFollowers(ctx, subject)
+	if err != nil {
+		return false, err
+	}
+
+	return slices.Contains(followers, requester), nil
 }
