@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "object",
-            "description": "Do we even need anything in here? I think it's just a placeholder.",
+            "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
             "properties": {}
         }
     }

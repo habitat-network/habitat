@@ -24,6 +24,11 @@ import * as CommunityLexiconLocationFsq from './types/community/lexicon/location
 import * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 import * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 import * as NetworkHabitatClique from './types/network/habitat/clique.js'
+import * as NetworkHabitatCliqueAddMembers from './types/network/habitat/clique/addMembers.js'
+import * as NetworkHabitatCliqueCreateClique from './types/network/habitat/clique/createClique.js'
+import * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
+import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
+import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -31,6 +36,7 @@ import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+import * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 import * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
@@ -54,6 +60,11 @@ export * as CommunityLexiconLocationFsq from './types/community/lexicon/location
 export * as CommunityLexiconLocationGeo from './types/community/lexicon/location/geo.js'
 export * as CommunityLexiconLocationHthree from './types/community/lexicon/location/hthree.js'
 export * as NetworkHabitatClique from './types/network/habitat/clique.js'
+export * as NetworkHabitatCliqueAddMembers from './types/network/habitat/clique/addMembers.js'
+export * as NetworkHabitatCliqueCreateClique from './types/network/habitat/clique/createClique.js'
+export * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
+export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
+export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -61,6 +72,7 @@ export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+export * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 export * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
@@ -491,12 +503,14 @@ export class NetworkNS {
 export class NetworkHabitatNS {
   _client: XrpcClient
   photo: NetworkHabitatPhotoRecord
+  clique: NetworkHabitatCliqueNS
   internal: NetworkHabitatInternalNS
   permissions: NetworkHabitatPermissionsNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
     this._client = client
+    this.clique = new NetworkHabitatCliqueNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
@@ -511,6 +525,74 @@ export class NetworkHabitatNS {
       'network.habitat.listConnectedApps',
       params,
       undefined,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatCliqueNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addMembers(
+    data?: NetworkHabitatCliqueAddMembers.InputSchema,
+    opts?: NetworkHabitatCliqueAddMembers.CallOptions,
+  ): Promise<NetworkHabitatCliqueAddMembers.Response> {
+    return this._client.call(
+      'network.habitat.clique.addMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  createClique(
+    data?: NetworkHabitatCliqueCreateClique.InputSchema,
+    opts?: NetworkHabitatCliqueCreateClique.CallOptions,
+  ): Promise<NetworkHabitatCliqueCreateClique.Response> {
+    return this._client.call(
+      'network.habitat.clique.createClique',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  getMembers(
+    params?: NetworkHabitatCliqueGetMembers.QueryParams,
+    opts?: NetworkHabitatCliqueGetMembers.CallOptions,
+  ): Promise<NetworkHabitatCliqueGetMembers.Response> {
+    return this._client.call(
+      'network.habitat.clique.getMembers',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  isMember(
+    params?: NetworkHabitatCliqueIsMember.QueryParams,
+    opts?: NetworkHabitatCliqueIsMember.CallOptions,
+  ): Promise<NetworkHabitatCliqueIsMember.Response> {
+    return this._client.call(
+      'network.habitat.clique.isMember',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  removeMembers(
+    data?: NetworkHabitatCliqueRemoveMembers.InputSchema,
+    opts?: NetworkHabitatCliqueRemoveMembers.CallOptions,
+  ): Promise<NetworkHabitatCliqueRemoveMembers.Response> {
+    return this._client.call(
+      'network.habitat.clique.removeMembers',
+      opts?.qp,
+      data,
       opts,
     )
   }
@@ -585,6 +667,18 @@ export class NetworkHabitatRepoNS {
 
   constructor(client: XrpcClient) {
     this._client = client
+  }
+
+  createRecord(
+    data?: NetworkHabitatRepoCreateRecord.InputSchema,
+    opts?: NetworkHabitatRepoCreateRecord.CallOptions,
+  ): Promise<NetworkHabitatRepoCreateRecord.Response> {
+    return this._client.call(
+      'network.habitat.repo.createRecord',
+      opts?.qp,
+      data,
+      opts,
+    )
   }
 
   deleteRecord(

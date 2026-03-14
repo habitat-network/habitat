@@ -184,8 +184,6 @@ var _ Pear = &pear{}
 var (
 	ErrPublicRecordExists     = fmt.Errorf("a public record exists with the same key")
 	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
-	ErrNoNestedCliques        = errors.New("nested cliques are not allowed")
-	ErrFollowersCliqueRkey    = errors.New("this clique cannot be directly set, it derives from app.bsky.graph.follows of the user")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
 	ErrDIDNotServed           = errors.New("DID is not served by this node")
 )
@@ -219,24 +217,15 @@ func (p *pear) PutRecord(
 	validate *bool,
 	grantees []permissions.Grantee,
 ) (habitat_syntax.HabitatURI, error) {
+	if collection == habitat_syntax.ReservedCliqueNSID {
+		return "", habitat_err.ErrNoSettingCliques
+	}
 	// Basic authz check -- you can only write to your own repo.
 	if target != caller {
 		return "", fmt.Errorf("only owner can put record")
 	}
 
-	// Cliques in habitat are treated specially, they are a way to delegate permissions to a particular did, which requires some
-	// special handling and coordination.
-	if collection == permissions.CliqueNSID {
-		if rkey == permissions.FollowersCliqueRkey {
-			return "", ErrFollowersCliqueRkey
-		}
-		for _, grantee := range grantees {
-			if _, ok := grantee.(permissions.CliqueGrantee); ok {
-				// No nested cliques allowed -- can't grant a clique permission to a clique
-				return "", ErrNoNestedCliques
-			}
-		}
-	}
+	// TODO: ensure the caller is a member of a clique before adding it to their grantees.
 
 	did := target
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
@@ -274,16 +263,6 @@ func (p *pear) getRecordLocal(
 
 	if !ok {
 		return nil, habitat_err.ErrUnauthorized
-	}
-
-	// Special case followers clique -- just intercept the call and return an empty record since we never store anything here
-	// The permissions on this record are fetched from another special cased path
-	if collection == permissions.CliqueNSID && rkey == permissions.FollowersCliqueRkey {
-		return &repo.Record{
-			Did:        target.String(),
-			Collection: collection.String(),
-			Rkey:       rkey.String(),
-		}, nil
 	}
 
 	return p.repo.GetRecord(ctx, target.String(), collection.String(), rkey.String())
@@ -362,6 +341,12 @@ func (p *pear) GetRecord(
 	target syntax.DID,
 	caller syntax.DID,
 ) (*repo.Record, error) {
+	// Cliques in habitat are treated specially, they are a way to delegate permissions to a particular did, which requires some
+	// special handling and coordination.
+	if collection == habitat_syntax.ReservedCliqueNSID {
+		return nil, habitat_err.ErrNoSettingCliques
+	}
+
 	ok, err := p.node.ServesDID(ctx, target)
 	if err != nil {
 		return nil, err

@@ -10,7 +10,7 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.clique'
 
-/** Do we even need anything in here? I think it's just a placeholder. */
+/** This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs. */
 export interface Main {
   $type?: 'network.habitat.clique'
 }

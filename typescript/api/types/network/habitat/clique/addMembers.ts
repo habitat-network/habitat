@@ -14,32 +14,13 @@ import type * as NetworkHabitatGrantee from '../grantee.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.repo.putRecord'
+const id = 'network.habitat.clique.addMembers'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The handle or DID of the repo (aka, current account). */
-  repo: string
-  /** The NSID of the record collection. */
-  collection: string
-  /** The Record Key. */
-  rkey?: string
-  /** Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons. */
-  validate?: boolean
-  /** The record to write. */
-  record: { [_ in string]: unknown }
-  grantees?: (
-    | $Typed<NetworkHabitatGrantee.DidGrantee>
-    | $Typed<NetworkHabitatGrantee.Clique>
-    | { $type: string }
-  )[]
-}
-
-export interface OutputSchema {
-  /** The habitat-uri of the put-ed object. */
-  uri: string
-  validationStatus?: 'valid' | 'unknown' | (string & {})
+  clique: NetworkHabitatGrantee.Clique
+  members: string[]
 }
 
 export interface CallOptions {
@@ -52,7 +33,6 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
-  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {
