@@ -13,50 +13,24 @@ const (
 	CliqueType GranteeType = "clique"
 	DIDType    GranteeType = "did"
 
-	CliqueNSID          = syntax.NSID("network.habitat.clique")
-	FollowersCliqueRkey = syntax.RecordKey("followers")
+	FollowersCliqueKey = "followers"
 )
 
 type Grantee interface {
-	isGrantee()
+	IsGrantee()
 	String() string
-}
-
-type CliqueGrantee habitat_syntax.HabitatURI
-
-var _ Grantee = CliqueGrantee("")
-
-func (g CliqueGrantee) isGrantee() {}
-func (g CliqueGrantee) String() string {
-	return string(g)
-}
-func (g CliqueGrantee) Owner() syntax.DID {
-	return syntax.DID(habitat_syntax.HabitatURI(g).Authority().String())
-}
-
-func (g CliqueGrantee) RecordKey() syntax.RecordKey {
-	return habitat_syntax.HabitatURI(g).RecordKey()
 }
 
 type DIDGrantee syntax.DID
 
 var _ Grantee = DIDGrantee("")
 
-func (g DIDGrantee) isGrantee() {}
+func (g DIDGrantee) IsGrantee() {}
 func (g DIDGrantee) String() string {
 	return string(g)
 }
 
-// Represents a grantee as V2 cliques -- formalized.
-type CliqueGranteeV2 habitat_syntax.Clique
-
-// isGrantee implements Grantee.
-func (c CliqueGranteeV2) isGrantee() {}
-func (c CliqueGranteeV2) String() string {
-	return string(c)
-}
-
-var _ Grantee = CliqueGranteeV2("")
+var _ Grantee = habitat_syntax.Clique("")
 
 // Try to parse the string as either a clique or did grantee.
 func ParseGranteeFromString(grantee string) (Grantee, error) {
@@ -64,9 +38,9 @@ func ParseGranteeFromString(grantee string) (Grantee, error) {
 	if err == nil {
 		return DIDGrantee(did), nil
 	}
-	clique, err := parseHabitatClique(grantee)
+	clique, err := habitat_syntax.ParseClique(grantee)
 	if err == nil {
-		return CliqueGrantee(clique), nil
+		return clique, nil
 	}
 
 	return nil, fmt.Errorf("unable to parse given string as a valid permission grantee type: %s", grantee)
@@ -94,45 +68,45 @@ func ParseGranteesFromInterface(grantees []interface{}) ([]Grantee, error) {
 		var grantee Grantee
 		switch granteeType {
 		case "network.habitat.grantee#didGrantee":
-			did, ok := unknownGrantee["did"]
+			maybeDID, ok := unknownGrantee["did"]
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted did grantee has no did field: %v",
 					unknownGrantee,
 				)
 			}
-			asStr, ok := did.(string)
+			asStr, ok := maybeDID.(string)
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted did grantee has non-string did field: %v",
 					unknownGrantee,
 				)
 			}
-			parsedDID, err := syntax.ParseDID(asStr)
+			did, err := syntax.ParseDID(asStr)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing did grantee: %w", err)
 			}
-			grantee = DIDGrantee(parsedDID)
-		case "network.habitat.grantee#cliqueRef":
-			uri, ok := unknownGrantee["uri"]
+			grantee = DIDGrantee(did)
+		case "network.habitat.grantee#clique":
+			var err error
+			maybeClique, ok := unknownGrantee["clique"]
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted clique grantee has no uri field: %v",
 					unknownGrantee,
 				)
 			}
-			asStr, ok := uri.(string)
+			asStr, ok := maybeClique.(string)
 			if !ok {
 				return nil, fmt.Errorf(
 					"malformatted clique grantee has non-string uri field: %v",
 					unknownGrantee,
 				)
 			}
-			clique, err := parseHabitatClique(asStr)
+			grantee, err = habitat_syntax.ParseClique(asStr)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing clique grantee (v1): %w", err)
 			}
-			grantee = CliqueGrantee(clique)
 		default:
 			return nil, fmt.Errorf(
 				"malformatted grantee has unknown $type of %v: %v",
@@ -160,25 +134,13 @@ func ConstructInterfaceFromGrantees(grantees []Grantee) []interface{} {
 				"did":   g.String(),
 			}
 			constructed[i] = didGrantee
-		case CliqueGrantee:
-			cliqueGrantee := map[string]any{
-				"$type": "network.habitat.grantee#cliqueRef",
-				"uri":   g.String(),
+		case habitat_syntax.Clique:
+			clique := map[string]any{
+				"$type":  "network.habitat.grantee#clique",
+				"clique": g.String(),
 			}
-			constructed[i] = cliqueGrantee
+			constructed[i] = clique
 		}
 	}
 	return constructed
-}
-
-func parseHabitatClique(raw string) (habitat_syntax.HabitatURI, error) {
-	uri, err := habitat_syntax.ParseHabitatURI(raw)
-	if err != nil {
-		return "", err
-	}
-
-	if uri.Collection() != CliqueNSID {
-		return "", fmt.Errorf("input does not use clique nsid: %s", raw)
-	}
-	return uri, nil
 }

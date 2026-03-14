@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Write a repository record, creating or updating it as needed.",
+      "description": "Write a pear repository record, creating it if it does not exist already, or updating it as needed.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -45,7 +45,7 @@
                 "type": "union",
                 "refs": [
                   "network.habitat.grantee#didGrantee",
-                  "network.habitat.grantee#cliqueRef"
+                  "network.habitat.grantee#clique"
                 ]
               },
               "maxLength": 100

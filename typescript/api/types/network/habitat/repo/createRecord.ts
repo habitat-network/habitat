@@ -14,7 +14,7 @@ import type * as NetworkHabitatGrantee from '../grantee.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.repo.putRecord'
+const id = 'network.habitat.repo.createRecord'
 
 export type QueryParams = {}
 
@@ -29,6 +29,9 @@ export interface InputSchema {
   validate?: boolean
   /** The record to write. */
   record: { [_ in string]: unknown }
+  /** Whether to create a clique with the given grantees. If true, all grantees must be DIDs, and the created clique ref is returned. */
+  createGranteesClique?: boolean
+  /** Any grantees to set for this record */
   grantees?: (
     | $Typed<NetworkHabitatGrantee.DidGrantee>
     | $Typed<NetworkHabitatGrantee.Clique>
@@ -40,6 +43,8 @@ export interface OutputSchema {
   /** The habitat-uri of the put-ed object. */
   uri: string
   validationStatus?: 'valid' | 'unknown' | (string & {})
+  /** If a clique was created, return its ref, formatted like clique:<owner did>/<clique key> */
+  clique?: string
 }
 
 export interface CallOptions {

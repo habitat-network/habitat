@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xmaps"
 	"github.com/bradenaw/juniper/xslices"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/node"
-	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
+
+	habitat_err "github.com/habitat-network/habitat/internal/error"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type Store interface {
@@ -70,6 +71,9 @@ type store struct {
 
 	// The store needs to know which DIDs it serves and possibly route requests to other nodes in order resolve permissions.
 	node node.Node
+
+	// To look up cliques
+	cliqueStore clique.Store
 }
 
 var _ Store = (*store)(nil)
@@ -116,95 +120,12 @@ func NewStore(db *gorm.DB, node node.Node) (*store, error) {
 	return &store{db: db, node: node}, nil
 }
 
-func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, clique CliqueGrantee, did syntax.DID) (bool, error) {
-	// Otherwise, forward this request to the right repo (the clique member)
-	reqURL, err := url.Parse("/xrpc/network.habitat.getRecord")
-	if err != nil {
-		return false, err
-	}
-	q := reqURL.Query()
-	q.Set("repo", clique.Owner().String())
-	q.Set("collection", CliqueNSID.String())
-	q.Set("rkey", clique.RecordKey().String())
-	reqURL.RawQuery = q.Encode()
-	if err != nil {
-		return false, err
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		reqURL.String(),
-		nil,
-	)
-	if err != nil {
-		return false, fmt.Errorf("constructing http request: %w", err)
-	}
-
-	resp, err := s.node.SendXRPC(ctx, callerDID, clique.Owner(), req)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return true, nil
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return false, nil
-	default:
-		return false, fmt.Errorf("unexpected status from remote getRecord: %d", resp.StatusCode)
-	}
+func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, clique habitat_syntax.Clique, did syntax.DID) (bool, error) {
+	panic("unimplemented")
 }
 
-func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (bool, error) {
-	if requester == subject {
-		// You always "follow yourself"
-		return true, nil
-	}
-
-	followers, err := utils.FetchFollowers(ctx, subject)
-	if err != nil {
-		return false, err
-	}
-
-	return slices.Contains(followers, requester), nil
-}
-
-func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique CliqueGrantee) (bool, error) {
-	if requester == clique.Owner() {
-		return true, nil
-	}
-
-	ok, err := s.node.ServesDID(ctx, clique.Owner())
-	if err != nil {
-		return false, err
-	}
-
-	// Remote clique; need to call out
-	if !ok {
-		return s.isRemoteCliqueMember(ctx, requester, clique, requester)
-	}
-
-	// Special case followers clique
-	if clique.RecordKey() == FollowersCliqueRkey {
-		return isFollower(ctx, requester, clique.Owner())
-	}
-
-	// Local clique
-	var cliquePermission permission
-	err = s.db.Where("grantee = ?", requester.String()).
-		Where("collection = ?", CliqueNSID).Where("effect = ?", Allow).
-		Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey()).
-		First(&cliquePermission).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
-	} else if err != nil {
-		return false, err
-	}
-
-	return true, nil
+func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique habitat_syntax.Clique) (bool, error) {
+	panic("unimplemented")
 }
 
 // HasPermission checks if a requester has permission to access a specific record.
@@ -220,9 +141,9 @@ func (s *store) HasPermission(
 		return true, nil
 	}
 
-	// Special case follower cliquein
-	if collection == CliqueNSID && rkey == "followers" {
-		return isFollower(ctx, requester, owner)
+	// The clique collection is reserved for special cases by the server.
+	if collection == habitat_syntax.ReservedCliqueNSID {
+		return false, habitat_err.ErrNoGettingClique
 	}
 
 	permissions, err := s.listPermissions(requester, []syntax.DID{owner}, collection, rkey)
@@ -230,8 +151,8 @@ func (s *store) HasPermission(
 		return false, err
 	}
 
-	localCliques := []CliqueGrantee{}
-	remoteCliques := []CliqueGrantee{}
+	localCliques := []habitat_syntax.Clique{}
+	remoteCliques := []habitat_syntax.Clique{}
 	for _, permission := range permissions {
 		switch grantee := permission.Grantee.(type) {
 		case DIDGrantee:
@@ -247,59 +168,30 @@ func (s *store) HasPermission(
 			} else {
 				return false, nil
 			}
-		case CliqueGrantee:
+		case habitat_syntax.Clique:
 			// Otherwise an indirection for looking up cliques may need to happen.
-			ok, err := s.node.ServesDID(ctx, grantee.Owner())
+			ok, err := s.node.ServesDID(ctx, grantee.Authority())
 			if err != nil {
 				return false, err
 			}
 
-			// Kind of inefficient -- this can be looked up from anywhere and doesn't need to be forwarded to local repo
-			if grantee.RecordKey() == FollowersCliqueRkey {
-				follower, err := isFollower(ctx, requester, grantee.Owner())
-				if err != nil {
-					return false, err
-				}
-				if follower {
-					return true, nil
-				}
-			} else {
-				if ok {
-					localCliques = append(localCliques, grantee)
-				} else {
-					remoteCliques = append(remoteCliques, grantee)
-				}
+			ok, err = s.isCliqueMember(ctx, requester, grantee)
+			if err != nil {
+				return false, err
+			}
+
+			if ok {
+				return true, nil
 			}
 		}
 	}
 
 	// First try to resolve local cliques
 	if len(localCliques) > 0 {
-		// This works if any row matches the requester + clique owner + clique collection + clique rkey
-		query := s.db.Where("grantee = ?", requester.String()).Where("collection = ?", CliqueNSID).Where("effect = ?", Allow)
-
-		// build OR pairs for each local clique
-		for i, clique := range localCliques {
-			if clique.Owner() == requester {
-				// Owners of the clique always have permission
-				return true, nil
-			}
-			if i == 0 {
-				query = query.Where("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
-			} else {
-				query = query.Or("owner = ? AND rkey = ?", clique.Owner(), clique.RecordKey())
-			}
-		}
-
-		var cliquePermission permission
-		// A single row match gives us what we need
-		err = query.Limit(1).First(&cliquePermission).Error
-		if err == nil {
-			// We found a result -- the requester has permission
-			return true, nil
-		}
+		s.cliqueStore.IsAnyCliqueMember(localCliques, requester)
 	}
 
+	// TODO: clique store should be able to resolve local / remoteness itself
 	if len(remoteCliques) > 0 {
 		var remoteErr error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -498,7 +390,7 @@ func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syn
 
 	relevant := []Permission{}
 	for _, permission := range allPermissions {
-		clique, ok := permission.Grantee.(CliqueGrantee)
+		clique, ok := permission.Grantee.(habitat_syntax.Clique)
 		if !ok {
 			// Directly return specific grants for this DID
 			relevant = append(relevant, permission)

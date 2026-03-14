@@ -772,8 +772,142 @@ export const schemaDict = {
       main: {
         type: 'object',
         description:
-          "Do we even need anything in here? I think it's just a placeholder.",
+          'This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.',
         properties: {},
+      },
+    },
+  },
+  NetworkHabitatCliqueAddMembers: {
+    lexicon: 1,
+    id: 'network.habitat.clique.addMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Add member(s) to a clique. The clique must be editable by the caller.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['clique', 'members'],
+            properties: {
+              clique: {
+                type: 'ref',
+                ref: 'lex:network.habitat.grantee#clique',
+              },
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCliqueCreateClique: {
+    lexicon: 1,
+    id: 'network.habitat.clique.createClique',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Create a clique. The clique is owned by the caller.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['clique'],
+            properties: {
+              clique: {
+                type: 'string',
+                description:
+                  "A clique reference, formatted like 'clique:<owner did>/<clique key>'",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCliqueGetMembers: {
+    lexicon: 1,
+    id: 'network.habitat.clique.getMembers',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'See the member(s) to a clique. The clique must be readable by the caller.',
+        parameters: {
+          type: 'params',
+          required: ['clique'],
+          properties: {
+            clique: {
+              type: 'string',
+              description:
+                'The desired clique to query formatted as clique:<owner did>/<clique key>',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCliqueIsMember: {
+    lexicon: 1,
+    id: 'network.habitat.clique.isMember',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'See if a user belongs to a clique. The clique must be readable by the caller.',
+        parameters: {
+          type: 'params',
+          required: ['clique', 'did'],
+          properties: {
+            clique: {
+              type: 'string',
+              description:
+                'The desired clique to query formatted as clique:<owner did>/<clique key>',
+            },
+            did: {
+              type: 'string',
+              format: 'did',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCliqueRemoveMembers: {
+    lexicon: 1,
+    id: 'network.habitat.clique.removeMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove member(s) to a clique. The clique must be editable by the caller.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['clique', 'members'],
+            properties: {
+              clique: {
+                type: 'ref',
+                ref: 'lex:network.habitat.grantee#clique',
+              },
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
       },
     },
   },
@@ -792,15 +926,14 @@ export const schemaDict = {
           },
         },
       },
-      cliqueRef: {
+      clique: {
         type: 'object',
         description:
-          'A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key',
-        required: ['uri'],
+          'A clique grantee in the form clique:did:plc:web:arushi/clique-key',
+        required: ['clique'],
         properties: {
-          uri: {
+          clique: {
             type: 'string',
-            format: 'uri',
           },
         },
       },
@@ -888,6 +1021,10 @@ export const schemaDict = {
             description:
               'The last time habitat detected a session with this app.',
           },
+          logoUri: {
+            type: 'string',
+            description: 'The logo URI of this app.',
+          },
         },
       },
     },
@@ -898,7 +1035,8 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'procedure',
-        description: 'Grant read permission to a user for a specific lexicon.',
+        description:
+          'Grant read permission to a user or a clique for a specific collection or a specific record.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -911,7 +1049,7 @@ export const schemaDict = {
                   type: 'union',
                   refs: [
                     'lex:network.habitat.grantee#didGrantee',
-                    'lex:network.habitat.grantee#cliqueRef',
+                    'lex:network.habitat.grantee#clique',
                   ],
                 },
                 maxLength: 100,
@@ -995,7 +1133,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Revoke read permission from a user for a specific lexicon.',
+          'Revoke read permission from a user or a clique for a specific lexicon or record.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -1008,7 +1146,7 @@ export const schemaDict = {
                   type: 'union',
                   refs: [
                     'lex:network.habitat.grantee#didGrantee',
-                    'lex:network.habitat.grantee#cliqueRef',
+                    'lex:network.habitat.grantee#clique',
                   ],
                 },
                 maxLength: 100,
@@ -1050,6 +1188,92 @@ export const schemaDict = {
             createdAt: {
               type: 'string',
               format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRepoCreateRecord: {
+    lexicon: 1,
+    id: 'network.habitat.repo.createRecord',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a pear repository record, creating it if it does not exist already, or updating it as needed.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repo', 'collection', 'record'],
+            properties: {
+              repo: {
+                type: 'string',
+                format: 'at-identifier',
+                description:
+                  'The handle or DID of the repo (aka, current account).',
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'The NSID of the record collection.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description: 'The Record Key.',
+                maxLength: 512,
+              },
+              validate: {
+                type: 'boolean',
+                description:
+                  "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons.",
+              },
+              record: {
+                type: 'unknown',
+                description: 'The record to write.',
+              },
+              createGranteesClique: {
+                type: 'boolean',
+                description:
+                  'Whether to create a clique with the given grantees. If true, all grantees must be DIDs, and the created clique ref is returned.',
+              },
+              grantees: {
+                type: 'array',
+                description: 'Any grantees to set for this record',
+                items: {
+                  type: 'union',
+                  refs: [
+                    'lex:network.habitat.grantee#didGrantee',
+                    'lex:network.habitat.grantee#clique',
+                  ],
+                },
+                maxLength: 100,
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'uri',
+                description: 'The habitat-uri of the put-ed object.',
+              },
+              validationStatus: {
+                type: 'string',
+                knownValues: ['valid', 'unknown'],
+              },
+              clique: {
+                type: 'string',
+                description:
+                  'If a clique was created, return its ref, formatted like clique:<owner did>/<clique key>',
+              },
             },
           },
         },
@@ -1145,7 +1369,7 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'query',
-        description: 'Get a single record from a repository',
+        description: 'Get a single record from the pear repository.',
         parameters: {
           type: 'params',
           required: ['repo', 'collection', 'rkey'],
@@ -1192,7 +1416,7 @@ export const schemaDict = {
                   type: 'union',
                   refs: [
                     'lex:network.habitat.grantee#didGrantee',
-                    'lex:network.habitat.grantee#cliqueRef',
+                    'lex:network.habitat.grantee#clique',
                   ],
                 },
               },
@@ -1256,7 +1480,7 @@ export const schemaDict = {
               type: 'union',
               refs: [
                 'lex:network.habitat.grantee#didGrantee',
-                'lex:network.habitat.grantee#cliqueRef',
+                'lex:network.habitat.grantee#clique',
               ],
             },
           },
@@ -1349,7 +1573,7 @@ export const schemaDict = {
               type: 'union',
               refs: [
                 'lex:network.habitat.grantee#didGrantee',
-                'lex:network.habitat.grantee#cliqueRef',
+                'lex:network.habitat.grantee#clique',
               ],
             },
           },
@@ -1364,7 +1588,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Write a repository record, creating or updating it as needed.',
+          'Write a pear repository record, creating it if it does not exist already, or updating it as needed.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -1403,7 +1627,7 @@ export const schemaDict = {
                   type: 'union',
                   refs: [
                     'lex:network.habitat.grantee#didGrantee',
-                    'lex:network.habitat.grantee#cliqueRef',
+                    'lex:network.habitat.grantee#clique',
                   ],
                 },
                 maxLength: 100,
@@ -1510,6 +1734,11 @@ export const ids = {
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
   NetworkHabitatClique: 'network.habitat.clique',
+  NetworkHabitatCliqueAddMembers: 'network.habitat.clique.addMembers',
+  NetworkHabitatCliqueCreateClique: 'network.habitat.clique.createClique',
+  NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
+  NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
+  NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
@@ -1521,6 +1750,7 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
+  NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
