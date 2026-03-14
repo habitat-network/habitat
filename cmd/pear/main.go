@@ -180,10 +180,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
-	mux.Handle("/xrpc/", pdsForwarding)
+	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
 
 	// TODO: should we put this behind /p2p instead of / ?
-	mux.HandleFunc("/", p2pServer.HandleLibp2p)
+	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
 	s := &http.Server{
 		Handler: mux,
