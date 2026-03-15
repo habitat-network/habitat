@@ -28,9 +28,11 @@ import {
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
+  useSidebar,
 } from "internal/components/ui";
 import { HelpDialog } from "@/components/HelpDialog";
-import { CheckIcon, LoaderIcon } from "lucide-react";
+import { CheckIcon, LoaderIcon, MenuIcon } from "lucide-react";
+import { useIsMobile } from "node_modules/internal/src/components/hooks/use-mobile";
 
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
@@ -357,12 +359,19 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       },
       [ydoc],
     );
+    const { toggleSidebar } = useSidebar();
+    const isMobile = useIsMobile();
     return (
       <div className="flex flex-col-reverse h-full">
         <div className="flex-1 flex flex-col items-center">
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
         <header className="px-3 py-1 text-right border-b flex justify-between sticky top-0 bg-background">
+          {isMobile && (
+            <Button onClick={toggleSidebar} size="icon" variant="ghost">
+              <MenuIcon />
+            </Button>
+          )}
           <Popover>
             <PopoverTrigger
               render={
