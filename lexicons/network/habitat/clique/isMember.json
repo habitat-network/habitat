@@ -21,6 +21,21 @@
                         "format": "did"
                     }
                 }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "found"
+                    ],
+                    "properties": {
+                        "found": {
+                            "type": "boolean",
+                            "description": "Whether the given member is a part of the given clique."
+                        }
+                    }
+                }
             }
         }
     }

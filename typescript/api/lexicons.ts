@@ -814,7 +814,23 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'procedure',
-        description: 'Create a clique. The clique is owned by the caller.',
+        description:
+          'Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
         output: {
           encoding: 'application/json',
           schema: {
@@ -824,7 +840,7 @@ export const schemaDict = {
               clique: {
                 type: 'string',
                 description:
-                  "A clique reference, formatted like 'clique:<owner did>/<clique key>'",
+                  'The habitat clique, formatted as clique:<owner did>/<clique key>',
               },
             },
           },
@@ -851,6 +867,22 @@ export const schemaDict = {
             },
           },
         },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
       },
     },
   },
@@ -874,6 +906,20 @@ export const schemaDict = {
             did: {
               type: 'string',
               format: 'did',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['found'],
+            properties: {
+              found: {
+                type: 'boolean',
+                description:
+                  'Whether the given member is a part of the given clique.',
+              },
             },
           },
         },

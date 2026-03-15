@@ -106,7 +106,7 @@ type permission struct {
 // - Whole NSID prefixes: "network.habitat.*"
 // - Specific NSIDs: "network.habitat.collection"
 // - Specific records: "network.habitat.collection.recordKey"
-func NewStore(db *gorm.DB) (*store, error) {
+func NewStore(db *gorm.DB, cliqueStore clique.Store) (*store, error) {
 	// AutoMigrate will create the table with all indexes defined in the Permission struct
 	err := db.AutoMigrate(&permission{})
 	if err != nil {

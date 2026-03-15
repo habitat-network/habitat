@@ -22,6 +22,11 @@ export type QueryParams = {
 }
 export type InputSchema = undefined
 
+export interface OutputSchema {
+  /** Whether the given member is a part of the given clique. */
+  found: boolean
+}
+
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
@@ -30,6 +35,7 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

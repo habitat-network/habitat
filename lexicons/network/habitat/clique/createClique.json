@@ -4,7 +4,22 @@
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Create a clique. The clique is owned by the caller.",
+            "description": "Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            }
+                        }
+                    }
+                }
+            },
             "output": {
                 "encoding": "application/json",
                 "schema": {
@@ -15,7 +30,7 @@
                     "properties": {
                         "clique": {
                             "type": "string",
-                            "description": "A clique reference, formatted like 'clique:<owner did>/<clique key>'"
+                            "description": "The habitat clique, formatted as clique:<owner did>/<clique key>"
                         }
                     }
                 }

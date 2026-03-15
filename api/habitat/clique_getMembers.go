@@ -6,3 +6,8 @@ package habitat
 type NetworkHabitatCliqueGetMembersParams struct {
 	Clique string `json:"clique"`
 }
+
+// NetworkHabitatCliqueGetMembersOutput represents the output for network.habitat.clique.getMembers
+type NetworkHabitatCliqueGetMembersOutput struct {
+	Members []string `json:"members"`
+}

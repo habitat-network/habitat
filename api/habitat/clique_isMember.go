@@ -7,3 +7,8 @@ type NetworkHabitatCliqueIsMemberParams struct {
 	Clique string `json:"clique"`
 	Did    string `json:"did"`
 }
+
+// NetworkHabitatCliqueIsMemberOutput represents the output for network.habitat.clique.isMember
+type NetworkHabitatCliqueIsMemberOutput struct {
+	Found bool `json:"found"`
+}

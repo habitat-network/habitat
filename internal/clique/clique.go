@@ -11,6 +11,7 @@ import (
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -29,10 +30,10 @@ type cliqueMember struct {
 
 type Store interface {
 	CreateClique(owner syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error)
-	GetMembers(owner syntax.DID, key string) ([]syntax.DID, error)
-	AddMember(owner syntax.DID, key string, member syntax.DID) error
-	RemoveMember(owner syntax.DID, key string, member syntax.DID) error
-	IsMember(owner syntax.DID, key string, maybeMember syntax.DID) (bool, error)
+	GetMembers(clique habitat_syntax.Clique) ([]syntax.DID, error)
+	AddMembers(clique habitat_syntax.Clique, members []syntax.DID) error
+	RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID) error
+	IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
 	IsAnyCliqueMember(cliques []habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
 }
 
@@ -60,20 +61,26 @@ func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (habitat_sy
 	key := uuid.New().String()
 	rows := make([]cliqueMember, len(members))
 
+	foundSelf := false
 	for i, m := range members {
 		rows[i] = cliqueMember{
 			Owner:  owner.String(),
 			Key:    key,
 			Member: m.String(),
 		}
+		if m == owner {
+			foundSelf = true
+		}
 	}
 
-	// Owner is always in the clique -- this signifies clique existence for an empty clique
-	rows = append(rows, cliqueMember{
-		Owner:  owner.String(),
-		Key:    key,
-		Member: owner.String(),
-	})
+	if !foundSelf {
+		// Owner is always in the clique -- this signifies clique existence for an empty clique
+		rows = append(rows, cliqueMember{
+			Owner:  owner.String(),
+			Key:    key,
+			Member: owner.String(),
+		})
+	}
 
 	err := s.db.Create(&rows).Error
 	if err != nil {
@@ -84,9 +91,9 @@ func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (habitat_sy
 }
 
 // GetMembers returns all members of the clique identified by (owner, key).
-func (s *store) GetMembers(owner syntax.DID, key string) ([]syntax.DID, error) {
+func (s *store) GetMembers(clique habitat_syntax.Clique) ([]syntax.DID, error) {
 	var members []string
-	err := s.db.Model(cliqueMember{}).Where("owner = ? AND key = ?", owner.String(), key).Pluck("member", &members).Error
+	err := s.db.Model(cliqueMember{}).Where("owner = ? AND key = ?", clique.Authority().String(), clique.Key()).Pluck("member", &members).Error
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +104,18 @@ func (s *store) GetMembers(owner syntax.DID, key string) ([]syntax.DID, error) {
 }
 
 // AddMember adds a member to an existing clique. No-ops if already a member.
-func (s *store) AddMember(owner syntax.DID, key string, member syntax.DID) error {
+func (s *store) AddMembers(clique habitat_syntax.Clique, members []syntax.DID) error {
+	owner := clique.Authority()
+	key := clique.Key()
+
+	cliqueMembers := xslices.Map(members, func(m syntax.DID) cliqueMember {
+		return cliqueMember{
+			Owner:  owner.String(),
+			Key:    key,
+			Member: m.String(),
+		}
+	})
+
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		// First check existence of the clique
 		var ownerMembership cliqueMember
@@ -108,21 +126,20 @@ func (s *store) AddMember(owner syntax.DID, key string, member syntax.DID) error
 			return err
 		}
 
-		// If that passes, try creating the clique member (no-op if exists already)
-		return tx.FirstOrCreate(&cliqueMember{
-			Owner:  owner.String(),
-			Key:    key,
-			Member: member.String(),
-		}).Error
+		// If that passes, try creating the clique members (no-op if exists already)
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&cliqueMembers).Error
 	})
 }
 
 // IsMember returns true if maybeMember is in the clique identified by (owner, key).
 // The owner is always considered a member of their own cliques.
-func (s *store) IsMember(owner syntax.DID, key string, maybeMember syntax.DID) (bool, error) {
+func (s *store) IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error) {
+	owner := clique.Authority()
+	key := clique.Authority()
+
 	var row cliqueMember
 	err := s.db.
-		Where("owner = ? AND key = ? AND member = ?", owner.String(), key, maybeMember.String()).
+		Where("owner = ? AND key = ? AND member = ?", owner, key, maybeMember.String()).
 		First(&row).
 		Error
 
@@ -136,11 +153,26 @@ func (s *store) IsMember(owner syntax.DID, key string, maybeMember syntax.DID) (
 }
 
 // RemoveMember implements Store.
-func (s *store) RemoveMember(owner syntax.DID, key string, member syntax.DID) error {
-	if owner == member {
+func (s *store) RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID) error {
+	owner := clique.Authority()
+	key := clique.Key()
+
+	if slices.Contains(members, owner) {
 		return ErrSelfIsAlwaysMember
 	}
-	return s.db.Where("owner = ? AND key = ? AND member = ?").Delete(&cliqueMember{}).Error
+
+	cliqueMembers := xslices.Map(members, func(m syntax.DID) cliqueMember {
+		return cliqueMember{
+			Owner:  owner.String(),
+			Key:    key,
+			Member: m.String(),
+		}
+	})
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// If that passes, try creating the clique members (no-op if exists already)
+		return tx.Delete(&cliqueMembers).Error
+	})
 }
 
 // IsAnyCliqueMember implements Store.

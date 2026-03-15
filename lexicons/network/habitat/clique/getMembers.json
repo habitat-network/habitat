@@ -16,6 +16,24 @@
                         "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
                     }
                 }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "members"
+                    ],
+                    "properties": {
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            }
+                        }
+                    }
+                }
             }
         }
     }

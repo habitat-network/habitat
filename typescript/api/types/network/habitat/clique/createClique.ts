@@ -16,10 +16,13 @@ const is$typed = _is$typed,
 const id = 'network.habitat.clique.createClique'
 
 export type QueryParams = {}
-export type InputSchema = undefined
+
+export interface InputSchema {
+  members?: string[]
+}
 
 export interface OutputSchema {
-  /** A clique reference, formatted like 'clique:<owner did>/<clique key>' */
+  /** The habitat clique, formatted as clique:<owner did>/<clique key> */
   clique: string
 }
 
@@ -27,6 +30,7 @@ export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
   qp?: QueryParams
+  encoding?: 'application/json'
 }
 
 export interface Response {
