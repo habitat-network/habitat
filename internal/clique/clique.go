@@ -1,7 +1,6 @@
 package clique
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -14,7 +13,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // cliqueMember is the GORM model. Fields must be exported for GORM to read/write them.
@@ -174,6 +172,8 @@ func (s *store) RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID
 }
 
 // Helper functions
+
+/*
 func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (bool, error) {
 	if requester == subject {
 		// You always "follow yourself"
@@ -187,3 +187,4 @@ func isFollower(ctx context.Context, requester syntax.DID, subject syntax.DID) (
 
 	return slices.Contains(followers, requester), nil
 }
+*/

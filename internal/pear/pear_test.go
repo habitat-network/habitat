@@ -377,7 +377,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, bRecords, 2)
 
 	// A adds C to the clique
-	p.AddCliqueMembers(t.Context(), aDID, clique, []syntax.DID{cDID})
+	require.NoError(t, p.AddCliqueMembers(t.Context(), aDID, clique, []syntax.DID{cDID}))
 
 	// C can see both records
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(cDID))
@@ -394,7 +394,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, cRecords, 2)
 
 	// A removes B from the clique
-	p.RemoveCliqueMembers(t.Context(), aDID, clique, []syntax.DID{bDID})
+	require.NoError(t, p.RemoveCliqueMembers(t.Context(), aDID, clique, []syntax.DID{bDID}))
 
 	// B can no longer see A's record
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(bDID))
