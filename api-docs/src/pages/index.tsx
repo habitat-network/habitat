@@ -2,5 +2,5 @@ import type { ReactNode } from 'react';
 import { Redirect } from '@docusaurus/router';
 
 export default function Home(): ReactNode {
-  return <Redirect to="/docs/api/habitat-api" />;
+  return <Redirect to={process.env.BASE_URL + "/docs/api/habitat-api"} />;
 }
