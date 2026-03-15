@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
@@ -298,7 +299,12 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(db, node)
+	cliqueStore, err := clique.NewStore(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clique store: %w", err)
+	}
+
+	permissions, err := permissions.NewStore(db, cliqueStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
@@ -308,7 +314,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, inbox), nil
+	return pear.NewPear(node, dir, permissions, repo, cliqueStore, inbox), nil
 }
 
 func setupOAuthServer(

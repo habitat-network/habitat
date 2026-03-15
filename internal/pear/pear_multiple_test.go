@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrpcCh xrpcchannel.XrpcChannel) (*pear, *pear) {
@@ -72,16 +71,9 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	}
 	pearAC, pearB := newMultiPears(t, []syntax.DID{aDID, cDID}, []syntax.DID{bDID}, mockXRPCs)
 
-	cliqueRkey := syntax.RecordKey("shared-clique")
-	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(aDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
-
-	// A creates the clique by adding B as a member
-	require.NoError(t, pearAC.permissions.AddPermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(bDID)},
-		aDID,
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
+	// A creates the clique and adds B as a member
+	clique, err := pearAC.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
+	require.NoError(t, err)
 
 	val := map[string]any{"data": "value"}
 	validate := true
@@ -90,13 +82,13 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	bauthz, err := pearAC.permissions.HasPermission(t.Context(), bDID, aDID, permissions.CliqueNSID, cliqueRkey)
+	isMember, err := pearAC.IsCliqueMember(t.Context(), aDID, clique, aDID)
 	require.NoError(t, err)
-	require.True(t, bauthz)
+	require.True(t, isMember)
 
-	aauthz, err := pearAC.permissions.HasPermission(t.Context(), bDID, aDID, permissions.CliqueNSID, cliqueRkey)
+	isMember, err = pearB.IsCliqueMember(t.Context(), bDID, clique, bDID)
 	require.NoError(t, err)
-	require.True(t, aauthz)
+	require.True(t, isMember)
 
 	// A creates a record and grants access to the clique
 	_, err = pearAC.PutRecord(t.Context(), aDID, aDID, coll, val, aRkey, &validate, []permissions.Grantee{clique})
@@ -172,12 +164,7 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.Len(t, bRecords, 2)
 
 	// A adds C to the clique
-	require.NoError(t, pearAC.permissions.AddPermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(cDID)},
-		aDID,
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
+	require.NoError(t, pearAC.cliqueStore.AddMembers(clique, []syntax.DID{cDID}))
 
 	// C can see both records
 	got, err = pearAC.GetRecord(t.Context(), coll, aRkey, aDID, cDID)
@@ -194,12 +181,7 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 	require.Len(t, cRecords, 2)
 
 	// A removes B from the clique
-	require.NoError(t, pearAC.permissions.RemovePermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(bDID)},
-		aDID,
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
+	require.NoError(t, pearAC.RemoveCliqueMembers(t.Context(), aDID, clique, []syntax.DID{bDID}))
 
 	// B can no longer see A's record
 	got, err = pearB.GetRecord(t.Context(), coll, aRkey, aDID, bDID)

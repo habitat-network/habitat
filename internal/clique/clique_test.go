@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 func newTestStore(t *testing.T) Store {
@@ -38,7 +40,7 @@ func TestGetMembers(t *testing.T) {
 	clique, err := s.CreateClique(owner, []syntax.DID{alice, bob})
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, clique.Key())
+	members, err := s.GetMembers(clique)
 	require.NoError(t, err)
 	// owner is always added as a member
 	require.ElementsMatch(t, []syntax.DID{owner, alice, bob}, members)
@@ -50,43 +52,44 @@ func TestGetMembers_Empty(t *testing.T) {
 	clique, err := s.CreateClique(owner, []syntax.DID{})
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, clique.Key())
+	members, err := s.GetMembers(clique)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{owner}, members)
 }
 
-func TestAddMember(t *testing.T) {
+func TestAddMembers(t *testing.T) {
 	s := newTestStore(t)
 
 	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	err = s.AddMember(owner, clique.Key(), bob)
+	err = s.AddMembers(clique, []syntax.DID{bob})
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, clique.Key())
+	members, err := s.GetMembers(clique)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{owner, alice, bob}, members)
 }
 
-func TestAddMember_Idempotent(t *testing.T) {
+func TestAddMembers_Idempotent(t *testing.T) {
 	s := newTestStore(t)
 
 	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	err = s.AddMember(owner, clique.Key(), alice)
+	err = s.AddMembers(clique, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(owner, clique.Key())
+	members, err := s.GetMembers(clique)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{owner, alice}, members)
 }
 
-func TestAddMember_CliqueNotFound(t *testing.T) {
+func TestAddMembers_CliqueNotFound(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.AddMember(owner, "nonexistent-key", bob)
+	nonexistent := habitat_syntax.ConstructClique(owner, "nonexistent-key")
+	err := s.AddMembers(nonexistent, []syntax.DID{bob})
 	require.ErrorIs(t, err, ErrCliqueNotFound)
 }
 
@@ -96,7 +99,7 @@ func TestIsMember_True(t *testing.T) {
 	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(owner, clique.Key(), alice)
+	isMember, err := s.IsMember(clique, alice)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
@@ -107,7 +110,7 @@ func TestIsMember_OwnerIsAlwaysMember(t *testing.T) {
 	clique, err := s.CreateClique(owner, []syntax.DID{})
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(owner, clique.Key(), owner)
+	isMember, err := s.IsMember(clique, owner)
 	require.NoError(t, err)
 	require.True(t, isMember)
 }
@@ -118,7 +121,7 @@ func TestIsMember_False(t *testing.T) {
 	clique, err := s.CreateClique(owner, []syntax.DID{alice})
 	require.NoError(t, err)
 
-	isMember, err := s.IsMember(owner, clique.Key(), bob)
+	isMember, err := s.IsMember(clique, bob)
 	require.NoError(t, err)
 	require.False(t, isMember)
 }

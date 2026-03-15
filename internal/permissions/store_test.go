@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -27,12 +28,20 @@ func (m *mockNode) SendXRPC(_ context.Context, _ syntax.DID, _ syntax.DID, _ *ht
 	return nil, nil
 }
 
-func TestStoreBasicPermissions(t *testing.T) {
+func newTestStore(t *testing.T) *store {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-
-	store, err := NewStore(db)
+	cliqueStore, err := clique.NewStore(db)
 	require.NoError(t, err)
+
+	return &store{
+		db:          db,
+		cliqueStore: cliqueStore,
+	}
+}
+
+func TestStoreBasicPermissions(t *testing.T) {
+	store := newTestStore(t)
 
 	// Test: Owner always has permission
 	HasPermission, err := store.HasPermission(t.Context(), "did:example:alice", "did:example:alice", "network.habitat.posts", "record1")
@@ -88,14 +97,10 @@ func TestStoreBasicPermissions(t *testing.T) {
 }
 
 func TestStoreMultipleGrantees(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
+	store := newTestStore(t)
 
 	// Grant permissions to multiple users
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob"), DIDGrantee("did:example:charlie")}, "did:example:alice", "network.habitat.posts", "")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob"), DIDGrantee("did:example:charlie")}, "did:example:alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
 	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.likes", "")
@@ -109,14 +114,10 @@ func TestStoreMultipleGrantees(t *testing.T) {
 }
 
 func TestStoreListByGrantee(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
+	store := newTestStore(t)
 
 	// Grant bob access to network.habitat.posts
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
 	// List bob's permissions for network.habitat.posts
@@ -149,14 +150,10 @@ func TestStoreListByGrantee(t *testing.T) {
 }
 
 func TestStoreEmptyRecordKey(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
+	store := newTestStore(t)
 
 	// Grant permission
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
 	// Check permission with empty record key (should check NSID-level permission)
@@ -166,14 +163,10 @@ func TestStoreEmptyRecordKey(t *testing.T) {
 }
 
 func TestStoreMultipleOwners(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
+	store := newTestStore(t)
 
 	// Grant bob access to alice's posts
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
 	// Grant bob access to charlie's likes
@@ -209,14 +202,10 @@ func TestStoreMultipleOwners(t *testing.T) {
 }
 
 func TestStoreDenyOverridesAllow(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
+	store := newTestStore(t)
 
 	// Grant bob broad access to network.habitat
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
 	require.NoError(t, err)
 
 	err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
@@ -371,12 +360,8 @@ func TestResolvePermissionsForCollection(t *testing.T) {
 
 func TestListAllowedGranteesForRecord(t *testing.T) {
 	t.Run("basic: grantee with allow permission is returned", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-		store, err := NewStore(db)
-		require.NoError(t, err)
-
-		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
+		store := newTestStore(t)
+		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 		require.NoError(t, err)
 
 		grants, err := store.ListAllowedGranteesForRecord(t.Context(), "did:example:alice", "network.habitat.posts", "record1")
@@ -386,10 +371,7 @@ func TestListAllowedGranteesForRecord(t *testing.T) {
 	})
 
 	t.Run("no permission returns empty", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-		store, err := NewStore(db)
-		require.NoError(t, err)
+		store := newTestStore(t)
 
 		perms, err := store.ListAllowedGranteesForRecord(t.Context(), "did:example:alice", "network.habitat.posts", "record1")
 		require.NoError(t, err)
@@ -397,13 +379,10 @@ func TestListAllowedGranteesForRecord(t *testing.T) {
 	})
 
 	t.Run("deny permission is filtered out", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-		store, err := NewStore(db)
-		require.NoError(t, err)
+		store := newTestStore(t)
 
 		// Grant bob access at the collection level
-		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
 		require.NoError(t, err)
 
 		// Add a deny directly on the record without any allow
@@ -416,13 +395,10 @@ func TestListAllowedGranteesForRecord(t *testing.T) {
 	})
 
 	t.Run("collection-level allow is included for specific record with no record-level deny", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-		store, err := NewStore(db)
-		require.NoError(t, err)
+		store := newTestStore(t)
 
 		// Grant bob access at the collection level
-		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
 		require.NoError(t, err)
 
 		// Add a deny on a different record to confirm it doesn't pollute results for record1
@@ -443,13 +419,9 @@ func TestListAllowedGranteesForRecord(t *testing.T) {
 }
 
 func TestHasPermissionNoMatchingCollectionAndRkeyHasRandomClique(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	store := newTestStore(t)
 
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "alice-cliqeu")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "alice-cliqeu")
 	require.NoError(t, err)
 
 	// No permissions have been added for this collection+rkey
@@ -459,14 +431,10 @@ func TestHasPermissionNoMatchingCollectionAndRkeyHasRandomClique(t *testing.T) {
 }
 
 func TestAddCollectionPermissionClearsPriorRecordDeny(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	store, err := NewStore(db)
-	require.NoError(t, err)
+	store := newTestStore(t)
 
 	// Step 1: Grant bob record-level access to record1
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
 	// Step 2: Remove that record-level permission (creates a Deny entry for record1)
@@ -494,24 +462,16 @@ func TestAddCollectionPermissionClearsPriorRecordDeny(t *testing.T) {
 }
 
 func TestAddReadPermission_EmptyCollection(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	store := newTestStore(t)
 
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "", "")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "", "")
 	require.Error(t, err)
 }
 
 func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	store := newTestStore(t)
 
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record-1")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record-1")
 	require.NoError(t, err)
 
 	// Should not return multiple permissions for the same record

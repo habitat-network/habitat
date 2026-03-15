@@ -175,6 +175,7 @@ func NewPear(
 	dir identity.Directory,
 	perms permissions.Store,
 	repo repo.Repo,
+	cliqueStore clique.Store,
 	inbox inbox.Inbox,
 ) *pear {
 	return &pear{
@@ -183,6 +184,7 @@ func NewPear(
 		permissions: perms,
 		repo:        repo,
 		inbox:       inbox,
+		cliqueStore: cliqueStore,
 	}
 }
 
