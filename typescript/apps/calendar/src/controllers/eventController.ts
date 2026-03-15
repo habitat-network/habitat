@@ -151,7 +151,6 @@ export async function createEvent(
   invitedDids: string[] = [],
 ): Promise<NetworkHabitatRepoPutRecord.OutputSchema> {
   const eventRkey = crypto.randomUUID();
-  const cliqueRkey = `event-${eventRkey}`;
   const createdAt = new Date().toISOString();
 
   // Step 1: Create a clique with the creator and all invitees as members
