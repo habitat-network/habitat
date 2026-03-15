@@ -72,7 +72,7 @@ const config: Config = {
       },
       items: [
         {
-          to: baseUrl + '/docs/api',
+          to: baseUrl + 'docs/api',
           position: 'left',
           label: 'API Reference',
         },
