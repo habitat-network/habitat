@@ -338,6 +338,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             },
           }),
         ],
+        editorProps: {
+          attributes: {
+            class:
+              "prose max-w-none min-h-full px-[max(2rem,calc(50%-20rem))] py-8 outline-none",
+          },
+        },
         onUpdate: handleUpdate,
       },
       [ydoc],
@@ -349,7 +355,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           <span>Node id: {node.peerId.toString()}</span>
         </header>
         <div className="flex-1 flex flex-col items-center">
-          <EditorContent className="prose w-full" editor={editor} />
+          <EditorContent className="w-full flex-1" editor={editor} />
         </div>
       </div>
     );
