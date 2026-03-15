@@ -8,6 +8,7 @@ import type {
   AppBskyActorGetProfiles,
 } from "@atproto/api";
 import type {
+  NetworkHabitatCliqueCreateClique,
   NetworkHabitatListConnectedApps,
   NetworkHabitatRepoDeleteRecord,
   NetworkHabitatRepoGetRecord,
@@ -82,7 +83,11 @@ type ProcedureEndpoints = {
   >;
   "network.habitat.repo.deleteRecord": Procedure<
     NetworkHabitatRepoDeleteRecord.InputSchema,
-    NetworkHabitatRepoDeleteRecord.Response
+    {}
+  >;
+  "network.habitat.clique.createClique": Procedure<
+    NetworkHabitatCliqueCreateClique.InputSchema,
+    NetworkHabitatCliqueCreateClique.OutputSchema
   >;
 };
 
