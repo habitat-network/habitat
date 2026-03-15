@@ -1,0 +1,40 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.clique.createClique",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            }
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "clique"
+                    ],
+                    "properties": {
+                        "clique": {
+                            "type": "string",
+                            "description": "The habitat clique, formatted as clique:<owner did>/<clique key>"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

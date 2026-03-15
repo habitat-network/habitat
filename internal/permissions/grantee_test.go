@@ -3,6 +3,8 @@ package permissions
 import (
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,13 +30,13 @@ func TestParseGranteesFromInterface(t *testing.T) {
 	t.Run("valid clique grantee", func(t *testing.T) {
 		result, err := ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
-				"$type": "network.habitat.grantee#cliqueRef",
-				"uri":   "habitat://did:plc:abc123/network.habitat.clique/my-clique",
+				"$type":  "network.habitat.grantee#clique",
+				"clique": "clique:did:plc:abc123/my-clique",
 			},
 		})
 		require.NoError(t, err)
 		require.Len(t, result, 1)
-		require.Equal(t, CliqueGrantee("habitat://did:plc:abc123/network.habitat.clique/my-clique"), result[0])
+		require.Equal(t, habitat_syntax.Clique("clique:did:plc:abc123/my-clique"), result[0])
 	})
 
 	t.Run("multiple grantees", func(t *testing.T) {
@@ -48,8 +50,8 @@ func TestParseGranteesFromInterface(t *testing.T) {
 				"did":   "did:plc:bob",
 			},
 			map[string]interface{}{
-				"$type": "network.habitat.grantee#cliqueRef",
-				"uri":   "habitat://did:plc:alice/network.habitat.clique/team",
+				"$type":  "network.habitat.grantee#clique",
+				"clique": "clique:did:plc:alice/team",
 			},
 		}
 
@@ -58,7 +60,7 @@ func TestParseGranteesFromInterface(t *testing.T) {
 		require.Len(t, result, 3)
 		require.Equal(t, DIDGrantee("did:plc:alice"), result[0])
 		require.Equal(t, DIDGrantee("did:plc:bob"), result[1])
-		require.Equal(t, CliqueGrantee("habitat://did:plc:alice/network.habitat.clique/team"), result[2])
+		require.Equal(t, habitat_syntax.Clique("clique:did:plc:alice/team"), result[2])
 
 		constructed := ConstructInterfaceFromGrantees(result)
 		require.Equal(t, constructed, input)
@@ -92,10 +94,10 @@ func TestParseGranteesFromInterface(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("clique grantee missing uri field", func(t *testing.T) {
+	t.Run("clique grantee missing clique field", func(t *testing.T) {
 		_, err := ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
-				"$type": "network.habitat.grantee#cliqueRef",
+				"$type": "network.habitat.grantee#clique",
 			},
 		})
 		require.Error(t, err)
@@ -106,30 +108,27 @@ func TestParseGranteesFromInterface(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("clique grantee with invalid uri", func(t *testing.T) {
+	t.Run("clique grantee with invalid clique", func(t *testing.T) {
 		_, err := ParseGranteesFromInterface([]interface{}{
 			map[string]interface{}{
-				"$type": "network.habitat.grantee#cliqueRef",
-				"uri":   "habitat://did:plc:abc123/network.habitat.not.a.clique/rkey",
+				"$type":  "network.habitat.grantee#clique",
+				"clique": "not-a-valid-clique",
 			},
 		})
 		require.Error(t, err)
 	})
 }
 
-func TestHabitatClique(t *testing.T) {
+func TestParseClique(t *testing.T) {
 	t.Run("valid clique", func(t *testing.T) {
-		uri, err := parseHabitatClique("habitat://did:plc:abc123/network.habitat.clique/clique-rkey")
+		clique, err := habitat_syntax.ParseClique("clique:did:plc:abc123/clique-rkey")
 		require.NoError(t, err)
-		require.Equal(t, "did:plc:abc123", uri.Authority().String())
-		require.Equal(t, "network.habitat.clique", uri.Collection().String())
-		require.Equal(t, "clique-rkey", string(uri.RecordKey()))
-		require.Equal(t, "network.habitat.clique/clique-rkey", uri.Path())
-		require.Equal(t, uri, uri.Normalize())
+		require.Equal(t, syntax.DID("did:plc:abc123"), clique.Authority())
+		require.Equal(t, "clique-rkey", clique.Key())
 	})
 
 	t.Run("invalid clique", func(t *testing.T) {
-		_, err := parseHabitatClique("habitat://did:plc:abc123/network.habitat.not.a.clique/clique-rkey")
+		_, err := habitat_syntax.ParseClique("not-a-valid-clique-format")
 		require.Error(t, err)
 	})
 }

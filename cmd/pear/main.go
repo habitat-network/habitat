@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
@@ -164,18 +165,28 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes
+	//repo
 	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 
+	// blobs
 	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
 
+	// permissions
 	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
+
+	// cliques
+	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", pearServer.CreateClique)
+	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", pearServer.AddCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
@@ -298,7 +309,12 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(db, node)
+	cliqueStore, err := clique.NewStore(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clique store: %w", err)
+	}
+
+	permissions, err := permissions.NewStore(db, cliqueStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
@@ -308,7 +324,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, inbox), nil
+	return pear.NewPear(node, dir, permissions, repo, cliqueStore, inbox), nil
 }
 
 func setupOAuthServer(

@@ -10,36 +10,30 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
-import type * as NetworkHabitatGrantee from '../grantee.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.permissions.addPermission'
+const id = 'network.habitat.clique.getMembers'
 
-export type QueryParams = {}
+export type QueryParams = {
+  /** The desired clique to query formatted as clique:<owner did>/<clique key> */
+  clique: string
+}
+export type InputSchema = undefined
 
-export interface InputSchema {
-  grantees: (
-    | $Typed<NetworkHabitatGrantee.DidGrantee>
-    | $Typed<NetworkHabitatGrantee.Clique>
-    | { $type: string }
-  )[]
-  /** The NSID of the lexicon or record to grant read permission for. */
-  collection: string
-  /** The Record Key to grant read permissions to, if any. */
-  rkey?: string
+export interface OutputSchema {
+  members: string[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

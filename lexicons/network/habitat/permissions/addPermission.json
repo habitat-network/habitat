@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Grant read permission to a user for a specific lexicon.",
+      "description": "Grant read permission to a user or a clique for a specific collection or a specific record.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -20,7 +20,7 @@
                 "type": "union",
                 "refs": [
                   "network.habitat.grantee#didGrantee",
-                  "network.habitat.grantee#cliqueRef"
+                  "network.habitat.grantee#clique"
                 ]
               },
               "maxLength": 100

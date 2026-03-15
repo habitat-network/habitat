@@ -5,7 +5,9 @@
         "didGrantee": {
             "type": "object",
             "description": "A DID grantee",
-            "required": ["did"],
+            "required": [
+                "did"
+            ],
             "properties": {
                 "did": {
                     "type": "string",
@@ -13,14 +15,15 @@
                 }
             }
         },
-        "cliqueRef": {
+        "clique": {
             "type": "object",
-            "description": "A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key",
-            "required": ["uri"],
+            "description": "A clique grantee in the form clique:did:plc:web:arushi/clique-key",
+            "required": [
+                "clique"
+            ],
             "properties": {
-                "uri": {
-                    "type": "string",
-                    "format": "uri"
+                "clique": {
+                    "type": "string"
                 }
             }
         }

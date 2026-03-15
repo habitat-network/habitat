@@ -86,7 +86,7 @@
             "type": "union",
             "refs": [
               "network.habitat.grantee#didGrantee",
-              "network.habitat.grantee#cliqueRef"
+              "network.habitat.grantee#clique"
             ]
           }
         }

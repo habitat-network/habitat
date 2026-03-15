@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Get a single record from a repository",
+      "description": "Get a single record from the pear repository.",
       "parameters": {
         "type": "params",
         "required": [
@@ -57,7 +57,7 @@
                 "type": "union",
                 "refs": [
                   "network.habitat.grantee#didGrantee",
-                  "network.habitat.grantee#cliqueRef"
+                  "network.habitat.grantee#clique"
                 ]
               }
             }
