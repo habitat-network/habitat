@@ -1,4 +1,4 @@
-import { procedure } from "internal";
+import { procedure, TypedRecord } from "internal";
 
 import { useMutation } from "@tanstack/react-query";
 import { docsListQueryOptions } from "@/queries/docs";
@@ -21,7 +21,7 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { FileTextIcon, PlusIcon } from "lucide-react";
-
+import { HabitatDoc } from "@/habitatDoc";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
@@ -38,10 +38,12 @@ export const Route = createFileRoute("/_requireAuth")({
     const docs = await context.queryClient.fetchQuery(
       docsListQueryOptions(context.authManager),
     );
-    return { profile, docs };
+    const userDocs = docs.records.filter((d) => d.uri.includes(did));
+    const sharedDocs = docs.records.filter((d) => !d.uri.includes(did));
+    return { profile, userDocs, sharedDocs };
   },
   component() {
-    const { profile, docs } = Route.useLoaderData();
+    const { profile, userDocs, sharedDocs } = Route.useLoaderData();
     const { authManager, queryClient } = Route.useRouteContext();
     const router = useRouter();
     const navigate = Route.useNavigate();
@@ -74,7 +76,6 @@ export const Route = createFileRoute("/_requireAuth")({
             uri: response.uri,
           },
         });
-        router.invalidate({ filter: (x) => x.pathname === "/docs/" });
       },
       onSuccess: () => {
         queryClient.invalidateQueries(docsListQueryOptions(authManager));
@@ -100,28 +101,38 @@ export const Route = createFileRoute("/_requireAuth")({
                 New Document
               </SidebarMenuButton>
             </SidebarGroup>
-            <SidebarGroup>
-              <SidebarGroupLabel>Documents</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {docs.records.map((doc) => (
-                    <SidebarMenuItem key={doc.uri}>
-                      <SidebarMenuButton
+            {userDocs.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupLabel>My documents</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {userDocs.map((doc) => (
+                      <DocItem
+                        key={doc.uri}
+                        doc={doc}
                         isActive={currentUri === doc.uri}
-                        render={<Link to="/$uri" params={{ uri: doc.uri }} />}
-                      >
-                        <FileTextIcon />
-                        <span>
-                          {!doc.value.name || doc.value.name === "Untitled"
-                            ? `Untitled (${doc.uri.split("/")[4]})`
-                            : doc.value.name}
-                        </span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+                      />
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
+            {sharedDocs.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Shared with me</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {sharedDocs.map((doc) => (
+                      <DocItem
+                        key={doc.uri}
+                        doc={doc}
+                        isActive={currentUri === doc.uri}
+                      />
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
           </>
         }
       >
@@ -130,3 +141,25 @@ export const Route = createFileRoute("/_requireAuth")({
     );
   },
 });
+
+const DocItem = ({
+  doc,
+  isActive,
+}: {
+  doc: TypedRecord<HabitatDoc>;
+  isActive: boolean;
+}) => (
+  <SidebarMenuItem>
+    <SidebarMenuButton
+      isActive={isActive}
+      render={<Link to="/$uri" params={{ uri: doc.uri }} />}
+    >
+      <FileTextIcon />
+      <span>
+        {!doc.value.name || doc.value.name === "Untitled"
+          ? `Untitled (${doc.uri.split("/")[4]})`
+          : doc.value.name}
+      </span>
+    </SidebarMenuButton>
+  </SidebarMenuItem>
+);
