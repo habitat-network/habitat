@@ -34,7 +34,6 @@ type Store interface {
 	AddMembers(clique habitat_syntax.Clique, members []syntax.DID) error
 	RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID) error
 	IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
-	IsAnyCliqueMember(cliques []habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
 }
 
 type store struct {
@@ -135,7 +134,7 @@ func (s *store) AddMembers(clique habitat_syntax.Clique, members []syntax.DID) e
 // The owner is always considered a member of their own cliques.
 func (s *store) IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error) {
 	owner := clique.Authority()
-	key := clique.Authority()
+	key := clique.Key()
 
 	var row cliqueMember
 	err := s.db.
@@ -148,7 +147,6 @@ func (s *store) IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (
 	} else if err != nil {
 		return false, err
 	}
-
 	return true, nil
 }
 
@@ -173,11 +171,6 @@ func (s *store) RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID
 		// If that passes, try creating the clique members (no-op if exists already)
 		return tx.Delete(&cliqueMembers).Error
 	})
-}
-
-// IsAnyCliqueMember implements Store.
-func (s *store) IsAnyCliqueMember(cliques []habitat_syntax.Clique, maybeMember syntax.DID) (bool, error) {
-	panic("unimplemented")
 }
 
 // Helper functions

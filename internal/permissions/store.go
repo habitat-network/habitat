@@ -2,7 +2,6 @@ package permissions
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/habitat-network/habitat/internal/clique"
 	"gorm.io/gorm"
 
-	habitat_err "github.com/habitat-network/habitat/internal/error"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -113,15 +111,7 @@ func NewStore(db *gorm.DB, cliqueStore clique.Store) (*store, error) {
 		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
 	}
 
-	return &store{db: db}, nil
-}
-
-func (s *store) isRemoteCliqueMember(ctx context.Context, callerDID syntax.DID, clique habitat_syntax.Clique, did syntax.DID) (bool, error) {
-	panic("unimplemented")
-}
-
-func (s *store) isCliqueMember(ctx context.Context, requester syntax.DID, clique habitat_syntax.Clique) (bool, error) {
-	panic("unimplemented")
+	return &store{db: db, cliqueStore: cliqueStore}, nil
 }
 
 // HasPermission checks if a requester has permission to access a specific record.
@@ -137,18 +127,11 @@ func (s *store) HasPermission(
 		return true, nil
 	}
 
-	// The clique collection is reserved for special cases by the server.
-	if collection == habitat_syntax.ReservedCliqueNSID {
-		return false, habitat_err.ErrNoGettingClique
-	}
-
 	permissions, err := s.listPermissions(requester, []syntax.DID{owner}, collection, rkey)
 	if err != nil {
 		return false, err
 	}
 
-	localCliques := []habitat_syntax.Clique{}
-	remoteCliques := []habitat_syntax.Clique{}
 	for _, permission := range permissions {
 		switch grantee := permission.Grantee.(type) {
 		case DIDGrantee:
@@ -165,7 +148,7 @@ func (s *store) HasPermission(
 				return false, nil
 			}
 		case habitat_syntax.Clique:
-			ok, err := s.isCliqueMember(ctx, requester, grantee)
+			ok, err := s.cliqueStore.IsMember(grantee, requester)
 			if err != nil {
 				return false, err
 			}
@@ -173,33 +156,9 @@ func (s *store) HasPermission(
 			if ok {
 				return true, nil
 			}
+		default:
+			return false, fmt.Errorf("unknown grantee type: %+v", grantee)
 		}
-	}
-
-	// First try to resolve local cliques
-	if len(localCliques) > 0 {
-		s.cliqueStore.IsAnyCliqueMember(localCliques, requester)
-	}
-
-	// TODO: clique store should be able to resolve local / remoteness itself
-	if len(remoteCliques) > 0 {
-		var remoteErr error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Resolve remote cliques
-			// TODO: batch for better performance?
-			for _, clique := range remoteCliques {
-				ok, err := s.isRemoteCliqueMember(ctx, owner /* the request originates from the record owner */, clique, requester /* checking membership on the requester */)
-				if err == nil && ok {
-					// Success, membership found, allow permission
-					return true, nil
-				} else if err != nil {
-					// Arbitrarily save the latest error, but continue trying to resolve all memberships in case one succeeds
-					remoteErr = err
-				}
-			}
-		}
-
-		return false, remoteErr
 	}
 
 	// Default = deny
@@ -389,7 +348,7 @@ func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syn
 
 		// Otherwise, it's a clique grantee, so we need to resolve it
 		// TODO: we could potentially be more efficient with the DB query than resolving each independently.
-		ok, err = s.isCliqueMember(ctx, grantee, clique)
+		ok, err := s.cliqueStore.IsMember(clique, grantee)
 		if err != nil {
 			return nil, err
 		}
@@ -454,7 +413,7 @@ func (s *store) listPermissions(
 	}
 	if grantee.String() != "" {
 		// The grantee field could also be a clique that includes this direct DID. so ifnore it
-		query = query.Where("grantee = ? OR grantee LIKE ?", grantee.String(), "habitat://%") // check for the habitat uri prefix for cliques
+		query = query.Where("grantee = ? OR grantee LIKE ?", grantee.String(), "clique:%") // check for the habitat uri prefix for cliques
 	}
 	if collection != "" {
 		query = query.Where("collection = ?", collection)

@@ -33,11 +33,9 @@ func newTestStore(t *testing.T) *store {
 	require.NoError(t, err)
 	cliqueStore, err := clique.NewStore(db)
 	require.NoError(t, err)
-
-	return &store{
-		db:          db,
-		cliqueStore: cliqueStore,
-	}
+	store, err := NewStore(db, cliqueStore)
+	require.NoError(t, err)
+	return store
 }
 
 func TestStoreBasicPermissions(t *testing.T) {
