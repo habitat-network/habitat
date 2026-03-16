@@ -1,11 +1,11 @@
 ---
 id: network-habitat-repo-put-record
 title: "network.habitat.repo.putRecord"
-description: "Write a repository record, creating or updating it as needed."
+description: "Write a pear repository record, creating it if it does not exist already, or updating it as needed."
 sidebar_label: "network.habitat.repo.putRecord"
 hide_title: true
 hide_table_of_contents: true
-api: eJytVttuIzcM/RVWL2mB8WUX7cs8NckWrbFpEyQptoDhB3pEe7TWSBNdkhjG/HtBaRzbsbFJ0fWLbV14eMhDUhsRcOlFORWGwpN1q2GNcxUwDB21VswKIclXTrVBWSNK8cWpQIDAu14F69bgqLJOFlA5wqDMEqyD2Mr8WwVAD4ZIkhyKQtiWHLKtiRTlScxhG8NtMikK4eghkg8XVq5FuUl/lSMpyuAiFaKyJpAJvIVtq1WVTI++evZ1I3xVU4P8K6xbEqWw869Uhd5uNjQViSjb0pqqRJP3kwOzQrSOXQ6KfHagtXv2fHDKLMXrIN3XBDUaqYlj8WnyCewCQk0pavAjrrCAKjpHJgBWlY0m/MTBWVjXYBClwDBQkkxQC0VOdAfOvQv9r7t9UOYCOxMHUMYryQhuRev32c7Jgc+0PjCUYQZsphANPl+RWYZalL98+NgV4hG1khhoD2JurSY0RxiXaGBO4ClAsHC2QO3pjH/6lWrhip5VZQ3k3EJvV1nDdHuqEgMWcMYaSRf7bIMKBSdEEz4SRNMjbF0Da/QaFtbBytgns0XywxSeLIhy0xVi6dAEyoLouaBzyLxVoCatW0PXC1FOj6V3SPY8yaO3+EqYUp1QIC+eSNNLGni/6woRVNB0osR6qKFU8vcetSve9rLS6iGylhZbZ0GZJC9Ght56ORpJJctWV+UTzUt00ddqtIXeupJtjfLX4EA3+/SjU8f0efFb9Hn/PfQz+C0tRDfrkl4nOXUfxuMufdgZ31rjM/DH8TiF/yAu15/Fd2pC/4XsqWaT2A2iU9uqb2MYkIQMNjwK0UtFKmvuAoboTyGRiQ17l86KQkSTSkPMtiH6+VRULlDCbW7c3ys85Jx13FfIe1zScajygRMUdoXItcz8JybR2XqY89/bPTLQbZk2FGrLM6u1iVaL3NzE6M0R5sk9kvPJhei0KEUdQuvL0eu6GD27tjpK7x/5EPxze3MJ2ZboZmy2ik6F9R3HL8fggtDRfhAYiD1IR7jj5gNMh8N/uxuuvz1j02rajbhdAPdHz241j4vd/11/z5P5dL+c9v3rJbpFL/KXBU6GMos8ZPsa3obg/GbCbGLToGPw65bM+c0EfEsVLMnwy4IkLJxtoL9z5uH8Hm6cDbayGvRLSz9615CubEM8D7h69iC555EjU9EP8IUAHW1nt15DNJIcSHokbdsmzXMjwUaXbja4hgZXBHNHuOLnUFWjWZKHJxVqGwMYG1RFQ7gLuIYQDUn49ZUswBq40JH8ap2Mb7c14UJTGLZxnoZWqm8NjjShp0SRdZfpjYfj4VgUQquKjE95Npg08efkHq761ULsvTrSVtIKK75Bs3fpTdEfBHez6wH/+/3YKzvQcxi1GpXhVpbKatOX5OmX7J53s0LUXMPlVGw2c/T0t9Ndx8sPkVhY0xnr2Smcs/ymLMmaUHJMphuRhX+ZGQ3u2Z8k/5jeAa87HCs83zivKmrDN8/O9trMzfXdvSjEvH/5NlbyHYdPXHz4JEqRXtN8O79MeW0jNJplTJ1MZJv8+Rf5viLd
+api: eJy9V0tvGzcQ/itTXtwCa0kJ2sueaidBKySpDdtBCgg6jJYjLSMuueHDtiLsfy+G3LUkS2h8COKDIfEx33zDbx7aioArL8qZMBQerFuPalyogGHkqLViXghJvnKqDcoaUYrPTgUChJbQAR/xKli3AUeVdbKAyhEGZVagAqgl/5eWPBgbgB6VD4DaEcpNAdZBbOXTYfRgiCTJkSiEbckhI06lKE96NmpjuEmYohCequhU2IhythWXhI6cKGfzbl4IR18j+XBp5UaU2/RVOZKiDC5SISprApnAW9i2WlUJdfzFM9mt8FVNDfKnsGlJlMIuvlAVRLFnaCZSpNiW1lSlOPF+8m1eiNYxm6DIZwdau2fPB6fMSjyP8l1NUKORmjhMb6dvwS4h1JQiDr/iGguoonNkAmBV2WjCbxy3pXUNBlEKDOdKkglqqciJ7sC5F6H/c7sPylxgZ+IAynglGcGtafMy2/nd4D1tDgxlmHM2U4gGHz+QWYValH+8et0V4h61khhoD2JhrSY0Rxhv0MCCwFOAYOFsidrTGX/0a9XCB3pUlTWQ3xZ6u8oapttTlRiwgDPWSLrYvzaokHSrCe8JoukRBtfAGr2BpXWwNvbBDEh+lMKTBVFuu0KsHJpAWRA9F3QOmbcK1KR1a+hqmQT9XHqHZC+SPHqLz4Qp1QkF8uKJZ3p6Bt7vukIEFTSdyL4eaiSV/KtH7Yrve1lp9TXS4Cgok6TFqP1WKZUsW12VD7Qo0UVfq3He6SWxzyxvHJPr14/4vYRQf7ebd0l+0/wSryaTLv2xA761xmek15NJiuYBzav34gfVlOjUMTtefGHtSNTOo1NDErcxnJOEDHaQd2x1l2DKmtuAIfpTSGRiw96ls6IQ0SSli/kQot9PReUSJdzkOvyjwkPOWcdlgrzH1Qkh5AMnKOzyilOT+U9NojN4yGIett49tox4Z9dkDjb6O/1GUkzvyQnpDaF5dRyaTwZjqK1T30j+/NgMbC5iqD8q75O736WSToTacmtubXrTFrlQi/ELOrW7J+dT/KPTohR1CK0vx+PhSm9i/Oja6kjbf+dD8O/N9RvItgR3+WEAuOUAZZLDGPDEgYHYg3SEu0c+wHQ4vje7QeHdIzatpl273qlnv43uVnPr233f9ao8ZZyu/bO+Fj9Ft9jVr6c1lpYyyzwz9AVsiMLF9ZQJxaZBx/hXLZmL6yn4lipYkeEZiiQsnW2gv3Pm4eIOrp0NtrIa9FOHOprzSFe2IW5vXD32IMHRkhyZin6BzwToaBhF9AaikeRA0j1p2zZpPDESbHTpZoMbaHBNsHCEax78qhrNijw8qFDbGHhOVBWN4DbgBkI0JOHPZ8oAa+BSR/LrTTI+bGvCpaYwauMi9eBU3zQ40oSeEkWWXqY3GU1GE1EIrSoyPj21wSSLj9M7+NCvFmJviEpbSS4s+gbN3qXv6v4guNtdnv+kebpPgUCPYdxqVFzMcv5t+9w9Pf/vcZgXouZkL2diu12gp09Odx0vf43E8pvNWfhO4YJFOmPh1oQyjeJbkTPkTeZ9fsf+pDxJYj+qdZwK+cZFVVEb/vfsfK8eXV/d3olCLPpxv7GS7zh84CzFB1GK9OuCb+dxnNe2QqNZxVTyRLbJz8yVeX/azPWiGD7sjWZoNnsebrf5RGoOXSeKnkoYmkXX/QfJ9657
 sidebar_class_name: "post api-method"
 info_path: docs/api/habitat-api
 custom_edit_url: null
@@ -36,7 +36,7 @@ import Heading from "@theme/Heading";
 
 
 
-Write a repository record, creating or updating it as needed.
+Write a pear repository record, creating it if it does not exist already, or updating it as needed.
 
 <Heading
   id={"request"}
@@ -54,7 +54,7 @@ Write a repository record, creating or updating it as needed.
 
 <RequestSchema
   title={"Body"}
-  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["repo","collection","record"],"properties":{"repo":{"type":"string","description":"The handle or DID of the repo (aka, current account).","format":"at-identifier"},"collection":{"type":"string","description":"The NSID of the record collection.","format":"nsid"},"rkey":{"type":"string","description":"The Record Key.","format":"record-key","maxLength":512},"validate":{"type":"boolean","description":"Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."},"record":{},"grantees":{"type":"array","items":{"oneOf":[{"type":"object","description":"A DID grantee","required":["did"],"properties":{"did":{"type":"string","format":"did"}},"title":"network.habitat.grantee.didGrantee"},{"type":"object","description":"A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key","required":["uri"],"properties":{"uri":{"type":"string","format":"uri"}},"title":"network.habitat.grantee.cliqueRef"}]},"maxItems":100}}}}}}}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["repo","collection","record"],"properties":{"repo":{"type":"string","description":"The handle or DID of the repo (aka, current account).","format":"at-identifier"},"collection":{"type":"string","description":"The NSID of the record collection.","format":"nsid"},"rkey":{"type":"string","description":"The Record Key.","format":"record-key","maxLength":512},"validate":{"type":"boolean","description":"Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."},"record":{},"grantees":{"type":"array","items":{"oneOf":[{"type":"object","description":"A DID grantee","required":["did"],"properties":{"did":{"type":"string","format":"did"}},"title":"network.habitat.grantee.didGrantee"},{"type":"object","description":"A clique grantee in the form clique:did:plc:web:arushi/clique-key","required":["clique"],"properties":{"clique":{"type":"string"}},"title":"network.habitat.grantee.clique"}]},"maxItems":100}}}}}}}
 >
   
 </RequestSchema>
@@ -62,7 +62,7 @@ Write a repository record, creating or updating it as needed.
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object","required":["uri"],"properties":{"uri":{"type":"string","description":"The habitat-uri of the put-ed object.","format":"uri"},"validationStatus":{"type":"string","enum":["valid","unknown"]}}}}}},"400":{"description":"Bad Request","content":{"application/json":{"schema":{"type":"object","required":["error","message"],"properties":{"error":{"type":"string","oneOf":[{"const":"InvalidRequest"}]},"message":{"type":"string"}}}}}}}}
+  responses={{"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object","required":["uri"],"properties":{"uri":{"type":"string","description":"The habitat-uri of the put-ed object.","format":"uri"},"validationStatus":{"type":"string","enum":["valid","unknown"]}}}}}},"400":{"description":"Bad Request","content":{"application/json":{"schema":{"type":"object","required":["error","message"],"properties":{"error":{"type":"string","oneOf":[{"const":"InvalidRequest"},{"const":"ExpiredToken"},{"const":"InvalidToken"}]},"message":{"type":"string"}}}}}},"401":{"description":"Unauthorized","content":{"application/json":{"schema":{"type":"object","required":["error","message"],"properties":{"error":{"const":"AuthMissing"},"message":{"type":"string"}}}}}}}}
 >
   
 </StatusCodes>

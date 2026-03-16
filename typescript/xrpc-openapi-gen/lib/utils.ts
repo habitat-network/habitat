@@ -25,16 +25,6 @@ export async function checkEndpoint(
     path: string,
     method = "GET",
 ): Promise<Endpoint> {
-    const url = new URL(path, "https://habitat.network/xrpc/");
-    const response = await fetch(url, { method });
-
-    if (response.status === 401) {
-        return Endpoint.NeedsAuthentication;
-    }
-
-    if (response.status === 404) {
-        return Endpoint.DoesNotExist;
-    }
-
-    return Endpoint.Public;
+    // For now, assume all habitat endpoints need authentication
+    return Endpoint.NeedsAuthentication
 }

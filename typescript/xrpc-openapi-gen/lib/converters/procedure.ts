@@ -2,20 +2,14 @@ import type { LexXrpcProcedure } from "@atproto/lexicon";
 import type { OpenAPIV3_1 } from "openapi-types";
 
 import { convertObject, convertProperty } from "./object.ts";
-import { calculateTag, checkEndpoint, Endpoint } from "../utils.ts";
+import { calculateTag } from "../utils.ts";
 
 export async function convertProcedure(
     id: string,
     name: string,
     procedure: LexXrpcProcedure,
 ): Promise<OpenAPIV3_1.OperationObject<"POST"> | undefined> {
-    const endpointType = await checkEndpoint(id, "POST");
-
-    if (endpointType === Endpoint.DoesNotExist) {
-        return;
-    }
-
-    const needsAuthentication = endpointType === Endpoint.NeedsAuthentication;
+    const needsAuthentication = true;
 
     const post = {
         tags: [calculateTag(id)],
