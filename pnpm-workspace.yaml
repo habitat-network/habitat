@@ -6,6 +6,7 @@ packages:
   - typescript/api
   - typescript/xrpc-openapi-gen
   - api-docs
+  - website
 
 catalog:
   '@tanstack/devtools-vite': ^0.3.11
