@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { AuthManager } from "internal";
+import { Actor, AuthManager } from "internal";
 import {
   getPrivatePosts,
   getPostVisibility,
@@ -11,15 +11,9 @@ import {
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
-interface BskyAuthor {
-  handle: string;
-  displayName?: string;
-  avatar?: string;
-}
-
 interface BskyPost {
   uri: string;
-  author?: BskyAuthor;
+  author?: Actor;
   record: {
     text: string;
     createdAt?: string;
@@ -38,12 +32,12 @@ interface BskyFeedItem {
   reply?: {
     parent: {
       uri: string;
-      author?: BskyAuthor;
+      author?: Actor;
     };
   };
   reason?: {
     $type: string;
-    by: BskyAuthor;
+    by: Actor;
     indexedAt?: string;
   };
 }
@@ -62,27 +56,37 @@ export const Route = createFileRoute("/_requireAuth/")({
       ]);
 
     const privateEntries = await Promise.all(
-      privatePosts.filter((p) => !p.value.reply).map(async (post): Promise<FeedEntry> => {
-        const did = post.uri.split("/")[2] ?? "";
-        const [author, grantees] = await Promise.all([
-          getProfile(context.authManager, did),
-          getProfiles(context.authManager, (post.resolvedClique ?? []).slice(0, 5)),
-        ]);
-        return {
-          uri: post.uri,
-          clique: post.clique,
-          text: post.value.text,
-          createdAt: post.value.createdAt,
-          kind: getPostVisibility(post, did),
-          author,
-          grantees: grantees.length > 0 ? grantees : undefined,
-        };
-      }),
+      privatePosts
+        .filter((p) => !p.value.reply)
+        .map(async (post): Promise<FeedEntry> => {
+          const did = post.uri.split("/")[2] ?? "";
+          const [author, grantees] = await Promise.all([
+            getProfile(context.authManager, did),
+            getProfiles(
+              context.authManager,
+              (post.resolvedClique ?? []).slice(0, 5),
+            ),
+          ]);
+          return {
+            uri: post.uri,
+            clique: post.clique,
+            text: post.value.text,
+            createdAt: post.value.createdAt,
+            kind: getPostVisibility(post, did),
+            author,
+            grantees: grantees.length > 0 ? grantees : undefined,
+          };
+        }),
     );
 
     return {
       privateEntries,
-      initialPage: interleavePrivateWithBsky(privateEntries, buildBskyEntries(bskyItems ?? []), bskyCursor, true),
+      initialPage: interleavePrivateWithBsky(
+        privateEntries,
+        buildBskyEntries(bskyItems ?? []),
+        bskyCursor,
+        true,
+      ),
     };
   },
   component() {
@@ -92,7 +96,8 @@ export const Route = createFileRoute("/_requireAuth/")({
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
       useInfiniteQuery({
         queryKey: ["bskyFeed", privateEntries.length],
-        queryFn: ({ pageParam }) => getInterleavedFeed(authManager, privateEntries, pageParam),
+        queryFn: ({ pageParam }) =>
+          getInterleavedFeed(authManager, privateEntries, pageParam),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (lastPage) => lastPage.nextCursor,
         initialData: {
@@ -125,10 +130,17 @@ export const Route = createFileRoute("/_requireAuth/")({
           left={
             <>
               <li>
-                <h2 style={{ color: "green", fontWeight: "normal" }} className="hover:underline">greensky</h2>
+                <h2
+                  style={{ color: "green", fontWeight: "normal" }}
+                  className="hover:underline"
+                >
+                  greensky
+                </h2>
               </li>
               <li>
-                <Link to="/private" className="hover:underline text-sm">go to private feed 😏</Link>
+                <Link to="/private" className="hover:underline text-sm">
+                  go to private feed 😏
+                </Link>
               </li>
             </>
           }
@@ -171,7 +183,10 @@ function quoteRepostInfo(
   if (!handle || !uri) return undefined;
   const rkey = uri.split("/").pop();
   if (!rkey) return undefined;
-  return { bskyUrl: `https://bsky.app/profile/${handle}/post/${rkey}`, authorHandle: handle };
+  return {
+    bskyUrl: `https://bsky.app/profile/${handle}/post/${rkey}`,
+    authorHandle: handle,
+  };
 }
 
 function buildBskyEntries(items: BskyFeedItem[]): FeedEntry[] {
@@ -182,7 +197,9 @@ function buildBskyEntries(items: BskyFeedItem[]): FeedEntry[] {
       return {
         uri: post.uri,
         text: post.record.text,
-        createdAt: isRepost ? (reason?.indexedAt ?? post.record.createdAt) : post.record.createdAt,
+        createdAt: isRepost
+          ? (reason?.indexedAt ?? post.record.createdAt)
+          : post.record.createdAt,
         kind: "public",
         author: post.author,
         repostedByHandle: isRepost ? reason?.by.handle : undefined,
@@ -197,8 +214,9 @@ function interleavePrivateWithBsky(
   nextCursor: string | undefined,
   isFirstPage: boolean,
 ): FeedPage {
-  const bskyTimes = bskyEntries
-    .map((e) => (e.createdAt ? new Date(e.createdAt).getTime() : 0))
+  const bskyTimes = bskyEntries.map((e) =>
+    e.createdAt ? new Date(e.createdAt).getTime() : 0,
+  );
 
   const pageMinTime = bskyTimes.length > 0 ? Math.min(...bskyTimes) : 0;
   const pageMaxTime = bskyTimes.length > 0 ? Math.max(...bskyTimes) : 0;
@@ -223,6 +241,14 @@ async function getInterleavedFeed(
   privateEntries: FeedEntry[],
   bskyCursor: string | undefined,
 ): Promise<FeedPage> {
-  const { items, cursor: nextCursor } = await getBskyFeed(authManager, bskyCursor);
-  return interleavePrivateWithBsky(privateEntries, buildBskyEntries(items), nextCursor, bskyCursor === undefined);
+  const { items, cursor: nextCursor } = await getBskyFeed(
+    authManager,
+    bskyCursor,
+  );
+  return interleavePrivateWithBsky(
+    privateEntries,
+    buildBskyEntries(items),
+    nextCursor,
+    bskyCursor === undefined,
+  );
 }
