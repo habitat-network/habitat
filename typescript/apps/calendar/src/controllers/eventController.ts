@@ -6,6 +6,7 @@ import {
 } from "api";
 import {
   AuthManager,
+  getPrivateRecord,
   listPrivateRecords,
   procedure,
   TypedRecord,
@@ -92,12 +93,6 @@ export function getDisplayableInvites(
 const EVENT_COLLECTION = "community.lexicon.calendar.event";
 const RSVP_COLLECTION = "community.lexicon.calendar.rsvp";
 const INVITE_COLLECTION = "community.lexicon.calendar.invite";
-const CLIQUE_COLLECTION = "network.habitat.clique";
-
-function buildCliqueUri(ownerDid: string, rkey: string): string {
-  return `habitat://${ownerDid}/${CLIQUE_COLLECTION}/${rkey}`;
-}
-
 /**
  * Parses a record URI to extract the DID, collection, and rkey.
  * Supports both at:// and habitat:// schemes.
@@ -109,6 +104,30 @@ function parseRecordUri(
   const match = uri.match(/^(?:at|habitat):\/\/([^/]+)\/([^/]+)\/([^/]+)$/);
   if (!match) return null;
   return { did: match[1], collection: match[2], rkey: match[3] };
+}
+
+/**
+ * Fetches the clique string for an event by looking up its permissions.
+ */
+async function getEventClique(
+  authManager: AuthManager,
+  eventUri: string,
+): Promise<string> {
+  const parsed = parseRecordUri(eventUri);
+  if (!parsed) throw new Error(`Invalid event URI: ${eventUri}`);
+  const record = await getPrivateRecord(
+    authManager,
+    parsed.collection,
+    parsed.rkey,
+    parsed.did,
+    true,
+  );
+  const cliqueGrantee = record.permissions?.find(
+    (p): p is { $type: "network.habitat.grantee#clique"; clique: string } =>
+      p.$type === "network.habitat.grantee#clique",
+  );
+  if (!cliqueGrantee) throw new Error(`No clique found for event: ${eventUri}`);
+  return cliqueGrantee.clique;
 }
 
 /**
@@ -132,35 +151,25 @@ export async function createEvent(
   invitedDids: string[] = [],
 ): Promise<NetworkHabitatRepoPutRecord.OutputSchema> {
   const eventRkey = crypto.randomUUID();
-  const cliqueRkey = `event-${eventRkey}`;
-  const cliqueUri = buildCliqueUri(userDid, cliqueRkey);
   const createdAt = new Date().toISOString();
 
   // Step 1: Create a clique with the creator and all invitees as members
   // The clique itself grants access to anyone in the list
-  await procedure(
-    "network.habitat.putRecord",
-    {
-      collection: CLIQUE_COLLECTION,
-      record: {},
-      rkey: cliqueRkey,
-      grantees: [
-        { $type: "network.habitat.grantee#didGrantee", did: userDid },
-        ...invitedDids.map((did) => ({
-          $type: "network.habitat.grantee#didGrantee",
-          did,
-        })),
-      ],
-      repo: userDid,
-    },
-    { authManager },
-  );
+  const cliqueResponse = await procedure(
+    "network.habitat.clique.createClique",
+    {},
+    { authManager }
+  )
+
+  const clique = cliqueResponse.clique
 
   // Step 2: Create the event, granting access via the clique
   const eventRecord = {
     ...event,
     createdAt,
   } as CalendarEvent;
+
+
 
   const eventResponse = await procedure(
     "network.habitat.putRecord",
@@ -169,7 +178,7 @@ export async function createEvent(
       record: eventRecord,
       rkey: eventRkey,
       grantees: [
-        { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
+        { $type: "network.habitat.grantee#clique", clique },
       ],
       repo: userDid,
     },
@@ -195,7 +204,7 @@ export async function createEvent(
         record: inviteRecord,
         rkey: inviteRkey,
         grantees: [
-          { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
+          { $type: "network.habitat.grantee#clique", clique },
         ],
         repo: userDid,
       },
@@ -223,7 +232,7 @@ export async function createEvent(
         record: creatorRsvpRecord,
         rkey: creatorRsvpRkey,
         grantees: [
-          { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
+          { $type: "network.habitat.grantee#clique", clique },
         ],
         repo: userDid,
       },
@@ -385,14 +394,14 @@ export async function editEvent(
 ): Promise<NetworkHabitatRepoPutRecord.OutputSchema> {
   const parsed = parseRecordUri(eventUri);
   if (!parsed) throw new Error(`Invalid event URI: ${eventUri}`);
-  const cliqueUri = buildCliqueUri(parsed.did, `event-${parsed.rkey}`);
+  const clique = await getEventClique(authManager, eventUri);
   return procedure(
     "network.habitat.putRecord",
     {
       collection: EVENT_COLLECTION,
       record: event,
       rkey: parsed.rkey,
-      grantees: [{ $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri }],
+      grantees: [{ $type: "network.habitat.grantee#clique", clique }],
       repo: parsed.did,
     },
     { authManager },
@@ -435,9 +444,7 @@ export async function createRsvp(
     throw new Error(`Invalid event URI: ${eventUri}`);
   }
 
-  // Derive the clique URI from the event
-  // The clique rkey follows the pattern: event-{eventRkey}
-  const cliqueUri = buildCliqueUri(parsed.did, `event-${parsed.rkey}`);
+  const clique = await getEventClique(authManager, eventUri);
 
   // Use a deterministic rkey so updating RSVP overwrites the existing one
   // Format: rsvp-for-{eventOwnerDid}-{eventRkey}
@@ -457,12 +464,8 @@ export async function createRsvp(
       collection: RSVP_COLLECTION,
       rkey: rsvpRkey,
       record: rsvpRecord,
-      grantees: [
-        { $type: "network.habitat.grantee#cliqueRef", uri: cliqueUri },
-      ],
+      grantees: [{ $type: "network.habitat.grantee#clique", clique }],
     },
-    {
-      authManager,
-    },
+    { authManager },
   );
 }

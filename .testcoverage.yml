@@ -22,7 +22,7 @@ exclude:
   # Exclude files or packages matching their paths
   paths:
     - \/mocks\/.*?$
-    - ^cmd # main.go's should be tested with integration tests, a separate pathway
+    - ^cmd\/ # main.go's should be tested with integration tests, a separate pathway
     - ^internal\/.*\/server.go # Most of our servers are mostly pass throughs -- TODO, we should test them.
     - ^internal/telemetry # This is all setup, no logic
     - ^internal/utils

@@ -21,7 +21,7 @@ export type QueryParams = {}
 export interface InputSchema {
   grantees: (
     | $Typed<NetworkHabitatGrantee.DidGrantee>
-    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | $Typed<NetworkHabitatGrantee.Clique>
     | { $type: string }
   )[]
   /** The NSID of the lexicon or record to grant read permission for. */

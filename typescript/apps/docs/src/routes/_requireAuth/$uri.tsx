@@ -26,6 +26,17 @@ import {
   editorProfilesQueryOptions,
 } from "@/queries/docs";
 import { ShareDialog, AuthManager, query, XRPCError } from "internal";
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+  useSidebar,
+} from "internal/components/ui";
+import { HelpDialog } from "@/components/HelpDialog";
+import { CheckIcon, LoaderIcon, MenuIcon } from "lucide-react";
+import { useIsMobile } from "node_modules/internal/src/components/hooks/use-mobile";
 
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
@@ -234,15 +245,48 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             },
           }),
         ],
+        editorProps: {
+          attributes: {
+            class:
+              "prose max-w-none min-h-full px-[max(2rem,calc(50%-20rem))] py-8 outline-none",
+          },
+        },
         onUpdate: handleUpdate,
       },
       [ydoc],
     );
+    const { toggleSidebar } = useSidebar();
+    const isMobile = useIsMobile();
     return (
-      <div className="flex flex-col h-full">
-        <header className="px-3 py-1 text-right border-b flex justify-between">
-          <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
-          <span>Node id: {node.peerId.toString()}</span>
+      <div className="flex flex-col-reverse h-full">
+        <div className="flex-1 flex flex-col items-center">
+          <EditorContent className="w-full flex-1" editor={editor} />
+        </div>
+        <header className="px-3 py-1 text-right border-b flex justify-between sticky top-0 bg-background">
+          {isMobile && (
+            <Button onClick={toggleSidebar} size="icon" variant="ghost">
+              <MenuIcon />
+            </Button>
+          )}
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Button size="icon" variant="outline">
+                  {dirty ? <LoaderIcon /> : <CheckIcon />}
+                </Button>
+              }
+            />
+            <PopoverContent>
+              <PopoverTitle>Sync status</PopoverTitle>
+              <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
+              <PopoverTitle>Peer info</PopoverTitle>
+              <span className="break-all">
+                Node id: {node.peerId.toString()}
+              </span>
+            </PopoverContent>
+          </Popover>
+          <HelpDialog />
+
           {docDID === authManager.getAuthInfo()?.did && record.editorClique && (
             <ShareDialog
               grantees={editorProfiles ?? []}
@@ -256,9 +300,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             />
           )}
         </header>
-        <div className="flex-1 flex flex-col items-center">
-          <EditorContent className="prose w-full" editor={editor} />
-        </div>
       </div>
     );
   },

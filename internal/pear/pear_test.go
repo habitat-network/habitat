@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -68,9 +69,12 @@ func newPearForTest(t *testing.T, dir identity.Directory, opts ...option) *pear 
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
 
-	permissions, err := permissions.NewStore(db, o.node)
+	cliqueStore, err := clique.NewStore(db)
 	require.NoError(t, err)
-	p := NewPear(o.node, dir, permissions, repo, inbox)
+
+	permissions, err := permissions.NewStore(db, cliqueStore)
+	require.NoError(t, err)
+	p := NewPear(o.node, dir, permissions, repo, cliqueStore, inbox)
 	return p
 }
 
@@ -319,16 +323,9 @@ func TestCliqueFlow(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{aDID, bDID, cDID})
 	p := newPearForTest(t, dir)
 
-	cliqueRkey := syntax.RecordKey("shared-clique")
-	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(aDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
-
-	// A creates the clique by adding B as a member
-	require.NoError(t, p.permissions.AddPermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(bDID))},
-		syntax.DID(aDID),
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
+	// A creates the clique and adds B as a member
+	clique, err := p.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
+	require.NoError(t, err)
 
 	val := map[string]any{"data": "value"}
 	validate := true
@@ -337,13 +334,13 @@ func TestCliqueFlow(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	bauthz, err := p.permissions.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	isMember, err := p.IsCliqueMember(t.Context(), aDID, clique, aDID)
 	require.NoError(t, err)
-	require.True(t, bauthz)
+	require.True(t, isMember)
 
-	aauthz, err := p.permissions.HasPermission(t.Context(), syntax.DID(bDID), syntax.DID(aDID), permissions.CliqueNSID, cliqueRkey)
+	isMember, err = p.IsCliqueMember(t.Context(), bDID, clique, bDID)
 	require.NoError(t, err)
-	require.True(t, aauthz)
+	require.True(t, isMember)
 
 	// A creates a record and grants access to the clique
 	_, err = p.PutRecord(t.Context(), syntax.DID(aDID), syntax.DID(aDID), coll, val, aRkey, &validate, []permissions.Grantee{clique})
@@ -380,12 +377,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, bRecords, 2)
 
 	// A adds C to the clique
-	require.NoError(t, p.permissions.AddPermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(cDID))},
-		syntax.DID(aDID),
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
+	require.NoError(t, p.AddCliqueMembers(t.Context(), aDID, clique, []syntax.DID{cDID}))
 
 	// C can see both records
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(cDID))
@@ -402,12 +394,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, cRecords, 2)
 
 	// A removes B from the clique
-	require.NoError(t, p.permissions.RemovePermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(bDID))},
-		syntax.DID(aDID),
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
+	require.NoError(t, p.RemoveCliqueMembers(t.Context(), aDID, clique, []syntax.DID{bDID}))
 
 	// B can no longer see A's record
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(bDID))
@@ -424,31 +411,6 @@ func TestCliqueFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bRecordsAfterRemoval, 1)
 	require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)
-}
-
-func TestNestedCliquesProhibited(t *testing.T) {
-	ownerDID := syntax.DID("did:example:cliqueowner")
-	otherOwnerDID := syntax.DID("did:example:otherowner")
-
-	dir := mockIdentities([]syntax.DID{ownerDID, otherOwnerDID})
-	p := newPearForTest(t, dir)
-
-	val := map[string]any{"members": []string{}}
-	validate := true
-
-	// Granting a CliqueGrantee access to a clique record should be rejected
-	nestedClique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(otherOwnerDID.String(), permissions.CliqueNSID.String(), "other-clique"))
-	_, err := p.PutRecord(
-		t.Context(),
-		syntax.DID(ownerDID),
-		syntax.DID(ownerDID),
-		permissions.CliqueNSID,
-		val,
-		"my-clique",
-		&validate,
-		[]permissions.Grantee{nestedClique},
-	)
-	require.ErrorIs(t, err, ErrNoNestedCliques)
 }
 
 func TestNotifyOfUpdate(t *testing.T) {
@@ -522,20 +484,14 @@ func TestListCollections(t *testing.T) {
 	p := newPearForTest(t, dir)
 
 	// Create a clique owned by owner with member as a member
-	cliqueRkey := syntax.RecordKey("my-clique")
-	require.NoError(t, p.permissions.AddPermissions(
-		[]permissions.Grantee{permissions.DIDGrantee(memberDID)},
-		ownerDID,
-		permissions.CliqueNSID,
-		cliqueRkey,
-	))
-	clique := permissions.CliqueGrantee(habitat_syntax.ConstructHabitatUri(ownerDID.String(), permissions.CliqueNSID.String(), cliqueRkey.String()))
+	clique, err := p.CreateClique(t.Context(), ownerDID, []syntax.DID{memberDID})
+	require.NoError(t, err)
 
 	coll := syntax.NSID("my.fake.collection")
 	validate := true
 
 	// Put a record granting access to both the clique and a specific DID grantee
-	_, err := p.PutRecord(
+	_, err = p.PutRecord(
 		t.Context(),
 		ownerDID,
 		ownerDID,
@@ -639,9 +595,11 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{aliceDID, bobDID, carolDID})
 	n := node.New(testServiceName, testServiceEndpoint, dir, &mockXrpcChannel{})
 
-	perms, err := permissions.NewStore(db, n)
+	cliqueStore, err := clique.NewStore(db)
 	require.NoError(t, err)
-	p := NewPear(n, dir, perms, repoStore, inboxInstance)
+	perms, err := permissions.NewStore(db, cliqueStore)
+	require.NoError(t, err)
+	p := NewPear(n, dir, perms, repoStore, cliqueStore, inboxInstance)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true

@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/bridges/otelzerolog"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log/global"
@@ -24,8 +24,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
@@ -148,7 +150,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
-	mux := http.NewServeMux()
+	mux := mux.NewRouter()
+
+	// Order of middlewares = order of "Use" called
+	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
+	mux.Use(otelmux.Middleware("habitat-server"))
+	mux.Use(corsMiddleware)
 
 	// auth routes
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
@@ -158,37 +165,39 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes
+	//repo
 	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 
+	// blobs
 	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
 
+	// permissions
 	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
 	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
 
+	// cliques
+	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", pearServer.CreateClique)
+	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", pearServer.AddCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
+
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
-	mux.Handle("/xrpc/", pdsForwarding)
+	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
 
 	// TODO: should we put this behind /p2p instead of / ?
-	mux.HandleFunc("/", p2pServer.HandleLibp2p)
-
-	otelMiddleware := otelhttp.NewMiddleware(
-		"habitat-backend",
-		// Add extra attributes to every span
-		otelhttp.WithSpanNameFormatter(func(op string, r *http.Request) string {
-			return r.Method + " " + r.URL.Path // e.g. "GET /users"
-		}),
-	)
+	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
 	s := &http.Server{
-		Handler: otelMiddleware(corsMiddleware(mux)),
+		Handler: mux,
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
@@ -300,7 +309,12 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
-	permissions, err := permissions.NewStore(db, node)
+	cliqueStore, err := clique.NewStore(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clique store: %w", err)
+	}
+
+	permissions, err := permissions.NewStore(db, cliqueStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
@@ -310,7 +324,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, inbox), nil
+	return pear.NewPear(node, dir, permissions, repo, cliqueStore, inbox), nil
 }
 
 func setupOAuthServer(

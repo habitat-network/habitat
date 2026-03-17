@@ -1,0 +1,33 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.clique.removeMembers",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Remove member(s) to a clique. The clique must be editable by the caller.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "clique",
+                        "members"
+                    ],
+                    "properties": {
+                        "clique": {
+                            "type": "ref",
+                            "ref": "network.habitat.grantee#clique"
+                        },
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

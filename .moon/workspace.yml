@@ -10,6 +10,8 @@ projects:
   globs:
   - cmd/*
   - typescript/apps/*
+  - typescript/xrpc-openapi-gen
+  - api-docs
 vcs:
   hooks:
     pre-commit:

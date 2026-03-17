@@ -26,18 +26,18 @@ export function validateDidGrantee<V>(v: V) {
   return validate<DidGrantee & V>(v, id, hashDidGrantee)
 }
 
-/** A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key */
-export interface CliqueRef {
-  $type?: 'network.habitat.grantee#cliqueRef'
-  uri: string
+/** A clique grantee in the form clique:did:plc:web:arushi/clique-key */
+export interface Clique {
+  $type?: 'network.habitat.grantee#clique'
+  clique: string
 }
 
-const hashCliqueRef = 'cliqueRef'
+const hashClique = 'clique'
 
-export function isCliqueRef<V>(v: V) {
-  return is$typed(v, id, hashCliqueRef)
+export function isClique<V>(v: V) {
+  return is$typed(v, id, hashClique)
 }
 
-export function validateCliqueRef<V>(v: V) {
-  return validate<CliqueRef & V>(v, id, hashCliqueRef)
+export function validateClique<V>(v: V) {
+  return validate<Clique & V>(v, id, hashClique)
 }

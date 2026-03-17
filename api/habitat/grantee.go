@@ -7,7 +7,7 @@ type NetworkHabitatGranteeDidGrantee struct {
 	Did string `json:"did"`
 }
 
-// NetworkHabitatGranteeCliqueRef represents a cliqueRef object
-type NetworkHabitatGranteeCliqueRef struct {
-	Uri string `json:"uri"`
+// NetworkHabitatGranteeClique represents a clique object
+type NetworkHabitatGranteeClique struct {
+	Clique string `json:"clique"`
 }

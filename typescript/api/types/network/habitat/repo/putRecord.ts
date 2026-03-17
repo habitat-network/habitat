@@ -31,7 +31,7 @@ export interface InputSchema {
   record: { [_ in string]: unknown }
   grantees?: (
     | $Typed<NetworkHabitatGrantee.DidGrantee>
-    | $Typed<NetworkHabitatGrantee.CliqueRef>
+    | $Typed<NetworkHabitatGrantee.Clique>
     | { $type: string }
   )[]
 }

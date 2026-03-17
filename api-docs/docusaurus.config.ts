@@ -2,6 +2,8 @@ import { themes as prismThemes } from 'prism-react-renderer';
 import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
+const baseUrl = process.env.BASE_URL ?? '/';
+
 const config: Config = {
   title: 'Habitat API',
   favicon: 'img/habitat.ico',
@@ -11,7 +13,7 @@ const config: Config = {
   },
 
   url: 'https://habitat.network',
-  baseUrl: process.env.BASE_URL ?? '/', // /habitat/api in production, just localhost:3000/ in dev
+  baseUrl: baseUrl, // /habitat/api in production, just localhost:3000/ in dev
 
   organizationName: 'habitat',
   projectName: 'habitat',
@@ -70,7 +72,7 @@ const config: Config = {
       },
       items: [
         {
-          to: '/docs/api',
+          to: baseUrl + 'docs/api',
           position: 'left',
           label: 'API Reference',
         },
@@ -89,7 +91,7 @@ const config: Config = {
           items: [
             {
               label: 'API Reference',
-              to: '/docs/api',
+              to: baseUrl + '/docs/api',
             },
           ],
         },

@@ -1,0 +1,9 @@
+tasks:
+  generate:
+    command: pnpm run generate
+    inputs:
+      - main.ts
+      - lib/**
+      - /lexicons/**
+    outputs:
+      - spec/api.json

@@ -17,6 +17,219 @@
     }
   ],
   "paths": {
+    "/network.habitat.clique.addMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.addMembers",
+        "description": "Add member(s) to a clique. The clique must be editable by the caller.",
+        "operationId": "network.habitat.clique.addMembers",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "clique",
+                  "members"
+                ],
+                "properties": {
+                  "clique": {
+                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.clique.createClique": {
+      "post": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.createClique",
+        "description": "Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.",
+        "operationId": "network.habitat.clique.createClique",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "clique"
+                  ],
+                  "properties": {
+                    "clique": {
+                      "type": "string",
+                      "description": "The habitat clique, formatted as clique:<owner did>/<clique key>"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.clique.removeMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.removeMembers",
+        "description": "Remove member(s) to a clique. The clique must be editable by the caller.",
+        "operationId": "network.habitat.clique.removeMembers",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "clique",
+                  "members"
+                ],
+                "properties": {
+                  "clique": {
+                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.internal.notifyOfUpdate": {
       "post": {
         "tags": [
@@ -96,7 +309,7 @@
           "network.habitat.permissions"
         ],
         "summary": "network.habitat.permissions.addPermission",
-        "description": "Grant read permission to a user for a specific lexicon.",
+        "description": "Grant read permission to a user or a clique for a specific collection or a specific record.",
         "operationId": "network.habitat.permissions.addPermission",
         "requestBody": {
           "required": true,
@@ -117,7 +330,7 @@
                           "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
                         },
                         {
-                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
                         }
                       ]
                     },
@@ -179,7 +392,7 @@
           "network.habitat.permissions"
         ],
         "summary": "network.habitat.permissions.removePermission",
-        "description": "Revoke read permission from a user for a specific lexicon.",
+        "description": "Revoke read permission from a user or a clique for a specific lexicon or record.",
         "operationId": "network.habitat.permissions.removePermission",
         "requestBody": {
           "required": true,
@@ -200,7 +413,7 @@
                           "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
                         },
                         {
-                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
                         }
                       ]
                     },
@@ -225,6 +438,132 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.repo.createRecord": {
+      "post": {
+        "tags": [
+          "network.habitat.repo"
+        ],
+        "summary": "network.habitat.repo.createRecord",
+        "description": "Create a pear repository record, creating it if it does not exist already, or updating it as needed.",
+        "operationId": "network.habitat.repo.createRecord",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "repo",
+                  "collection",
+                  "record"
+                ],
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "description": "The handle or DID of the repo (aka, current account).",
+                    "format": "at-identifier"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the record collection.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key.",
+                    "format": "record-key",
+                    "maxLength": 512
+                  },
+                  "validate": {
+                    "type": "boolean",
+                    "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
+                  },
+                  "record": {},
+                  "createGranteesClique": {
+                    "type": "boolean",
+                    "description": "Whether to create a clique with the given grantees. If true, all grantees must be DIDs, and the created clique ref is returned."
+                  },
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "The habitat-uri of the put-ed object.",
+                      "format": "uri"
+                    },
+                    "validationStatus": {
+                      "type": "string",
+                      "enum": [
+                        "valid",
+                        "unknown"
+                      ]
+                    },
+                    "clique": {
+                      "type": "string",
+                      "description": "If a clique was created, return its ref, formatted like clique:<owner did>/<clique key>"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -336,7 +675,7 @@
           "network.habitat.repo"
         ],
         "summary": "network.habitat.repo.putRecord",
-        "description": "Write a repository record, creating or updating it as needed.",
+        "description": "Write a pear repository record, creating it if it does not exist already, or updating it as needed.",
         "operationId": "network.habitat.repo.putRecord",
         "requestBody": {
           "required": true,
@@ -379,7 +718,7 @@
                           "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
                         },
                         {
-                          "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
                         }
                       ]
                     },
@@ -521,7 +860,7 @@
     "schemas": {
       "network.habitat.clique": {
         "type": "object",
-        "description": "Do we even need anything in here? I think it's just a placeholder.",
+        "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
         "properties": {}
       },
       "network.habitat.grantee.didGrantee": {
@@ -537,16 +876,15 @@
           }
         }
       },
-      "network.habitat.grantee.cliqueRef": {
+      "network.habitat.grantee.clique": {
         "type": "object",
-        "description": "A clique ref grantee in the form habitat://did:plc:web:arushi/habitat.network.clique/clique-record-key",
+        "description": "A clique grantee in the form clique:did:plc:web:arushi/clique-key",
         "required": [
-          "uri"
+          "clique"
         ],
         "properties": {
-          "uri": {
-            "type": "string",
-            "format": "uri"
+          "clique": {
+            "type": "string"
           }
         }
       },
@@ -658,7 +996,7 @@
                   "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
                 },
                 {
-                  "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                  "$ref": "#/components/schemas/network.habitat.grantee.clique"
                 }
               ]
             }
@@ -686,7 +1024,7 @@
                   "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
                 },
                 {
-                  "$ref": "#/components/schemas/network.habitat.grantee.cliqueRef"
+                  "$ref": "#/components/schemas/network.habitat.grantee.clique"
                 }
               ]
             }

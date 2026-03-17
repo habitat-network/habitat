@@ -6,6 +6,7 @@ packages:
   - typescript/api
   - typescript/xrpc-openapi-gen
   - api-docs
+  - website
 
 catalog:
   '@atproto/api': ^0.19.1

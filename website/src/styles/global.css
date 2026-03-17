@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+    color: #121113;
+}
+
+a {
+    color: #098727;
+    font-weight: 500;
+    transition: transform 0.1s ease-in-out;
+}
+
+a:hover {
+    text-decoration: underline;
+    transform: translateY(-2px);
+    /*transform-origin: 50% 100%;*/
+}
