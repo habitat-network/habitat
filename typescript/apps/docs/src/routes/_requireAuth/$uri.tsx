@@ -36,7 +36,7 @@ import {
   useSidebar,
 } from "internal/components/ui";
 import { HelpDialog } from "@/components/HelpDialog";
-import { CheckIcon, LoaderIcon, MenuIcon } from "lucide-react";
+import { CheckIcon, MenuIcon } from "lucide-react";
 import { useIsMobile } from "node_modules/internal/src/components/hooks/use-mobile";
 
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
