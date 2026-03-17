@@ -6,7 +6,12 @@
     --font-sans: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     font-weight: 500;
 }
 
@@ -19,7 +24,7 @@ p {
 }
 
 a {
-    color: #098727;
+    color: #217c3a;
     font-weight: 500;
     transition: transform 0.1s ease-in-out;
 }

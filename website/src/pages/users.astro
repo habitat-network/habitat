@@ -14,8 +14,8 @@ import Icon from "../components/Icon.astro";
     <title>For Users</title>
     <ClientRouter />
   </head>
-  <body class="h-screen flex flex-col p-6">
-    <header class="flex justify-between my-4 items-center">
+  <body class="h-screen flex flex-col" style="background-color: #f4f4f4;">
+    <header class="flex justify-between px-6 py-4 items-center sticky top-0 z-10" style="background-color: #f4f4f4;">
       <div class="flex-1">
         <a href="/"><img src="/habitat-wordmark.svg" /></a>
       </div>
@@ -39,18 +39,12 @@ import Icon from "../components/Icon.astro";
       </div>
     </header>
     <main class="flex flex-col items-center gap-16">
-      <div class="prose mt-8">
-        <h1>Take back control of your data, with habitat.</h1>
-      </div>
-      <div class="prose">
-        <h3>Trust people, not companies.</h3>
-        <p>
-          With habitat, you choose the <em>people</em> you want to share your data
-          with, not which company's Terms of Services you're forced to agree to, to
-          interact with those people. Our framework makes it possible for that data
-          to flow directly between users' data stores and their devices, so it never
-          touches company servers.
-        </p>
+      <div class="relative w-full flex items-center justify-center">
+        <img src="/treestop_green.jpg" class="w-full object-cover" alt="" />
+        <div class="absolute inset-0" style="background: linear-gradient(to bottom, #f4f4f4 0%, transparent 40%);"></div>
+        <div class="absolute top-30 left-12">
+          <h1 class="text-5xl font-bold whitespace-nowrap">Take back control of your data, with habitat.</h1>
+        </div>
       </div>
       <div class="prose">
         <h3>All your data in one place.</h3>
@@ -64,22 +58,29 @@ import Icon from "../components/Icon.astro";
           tied to your decentralized user identity, not a centralized platform.
         </p>
       </div>
+	        <div class="prose">
+        <h3>Trust people, not companies.</h3>
+        <p>
+          With habitat, you choose the <em>people</em> you want to share your data
+          with, not which company's Terms of Services you're forced to agree to, to
+          interact with those people. We make it possible for data
+          to flow directly between users' data stores and their devices, so it can never be used for other purposes.
+        </p>
+      </div>
       <div class="prose">
         <h3>Resist surveillance, together.</h3>
         <p>
           We're building Habitat because we've seen how surveillance capitalism
-          threatens our livelihood, our society, and our future. At this point
-          it's clear that neither backlash from users nor policy and regulation
+          threatens our livelihood, our society, and our future. It's clear that neither backlash from users nor policy and regulation
           is enough to get companies to do the right thing. We need a new
           paradigm for the internet that bakes in user data privacy at a
-          foundational layer. We're betting that this post-surveillance internet
-          won't be as good as the internet used to be; it will be better. By
+          foundational layer. By
           using habitat, you can be a part of this movement to fight
           surveillance online.
         </p>
       </div>
-      <div class="prose">
-        <h2>Sign up for the waitlist now.</h2>
+      <div class="prose py-12 px-8 w-[60vw] max-w-none">
+        <h2> The post-surveillance internet won't be as good as the internet used to be; it will be better. Sign up for the waitlist now.</h2>
       </div>
     </main>
   </body>
