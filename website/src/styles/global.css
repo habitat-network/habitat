@@ -3,8 +3,14 @@
 @plugin "@tailwindcss/typography";
 
 
-h1, h2, h3, h4, h5, h6,
-.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+h1, .prose h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    font-family: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+h2, h3, h4, h5, h6,
+.prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
     font-weight: 500;
     font-family: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
 }
