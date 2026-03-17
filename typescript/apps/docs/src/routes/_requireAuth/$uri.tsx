@@ -32,6 +32,7 @@ import {
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
+  Spinner,
   useSidebar,
 } from "internal/components/ui";
 import { HelpDialog } from "@/components/HelpDialog";
@@ -271,7 +272,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             <PopoverTrigger
               render={
                 <Button size="icon" variant="outline">
-                  {dirty ? <LoaderIcon /> : <CheckIcon />}
+                  {dirty ? <Spinner /> : <CheckIcon />}
                 </Button>
               }
             />
