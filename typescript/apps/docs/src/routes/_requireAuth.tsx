@@ -57,12 +57,10 @@ export const Route = createFileRoute("/_requireAuth")({
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
         const did = authManager.getAuthInfo()?.did;
-        const clique = await procedure(
-          "network.habitat.putRecord",
+        const { clique } = await procedure(
+          "network.habitat.clique.createClique",
           {
-            record: {},
-            repo: did ?? "",
-            collection: "network.habitat.clique",
+            members: [],
           },
           { authManager },
         );
@@ -74,12 +72,12 @@ export const Route = createFileRoute("/_requireAuth")({
             record: {
               name: "Untitled",
               blob: null,
-              editorClique: clique.uri,
+              editorClique: clique,
             } satisfies HabitatDoc,
             grantees: [
               {
-                $type: "network.habitat.grantee#cliqueRef",
-                uri: clique.uri,
+                $type: "network.habitat.grantee#clique",
+                clique: clique,
               },
             ],
           },

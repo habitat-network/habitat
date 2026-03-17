@@ -39,22 +39,14 @@ export const docEditorsQueryOptions = (
   queryOptions({
     queryKey: ["editors", editorCliqueUri],
     queryFn: async () => {
-      const [, , editorCliqueDID, , editorCliqueRkey] =
-        editorCliqueUri?.split("/") ?? [];
-      if (!editorCliqueDID || !editorCliqueRkey) {
-        return [];
-      }
-      const { permissions } = await query(
-        "network.habitat.getRecord",
+      const { members } = await query(
+        "network.habitat.clique.getMembers",
         {
-          collection: "network.habitat.clique",
-          rkey: editorCliqueRkey,
-          repo: editorCliqueDID,
-          includePermissions: true,
+          clique: editorCliqueUri,
         },
         { authManager },
       );
-      return permissions ?? [];
+      return members ?? [];
     },
   });
 
@@ -63,18 +55,15 @@ export const editorProfilesQueryOptions = (
   authManager: AuthManager,
 ) =>
   queryOptions({
-    queryKey: ["editor", editorCliqueUri, "profiles"],
+    queryKey: ["editors", editorCliqueUri, "profiles"],
     queryFn: async ({ client }) => {
       if (!editorCliqueUri) {
         return [];
       }
-      const permissions = await client.fetchQuery(
+      const dids = await client.fetchQuery(
         docEditorsQueryOptions(editorCliqueUri, authManager),
       );
-      const dids = permissions
-        ?.filter((grantee) => "did" in grantee)
-        .map((grantee) => grantee.did);
-      if (!dids) {
+      if (!dids.length) {
         return [];
       }
       const { profiles } = await query(
@@ -141,23 +130,21 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
       editorCliqueUri: string | undefined;
     }) => {
       if (!editorCliqueUri) return;
-      const [, , collection, , rkey] = editorCliqueUri.split("/");
       return procedure(
-        "network.habitat.addPermission",
+        "network.habitat.clique.addMembers",
         {
-          grantees: grantees.map((grantee) => ({
-            $type: "network.habitat.grantee#didGrantee",
-            did: grantee,
-          })),
-          collection,
-          rkey,
+          clique: {
+            $type: "network.habitat.grantee#clique",
+            clique: editorCliqueUri,
+          },
+          members: grantees,
         },
         { authManager },
       );
     },
-    onSuccess: (_, { editorCliqueUri }, __, { client }) => {
+    onSuccess: async (_, { editorCliqueUri }, __, { client }) => {
       if (!editorCliqueUri) return;
-      client.invalidateQueries(
+      const x = await client.invalidateQueries(
         docEditorsQueryOptions(editorCliqueUri, authManager),
       );
     },
