@@ -31,7 +31,7 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@atproto/api": "^0.18.8",
+    "@atproto/api": "catalog:",
     "@atproto/identity": "^0.4.10",
     "@atproto/oauth-client-browser": "^0.3.34",
     "@base-ui/react": "^1.2.0",

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AuthManager } from "internal";
+import { Actor, AuthManager } from "internal";
 import { PostReply } from "./components/PostReply";
 import {
   Card,
@@ -25,15 +25,11 @@ export interface FeedEntry {
   text: string;
   createdAt?: string;
   kind: PostVisibility;
-  author?: {
-    handle?: string;
-    displayName?: string;
-    avatar?: string;
-  };
+  author?: Actor;
   reply?: { handle: string; parentPostUri: string };
   repostedByHandle?: string;
   quotedPost?: { bskyUrl: string; authorHandle: string };
-  grantees?: { avatar?: string; handle: string }[];
+  grantees?: Actor[];
   isReply?: boolean;
 }
 

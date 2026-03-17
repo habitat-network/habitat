@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AuthManager } from "internal";
+import { Actor, AuthManager } from "internal";
 import {
   type PrivatePost,
   type Profile,
@@ -11,15 +11,9 @@ import {
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
-interface Author {
-  handle: string;
-  displayName?: string;
-  avatar?: string;
-}
-
 interface BskyPost {
   uri: string;
-  author?: Author;
+  author?: Actor;
   record: {
     text: string;
     createdAt?: string;
@@ -31,12 +25,12 @@ interface FeedItem {
   reply?: {
     parent: {
       uri: string;
-      author?: Author;
+      author?: Actor;
     };
   };
   reason?: {
     $type: string;
-    by: Author;
+    by: Actor;
   };
 }
 
@@ -57,24 +51,25 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
 
     const entries: FeedEntry[] = [
       ...(await Promise.all(
-        privateItems.filter((p) => !p.value.reply).map(async (post): Promise<FeedEntry> => {
-          const authorDid = post.uri.split("/")[2] ?? "";
-          const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
-          const grantees = await getProfiles(context.authManager, granteeDids);
-          return {
-            uri: post.uri,
-            clique: post.clique,
-            text: post.value.text,
-            createdAt: post.value.createdAt,
-            kind: getPostVisibility(post, authorDid),
-            author: {
-              handle: profile.handle,
-              displayName: profile.displayName,
-              avatar: profile.avatar,
-            },
-            grantees: grantees.length > 0 ? grantees : undefined,
-          };
-        }),
+        privateItems
+          .filter((p) => !p.value.reply)
+          .map(async (post): Promise<FeedEntry> => {
+            const authorDid = post.uri.split("/")[2] ?? "";
+            const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
+            const grantees = await getProfiles(
+              context.authManager,
+              granteeDids,
+            );
+            return {
+              uri: post.uri,
+              clique: post.clique,
+              text: post.value.text,
+              createdAt: post.value.createdAt,
+              kind: getPostVisibility(post, authorDid),
+              author: profile,
+              grantees: grantees.length > 0 ? grantees : undefined,
+            };
+          }),
       )),
       ...publicItems.map(
         ({ post, reply, reason }): FeedEntry => ({
@@ -85,7 +80,10 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           author: post.author,
           reply:
             reply !== undefined && reply.parent.author?.handle
-              ? { handle: reply.parent.author.handle, parentPostUri: reply.parent.uri }
+              ? {
+                handle: reply.parent.author.handle,
+                parentPostUri: reply.parent.uri,
+              }
               : undefined,
           repostedByHandle:
             reason?.$type === "app.bsky.feed.defs#reasonRepost"
@@ -107,7 +105,9 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           left={
             <>
               <li>
-                <Link to="/" className="hover:underline">← greensky</Link>
+                <Link to="/" className="hover:underline">
+                  ← greensky
+                </Link>
               </li>
               <li className="sm:block text-foreground">
                 <h3>@{handle}'s feed</h3>

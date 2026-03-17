@@ -693,6 +693,11 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var params habitat.NetworkHabitatCliqueGetMembersParams
+	err := s.decoder.Decode(&params, r.URL.Query())
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		return
+	}
 	clique, err := habitat_syntax.ParseClique(params.Clique)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "decode clique from url param", http.StatusBadRequest)

@@ -52,11 +52,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
       text: post.value.text,
       createdAt: post.value.createdAt,
       kind: parentKind,
-      author: {
-        handle: profile.handle,
-        displayName: profile.displayName,
-        avatar: profile.avatar,
-      },
+      author: profile,
       grantees: grantees.length > 0 ? grantees : undefined,
     };
     const replyEntries: FeedEntry[] = replyPosts.map((reply) => {
@@ -70,9 +66,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         createdAt: reply.value.createdAt,
         kind: parentKind,
         isReply: true,
-        author: replyAuthor
-          ? { handle: replyAuthor.handle, avatar: replyAuthor.avatar }
-          : undefined,
+        author: replyAuthor,
         reply: { handle: profile.handle, parentPostUri: post.uri },
       };
     });
@@ -92,11 +86,11 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
           left={
             <>
               <li>
-                <Link to="/" className="hover:underline">← greensky</Link>
+                <Link to="/" className="hover:underline">
+                  ← greensky
+                </Link>
               </li>
-              <li className="sm:block text-foreground">
-                post by @{handle}
-              </li>
+              <li className="sm:block text-foreground">post by @{handle}</li>
             </>
           }
           authManager={authManager}

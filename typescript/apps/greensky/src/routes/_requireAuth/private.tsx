@@ -1,5 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { getPrivatePosts, getPostVisibility, getProfile, getProfiles } from "../../habitatApi";
+import {
+  getPrivatePosts,
+  getPostVisibility,
+  getProfile,
+  getProfiles,
+} from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 
@@ -14,7 +19,10 @@ export const Route = createFileRoute("/_requireAuth/private")({
           const did = post.uri.split("/")[2] ?? "";
           const [author, grantees] = await Promise.all([
             getProfile(context.authManager, did),
-            getProfiles(context.authManager, (post.resolvedClique ?? []).slice(0, 5)),
+            getProfiles(
+              context.authManager,
+              (post.resolvedClique ?? []).slice(0, 5),
+            ),
           ]);
           return {
             uri: post.uri,
@@ -41,7 +49,9 @@ export const Route = createFileRoute("/_requireAuth/private")({
           left={
             <>
               <li>
-                <Link to="/" className="hover:underline">← greensky</Link>
+                <Link to="/" className="hover:underline">
+                  ← greensky
+                </Link>
               </li>
               <li className="text-foreground">
                 <h3>private feed</h3>
@@ -53,7 +63,9 @@ export const Route = createFileRoute("/_requireAuth/private")({
           isOnboarded={isOnboarded}
         />
         {entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground mt-8">No private posts yet.</p>
+          <p className="text-sm text-muted-foreground mt-8">
+            No private posts yet.
+          </p>
         ) : (
           <Feed entries={entries} authManager={authManager} />
         )}

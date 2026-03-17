@@ -6,6 +6,7 @@ import type {
   AppBskyActorSearchActorsTypeahead,
   AppBskyActorGetProfile,
   AppBskyActorGetProfiles,
+  ComAtprotoServerGetServiceAuth,
 } from "@atproto/api";
 import type {
   NetworkHabitatCliqueCreateClique,
@@ -15,6 +16,9 @@ import type {
   NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
   NetworkHabitatRepoPutRecord,
+  NetworkHabitatPermissionsAddPermission,
+  NetworkHabitatCliqueAddMembers,
+  NetworkHabitatCliqueGetMembers,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -35,6 +39,10 @@ type QueryEndpoints = {
   "com.atproto.repo.getRecord": Query<
     ComAtprotoRepoGetRecord.QueryParams,
     ComAtprotoRepoGetRecord.OutputSchema
+  >;
+  "com.atproto.server.getServiceAuth": Query<
+    ComAtprotoServerGetServiceAuth.QueryParams,
+    ComAtprotoServerGetServiceAuth.OutputSchema
   >;
   "network.habitat.getRecord": Query<
     NetworkHabitatRepoGetRecord.QueryParams,
@@ -68,6 +76,10 @@ type QueryEndpoints = {
     NetworkHabitatListConnectedApps.QueryParams,
     NetworkHabitatListConnectedApps.OutputSchema
   >;
+  "network.habitat.clique.getMembers": Query<
+    NetworkHabitatCliqueGetMembers.QueryParams,
+    NetworkHabitatCliqueGetMembers.OutputSchema
+  >;
 };
 
 type Procedure<Params, Output> = { params: Params; output: Output };
@@ -88,6 +100,14 @@ type ProcedureEndpoints = {
   "network.habitat.clique.createClique": Procedure<
     NetworkHabitatCliqueCreateClique.InputSchema,
     NetworkHabitatCliqueCreateClique.OutputSchema
+  >;
+  "network.habitat.clique.addMembers": Procedure<
+    NetworkHabitatCliqueAddMembers.InputSchema,
+    void
+  >;
+  "network.habitat.addPermission": Procedure<
+    NetworkHabitatPermissionsAddPermission.InputSchema,
+    NetworkHabitatPermissionsAddPermission.Response
   >;
 };
 

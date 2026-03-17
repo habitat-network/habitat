@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Actor, AuthManager } from "internal";
+import { Actor, AuthManager, query } from "internal";
 import {
   Button,
   Dialog,
@@ -92,13 +92,15 @@ export function NewPostButton({
       } else {
         const dids = await Promise.all(
           specificUsers.map(async ({ handle }) => {
-            const res = await authManager.fetch(
-              `/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`,
-              "GET",
+            if (!handle) return "";
+            const { did } = await query(
+              "com.atproto.identity.resolveHandle",
+              {
+                handle,
+              },
+              { authManager },
             );
-            await checkResponse(res);
-            const resolved: { did: string } = await res.json();
-            return resolved.did;
+            return did;
           }),
         );
         const cliqueRes = await authManager.fetch(

@@ -1,4 +1,4 @@
-import { AuthManager } from "internal";
+import { Actor, AuthManager, query } from "internal";
 
 export interface CliqueRefPermission {
   $type: "network.habitat.grantee#cliqueRef";
@@ -45,13 +45,14 @@ export function getPostVisibility(
 
   // The get for the record can return many grants (for e.g. if the author gave permissions to a user for the whole collection)
   // To know if this was a followers post, see if the auther shared this with their followers clique
-  if (perms.some((perm) => {
-    if (perm.$type === "network.habitat.grantee#cliqueRef") {
-      if ((perm as CliqueRefPermission).uri === followersClique)
-        return true;
-    }
-    return false
-  })) {
+  if (
+    perms.some((perm) => {
+      if (perm.$type === "network.habitat.grantee#cliqueRef") {
+        if ((perm as CliqueRefPermission).uri === followersClique) return true;
+      }
+      return false;
+    })
+  ) {
     return "followers-only";
   }
   return "specific-users";
@@ -94,7 +95,7 @@ async function getCliqueMembers(
     )
     .map((p) => p.did);
 
-  return res
+  return res;
 }
 
 async function resolvePostPermissions(
@@ -137,7 +138,9 @@ export async function getPrivatePosts(
   const data: { records?: PrivatePost[] } = await response.json();
   const posts = data.records ?? [];
 
-  return Promise.all(posts.map((post) => resolvePostPermissions(authManager, post)));
+  return Promise.all(
+    posts.map((post) => resolvePostPermissions(authManager, post)),
+  );
 }
 
 export async function getPrivatePost(
@@ -163,23 +166,16 @@ export async function getPrivatePost(
 export async function getProfiles(
   authManager: AuthManager,
   actors: string[],
-): Promise<{ avatar?: string; handle: string }[]> {
+): Promise<Actor[]> {
   if (actors.length === 0) return [];
-  const params = new URLSearchParams();
-  for (const actor of actors) {
-    params.append("actors", actor);
-  }
-  const headers = new Headers();
-  headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
-  const response = await authManager.fetch(
-    `/xrpc/app.bsky.actor.getProfiles?${params.toString()}`,
-    "GET",
-    null,
-    headers,
+  const { profiles } = await query(
+    "app.bsky.actor.getProfiles",
+    {
+      actors,
+    },
+    { authManager },
   );
-  if (!response.ok) return [];
-  const data: { profiles: Profile[] } = await response.json();
-  return data.profiles.map((p) => ({ avatar: p.avatar, handle: p.handle }));
+  return profiles;
 }
 
 export async function getProfile(

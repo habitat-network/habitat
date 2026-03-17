@@ -16,3 +16,4 @@ export * from "./sidebar";
 export * from "./searchbar";
 export * from "./textarea";
 export * from "./popover";
+export * from "./spinner";

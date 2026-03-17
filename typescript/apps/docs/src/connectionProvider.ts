@@ -147,8 +147,20 @@ export class Libp2pConnectionProvider extends ObservableV2<{
     doc.on("update", this._handleDocUpdate);
     this.awareness.on("update", this._awarenessUpdateHandler);
 
-    console.log("subscribing to", this.topic);
     node.services.pubsub.subscribe(this.topic);
+
+    node.addEventListener("connection:open", (evt) => {
+      const conn = evt.detail;
+      const addr = conn.remoteAddr.toString();
+
+      const isDirect =
+        addr.includes("/webrtc") && !addr.includes("p2p-circuit");
+      const isRelayed = addr.includes("p2p-circuit");
+
+      console.log(
+        `connection to ${conn.remotePeer}: ${isDirect ? "direct WebRTC" : isRelayed ? "relayed" : "websocket"}`,
+      );
+    });
   }
 
   destroy(): void {

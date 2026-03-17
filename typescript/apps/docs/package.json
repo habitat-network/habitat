@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@atproto/api": "^0.19.1",
+    "@atproto/api": "catalog:",
     "@atproto/identity": "^0.4.10",
     "@chainsafe/libp2p-gossipsub": "14.1.2",
     "@chainsafe/libp2p-noise": "16.0.0",
@@ -17,7 +17,7 @@
     "@libp2p/circuit-relay-v2": "^3.2.24",
     "@libp2p/dcutr": "^2.0.38",
     "@libp2p/identify": "^3.0.39",
-    "@libp2p/interface": "^2.7.0",
+    "@libp2p/interface": "^2.11.0",
     "@libp2p/peer-id": "^5.0.16",
     "@libp2p/ping": "2.0.5",
     "@libp2p/webrtc": "^5.2.24",
