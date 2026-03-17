@@ -98,19 +98,13 @@ export const docEditsQueryOptions = (
       // editRkey is the rkey used in network.habitat.docs.edit for this doc
       const editRkey = `${ownerDID}-${ownerRkey}`;
       return Promise.all(
-        permissions.map(async (grantee) => {
-          if (
-            grantee.$type !== "network.habitat.grantee#didGrantee" ||
-            !("did" in grantee)
-          ) {
-            return;
-          }
+        permissions.map(async (did) => {
           try {
             return getPrivateRecord<HabitatDoc>(
               authManager,
               "network.habitat.docs.edit",
               editRkey,
-              grantee.did,
+              did,
             );
           } catch {
             /* silently skip */
@@ -122,15 +116,18 @@ export const docEditsQueryOptions = (
 
 export const addPermissionMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
-    mutationFn: async ({
-      grantees,
-      editorCliqueUri,
-    }: {
-      grantees: string[];
-      editorCliqueUri: string | undefined;
-    }) => {
+    mutationFn: async (
+      {
+        grantees,
+        editorCliqueUri,
+      }: {
+        grantees: string[];
+        editorCliqueUri: string | undefined;
+      },
+      { client },
+    ) => {
       if (!editorCliqueUri) return;
-      return procedure(
+      await procedure(
         "network.habitat.clique.addMembers",
         {
           clique: {
@@ -141,10 +138,7 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
         },
         { authManager },
       );
-    },
-    onSuccess: async (_, { editorCliqueUri }, __, { client }) => {
-      if (!editorCliqueUri) return;
-      const x = await client.invalidateQueries(
+      await client.invalidateQueries(
         docEditorsQueryOptions(editorCliqueUri, authManager),
       );
     },

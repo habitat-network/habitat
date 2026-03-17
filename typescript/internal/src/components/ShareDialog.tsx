@@ -5,15 +5,18 @@ import { Actor } from "@/types/Actor";
 import { AuthManager } from "@/authManager";
 import { Button } from "./ui/button";
 import { UserItem } from "./UserItem";
+import { Spinner } from "./ui/spinner";
 
 interface ShareDialogProps {
   grantees: Actor[];
   onAddPermission: (grantees: Actor[]) => void;
   authManager: AuthManager;
+  isAdding?: boolean;
 }
 const ShareDialog = ({
   grantees,
   authManager,
+  isAdding,
   onAddPermission,
 }: ShareDialogProps) => {
   const [newGrantees, setNewGrantees] = useState<Actor[]>([]);
@@ -32,7 +35,9 @@ const ShareDialog = ({
             onAddPermission(newGrantees);
             setNewGrantees([]);
           }}
+          disabled={isAdding}
         >
+          {isAdding && <Spinner />}
           Add
         </Button>
         {grantees.map((g) => {

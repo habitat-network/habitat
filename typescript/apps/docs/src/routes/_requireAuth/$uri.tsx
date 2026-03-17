@@ -214,9 +214,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       },
       onSuccess: () => setDirty(false),
     });
-    const { mutate: addPermission } = useMutation(
-      addPermissionMutationOptions(authManager),
-    );
+    const { mutate: addPermission, isPending: isAddingPermission } =
+      useMutation(addPermissionMutationOptions(authManager));
     // debounce
     const handleUpdate = useMemo(() => {
       let prevTimeout: number | undefined;
@@ -289,6 +288,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
           {docDID === authManager.getAuthInfo()?.did && record.editorClique && (
             <ShareDialog
+              isAdding={isAddingPermission}
               grantees={editorProfiles ?? []}
               authManager={authManager}
               onAddPermission={(actors) =>
