@@ -1,0 +1,89 @@
+---
+import "../styles/global.css";
+import { ClientRouter } from "astro:transitions";
+import Icon from "../components/Icon.astro";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>For Users</title>
+    <ClientRouter />
+  </head>
+  <body class="h-screen flex flex-col p-6">
+    <header class="flex justify-between my-4 items-center">
+      <div class="flex-1">
+        <a href="/"><img src="/habitat-wordmark.svg" /></a>
+      </div>
+      <nav class="flex text-lg gap-8">
+        <a href="/users">For users</a>
+        <a href="/developers"><u>For developers</u></a>
+      </nav>
+      <div class="flex-1 flex justify-end gap-4 items-center">
+        <a
+          href="https://github.com/habitat-network/habitat"
+          aria-label="GitHub"
+        >
+          <Icon name="github" class="w-6 h-6" />
+        </a>
+        <a href="https://bsky.app/profile/habitat.network" aria-label="Bluesky">
+          <Icon name="bluesky" class="w-6 h-6" />
+        </a>
+        <a href="https://habitat.leaflet.pub" aria-label="Leaflet">
+          <Icon name="leaflet" class="w-6 h-6" />
+        </a>
+      </div>
+    </header>
+    <main class="flex flex-col items-center gap-16">
+      <div class="prose mt-8">
+        <h1>Usher in a new era of the web.</h1>
+        <p>
+          If you believe, like us, that the current status quo is broken, come
+          help us do better. The web didn't become the way it is now because
+          it's the only way -- it's because money and infrastructure was poured
+          into making it so. We can redirect this energy towards building a web
+          that doesn't require software companies to prey on users to survive.
+          After all, it's just code.
+        </p>
+      </div>
+      <div class="prose">
+        <h3>
+          Aligned incentives: you own the product, the user owns their data.
+        </h3>
+        <p>
+          We believe software is at its best when company business models align
+          with user incentives. Users should pay you because they want to stay,
+          not because they can't leave.
+        </p>
+      </div>
+      <div class="prose">
+        <h3>No infrastructure necessary.</h3>
+        <p>
+          Today, every company has to rebuild some of the same infrastructure:
+          user accounts, permissions, data sync. We get these primitives right
+          so you can focus on what matters most: building the best user
+          experiences. Save the time, money, and compute by building on habitat.
+        </p>
+      </div>
+      <div class="prose">
+        <h3>Trivial integration with other apps built on ATProtocol.</h3>
+        <p>
+          The benefit of an open data protocol is that products thrive together.
+          You don't just read and write to your application's data silo;
+          instead, shared data schemas allow for unlimited integration and
+          cross-app interactions.
+        </p>
+      </div>
+      <div class="prose">
+        <h2>
+          Get started by reading our docs here, and join the discussion on
+          Bluesky/Blacksky/your favorite platform by tagging @habitat.network.
+        </h2>
+      </div>
+    </main>
+  </body>
+</html>

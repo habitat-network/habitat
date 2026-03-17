@@ -1,42 +1,86 @@
 ---
-import '../styles/global.css';
-import { ClientRouter } from 'astro:transitions';
+import "../styles/global.css";
+import { ClientRouter } from "astro:transitions";
+import Icon from "../components/Icon.astro";
 ---
 
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>For Users</title>
-		<ClientRouter />
-	</head>
-	<body class="m-0 min-h-screen font-sans leading-normal bg-[#0f0f12] bg-center bg-cover bg-no-repeat" style="background-image: url('/robert-katzki-KLcaQxlmhtk-unsplash.jpg')">
-		<main class="h-screen flex flex-col overflow-auto items-center pt-8">
-			<div class="px-6 pt-12 sm:px-12 bg-[#F7F7F2] min-h-full flex flex-col w-fit shadow-2xl rounded-t-4xl " transition:name="card" transition:animate="morph">
-				<header class="flex justify-between items-start">
-					<a href="/"><img src="/habitat-wordmark.svg" class="m-0 w-32" 
-transition:name="logo" transition:animate="morph"
-					/></a>
-					<nav class="flex flex-col items-end">
-						<a href="/users">For users</a>
-						<a href="https://github.com/habitat-sh">For developers</a>
-						<a href="https://github.com/habitat-sh">GitHub</a>
-					</nav>
-				</header>
-				<div class="mt-8 prose">
-					<h1 class="hero-headline">
-						Take back control of your data, with habitat.<br>
-					</h1>
-					<ul class="section-list">
-						<li>Your data is yours, forever. You pick who gets to see it.</li>
-						<li>Choose or build your favorite < note-taking> app: your data goes where you go.</li>
-						<li>All your data in one place: see it, search it, ask it questions.</li>
-					</ul>
-				</div>
-			</div>
-		</main>
-	</body>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>For Users</title>
+    <ClientRouter />
+  </head>
+  <body class="h-screen flex flex-col p-6">
+    <header class="flex justify-between my-4 items-center">
+      <div class="flex-1">
+        <a href="/"><img src="/habitat-wordmark.svg" /></a>
+      </div>
+      <nav class="flex text-lg gap-8">
+        <a href="/users"><u>For users</u></a>
+        <a href="/developers">For developers</a>
+      </nav>
+      <div class="flex-1 flex justify-end gap-4 items-center">
+        <a
+          href="https://github.com/habitat-network/habitat"
+          aria-label="GitHub"
+        >
+          <Icon name="github" class="w-6 h-6" />
+        </a>
+        <a href="https://bsky.app/profile/habitat.network" aria-label="Bluesky">
+          <Icon name="bluesky" class="w-6 h-6" />
+        </a>
+        <a href="https://habitat.leaflet.pub" aria-label="Leaflet">
+          <Icon name="leaflet" class="w-6 h-6" />
+        </a>
+      </div>
+    </header>
+    <main class="flex flex-col items-center gap-16">
+      <div class="prose mt-8">
+        <h1>Take back control of your data, with habitat.</h1>
+      </div>
+      <div class="prose">
+        <h3>Trust people, not companies.</h3>
+        <p>
+          With habitat, you choose the <em>people</em> you want to share your data
+          with, not which company's Terms of Services you're forced to agree to, to
+          interact with those people. Our framework makes it possible for that data
+          to flow directly between users' data stores and their devices, so it never
+          touches company servers.
+        </p>
+      </div>
+      <div class="prose">
+        <h3>All your data in one place.</h3>
+        <p>
+          When you own all your data, you can see it, search it, or even ask it
+          questions in a way that is impossible to do today. You can switch
+          applications without losing any data, because the applications don't
+          own your data in the first place. It would be like logging into Google
+          Drive for the first time and seeing all your Microsoft OneDrive files
+          there, without any hassle from you. This works because your data is
+          tied to your decentralized user identity, not a centralized platform.
+        </p>
+      </div>
+      <div class="prose">
+        <h3>Resist surveillance, together.</h3>
+        <p>
+          We're building Habitat because we've seen how surveillance capitalism
+          threatens our livelihood, our society, and our future. At this point
+          it's clear that neither backlash from users nor policy and regulation
+          is enough to get companies to do the right thing. We need a new
+          paradigm for the internet that bakes in user data privacy at a
+          foundational layer. We're betting that this post-surveillance internet
+          won't be as good as the internet used to be; it will be better. By
+          using habitat, you can be a part of this movement to fight
+          surveillance online.
+        </p>
+      </div>
+      <div class="prose">
+        <h2>Sign up for the waitlist now.</h2>
+      </div>
+    </main>
+  </body>
 </html>

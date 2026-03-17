@@ -1,94 +1,164 @@
 ---
-import '../styles/global.css';
-import { ClientRouter } from 'astro:transitions';
-import Carousel from '../components/Carousel';
-import Icon from '../components/Icon.astro';
+import "../styles/global.css";
+import { ClientRouter } from "astro:transitions";
+import Carousel from "../components/Carousel";
+import Icon from "../components/Icon.astro";
 ---
 
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-		<ClientRouter />
-	</head>
-	<body class="h-screen flex flex-col p-6">
-		<header class="flex justify-between my-4 items-center"> 
-			<div class="flex-1">
-				<img src="/habitat-wordmark.svg">
-			</div>
-			<nav class="flex text-lg gap-8">
-				<a href="/users">For users</a>
-				<a href="/developers">For developers</a>
-			</nav>
-			<div class="flex-1 flex justify-end gap-4 items-center">
-				<a href="https://github.com/habitat-sh" aria-label="GitHub">
-					<Icon name="github" class="w-6 h-6" />
-				</a>
-				<a href="https://bsky.app" aria-label="Bluesky">
-					<Icon name="bluesky" class="w-6 h-6" />
-				</a>
-				<a href="https://leafletjs.com" aria-label="Leaflet">
-					<Icon name="leaflet" class="w-6 h-6" />
-				</a>
-			</div>
-		</header>
-		<main class="flex flex-col items-center gap-16">
-			<div class="flex flex-col lg:flex-row items-center mt-8">
-				<div class="prose px-4 my-8">
-					<h1>We're building <b>user data agency</b> on the web.</h1>
-					<p>
-						We believe your data should be yours, forever. Companies shouldn't be able to prevent you from accessing it and downloading it. Your data shouldn't flow through third-party servers just so you can share it with friends. We are laying the technical foundations to make this the new default on the web, so we can break free from the cycle of data capture that currently exists online.
-					</p>
-				</div>
-				<div class="flex-1">
-					<div class="rounded-xl overflow-hidden" >
-						<img src="/robert-katzki-KLcaQxlmhtk-unsplash.jpg">
-					</div>
-				</div>
-			</div>
-			<div class="prose">
-				There's no doubt that over the last decade, we've collectively experienced the internet get meaningfully... worse. Whether that was because of the attention economy, surveillance capitalism, enshittification, (or all the above and more), it's clear that the state of the web today isn't meant for us, for people. At the core of these issues lies data capture, through which Big Tech, data brokers, and surveillance dragnets have harvested, stolen, and used our data against us. That's why to build a better web, we're trying to bring about user data ownership and agency at a protocol level.
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Astro</title>
+    <ClientRouter />
+  </head>
+  <body class="flex flex-col">
+    <header class="flex justify-between px-6 py-4 items-center sticky top-0 bg-white z-10">
+      <div class="flex-1">
+        <img src="/habitat-wordmark.svg" />
+      </div>
+      <nav class="flex text-lg gap-8">
+        <a href="/users">For users</a>
+        <a href="/developers">For developers</a>
+      </nav>
+      <div class="flex-1 flex justify-end gap-4 items-center">
+        <a
+          href="https://github.com/habitat-network/habitat"
+          aria-label="GitHub"
+        >
+          <Icon name="github" class="w-6 h-6" />
+        </a>
+        <a href="https://bsky.app/profile/habitat.network" aria-label="Bluesky">
+          <Icon name="bluesky" class="w-6 h-6" />
+        </a>
+        <a href="https://habitat.leaflet.pub" aria-label="Leaflet">
+          <Icon name="leaflet" class="w-6 h-6" />
+        </a>
+      </div>
+    </header>
 
-			</div>
-			<div class="prose">
-				<h2>Big Tech continues to steal and harvest our data and uses it against us</h2>
-			</div>
-			<div class="not-prose">
-				<Carousel
-					client:load
-					items={[
-						{ image: "/google.png", alt: "Google" },
-						{ image: "/grammarly.png", alt: "Grammarly" },
-						{ image: "/ring.png", alt: "Ring" },
-					]}
-				/>
-			</div>
-			<div class="prose">
-				<h2> How does it work? </h2>
-				<p>
-					Habitat provides a place where all your data lives and can be controlled by you. Developers build frontend apps, no third-party servers involved, so you can interact with that data how you normally would, without sharing it with any other parties. This is all built on ATProtocol, a new open protocol for the social internet.
-				</p>
-			</div>
-			<div class="flex">
-				<div class="flex-1 py-8 flex flex-col gap-4 prose">
-					<h3>The old way</h3>
-					<img src="/traditional-way.png" alt="Traditional way">
-					<p>
-						Traditional apps own the data you create with the app, and in order to share data with your friends they need to use the same app. This has enabled monopolies to build data moats that stifle competition while offering inferior experiences to users.
-					</p>
-				</div>
-				<div class="flex-1 py-8 flex flex-col gap-4 prose">
-					<h3>The Habitat way</h3>
-					<img src="/habitat-way.png" alt="Traditional way">
-					<p >
-						With Habitat, you own your data and apps run locally on your device. Data is shared directly without involving third parties that can accumulate it. Apps are built to be compatible such that innovative user experiences can leverage existing data.  
-					</p>
-				</div>
-			</div>
-		</main>
-	</body>
+    <main>
+      <!-- Section 1 -->
+      <section id="section-1" class="min-h-screen flex flex-col items-center justify-center px-6 gap-16 py-16">
+        <div class="flex flex-col lg:flex-row items-center">
+          <div class="flex-1 overflow-visible">
+            <div class="rounded-r-3xl overflow-hidden -ml-6">
+              <img
+                src="/robert-katzki-KLcaQxlmhtk-unsplash.jpg"
+                class="max-h-150 w-full object-cover"
+              />
+            </div>
+          </div>
+          <div class="prose px-12 my-8">
+            <h1>We're building <b>user data agency</b> for the web.</h1>
+            <p>
+              Over the last decade, we've collectively
+              experienced the internet get meaningfully... worse. Whether
+              because of the attention economy, surveillance capitalism,
+              enshittification, (or all the above and more), it's clear that the
+              state of the web today isn't meant for us, for people. At the core
+              of these issues lies data capture, through which Big Tech, data
+              brokers, and surveillance dragnets have used our data against us. 
+			  That's why to build a better web, we're trying
+              to bring about user data ownership and agency at a protocol level.
+            </p>
+          </div>
+        </div>
+        <div class="prose max-w-[90vw]">
+        </div>
+        <button
+          onclick="document.getElementById('section-2').scrollIntoView({behavior: 'smooth', block: 'start'})"
+          aria-label="Scroll to next section"
+          class="text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </section>
+
+      <!-- Section 2 -->
+      <section id="section-2" class="min-h-screen flex flex-col items-center justify-center px-6 gap-16 py-16">
+        <div class="prose">
+          <h2>How does it work?</h2>
+          <p>
+            habitat provides a place where all your data lives and can be
+            controlled by you. Developers build frontend apps, no third-party
+            servers involved, so you can interact with that data how you
+            normally would, but without sharing it with any other parties, keeping it safe from extraction and spying. This is
+            all built on ATProtocol, a new open protocol for the social
+            internet.
+          </p>
+        </div>
+        <div class="flex">
+          <div class="flex-1 py-8 flex flex-col gap-4 prose pr-6">
+            <h3>The old way</h3>
+            <img src="/traditional-way.png" alt="Traditional way" class="w-11/12" />
+            <p>
+              Traditional apps own the data you create with the app, and in order
+              to share data with your friends they need to use the same app. This
+              has enabled monopolies to build data moats that stifle competition
+              while offering inferior experiences to users.
+            </p>
+          </div>
+          <div class="flex-1 py-8 flex flex-col gap-4 prose pl-6">
+            <h3>The habitat way</h3>
+            <img src="/habitat-way.png" alt="Traditional way" />
+            <p>
+              With habitat, you own your data and apps run locally on your device.
+              Data is shared directly without involving third parties that can
+              accumulate it. Apps are built to be compatible such that innovative
+              user experiences can leverage existing data.
+            </p>
+          </div>
+        </div>
+        <button
+          onclick="document.getElementById('section-3').scrollIntoView({behavior: 'smooth', block: 'start'})"
+          aria-label="Scroll to next section"
+          class="text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </section>
+
+      <!-- Section 3 -->
+      <section id="section-3" class="min-h-screen flex flex-col items-center justify-center px-6 gap-16 py-16">
+        <div class="prose">
+          <h2>
+            Big Tech continues to harvest and steal our data.
+          </h2>
+		            <h3>We're actually doing something about it. </h3> 
+        </div>
+        <div class="not-prose">
+          <Carousel
+            client:load
+            items={[
+              { image: "/google.png", alt: "Google" },
+              { image: "/grammarly.png", alt: "Grammarly" },
+              { image: "/ring.png", alt: "Ring" },
+			                { image: "/ibm.png", alt: "IBM" },
+			                { image: "/meta.png", alt: "Meta" },
+
+            ]}
+          />
+        </div>
+        <div class="prose">
+		   <p>
+            We believe your data should be yours, forever. Companies shouldn't be
+            able to prevent you from accessing it and downloading it. Your data
+            shouldn't flow through third-party servers just so you can share it with
+            friends. We are laying the technical foundations to make this the new
+            default on the web, so we can break free from the cycle of data
+            capture that currently exists online.
+          </p>
+		  <h3>Sign up for the waitlist now.</h3>
+        </div>
+      </section>
+    </main>
+  </body>
 </html>
