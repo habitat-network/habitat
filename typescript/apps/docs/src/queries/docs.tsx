@@ -100,12 +100,13 @@ export const docEditsQueryOptions = (
       return Promise.all(
         permissions.map(async (did) => {
           try {
-            return getPrivateRecord<HabitatDoc>(
+            const edit = await getPrivateRecord<HabitatDoc>(
               authManager,
               "network.habitat.docs.edit",
               editRkey,
               did,
             );
+            return edit;
           } catch {
             /* silently skip */
           }
