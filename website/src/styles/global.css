@@ -1,18 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Albert+Sans:ital,wght@0,400;0,500;0,700&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
-@import url('https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500&display=swap');
 
-@theme {
-    --font-sans: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
-}
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6,
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
     font-weight: 500;
+    font-family: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 p {
@@ -26,6 +20,7 @@ p {
 a {
     color: #217c3a;
     font-weight: 500;
+    font-family: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
     transition: transform 0.1s ease-in-out;
 }
 

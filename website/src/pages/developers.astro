@@ -38,51 +38,59 @@ import Icon from "../components/Icon.astro";
         </a>
       </div>
     </header>
-    <main class="flex flex-col items-center gap-16">
-      <div class="prose mt-8">
-        <h1>Usher in a new era of the web.</h1>
-        <p>
-          If you believe, like us, that the current status quo is broken, come
-          help us do better. The web didn't become the way it is now because
-          it's the only way -- it's because money and infrastructure was poured
-          into making it so. We can redirect this energy towards building a web
-          that doesn't require software companies to prey on users to survive.
-          After all, it's just code.
-        </p>
+    <main class="relative w-full">
+      <!-- Right: tree image as background -->
+      <div class="absolute inset-y-0 right-0 w-[45%] pointer-events-none overflow-hidden">
+        <img src="/sidetrees.jpg" class="w-full h-auto" style="filter: grayscale(100%);" alt="" />
+        <div class="absolute inset-0" style="background-color: #098727; mix-blend-mode: screen; opacity: 0.5;"></div>
+        <div class="absolute inset-0" style="background: linear-gradient(to right, #f4f4f4 0%, transparent 50%), linear-gradient(to bottom, #f4f4f4 0%, transparent 15%);"></div>
       </div>
-      <div class="prose">
-        <h3>
-          Aligned incentives: you own the product, the user owns their data.
-        </h3>
-        <p>
-          We believe software is at its best when company business models align
-          with user incentives. Users should pay you because they want to stay,
-          not because they can't leave.
-        </p>
-      </div>
-      <div class="prose">
-        <h3>No infrastructure necessary.</h3>
-        <p>
-          Today, every company has to rebuild some of the same infrastructure:
-          user accounts, permissions, data sync. We get these primitives right
-          so you can focus on what matters most: building the best user
-          experiences. Save the time, money, and compute by building on habitat.
-        </p>
-      </div>
-      <div class="prose">
-        <h3>Trivial integration with other apps built on ATProtocol.</h3>
-        <p>
-          The benefit of an open data protocol is that products thrive together.
-          You don't just read and write to your application's data silo;
-          instead, shared data schemas allow for unlimited integration and
-          cross-app interactions.
-        </p>
-      </div>
-      <div class="prose py-12 px-8 w-[60vw] max-w-none">
-        <h2>
-          Get started by reading our docs here, and join the discussion on
-          Bluesky/Blacksky/your favorite platform by tagging @habitat.network.
-        </h2>
+      <!-- Left: all text content -->
+      <div class="relative flex flex-col gap-16 py-16 pl-16 pr-8 w-[55%]">
+        <div class="prose mt-8 w-[60vw] max-w-none">
+          <h1 class="text-5xl font-bold whitespace-nowrap">Usher in a new era of the web.</h1>
+          <h3>
+            If you believe, like us, that the current status quo is broken, come
+            help us do better. The web didn't become the way it is now because
+            it's the only way -- it's because money and infrastructure was poured
+            into making it so. We can redirect this energy towards building a web
+            that doesn't require software companies to prey on users to survive.
+            After all, it's just code.
+          </h3>
+        </div>
+        <div class="prose">
+          <h3>
+            Aligned incentives: you own the product, the user owns their data.
+          </h3>
+          <p>
+            We believe software is at its best when company business models align
+            with user incentives. Users should pay you because they want to stay,
+            not because they can't leave.
+          </p>
+        </div>
+        <div class="prose">
+          <h3>No infrastructure necessary.</h3>
+          <p>
+            Today, every company has to rebuild some of the same infrastructure:
+            user accounts, permissions, data sync. We get these primitives right
+            so you can focus on what matters most: building the best user
+            experiences. Save the time, money, and compute by building on habitat.
+          </p>
+        </div>
+        <div class="prose">
+          <h3>Trivial integration with other apps built on ATProtocol.</h3>
+          <p>
+            The benefit of an open data protocol is that products thrive together.
+            You don't just read and write to your application's data silo;
+            instead, shared data schemas allow for unlimited integration and
+            cross-app interactions.
+          </p>
+        </div>
+        <div class="prose py-12 px-8 w-[80vw] max-w-none text-center">
+          <h2>
+            Get started by reading our docs or join the discussion on your favorite platform by tagging @habitat.network.
+          </h2>
+        </div>
       </div>
     </main>
   </body>

@@ -39,14 +39,24 @@ import Icon from "../components/Icon.astro";
       </div>
     </header>
     <main class="flex flex-col items-center gap-16">
-      <div class="relative w-full flex items-center justify-center">
+      <div class="relative w-full flex flex-col justify-between" style="min-height: calc(100vh - 64px);">
         <img src="/treestop_green.jpg" class="w-full object-cover" alt="" />
         <div class="absolute inset-0" style="background: linear-gradient(to bottom, #f4f4f4 0%, transparent 40%);"></div>
         <div class="absolute top-30 left-12">
           <h1 class="text-5xl font-bold whitespace-nowrap">Take back control of your data, with habitat.</h1>
         </div>
+        <button
+          id="scroll-arrow"
+          onclick="document.getElementById('users-content').scrollIntoView({behavior: 'smooth', block: 'start'})"
+          aria-label="Scroll to content"
+          class="absolute bottom-14 left-1/2 -translate-x-1/2 transition-colors cursor-pointer" style="color: #217c3a;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       </div>
-      <div class="prose">
+      <div id="users-content" class="prose pt-16">
         <h3>All your data in one place.</h3>
         <p>
           When you own all your data, you can see it, search it, or even ask it
