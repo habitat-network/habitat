@@ -75,7 +75,7 @@ import Icon from "../components/Icon.astro";
 
       <!-- Section 2 -->
       <section id="section-2" class="min-h-screen flex flex-col items-center justify-center px-6 gap-16 py-16">
-        <div class="prose">
+        <div class="prose mb-10">
           <h2>How habitat works</h2>
           <p>
             habitat provides a place where all your data lives and can be
@@ -86,7 +86,7 @@ import Icon from "../components/Icon.astro";
             internet.
           </p>
         </div>
-        <div class="flex flex-col items-center gap-8 w-full">
+        <div class="flex flex-col items-center gap-8 w-full mb-10">
           <div class="flex w-full max-w-5xl">
             <div class="flex-1 prose pr-52">
               <h3>The old way</h3>
@@ -119,26 +119,32 @@ import Icon from "../components/Icon.astro";
 
       <!-- Section 3 -->
       <section id="section-3" class="min-h-screen flex flex-col items-center justify-center px-6 gap-16 py-16">
-        <div class="prose">
+        <div class="prose w-full max-w-2xl">
           <h2>
             Big Tech continues to harvest and steal our data.
           </h2>
-		            <h3>We're actually doing something about it. </h3> 
         </div>
         <div class="not-prose">
           <Carousel
             client:load
             items={[
-              { image: "/google.png", alt: "Google" },
-              { image: "/grammarly.png", alt: "Grammarly" },
-              { image: "/ring.png", alt: "Ring" },
-			                { image: "/ibm.png", alt: "IBM" },
-			                { image: "/meta.png", alt: "Meta" },
+              { image: "/google2.png", alt: "Google", href: "https://techcrunch.com/2026/02/10/google-sent-personal-and-financial-information-of-student-journalist-to-ice/" },
+              { image: "/grammarly2.png", alt: "Grammarly", href: "https://www.wired.com/story/grammarly-is-offering-expert-ai-reviews-from-your-favorite-authors-dead-or-alive/" },
+              { image: "/ring1.png", alt: "Ring" , href: "https://www.404media.co/with-ring-american-consumers-built-a-surveillance-dragnet/" },
+			                { image: "/ibm2.png", alt: "IBM" , href: "https://www.axios.com/2019/03/13/ibm-facial-recognition-flickr-images" },
+			                { image: "/meta2.png", alt: "Meta", href: "https://www.wired.com/story/meta-artificial-intelligence-data-deletion/" },
+                      { image: "/luxury_surveillance.png", alt: "Reallife Mag", href: "https://reallifemag.com/luxury-surveillance/" },
+                      { image: "/grocery.png", alt: "The facial recognition grocery store fight", href: "https://www.politico.com/newsletters/digital-future-daily/2026/03/16/the-facial-recognition-grocery-fight-00830499" },
+                      { image: "/sensorveillance.png", alt: "'SENSORVEILLANCE' TURNS ORDINARY LIFE INTO EVIDENCE", href: "https://spectrum.ieee.org/digital-surveillance" },
+                      { image: "/glasses.png", alt: "Smart Glasses Have Privacy Advocates Scrambling", href: "https://gizmodo.com/smart-glasses-have-privacy-advocates-scrambling-2000734146" },
+                      { image: "/hall_monitors.png", alt: "Hall Monitors", href: "https://reallifemag.com/hall-monitors/" },
+                      { image: "/improv.png", alt: "AI companies want to harvest improv actors' skills to train AI on human emotion", href: "https://www.theverge.com/ai-artificial-intelligence/893931/ai-companies-handshake-improv-actors-training-data" },
 
             ]}
           />
         </div>
-        <div class="prose">
+        <div class="prose w-full max-w-2xl">
+						            <h3>We're actually doing something about it. </h3> 
 		   <p>
               Over the last decade, we've collectively
               experienced the internet get meaningfully... worse. Whether
@@ -150,9 +156,13 @@ import Icon from "../components/Icon.astro";
               That's why to build a better web, we're trying
               to bring about user data ownership and agency at a protocol level.
           </p>
-		  <h2>Sign up for the waitlist now.</h2>
         </div>
       </section>
     </main>
+    <footer class="flex justify-center py-16 px-8">
+      <div class="prose w-[90vw] max-w-none text-center">
+        <h3>Sign up for the waitlist now.</h3>
+      </div>
+    </footer>
   </body>
 </html>
