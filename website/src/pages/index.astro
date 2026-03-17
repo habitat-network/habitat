@@ -3,6 +3,7 @@ import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
 import Carousel from "../components/Carousel";
 import Icon from "../components/Icon.astro";
+import WaitlistForm from "../components/WaitlistForm";
 ---
 
 <html lang="en">
@@ -118,7 +119,7 @@ import Icon from "../components/Icon.astro";
       </section>
 
       <!-- Section 3 -->
-      <section id="section-3" class="min-h-screen flex flex-col items-center justify-center px-6 gap-16 py-16">
+      <section id="section-3" class="min-h-screen flex flex-col items-center justify-center px-6 gap-16 pt-16 pb-8">
         <div class="prose w-full max-w-2xl">
           <h2>
             Big Tech continues to harvest and steal our data.
@@ -159,9 +160,14 @@ import Icon from "../components/Icon.astro";
         </div>
       </section>
     </main>
-    <footer class="flex justify-center py-16 px-8">
-      <div class="prose w-[90vw] max-w-none text-center">
-        <h3>Sign up for the waitlist now.</h3>
+    <footer class="flex justify-center pt-4 pb-8 px-8">
+      <div class="flex flex-col items-center gap-3">
+        <div class="flex items-start gap-8">
+          <div class="prose mt-2">
+            <h2>Sign up for the waitlist now:</h2>
+          </div>
+          <WaitlistForm client:load />
+        </div>
       </div>
     </footer>
   </body>

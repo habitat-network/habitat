@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
 import Icon from "../components/Icon.astro";
+import WaitlistForm from "../components/WaitlistForm";
 ---
 
 <html lang="en">
@@ -93,7 +94,12 @@ import Icon from "../components/Icon.astro";
     <footer class="flex justify-center py-16 px-8">
       <div class="prose w-[90vw] max-w-none text-center">
         <h3>The post-surveillance internet won't be as good as the internet used to be; it will be better.</h3>
-        <h3>Sign up for the waitlist now.</h3>
+        <div class="flex items-start justify-center gap-8">
+          <div class="prose mt-2">
+            <h2>Sign up for the waitlist now:</h2>
+          </div>
+          <WaitlistForm client:load />
+        </div>
       </div>
     </footer>
   </body>
