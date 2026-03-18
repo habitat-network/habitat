@@ -5,27 +5,16 @@ import WaitlistForm from "../components/WaitlistForm";
 ---
 
 <Layout title="For Users">
-  <body class="h-screen flex flex-col">
+  <body class="flex flex-col">
     <Header active="users" />
     <main class="flex flex-col items-center gap-16">
-      <div class="relative w-full flex flex-col justify-between" style="min-height: calc(100vh - 64px);">
-        <img src="/treestop_green.jpg" class="w-full object-cover" alt="" />
+      <section class="relative w-full flex flex-col bg-cover bg-bottom min-h-[70vh]" style="background-image: url('/treestop_green.jpg');">
         <div class="absolute inset-0" style="background: linear-gradient(to bottom, #f4f4f4 0%, transparent 40%);"></div>
-        <div class="absolute top-30 left-12">
-          <h1 class="whitespace-nowrap">Take back control of your data, with habitat.</h1>
+        <div class="relative px-6 md:px-12 pt-24">
+          <h1 class="text-wrap">Take back control of your data, with habitat.</h1>
         </div>
-        <button
-          id="scroll-arrow"
-          onclick="document.getElementById('users-content').scrollIntoView({behavior: 'smooth', block: 'start'})"
-          aria-label="Scroll to content"
-          class="absolute bottom-14 left-1/2 -translate-x-1/2 transition-colors cursor-pointer" style="color: #217c3a;"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      </div>
-      <div id="users-content" class="prose pt-16 mb-16">
+      </section>
+      <div id="users-content" class="prose px-6">
         <h2>All your data in one place.</h2>
         <p>
           When you <a href="https://augment.ink/the-everything-account/">own all your data</a>, you can see it, search it, or even ask it
@@ -37,7 +26,7 @@ import WaitlistForm from "../components/WaitlistForm";
           tied to your user identity and store, not a centralized platform.
         </p>
       </div>
-      <div class="prose mb-16">
+      <div class="prose px-6">
         <h2>Trust people, not companies.</h2>
         <p>
           With habitat, you choose the <em>people</em> you want to share your data
@@ -46,7 +35,7 @@ import WaitlistForm from "../components/WaitlistForm";
           to flow directly between users' data stores and their devices, so it can never be used for other purposes.
         </p>
       </div>
-      <div class="prose mb-16">
+      <div class="prose px-6">
         <h2>Resist surveillance, together.</h2>
         <p>
           We're building habitat because we've seen how surveillance capitalism
@@ -60,9 +49,9 @@ import WaitlistForm from "../components/WaitlistForm";
       </div>
     </main>
     <footer class="flex justify-center py-16 px-8">
-      <div class="prose w-[90vw] max-w-none text-center">
+      <div class="prose text-center">
         <h3>The post-surveillance internet won't be as good as the internet used to be; it will be better.</h3>
-        <div class="flex items-start justify-center gap-8">
+        <div class="flex items-start justify-center gap-8 flex-wrap">
           <div class="prose mt-2">
             <h2>Sign up for the waitlist now:</h2>
           </div>
