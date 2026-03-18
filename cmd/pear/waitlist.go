@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/bradenaw/juniper/xmaps"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
@@ -20,6 +21,7 @@ type waitlistService struct {
 }
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+var source = xmaps.Set[string]{"index": {}, "user": {}, "developer": {}}
 
 func getSheetsService(ctx context.Context, credsJSON string) (*sheets.Service, error) {
 	creds, err := google.CredentialsFromJSONWithType(
@@ -54,6 +56,7 @@ func NewWaitlistService(ctx context.Context, sheetID string, credsJSON string) (
 
 type request struct {
 	Email string `json:"email"`
+	From  string `json:"from"`
 }
 
 // Handle sign-ups to the waitlist
@@ -71,12 +74,17 @@ func (s *waitlistService) HandleWaitlistEmailSignup(w http.ResponseWriter, r *ht
 
 	row := &sheets.ValueRange{
 		Values: [][]interface{}{
-			{req.Email},
+			{req.Email, req.From},
 		},
 	}
 
 	if !emailRegex.MatchString(req.Email) {
 		http.Error(w, "invalid email address", http.StatusBadRequest)
+		return
+	}
+
+	if !source.Contains(req.From) {
+		http.Error(w, "invalid request source", http.StatusBadRequest)
 		return
 	}
 
