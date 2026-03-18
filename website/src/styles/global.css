@@ -39,7 +39,7 @@ a:hover {
 
 .hero-background {
     position: relative;
-    min-height: 100vh;
+    min-height: 70vh;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -52,7 +52,7 @@ a:hover {
     background-blend-mode: screen;
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 1164px) {
     .hero-background {
     background-position-x: right -50px;
     }

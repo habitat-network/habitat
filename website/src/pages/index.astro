@@ -11,23 +11,14 @@ import WaitlistForm from "../components/WaitlistForm";
 
     <main class="flex flex-col gap-16">
       <!-- Section 1 -->
-      <section id="section-1" class="flex w-full items-center">
+      <section id="section-1" class="flex w-full items-stretch">
         <div class="hero-background flex-1 min-w-24"></div>
-        <div class="flex flex-col items-start gap-16">
-          <div class="prose ml-auto pr-4 flex flex-col">
+        <div class="flex flex-col items-start justify-center gap-16">
+          <div class="prose ml-auto pr-4 py-8 flex flex-col">
             <h1>We're bringing <b>user data agency</b> to the web.</h1>
             <p>
               Your data should be yours, forever. Not owned by companies to turn a profit. You shouldn't need to share your data with third-party servers in order to share it with the people you trust. We are laying the technical foundations to change the default settings of the web and break free from the cycle of data capture that currently exists online.
             </p>
-            <button
-              onclick="document.getElementById('section-2').scrollIntoView({behavior: 'smooth', block: 'start'})"
-              aria-label="Scroll to next section"
-              class="transition-colors cursor-pointer mx-auto" style="color: #217c3a;"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
           </div>
         </div>
       </section>
@@ -72,7 +63,7 @@ import WaitlistForm from "../components/WaitlistForm";
       </section>
 
       <!-- Section 3 -->
-      <section id="section-3" class="min-h-screen flex flex-col items-center justify-center gap-16">
+      <section id="section-3" class="flex flex-col items-center justify-center gap-16">
         <div class="prose px-6">
           <h2>
             Big Tech continues to harvest and steal our data.
@@ -95,7 +86,7 @@ import WaitlistForm from "../components/WaitlistForm";
 
           ]}
         />
-        <div class="prose w-full max-w-2xl px-6">
+        <div class="prose px-6">
           <h3>We're actually doing something about it. </h3> 
           <p>
             Over the last decade, we've collectively
@@ -111,7 +102,7 @@ import WaitlistForm from "../components/WaitlistForm";
         </div>
       </section>
     </main>
-    <footer class="flex justify-center pb-8 px-8 mb-64">
+    <footer class="flex justify-center pb-8 px-8 my-32">
       <div class="flex items-center justify-center gap-8 flex-wrap">
         <div class="prose">
           <h2>Sign up for the waitlist now:</h2>
