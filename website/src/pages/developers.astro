@@ -1,43 +1,11 @@
 ---
-import "../styles/global.css";
-import { ClientRouter } from "astro:transitions";
-import Icon from "../components/Icon.astro";
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="generator" content={Astro.generator} />
-    <title>For Users</title>
-    <ClientRouter />
-  </head>
-  <body class="h-screen flex flex-col" style="background-color: #f4f4f4;">
-    <header class="flex justify-between px-6 py-4 items-center sticky top-0 z-10" style="background-color: #f4f4f4;">
-      <div class="flex-1">
-        <a href="/"><img src="/habitat-wordmark.svg" class="w-32" /></a>
-      </div>
-      <nav class="flex text-lg gap-8">
-        <a href="/users">For users</a>
-        <a href="/developers"><u>For developers</u></a>
-      </nav>
-      <div class="flex-1 flex justify-end gap-4 items-center">
-        <a
-          href="https://github.com/habitat-network/habitat"
-          aria-label="GitHub"
-        >
-          <Icon name="github" class="w-6 h-6" />
-        </a>
-        <a href="https://bsky.app/profile/habitat.network" aria-label="Bluesky">
-          <Icon name="bluesky" class="w-6 h-6" />
-        </a>
-        <a href="https://habitat.leaflet.pub" aria-label="Leaflet">
-          <Icon name="leaflet" class="w-6 h-6" />
-        </a>
-      </div>
-    </header>
+<Layout title="For Developers">
+  <body class="h-screen flex flex-col">
+    <Header active="developers" />
     <main class="relative w-full">
       <!-- Right: tree image scoped to main content only -->
       <div class="absolute inset-y-0 right-0 w-[45%] pointer-events-none overflow-hidden">
@@ -95,4 +63,4 @@ import Icon from "../components/Icon.astro";
       </div>
     </footer>
   </body>
-</html>
+</Layout>

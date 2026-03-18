@@ -53,7 +53,7 @@ export default function Carousel({ items }: CarouselProps) {
   }, []);
 
   return (
-    <div ref={wrapperRef} className="w-screen overflow-hidden">
+    <div ref={wrapperRef} className="overflow-hidden">
       <div
         ref={trackRef}
         className="flex will-change-transform"

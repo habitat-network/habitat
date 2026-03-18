@@ -1,0 +1,33 @@
+---
+import Icon from "./Icon.astro";
+
+interface Props {
+  active?: "users" | "developers";
+}
+
+const { active } = Astro.props;
+---
+
+<header class="flex justify-between px-6 py-4 items-center sticky top-0 z-10 bg-[#f4f4f4]">
+  <div class="flex-1">
+    <a href="/"><img src="/habitat-wordmark.svg" class="w-32" /></a>
+  </div>
+  <nav class="flex text-lg gap-8">
+    <a href="/users">{active === "users" ? <u>For users</u> : "For users"}</a>
+    <a href="/developers">{active === "developers" ? <u>For developers</u> : "For developers"}</a>
+  </nav>
+  <div class="flex-1 flex justify-end gap-4 items-center">
+    <a
+      href="https://github.com/habitat-network/habitat"
+      aria-label="GitHub"
+    >
+      <Icon name="github" class="w-6 h-6" />
+    </a>
+    <a href="https://bsky.app/profile/habitat.network" aria-label="Bluesky">
+      <Icon name="bluesky" class="w-6 h-6" />
+    </a>
+    <a href="https://habitat.leaflet.pub" aria-label="Leaflet">
+      <Icon name="leaflet" class="w-6 h-6" />
+    </a>
+  </div>
+</header>
