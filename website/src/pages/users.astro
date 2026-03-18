@@ -2,13 +2,16 @@
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
 import WaitlistForm from "../components/WaitlistForm";
+import { Image } from "astro:assets";
+import treestop from "../assets/treestop_green.jpg";
 ---
 
 <Layout title="For Users">
   <body class="flex flex-col">
     <Header active="users" />
     <main class="flex flex-col items-center gap-16">
-      <section class="relative w-full flex flex-col bg-cover bg-bottom min-h-[70vh]" style="background-image: url('/treestop_green.jpg');">
+      <section class="relative w-full flex flex-col min-h-[70vh]">
+        <Image src={treestop} alt="" class="absolute inset-0 w-full h-full object-cover object-bottom" />
         <div class="absolute inset-0" style="background: linear-gradient(to bottom, #f4f4f4 0%, transparent 40%);"></div>
         <div class="relative px-6 md:px-12 pt-24">
           <h1 class="text-wrap">Take back control of your data, with habitat.</h1>

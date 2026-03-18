@@ -2,6 +2,8 @@
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
 import WaitlistForm from "../components/WaitlistForm";
+import { Image } from "astro:assets";
+import sidetrees from "../assets/sidetrees.jpg";
 ---
 
 <Layout title="For Developers">
@@ -40,7 +42,7 @@ import WaitlistForm from "../components/WaitlistForm";
           </p>
       </div>
       <div class="developers-background flex-1 min-w-20">
-        <img src="/sidetrees.jpg" class="absolute inset-0 w-full h-full object-cover object-[left_0]" style="filter: grayscale(100%);" alt="" />
+        <Image src={sidetrees} class="absolute inset-0 w-full h-full object-cover object-[left_0]" style="filter: grayscale(100%);" alt="" />
         <div class="absolute inset-0" style="background-color: #098727; mix-blend-mode: screen; opacity: 0.5;"></div>
       </div>
     </main>
