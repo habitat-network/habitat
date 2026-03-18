@@ -23,16 +23,16 @@ import WaitlistForm from "../components/WaitlistForm";
           own your data in the first place. It would be like logging into Google
           Drive for the first time and seeing all your Microsoft OneDrive files
           there, without any hassle from you. This works because your data is
-          tied to your user identity and store, not a centralized platform.
+          tied to your user account and personal data store, not a centralized platform.
         </p>
       </div>
       <div class="prose px-6">
         <h2>Trust people, not companies.</h2>
         <p>
           With habitat, you choose the <em>people</em> you want to share your data
-          with, not which company's Terms of Services you're forced to agree to, to
-          interact with those people. We make it possible for data
-          to flow directly between users' data stores and their devices, so it can never be used for other purposes.
+          with, not which company Terms of Services you're forced to agree to, to
+          interact with those people. We make it possible for data to flow directly user-to-user,
+          bypassing third-parties completely.
         </p>
       </div>
       <div class="prose px-6">
@@ -48,14 +48,14 @@ import WaitlistForm from "../components/WaitlistForm";
         </p>
       </div>
     </main>
-    <footer class="flex justify-center py-16 px-8">
-      <div class="prose text-center">
-        <h3>The post-surveillance internet won't be as good as the internet used to be; it will be better.</h3>
+    <footer class="flex justify-center py-16 px-8 w-full">
+      <div class="prose max-w-none w-full text-center">
+        <h3 class="max-w-none md:whitespace-nowrap text-center">The post-surveillance internet won't be as good as the internet used to be; it will be better.</h3>
         <div class="flex items-start justify-center gap-8 flex-wrap">
           <div class="prose mt-2">
-            <h2>Sign up for the waitlist now:</h2>
+            <h2>Own your data, with habitat. Sign up for the waitlist now:</h2>
           </div>
-          <WaitlistForm client:load />
+          <WaitlistForm client:load from="user" />
         </div>
       </div>
     </footer>

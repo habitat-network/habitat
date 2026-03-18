@@ -15,9 +15,9 @@ import WaitlistForm from "../components/WaitlistForm";
         <div class="hero-background flex-1 min-w-24"></div>
         <div class="flex flex-col items-start justify-center gap-16">
           <div class="prose ml-auto pr-4 py-8 flex flex-col">
-            <h1>We're bringing <b>user data agency</b> to the web.</h1>
+            <h1>We're bringing <b style="font-weight: 800;">user data agency</b> to the web.</h1>
             <p>
-              Your data should be yours, forever. Not owned by companies to turn a profit. You shouldn't need to share your data with third-party servers in order to share it with the people you trust. We are laying the technical foundations to change the default settings of the web and break free from the cycle of data capture that currently exists online.
+              Your data should be yours forever, not the property of companies who want to turn a profit. We are laying the technical foundations to change the default settings of the web and break free from the cycle of data capture that currently exists online.
             </p>
           </div>
         </div>
@@ -29,10 +29,10 @@ import WaitlistForm from "../components/WaitlistForm";
           <h2>How habitat works</h2>
           <p>
             habitat provides a place where all your data lives and can be
-            controlled by you. Developers build frontend apps, no third-party
-            servers involved, so you can interact with that data how you
-            normally would, but without sharing it with any other parties, keeping it safe from extraction and spying. This is
-            all built on ATProtocol, a new open protocol for the social
+            controlled by you. Developers build frontend apps—no third-party
+            servers involved—so you can interact with that data how you
+            normally would, but safe from extraction and spying. This is
+            built on ATProtocol, an open social protocol for the 
             internet.
           </p>
         </div>
@@ -87,7 +87,7 @@ import WaitlistForm from "../components/WaitlistForm";
           ]}
         />
         <div class="prose px-6">
-          <h3>We're actually doing something about it. </h3> 
+          <h2>We're actually doing something about it. </h2> 
           <p>
             Over the last decade, we've collectively
             experienced the internet get meaningfully... worse. Whether
@@ -107,7 +107,7 @@ import WaitlistForm from "../components/WaitlistForm";
         <div class="prose">
           <h2>Sign up for the waitlist now:</h2>
         </div>
-        <WaitlistForm client:load />
+        <WaitlistForm client:load from="index" />
       </div>
     </footer>
   </body>

@@ -1,6 +1,10 @@
 import { useState } from "react";
 
-export default function WaitlistForm() {
+interface WaitlistFormProps {
+  from: "user" | "developer" | "index";
+}
+
+export default function WaitlistForm({ from }: WaitlistFormProps) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<
     "idle" | "success" | "invalid" | "error"
@@ -15,7 +19,7 @@ export default function WaitlistForm() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, from }),
         },
       );
       if (res.ok) {

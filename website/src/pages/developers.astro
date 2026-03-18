@@ -1,19 +1,20 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
+import WaitlistForm from "../components/WaitlistForm";
 ---
 
 <Layout title="For Developers">
   <body class="flex flex-col">
     <Header active="developers" />
     <main class="flex w-full items-stretch">
-      <div class="flex flex-col pl-6 md:pl-16 py-16 prose">
+      <div class="flex flex-col pl-12 md:pl-24 py-16 prose max-w-none w-full md:w-2/3">
           <h1 class="text-wrap">Usher in a new era of the web.</h1>
           <h3>
             If you believe, like us, that the status quo is broken, then join us in building a better web.
           </h3>
           <p>
-            The web didn't become the way it is now because it's the only way-it's because money and infrastructure was poured into making it so. We can redirect this energy towards building an internet that doesn't require software companies to prey on users to survive. After all, it's just code.
+            The web didn't become the way it is now because it's the only way—it's because money and infrastructure was poured into making it so. We can redirect this energy towards building an internet that doesn't require software companies to prey on users to survive. After all, it's just code.
           </p>
           <h2>
             Aligned incentives: you own the product, the user owns their data.
@@ -43,11 +44,17 @@ import Header from "../components/Header.astro";
         <div class="absolute inset-0" style="background-color: #098727; mix-blend-mode: screen; opacity: 0.5;"></div>
       </div>
     </main>
-    <footer class="flex justify-center py-16 px-8">
-      <div class="prose text-center">
-        <h3 class="text-center">
+    <footer class="flex justify-center py-16 px-8 w-full overflow-hidden">
+      <div class="prose max-w-none w-full text-center">
+        <h3 class="md:whitespace-nowrap text-center">
           Get started by reading our docs or join the discussion on your favorite platform by tagging <a href="https://bsky.app/profile/habitat.network">@habitat.network</a>.
         </h3>
+          <div class="flex items-start justify-center gap-8 flex-wrap">
+          <div class="prose mt-2">
+            <h2>Sign up to get developer updates from us:</h2>
+          </div>
+          <WaitlistForm client:load from="developer" />
+        </div>
       </div>
     </footer>
   </body>
