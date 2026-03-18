@@ -65,9 +65,7 @@ import WaitlistForm from "../components/WaitlistForm";
       <!-- Section 3 -->
       <section id="section-3" class="flex flex-col items-center justify-center gap-16">
         <div class="prose px-6">
-          <h2>
-            Big Tech continues to harvest and steal our data.
-          </h2>
+          <h2>Big Tech continues to harvest and steal our data.</h2>
         </div>
           <Carousel
             client:load
@@ -103,12 +101,7 @@ import WaitlistForm from "../components/WaitlistForm";
       </section>
     </main>
     <footer class="flex justify-center pb-8 px-8 my-32">
-      <div class="flex items-center justify-center gap-8 flex-wrap">
-        <div class="prose">
-          <h2>Sign up for the waitlist now:</h2>
-        </div>
-        <WaitlistForm client:load from="index" />
-      </div>
+      <WaitlistForm client:load from="index" label="Sign up for the waitlist now:" />
     </footer>
   </body>
 </Layout>

@@ -49,12 +49,7 @@ import WaitlistForm from "../components/WaitlistForm";
         <h3 class="md:whitespace-nowrap text-center">
           Get started by reading our docs or join the discussion on your favorite platform by tagging <a href="https://bsky.app/profile/habitat.network">@habitat.network</a>.
         </h3>
-          <div class="flex items-start justify-center gap-8 flex-wrap">
-          <div class="prose mt-2">
-            <h2>Sign up to get developer updates from us:</h2>
-          </div>
-          <WaitlistForm client:load from="developer" />
-        </div>
+          <WaitlistForm client:load from="developer" label="Sign up to get developer updates from us:" />
       </div>
     </footer>
   </body>

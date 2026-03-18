@@ -51,12 +51,7 @@ import WaitlistForm from "../components/WaitlistForm";
     <footer class="flex justify-center py-16 px-8 w-full">
       <div class="prose max-w-none w-full text-center">
         <h3 class="max-w-none md:whitespace-nowrap text-center">The post-surveillance internet won't be as good as the internet used to be; it will be better.</h3>
-        <div class="flex items-start justify-center gap-8 flex-wrap">
-          <div class="prose mt-2">
-            <h2>Own your data, with habitat. Sign up for the waitlist now:</h2>
-          </div>
-          <WaitlistForm client:load from="user" />
-        </div>
+          <WaitlistForm client:load from="user" label="Own your data, with habitat. Sign up for the waitlist now:" />
       </div>
     </footer>
   </body>
