@@ -8,10 +8,6 @@ const sidebars: SidebarsConfig = {
       id: 'getting-started',
     },
     {
-      type: 'doc',
-      id: 'concepts'
-    },
-    {
       type: 'category',
       label: 'HTTP Reference',
       items: [
