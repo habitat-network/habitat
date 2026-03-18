@@ -1,66 +1,81 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
+
+const IMAGE_HEIGHT = 200; // px — adjust here
 
 interface CarouselProps {
-  items: { image: string; alt?: string }[];
+  items: { image: string; alt?: string; href?: string }[];
 }
 
 export default function Carousel({ items }: CarouselProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<number>(0);
+  const posRef = useRef<number>(0);
+  const pauseUntilRef = useRef<number>(0);
 
-  const scroll = (direction: "prev" | "next") => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const slides = Array.from(container.children) as HTMLElement[];
-    const currentScroll = container.scrollLeft;
-    let target: HTMLElement | undefined;
+  const doubled = [...items, ...items];
 
-    if (direction === "next") {
-      target = slides.find((slide) => slide.offsetLeft > currentScroll + 1);
-    } else {
-      target = [...slides]
-        .reverse()
-        .find((slide) => slide.offsetLeft < currentScroll - 1);
-    }
+  useEffect(() => {
+    const track = trackRef.current;
+    const wrapper = wrapperRef.current;
+    if (!track || !wrapper) return;
 
-    if (target) {
-      container.scrollTo({ left: target.offsetLeft, behavior: "smooth" });
-    }
-  };
+    const step = (timestamp: number) => {
+      const halfWidth = track.scrollWidth / 2;
+      if (timestamp > pauseUntilRef.current) {
+        posRef.current += 0.8; // px per frame — adjust speed here
+      }
+      if (posRef.current >= halfWidth) posRef.current -= halfWidth;
+      if (posRef.current < 0) posRef.current += halfWidth;
+      track.style.transform = `translateX(-${posRef.current}px)`;
+      animRef.current = requestAnimationFrame(step);
+    };
+
+    animRef.current = requestAnimationFrame(step);
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const track = trackRef.current;
+      if (!track) return;
+      const halfWidth = track.scrollWidth / 2;
+      posRef.current += e.deltaX || e.deltaY;
+      if (posRef.current >= halfWidth) posRef.current -= halfWidth;
+      if (posRef.current < 0) posRef.current += halfWidth;
+      // Pause auto-scroll for 1 second after user interaction
+      pauseUntilRef.current = performance.now() + 1000;
+    };
+
+    wrapper.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      wrapper.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
 
   return (
-    <div className="relative w-full group">
+    <div ref={wrapperRef} className="w-screen overflow-hidden">
       <div
-        ref={scrollRef}
-        className="overflow-x-auto snap-x snap-mandatory flex"
-        style={{ scrollbarWidth: "none" }}
+        ref={trackRef}
+        className="flex will-change-transform"
+        style={{ height: IMAGE_HEIGHT }}
       >
-        {items.map((item, i) => (
-          <div
+        {doubled.map((item, i) => (
+          <a
             key={i}
-            className="snap-start shrink-0 w-[65%] flex items-center justify-center pl-14"
+            href={item.href ?? "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 block"
+            style={{ height: IMAGE_HEIGHT }}
           >
             <img
               src={item.image}
               alt={item.alt ?? ""}
-              className="max-h-64 object-contain"
+              style={{ height: IMAGE_HEIGHT, width: "auto", display: "block" }}
             />
-          </div>
+          </a>
         ))}
       </div>
-      <button
-        onClick={() => scroll("prev")}
-        className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/10 hover:bg-black/20 flex items-center justify-center text-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-        aria-label="Previous"
-      >
-        &larr;
-      </button>
-      <button
-        onClick={() => scroll("next")}
-        className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/10 hover:bg-black/20 flex items-center justify-center text-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-        aria-label="Next"
-      >
-        &rarr;
-      </button>
     </div>
   );
 }
