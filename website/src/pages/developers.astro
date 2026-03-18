@@ -1,63 +1,21 @@
 ---
-import "../styles/global.css";
-import { ClientRouter } from "astro:transitions";
-import Icon from "../components/Icon.astro";
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import WaitlistForm from "../components/WaitlistForm";
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="generator" content={Astro.generator} />
-    <title>For Users</title>
-    <ClientRouter />
-  </head>
-  <body class="h-screen flex flex-col" style="background-color: #f4f4f4;">
-    <header class="flex justify-between px-6 py-4 items-center sticky top-0 z-10" style="background-color: #f4f4f4;">
-      <div class="flex-1">
-        <a href="/"><img src="/habitat-wordmark.svg" class="w-32" /></a>
-      </div>
-      <nav class="flex text-lg gap-8">
-        <a href="/users">For users</a>
-        <a href="/developers"><u>For developers</u></a>
-      </nav>
-      <div class="flex-1 flex justify-end gap-4 items-center">
-        <a
-          href="https://github.com/habitat-network/habitat"
-          aria-label="GitHub"
-        >
-          <Icon name="github" class="w-6 h-6" />
-        </a>
-        <a href="https://bsky.app/profile/habitat.network" aria-label="Bluesky">
-          <Icon name="bluesky" class="w-6 h-6" />
-        </a>
-        <a href="https://habitat.leaflet.pub" aria-label="Leaflet">
-          <Icon name="leaflet" class="w-6 h-6" />
-        </a>
-      </div>
-    </header>
-    <main class="relative w-full">
-      <!-- Right: tree image scoped to main content only -->
-      <div class="absolute inset-y-0 right-0 w-[45%] pointer-events-none overflow-hidden">
-        <img src="/sidetrees.jpg" class="w-full h-full object-cover" style="filter: grayscale(100%);" alt="" />
-        <div class="absolute inset-0" style="background-color: #098727; mix-blend-mode: screen; opacity: 0.5;"></div>
-        <div class="absolute inset-0" style="background: linear-gradient(to right, #f4f4f4 0%, transparent 60%), linear-gradient(to bottom, #f4f4f4 0%, transparent 15%);"></div>
-      </div>
-      <!-- Left: all text content -->
-      <div class="relative flex flex-col gap-16 py-16 pl-16 pr-8 w-[55%]">
-        <div class="prose mt-8 mb-16 w-[60vw] max-w-none">
-          <h1 class="whitespace-nowrap">Usher in a new era of the web.</h1>
+<Layout title="For Developers">
+  <body class="flex flex-col">
+    <Header active="developers" />
+    <main class="flex w-full items-stretch">
+      <div class="flex flex-col pl-12 md:pl-24 py-16 prose max-w-none w-full md:w-2/3">
+          <h1 class="text-wrap">Usher in a new era of the web.</h1>
           <h3>
-            If you believe, like us, that the status quo is broken, then join us in building a better web. The web didn't become the way it is now because
-            it's the only way-it's because money and infrastructure was poured
-            into making it so. We can redirect this energy towards building an internet
-            that doesn't require software companies to prey on users to survive.
-            After all, it's just code.
+            If you believe, like us, that the status quo is broken, then join us in building a better web.
           </h3>
-        </div>
-        <div class="prose mb-16">
+          <p>
+            The web didn't become the way it is now because it's the only way—it's because money and infrastructure was poured into making it so. We can redirect this energy towards building an internet that doesn't require software companies to prey on users to survive. After all, it's just code.
+          </p>
           <h2>
             Aligned incentives: you own the product, the user owns their data.
           </h2>
@@ -66,8 +24,6 @@ import Icon from "../components/Icon.astro";
             with user incentives. Users should pay you because they want to stay,
             not because they can't leave.
           </p>
-        </div>
-        <div class="prose mb-16">
           <h2>No infrastructure necessary.</h2>
           <p>
             Today, every company has to rebuild some of the same infrastructure:
@@ -75,8 +31,6 @@ import Icon from "../components/Icon.astro";
             so you can focus on what matters most: building the best user
             experience. Save the time, money, and compute by building on habitat.
           </p>
-        </div>
-        <div class="prose mb-16">
           <h2>Trivial integration with other apps built on ATProtocol.</h2>
           <p>
             The benefit of an open data protocol is that products thrive together.
@@ -84,15 +38,19 @@ import Icon from "../components/Icon.astro";
             instead, shared data schemas allow for unlimited integration and
             cross-app interactions.
           </p>
-        </div>
+      </div>
+      <div class="developers-background flex-1 min-w-20">
+        <img src="/sidetrees.jpg" class="absolute inset-0 w-full h-full object-cover object-[left_0]" style="filter: grayscale(100%);" alt="" />
+        <div class="absolute inset-0" style="background-color: #098727; mix-blend-mode: screen; opacity: 0.5;"></div>
       </div>
     </main>
-    <footer class="flex justify-center py-16 px-8">
-      <div class="prose w-[90vw] max-w-none text-center">
-        <h3 class="text-center">
-          Get started by reading our docs or join the discussion on your favorite platform by tagging <a href="https://bsky.app/profile/habitat.network">@habitat.network</a>.
+    <footer class="flex justify-center py-16 px-8 w-full overflow-hidden">
+      <div class="prose max-w-none w-full text-center">
+        <h3 class="md:whitespace-nowrap text-center">
+          Get a sneak peek by <a href="https://habitat.network/habitat/api/docs/api/habitat-api">reading our docs</a> or join the discussion on your favorite platform by tagging <a href="https://bsky.app/profile/habitat.network">@habitat.network</a>.
         </h3>
+          <WaitlistForm client:load from="developer" label="Sign up to get developer updates from us:" />
       </div>
     </footer>
   </body>
-</html>
+</Layout>
