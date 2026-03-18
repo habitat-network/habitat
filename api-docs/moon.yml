@@ -1,16 +1,26 @@
 tasks:
+  gen-api-docs:
+    command: pnpm
+    args: gen-api-docs
+    deps:
+      - xrpc-openapi-gen:generate
+    outputs:
+      - docs/api
+    options:
+      mergeDeps: replace
+      mergeArgs: replace
   dev:
     command: pnpm
     args: start
     deps:
-      - xrpc-openapi-gen:generate
+      - gen-api-docs
     options:
       persistent: true
       mergeDeps: replace
       mergeArgs: replace
   build:
     deps:
-      - xrpc-openapi-gen:generate
+      - gen-api-docs
     outputs:
       - build
     options:

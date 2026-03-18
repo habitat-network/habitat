@@ -3,7 +3,7 @@
   "info": {
     "title": "Habitat API",
     "summary": "OpenAPI spec generated from Habitat's AT Protocol lexicons.",
-    "description": "Welcome to the Habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned @habitat.network on Bluesky and habitat.leaflet.pub for formal releases.",
+    "description": "Welcome to the Habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned [@habitat.network](https://bsky.app/profile/habitat.network) on Bluesky and [habitat.leaflet.pub](https://habitat.leaflet.pub) for future formal releases.",
     "version": "0.0.0",
     "license": {
       "name": "MIT License",
