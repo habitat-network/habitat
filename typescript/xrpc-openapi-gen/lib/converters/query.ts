@@ -4,8 +4,6 @@ import type { OpenAPIV3_1 } from "openapi-types";
 import { convertObject, convertProperty } from "./object.ts";
 import {
     calculateTag,
-    checkEndpoint,
-    Endpoint,
     isEmptyObject,
 } from "../utils.ts";
 
@@ -14,13 +12,7 @@ export async function convertQuery(
     name: string,
     query: LexXrpcQuery,
 ): Promise<OpenAPIV3_1.OperationObject<"GET"> | undefined> {
-    const endpointType = await checkEndpoint(id, "GET");
-
-    if (endpointType === Endpoint.DoesNotExist) {
-        return;
-    }
-
-    const needsAuthentication = endpointType === Endpoint.NeedsAuthentication;
+    const needsAuthentication = true;
 
     const get = {
         tags: [calculateTag(id)],
