@@ -25,6 +25,7 @@ import {
   docQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
+import { Route as AuthRoute } from "@/routes/_requireAuth";
 import { ShareDialog, AuthManager, query, XRPCError } from "internal";
 import {
   Button,
@@ -187,6 +188,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { docDID, rkey, ydoc, provider, node, record } =
       Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
+    const { profile } = AuthRoute.useLoaderData();
     const [dirty, setDirty] = useState(false);
     const { data: editorProfiles } = useQuery(
       editorProfilesQueryOptions(record.editorClique, authManager),
@@ -240,7 +242,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           CollaborationCaret.configure({
             provider,
             user: {
-              name: authManager.getAuthInfo()?.did,
+              name: profile.handle,
               color: "#f783ac",
             },
           }),
