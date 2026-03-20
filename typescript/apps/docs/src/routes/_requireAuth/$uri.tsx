@@ -64,7 +64,7 @@ async function startPeerDiscovery(
 
     const encoder = new TextEncoder();
     stream.sink(
-      (async function*() {
+      (async function* () {
         yield encoder.encode(
           JSON.stringify({
             topic: uri,
@@ -147,7 +147,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       streamMuxers: [yamux()],
       services: {
         identify: identify(),
-        dcutr: dcutr(),
         pubsub: gossipsub({
           runOnLimitedConnection: true,
           allowPublishToZeroTopicPeers: true,
