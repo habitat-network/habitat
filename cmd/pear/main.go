@@ -161,6 +161,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(otelmux.Middleware("habitat-server"))
 	mux.Use(corsMiddleware)
 
+	// handle waitlist signups
+	waitlistSvc, err := NewWaitlistService(egCtx, os.Getenv("WAITLIST_SHEET_ID"), os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"))
+	if err == nil {
+		log.Info().Msgf("successfully set up waitlist service")
+		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
+	} else {
+		// Not a fatal error: log and move on
+		log.Err(err).Msgf("unable to set up waitlist service")
+	}
+
 	// auth routes
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)

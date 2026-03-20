@@ -72,7 +72,7 @@ const config: Config = {
       },
       items: [
         {
-          to: baseUrl + 'docs/api',
+          to: 'docs/api',
           position: 'left',
           label: 'API Reference',
         },
@@ -91,7 +91,7 @@ const config: Config = {
           items: [
             {
               label: 'API Reference',
-              to: baseUrl + '/docs/api',
+              to: '/docs/api',
             },
           ],
         },

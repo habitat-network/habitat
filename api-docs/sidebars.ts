@@ -2,9 +2,19 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 import apiSidebar from './docs/api/sidebar';
 
 const sidebars: SidebarsConfig = {
-  openApiSidebar: [
-    ...apiSidebar,
-  ],
+  docs: [
+    {
+      type: 'doc',
+      id: 'getting-started',
+    },
+    {
+      type: 'category',
+      label: 'HTTP Reference',
+      items: [
+        ...apiSidebar,
+      ],
+    }
+  ]
 };
 
 export default sidebars;
