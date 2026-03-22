@@ -261,6 +261,7 @@ func (s *store) GetRefreshTokenSession(
 		Client:         client,
 		Session:        jwtSession,
 		RequestedScope: scopes,
+		GrantedScope:   scopes,
 	}, nil
 }
 

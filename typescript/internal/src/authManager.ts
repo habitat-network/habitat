@@ -108,10 +108,11 @@ export class AuthManager {
       authInfo.expiresAt < Date.now() / 1000 + 5 * 60
     ) {
       if (!this.refreshPromise) {
+        const prevRefreshToken = authInfo.refreshToken;
         this.refreshPromise = client
           .refreshTokenGrant(this.config, authInfo.refreshToken)
           .then((token) => {
-            this.setAuthState(token);
+            this.setAuthState(token, prevRefreshToken);
           })
           .finally(() => {
             this.refreshPromise = undefined;
@@ -148,7 +149,7 @@ export class AuthManager {
     return response;
   }
 
-  private setAuthState(token: client.TokenEndpointResponse) {
+  private setAuthState(token: client.TokenEndpointResponse, prevRefreshToken?: string) {
     // The DID is encoded in the sub claim of the JWT
     const decoded = decodeJwt(token.access_token);
     if (!decoded.sub || !decoded.exp) {
@@ -157,7 +158,7 @@ export class AuthManager {
     const state = {
       did: decoded.sub,
       accessToken: token.access_token,
-      refreshToken: token.refresh_token,
+      refreshToken: token.refresh_token ?? prevRefreshToken,
       expiresAt: decoded.exp,
     };
     this.store.setState({ authInfo: state });
