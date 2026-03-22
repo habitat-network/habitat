@@ -20,6 +20,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "internal";
+import { useSidebar } from "internal/components/ui";
 import { FileTextIcon, PlusIcon } from "lucide-react";
 import { HabitatDoc } from "@/habitatDoc";
 
@@ -161,18 +162,27 @@ const DocItem = ({
 }: {
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
-}) => (
-  <SidebarMenuItem>
-    <SidebarMenuButton
-      isActive={isActive}
-      render={<Link to="/$uri" params={{ uri: doc.uri }} />}
-    >
-      <FileTextIcon />
-      <span>
-        {!doc.value.name || doc.value.name === "Untitled"
-          ? `Untitled (${doc.uri.split("/")[4]})`
-          : doc.value.name}
-      </span>
-    </SidebarMenuButton>
-  </SidebarMenuItem>
-);
+}) => {
+  const { toggleSidebar } = useSidebar();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        isActive={isActive}
+        render={
+          <Link
+            to="/$uri"
+            params={{ uri: doc.uri }}
+            onClick={toggleSidebar}
+          />
+        }
+      >
+        <FileTextIcon />
+        <span>
+          {!doc.value.name || doc.value.name === "Untitled"
+            ? `Untitled (${doc.uri.split("/")[4]})`
+            : doc.value.name}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+};

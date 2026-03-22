@@ -33,11 +33,10 @@ import {
   PopoverTitle,
   PopoverTrigger,
   Spinner,
-  useSidebar,
 } from "internal/components/ui";
 import { HelpDialog } from "@/components/HelpDialog";
-import { CheckIcon, MenuIcon } from "lucide-react";
-import { useIsMobile } from "node_modules/internal/src/components/hooks/use-mobile";
+import { PageHeader } from "@/components/PageHeader";
+import { CheckIcon } from "lucide-react";
 
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
@@ -174,6 +173,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       rkey,
       docDID: docDID,
       record: data.value,
+      docPermissions: data.permissions,
     };
   },
   onLeave({ loaderData }) {
@@ -183,7 +183,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { docDID, rkey, ydoc, provider, node, record } =
+    const { docDID, rkey, ydoc, provider, node, record, docPermissions } =
       Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
     const { profile } = AuthRoute.useLoaderData();
@@ -210,12 +210,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
               blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
               editorClique: record.editorClique,
             },
-            grantees: [
-              {
-                $type: "network.habitat.grantee#clique",
-                clique: record.editorClique,
-              },
-            ],
+            grantees: docPermissions,
           },
           { authManager },
         )
@@ -263,19 +258,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       },
       [ydoc],
     );
-    const { toggleSidebar } = useSidebar();
-    const isMobile = useIsMobile();
     return (
       <div className="flex flex-col-reverse h-full">
         <div className="flex-1 flex flex-col items-center">
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
-        <header className="px-3 py-1 text-right border-b flex justify-between sticky top-0 bg-background">
-          {isMobile && (
-            <Button onClick={toggleSidebar} size="icon" variant="ghost">
-              <MenuIcon />
-            </Button>
-          )}
+        <PageHeader>
           <Popover>
             <PopoverTrigger
               render={
@@ -308,7 +296,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
               }
             />
           )}
-        </header>
+        </PageHeader>
       </div>
     );
   },
