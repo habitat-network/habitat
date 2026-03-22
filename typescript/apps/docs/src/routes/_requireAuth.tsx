@@ -20,7 +20,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "internal";
-import { useSidebar } from "internal/components/ui";
 import { FileTextIcon, PlusIcon } from "lucide-react";
 import { HabitatDoc } from "@/habitatDoc";
 
@@ -163,7 +162,6 @@ const DocItem = ({
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
 }) => {
-  const { toggleSidebar } = useSidebar();
   return (
     <SidebarMenuItem>
       <SidebarMenuButton

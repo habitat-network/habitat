@@ -1,7 +1,7 @@
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { createLibp2p, Libp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
@@ -203,7 +203,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       }
       document.addEventListener("visibilitychange", handleVisibilityChange);
       return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-    }, []);
+    }, [dialRelayAndStartPeerDiscovery]);
 
     const { profile } = AuthRoute.useLoaderData();
     const [dirty, setDirty] = useState(false);
