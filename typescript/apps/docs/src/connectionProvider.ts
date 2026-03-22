@@ -10,7 +10,6 @@ import * as decoding from "lib0/decoding";
 const messageTypes = {
   sync: 0,
   awareness: 1,
-  awarenessQuery: 2,
 } as const;
 
 type Node = Libp2p<{ pubsub: ReturnType<ReturnType<typeof gossipsub>> }>;
@@ -103,22 +102,6 @@ export class Libp2pConnectionProvider extends ObservableV2<{
           );
           return;
         }
-        case messageTypes.awarenessQuery: {
-          const encoder = encoding.createEncoder();
-          encoding.writeVarUint(encoder, messageTypes.awareness);
-          encoding.writeVarUint8Array(
-            encoder,
-            awarenessProtocol.encodeAwarenessUpdate(this.awareness, [
-              this.awareness.clientID,
-            ]),
-          );
-          node.services.pubsub
-            .publish(this.topic, encoding.toUint8Array(encoder))
-            .catch((err: Error) => {
-              console.error("[pubsub] publish error", err);
-            });
-          return;
-        }
       }
     });
 
@@ -140,12 +123,19 @@ export class Libp2pConnectionProvider extends ObservableV2<{
           console.error("[pubsub] publish error", err);
         });
 
-      // Ask all peers to re-broadcast their awareness states so cursors
-      // reappear after reconnect without needing a full page reload.
-      const awarenessQueryEncoder = encoding.createEncoder();
-      encoding.writeVarUint(awarenessQueryEncoder, messageTypes.awarenessQuery);
+      // Re-broadcast local awareness so cursors reappear after reconnect.
+      // Remote awareness states expire after ~30s of inactivity, so peers
+      // need to re-announce themselves when the mesh is re-established.
+      const awarenessEncoder = encoding.createEncoder();
+      encoding.writeVarUint(awarenessEncoder, messageTypes.awareness);
+      encoding.writeVarUint8Array(
+        awarenessEncoder,
+        awarenessProtocol.encodeAwarenessUpdate(this.awareness, [
+          this.awareness.clientID,
+        ]),
+      );
       node.services.pubsub
-        .publish(this.topic, encoding.toUint8Array(awarenessQueryEncoder))
+        .publish(this.topic, encoding.toUint8Array(awarenessEncoder))
         .catch((err: Error) => {
           console.error("[pubsub] publish error", err);
         });
