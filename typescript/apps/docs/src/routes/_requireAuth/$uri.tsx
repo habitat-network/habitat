@@ -15,7 +15,6 @@ import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { Libp2pConnectionProvider } from "@/connectionProvider";
-import { dcutr } from "@libp2p/dcutr";
 import { webRTC } from "@libp2p/webrtc";
 import { webTransport } from "@libp2p/webtransport";
 import { peerIdFromString } from "@libp2p/peer-id";
@@ -26,7 +25,7 @@ import {
   editorProfilesQueryOptions,
 } from "@/queries/docs";
 import { Route as AuthRoute } from "@/routes/_requireAuth";
-import { ShareDialog, AuthManager, query, XRPCError } from "internal";
+import { ShareDialog, AuthManager, query, XRPCError, procedure } from "internal";
 import {
   Button,
   Popover,
@@ -199,11 +198,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         const collection =
           docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
         const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
-        await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
-            repo: did,
+
+        await procedure(
+          "network.habitat.putRecord",
+          {
+            repo: did!,
             collection: collection,
             rkey: mappedKey,
             record: {
@@ -211,9 +210,17 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
               blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
               editorClique: record.editorClique,
             },
-          }),
-        );
+            grantees: [
+              {
+                $type: "network.habitat.grantee#clique",
+                clique: record.editorClique,
+              },
+            ],
+          },
+          { authManager },
+        )
       },
+
       onSuccess: () => setDirty(false),
     });
     const { mutate: addPermission, isPending: isAddingPermission } =
