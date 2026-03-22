@@ -1,12 +1,13 @@
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { createLibp2p, Libp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
 import { circuitRelayTransport } from "@libp2p/circuit-relay-v2";
 import { multiaddr } from "@multiformats/multiaddr";
+import { PeerId } from "@libp2p/interface"
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { identify } from "@libp2p/identify";
@@ -41,14 +42,14 @@ import { CheckIcon } from "lucide-react";
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
 async function startPeerDiscovery(
-  uri: string,
-  relayPeerId: string,
+  uri: string, // The document uri
+  relayPeerId: PeerId,
   node: Libp2p,
   authManager: AuthManager,
 ): Promise<void> {
   try {
     const stream = await node.dialProtocol(
-      peerIdFromString(relayPeerId),
+      relayPeerId,
       "/habitat/peer-discovery/1.0.0",
     );
     const { token: serviceAuthToken } = await query(
@@ -74,7 +75,7 @@ async function startPeerDiscovery(
 
     async function dialPeer(peerIdStr: string): Promise<void> {
       if (peerIdStr === node.peerId.toString()) return;
-      if (peerIdStr === relayPeerId) return;
+      if (peerIdStr === relayPeerId.toString()) return;
       if (node.getConnections(peerIdFromString(peerIdStr)).length > 0) return;
       const circuitAddr = multiaddr(
         `/p2p/${relayPeerId}/p2p-circuit/p2p/${peerIdStr}`,
@@ -103,12 +104,12 @@ async function startPeerDiscovery(
   } catch { }
 }
 
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
     const ydoc = new Y.Doc();
     // Fetch the record
     const { uri } = params;
-    const [, , docDID, , rkey] = uri.split("/");
     const data = await context.queryClient.fetchQuery(
       docQueryOptions(uri, context.authManager),
     );
@@ -157,23 +158,30 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // All user pear nodes are expected to implement the relay address.
     const domain = __HABITAT_DOMAIN__;
     const relayAddr = multiaddr(`/dns4/${domain}/tcp/443/wss`);
-    const conn = await node.dial(relayAddr);
-    let relayPeerId = conn.remotePeer.toString();
 
-    void startPeerDiscovery(uri, relayPeerId, node, context.authManager).catch(
-      () => { },
-    );
+    async function dialRelayAndStartPeerDiscovery() {
+      const connections = node.getConnections();
+      if (connections.some((conn) => {
+        return conn.remoteAddr.toString() === relayAddr.toString();
+      })) {
+        // Already connected to relay
+        return;
+      }
+      const conn = await node.dial(relayAddr)
+      const relayPeerId = conn.remotePeer
+      void startPeerDiscovery(uri, relayPeerId, node, context.authManager);
+    }
 
+    await dialRelayAndStartPeerDiscovery()
     const provider = new Libp2pConnectionProvider(node, ydoc, uri);
 
     return {
       provider,
       node,
       ydoc,
-      rkey,
-      docDID: docDID,
-      record: data.value,
-      docPermissions: data.permissions,
+      doc: data,
+      uri,
+      dialRelayAndStartPeerDiscovery,
     };
   },
   onLeave({ loaderData }) {
@@ -183,13 +191,24 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { docDID, rkey, ydoc, provider, node, record, docPermissions } =
-      Route.useLoaderData();
+    const { ydoc, provider, node, doc, uri, dialRelayAndStartPeerDiscovery } = Route.useLoaderData();
+    const [, , docDID, , rkey] = uri.split("/");
+
     const { authManager } = Route.useRouteContext();
+    useEffect(() => {
+      async function handleVisibilityChange() {
+        // When the page becomes visible again, reconnect to the relay and fetch any updates that may have happened since
+        if (document.visibilityState !== "visible") return;
+        await dialRelayAndStartPeerDiscovery()
+      }
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }, []);
+
     const { profile } = AuthRoute.useLoaderData();
     const [dirty, setDirty] = useState(false);
     const { data: editorProfiles } = useQuery(
-      editorProfilesQueryOptions(record.editorClique, authManager),
+      editorProfilesQueryOptions(doc.value.editorClique, authManager),
     );
     const { mutate: save } = useMutation({
       mutationFn: async ({ editor }: { editor: Editor }) => {
@@ -208,9 +227,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             record: {
               name: heading ?? "Untitled",
               blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
-              editorClique: record.editorClique,
+              editorClique: doc.value.editorClique,
             },
-            grantees: docPermissions,
+            grantees: doc.permissions,
           },
           { authManager },
         )
@@ -283,7 +302,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           </Popover>
           <HelpDialog />
 
-          {docDID === authManager.getAuthInfo()?.did && record.editorClique && (
+          {docDID === authManager.getAuthInfo()?.did && doc.value.editorClique && (
             <ShareDialog
               isAdding={isAddingPermission}
               grantees={editorProfiles ?? []}
@@ -291,7 +310,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
               onAddPermission={(actors) =>
                 addPermission({
                   grantees: actors.map((actor) => actor.did),
-                  editorCliqueUri: record.editorClique,
+                  editorCliqueUri: doc.value.editorClique,
                 })
               }
             />
