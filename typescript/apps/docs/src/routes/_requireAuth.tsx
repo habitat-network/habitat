@@ -172,7 +172,6 @@ const DocItem = ({
           <Link
             to="/$uri"
             params={{ uri: doc.uri }}
-            onClick={toggleSidebar}
           />
         }
       >
