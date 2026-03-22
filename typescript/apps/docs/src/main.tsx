@@ -9,10 +9,17 @@ import {
 import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { reportWebVitals, AuthManager } from "internal";
+import posthog from "posthog-js";
+import { PostHogProvider } from "@posthog/react";
 
-const authManager = new AuthManager("Habitat Docs", __DOMAIN__, __HABITAT_DOMAIN__, () => {
-  router.navigate({ to: "/login" });
-});
+const authManager = new AuthManager(
+  "Habitat Docs",
+  __DOMAIN__,
+  __HABITAT_DOMAIN__,
+  () => {
+    router.navigate({ to: "/login" });
+  },
+);
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -45,15 +52,27 @@ declare module "@tanstack/react-router" {
   }
 }
 
+console.log(
+  import.meta.env.VITE_PUBLIC_POSTHOG_TOKEN,
+  import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+);
+
+posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_TOKEN, {
+  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+  defaults: "2026-01-30",
+});
+
 // Render the app
 const rootElement = document.getElementById("app");
 if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
+      <PostHogProvider client={posthog}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </PostHogProvider>
     </StrictMode>,
   );
 }
