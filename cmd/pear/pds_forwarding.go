@@ -59,7 +59,7 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward the request using the dpopClient
 	resp, err := dpopClient.Do(req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
+		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusUnauthorized)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
