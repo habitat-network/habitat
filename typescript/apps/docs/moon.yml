@@ -9,4 +9,5 @@ tasks:
       - target: "funnel:start"
         args: ["5175", "$project"]
     options:
+      envFile: /dev.env
       mergeDeps: replace
