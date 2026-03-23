@@ -100,7 +100,7 @@ type getter struct {
 	ctx context.Context
 }
 
-func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscred.Credentials, error) {
+func (c *authedDpopHttpClient) getAccessTokenToUse() (*pdscred.Credentials, error) {
 	getOrRefreshToken := func() (interface{}, error) {
 		cred, err := c.credStore.GetCredentials(c.id.DID)
 		if err != nil {
@@ -153,7 +153,7 @@ func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscre
 }
 
 func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
-	cred, err := s.getAccessTokenToUse(req.Context())
+	cred, err := s.getAccessTokenToUse()
 	if err != nil {
 		return nil, err
 	}

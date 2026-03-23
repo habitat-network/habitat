@@ -367,7 +367,7 @@ func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
 		var err1, err2 error
 		go func() {
 			defer wg.Done()
-			_, err1 = client.getAccessTokenToUse(t.Context())
+			_, err1 = client.getAccessTokenToUse()
 		}()
 
 		// Wait until goroutine 1 is blocked inside onGet on <-blockCh.
@@ -378,7 +378,7 @@ func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			_, err2 = client.getAccessTokenToUse(t.Context())
+			_, err2 = client.getAccessTokenToUse()
 			secondCompleted.Store(true)
 		}()
 
