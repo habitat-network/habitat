@@ -88,6 +88,8 @@ func newAuthedDpopHttpClient(
 		credStore:     credStore,
 		oauthClient:   oauthClient,
 		nonceProvider: nonceProvider,
+		mu:            &sync.Mutex{},
+		credGetters:   make(xmaps.Set[getter]),
 	}
 }
 

@@ -12,10 +12,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 )
 
@@ -280,6 +284,31 @@ func TestAuthedDpopHttpClient(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func TestClientFactory_ReusesDpopClientForSameUser(t *testing.T) {
+	clientFactory, err := NewHttpClientFactory(
+		testPdsCredStore(t, jwt.Claims{
+			Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
+		}),
+		testOAuthClient(t),
+		NewDummyDirectory("https://pds.example.com"),
+	)
+	require.NoError(t, err)
+
+	did := testIdentity("https://pds.example.com").DID
+
+	client1, err := clientFactory.NewClient(t.Context(), did)
+	require.NoError(t, err)
+
+	client2, err := clientFactory.NewClient(t.Context(), did)
+	require.NoError(t, err)
+
+	c1, ok := client1.(*authedDpopHttpClient)
+	require.True(t, ok)
+	c2, ok := client2.(*authedDpopHttpClient)
+	require.True(t, ok)
+	require.Same(t, c1, c2, "expected the same dpop client to be reused for the same DID")
+}
+
 func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	// Create test server that verifies access token hash
 	server := fakeAuthServer(map[string]any{})
@@ -305,6 +334,87 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 
 	// Verify response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
+	// blockCh lets us pause the first GetCredentials call until the second goroutine
+	// has had a chance to enter getAccessTokenToUse and coalesce.
+	blockCh := make(chan struct{})
+	// secondWaiting is closed once the second goroutine has joined the coalesce wait.
+	secondWaiting := make(chan struct{})
+
+	var getCredentialsCalls atomic.Int32
+
+	inner := testPdsCredStore(t, jwt.Claims{
+		Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
+	})
+	countingStore := &countingCredStore{
+		inner: inner,
+		onGet: func() {
+			count := getCredentialsCalls.Add(1)
+			if count == 1 {
+				// First caller: signal the second goroutine to proceed, then block
+				// until it has coalesced.
+				close(secondWaiting)
+				<-blockCh
+			}
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	id := testIdentity(server.URL)
+	client := newAuthedDpopHttpClient(id, countingStore, testOAuthClient(t), &MemoryNonceProvider{})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	var err1, err2 error
+	go func() {
+		defer wg.Done()
+		req, _ := http.NewRequest("GET", "/test", nil)
+		_, err1 = client.Do(req)
+	}()
+
+	// Wait until the first goroutine is inside GetCredentials, then launch the second.
+	<-secondWaiting
+
+	go func() {
+		defer wg.Done()
+		req, _ := http.NewRequest("GET", "/test", nil)
+		// Give the first goroutine time to set inflightCredGetter before we call Do.
+		// A brief sleep is sufficient; the first goroutine is already blocked in onGet.
+		time.Sleep(5 * time.Millisecond)
+		_, err2 = client.Do(req)
+	}()
+
+	// Give the second goroutine time to reach the coalesce wait.
+	time.Sleep(20 * time.Millisecond)
+	close(blockCh)
+
+	wg.Wait()
+
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	require.Equal(t, int32(1), getCredentialsCalls.Load(), "GetCredentials should only be called once due to coalescing")
+}
+
+// countingCredStore wraps a PDSCredentialStore and calls onGet before each GetCredentials.
+type countingCredStore struct {
+	inner pdscred.PDSCredentialStore
+	onGet func()
+}
+
+func (c *countingCredStore) UpsertCredentials(did syntax.DID, creds *pdscred.Credentials) error {
+	return c.inner.UpsertCredentials(did, creds)
+}
+
+func (c *countingCredStore) GetCredentials(did syntax.DID) (*pdscred.Credentials, error) {
+	c.onGet()
+	return c.inner.GetCredentials(did)
 }
 
 func TestDpopHttpClient_RequestFormat(t *testing.T) {
