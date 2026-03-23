@@ -54,26 +54,15 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
 });
 
 function CollectionsGrid() {
-  const { collections, profilesByDid } = Route.useLoaderData()!;
+  const { collections, } = Route.useLoaderData()!;
   const { authManager } = Route.useRouteContext();
 
   return (
     <>
       <div className="grid !grid-cols-1 sm:!grid-cols-2 lg:!grid-cols-3 xl:!grid-cols-4">
         {collections.map((collection) => {
-          const didGrantees = collection.grantees
-            ? (collection.grantees.filter(
-              (g) => g.$type === "network.habitat.grantee#didGrantee",
-            ) as { did: string }[])
-            : [];
-          const avatars = didGrantees.map((grantee) => {
-            const did = grantee.did;
-            return {
-              did: did,
-              avatar: profilesByDid[did].avatar,
-              handle: profilesByDid[did].handle,
-            };
-          });
+          
+          
 
           return (
             <Link

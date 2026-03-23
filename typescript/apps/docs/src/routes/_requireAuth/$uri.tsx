@@ -1,7 +1,7 @@
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { createLibp2p, Libp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
@@ -184,7 +184,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { invalidate } = useRouter();
+    
     const { docDID, rkey, ydoc, provider, node, record } =
       Route.useLoaderData();
     const { authManager } = Route.useRouteContext();

@@ -1,14 +1,9 @@
-import { RecordCard, RecordCardProps } from "@/components/RecordCard";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  AuthManager,
   GranteeAvatars,
   listPrivateRecords,
-  UserAvatar,
-} from "internal";
+  } from "internal";
 import {
-  AvatarGroup,
-  Collapsible,
   Table,
   TableBody,
   TableCell,

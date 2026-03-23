@@ -4,11 +4,9 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
-  Input,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -21,7 +19,7 @@ import { CollectionMetadata } from "api/types/network/habitat/repo/listCollectio
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
 
-import { Ghost, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
@@ -105,6 +103,7 @@ function ManageDataPreview({ collections }: ManageDataPreviewProps) {
           {collections.map((collection) => {
             return (
               <CollectionCard
+                key={collection.nsid}
                 authManager={authManager}
                 collection={collection}
               />
