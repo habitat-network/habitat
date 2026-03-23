@@ -128,7 +128,7 @@ func (c *authedDpopHttpClient) getAccessTokenToUse() (*pdscred.Credentials, erro
 		return cred, nil
 	}
 
-	res, err, _ := c.credsG.Do(c.id.DID.String(), getOrRefreshToken)
+	res, err, _ := c.credsG.Do(c.id.DID.String() /* meaningless key since this only has one thing */, getOrRefreshToken)
 	if err != nil {
 		return nil, err
 	}
