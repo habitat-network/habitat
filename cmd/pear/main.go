@@ -24,6 +24,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/plugin/opentelemetry/tracing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
@@ -293,19 +294,30 @@ func serveDid(domain string) http.HandlerFunc {
 }
 
 func setupDB(cmd *cli.Command) *gorm.DB {
+	var db *gorm.DB
+	var err error
+
 	postgresUrl := cmd.String(fPgUrl)
 	if postgresUrl != "" {
-		db, err := gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
 		}
-		return db
+		log.Info().Msg("connected to postgres database")
+	} else {
+		dbPath := cmd.String(fDb)
+		db, err = gorm.Open(sqlite.Open(dbPath))
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to open sqlite file backing pear server")
+		}
+		log.Info().Str("path", dbPath).Msg("connected to sqlite database")
 	}
-	pearDB, err := gorm.Open(sqlite.Open(cmd.String(fDb)))
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to open sqlite file backing pear server")
+
+	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
+		log.Fatal().Err(err).Msg("unable to setup database otel tracing and metrics plugin")
 	}
-	return pearDB
+
+	return db
 }
 
 func setupNode(
