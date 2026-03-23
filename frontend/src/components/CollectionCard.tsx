@@ -1,35 +1,74 @@
+import { Link } from "@tanstack/react-router";
 import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
-import { UserAvatar } from "internal";
-import { Card, CardFooter, CardTitle } from "internal/components/ui";
+import { AuthManager, GranteeAvatars } from "internal";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from "internal/components/ui";
 
 export interface CollectionCardProps {
-  collection: Omit<CollectionMetadata, "grantees"> & {
-    grantees: { did: string; avatar?: string; handle: string }[];
-  };
+  authManager: AuthManager;
+  collection: CollectionMetadata;
 }
 
-export function CollectionCard({ collection }: CollectionCardProps) {
+export function CollectionCard({
+  collection,
+  authManager,
+}: CollectionCardProps) {
+  const nsidParts = collection.nsid.split(".");
   return (
-    <Card key={collection.nsid}>
-      <div className="flex flex-col px-6">
-        <CardTitle>{collection.nsid}</CardTitle>
-        <span className="text-sm text-muted-foreground">
-          {collection.recordCount}{" "}
-          {collection.recordCount > 1 ? "records" : "record"}
-        </span>
-      </div>
-      <CardFooter>
-        <div className="flex items-center justify-between w-full">
-          <div className="flex gap-1">
-            {collection.grantees.slice(0, 5).map((g) => {
-              return <UserAvatar key={g.did} actor={g} size="sm" />;
+    <Item
+      variant="muted"
+      render={
+        <Link
+          to="/collections/$collection"
+          params={{ collection: collection.nsid }}
+        />
+      }
+    >
+      <ItemContent>
+        <ItemTitle>
+          <span>
+            {nsidParts.map((p, i) => {
+              if (i === nsidParts.length - 1) {
+                return (
+                  <span className="text-base" key={i}>
+                    {p}
+                  </span>
+                );
+              } else {
+                return (
+                  <span key={i} className="text-muted-foreground">
+                    {p}.
+                  </span>
+                );
+              }
             })}
-          </div>
-          <span className="text-sm text-muted-foreground">
-            {new Date(collection.lastTouched).toLocaleDateString()}
           </span>
+        </ItemTitle>
+        <div className="flex gap-1">
+          <ItemDescription>
+            {collection.recordCount}{" "}
+            {collection.recordCount > 1 ? "records" : "record"}
+          </ItemDescription>
+          <ItemDescription>•</ItemDescription>
+          <ItemDescription>
+            {new Date(collection.lastTouched).toLocaleDateString()}
+          </ItemDescription>
         </div>
-      </CardFooter>
-    </Card>
+      </ItemContent>
+      <ItemActions>
+        <GranteeAvatars
+          authManager={authManager}
+          grantees={collection.grantees}
+          uri={collection.nsid}
+          max={3}
+          size="sm"
+        />
+      </ItemActions>
+    </Item>
   );
 }

@@ -3,14 +3,4 @@
 @source "./**/*.{ts,tsx}";
 @source "../../typescript/internal/src/**/*.{ts,tsx}";
 
-body {
-  --pico-primary-background: #bcd979;
-  --pico-primary-border: #9dad6f;
-  --pico-primary-inverse: #2d2925;
-  --pico-primary-hover-background: #9dad6f;
-  --pico-primary-hover-border: #9dad6f;
-}
-
-fieldset[disabled] {
-  opacity: 0.5;
-}
+@import 'internal/styles.css';

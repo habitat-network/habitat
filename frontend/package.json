@@ -20,9 +20,11 @@
     "canvas-confetti": "^1.9.4",
     "internal": "workspace:*",
     "js-cookie": "^3.0.5",
+    "lucide-react": "^0.468.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
+    "react-json-view": "^1.21.3",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
