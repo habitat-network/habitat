@@ -3,9 +3,10 @@ import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
 import Carousel from "../components/Carousel";
 import WaitlistForm from "../components/WaitlistForm";
+import { Image } from "astro:assets";
 ---
 
-<Layout title="Habitat">
+<Layout title="habitat">
   <body class="flex flex-col">
     <Header />
 
@@ -39,7 +40,7 @@ import WaitlistForm from "../components/WaitlistForm";
         <div class="flex w-full gap-16 flex-wrap justify-center">
           <div class="flex-1 prose min-w-full sm:min-w-0">
             <h3>The old way</h3>
-            <img src="/traditional-way.png" alt="Diagram" class="w-full max-w-8xl px-8" />
+            <Image src="/traditional-way.png" alt="Diagram" width={1373} height={1132} class="w-full max-w-8xl px-8" />
 
             <p>
               Today, apps own the data you create with the app, and in order
@@ -50,7 +51,7 @@ import WaitlistForm from "../components/WaitlistForm";
           </div>
           <div class="flex-1 prose min-w-full sm:min-w-0">
             <h3>The habitat way</h3>
-            <img src="/habitat-way.png" alt="Diagram" class="w-full max-w-8xl px-8" />
+            <Image src="/habitat-way.png" alt="Diagram" width={1452} height={1132} class="w-full max-w-8xl px-8" />
 
             <p>
               With habitat, you own your data and apps run locally on your device.
