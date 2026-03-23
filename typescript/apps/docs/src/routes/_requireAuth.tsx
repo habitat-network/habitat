@@ -161,18 +161,25 @@ const DocItem = ({
 }: {
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
-}) => (
-  <SidebarMenuItem>
-    <SidebarMenuButton
-      isActive={isActive}
-      render={<Link to="/$uri" params={{ uri: doc.uri }} />}
-    >
-      <FileTextIcon />
-      <span>
-        {!doc.value.name || doc.value.name === "Untitled"
-          ? `Untitled (${doc.uri.split("/")[4]})`
-          : doc.value.name}
-      </span>
-    </SidebarMenuButton>
-  </SidebarMenuItem>
-);
+}) => {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        isActive={isActive}
+        render={
+          <Link
+            to="/$uri"
+            params={{ uri: doc.uri }}
+          />
+        }
+      >
+        <FileTextIcon />
+        <span>
+          {!doc.value.name || doc.value.name === "Untitled"
+            ? `Untitled (${doc.uri.split("/")[4]})`
+            : doc.value.name}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+};

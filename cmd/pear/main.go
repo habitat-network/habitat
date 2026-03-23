@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -22,6 +24,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/plugin/opentelemetry/tracing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
@@ -97,7 +100,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Setup the zerolog logger
-	hook := otelzerolog.NewHook("habitat" /* otel service name */, otelzerolog.WithLoggerProvider(global.GetLoggerProvider()))
+	hook := otelzerolog.NewHook(
+		"habitat", /* otel service name */
+		otelzerolog.WithLoggerProvider(global.GetLoggerProvider()),
+	)
 
 	// Need to set log.Logger so globally anything initialized after here uses the global zerolog Logger
 	// which is now hooked up to open telemetry.
@@ -158,7 +164,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(corsMiddleware)
 
 	// handle waitlist signups
-	waitlistSvc, err := NewWaitlistService(egCtx, os.Getenv("WAITLIST_SHEET_ID"), os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"))
+	waitlistSvc, err := NewWaitlistService(
+		egCtx,
+		os.Getenv("WAITLIST_SHEET_ID"),
+		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
+	)
 	if err == nil {
 		log.Info().Msgf("successfully set up waitlist service")
 		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
@@ -175,7 +185,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes
-	//repo
+	// repo
 	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
@@ -202,6 +212,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
+
+	postHogUrl, err := url.Parse("https://us.i.posthog.com")
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to parse posthog url")
+	}
+	postHogProxy := httputil.NewSingleHostReverseProxy(postHogUrl)
+	defaultDirector := postHogProxy.Director
+	postHogProxy.Director = func(req *http.Request) {
+		defaultDirector(req)
+		req.Host = postHogUrl.Host
+	}
+	mux.PathPrefix("/posthog").
+		Handler(http.StripPrefix("/posthog", postHogProxy))
 
 	// TODO: should we put this behind /p2p instead of / ?
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
@@ -271,19 +294,30 @@ func serveDid(domain string) http.HandlerFunc {
 }
 
 func setupDB(cmd *cli.Command) *gorm.DB {
+	var db *gorm.DB
+	var err error
+
 	postgresUrl := cmd.String(fPgUrl)
 	if postgresUrl != "" {
-		db, err := gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
 		}
-		return db
+		log.Info().Msg("connected to postgres database")
+	} else {
+		dbPath := cmd.String(fDb)
+		db, err = gorm.Open(sqlite.Open(dbPath))
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to open sqlite file backing pear server")
+		}
+		log.Info().Str("path", dbPath).Msg("connected to sqlite database")
 	}
-	pearDB, err := gorm.Open(sqlite.Open(cmd.String(fDb)))
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to open sqlite file backing pear server")
+
+	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
+		log.Fatal().Err(err).Msg("unable to setup database otel tracing and metrics plugin")
 	}
-	return pearDB
+
+	return db
 }
 
 func setupNode(
@@ -313,7 +347,6 @@ func setupPear(
 	oauthServer *oauthserver.OAuthServer,
 	clientFactory pdsclient.HttpClientFactory,
 ) (pear.Pear, error) {
-
 	repo, err := repo.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
@@ -345,7 +378,6 @@ func setupOAuthServer(
 	credStore pdscred.PDSCredentialStore,
 	meter metric.Meter,
 ) *oauthserver.OAuthServer {
-
 	oauthServer, err := oauthserver.NewOAuthServer(
 		cmd.String(fOauthServerSecret),
 		oauthClient,

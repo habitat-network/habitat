@@ -1,12 +1,13 @@
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState, useEffect } from "react";
 import { createLibp2p, Libp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
 import { circuitRelayTransport } from "@libp2p/circuit-relay-v2";
 import { multiaddr } from "@multiformats/multiaddr";
+import { PeerId } from "@libp2p/interface";
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { identify } from "@libp2p/identify";
@@ -15,7 +16,6 @@ import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { Libp2pConnectionProvider } from "@/connectionProvider";
-import { dcutr } from "@libp2p/dcutr";
 import { webRTC } from "@libp2p/webrtc";
 import { webTransport } from "@libp2p/webtransport";
 import { peerIdFromString } from "@libp2p/peer-id";
@@ -25,7 +25,13 @@ import {
   docQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
-import { ShareDialog, AuthManager, query, XRPCError } from "internal";
+import {
+  ShareDialog,
+  AuthManager,
+  query,
+  XRPCError,
+  procedure,
+} from "internal";
 import {
   Button,
   Popover,
@@ -33,23 +39,23 @@ import {
   PopoverTitle,
   PopoverTrigger,
   Spinner,
-  useSidebar,
 } from "internal/components/ui";
 import { HelpDialog } from "@/components/HelpDialog";
-import { CheckIcon, MenuIcon } from "lucide-react";
-import { useIsMobile } from "node_modules/internal/src/components/hooks/use-mobile";
+import { PageHeader } from "@/components/PageHeader";
+import { CheckIcon } from "lucide-react";
+import { profileQueryOptions } from "@/queries/profile";
 
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
 async function startPeerDiscovery(
-  uri: string,
-  relayPeerId: string,
+  uri: string, // The document uri
+  relayPeerId: PeerId,
   node: Libp2p,
   authManager: AuthManager,
 ): Promise<void> {
   try {
     const stream = await node.dialProtocol(
-      peerIdFromString(relayPeerId),
+      relayPeerId,
       "/habitat/peer-discovery/1.0.0",
     );
     const { token: serviceAuthToken } = await query(
@@ -75,7 +81,7 @@ async function startPeerDiscovery(
 
     async function dialPeer(peerIdStr: string): Promise<void> {
       if (peerIdStr === node.peerId.toString()) return;
-      if (peerIdStr === relayPeerId) return;
+      if (peerIdStr === relayPeerId.toString()) return;
       if (node.getConnections(peerIdFromString(peerIdStr)).length > 0) return;
       const circuitAddr = multiaddr(
         `/p2p/${relayPeerId}/p2p-circuit/p2p/${peerIdStr}`,
@@ -109,7 +115,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const ydoc = new Y.Doc();
     // Fetch the record
     const { uri } = params;
-    const [, , docDID, , rkey] = uri.split("/");
     const data = await context.queryClient.fetchQuery(
       docQueryOptions(uri, context.authManager),
     );
@@ -146,7 +151,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       streamMuxers: [yamux()],
       services: {
         identify: identify(),
-        dcutr: dcutr(),
         pubsub: gossipsub({
           runOnLimitedConnection: true,
           allowPublishToZeroTopicPeers: true,
@@ -159,22 +163,40 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // All user pear nodes are expected to implement the relay address.
     const domain = __HABITAT_DOMAIN__;
     const relayAddr = multiaddr(`/dns4/${domain}/tcp/443/wss`);
-    const conn = await node.dial(relayAddr);
-    let relayPeerId = conn.remotePeer.toString();
 
-    void startPeerDiscovery(uri, relayPeerId, node, context.authManager).catch(
-      () => { },
-    );
+    async function dialRelayAndStartPeerDiscovery() {
+      const connections = node.getConnections();
+      if (
+        connections.some((conn) => {
+          return conn.remoteAddr.toString() === relayAddr.toString();
+        })
+      ) {
+        // Already connected to relay
+        return;
+      }
+      const conn = await node.dial(relayAddr);
+      const relayPeerId = conn.remotePeer;
+      void startPeerDiscovery(uri, relayPeerId, node, context.authManager);
+    }
 
+    await dialRelayAndStartPeerDiscovery();
     const provider = new Libp2pConnectionProvider(node, ydoc, uri);
+
+    const profile = await context.queryClient.fetchQuery(
+      profileQueryOptions(
+        context.authManager.getAuthInfo()!.did,
+        context.authManager,
+      ),
+    );
 
     return {
       provider,
       node,
       ydoc,
-      rkey,
-      docDID: docDID,
-      record: data.value,
+      doc: data,
+      uri,
+      profile,
+      dialRelayAndStartPeerDiscovery,
     };
   },
   onLeave({ loaderData }) {
@@ -184,13 +206,35 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    
-    const { docDID, rkey, ydoc, provider, node, record } =
-      Route.useLoaderData();
+    const {
+      ydoc,
+      provider,
+      node,
+      doc,
+      uri,
+      profile,
+      dialRelayAndStartPeerDiscovery,
+    } = Route.useLoaderData();
+    const [, , docDID, , rkey] = uri.split("/");
+
     const { authManager } = Route.useRouteContext();
+    useEffect(() => {
+      async function handleVisibilityChange() {
+        // When the page becomes visible again, reconnect to the relay and fetch any updates that may have happened since
+        if (document.visibilityState !== "visible") return;
+        await dialRelayAndStartPeerDiscovery();
+      }
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () =>
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange,
+        );
+    }, [dialRelayAndStartPeerDiscovery]);
+
     const [dirty, setDirty] = useState(false);
     const { data: editorProfiles } = useQuery(
-      editorProfilesQueryOptions(record.editorClique, authManager),
+      editorProfilesQueryOptions(doc.value.editorClique, authManager),
     );
     const { mutate: save } = useMutation({
       mutationFn: async ({ editor }: { editor: Editor }) => {
@@ -199,21 +243,24 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         const collection =
           docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
         const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
-        await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
-            repo: did,
+
+        await procedure(
+          "network.habitat.putRecord",
+          {
+            repo: did!,
             collection: collection,
             rkey: mappedKey,
             record: {
               name: heading ?? "Untitled",
               blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
-              editorClique: record.editorClique,
+              editorClique: doc.value.editorClique,
             },
-          }),
+            grantees: doc.permissions,
+          },
+          { authManager },
         );
       },
+
       onSuccess: () => setDirty(false),
     });
     const { mutate: addPermission, isPending: isAddingPermission } =
@@ -241,7 +288,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           CollaborationCaret.configure({
             provider,
             user: {
-              name: authManager.getAuthInfo()?.did,
+              name: profile.handle,
               color: "#f783ac",
             },
           }),
@@ -256,19 +303,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       },
       [ydoc],
     );
-    const { toggleSidebar } = useSidebar();
-    const isMobile = useIsMobile();
     return (
       <div className="flex flex-col-reverse h-full">
         <div className="flex-1 flex flex-col items-center">
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
-        <header className="px-3 py-1 text-right border-b flex justify-between sticky top-0 bg-background">
-          {isMobile && (
-            <Button onClick={toggleSidebar} size="icon" variant="ghost">
-              <MenuIcon />
-            </Button>
-          )}
+        <PageHeader>
           <Popover>
             <PopoverTrigger
               render={
@@ -288,20 +328,21 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           </Popover>
           <HelpDialog />
 
-          {docDID === authManager.getAuthInfo()?.did && record.editorClique && (
-            <ShareDialog
-              isAdding={isAddingPermission}
-              grantees={editorProfiles ?? []}
-              authManager={authManager}
-              onAddPermission={(actors) =>
-                addPermission({
-                  grantees: actors.map((actor) => actor.did),
-                  editorCliqueUri: record.editorClique,
-                })
-              }
-            />
-          )}
-        </header>
+          {docDID === authManager.getAuthInfo()?.did &&
+            doc.value.editorClique && (
+              <ShareDialog
+                isAdding={isAddingPermission}
+                grantees={editorProfiles ?? []}
+                authManager={authManager}
+                onAddPermission={(actors) =>
+                  addPermission({
+                    grantees: actors.map((actor) => actor.did),
+                    editorCliqueUri: doc.value.editorClique,
+                  })
+                }
+              />
+            )}
+        </PageHeader>
       </div>
     );
   },

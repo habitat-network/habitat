@@ -124,11 +124,6 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 		libp2p.Transport(websocket.New),
 		libp2p.ForceReachabilityPublic(),
 		libp2p.EnableRelayService(relay.WithResources((relay.DefaultResources()))),
-
-		// For enabling DCuTr: https://libp2p.io/guides/dcutr/
-		libp2p.EnableNATService(),
-		libp2p.EnableAutoNATv2(),
-		libp2p.EnableHolePunching(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
