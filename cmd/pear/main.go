@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -162,7 +164,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(corsMiddleware)
 
 	// handle waitlist signups
-	waitlistSvc, err := NewWaitlistService(egCtx, os.Getenv("WAITLIST_SHEET_ID"), os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"))
+	waitlistSvc, err := NewWaitlistService(
+		egCtx,
+		os.Getenv("WAITLIST_SHEET_ID"),
+		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
+	)
 	if err == nil {
 		log.Info().Msgf("successfully set up waitlist service")
 		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
@@ -206,6 +212,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
+
+	postHogUrl, err := url.Parse("https://us.i.posthog.com")
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to parse posthog url")
+	}
+	postHogProxy := httputil.NewSingleHostReverseProxy(postHogUrl)
+	defaultDirector := postHogProxy.Director
+	postHogProxy.Director = func(req *http.Request) {
+		defaultDirector(req)
+		req.Host = postHogUrl.Host
+	}
+	mux.PathPrefix("/posthog").
+		Handler(http.StripPrefix("/posthog", postHogProxy))
 
 	// TODO: should we put this behind /p2p instead of / ?
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
