@@ -133,11 +133,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
-	pdsClientFactory := pdsclient.NewHttpClientFactory(
+
+	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
 		identity.DefaultDirectory(),
 	)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup PDS client factory")
+	}
 
 	dir := identity.DefaultDirectory()
 	node := setupNode(cmd, pdsClientFactory, dir)

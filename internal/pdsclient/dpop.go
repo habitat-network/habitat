@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 // DpopNonceProvider provides access to nonce management
@@ -61,11 +62,16 @@ func (s *DpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return doInternal(req, s.nonceProvider, s.key, "")
 }
 
+// This can be shared by multiple concurrent requests happening by the same user (did) caller
 type authedDpopHttpClient struct {
 	id            *identity.Identity
 	credStore     pdscred.PDSCredentialStore
 	oauthClient   PdsOAuthClient
 	nonceProvider DpopNonceProvider
+
+	// ensure there's only a single credentials getter at a time to ensure refreshing tokens don't race
+	// and overwrite one another.
+	credsG singleflight.Group
 }
 
 func newAuthedDpopHttpClient(
@@ -79,47 +85,67 @@ func newAuthedDpopHttpClient(
 		credStore:     credStore,
 		oauthClient:   oauthClient,
 		nonceProvider: nonceProvider,
+		credsG:        singleflight.Group{},
 	}
 }
 
-func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
-	cred, err := s.credStore.GetCredentials(s.id.DID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user credentials: %w", err)
-	}
-	token, err := jwt.ParseSigned(cred.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse access token: %w", err)
-	}
-	var claims jwt.Claims
-	err = token.UnsafeClaimsWithoutVerification(&claims)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get claims: %w", err)
-	}
-	var accessToken string
-	if claims.Expiry.Time().Before(time.Now().Add(5 * time.Minute)) {
-		tokenInfo, err := s.oauthClient.RefreshToken(
-			NewDpopHttpClient(cred.DpopKey, s.nonceProvider),
-			s.id,
-			claims.Issuer,
-			cred.RefreshToken,
-		)
+func (c *authedDpopHttpClient) getAccessTokenToUse() (*pdscred.Credentials, error) {
+	getOrRefreshToken := func() (interface{}, error) {
+		cred, err := c.credStore.GetCredentials(c.id.DID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to refresh token: %w", err)
+			return nil, fmt.Errorf("failed to get user credentials: %w", err)
 		}
-		// Update credentials
-		if err := s.credStore.UpsertCredentials(s.id.DID, &pdscred.Credentials{
-			RefreshToken: tokenInfo.RefreshToken,
-			AccessToken:  tokenInfo.AccessToken,
-			DpopKey:      cred.DpopKey,
-		}); err != nil {
-			return nil, fmt.Errorf("failed to update credentials: %w", err)
+		token, err := jwt.ParseSigned(cred.AccessToken)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse access token: %w", err)
 		}
-		accessToken = tokenInfo.AccessToken
-	} else {
-		accessToken = cred.AccessToken
+		var claims jwt.Claims
+		err = token.UnsafeClaimsWithoutVerification(&claims)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get claims: %w", err)
+		}
+
+		if claims.Expiry.Time().Before(time.Now().Add(5 * time.Minute)) {
+			tokenInfo, err := c.oauthClient.RefreshToken(
+				NewDpopHttpClient(cred.DpopKey, c.nonceProvider),
+				c.id,
+				claims.Issuer,
+				cred.RefreshToken,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to refresh token: %w", err)
+			}
+			// Update credentials
+			cred = &pdscred.Credentials{
+				RefreshToken: tokenInfo.RefreshToken,
+				AccessToken:  tokenInfo.AccessToken,
+				DpopKey:      cred.DpopKey,
+			}
+			if err := c.credStore.UpsertCredentials(c.id.DID, cred); err != nil {
+				return nil, fmt.Errorf("failed to update credentials: %w", err)
+			}
+		}
+		return cred, nil
 	}
 
+	res, err, _ := c.credsG.Do(c.id.DID.String() /* meaningless key since this only has one thing */, getOrRefreshToken)
+	if err != nil {
+		return nil, err
+	}
+
+	cred, ok := res.(*pdscred.Credentials)
+	if !ok {
+		return nil, fmt.Errorf("invalid type for access token: %T", cred)
+	}
+
+	return cred, nil
+}
+
+func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
+	cred, err := s.getAccessTokenToUse()
+	if err != nil {
+		return nil, err
+	}
 	pdsUrlString, ok := s.id.Services["atproto_pds"]
 	if !ok {
 		return nil, fmt.Errorf("no atproto_pds service found for %s", s.id.DID)
@@ -133,7 +159,7 @@ func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 		req,
 		s.nonceProvider,
 		cred.DpopKey,
-		accessToken,
+		cred.AccessToken,
 	)
 }
 

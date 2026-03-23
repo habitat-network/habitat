@@ -8,6 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/pdscred"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 type HttpClientFactory interface {
@@ -19,18 +20,25 @@ type clientFactoryImpl struct {
 	credStore   pdscred.PDSCredentialStore
 	oauthClient PdsOAuthClient
 	dir         identity.Directory
+
+	dpopClientCache *lru.Cache[syntax.DID, *authedDpopHttpClient]
 }
 
 func NewHttpClientFactory(
 	credStore pdscred.PDSCredentialStore,
 	oauthClient PdsOAuthClient,
 	dir identity.Directory,
-) HttpClientFactory {
-	return &clientFactoryImpl{
-		credStore:   credStore,
-		oauthClient: oauthClient,
-		dir:         dir,
+) (HttpClientFactory, error) {
+	cache, err := lru.New[syntax.DID, *authedDpopHttpClient](1024 /* arbitrary size for now */)
+	if err != nil {
+		return nil, err
 	}
+	return &clientFactoryImpl{
+		credStore:       credStore,
+		oauthClient:     oauthClient,
+		dir:             dir,
+		dpopClientCache: cache,
+	}, nil
 }
 
 type HttpClient interface {
@@ -41,10 +49,25 @@ func (f *clientFactoryImpl) NewClient(
 	ctx context.Context,
 	did syntax.DID,
 ) (HttpClient, error) {
+
+	// Try to get from the cache
+	client, ok := f.dpopClientCache.Get(did)
+	if ok {
+		return client, nil
+	}
+
+	// Otherwise create a new client to put in the cache
 	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
 	id, err := f.dir.LookupDID(context.Background(), did)
 	if err != nil {
 		return nil, fmt.Errorf("[pds client factory]: failed to lookup did: error is %w", err)
 	}
-	return newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{}), nil
+	client = newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{})
+
+	// If raced with another put-ter, use that one so no duplicate dpop clients
+	foundClient, found, _ := f.dpopClientCache.PeekOrAdd(did, client)
+	if found {
+		return foundClient, nil
+	}
+	return client, nil
 }
