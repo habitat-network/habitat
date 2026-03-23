@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -59,8 +60,14 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward the request using the dpopClient
 	resp, err := dpopClient.Do(req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusUnauthorized)
-		return
+		// TODO: be a bit more specific about these errors
+		if strings.Contains(err.Error(), "invalid") {
+			utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusUnauthorized)
+			return
+		} else {
+			utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
+			return
+		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	// Copy response headers

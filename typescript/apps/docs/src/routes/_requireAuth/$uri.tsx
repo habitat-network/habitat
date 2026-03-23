@@ -38,6 +38,7 @@ import {
 import { HelpDialog } from "@/components/HelpDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { CheckIcon } from "lucide-react";
+import { profileQueryOptions } from "@/queries/profile";
 
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
@@ -175,12 +176,15 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     await dialRelayAndStartPeerDiscovery()
     const provider = new Libp2pConnectionProvider(node, ydoc, uri);
 
+    const profile = await context.queryClient.fetchQuery(profileQueryOptions(context.authManager.getAuthInfo()!.did, context.authManager))
+
     return {
       provider,
       node,
       ydoc,
       doc: data,
       uri,
+      profile,
       dialRelayAndStartPeerDiscovery,
     };
   },
@@ -191,7 +195,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { ydoc, provider, node, doc, uri, dialRelayAndStartPeerDiscovery } = Route.useLoaderData();
+    const { ydoc, provider, node, doc, uri, profile, dialRelayAndStartPeerDiscovery } = Route.useLoaderData();
     const [, , docDID, , rkey] = uri.split("/");
 
     const { authManager } = Route.useRouteContext();
@@ -205,7 +209,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
     }, [dialRelayAndStartPeerDiscovery]);
 
-    const { profile } = AuthRoute.useLoaderData();
     const [dirty, setDirty] = useState(false);
     const { data: editorProfiles } = useQuery(
       editorProfilesQueryOptions(doc.value.editorClique, authManager),
