@@ -52,11 +52,6 @@ declare module "@tanstack/react-router" {
   }
 }
 
-console.log(
-  import.meta.env.VITE_PUBLIC_POSTHOG_TOKEN,
-  import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
-);
-
 posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_TOKEN, {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: "2026-01-30",
