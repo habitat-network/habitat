@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -337,69 +338,61 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 }
 
 func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
-	// blockCh lets us pause the first GetCredentials call until the second goroutine
-	// has had a chance to enter getAccessTokenToUse and coalesce.
-	blockCh := make(chan struct{})
-	// secondWaiting is closed once the second goroutine has joined the coalesce wait.
-	secondWaiting := make(chan struct{})
-
-	var getCredentialsCalls atomic.Int32
-
 	inner := testPdsCredStore(t, jwt.Claims{
 		Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
 	})
-	countingStore := &countingCredStore{
-		inner: inner,
-		onGet: func() {
-			count := getCredentialsCalls.Add(1)
-			if count == 1 {
-				// First caller: signal the second goroutine to proceed, then block
-				// until it has coalesced.
-				close(secondWaiting)
-				<-blockCh
-			}
-		},
-	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+	synctest.Test(t, func(t *testing.T) {
+		// blockCh lets us pause the first GetCredentials call until the second goroutine
+		// has had a chance to enter getAccessTokenToUse and coalesce.
+		blockCh := make(chan struct{})
+		var getCredentialsCalls atomic.Int32
 
-	id := testIdentity(server.URL)
-	client := newAuthedDpopHttpClient(id, countingStore, testOAuthClient(t), &MemoryNonceProvider{})
+		countingStore := &countingCredStore{
+			inner: inner,
+			onGet: func() {
+				count := getCredentialsCalls.Add(1)
+				if count == 1 {
+					<-blockCh
+				}
+			},
+		}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+		id := testIdentity("https://example.com")
+		client := newAuthedDpopHttpClient(id, countingStore, testOAuthClient(t), &MemoryNonceProvider{})
 
-	var err1, err2 error
-	go func() {
-		defer wg.Done()
-		req, _ := http.NewRequest("GET", "/test", nil)
-		_, err1 = client.Do(req)
-	}()
+		var wg sync.WaitGroup
+		wg.Add(2)
 
-	// Wait until the first goroutine is inside GetCredentials, then launch the second.
-	<-secondWaiting
+		var err1, err2 error
+		go func() {
+			defer wg.Done()
+			_, err1 = client.getAccessTokenToUse(t.Context())
+		}()
 
-	go func() {
-		defer wg.Done()
-		req, _ := http.NewRequest("GET", "/test", nil)
-		// Give the first goroutine time to set inflightCredGetter before we call Do.
-		// A brief sleep is sufficient; the first goroutine is already blocked in onGet.
-		time.Sleep(5 * time.Millisecond)
-		_, err2 = client.Do(req)
-	}()
+		// Wait until goroutine 1 is blocked inside onGet on <-blockCh.
+		// inflightCredGetter is set before GetCredentials is called, so by the
+		// time goroutine 1 is blocked here, the flag is already true.
+		synctest.Wait()
+		secondCompleted := &atomic.Bool{}
 
-	// Give the second goroutine time to reach the coalesce wait.
-	time.Sleep(20 * time.Millisecond)
-	close(blockCh)
+		go func() {
+			defer wg.Done()
+			_, err2 = client.getAccessTokenToUse(t.Context())
+			secondCompleted.Store(true)
+		}()
 
-	wg.Wait()
+		// Wait until goroutine 2 is also blocked on the coalesce channel receive.
+		synctest.Wait()
+		require.False(t, secondCompleted.Load())
+		close(blockCh)
 
-	require.NoError(t, err1)
-	require.NoError(t, err2)
-	require.Equal(t, int32(1), getCredentialsCalls.Load(), "GetCredentials should only be called once due to coalescing")
+		wg.Wait()
+
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		require.Equal(t, int32(1), getCredentialsCalls.Load(), "GetCredentials should only be called once due to coalescing")
+	})
 }
 
 // countingCredStore wraps a PDSCredentialStore and calls onGet before each GetCredentials.
