@@ -2,18 +2,22 @@ package pdsclient
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bradenaw/juniper/xmaps"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
@@ -61,11 +65,16 @@ func (s *DpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 	return doInternal(req, s.nonceProvider, s.key, "")
 }
 
+// This can be shared by multiple concurrent requests happening by the same user (did) caller
 type authedDpopHttpClient struct {
 	id            *identity.Identity
 	credStore     pdscred.PDSCredentialStore
 	oauthClient   PdsOAuthClient
 	nonceProvider DpopNonceProvider
+
+	mu                 *sync.Mutex
+	inflightCredGetter bool
+	credGetters        xmaps.Set[getter]
 }
 
 func newAuthedDpopHttpClient(
@@ -82,44 +91,113 @@ func newAuthedDpopHttpClient(
 	}
 }
 
-func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
-	cred, err := s.credStore.GetCredentials(s.id.DID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user credentials: %w", err)
-	}
-	token, err := jwt.ParseSigned(cred.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse access token: %w", err)
-	}
-	var claims jwt.Claims
-	err = token.UnsafeClaimsWithoutVerification(&claims)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get claims: %w", err)
-	}
-	var accessToken string
-	if claims.Expiry.Time().Before(time.Now().Add(5 * time.Minute)) {
-		tokenInfo, err := s.oauthClient.RefreshToken(
-			NewDpopHttpClient(cred.DpopKey, s.nonceProvider),
-			s.id,
-			claims.Issuer,
-			cred.RefreshToken,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to refresh token: %w", err)
+type accessTokenResult struct {
+	creds *pdscred.Credentials
+	err   error
+}
+
+type getter struct {
+	ch  chan *accessTokenResult
+	ctx context.Context
+}
+
+func (s *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscred.Credentials, error) {
+	s.mu.Lock()
+
+	// Another caller is getting the access token and may race -- coalesce with them.
+	if s.inflightCredGetter {
+		ch := make(chan *accessTokenResult)
+		s.credGetters.Add(getter{
+			ch:  ch,
+			ctx: ctx,
+		})
+		// Don't hold the lock while waiting.
+		s.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			// If the request is cancelled, return.
+			// The cred fetcher will see ctx.Done() and ignore this getter.
+			return nil, ctx.Err()
+		case res := <-ch:
+			return res.creds, res.err
 		}
-		// Update credentials
-		if err := s.credStore.UpsertCredentials(s.id.DID, &pdscred.Credentials{
-			RefreshToken: tokenInfo.RefreshToken,
-			AccessToken:  tokenInfo.AccessToken,
-			DpopKey:      cred.DpopKey,
-		}); err != nil {
-			return nil, fmt.Errorf("failed to update credentials: %w", err)
-		}
-		accessToken = tokenInfo.AccessToken
-	} else {
-		accessToken = cred.AccessToken
 	}
 
+	// First caller: set inflight and be responsible for fetching the token and returning to all coalescers.
+	s.inflightCredGetter = true
+
+	// Don't hold the lock while fetching access token; allow other getters to join
+	s.mu.Unlock()
+
+	getOrRefreshToken := func() (*pdscred.Credentials, error) {
+		cred, err := s.credStore.GetCredentials(s.id.DID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user credentials: %w", err)
+		}
+		token, err := jwt.ParseSigned(cred.AccessToken)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse access token: %w", err)
+		}
+		var claims jwt.Claims
+		err = token.UnsafeClaimsWithoutVerification(&claims)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get claims: %w", err)
+		}
+
+		if claims.Expiry.Time().Before(time.Now().Add(5 * time.Minute)) {
+			tokenInfo, err := s.oauthClient.RefreshToken(
+				NewDpopHttpClient(cred.DpopKey, s.nonceProvider),
+				s.id,
+				claims.Issuer,
+				cred.RefreshToken,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to refresh token: %w", err)
+			}
+			// Update credentials
+			cred = &pdscred.Credentials{
+				RefreshToken: tokenInfo.RefreshToken,
+				AccessToken:  tokenInfo.AccessToken,
+				DpopKey:      cred.DpopKey,
+			}
+			if err := s.credStore.UpsertCredentials(s.id.DID, cred); err != nil {
+				return nil, fmt.Errorf("failed to update credentials: %w", err)
+			}
+		}
+		return cred, nil
+	}
+
+	// The cred is up to date now -- let any coalescers know and return
+	cred, err := getOrRefreshToken()
+	res := &accessTokenResult{
+		creds: cred,
+		err:   err,
+	}
+
+	s.mu.Lock()
+	// Reset the inflight state
+	s.inflightCredGetter = false
+	getters := maps.Clone(s.credGetters)
+	s.credGetters = make(xmaps.Set[getter])
+	s.mu.Unlock()
+
+	// Send to concurrent callers outside of lock
+	for g := range getters {
+		select {
+		case <-g.ctx.Done():
+			// Ignore
+			continue
+		case g.ch <- res:
+		}
+	}
+	return cred, err
+}
+
+func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
+	cred, err := s.getAccessTokenToUse(req.Context())
+	if err != nil {
+		return nil, err
+	}
 	pdsUrlString, ok := s.id.Services["atproto_pds"]
 	if !ok {
 		return nil, fmt.Errorf("no atproto_pds service found for %s", s.id.DID)
@@ -133,7 +211,7 @@ func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
 		req,
 		s.nonceProvider,
 		cred.DpopKey,
-		accessToken,
+		cred.AccessToken,
 	)
 }
 
