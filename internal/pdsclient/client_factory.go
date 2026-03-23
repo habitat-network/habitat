@@ -49,17 +49,14 @@ func (f *clientFactoryImpl) NewClient(
 	ctx context.Context,
 	did syntax.DID,
 ) (HttpClient, error) {
-	val, ok := f.dpopClientCache.Get(did)
-	if ok {
-		return val, nil
-	}
 
 	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
+	// Wasteful: we always create an unused throwaway client even if there is something in the cache already
 	id, err := f.dir.LookupDID(context.Background(), did)
 	if err != nil {
 		return nil, fmt.Errorf("[pds client factory]: failed to lookup did: error is %w", err)
 	}
-	client := newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{})
-	f.dpopClientCache.ContainsOrAdd(did, client)
+
+	client, _, _ := f.dpopClientCache.PeekOrAdd(did, newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{}))
 	return client, nil
 }
