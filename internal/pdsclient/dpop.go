@@ -9,20 +9,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bradenaw/juniper/xmaps"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/singleflight"
 )
 
 // DpopNonceProvider provides access to nonce management
@@ -72,9 +70,9 @@ type authedDpopHttpClient struct {
 	oauthClient   PdsOAuthClient
 	nonceProvider DpopNonceProvider
 
-	mu                 *sync.Mutex
-	inflightCredGetter bool
-	credGetters        xmaps.Set[getter]
+	// ensure there's only a single credentials getter at a time to ensure refreshing tokens don't race
+	// and overwrite one another.
+	credsG singleflight.Group
 }
 
 func newAuthedDpopHttpClient(
@@ -88,8 +86,7 @@ func newAuthedDpopHttpClient(
 		credStore:     credStore,
 		oauthClient:   oauthClient,
 		nonceProvider: nonceProvider,
-		mu:            &sync.Mutex{},
-		credGetters:   make(xmaps.Set[getter]),
+		credsG:        singleflight.Group{},
 	}
 }
 
@@ -104,34 +101,7 @@ type getter struct {
 }
 
 func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscred.Credentials, error) {
-	c.mu.Lock()
-
-	// Another caller is getting the access token and may race -- coalesce with them.
-	if c.inflightCredGetter {
-		ch := make(chan *accessTokenResult)
-		c.credGetters.Add(getter{
-			ch:  ch,
-			ctx: ctx,
-		})
-		// Don't hold the lock while waiting.
-		c.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			// If the request is cancelled, return.
-			// The cred fetcher will see ctx.Done() and ignore this getter.
-			return nil, ctx.Err()
-		case res := <-ch:
-			return res.creds, res.err
-		}
-	}
-
-	// First caller: set inflight and be responsible for fetching the token and returning to all coalescers.
-	c.inflightCredGetter = true
-
-	// Don't hold the lock while fetching access token; allow other getters to join
-	c.mu.Unlock()
-
-	getOrRefreshToken := func() (*pdscred.Credentials, error) {
+	getOrRefreshToken := func() (interface{}, error) {
 		cred, err := c.credStore.GetCredentials(c.id.DID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user credentials: %w", err)
@@ -169,30 +139,17 @@ func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscre
 		return cred, nil
 	}
 
-	// The cred is up to date now -- let any coalescers know and return
-	cred, err := getOrRefreshToken()
-	res := &accessTokenResult{
-		creds: cred,
-		err:   err,
+	res, err, _ := c.credsG.Do(c.id.DID.String(), getOrRefreshToken)
+	if err != nil {
+		return nil, err
 	}
 
-	c.mu.Lock()
-	// Reset the inflight state
-	c.inflightCredGetter = false
-	getters := maps.Clone(c.credGetters)
-	c.credGetters = make(xmaps.Set[getter])
-	c.mu.Unlock()
-
-	// Send to concurrent callers outside of lock
-	for g := range getters {
-		select {
-		case <-g.ctx.Done():
-			// Ignore
-			continue
-		case g.ch <- res:
-		}
+	cred, ok := res.(*pdscred.Credentials)
+	if !ok {
+		return nil, fmt.Errorf("invalid type for access token: %T", cred)
 	}
-	return cred, err
+
+	return cred, nil
 }
 
 func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
