@@ -259,9 +259,10 @@ func TestAuthedDpopHttpClient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	clientFactory := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
+	clientFactory, err := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
 		Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
 	}), testOAuthClient(t), NewDummyDirectory(server.URL))
+	require.NoError(t, err)
 
 	client, err := clientFactory.NewClient(t.Context(), testIdentity(server.URL).DID)
 	require.NoError(t, err)
@@ -284,10 +285,11 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	server := fakeAuthServer(map[string]any{})
 	defer server.Close()
 
-	clientFactory := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
+	clientFactory, err := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
 		Issuer: "https://example.com",
 		Expiry: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
 	}), testOAuthClient(t), NewDummyDirectory(server.URL))
+	require.NoError(t, err)
 
 	client, err := clientFactory.NewClient(t.Context(), testIdentity(server.URL).DID)
 	require.NoError(t, err)
