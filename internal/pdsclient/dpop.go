@@ -103,18 +103,18 @@ type getter struct {
 	ctx context.Context
 }
 
-func (s *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscred.Credentials, error) {
-	s.mu.Lock()
+func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscred.Credentials, error) {
+	c.mu.Lock()
 
 	// Another caller is getting the access token and may race -- coalesce with them.
-	if s.inflightCredGetter {
+	if c.inflightCredGetter {
 		ch := make(chan *accessTokenResult)
-		s.credGetters.Add(getter{
+		c.credGetters.Add(getter{
 			ch:  ch,
 			ctx: ctx,
 		})
 		// Don't hold the lock while waiting.
-		s.mu.Unlock()
+		c.mu.Unlock()
 		select {
 		case <-ctx.Done():
 			// If the request is cancelled, return.
@@ -126,13 +126,13 @@ func (s *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscre
 	}
 
 	// First caller: set inflight and be responsible for fetching the token and returning to all coalescers.
-	s.inflightCredGetter = true
+	c.inflightCredGetter = true
 
 	// Don't hold the lock while fetching access token; allow other getters to join
-	s.mu.Unlock()
+	c.mu.Unlock()
 
 	getOrRefreshToken := func() (*pdscred.Credentials, error) {
-		cred, err := s.credStore.GetCredentials(s.id.DID)
+		cred, err := c.credStore.GetCredentials(c.id.DID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user credentials: %w", err)
 		}
@@ -147,9 +147,9 @@ func (s *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscre
 		}
 
 		if claims.Expiry.Time().Before(time.Now().Add(5 * time.Minute)) {
-			tokenInfo, err := s.oauthClient.RefreshToken(
-				NewDpopHttpClient(cred.DpopKey, s.nonceProvider),
-				s.id,
+			tokenInfo, err := c.oauthClient.RefreshToken(
+				NewDpopHttpClient(cred.DpopKey, c.nonceProvider),
+				c.id,
 				claims.Issuer,
 				cred.RefreshToken,
 			)
@@ -162,7 +162,7 @@ func (s *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscre
 				AccessToken:  tokenInfo.AccessToken,
 				DpopKey:      cred.DpopKey,
 			}
-			if err := s.credStore.UpsertCredentials(s.id.DID, cred); err != nil {
+			if err := c.credStore.UpsertCredentials(c.id.DID, cred); err != nil {
 				return nil, fmt.Errorf("failed to update credentials: %w", err)
 			}
 		}
@@ -176,12 +176,12 @@ func (s *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscre
 		err:   err,
 	}
 
-	s.mu.Lock()
+	c.mu.Lock()
 	// Reset the inflight state
-	s.inflightCredGetter = false
-	getters := maps.Clone(s.credGetters)
-	s.credGetters = make(xmaps.Set[getter])
-	s.mu.Unlock()
+	c.inflightCredGetter = false
+	getters := maps.Clone(c.credGetters)
+	c.credGetters = make(xmaps.Set[getter])
+	c.mu.Unlock()
 
 	// Send to concurrent callers outside of lock
 	for g := range getters {

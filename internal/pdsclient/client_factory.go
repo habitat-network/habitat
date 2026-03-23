@@ -56,7 +56,11 @@ func (f *clientFactoryImpl) NewClient(
 	if err != nil {
 		return nil, fmt.Errorf("[pds client factory]: failed to lookup did: error is %w", err)
 	}
+	client := newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{})
 
-	client, _, _ := f.dpopClientCache.PeekOrAdd(did, newAuthedDpopHttpClient(id, f.credStore, f.oauthClient, &MemoryNonceProvider{}))
+	foundClient, found, _ := f.dpopClientCache.PeekOrAdd(did, client)
+	if found {
+		return foundClient, nil
+	}
 	return client, nil
 }
