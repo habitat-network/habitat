@@ -32,11 +32,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     const { authManager } = Route.useRouteContext();
     const { profile } = Route.useLoaderData();
     return (
-      <>
+      <div className="flex flex-col items-center w-full justify-stretch gap-4">
         <Header profile={profile} onLogout={authManager.logout} />
-        <Outlet />
+        <div className="container px-4 flex flex-col">
+          <Outlet />
+        </div>
         <TanStackRouterDevtools />
-      </>
+      </div>
     );
   },
 });

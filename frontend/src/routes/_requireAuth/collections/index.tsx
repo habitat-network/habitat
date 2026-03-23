@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
       { authManager },
     );
 
-    const collections = collectionsData.collections
+    const collections = collectionsData.collections;
     // Collect unique DID grantees across all collections
     const granteeDids = [
       ...new Set(
@@ -49,41 +49,46 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
       }
     }
 
-    return { collections, profilesByDid }
-  }
+    return { collections, profilesByDid };
+  },
 });
 
 function CollectionsGrid() {
   const { collections, profilesByDid } = Route.useLoaderData()!;
+  const { authManager } = Route.useRouteContext();
 
-  return <>
-    <div className="grid !grid-cols-1 sm:!grid-cols-2 lg:!grid-cols-3 xl:!grid-cols-4">
-      {collections.map((collection) => {
-        const didGrantees = collection.grantees
-          ? (collection.grantees.filter(
-            (g) => g.$type === "network.habitat.grantee#didGrantee",
-          ) as { did: string }[])
-          : [];
-        const avatars = didGrantees.map((grantee) => {
-          const did = grantee.did;
-          return {
-            did: did,
-            avatar: profilesByDid[did].avatar,
-            handle: profilesByDid[did].handle,
-          };
-        });
+  return (
+    <>
+      <div className="grid !grid-cols-1 sm:!grid-cols-2 lg:!grid-cols-3 xl:!grid-cols-4">
+        {collections.map((collection) => {
+          const didGrantees = collection.grantees
+            ? (collection.grantees.filter(
+              (g) => g.$type === "network.habitat.grantee#didGrantee",
+            ) as { did: string }[])
+            : [];
+          const avatars = didGrantees.map((grantee) => {
+            const did = grantee.did;
+            return {
+              did: did,
+              avatar: profilesByDid[did].avatar,
+              handle: profilesByDid[did].handle,
+            };
+          });
 
-        const formatted = { ...collection, grantees: avatars };
-        return (
-          <Link
-            to="/collections/$collection"
-            key={formatted.nsid}
-            params={{ collection: formatted.nsid }}
-          >
-            <CollectionCard collection={formatted}></CollectionCard>
-          </Link>
-        );
-      })}
-    </div>
-  </>
+          return (
+            <Link
+              to="/collections/$collection"
+              key={collection.nsid}
+              params={{ collection: collection.nsid }}
+            >
+              <CollectionCard
+                authManager={authManager}
+                collection={collection}
+              ></CollectionCard>
+            </Link>
+          );
+        })}
+      </div>
+    </>
+  );
 }
