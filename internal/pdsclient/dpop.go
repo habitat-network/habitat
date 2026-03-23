@@ -2,7 +2,6 @@ package pdsclient
 
 import (
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
@@ -88,16 +87,6 @@ func newAuthedDpopHttpClient(
 		nonceProvider: nonceProvider,
 		credsG:        singleflight.Group{},
 	}
-}
-
-type accessTokenResult struct {
-	creds *pdscred.Credentials
-	err   error
-}
-
-type getter struct {
-	ch  chan *accessTokenResult
-	ctx context.Context
 }
 
 func (c *authedDpopHttpClient) getAccessTokenToUse() (*pdscred.Credentials, error) {
