@@ -25,7 +25,6 @@ import {
   docQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
-import { Route as AuthRoute } from "@/routes/_requireAuth";
 import { ShareDialog, AuthManager, query, XRPCError, procedure } from "internal";
 import {
   Button,
