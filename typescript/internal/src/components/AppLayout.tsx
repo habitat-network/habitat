@@ -20,6 +20,7 @@ import {
   SidebarMenuButton,
   useSidebar,
   SidebarRail,
+  SidebarGroup,
 } from "./ui/sidebar";
 import { LogOut } from "lucide-react";
 import { UserItem } from "./UserItem";
@@ -73,7 +74,16 @@ export const AppLayout = ({
                     }
                   ></DropdownMenuTrigger>
                   <DropdownMenuContent align="start" side="top">
-                    <DropdownMenuItem onClick={onSignOut}>
+                    <DropdownMenuItem
+                      render={<a href="https://habitat.network/habitat" />}
+                    >
+                      <p>🌱</p>
+                      Habitat Portal
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={onSignOut}
+                      className="text-destructive"
+                    >
                       <LogOut />
                       Sign out
                     </DropdownMenuItem>

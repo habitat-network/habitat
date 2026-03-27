@@ -55,10 +55,16 @@ function CalendarPage() {
   >(undefined);
 
   // Event details modal state
-  const [selectedEvent, setSelectedEvent] = useState<{ uri: string, cal: CalendarEvent } | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<{
+    uri: string;
+    cal: CalendarEvent;
+  } | null>(null);
 
   // Edit event modal state
-  const [editingEvent, setEditingEvent] = useState<{ uri: string, cal: CalendarEvent } | null>(null);
+  const [editingEvent, setEditingEvent] = useState<{
+    uri: string;
+    cal: CalendarEvent;
+  } | null>(null);
 
   const createEventMutation = useMutation({
     mutationFn: ({
@@ -88,7 +94,7 @@ function CalendarPage() {
     },
     onSuccess: () => {
       router.invalidate();
-      setEditingEvent(null)
+      setEditingEvent(null);
     },
   });
 
@@ -148,7 +154,10 @@ function CalendarPage() {
 
   return (
     <div>
-      <h1>Calendar</h1>
+      <nav>
+        <h1>Calendar</h1>
+        <a href="https://habitat.network/habitat">🌱 Habitat Portal</a>
+      </nav>
 
       <CalendarView
         events={events.records}
