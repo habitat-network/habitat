@@ -1,26 +1,29 @@
 import { Link } from "@tanstack/react-router";
-import { UserAvatar } from "internal";
-import { ProfileViewDetailed } from "@atproto/api/dist/client/types/app/bsky/actor/defs";
+import { Actor, UserAvatar } from "internal";
+import { Button } from "internal/components/ui";
 
 interface HeaderProps {
-  profile?: ProfileViewDetailed;
+  profile?: Actor;
   onLogout: () => void;
 }
 
 const Header = ({ profile, onLogout }: HeaderProps) => {
   return (
-    <header>
-      <nav>
+    <header className="w-full">
+      <nav className="flex justify-between py-4 px-6 items-center border-b">
         <ul>
           <li>
             <Link to="/">🌱 habitat</Link>
           </li>
         </ul>
         {profile ? (
-          <ul>
+          <ul className="flex items-center gap-2">
+            <Button variant="ghost" render={<Link to="/devtools" />}>
+              Devtools
+            </Button>
             <UserAvatar actor={profile} />
             <li>
-              <button onClick={onLogout}>Logout</button>
+              <Button onClick={onLogout}>Logout</Button>
             </li>
           </ul>
         ) : (
