@@ -12,10 +12,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 )
 
@@ -259,9 +264,10 @@ func TestAuthedDpopHttpClient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	clientFactory := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
+	clientFactory, err := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
 		Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
 	}), testOAuthClient(t), NewDummyDirectory(server.URL))
+	require.NoError(t, err)
 
 	client, err := clientFactory.NewClient(t.Context(), testIdentity(server.URL).DID)
 	require.NoError(t, err)
@@ -284,10 +290,11 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 	server := fakeAuthServer(map[string]any{})
 	defer server.Close()
 
-	clientFactory := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
+	clientFactory, err := NewHttpClientFactory(testPdsCredStore(t, jwt.Claims{
 		Issuer: "https://example.com",
 		Expiry: jwt.NewNumericDate(time.Now().Add(-10 * time.Minute)),
 	}), testOAuthClient(t), NewDummyDirectory(server.URL))
+	require.NoError(t, err)
 
 	client, err := clientFactory.NewClient(t.Context(), testIdentity(server.URL).DID)
 	require.NoError(t, err)
@@ -303,6 +310,79 @@ func TestAuthedDpopHttpClient_Refresh(t *testing.T) {
 
 	// Verify response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
+	inner := testPdsCredStore(t, jwt.Claims{
+		Expiry: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
+	})
+
+	synctest.Test(t, func(t *testing.T) {
+		// blockCh lets us pause the first GetCredentials call until the second goroutine
+		// has had a chance to enter getAccessTokenToUse and coalesce.
+		blockCh := make(chan struct{})
+		var getCredentialsCalls atomic.Int32
+
+		countingStore := &countingCredStore{
+			inner: inner,
+			onGet: func() {
+				count := getCredentialsCalls.Add(1)
+				if count == 1 {
+					<-blockCh
+				}
+			},
+		}
+
+		id := testIdentity("https://example.com")
+		client := newAuthedDpopHttpClient(id, countingStore, testOAuthClient(t), &MemoryNonceProvider{})
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		var err1, err2 error
+		go func() {
+			defer wg.Done()
+			_, err1 = client.getAccessTokenToUse()
+		}()
+
+		// Wait until goroutine 1 is blocked inside onGet on <-blockCh.
+		// inflightCredGetter is set before GetCredentials is called, so by the
+		// time goroutine 1 is blocked here, the flag is already true.
+		synctest.Wait()
+		secondCompleted := &atomic.Bool{}
+
+		go func() {
+			defer wg.Done()
+			_, err2 = client.getAccessTokenToUse()
+			secondCompleted.Store(true)
+		}()
+
+		// Wait until goroutine 2 is also blocked on the coalesce channel receive.
+		synctest.Wait()
+		require.False(t, secondCompleted.Load())
+		close(blockCh)
+
+		wg.Wait()
+
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		require.Equal(t, int32(1), getCredentialsCalls.Load(), "GetCredentials should only be called once due to coalescing")
+	})
+}
+
+// countingCredStore wraps a PDSCredentialStore and calls onGet before each GetCredentials.
+type countingCredStore struct {
+	inner pdscred.PDSCredentialStore
+	onGet func()
+}
+
+func (c *countingCredStore) UpsertCredentials(did syntax.DID, creds *pdscred.Credentials) error {
+	return c.inner.UpsertCredentials(did, creds)
+}
+
+func (c *countingCredStore) GetCredentials(did syntax.DID) (*pdscred.Credentials, error) {
+	c.onGet()
+	return c.inner.GetCredentials(did)
 }
 
 func TestDpopHttpClient_RequestFormat(t *testing.T) {

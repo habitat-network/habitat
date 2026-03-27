@@ -2,12 +2,12 @@ import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createLibp2p, Libp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
 import { circuitRelayTransport } from "@libp2p/circuit-relay-v2";
 import { multiaddr } from "@multiformats/multiaddr";
-import { PeerId } from "@libp2p/interface"
+import { PeerId } from "@libp2p/interface";
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { identify } from "@libp2p/identify";
@@ -25,7 +25,13 @@ import {
   docQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
-import { ShareDialog, AuthManager, query, XRPCError, procedure } from "internal";
+import {
+  ShareDialog,
+  AuthManager,
+  query,
+  XRPCError,
+  procedure,
+} from "internal";
 import {
   Button,
   Popover,
@@ -63,7 +69,7 @@ async function startPeerDiscovery(
 
     const encoder = new TextEncoder();
     stream.sink(
-      (async function* () {
+      (async function*() {
         yield encoder.encode(
           JSON.stringify({
             topic: uri,
@@ -103,7 +109,6 @@ async function startPeerDiscovery(
     }
   } catch { }
 }
-
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
@@ -161,21 +166,28 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     async function dialRelayAndStartPeerDiscovery() {
       const connections = node.getConnections();
-      if (connections.some((conn) => {
-        return conn.remoteAddr.toString() === relayAddr.toString();
-      })) {
+      if (
+        connections.some((conn) => {
+          return conn.remoteAddr.toString() === relayAddr.toString();
+        })
+      ) {
         // Already connected to relay
         return;
       }
-      const conn = await node.dial(relayAddr)
-      const relayPeerId = conn.remotePeer
+      const conn = await node.dial(relayAddr);
+      const relayPeerId = conn.remotePeer;
       void startPeerDiscovery(uri, relayPeerId, node, context.authManager);
     }
 
-    await dialRelayAndStartPeerDiscovery()
+    await dialRelayAndStartPeerDiscovery();
     const provider = new Libp2pConnectionProvider(node, ydoc, uri);
 
-    const profile = await context.queryClient.fetchQuery(profileQueryOptions(context.authManager.getAuthInfo()!.did, context.authManager))
+    const profile = await context.queryClient.fetchQuery(
+      profileQueryOptions(
+        context.authManager.getAuthInfo()!.did,
+        context.authManager,
+      ),
+    );
 
     return {
       provider,
@@ -194,7 +206,15 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { ydoc, provider, node, doc, uri, profile, dialRelayAndStartPeerDiscovery } = Route.useLoaderData();
+    const {
+      ydoc,
+      provider,
+      node,
+      doc,
+      uri,
+      profile,
+      dialRelayAndStartPeerDiscovery,
+    } = Route.useLoaderData();
     const [, , docDID, , rkey] = uri.split("/");
 
     const { authManager } = Route.useRouteContext();
@@ -202,10 +222,14 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       async function handleVisibilityChange() {
         // When the page becomes visible again, reconnect to the relay and fetch any updates that may have happened since
         if (document.visibilityState !== "visible") return;
-        await dialRelayAndStartPeerDiscovery()
+        await dialRelayAndStartPeerDiscovery();
       }
       document.addEventListener("visibilitychange", handleVisibilityChange);
-      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+      return () =>
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange,
+        );
     }, [dialRelayAndStartPeerDiscovery]);
 
     const [dirty, setDirty] = useState(false);
@@ -234,7 +258,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             grantees: doc.permissions,
           },
           { authManager },
-        )
+        );
       },
 
       onSuccess: () => setDirty(false),
@@ -304,19 +328,20 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           </Popover>
           <HelpDialog />
 
-          {docDID === authManager.getAuthInfo()?.did && doc.value.editorClique && (
-            <ShareDialog
-              isAdding={isAddingPermission}
-              grantees={editorProfiles ?? []}
-              authManager={authManager}
-              onAddPermission={(actors) =>
-                addPermission({
-                  grantees: actors.map((actor) => actor.did),
-                  editorCliqueUri: doc.value.editorClique,
-                })
-              }
-            />
-          )}
+          {docDID === authManager.getAuthInfo()?.did &&
+            doc.value.editorClique && (
+              <ShareDialog
+                isAdding={isAddingPermission}
+                grantees={editorProfiles ?? []}
+                authManager={authManager}
+                onAddPermission={(actors) =>
+                  addPermission({
+                    grantees: actors.map((actor) => actor.did),
+                    editorCliqueUri: doc.value.editorClique,
+                  })
+                }
+              />
+            )}
         </PageHeader>
       </div>
     );

@@ -29,6 +29,7 @@ export {
   XRPCError,
 } from "./habitatClient";
 export type { TypedRecord } from "./habitatClient";
+export { default as GranteeAvatars } from "./components/GranteeAvatars";
 
 // Utilities
 export { default as clientMetadata } from "./clientMetadata";
