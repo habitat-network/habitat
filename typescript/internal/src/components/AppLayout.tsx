@@ -75,7 +75,12 @@ export const AppLayout = ({
                   ></DropdownMenuTrigger>
                   <DropdownMenuContent align="start" side="top">
                     <DropdownMenuItem
-                      render={<a href="https://habitat.network/habitat" />}
+                      render={
+                        <a
+                          href="https://habitat.network/habitat"
+                          target="_blank"
+                        />
+                      }
                     >
                       <p>🌱</p>
                       Habitat Portal

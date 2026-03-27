@@ -156,7 +156,9 @@ function CalendarPage() {
     <div>
       <nav>
         <h1>Calendar</h1>
-        <a href="https://habitat.network/habitat">🌱 Habitat Portal</a>
+        <a href="https://habitat.network/habitat" target="_blank">
+          🌱 Habitat Portal
+        </a>
       </nav>
 
       <CalendarView
