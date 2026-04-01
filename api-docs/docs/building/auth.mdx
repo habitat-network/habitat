@@ -1,0 +1,49 @@
+---
+id: auth
+slug: /building/auth.mdx
+sidebar_label: Auth
+sidebar_position: 0
+---
+
+# Authentication
+
+Habitat uses **DIDs (Decentralized Identifiers)** as the foundation of user identity. Every user is identified by their DID, resolved from their AT Protocol handle (e.g. `alice.bsky.social`).
+
+## Two-layer OAuth architecture
+
+Habitat runs its own OAuth 2.0 server, which is what your app authenticates with. Separately, Habitat's backend authenticates with [the user's PDS (Personal Data Server)](https://atproto.com/guides/glossary#pds-personal-data-server) as part of the login flow to verify identity and obtain credentials for making PDS API calls.
+
+Your app never directly authenticates with the PDS — it only talks to Habitat's OAuth server. Habitat can make authenticated requests to the PDS on your behalf.
+
+## Habitat's internal login flow
+
+1. The user enters their AT Protocol handle
+2. Habitat resolves the handle to a DID via the AT Protocol identity directory
+3. Habitat's backend initiates an OAuth flow with the user's PDS to verify their identity
+4. The user authenticates on their PDS, which redirects back to Habitat
+5. Habitat stores the PDS credentials server-side (encrypted) for future PDS API calls
+6. Habitat's OAuth server issues its own access and refresh tokens to the client
+
+From the client's perspective, authentication is entirely against Habitat's OAuth server. The PDS interaction is an implementation detail handled server-side.
+
+---
+
+As an app developer, there are two ways to authenticate with Habitat, and which one you pick depends on your Habitat usage.
+
+## Authentication method: Direct
+
+You can use an out-of-the box OAuth client to authenticate with Habitat's OAuth server. This authentication method is preferred if you are building a local-first or client-side only app. The OAuth flow will redirect the user to a Habitat consent screen before navigating back to your page once the auth flow has completed. See an example of how we do it [here](https://github.com/habitat-network/habitat/blob/297e32a8c3dbfd1b14b10ad5d9d0825a9b83ec53/typescript/internal/src/authManager.ts).
+
+## Authentication method: Service Auth
+
+Internal services can authenticate using **signed JWTs** instead of user OAuth tokens. JWTs can be retrieved via the [getServiceAuth endpoint](https://docs.bsky.app/docs/api/com-atproto-server-get-service-auth) on a user's PDS and included as a `Bearer` token in the `Authorization` header. The JWT is signed with the PDS's private key and verified against its public key from the service's DID document. The issuer DID is used as the caller identity. 
+
+
+## Your app's perspective
+
+When making requests to Habitat on behalf of a user:
+
+- Include the access token as a `Bearer` token in the `Authorization` header
+- Set `Habitat-Auth-Method: oauth` to indicate the Direct authentication method. Otherwise the Service Auth method is assumed.
+- Refresh the token before it expires
+
