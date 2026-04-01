@@ -1,6 +1,6 @@
 import { procedure, TypedRecord } from "internal";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { deleteDocMutationOptions, docsListQueryOptions } from "@/queries/docs";
 import { profileQueryOptions } from "@/queries/profile";
 import {
@@ -44,16 +44,15 @@ export const Route = createFileRoute("/_requireAuth")({
     const profile = await context.queryClient.fetchQuery(
       profileQueryOptions(did, context.authManager),
     );
-    const docs = await context.queryClient.fetchQuery(
-      docsListQueryOptions(context.authManager),
-    );
-    const userDocs = docs.records.filter((d) => d.uri.includes(did));
-    const sharedDocs = docs.records.filter((d) => !d.uri.includes(did));
-    return { profile, userDocs, sharedDocs };
+    await context.queryClient.prefetchQuery(docsListQueryOptions(context.authManager));
+    return { profile, did };
   },
   component() {
-    const { profile, userDocs, sharedDocs } = Route.useLoaderData();
+    const { profile, did } = Route.useLoaderData();
     const { authManager, queryClient } = Route.useRouteContext();
+    const { data: docsData } = useQuery(docsListQueryOptions(authManager));
+    const userDocs = docsData?.records.filter((d) => d.uri.includes(did)) ?? [];
+    const sharedDocs = docsData?.records.filter((d) => !d.uri.includes(did)) ?? [];
     const router = useRouter();
     const navigate = Route.useNavigate();
 
