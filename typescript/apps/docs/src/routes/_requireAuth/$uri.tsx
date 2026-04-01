@@ -370,9 +370,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   errorComponent({ error }) {
     if (error instanceof XRPCError) {
       if (error.status === 403) {
-        return <p>you do not have permission to view this doc</p>;
+        return <p>You do not have access to this doc</p>;
       }
     }
+    console.error(error)
     return <p>Something went wrong.</p>;
   },
   pendingComponent: () => <article>Loading...</article>,
