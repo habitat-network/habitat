@@ -6,10 +6,12 @@ import { AuthManager } from "@/authManager";
 import { Button } from "./ui/button";
 import { UserItem } from "./UserItem";
 import { Spinner } from "./ui/spinner";
+import { XIcon } from "lucide-react";
 
 interface ShareDialogProps {
   grantees: Actor[];
   onAddPermission: (grantees: Actor[]) => void;
+  onRemovePermission: (grantee: Actor) => void;
   authManager: AuthManager;
   isAdding?: boolean;
 }
@@ -18,6 +20,7 @@ const ShareDialog = ({
   authManager,
   isAdding,
   onAddPermission,
+  onRemovePermission,
 }: ShareDialogProps) => {
   const [newGrantees, setNewGrantees] = useState<Actor[]>([]);
   return (
@@ -41,7 +44,19 @@ const ShareDialog = ({
           Add
         </Button>
         {grantees.map((g) => {
-          return <UserItem key={g.handle} actor={g} />;
+          return (
+            <div key={g.handle} className="flex items-center gap-2">
+              <UserItem actor={g} className="flex-1" />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove ${g.handle}`}
+                onClick={() => onRemovePermission(g)}
+              >
+                <XIcon />
+              </Button>
+            </div>
+          );
         })}
       </DialogContent>
     </Dialog>

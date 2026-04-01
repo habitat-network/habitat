@@ -21,6 +21,7 @@ import { webTransport } from "@libp2p/webtransport";
 import { peerIdFromString } from "@libp2p/peer-id";
 import {
   addPermissionMutationOptions,
+  removePermissionMutationOptions,
   docEditsQueryOptions,
   docQueryOptions,
   docsListQueryOptions,
@@ -274,6 +275,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     });
     const { mutate: addPermission, isPending: isAddingPermission } =
       useMutation(addPermissionMutationOptions(authManager));
+    const { mutate: removePermission } = useMutation(
+      removePermissionMutationOptions(authManager),
+    );
     // debounce
     const handleUpdate = useMemo(() => {
       let prevTimeout: number | undefined;
@@ -341,11 +345,19 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             doc.value.editorClique && (
               <ShareDialog
                 isAdding={isAddingPermission}
-                grantees={editorProfiles ?? []}
+                grantees={(editorProfiles ?? []).filter(
+                  (p) => p.did !== authManager.getAuthInfo()?.did,
+                )}
                 authManager={authManager}
                 onAddPermission={(actors) =>
                   addPermission({
                     grantees: actors.map((actor) => actor.did),
+                    editorCliqueUri: doc.value.editorClique,
+                  })
+                }
+                onRemovePermission={(actor) =>
+                  removePermission({
+                    grantee: actor.did,
                     editorCliqueUri: doc.value.editorClique,
                   })
                 }

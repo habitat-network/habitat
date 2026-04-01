@@ -19,6 +19,7 @@ import type {
   NetworkHabitatPermissionsAddPermission,
   NetworkHabitatCliqueAddMembers,
   NetworkHabitatCliqueGetMembers,
+  NetworkHabitatCliqueRemoveMembers,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -103,6 +104,10 @@ type ProcedureEndpoints = {
   >;
   "network.habitat.clique.addMembers": Procedure<
     NetworkHabitatCliqueAddMembers.InputSchema,
+    void
+  >;
+  "network.habitat.clique.removeMembers": Procedure<
+    NetworkHabitatCliqueRemoveMembers.InputSchema,
     void
   >;
   "network.habitat.addPermission": Procedure<
