@@ -70,7 +70,7 @@ async function startPeerDiscovery(
 
     const encoder = new TextEncoder();
     stream.sink(
-      (async function*() {
+      (async function* () {
         yield encoder.encode(
           JSON.stringify({
             topic: uri,
@@ -261,7 +261,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           },
           { authManager },
         );
-        return { name: heading ?? "Untitled" };
+        return { name: heading ?? savedNameRef.current ?? "Untitled" };
       },
 
       onSuccess: ({ name }) => {
