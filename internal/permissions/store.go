@@ -337,8 +337,6 @@ func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syn
 		return nil, err
 	}
 
-	fmt.Printf("allpermissions: %v\n", allPermissions)
-
 	relevant := []Permission{}
 	for _, permission := range allPermissions {
 		clique, ok := permission.Grantee.(habitat_syntax.Clique)
@@ -362,8 +360,6 @@ func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syn
 		}
 		// If this did is not a member of the clique, ignore this permission
 	}
-
-	fmt.Printf("relevant:%v \n", relevant)
 	return relevant, nil
 }
 
@@ -408,7 +404,6 @@ func (s *store) listPermissions(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) ([]Permission, error) {
-	fmt.Println("listPermissions", grantee,  owners, collection, rkey)
 	// TODO prevent table scans if all arguments are ""
 	var queried []permission
 	query := s.db
@@ -437,7 +432,7 @@ func (s *store) listPermissions(
 	for i, p := range queried {
 		grantee, err := ParseGranteeFromString(p.Grantee)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing found grantee in db: %s", grantee)
+			return nil, fmt.Errorf("error parsing found grantee in db: %s: %w", grantee, err)
 		}
 		permissions[i] = Permission{
 			Owner:      syntax.DID(p.Owner),
@@ -451,6 +446,5 @@ func (s *store) listPermissions(
 		// If the request is for a general collection (un-ownered), by default the grantee has permission to their own collections.
 		permissions = append(permissions, Permission{Grantee: DIDGrantee(grantee), Owner: grantee, Collection: collection, Effect: Allow})
 	}
-	fmt.Println("permissions", permissions)
 	return permissions, nil
 }
