@@ -6,3 +6,50 @@ sidebar_position: 0
 ---
 
 # Pear (Permission-enforcing ATProtocol Repository)
+
+**pear** is Habitat's permission-aware repository. It mirrors the structure of a standard AT Protocol personal data server (PDS) — records organized into collections, identified by repo + collection + rkey — but adds record-level access control on top.
+
+The sweet spot for building on pear is local-first apps that operate on private data and need to share it selectively with other users or applications, without storing that data on an application server.
+
+## Components
+
+### Records
+
+Records are the fundamental unit of storage, identical in shape to AT Protocol records: a JSON object stored under a `(repo, collection, rkey)` triple. The `repo` is a DID or AT Protocol handle identifying the owner; the `collection` is a Lexicon NSID (e.g. `app.bsky.feed.post`); the `rkey` is a string key within that collection.
+
+### Permissions
+
+Every record in pear is **private by default**. The owner explicitly grants read access to other users or [cliques](./cliques.mdx). Permissions apply at the collection level at the record level (a single rkey).
+
+See [Permissions model](../building/permissions.mdx) for the full rules.
+
+### Cliques
+
+Cliques are named groups of DIDs that can be used as permission grantees. Granting a clique access is equivalent to granting every current and future member. Membership is resolved at read time.
+
+See [Cliques](./cliques.mdx) for details.
+
+### Blobs
+
+Pear supports binary data (images, files, etc.) via the same blob upload mechanism as a standard PDS. Blobs are uploaded separately and then referenced from a record. A blob that is not referenced within a short time window is automatically deleted.
+
+Blob's are permissioned as well: in order for the getBlob API to return a blob to a user, the user must have been granted permission to a record referencing that blob.
+
+## How they fit together
+
+```
+Record write (createRecord / putRecord)
+    │
+    ├── stores record in Habitat
+    └── optionally grants access to grantees (DIDs or cliques)
+
+Record read (getRecord / listRecords)
+    │
+    ├── caller is the owner → access granted
+    ├── caller has a valid permission → access granted
+    └── otherwise → access denied
+```
+
+## API
+
+See the [API reference](/api) for full request/response shapes.

@@ -9,40 +9,18 @@ sidebar_position: 2
 
 Habitat's permissions model gives record owners fine-grained control over who can read their data. Access is denied by default; owners explicitly grant access to specific users or groups.
 
+## Scope
+
+Permissions apply at the record level: a permission grants access to a single record, identified by owner DID + collection + rkey for a given grantee.
+
 ## Grantees
 
-A permission is always granted to a **grantee** — either:
+A grantee can be either
 
 - **DID** — a specific user, identified by their AT Protocol DID (e.g. `did:plc:abc123`)
 - **[Clique](../specs/cliques.mdx)** — a named group of DIDs (e.g. `clique:did:plc:abc123/followers`)
 
 Granting to a clique is equivalent to granting to all current and future members of that group. Membership is resolved at read time.
-
-## Scope
-
-Permissions apply at two levels of granularity:
-
-- **Collection-level** — grants access to all records in a collection (e.g. all of `app.bsky.feed.post`)
-- **Record-level** — grants access to a single record, identified by collection + rkey
-
-A collection-level grant is strictly broader. Adding a collection-level grant automatically removes any redundant record-level allows for the same grantee.
-
-## Allow and deny
-
-Each permission has an effect: `allow` or `deny`.
-
-- **Allow** — the grantee can read the record(s)
-- **Deny** — the grantee cannot read the record, even if they have a broader allow
-
-Deny is used when you want to exclude a specific record from a collection-level grant. For example, granting a clique access to a collection but blocking one record: Habitat stores a deny for that record for the clique. If that collection grant is later removed, the deny is cleaned up automatically.
-
-## Precedence rules
-
-When multiple permissions apply to a request:
-
-1. More specific permissions take priority (record-level beats collection-level)
-2. Deny beats allow at the same specificity level
-3. The record owner always has access, regardless of permissions
 
 ## Default behavior
 
@@ -50,7 +28,7 @@ Access is **denied by default**. A record is only readable by someone other than
 
 ## API
 
-Permissions are managed through these endpoints:
+Permissions are managed through these endpoints and the [clique](/specs/cliques.mdx) APIs:
 
 - `POST /xrpc/network.habitat.addPermission` — grant access to a collection or record
 - `POST /xrpc/network.habitat.removePermission` — revoke access (adds a deny if a broader grant exists)
