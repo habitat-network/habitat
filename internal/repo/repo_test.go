@@ -95,50 +95,16 @@ func TestRepoListRecords(t *testing.T) {
 				Owner:      "my-did",
 				Collection: "network.habitat.collection-1",
 				Rkey:       "key-1",
-				Effect:     "allow",
 			},
 			{
 				Owner:      "my-did",
 				Collection: "network.habitat.collection-1",
 				Rkey:       "key-2",
-				Effect:     "allow",
 			},
 		},
 	)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
-
-	records, err = repo.ListRecords(
-		ctx,
-		[]permissions.Permission{
-			{
-				Owner:      "my-did",
-				Collection: "network.habitat.collection-1",
-				Effect:     "allow",
-			},
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, records, 2)
-
-	records, err = repo.ListRecords(
-		ctx,
-		[]permissions.Permission{
-			{
-				Owner:      "my-did",
-				Collection: "network.habitat.collection-1",
-				Effect:     "allow",
-			},
-			{
-				Owner:      "my-did",
-				Collection: "network.habitat.collection-1",
-				Rkey:       "key-1",
-				Effect:     "deny",
-			},
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, records, 1)
 }
 
 func TestRepoListCollections(t *testing.T) {

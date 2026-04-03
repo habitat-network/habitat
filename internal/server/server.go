@@ -470,12 +470,8 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	output.Permissions = []habitat.NetworkHabitatPermissionsListPermissionsPermission{}
 	for _, p := range perms {
 		// Only display allows
-		if p.Effect == permissions.Deny {
-			continue
-		}
 		output.Permissions = append(output.Permissions, habitat.NetworkHabitatPermissionsListPermissionsPermission{
 			Collection: p.Collection.String(),
-			Effect:     string(p.Effect),
 			Grantee:    p.Grantee.String(),
 			Rkey:       p.Rkey.String(),
 		})
