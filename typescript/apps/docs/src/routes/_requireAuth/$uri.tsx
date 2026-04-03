@@ -2,7 +2,7 @@ import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createLibp2p, Libp2p } from "libp2p";
 import { webSockets } from "@libp2p/websockets";
 import { circuitRelayTransport } from "@libp2p/circuit-relay-v2";
@@ -234,7 +234,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     }, [dialRelayAndStartPeerDiscovery]);
 
     const [dirty, setDirty] = useState(false);
-    const savedNameRef = useRef(doc.value.name);
+    let savedNameRef = doc.value.name;
     const { data: editorProfiles } = useQuery(
       editorProfilesQueryOptions(doc.value.editorClique, authManager),
     );
@@ -261,13 +261,13 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           },
           { authManager },
         );
-        return { name: heading ?? savedNameRef.current ?? "Untitled" };
+        return { name: heading ?? savedNameRef ?? "Untitled" };
       },
 
       onSuccess: ({ name }) => {
         setDirty(false);
-        if (name !== savedNameRef.current) {
-          savedNameRef.current = name;
+        if (name !== savedNameRef) {
+          savedNameRef = name;
           queryClient.invalidateQueries(docsListQueryOptions(authManager));
         }
       },
