@@ -360,7 +360,6 @@ func (s *store) ResolvePermissionsForCollection(ctx context.Context, grantee syn
 		}
 		// If this did is not a member of the clique, ignore this permission
 	}
-
 	return relevant, nil
 }
 
@@ -433,7 +432,7 @@ func (s *store) listPermissions(
 	for i, p := range queried {
 		grantee, err := ParseGranteeFromString(p.Grantee)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing found grantee in db: %s", grantee)
+			return nil, fmt.Errorf("error parsing found grantee in db: %s: %w", grantee, err)
 		}
 		permissions[i] = Permission{
 			Owner:      syntax.DID(p.Owner),
