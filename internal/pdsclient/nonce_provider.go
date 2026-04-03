@@ -16,7 +16,7 @@ var _ DpopNonceProvider = (*MemoryNonceProvider)(nil)
 func (n *MemoryNonceProvider) GetDpopNonce() (string, bool, error) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	return n.nonce, true, nil
+	return n.nonce, n.nonce != "", nil
 }
 
 // SetDpopNonce stores a new DPoP nonce value.
