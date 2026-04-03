@@ -10,7 +10,7 @@ interface AuthInfo {
   did: string;
   accessToken: string;
   refreshToken: string | undefined;
-  expiresAt: number;
+  expiresAt: number; // epoch seconds
 }
 
 export class AuthManager {
@@ -108,11 +108,30 @@ export class AuthManager {
       authInfo.expiresAt < Date.now() / 1000 + 5 * 60
     ) {
       if (!this.refreshPromise) {
-        this.refreshPromise = client
-          .refreshTokenGrant(this.config, authInfo.refreshToken)
-          .then((token) => {
-            this.setAuthState(token);
+        // Use the Web Locks API to serialize refresh across tabs: only one tab
+        // acquires the lock and performs the refresh; others wait, then re-read
+        // the fresh token written to localStorage by the winner.
+        this.refreshPromise = navigator.locks
+          .request("habitat-token-refresh", async () => {
+            // Re-read after acquiring the lock — another tab may have already
+            // refreshed while we were waiting.
+            const currentInfo = this.store.getState().authInfo;
+            if (
+              !currentInfo?.refreshToken ||
+              currentInfo.expiresAt >= Date.now() / 1000 + 5 * 60
+            ) {
+              return; // Token is already fresh; nothing to do.
+            }
+            const token = await client.refreshTokenGrant(
+              this.config,
+              currentInfo.refreshToken,
+            );
+            // Only write back if the user hasn't logged out in the meantime.
+            if (this.store.getState().authInfo) {
+              this.setAuthState(token);
+            }
           })
+          .then(() => { })
           .finally(() => {
             this.refreshPromise = undefined;
           });
@@ -120,7 +139,12 @@ export class AuthManager {
       try {
         await this.refreshPromise;
       } catch {
-        return this.handleUnauthenticated();
+        // Safety net: if the refresh still failed (e.g. lock unavailable),
+        // check whether another tab wrote a valid token before giving up.
+        const freshInfo = this.store.getState().authInfo;
+        if (!freshInfo || freshInfo.expiresAt <= Date.now() / 1000) {
+          return this.handleUnauthenticated();
+        }
       }
       // get the refreshed authInfo
       authInfo = this.store.getState().authInfo;
