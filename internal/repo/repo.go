@@ -282,7 +282,8 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 	// Start with base query filtering by did and collection
 	query := r.db
 
-	var allowQuery *gorm.DB
+	allowQuery := query
+	allows := 0
 	for _, perm := range perms {
 		if perm.Effect == permissions.Allow {
 			grantQuery := r.db.Where("did = ?", perm.Owner)
@@ -293,12 +294,8 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 				// if rkey is not empty
 				grantQuery = grantQuery.Where("rkey = ?", perm.Rkey)
 			}
-			// build up allow `OR`s
-			if allowQuery == nil {
-				allowQuery = grantQuery
-			} else {
-				allowQuery = allowQuery.Or(grantQuery)
-			}
+			allowQuery = allowQuery.Or(grantQuery)
+			allows++
 		} else {
 			// build up deny `NOT`s
 			query = query.Not(
@@ -306,7 +303,7 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 			)
 		}
 	}
-	if allowQuery != nil {
+	if allows > 0 {
 		query = query.Where(allowQuery)
 	} else {
 		return []Record{}, nil
