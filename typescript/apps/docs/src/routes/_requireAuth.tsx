@@ -1,8 +1,8 @@
-import { procedure, TypedRecord } from "internal";
+import { Actor, procedure, TypedRecord, UserAvatar } from "internal";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { deleteDocMutationOptions, docsListQueryOptions } from "@/queries/docs";
-import { profileQueryOptions } from "@/queries/profile";
+import { profileQueryOptions, profilesQueryOptions } from "@/queries/profile";
 import {
   createFileRoute,
   Link,
@@ -30,6 +30,7 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
+import { useMemo } from "react";
 import { HabitatDoc } from "@/habitatDoc";
 
 export const Route = createFileRoute("/_requireAuth")({
@@ -51,8 +52,26 @@ export const Route = createFileRoute("/_requireAuth")({
     const { profile, did } = Route.useLoaderData();
     const { authManager, queryClient } = Route.useRouteContext();
     const { data: docsData } = useQuery(docsListQueryOptions(authManager));
-    const userDocs = docsData?.records.filter((d) => d.uri.includes(did)) ?? [];
-    const sharedDocs = docsData?.records.filter((d) => !d.uri.includes(did)) ?? [];
+    const userDocs = useMemo(
+      () => docsData?.records.filter((d) => d.uri.includes(did)) ?? [],
+      [docsData, did],
+    );
+    const sharedDocs = useMemo(
+      () => docsData?.records.filter((d) => !d.uri.includes(did)) ?? [],
+      [docsData, did],
+    );
+    const ownerDids = useMemo(
+      () => [...new Set(sharedDocs.map((d) => d.uri.split("/")[2]))],
+      [sharedDocs],
+    );
+    const { data: ownerProfilesList } = useQuery({
+      ...profilesQueryOptions(ownerDids, authManager),
+      enabled: ownerDids.length > 0,
+    });
+    const ownerProfileMap = useMemo(
+      () => Object.fromEntries((ownerProfilesList ?? []).map((p) => [p.did, p])),
+      [ownerProfilesList],
+    );
     const router = useRouter();
     const navigate = Route.useNavigate();
 
@@ -163,6 +182,7 @@ export const Route = createFileRoute("/_requireAuth")({
                         isActive={currentUri === doc.uri}
                         onDelete={(uri) => deleteDoc({ uri })}
                         isDeleting={isDeleting}
+                        ownerProfile={ownerProfileMap[doc.uri.split("/")[2]]}
                       />
                     ))}
                   </SidebarMenu>
@@ -183,11 +203,13 @@ const DocItem = ({
   isActive,
   onDelete,
   isDeleting,
+  ownerProfile,
 }: {
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
   onDelete: (uri: string) => void;
   isDeleting: boolean;
+  ownerProfile?: Actor;
 }) => {
   const docName =
     !doc.value.name || doc.value.name === "Untitled"
@@ -205,7 +227,7 @@ const DocItem = ({
           />
         }
       >
-        <FileTextIcon />
+        {ownerProfile ? <UserAvatar actor={ownerProfile} size="sm" /> : <FileTextIcon />}
         <span>{docName}</span>
       </SidebarMenuButton>
       <Dialog>

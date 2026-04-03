@@ -35,6 +35,7 @@ import {
   procedure,
 } from "internal";
 import {
+  AvatarGroup,
   Button,
   Popover,
   PopoverContent,
@@ -42,6 +43,7 @@ import {
   PopoverTrigger,
   Spinner,
 } from "internal/components/ui";
+import { UserAvatar } from "internal";
 import { HelpDialog } from "@/components/HelpDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { CheckIcon } from "lucide-react";
@@ -322,23 +324,45 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
         <PageHeader>
-          <Popover>
-            <PopoverTrigger
-              render={
-                <Button size="icon" variant="outline">
-                  {dirty ? <Spinner /> : <CheckIcon />}
-                </Button>
-              }
-            />
-            <PopoverContent>
-              <PopoverTitle>Sync status</PopoverTitle>
-              <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
-              <PopoverTitle>Peer info</PopoverTitle>
-              <span className="break-all">
-                Node id: {node.peerId.toString()}
-              </span>
-            </PopoverContent>
-          </Popover>
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button size="icon" variant="outline">
+                    {dirty ? <Spinner /> : <CheckIcon />}
+                  </Button>
+                }
+              />
+              <PopoverContent>
+                <PopoverTitle>Sync status</PopoverTitle>
+                <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
+                <PopoverTitle>Peer info</PopoverTitle>
+                <span className="break-all">
+                  Node id: {node.peerId.toString()}
+                </span>
+              </PopoverContent>
+            </Popover>
+            {editorProfiles && editorProfiles.length > 0 && (
+              <div className="flex items-center gap-1">
+                {editorProfiles.find((p) => p.did === docDID) && (
+                  <UserAvatar
+                    actor={editorProfiles.find((p) => p.did === docDID)!}
+                    size="sm"
+                    className="ring-2 ring-foreground"
+                  />
+                )}
+                {editorProfiles.filter((p) => p.did !== docDID).length > 0 && (
+                  <AvatarGroup>
+                    {editorProfiles
+                      .filter((p) => p.did !== docDID)
+                      .map((p) => (
+                        <UserAvatar key={p.did} actor={p} size="sm" />
+                      ))}
+                  </AvatarGroup>
+                )}
+              </div>
+            )}
+          </div>
           <HelpDialog />
 
           {docDID === authManager.getAuthInfo()?.did &&
