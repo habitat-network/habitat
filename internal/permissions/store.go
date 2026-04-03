@@ -110,8 +110,6 @@ func NewStore(db *gorm.DB, cliqueStore clique.Store) (*store, error) {
 	if db.Migrator().HasColumn(&permission{}, "effect") {
 		if err := db.Migrator().DropColumn(&permission{}, "effect"); err != nil {
 			return nil, fmt.Errorf("failed to drop effect column: %w", err)
-		} else {
-			fmt.Println("dropped effect column")
 		}
 	}
 
@@ -271,7 +269,7 @@ func (s *store) RemovePermissions(
 // Returns all permissions which have the given grantee for records part of collection and owned by owners
 func (s *store) ListGranteePermissions(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
 	// Direct permission grants
-	direct, err := s.listPermissions([]Grantee{DIDGrantee(grantee)}, owners, collection, "*")
+	direct, err := s.listPermissions([]Grantee{DIDGrantee(grantee)}, owners, collection, "")
 	if err != nil {
 		return nil, err
 	}
@@ -286,12 +284,16 @@ func (s *store) ListGranteePermissions(ctx context.Context, grantee syntax.DID, 
 		return Grantee(c)
 	})
 
-	indirect, err := s.listPermissions(cliqueGrantees, owners, collection, "*")
-	if err != nil {
-		return nil, err
+	var indirect []Permission
+	if len(cliqueGrantees) > 0 {
+		indirect, err = s.listPermissions(cliqueGrantees, owners, collection, "")
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return append(direct, indirect...), nil
+	perms := append(direct, indirect...)
+	return perms, nil
 }
 
 // ListPermissionGrants implements Store.
@@ -338,8 +340,7 @@ func (s *store) listPermissions(
 		query = query.Where("collection = ?", collection)
 	}
 	if rkey != "" {
-		// permissions with empty rkeys grant the entire collection
-		query = query.Where("rkey = ? OR rkey = ''", rkey)
+		query = query.Where("rkey = ?", rkey)
 	}
 
 	if err := query.Find(&queried).Error; err != nil {
