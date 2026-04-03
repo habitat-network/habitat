@@ -115,6 +115,22 @@ export const docEditsQueryOptions = (
     },
   });
 
+export const deleteDocMutationOptions = (authManager: AuthManager) =>
+  mutationOptions({
+    mutationFn: async ({ uri }: { uri: string }) => {
+      const [, , repo, , rkey] = uri.split("/");
+      await procedure(
+        "network.habitat.repo.deleteRecord",
+        {
+          repo,
+          collection: "network.habitat.docs",
+          rkey,
+        },
+        { authManager },
+      );
+    },
+  });
+
 export const addPermissionMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
     mutationFn: async (

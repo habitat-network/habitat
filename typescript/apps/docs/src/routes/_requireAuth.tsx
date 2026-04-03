@@ -1,7 +1,7 @@
 import { procedure, TypedRecord } from "internal";
 
 import { useMutation } from "@tanstack/react-query";
-import { docsListQueryOptions } from "@/queries/docs";
+import { deleteDocMutationOptions, docsListQueryOptions } from "@/queries/docs";
 import { profileQueryOptions } from "@/queries/profile";
 import {
   createFileRoute,
@@ -13,14 +13,23 @@ import {
 } from "@tanstack/react-router";
 import {
   AppLayout,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuItem,
   SidebarMenuButton,
 } from "internal";
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { HabitatDoc } from "@/habitatDoc";
 
 export const Route = createFileRoute("/_requireAuth")({
@@ -52,6 +61,17 @@ export const Route = createFileRoute("/_requireAuth")({
       select: (state) =>
         state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
           .uri,
+    });
+
+    const { mutate: deleteDoc, isPending: isDeleting } = useMutation({
+      ...deleteDocMutationOptions(authManager),
+      onSuccess: (_, { uri }) => {
+        queryClient.invalidateQueries(docsListQueryOptions(authManager));
+        router.invalidate();
+        if (currentUri === uri) {
+          navigate({ to: "/" });
+        }
+      },
     });
 
     const { mutate: create, isPending } = useMutation({
@@ -124,6 +144,8 @@ export const Route = createFileRoute("/_requireAuth")({
                         key={doc.uri}
                         doc={doc}
                         isActive={currentUri === doc.uri}
+                        onDelete={(uri) => deleteDoc({ uri })}
+                        isDeleting={isDeleting}
                       />
                     ))}
                   </SidebarMenu>
@@ -140,6 +162,8 @@ export const Route = createFileRoute("/_requireAuth")({
                         key={doc.uri}
                         doc={doc}
                         isActive={currentUri === doc.uri}
+                        onDelete={(uri) => deleteDoc({ uri })}
+                        isDeleting={isDeleting}
                       />
                     ))}
                   </SidebarMenu>
@@ -158,10 +182,19 @@ export const Route = createFileRoute("/_requireAuth")({
 const DocItem = ({
   doc,
   isActive,
+  onDelete,
+  isDeleting,
 }: {
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
+  onDelete: (uri: string) => void;
+  isDeleting: boolean;
 }) => {
+  const docName =
+    !doc.value.name || doc.value.name === "Untitled"
+      ? `Untitled (${doc.uri.split("/")[4]})`
+      : doc.value.name;
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -174,12 +207,38 @@ const DocItem = ({
         }
       >
         <FileTextIcon />
-        <span>
-          {!doc.value.name || doc.value.name === "Untitled"
-            ? `Untitled (${doc.uri.split("/")[4]})`
-            : doc.value.name}
-        </span>
+        <span>{docName}</span>
       </SidebarMenuButton>
+      <Dialog>
+        <DialogTrigger
+          render={
+            <SidebarMenuAction
+              showOnHover
+              aria-label={`Delete ${docName}`}
+            />
+          }
+        >
+          <XIcon />
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete document?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{docName}&quot;? This
+              action is irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter showCloseButton>
+            <Button
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={() => onDelete(doc.uri)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarMenuItem>
   );
 };
