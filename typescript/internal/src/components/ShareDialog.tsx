@@ -45,17 +45,20 @@ const ShareDialog = ({
         </Button>
         {grantees.map((g) => {
           return (
-            <div key={g.handle} className="flex items-center gap-2">
-              <UserItem actor={g} className="flex-1" />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${g.handle}`}
-                onClick={() => onRemovePermission(g)}
-              >
-                <XIcon />
-              </Button>
-            </div>
+            <UserItem
+              key={g.handle}
+              actor={g}
+              actions={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove ${g.handle}`}
+                  onClick={() => onRemovePermission(g)}
+                >
+                  <XIcon />
+                </Button>
+              }
+            />
           );
         })}
       </DialogContent>
