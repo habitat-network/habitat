@@ -116,12 +116,10 @@ func NewStore(db *gorm.DB, cliqueStore clique.Store) (*store, error) {
 	}
 
 	// Delete collection-level grants (rkey = "") — these are unsupported
-	/*
-		err = db.Where("rkey = ?", "").Delete(&permission{}).Error
-		if err != nil {
-			return nil, fmt.Errorf("failed to delete collection-level permissions: %w", err)
-		}
-	*/
+	err = db.Where("rkey = ?", "").Delete(&permission{}).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete collection-level permissions: %w", err)
+	}
 
 	return &store{db: db, cliqueStore: cliqueStore}, nil
 }
