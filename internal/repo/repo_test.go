@@ -216,6 +216,53 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }
 
+func TestListRecords(t *testing.T) {
+	ctx := t.Context()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	did := "did:plc:testuser"
+	coll1 := "network.habitat.alpha"
+	coll2 := "network.habitat.beta"
+
+	for _, rec := range []Record{
+		{Did: did, Collection: coll1, Rkey: "key-1", Value: map[string]any{"x": "1"}},
+		{Did: did, Collection: coll1, Rkey: "key-2", Value: map[string]any{"x": "2"}},
+		{Did: did, Collection: coll2, Rkey: "key-1", Value: map[string]any{"x": "3"}},
+	} {
+		_, err = repo.PutRecord(ctx, rec, nil)
+		require.NoError(t, err)
+	}
+
+	// Returns only records in the specified collection
+	records, err := repo.ListRecords(ctx, did, coll1)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	for _, r := range records {
+		require.Equal(t, did, r.Did)
+		require.Equal(t, coll1, r.Collection)
+	}
+
+	// Returns records for the other collection
+	records, err = repo.ListRecords(ctx, did, coll2)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, "key-1", records[0].Rkey)
+
+	// Returns empty for a non-existent collection
+	records, err = repo.ListRecords(ctx, did, "network.habitat.nonexistent")
+	require.NoError(t, err)
+	require.Empty(t, records)
+
+	// Returns empty for a different DID
+	records, err = repo.ListRecords(ctx, "did:plc:other", coll1)
+	require.NoError(t, err)
+	require.Empty(t, records)
+}
+
 func TestDeleteRecord(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
