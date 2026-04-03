@@ -84,11 +84,11 @@ func TestRepoListRecords(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	records, err := repo.ListRecords(ctx, nil)
+	records, err := repo.ListRecordsFromPermissions(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
 
-	records, err = repo.ListRecords(
+	records, err = repo.ListRecordsFromPermissions(
 		ctx,
 		[]permissions.Permission{
 			{

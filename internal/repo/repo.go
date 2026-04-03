@@ -28,7 +28,8 @@ type Repo interface {
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
-	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
+	ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error)
+	ListRecords(ctx context.Context, did string, collection string) ([]Record, error)
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
@@ -271,15 +272,38 @@ func (r *repo) GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID)
 	}), nil
 }
 
+func rowsToRecords(rows []record) ([]Record, error) {
+	records := make([]Record, len(rows))
+	for i, row := range rows {
+
+		var value map[string]any
+		err := json.Unmarshal(row.Value, &value)
+		if err != nil {
+			return nil, err
+		}
+
+		r := Record{
+			Did:        row.Did,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Value:      value,
+		}
+
+		records[i] = r
+	}
+	return records, nil
+}
+
 // listRecords implements repo.
 // perms should not include redundant permissions ie
 // if grantee has permission to the collection, perms should not include permissions to specific records in that collection
-func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error) {
+func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error) {
 	if len(perms) == 0 {
 		return []Record{}, nil
 	}
 
 	// Start with base query filtering by did and collection
+	// TODO: simplify this to make it readable
 	query := r.db
 
 	allowQuery := r.db
@@ -306,26 +330,17 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	records := make([]Record, len(rows))
-	for i, row := range rows {
+	return rowsToRecords(rows)
+}
 
-		var value map[string]any
-		err := json.Unmarshal(row.Value, &value)
-		if err != nil {
-			return nil, err
-		}
-
-		r := Record{
-			Did:        row.Did,
-			Collection: row.Collection,
-			Rkey:       row.Rkey,
-			Value:      value,
-		}
-
-		records[i] = r
+func (r *repo) ListRecords(ctx context.Context, did string, collection string) ([]Record, error) {
+	// Execute query
+	var rows []record
+	if err := r.db.Where("did = ?", did).Where("collection = ?", collection).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return records, nil
+	return rowsToRecords(rows)
 }
 
 // Ugly: hack to support SQLITE and Postgres
