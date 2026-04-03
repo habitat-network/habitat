@@ -20,6 +20,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
@@ -29,7 +30,6 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
-import { useState } from "react";
 import { HabitatDoc } from "@/habitatDoc";
 
 export const Route = createFileRoute("/_requireAuth")({
@@ -190,7 +190,6 @@ const DocItem = ({
   onDelete: (uri: string) => void;
   isDeleting: boolean;
 }) => {
-  const [open, setOpen] = useState(false);
   const docName =
     !doc.value.name || doc.value.name === "Untitled"
       ? `Untitled (${doc.uri.split("/")[4]})`
@@ -210,14 +209,17 @@ const DocItem = ({
         <FileTextIcon />
         <span>{docName}</span>
       </SidebarMenuButton>
-      <SidebarMenuAction
-        showOnHover
-        onClick={() => setOpen(true)}
-        aria-label={`Delete ${docName}`}
-      >
-        <XIcon />
-      </SidebarMenuAction>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog>
+        <DialogTrigger
+          render={
+            <SidebarMenuAction
+              showOnHover
+              aria-label={`Delete ${docName}`}
+            />
+          }
+        >
+          <XIcon />
+        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete document?</DialogTitle>
@@ -230,10 +232,7 @@ const DocItem = ({
             <Button
               variant="destructive"
               disabled={isDeleting}
-              onClick={() => {
-                onDelete(doc.uri);
-                setOpen(false);
-              }}
+              onClick={() => onDelete(doc.uri)}
             >
               Delete
             </Button>
