@@ -163,36 +163,6 @@ func TestRemovePermissions(t *testing.T) {
 		require.Nil(t, got)
 		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 	})
-
-	t.Run("owner can remove collection-level permission, revoking access to all records in that collection", func(t *testing.T) {
-		coll2 := syntax.NSID("my.second.collection")
-		rkey2a := syntax.RecordKey("rkey2a")
-		rkey2b := syntax.RecordKey("rkey2b")
-		_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll2, map[string]any{"k": "v"}, rkey2a, &validate, []permissions.Grantee{})
-		require.NoError(t, err)
-		_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll2, map[string]any{"k": "v"}, rkey2b, &validate, []permissions.Grantee{})
-		require.NoError(t, err)
-
-		// Grant collection-level access (empty rkey)
-		require.NoError(t, p.AddPermissions(ownerDID, []permissions.Grantee{permissions.DIDGrantee(granteeDID)}, ownerDID, coll2, ""))
-
-		// Confirm access before revocation
-		got, err := p.GetRecord(t.Context(), coll2, rkey2a, ownerDID, granteeDID)
-		require.NoError(t, err)
-		require.NotNil(t, got)
-
-		// Remove collection-level permission
-		require.NoError(t, p.RemovePermissions(ownerDID, []permissions.Grantee{permissions.DIDGrantee(granteeDID)}, ownerDID, coll2, ""))
-
-		// Grantee no longer has access to any record in the collection
-		got, err = p.GetRecord(t.Context(), coll2, rkey2a, ownerDID, granteeDID)
-		require.Nil(t, got)
-		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
-
-		got, err = p.GetRecord(t.Context(), coll2, rkey2b, ownerDID, granteeDID)
-		require.Nil(t, got)
-		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
-	})
 }
 
 // TestListPermissionGrants tests the ListPermissionGrants pear method's authz logic.

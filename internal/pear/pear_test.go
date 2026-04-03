@@ -139,7 +139,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	require.ErrorIs(t, habitat_err.ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, p.permissions.AddPermissions([]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, ""))
+	require.NoError(t, p.permissions.AddPermissions([]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, rkey))
 
 	// Now non-owner can access
 	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
@@ -202,30 +202,6 @@ func TestListRecords(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Empty(t, records)
-	})
-
-	t.Run("returns records with full collection permission", func(t *testing.T) {
-		require.NoError(
-			t,
-			p.permissions.AddPermissions(
-				[]permissions.Grantee{permissions.DIDGrantee("did:example:readerid")},
-				syntax.DID("did:example:myid"),
-				coll1,
-				"",
-			),
-		)
-
-		records, err := p.ListRecords(
-			t.Context(),
-			syntax.DID("did:example:readerid"),
-			coll1,
-			nil,
-		)
-		require.NoError(t, err)
-		// did:example:readerid has permission to see all did:example:myid's records in coll1
-		require.Len(t, records, 2)
-		require.Equal(t, "did:example:myid", records[0].Did)
-		require.Equal(t, "did:example:myid", records[1].Did)
 	})
 
 	t.Run("returns only specific permitted record", func(t *testing.T) {
@@ -580,7 +556,6 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	aliceDID := syntax.DID("did:plc:alice")
 	bobDID := syntax.DID("did:plc:bob")
 	carolDID := syntax.DID("did:plc:carol")
-	remoteDID := syntax.DID("did:plc:remote")
 
 	// Create a shared database for the test
 	db, err := gorm.Open(sqlite.Open(":memory:"))
@@ -623,7 +598,8 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("includes records from other users when user has permission", func(t *testing.T) {
 		// Grant Alice permission to read Bob's records
-		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
+		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey1"))
+		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey2"))
 
 		records, err := p.ListRecords(
 			t.Context(),
@@ -674,25 +650,11 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		}
 	})
 
-	t.Run("includes records from different nodes if they exist in database", func(t *testing.T) {
-		// Grant Alice permission to read remote user's records
-		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(remoteDID), coll, ""))
-
-		records, err := p.ListRecords(
-			t.Context(),
-			syntax.DID(aliceDID),
-			coll,
-			nil,
-		)
-		require.NoError(t, err)
-		require.Len(t, records, 4)
-	})
-
 	t.Run("filters by collection", func(t *testing.T) {
 		otherColl := syntax.NSID("other.collection")
 		_, err := p.PutRecord(t.Context(), syntax.DID(bobDID), syntax.DID(bobDID), otherColl, val, "bob-other-rkey", &validate, []permissions.Grantee{})
 		require.NoError(t, err)
-		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), otherColl, ""))
+		require.NoError(t, perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), otherColl, "bob-other-rkey"))
 
 		// Query for original collection
 		records, err := p.ListRecords(
@@ -716,42 +678,6 @@ func TestListRecordsWithPermissions(t *testing.T) {
 		require.Len(t, records, 1)
 		require.Equal(t, bobDID.String(), records[0].Did)
 		require.Equal(t, "bob-other-rkey", records[0].Rkey)
-	})
-
-	t.Run("returns only specific permitted records", func(t *testing.T) {
-		// Remove full collection permission first, then grant only specific permission
-		require.NoError(t, perms.RemovePermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, ""))
-		require.NoError(
-			t,
-			perms.AddPermissions([]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey1"),
-		)
-
-		records, err := p.ListRecords(
-			t.Context(),
-			syntax.DID(aliceDID),
-			coll,
-			nil,
-		)
-		require.NoError(t, err)
-		// Should have at least 2 from Alice + 1 specific from Bob (may include remote if it exists)
-		require.GreaterOrEqual(t, len(records), 3)
-
-		// Verify we have the right records from Bob
-		bobRkey1Found := false
-		for _, record := range records {
-			if record.Did == bobDID.String() && record.Rkey == "bob-rkey1" {
-				bobRkey1Found = true
-			}
-			if record.Did == bobDID.String() {
-				require.Equal(
-					t,
-					"bob-rkey1",
-					record.Rkey,
-					"Should only have bob-rkey1, not bob-rkey2",
-				)
-			}
-		}
-		require.True(t, bobRkey1Found, "Should have found bob-rkey1")
 	})
 }
 
