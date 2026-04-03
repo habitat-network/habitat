@@ -52,8 +52,14 @@ export const Route = createFileRoute("/_requireAuth")({
     const { profile, did } = Route.useLoaderData();
     const { authManager, queryClient } = Route.useRouteContext();
     const { data: docsData } = useQuery(docsListQueryOptions(authManager));
-    const userDocs = docsData?.records.filter((d) => d.uri.includes(did)) ?? [];
-    const sharedDocs = docsData?.records.filter((d) => !d.uri.includes(did)) ?? [];
+    const userDocs = useMemo(
+      () => docsData?.records.filter((d) => d.uri.includes(did)) ?? [],
+      [docsData, did],
+    );
+    const sharedDocs = useMemo(
+      () => docsData?.records.filter((d) => !d.uri.includes(did)) ?? [],
+      [docsData, did],
+    );
     const ownerDids = useMemo(
       () => [...new Set(sharedDocs.map((d) => d.uri.split("/")[2]))],
       [sharedDocs],
