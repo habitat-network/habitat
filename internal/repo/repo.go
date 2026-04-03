@@ -284,23 +284,16 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 
 	allowQuery := r.db
 	for _, perm := range perms {
-		if perm.Effect == permissions.Allow {
-			grantQuery := r.db.Where("did = ?", perm.Owner)
-			if perm.Collection != "" {
-				grantQuery = grantQuery.Where("collection = ?", perm.Collection)
-			}
-			if perm.Rkey != "" {
-				// if rkey is not empty
-				grantQuery = grantQuery.Where("rkey = ?", perm.Rkey)
-			}
-			// build up allow `OR`s
-			allowQuery = allowQuery.Or(grantQuery)
-		} else {
-			// build up deny `NOT`s
-			query = query.Not(
-				r.db.Where("collection = ?", perm.Collection).Where("rkey = ?", perm.Rkey),
-			)
+		grantQuery := r.db.Where("did = ?", perm.Owner)
+		if perm.Collection != "" {
+			grantQuery = grantQuery.Where("collection = ?", perm.Collection)
 		}
+		if perm.Rkey != "" {
+			// if rkey is not empty
+			grantQuery = grantQuery.Where("rkey = ?", perm.Rkey)
+		}
+		// build up allow `OR`s
+		allowQuery = allowQuery.Or(grantQuery)
 	}
 	query = query.Where(allowQuery)
 
