@@ -23,6 +23,7 @@ import {
   addPermissionMutationOptions,
   docEditsQueryOptions,
   docQueryOptions,
+  docsListQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
 import {
@@ -69,7 +70,7 @@ async function startPeerDiscovery(
 
     const encoder = new TextEncoder();
     stream.sink(
-      (async function*() {
+      (async function* () {
         yield encoder.encode(
           JSON.stringify({
             topic: uri,
@@ -217,7 +218,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     } = Route.useLoaderData();
     const [, , docDID, , rkey] = uri.split("/");
 
-    const { authManager } = Route.useRouteContext();
+    const { authManager, queryClient } = Route.useRouteContext();
     useEffect(() => {
       async function handleVisibilityChange() {
         // When the page becomes visible again, reconnect to the relay and fetch any updates that may have happened since
@@ -233,6 +234,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     }, [dialRelayAndStartPeerDiscovery]);
 
     const [dirty, setDirty] = useState(false);
+    let savedNameRef = doc.value.name;
     const { data: editorProfiles } = useQuery(
       editorProfilesQueryOptions(doc.value.editorClique, authManager),
     );
@@ -259,9 +261,16 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           },
           { authManager },
         );
+        return { name: heading ?? savedNameRef ?? "Untitled" };
       },
 
-      onSuccess: () => setDirty(false),
+      onSuccess: ({ name }) => {
+        setDirty(false);
+        if (name !== savedNameRef) {
+          savedNameRef = name;
+          queryClient.invalidateQueries(docsListQueryOptions(authManager));
+        }
+      },
     });
     const { mutate: addPermission, isPending: isAddingPermission } =
       useMutation(addPermissionMutationOptions(authManager));
