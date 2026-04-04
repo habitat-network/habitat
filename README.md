@@ -17,6 +17,8 @@ We use [moonrepo](https://moonrepo.dev/docs) to manage our monorepo. A crash cou
 
 `moon :dev` tasks read environment variables from `dev.env` which is gitignored.
 
+Add `HABITAT_PGURL=postgresql://habitat:habitat@localhost:5432/habitat` to your dev.env in order to connect to postgres and not sqlite.
+
 ### Tailscale Funnel
 
 We use Tailscale Funnel to make local services reachable from the public internet. 

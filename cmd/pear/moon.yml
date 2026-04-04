@@ -13,6 +13,7 @@ tasks:
       HABITAT_SERVICE_NAME: "habitat_local"
       DEBUG: 'true'
     deps:
+    - target: infra:start
     - target: funnel:start
       args:
       - '8000'
