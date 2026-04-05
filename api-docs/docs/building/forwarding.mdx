@@ -25,8 +25,7 @@ Your app never directly authenticates with the PDS. Habitat holds encrypted PDS 
 
 Any `/xrpc/` path that is **not** a native Habitat endpoint is forwarded. Native Habitat endpoints include:
 
-- `network.habitat.*` — pear repo, permissions, cliques
-- `/oauth/*`, `/oauth-callback` — Habitat OAuth server
+- `/xrpc/network.habitat.*` — pear repo, permissions, cliques
 
 Everything else under `/xrpc/` is forwarded to the PDS. For example:
 - `com.atproto.repo.createRecord`

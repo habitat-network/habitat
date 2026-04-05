@@ -32,7 +32,7 @@ As an app developer, there are two ways to authenticate with Habitat, and which 
 
 ## Authentication method: Direct
 
-You can use an out-of-the box OAuth client to authenticate with Habitat's OAuth server. This authentication method is preferred if you are building a local-first or client-side only app. The OAuth flow will redirect the user to a Habitat consent screen before navigating back to your page once the auth flow has completed. See an example of how we do it [here](https://github.com/habitat-network/habitat/blob/297e32a8c3dbfd1b14b10ad5d9d0825a9b83ec53/typescript/internal/src/authManager.ts).
+You can use a standard OAuth client that supports PKCE to authenticate with Habitat's OAuth server. This authentication method is preferred if you are building a local-first or client-side only app. The OAuth flow will redirect the user to a Habitat consent screen before navigating back to your page once the auth flow has completed. See an example of how we do it [here](https://github.com/habitat-network/habitat/blob/297e32a8c3dbfd1b14b10ad5d9d0825a9b83ec53/typescript/internal/src/authManager.ts).
 
 ## Authentication method: Service Auth
 
