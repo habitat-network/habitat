@@ -1,0 +1,4 @@
+tasks:
+  start:
+    command: docker compose up
+    preset: server
