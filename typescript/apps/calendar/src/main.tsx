@@ -9,10 +9,16 @@ import {
 import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { reportWebVitals, AuthManager } from "internal";
+import { eventCollection } from "./collections/events";
 
-const authManager = new AuthManager("Habitat Calendar", __DOMAIN__, __HABITAT_DOMAIN__, () => {
-  router.navigate({ to: "/login" });
-});
+const authManager = new AuthManager(
+  "Habitat Calendar",
+  __DOMAIN__,
+  __HABITAT_DOMAIN__,
+  () => {
+    router.navigate({ to: "/login" });
+  },
+);
 const queryClient = new QueryClient();
 
 const domainUrl = new URL(`https://${__DOMAIN__}`);
@@ -23,6 +29,7 @@ const router = createRouter({
   context: {
     queryClient,
     authManager,
+    eventCollection: eventCollection(authManager, queryClient),
   },
   defaultPreload: "intent",
   scrollRestoration: true,

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
+import { Route as RequireAuthV2RouteImport } from './routes/_requireAuth/v2'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -27,27 +28,40 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthV2Route = RequireAuthV2RouteImport.update({
+  id: '/v2',
+  path: '/v2',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
+  '/v2': typeof RequireAuthV2Route
   '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/v2': typeof RequireAuthV2Route
   '/': typeof RequireAuthIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/_requireAuth/v2': typeof RequireAuthV2Route
   '/_requireAuth/': typeof RequireAuthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/login' | '/'
+  fullPaths: '/login' | '/v2' | '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/'
-  id: '__root__' | '/_requireAuth' | '/login' | '/_requireAuth/'
+  to: '/login' | '/v2' | '/'
+  id:
+    | '__root__'
+    | '/_requireAuth'
+    | '/login'
+    | '/_requireAuth/v2'
+    | '/_requireAuth/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,14 +92,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
+    '/_requireAuth/v2': {
+      id: '/_requireAuth/v2'
+      path: '/v2'
+      fullPath: '/v2'
+      preLoaderRoute: typeof RequireAuthV2RouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
   }
 }
 
 interface RequireAuthRouteChildren {
+  RequireAuthV2Route: typeof RequireAuthV2Route
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
+  RequireAuthV2Route: RequireAuthV2Route,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
 }
 
