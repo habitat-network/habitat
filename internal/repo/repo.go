@@ -307,7 +307,6 @@ func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissio
 	query := r.db
 
 	allowQuery := query
-	allows := 0
 	for _, perm := range perms {
 		grantQuery := r.db.Where("did = ?", perm.Owner)
 		if perm.Collection != "" {
@@ -320,11 +319,7 @@ func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissio
 		// build up allow `OR`s
 		allowQuery = allowQuery.Or(grantQuery)
 	}
-	if allows > 0 {
-		query = query.Where(allowQuery)
-	} else {
-		return []Record{}, nil
-	}
+	query = query.Where(allowQuery)
 
 	// Order by rkey for consistent pagination
 	query = query.Order("rkey ASC")
