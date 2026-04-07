@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -382,7 +383,7 @@ func (p *pear) listRecordsLocal(
 
 	// Exclude caller's own records from the permission-based query — those are fetched
 	// separately below, and a caller may have granted their own records to a clique they belong to.
-	otherPerms := xslices.Filter(perms, func(p permissions.Permission) bool {
+	otherPerms := slices.DeleteFunc(perms, func(p permissions.Permission) bool {
 		return p.Owner != caller
 	})
 
