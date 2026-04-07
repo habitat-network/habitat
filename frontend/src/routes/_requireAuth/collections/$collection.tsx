@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "internal/components/ui";
-import ReactJson from "react-json-view";
+import { RecordRenderer } from "@/components/RecordRenderer";
 
 export const Route = createFileRoute("/_requireAuth/collections/$collection")({
   async loader({ context, params }) {
@@ -56,8 +56,8 @@ function CollectionRecords() {
             <TableRow key={record.uri}>
               <TableCell>
                 <div className="flex flex-col gap-2">
-                  <span>{record.uri.split("/")[4]}</span>
-                  <ReactJson src={record.value} />
+                  <span className="text-xs text-muted-foreground">{record.uri.split("/")[4]}</span>
+                  <RecordRenderer record={record.value} lexicon={collection} />
                 </div>
               </TableCell>
               <TableCell className="flex justify-start">
