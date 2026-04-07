@@ -3,8 +3,30 @@ import ReactJson from "react-json-view";
 import { Badge } from "internal/components/ui";
 import { renderSchemaQueryOptions } from "@/queries/renderSchema";
 import type { FieldSchema } from "@/lib/renderSchemas";
+import { ExternalLinkIcon } from "lucide-react";
 
 const T = "network.habitat.render.schema";
+
+// Parse an AT URI (at://<did>/<nsid>/<rkey>) into its components.
+function parseAtUri(uri: string): { did: string; nsid: string; rkey: string } | null {
+  const parts = uri.split("/");
+  // ["at:", "", did, nsid, rkey]
+  if (parts.length < 5) return null;
+  return { did: parts[2], nsid: parts[3], rkey: parts[4] };
+}
+
+function expandLinkTemplate(template: string, uri: string): string | null {
+  const parsed = parseAtUri(uri);
+  if (!parsed) return null;
+  const encodedHabitatUri = encodeURIComponent(
+    `habitat://${parsed.did}/${parsed.nsid}/${parsed.rkey}`,
+  );
+  return template
+    .replace("{encodedHabitatUri}", encodedHabitatUri)
+    .replace("{did}", parsed.did)
+    .replace("{nsid}", parsed.nsid)
+    .replace("{rkey}", parsed.rkey);
+}
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, key) => {
@@ -79,9 +101,11 @@ function FieldValue({ field, value }: { field: FieldSchema; value: unknown }) {
 function SchemaRenderer({
   record,
   fields,
+  linkHref,
 }: {
   record: Record<string, unknown>;
   fields: FieldSchema[];
+  linkHref?: string;
 }) {
   const primary = fields.filter((f) => f.priority === `${T}#primary`);
   const secondary = fields.filter((f) => f.priority === `${T}#secondary`);
@@ -114,11 +138,24 @@ function SchemaRenderer({
 
   return (
     <div className="flex flex-col gap-1">
-      {primary.map((f) => (
-        <div key={f.path} className="font-medium">
-          {renderField(f)}
-        </div>
-      ))}
+      <div className="flex items-center gap-2">
+        {primary.map((f) => (
+          <div key={f.path} className="font-medium">
+            {renderField(f)}
+          </div>
+        ))}
+        {linkHref && (
+          <a
+            href={linkHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Open record"
+          >
+            <ExternalLinkIcon size={14} />
+          </a>
+        )}
+      </div>
       {secondary.length > 0 && (
         <div className="flex flex-col gap-1 text-sm">
           {secondary.map(renderLabeledField)}
@@ -136,9 +173,11 @@ function SchemaRenderer({
 export function RecordRenderer({
   record,
   lexicon,
+  uri,
 }: {
   record: Record<string, unknown>;
   lexicon: string;
+  uri?: string;
 }) {
   const { data: schema, isLoading } = useQuery(
     renderSchemaQueryOptions(lexicon),
@@ -152,5 +191,12 @@ export function RecordRenderer({
     return <ReactJson src={record} />;
   }
 
-  return <SchemaRenderer record={record} fields={schema.fields} />;
+  const linkHref =
+    schema.linkTemplate && uri
+      ? expandLinkTemplate(schema.linkTemplate, uri) ?? undefined
+      : undefined;
+
+  return (
+    <SchemaRenderer record={record} fields={schema.fields} linkHref={linkHref} />
+  );
 }

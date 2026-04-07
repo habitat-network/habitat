@@ -1,9 +1,16 @@
 import type { NetworkHabitatRenderSchema } from "api";
 
-export type RenderSchema = NetworkHabitatRenderSchema.Main;
+// linkTemplate is a frontend-only extension — not part of the published lexicon.
+// Supports {did}, {nsid}, and {rkey} placeholders substituted from the record's AT URI.
+export type RenderSchema = NetworkHabitatRenderSchema.Main & {
+  linkTemplate?: string;
+};
 export type FieldSchema = NetworkHabitatRenderSchema.FieldSchema;
 
 const T = "network.habitat.render.schema";
+
+// TODO: make this less hard coded ?
+const docsBasePath = __HABITAT_DOMAIN__ === "habitat.network" ? "habitat.network/habitat/docs/#" : (__DOMAIN__).replace("frontend", "docs")
 
 export const RENDER_SCHEMA_REGISTRY: Record<string, RenderSchema> = {
   "community.lexicon.calendar.event": {
@@ -53,6 +60,7 @@ export const RENDER_SCHEMA_REGISTRY: Record<string, RenderSchema> = {
     $type: `${T}`,
     targetLexicon: "network.habitat.docs",
     title: "Document",
+    linkTemplate: `https://${docsBasePath}/{encodedHabitatUri}`,
     fields: [
       {
         path: "name",

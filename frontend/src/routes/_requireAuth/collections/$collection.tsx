@@ -57,7 +57,7 @@ function CollectionRecords() {
               <TableCell>
                 <div className="flex flex-col gap-2">
                   <span className="text-xs text-muted-foreground">{record.uri.split("/")[4]}</span>
-                  <RecordRenderer record={record.value} lexicon={collection} />
+                  <RecordRenderer record={record.value} lexicon={collection} uri={record.uri} />
                 </div>
               </TableCell>
               <TableCell className="flex justify-start">
