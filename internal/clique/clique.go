@@ -178,10 +178,7 @@ func (s *store) RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID
 		}
 	})
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		// If that passes, try creating the clique members (no-op if exists already)
-		return tx.Delete(&cliqueMembers).Error
-	})
+	return s.db.Delete(&cliqueMembers).Error
 }
 
 // Helper functions
