@@ -30,6 +30,8 @@ type Repo interface {
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
 	ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error)
 	ListRecords(ctx context.Context, did string, collection string) ([]Record, error)
+	SearchRecords(ctx context.Context, did string, collection string, query string) ([]Record, error)
+	SearchRecordsFromPermissions(ctx context.Context, perms []permissions.Permission, query string) ([]Record, error)
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
@@ -91,6 +93,23 @@ func NewRepo(db *gorm.DB) (*repo, error) {
 	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
 		return nil, err
 	}
+
+	// convert_from is not marked IMMUTABLE in PostgreSQL, so it can't be used directly
+	// in an index expression. Wrap it in an IMMUTABLE SQL function as the standard workaround.
+	const createFn = `
+		CREATE OR REPLACE FUNCTION bytea_to_text(val bytea) RETURNS text
+		LANGUAGE sql IMMUTABLE STRICT AS $$
+			SELECT convert_from(val, 'UTF8')
+		$$`
+	if err := db.Exec(createFn).Error; err != nil {
+		return nil, fmt.Errorf("failed to create bytea_to_text function: %w", err)
+	}
+
+	const ftsIndex = `CREATE INDEX IF NOT EXISTS records_value_fts_idx ON records USING GIN (to_tsvector('english', bytea_to_text(value)))`
+	if err := db.Exec(ftsIndex).Error; err != nil {
+		return nil, fmt.Errorf("failed to create FTS index: %w", err)
+	}
+
 	return &repo{
 		db: db,
 	}, nil
@@ -340,6 +359,46 @@ func (r *repo) ListRecords(ctx context.Context, did string, collection string) (
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
+	return rowsToRecords(rows)
+}
+
+func (r *repo) SearchRecords(ctx context.Context, did string, collection string, searchQuery string) ([]Record, error) {
+	q := r.db.Where("did = ?", did).
+		Where("to_tsvector('english', bytea_to_text(value)) @@ plainto_tsquery('english', ?)", searchQuery)
+	if collection != "" {
+		q = q.Where("collection = ?", collection)
+	}
+	var rows []record
+	if err := q.Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("search query failed: %w", err)
+	}
+	return rowsToRecords(rows)
+}
+
+func (r *repo) SearchRecordsFromPermissions(ctx context.Context, perms []permissions.Permission, searchQuery string) ([]Record, error) {
+	if len(perms) == 0 {
+		return []Record{}, nil
+	}
+
+	query := r.db.Where("to_tsvector('english', bytea_to_text(value)) @@ plainto_tsquery('english', ?)", searchQuery)
+
+	allowQuery := r.db
+	for _, perm := range perms {
+		grantQuery := r.db.Where("did = ?", perm.Owner)
+		if perm.Collection != "" {
+			grantQuery = grantQuery.Where("collection = ?", perm.Collection)
+		}
+		if perm.Rkey != "" {
+			grantQuery = grantQuery.Where("rkey = ?", perm.Rkey)
+		}
+		allowQuery = allowQuery.Or(grantQuery)
+	}
+	query = query.Where(allowQuery)
+
+	var rows []record
+	if err := query.Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("search query failed: %w", err)
+	}
 	return rowsToRecords(rows)
 }
 

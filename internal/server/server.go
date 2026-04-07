@@ -418,6 +418,72 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) SearchRecords(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	if !ok {
+		return
+	}
+
+	var params habitat.NetworkHabitatRepoSearchRecordsParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		utils.LogAndHTTPError(w, err, "parsing request params", http.StatusBadRequest)
+		return
+	}
+	if params.Query == "" {
+		utils.LogAndHTTPError(w, fmt.Errorf("query is required"), "missing query", http.StatusBadRequest)
+		return
+	}
+
+	dids := make([]syntax.DID, len(params.Subjects))
+	for i, subject := range params.Subjects {
+		atid, err := syntax.ParseAtIdentifier(subject)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, fmt.Sprintf("parsing subject as did or handle: %s", subject), http.StatusBadRequest)
+			return
+		}
+		id, err := s.dir.Lookup(r.Context(), atid)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "looking up atid", http.StatusBadRequest)
+			return
+		}
+		dids[i] = id.DID
+	}
+
+	var collection syntax.NSID
+	if params.Collection != "" {
+		var err error
+		collection, err = syntax.ParseNSID(params.Collection)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parsing collection", http.StatusBadRequest)
+			return
+		}
+	}
+
+	records, err := s.pear.SearchRecords(r.Context(), callerDID, params.Query, collection, dids)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "searching records", http.StatusInternalServerError)
+		return
+	}
+
+	output := &habitat.NetworkHabitatRepoSearchRecordsOutput{
+		Records: []habitat.NetworkHabitatRepoSearchRecordsRecord{},
+	}
+	for _, record := range records {
+		output.Records = append(output.Records, habitat.NetworkHabitatRepoSearchRecordsRecord{
+			Uri: fmt.Sprintf(
+				"habitat://%s/%s/%s",
+				record.Did,
+				record.Collection,
+				record.Rkey,
+			),
+			Value: record.Value,
+		})
+	}
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+	}
+}
+
 func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {

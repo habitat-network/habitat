@@ -44,6 +44,7 @@ import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRe
 import * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
+import * as NetworkHabitatRepoSearchRecords from './types/network/habitat/repo/searchRecords.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
 export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
@@ -81,6 +82,7 @@ export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRe
 export * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
+export * as NetworkHabitatRepoSearchRecords from './types/network/habitat/repo/searchRecords.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
 export const COMMUNITY_LEXICON_CALENDAR = {
@@ -845,6 +847,18 @@ export class NetworkHabitatRepoNS {
       'network.habitat.repo.putRecord',
       opts?.qp,
       data,
+      opts,
+    )
+  }
+
+  searchRecords(
+    params?: NetworkHabitatRepoSearchRecords.QueryParams,
+    opts?: NetworkHabitatRepoSearchRecords.CallOptions,
+  ): Promise<NetworkHabitatRepoSearchRecords.Response> {
+    return this._client.call(
+      'network.habitat.repo.searchRecords',
+      params,
+      undefined,
       opts,
     )
   }

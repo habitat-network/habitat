@@ -2014,6 +2014,134 @@
         }
       }
     },
+    "/network.habitat.repo.searchRecords": {
+      "get": {
+        "tags": [
+          "network.habitat.repo"
+        ],
+        "summary": "network.habitat.repo.searchRecords",
+        "description": "Full-text search over records the caller has permission to access.",
+        "operationId": "network.habitat.repo.searchRecords",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Full-text search query.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Full-text search query."
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "description": "Optional collection filter.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional collection filter.",
+              "format": "nsid"
+            }
+          },
+          {
+            "name": "subjects",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "DIDs of record owners to search within."
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "records"
+                  ],
+                  "properties": {
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.repo.searchRecords.record"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.repo.uploadBlob": {
       "post": {
         "tags": [
@@ -2423,6 +2551,20 @@
               ]
             }
           }
+        }
+      },
+      "network.habitat.repo.searchRecords.record": {
+        "type": "object",
+        "required": [
+          "uri",
+          "value"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "value": {}
         }
       }
     },

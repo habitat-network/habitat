@@ -15,6 +15,7 @@ import type {
   NetworkHabitatRepoGetRecord,
   NetworkHabitatRepoListCollections,
   NetworkHabitatRepoListRecords,
+  NetworkHabitatRepoSearchRecords,
   NetworkHabitatRepoPutRecord,
   NetworkHabitatPermissionsAddPermission,
   NetworkHabitatCliqueAddMembers,
@@ -72,6 +73,10 @@ type QueryEndpoints = {
   "network.habitat.repo.listCollections": Query<
     NetworkHabitatRepoListCollections.QueryParams,
     NetworkHabitatRepoListCollections.OutputSchema
+  >;
+  "network.habitat.repo.searchRecords": Query<
+    NetworkHabitatRepoSearchRecords.QueryParams,
+    NetworkHabitatRepoSearchRecords.OutputSchema
   >;
   "network.habitat.listConnectedApps": Query<
     NetworkHabitatListConnectedApps.QueryParams,
@@ -233,4 +238,17 @@ export const listPrivateRecords = async <T extends Record<string, unknown>>(
     { authManager },
   );
   return response as ListRecordsResponse<T>;
+};
+
+export const searchRecords = async (
+  authManager: AuthManager,
+  searchQuery: string,
+  collection?: string,
+  subjects?: string[],
+): Promise<NetworkHabitatRepoSearchRecords.OutputSchema> => {
+  return query(
+    "network.habitat.repo.searchRecords",
+    { query: searchQuery, collection, subjects },
+    { authManager },
+  );
 };

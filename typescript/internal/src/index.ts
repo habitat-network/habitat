@@ -38,6 +38,7 @@ export {
   castRecord,
   listPrivateRecords,
   getPrivateRecord,
+  searchRecords,
   XRPCError,
 } from "./habitatClient";
 export type { TypedRecord } from "./habitatClient";

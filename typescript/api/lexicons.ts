@@ -1767,6 +1767,68 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatRepoSearchRecords: {
+    lexicon: 1,
+    id: 'network.habitat.repo.searchRecords',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Full-text search over records the caller has permission to access.',
+        parameters: {
+          type: 'params',
+          required: ['query'],
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Full-text search query.',
+            },
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'Optional collection filter.',
+            },
+            subjects: {
+              type: 'array',
+              items: {
+                type: 'string',
+                description: 'DIDs of record owners to search within.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.repo.searchRecords#record',
+                },
+              },
+            },
+          },
+        },
+      },
+      record: {
+        type: 'object',
+        required: ['uri', 'value'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+          },
+          value: {
+            type: 'unknown',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatRepoUploadBlob: {
     lexicon: 1,
     id: 'network.habitat.repo.uploadBlob',
@@ -1869,5 +1931,6 @@ export const ids = {
   NetworkHabitatRepoListCollections: 'network.habitat.repo.listCollections',
   NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
+  NetworkHabitatRepoSearchRecords: 'network.habitat.repo.searchRecords',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
 } as const

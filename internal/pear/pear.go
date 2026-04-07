@@ -51,6 +51,7 @@ type Pear interface {
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
 	DeleteRecord(ctx context.Context, caller syntax.DID, target syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
+	SearchRecords(ctx context.Context, caller syntax.DID, query string, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error)
 	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
 	ListCollections(ctx context.Context, caller syntax.DID, subject syntax.DID) ([]CollectionMetadata, error)
@@ -437,6 +438,29 @@ func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection sy
 	*/
 
 	return localRecords, nil
+}
+
+func (p *pear) SearchRecords(ctx context.Context, caller syntax.DID, query string, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error) {
+	perms, err := p.permissions.ListGranteePermissions(ctx, caller, collection, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	otherPerms := xslices.Filter(perms, func(p permissions.Permission) bool {
+		return p.Owner != caller
+	})
+
+	permissioned, err := p.repo.SearchRecordsFromPermissions(ctx, otherPerms, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search permissioned records: %w", err)
+	}
+
+	owned, err := p.repo.SearchRecords(ctx, caller.String(), collection.String(), query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search own records: %w", err)
+	}
+
+	return append(permissioned, owned...), nil
 }
 
 type CollectionMetadata struct {
