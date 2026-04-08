@@ -125,3 +125,46 @@ func TestIsMember_False(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, isMember)
 }
+
+func TestGetCliquesForMember(t *testing.T) {
+	s := newTestStore(t)
+
+	clique1, err := s.CreateClique(owner, []syntax.DID{alice, bob})
+	require.NoError(t, err)
+
+	clique2, err := s.CreateClique(owner, []syntax.DID{alice})
+	require.NoError(t, err)
+
+	// bob is only in clique1
+	cliques, err := s.GetCliquesForMember(bob)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []habitat_syntax.Clique{clique1}, cliques)
+
+	// alice is in both cliques
+	cliques, err = s.GetCliquesForMember(alice)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []habitat_syntax.Clique{clique1, clique2}, cliques)
+}
+
+func TestGetCliquesForMemberEmtpy(t *testing.T) {
+	s := newTestStore(t)
+
+	_, err := s.CreateClique(owner, []syntax.DID{alice})
+	require.NoError(t, err)
+
+	cliques, err := s.GetCliquesForMember(bob)
+	require.NoError(t, err)
+	require.Empty(t, cliques)
+}
+
+func TestGetCliquesForMemberOwner(t *testing.T) {
+	s := newTestStore(t)
+
+	clique, err := s.CreateClique(owner, []syntax.DID{})
+	require.NoError(t, err)
+
+	// owner is always a member of their own cliques
+	cliques, err := s.GetCliquesForMember(owner)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []habitat_syntax.Clique{clique}, cliques)
+}

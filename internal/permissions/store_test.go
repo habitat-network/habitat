@@ -3,7 +3,6 @@ package permissions
 import (
 	"context"
 	"net/http"
-	"slices"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -51,45 +50,30 @@ func TestStoreBasicPermissions(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, HasPermission, "non-owner without permission should be denied")
 
-	// Test: Grant lexicon-level permission
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	// Test: Grant record-level permission
+	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
-	// Test: Bob should now have permission to all posts
+	// Test: Bob should now have permission to record1
 	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 	require.True(t, HasPermission, "bob should have permission after grant")
 
+	// Test: Bob should not have permission to other records
 	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record2")
 	require.NoError(t, err)
-	require.True(t, HasPermission, "bob should have permission to all records in the lexicon")
+	require.False(t, HasPermission, "bob should not have permission to other records")
 
-	// Test: Bob should not have permission to other lexicons
+	// Test: Bob should not have permission to other collections
 	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.likes", "record1")
 	require.NoError(t, err)
-	require.False(t, HasPermission, "bob should not have permission to other lexicons")
+	require.False(t, HasPermission, "bob should not have permission to other collections")
 
-	// Test: Remove permission for single record
+	// Test: Remove record-level permission
 	err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
 	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-	require.False(t, HasPermission, "bob should not have permission to record1 after removal")
-
-	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record2")
-	require.NoError(t, err)
-	require.True(t, HasPermission, "bob should have permission to record2")
-
-	// Test: Remove permission for whole collection
-	err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
-	require.NoError(t, err)
-
-	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-	require.False(t, HasPermission, "bob should not have permission after removal")
-
-	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record2")
 	require.NoError(t, err)
 	require.False(t, HasPermission, "bob should not have permission after removal")
 }
@@ -97,15 +81,15 @@ func TestStoreBasicPermissions(t *testing.T) {
 func TestStoreMultipleGrantees(t *testing.T) {
 	store := newTestStore(t)
 
-	// Grant permissions to multiple users
-	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob"), DIDGrantee("did:example:charlie")}, "did:example:alice", "network.habitat.posts", "")
+	// Grant permissions to multiple users for different records
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob"), DIDGrantee("did:example:charlie")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.likes", "")
+	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.likes", "record1")
 	require.NoError(t, err)
 
-	// List permissions by lexicon
-	permissions, err := store.listPermissions("", []syntax.DID{"did:example:alice"}, "", "")
+	// List permissions by owner
+	permissions, err := store.listPermissions([]Grantee{}, []syntax.DID{"did:example:alice"}, "", "")
 	require.NoError(t, err)
 	// Alice gave three permission grants
 	require.Len(t, permissions, 3)
@@ -114,64 +98,51 @@ func TestStoreMultipleGrantees(t *testing.T) {
 func TestStoreListByGrantee(t *testing.T) {
 	store := newTestStore(t)
 
-	// Grant bob access to network.habitat.posts
-	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	// Grant bob access to a specific record in network.habitat.posts
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
 	// List bob's permissions for network.habitat.posts
-	permissions, err := store.listPermissions("did:example:bob", nil, "network.habitat.posts", "")
-	slices.SortFunc(permissions, func(a, b Permission) int {
-		if a.Owner < b.Owner {
-			return -1
-		} else if a.Owner == b.Owner {
-			return 0
-		}
-		return 1
-	})
-	require.NoError(t, err)
-	require.Len(t, permissions, 2)
-	require.Equal(t, permissions[0].Owner.String(), "did:example:alice")
-	require.Equal(t, permissions[0].Grantee.String(), "did:example:bob")
-	require.Equal(t, permissions[0].Effect, Allow)
-	require.Equal(t, permissions[1].Owner.String(), "did:example:bob")
-	require.Equal(t, permissions[1].Grantee.String(), "did:example:bob")
-	require.Equal(t, permissions[1].Collection.String(), "network.habitat.posts")
-	require.Equal(t, permissions[1].Effect, Allow)
-
-	// Charlie has no permissions
-	permissions, err = store.listPermissions("did:example:charlie", nil, "network.habitat.posts", "")
+	permissions, err := store.listPermissions([]Grantee{DIDGrantee("did:example:bob")}, nil, "network.habitat.posts", "")
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
-	require.Equal(t, permissions[0].Owner.String(), "did:example:charlie")
-	require.Equal(t, permissions[0].Grantee.String(), "did:example:charlie")
-	require.Equal(t, permissions[0].Effect, Allow)
+	require.Equal(t, "did:example:alice", permissions[0].Owner.String())
+	require.Equal(t, "did:example:bob", permissions[0].Grantee.String())
+
+	// Charlie has no permissions
+	permissions, err = store.listPermissions([]Grantee{DIDGrantee("did:example:charlie")}, nil, "network.habitat.posts", "")
+	require.NoError(t, err)
+	require.Empty(t, permissions)
 }
 
-func TestStoreEmptyRecordKey(t *testing.T) {
+func TestStoreCollectionLevelNotSupported(t *testing.T) {
 	store := newTestStore(t)
 
-	// Grant permission
+	// AddPermissions with empty rkey should return ErrCollectionLevelNotSupported
 	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrCollectionLevelNotSupported)
 
-	// Check permission with empty record key (should check NSID-level permission)
-	HasPermission, err := store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "")
-	require.NoError(t, err)
-	require.True(t, HasPermission, "should have permission to NSID when record key is empty")
+	// RemovePermissions with empty rkey should return ErrCollectionLevelNotSupported
+	err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	require.ErrorIs(t, err, ErrCollectionLevelNotSupported)
+
+	// HasPermission with empty rkey should return ErrCollectionLevelNotSupported
+	_, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "")
+	require.ErrorIs(t, err, ErrCollectionLevelNotSupported)
 }
 
 func TestStoreMultipleOwners(t *testing.T) {
 	store := newTestStore(t)
 
-	// Grant bob access to alice's posts
-	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	// Grant bob access to alice's post
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
-	// Grant bob access to charlie's likes
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:charlie", "network.habitat.likes", "")
+	// Grant bob access to charlie's like
+	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:charlie", "network.habitat.likes", "record1")
 	require.NoError(t, err)
 
-	// Bob should have access to alice's posts
+	// Bob should have access to alice's post
 	HasPermission, err := store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 	require.True(t, HasPermission)
@@ -181,183 +152,44 @@ func TestStoreMultipleOwners(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, HasPermission)
 
-	// Bob should have access to charlie's likes
+	// Bob should have access to charlie's like
 	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:charlie", "network.habitat.likes", "record1")
 	require.NoError(t, err)
 	require.True(t, HasPermission)
 
 	// List alice's permissions
-	permissions, err := store.listPermissions("", []syntax.DID{"did:example:alice"}, "", "")
+	permissions, err := store.listPermissions([]Grantee{}, []syntax.DID{"did:example:alice"}, "", "")
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
-	require.Equal(t, Permission{Grantee: DIDGrantee("did:example:bob"), Owner: "did:example:alice", Collection: "network.habitat.posts", Rkey: "", Effect: Allow}, permissions[0])
+	require.Equal(t, Permission{Grantee: DIDGrantee("did:example:bob"), Owner: "did:example:alice", Collection: "network.habitat.posts", Rkey: "record1"}, permissions[0])
 
 	// List charlie's permissions
-	permissions, err = store.listPermissions("", []syntax.DID{"did:example:charlie"}, "", "")
+	permissions, err = store.listPermissions([]Grantee{}, []syntax.DID{"did:example:charlie"}, "", "")
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
-	require.Equal(t, Permission{Grantee: DIDGrantee("did:example:bob"), Owner: "did:example:charlie", Collection: "network.habitat.likes", Rkey: "", Effect: Allow}, permissions[0])
+	require.Equal(t, Permission{Grantee: DIDGrantee("did:example:bob"), Owner: "did:example:charlie", Collection: "network.habitat.likes", Rkey: "record1"}, permissions[0])
 }
 
-func TestStoreDenyOverridesAllow(t *testing.T) {
+func TestStoreRemovePermission(t *testing.T) {
 	store := newTestStore(t)
 
-	// Grant bob broad access to network.habitat
-	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
+
+	HasPermission, err := store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
+	require.NoError(t, err)
+	require.True(t, HasPermission)
 
 	err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 
-	// Bob should not have access to the denied post
-	HasPermission, err := store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
+	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
 	require.NoError(t, err)
 	require.False(t, HasPermission)
-
-	// Bob should have access to other posts
-	HasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record2")
-	require.NoError(t, err)
-	require.True(t, HasPermission)
 }
-
-/*
-func TestHasPermissionViaClique(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	// The node serves did:example:alice, making her clique a local clique.
-	n := &mockNode{servedDIDs: map[string]bool{"did:example:alice": true}}
-	store, err := NewStore(db)
-	require.NoError(t, err)
-
-	clique := CliqueGrantee("habitat://did:example:alice/network.habitat.clique/my-clique")
-
-	// Alice grants her clique access to her posts.
-	err = store.AddPermissions([]Grantee{clique}, "did:example:alice", "network.habitat.posts", "")
-	require.NoError(t, err)
-
-	// Bob is a member of Alice's clique.
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "my-clique")
-	require.NoError(t, err)
-
-	// Bob should have permission to Alice's posts via the clique.
-	hasPermission, err := store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-	require.True(t, hasPermission, "bob should have permission via clique membership")
-
-	// Charlie is not a member of the clique and should not have permission.
-	hasPermission, err = store.HasPermission(t.Context(), "did:example:charlie", "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-	require.False(t, hasPermission, "charlie should not have permission without clique membership")
-}
-
-
-func TestResolvePermissionsForCollection(t *testing.T) {
-	t.Run("direct permission", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-
-		store, err := NewStore(db)
-		require.NoError(t, err)
-
-		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
-		require.NoError(t, err)
-
-		perms, err := store.ResolvePermissionsForCollection(t.Context(), "did:example:bob", "network.habitat.posts", nil)
-		require.NoError(t, err)
-		// Should include alice's direct grant and bob's own self-permission
-		require.Len(t, perms, 2)
-		var alicePerm *Permission
-		for i := range perms {
-			if perms[i].Owner == "did:example:alice" {
-				alicePerm = &perms[i]
-			}
-		}
-		require.NotNil(t, alicePerm)
-		require.Equal(t, DIDGrantee("did:example:bob"), alicePerm.Grantee)
-		require.Equal(t, Allow, alicePerm.Effect)
-	})
-
-	t.Run("no external permissions returns only self", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-
-		store, err := NewStore(db)
-		require.NoError(t, err)
-
-		perms, err := store.ResolvePermissionsForCollection(t.Context(), "did:example:charlie", "network.habitat.posts", nil)
-		require.NoError(t, err)
-		require.Len(t, perms, 1)
-		require.Equal(t, DIDGrantee("did:example:charlie"), perms[0].Grantee)
-		require.Equal(t, syntax.DID("did:example:charlie"), perms[0].Owner)
-		require.Equal(t, Allow, perms[0].Effect)
-	})
-
-	t.Run("clique permission resolved for member", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-
-		// Node serves alice, so her clique is resolved locally
-		n := &mockNode{servedDIDs: map[string]bool{"did:example:alice": true}}
-		store, err := NewStore(db, n)
-		require.NoError(t, err)
-
-		clique := CliqueGrantee("habitat://did:example:alice/network.habitat.clique/friends")
-
-		// Alice grants her clique access to her posts
-		err = store.AddPermissions([]Grantee{clique}, "did:example:alice", "network.habitat.posts", "")
-		require.NoError(t, err)
-
-		// Bob is a member of Alice's clique
-		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "friends")
-		require.NoError(t, err)
-
-		perms, err := store.ResolvePermissionsForCollection(t.Context(), "did:example:bob", "network.habitat.posts", nil)
-		require.NoError(t, err)
-		// Should include: clique grant resolved to bob + bob's own self-permission
-		require.Len(t, perms, 2)
-		var alicePerm *Permission
-		for i := range perms {
-			if perms[i].Owner == "did:example:alice" {
-				alicePerm = &perms[i]
-			}
-		}
-		require.NotNil(t, alicePerm, "should include permission from alice resolved via clique")
-		require.Equal(t, DIDGrantee("did:example:bob"), alicePerm.Grantee, "clique grantee should be resolved to bob's DID")
-		require.Equal(t, Allow, alicePerm.Effect)
-	})
-
-	t.Run("clique permission excluded for non-member", func(t *testing.T) {
-		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-		require.NoError(t, err)
-
-		// Node serves alice, so her clique is resolved locally
-		n := &mockNode{servedDIDs: map[string]bool{"did:example:alice": true}}
-		store, err := NewStore(db, n)
-		require.NoError(t, err)
-
-		clique := CliqueGrantee("habitat://did:example:alice/network.habitat.clique/friends")
-
-		// Alice grants her clique access to her posts
-		err = store.AddPermissions([]Grantee{clique}, "did:example:alice", "network.habitat.posts", "")
-		require.NoError(t, err)
-
-		// Bob is a member but charlie is not
-		err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.clique", "friends")
-		require.NoError(t, err)
-
-		// Charlie is not in the clique and should only see her own self-permission
-		perms, err := store.ResolvePermissionsForCollection(t.Context(), "did:example:charlie", "network.habitat.posts", nil)
-		require.NoError(t, err)
-		require.Len(t, perms, 1)
-		require.Equal(t, DIDGrantee("did:example:charlie"), perms[0].Grantee)
-		require.Equal(t, syntax.DID("did:example:charlie"), perms[0].Owner)
-	})
-}
-*/
 
 func TestListAllowedGranteesForRecord(t *testing.T) {
-	t.Run("basic: grantee with allow permission is returned", func(t *testing.T) {
+	t.Run("basic: grantee with permission is returned", func(t *testing.T) {
 		store := newTestStore(t)
 		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 		require.NoError(t, err)
@@ -376,14 +208,12 @@ func TestListAllowedGranteesForRecord(t *testing.T) {
 		require.Empty(t, perms)
 	})
 
-	t.Run("deny permission is filtered out", func(t *testing.T) {
+	t.Run("removed permission is not returned", func(t *testing.T) {
 		store := newTestStore(t)
 
-		// Grant bob access at the collection level
-		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 		require.NoError(t, err)
 
-		// Add a deny directly on the record without any allow
 		err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
 		require.NoError(t, err)
 
@@ -392,27 +222,15 @@ func TestListAllowedGranteesForRecord(t *testing.T) {
 		require.Empty(t, perms)
 	})
 
-	t.Run("collection-level allow is included for specific record with no record-level deny", func(t *testing.T) {
+	t.Run("permission on different record does not appear", func(t *testing.T) {
 		store := newTestStore(t)
 
-		// Grant bob access at the collection level
-		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
+		err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record2")
 		require.NoError(t, err)
 
-		// Add a deny on a different record to confirm it doesn't pollute results for record1
-		err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record2")
-		require.NoError(t, err)
-
-		// record1 has no record-level deny, so the collection-level allow should appear
 		grants, err := store.ListAllowedGranteesForRecord(t.Context(), "did:example:alice", "network.habitat.posts", "record1")
 		require.NoError(t, err)
-		require.Len(t, grants, 1)
-		require.Equal(t, DIDGrantee("did:example:bob"), grants[0])
-
-		// record2 has a deny, which should be filtered; the collection-level allow still appears
-		grants, err = store.ListAllowedGranteesForRecord(t.Context(), "did:example:alice", "network.habitat.posts", "record2")
-		require.NoError(t, err)
-		require.Len(t, grants, 0)
+		require.Empty(t, grants)
 	})
 }
 
@@ -428,37 +246,6 @@ func TestHasPermissionNoMatchingCollectionAndRkeyHasRandomClique(t *testing.T) {
 	require.False(t, hasPermission, "should return false when no permissions match the collection+rkey")
 }
 
-func TestAddCollectionPermissionClearsPriorRecordDeny(t *testing.T) {
-	store := newTestStore(t)
-
-	// Step 1: Grant bob record-level access to record1
-	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-
-	// Step 2: Remove that record-level permission (creates a Deny entry for record1)
-	err = store.RemovePermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-
-	// Confirm bob cannot access record1 at this point
-	hasPermission, err := store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-	require.False(t, hasPermission, "bob should not have access after record-level permission was removed")
-
-	// Step 3: Grant bob collection-level access to all of alice's posts
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
-	require.NoError(t, err)
-
-	// The collection-level grant should supersede the prior record-level deny.
-	// Bob should now have access to all records, including the originally denied record1.
-	hasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record1")
-	require.NoError(t, err)
-	require.True(t, hasPermission, "bob should have access to record1 after collection-level permission was granted")
-
-	hasPermission, err = store.HasPermission(t.Context(), "did:example:bob", "did:example:alice", "network.habitat.posts", "record2")
-	require.NoError(t, err)
-	require.True(t, hasPermission, "bob should have access to other records in the collection")
-}
-
 func TestAddReadPermission_EmptyCollection(t *testing.T) {
 	store := newTestStore(t)
 
@@ -472,23 +259,15 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 	err := store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record-1")
 	require.NoError(t, err)
 
-	// Should not return multiple permissions for the same record
+	// Adding the same permission again should not create a duplicate
 	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "record-1")
 	require.NoError(t, err)
 
-	perms, err := store.listPermissions("did:example:bob", nil, "", "")
+	perms, err := store.listPermissions([]Grantee{DIDGrantee("did:example:bob")}, nil, "", "")
 	require.NoError(t, err)
-	require.Len(t, perms, 1 /* has direct permission on record */)
+	require.Len(t, perms, 1)
 
-	// Should only return the most powerful permission
-	err = store.AddPermissions([]Grantee{DIDGrantee("did:example:bob")}, "did:example:alice", "network.habitat.posts", "")
-	require.NoError(t, err)
-
-	perms, err = store.listPermissions("did:example:bob", nil, "", "")
-	require.NoError(t, err)
-	require.Len(t, perms, 1 /* no collection specified so only returns direct permissions */)
-
-	// should not add unnecessary permissions
+	// Adding another grantee for the same record should not affect bob's count
 	err = store.AddPermissions(
 		[]Grantee{DIDGrantee("did:example:bob"), DIDGrantee("did:example:charlie")},
 		"did:example:alice",
@@ -497,7 +276,7 @@ func TestListReadPermissionsByGrantee_NoRedundant(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	perms, err = store.listPermissions("did:example:bob", nil, "", "")
+	perms, err = store.listPermissions([]Grantee{DIDGrantee("did:example:bob")}, nil, "", "")
 	require.NoError(t, err)
-	require.Len(t, perms, 1 /* has direct permission on record */)
+	require.Len(t, perms, 1)
 }
