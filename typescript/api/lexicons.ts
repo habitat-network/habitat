@@ -10,90 +10,6 @@ import {
 import { type $Typed, is$typed, maybe$typed } from './util.js'
 
 export const schemaDict = {
-  ComAtprotoRepoCreateRecord: {
-    lexicon: 1,
-    id: 'com.atproto.repo.createRecord',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'Create a single new repository record. Requires auth, implemented by PDS.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['repo', 'collection', 'record'],
-            properties: {
-              repo: {
-                type: 'string',
-                format: 'at-identifier',
-                description:
-                  'The handle or DID of the repo (aka, current account).',
-              },
-              collection: {
-                type: 'string',
-                format: 'nsid',
-                description: 'The NSID of the record collection.',
-              },
-              rkey: {
-                type: 'string',
-                format: 'record-key',
-                description: 'The Record Key.',
-                maxLength: 512,
-              },
-              validate: {
-                type: 'boolean',
-                description:
-                  "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons.",
-              },
-              record: {
-                type: 'unknown',
-                description: 'The record itself. Must contain a $type field.',
-              },
-              swapCommit: {
-                type: 'string',
-                format: 'cid',
-                description:
-                  'Compare and swap with the previous commit by CID.',
-              },
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['uri', 'cid'],
-            properties: {
-              uri: {
-                type: 'string',
-                format: 'at-uri',
-              },
-              cid: {
-                type: 'string',
-                format: 'cid',
-              },
-              commit: {
-                type: 'ref',
-                ref: 'lex:com.atproto.repo.defs#commitMeta',
-              },
-              validationStatus: {
-                type: 'string',
-                knownValues: ['valid', 'unknown'],
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'InvalidSwap',
-            description:
-              "Indicates that 'swapCommit' didn't match current repo commit.",
-          },
-        ],
-      },
-    },
-  },
   ComAtprotoRepoDefs: {
     lexicon: 1,
     id: 'com.atproto.repo.defs',
@@ -957,6 +873,39 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatDocs: {
+    lexicon: 1,
+    id: 'network.habitat.docs',
+    defs: {
+      main: {
+        type: 'record',
+        description: 'A collaborative document.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['name', 'blob'],
+          properties: {
+            name: {
+              type: 'string',
+              description:
+                'The name of the document, derived from the first heading.',
+            },
+            blob: {
+              type: 'string',
+              description:
+                'Base64-encoded Yjs state update representing the document content.',
+            },
+            editorClique: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the clique whose members may edit this document.',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatGrantee: {
     lexicon: 1,
     id: 'network.habitat.grantee',
@@ -1237,6 +1186,122 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  NetworkHabitatRenderSchema: {
+    lexicon: 1,
+    id: 'network.habitat.render.schema',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'A render schema describing how to display records of a given lexicon type.',
+        key: 'any',
+        record: {
+          type: 'object',
+          required: ['targetLexicon', 'title', 'fields'],
+          properties: {
+            targetLexicon: {
+              type: 'string',
+              description:
+                'The NSID of the lexicon this render schema applies to.',
+            },
+            title: {
+              type: 'string',
+              description: 'Human-readable name for this record type.',
+            },
+            description: {
+              type: 'string',
+              description:
+                'A brief description of what this record type represents.',
+            },
+            fields: {
+              type: 'array',
+              description: 'Ordered list of field display descriptors.',
+              items: {
+                type: 'ref',
+                ref: 'lex:network.habitat.render.schema#fieldSchema',
+              },
+            },
+          },
+        },
+      },
+      fieldSchema: {
+        type: 'object',
+        description: 'Describes how to display a single field of a record.',
+        required: ['path', 'label', 'displayType', 'priority'],
+        properties: {
+          path: {
+            type: 'string',
+            description:
+              "Dot-notation path into the record value (e.g. 'name', 'startsAt').",
+          },
+          label: {
+            type: 'string',
+            description: 'Human-readable label for this field.',
+          },
+          displayType: {
+            type: 'string',
+            description: 'How to render the value.',
+            knownValues: [
+              'network.habitat.render.schema#text',
+              'network.habitat.render.schema#datetime',
+              'network.habitat.render.schema#url',
+              'network.habitat.render.schema#badge',
+              'network.habitat.render.schema#list',
+            ],
+          },
+          priority: {
+            type: 'string',
+            description: 'Layout prominence of this field.',
+            knownValues: [
+              'network.habitat.render.schema#primary',
+              'network.habitat.render.schema#secondary',
+              'network.habitat.render.schema#metadata',
+            ],
+          },
+          optional: {
+            type: 'boolean',
+            description:
+              'If true, omit this field from display when its value is missing or empty.',
+            default: false,
+          },
+        },
+      },
+      text: {
+        type: 'token',
+        description: 'Render as plain text.',
+      },
+      datetime: {
+        type: 'token',
+        description: 'Render as a formatted date/time string.',
+      },
+      url: {
+        type: 'token',
+        description: 'Render as a hyperlink.',
+      },
+      badge: {
+        type: 'token',
+        description:
+          'Render as a pill badge, extracting the token name from an NSID#token value.',
+      },
+      list: {
+        type: 'token',
+        description: 'Render as a list of items.',
+      },
+      primary: {
+        type: 'token',
+        description:
+          "Most prominent display — used for the record's main identifier (e.g. title).",
+      },
+      secondary: {
+        type: 'token',
+        description: 'Standard field-value display.',
+      },
+      metadata: {
+        type: 'token',
+        description: 'De-emphasized display, shown at the bottom or collapsed.',
       },
     },
   },
@@ -1765,7 +1830,6 @@ export function validate(
 }
 
 export const ids = {
-  ComAtprotoRepoCreateRecord: 'com.atproto.repo.createRecord',
   ComAtprotoRepoDefs: 'com.atproto.repo.defs',
   ComAtprotoRepoDeleteRecord: 'com.atproto.repo.deleteRecord',
   ComAtprotoRepoGetRecord: 'com.atproto.repo.getRecord',
@@ -1785,6 +1849,7 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
+  NetworkHabitatDocs: 'network.habitat.docs',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
@@ -1796,6 +1861,7 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
+  NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
