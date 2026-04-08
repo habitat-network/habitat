@@ -383,7 +383,7 @@ func (p *pear) listRecordsLocal(
 	// Exclude caller's own records from the permission-based query — those are fetched
 	// separately below, and a caller may have granted their own records to a clique they belong to.
 	otherPerms := slices.DeleteFunc(perms, func(p permissions.Permission) bool {
-		return p.Owner != caller
+		return p.Owner == caller
 	})
 
 	permissioned, err := p.repo.ListRecordsFromPermissions(ctx, otherPerms)
