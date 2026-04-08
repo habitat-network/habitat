@@ -28,3 +28,6 @@ jobs:
             .prototools
 
       - run: moon ci --color
+
+      - name: Build pear Docker image
+        run: docker build -f cmd/pear/Dockerfile .
