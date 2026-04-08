@@ -106,19 +106,6 @@ func NewStore(db *gorm.DB, cliqueStore clique.Store) (*store, error) {
 		return nil, fmt.Errorf("failed to migrate permissions table: %w", err)
 	}
 
-	// Drop the effect column if it still exists
-	if db.Migrator().HasColumn(&permission{}, "effect") {
-		if err := db.Migrator().DropColumn(&permission{}, "effect"); err != nil {
-			return nil, fmt.Errorf("failed to drop effect column: %w", err)
-		}
-	}
-
-	// Delete collection-level grants (rkey = "") — these are unsupported
-	err = db.Where("rkey = ?", "").Delete(&permission{}).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete collection-level permissions: %w", err)
-	}
-
 	return &store{db: db, cliqueStore: cliqueStore}, nil
 }
 
@@ -139,7 +126,6 @@ func (s *store) HasPermission(
 		return false, ErrCollectionLevelNotSupported
 	}
 
-	// TODO: this query shouldn't use listPermissions
 	var permissions []permission
 	err := s.db.
 		Where("grantee = ? OR grantee LIKE ?", requester.String(), "clique:%"). // check for the habitat uri prefix for cliques

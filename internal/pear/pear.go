@@ -374,7 +374,6 @@ func (p *pear) listRecordsLocal(
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	fmt.Println("listrecordslocal", collection, caller, subjects)
 	// Resolve grants for both the caller and the clique
 	perms, err := p.permissions.ListGranteePermissions(ctx, caller, collection, subjects)
 	if err != nil {
