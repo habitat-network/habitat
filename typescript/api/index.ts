@@ -270,7 +270,7 @@ export class CommunityLexiconCalendarEventRecord {
 
   async create(
     params: OmitKey<
-      ComAtprotoRepoCreateRecord.InputSchema,
+      NetworkHabitatRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarEvent.Record>,
@@ -353,7 +353,7 @@ export class CommunityLexiconCalendarInviteRecord {
 
   async create(
     params: OmitKey<
-      ComAtprotoRepoCreateRecord.InputSchema,
+      NetworkHabitatRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarInvite.Record>,
@@ -436,7 +436,7 @@ export class CommunityLexiconCalendarRsvpRecord {
 
   async create(
     params: OmitKey<
-      ComAtprotoRepoCreateRecord.InputSchema,
+      NetworkHabitatRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarRsvp.Record>,
@@ -713,7 +713,7 @@ export class NetworkHabitatRenderSchemaRecord {
 
   async create(
     params: OmitKey<
-      ComAtprotoRepoCreateRecord.InputSchema,
+      NetworkHabitatRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatRenderSchema.Record>,
@@ -894,7 +894,7 @@ export class NetworkHabitatDocsRecord {
 
   async create(
     params: OmitKey<
-      ComAtprotoRepoCreateRecord.InputSchema,
+      NetworkHabitatRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatDocs.Record>,
@@ -973,7 +973,7 @@ export class NetworkHabitatPhotoRecord {
 
   async create(
     params: OmitKey<
-      ComAtprotoRepoCreateRecord.InputSchema,
+      NetworkHabitatRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatPhoto.Record>,
