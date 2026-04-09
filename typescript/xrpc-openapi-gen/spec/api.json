@@ -110,536 +110,6 @@
         }
       }
     },
-    "/network.habitat.clique.addMembers": {
-      "post": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.addMembers",
-        "description": "Add member(s) to a clique. The clique must be editable by the caller.",
-        "operationId": "network.habitat.clique.addMembers",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "clique",
-                  "members"
-                ],
-                "properties": {
-                  "clique": {
-                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                  },
-                  "members": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "did"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.createClique": {
-      "post": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.createClique",
-        "description": "Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.",
-        "operationId": "network.habitat.clique.createClique",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "members": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "did"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "clique"
-                  ],
-                  "properties": {
-                    "clique": {
-                      "type": "string",
-                      "description": "The habitat clique, formatted as clique:<owner did>/<clique key>"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.getMembers": {
-      "get": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.getMembers",
-        "description": "See the member(s) to a clique. The clique must be readable by the caller.",
-        "operationId": "network.habitat.clique.getMembers",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "clique",
-            "in": "query",
-            "description": "The desired clique to query formatted as clique:<owner did>/<clique key>",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "members"
-                  ],
-                  "properties": {
-                    "members": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "format": "did"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.isMember": {
-      "get": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.isMember",
-        "description": "See if a user belongs to a clique. The clique must be readable by the caller.",
-        "operationId": "network.habitat.clique.isMember",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "clique",
-            "in": "query",
-            "description": "The desired clique to query formatted as clique:<owner did>/<clique key>",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
-            }
-          },
-          {
-            "name": "did",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "did"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "found"
-                  ],
-                  "properties": {
-                    "found": {
-                      "type": "boolean",
-                      "description": "Whether the given member is a part of the given clique."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.clique.removeMembers": {
-      "post": {
-        "tags": [
-          "network.habitat.clique"
-        ],
-        "summary": "network.habitat.clique.removeMembers",
-        "description": "Remove member(s) to a clique. The clique must be editable by the caller.",
-        "operationId": "network.habitat.clique.removeMembers",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "clique",
-                  "members"
-                ],
-                "properties": {
-                  "clique": {
-                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                  },
-                  "members": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "did"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.internal.notifyOfUpdate": {
       "post": {
         "tags": [
@@ -2114,6 +1584,1108 @@
           }
         }
       }
+    },
+    "/network.habitat.org.addAdmin": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.addAdmin",
+        "description": "Add an admin to the org. Only callable by existing admins.",
+        "operationId": "network.habitat.org.addAdmin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "admin"
+                ],
+                "properties": {
+                  "admin": {
+                    "type": "string",
+                    "description": "The DID of the user to add as an admin.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.addMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.addMembers",
+        "description": "Add member(s) to the org. Only callable by admins.",
+        "operationId": "network.habitat.org.addMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "members"
+                ],
+                "properties": {
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.getAdmins": {
+      "get": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.getAdmins",
+        "description": "Get the list of admins in the org. Callable by any org member.",
+        "operationId": "network.habitat.org.getAdmins",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "admins"
+                  ],
+                  "properties": {
+                    "admins": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "did"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.getMembers": {
+      "get": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.getMembers",
+        "description": "Get the list of members in the org. Callable by any org member.",
+        "operationId": "network.habitat.org.getMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "members"
+                  ],
+                  "properties": {
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "did"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.removeAdmin": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.removeAdmin",
+        "description": "Remove an admin from the org. Only callable by existing admins. The last admin cannot be removed.",
+        "operationId": "network.habitat.org.removeAdmin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "admin"
+                ],
+                "properties": {
+                  "admin": {
+                    "type": "string",
+                    "description": "The DID of the admin to remove.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.removeMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.removeMembers",
+        "description": "Remove member(s) from the org. Only callable by admins.",
+        "operationId": "network.habitat.org.removeMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "members"
+                ],
+                "properties": {
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.clique.addMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.addMembers",
+        "description": "Add member(s) to a clique. The clique must be editable by the caller.",
+        "operationId": "network.habitat.clique.addMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "clique",
+                  "members"
+                ],
+                "properties": {
+                  "clique": {
+                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.clique.createClique": {
+      "post": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.createClique",
+        "description": "Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.",
+        "operationId": "network.habitat.clique.createClique",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "clique"
+                  ],
+                  "properties": {
+                    "clique": {
+                      "type": "string",
+                      "description": "The habitat clique, formatted as clique:<owner did>/<clique key>"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.clique.getMembers": {
+      "get": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.getMembers",
+        "description": "See the member(s) to a clique. The clique must be readable by the caller.",
+        "operationId": "network.habitat.clique.getMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clique",
+            "in": "query",
+            "description": "The desired clique to query formatted as clique:<owner did>/<clique key>",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "members"
+                  ],
+                  "properties": {
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "did"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.clique.isMember": {
+      "get": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.isMember",
+        "description": "See if a user belongs to a clique. The clique must be readable by the caller.",
+        "operationId": "network.habitat.clique.isMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clique",
+            "in": "query",
+            "description": "The desired clique to query formatted as clique:<owner did>/<clique key>",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The desired clique to query formatted as clique:<owner did>/<clique key>"
+            }
+          },
+          {
+            "name": "did",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "did"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "found"
+                  ],
+                  "properties": {
+                    "found": {
+                      "type": "boolean",
+                      "description": "Whether the given member is a part of the given clique."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.clique.removeMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.clique"
+        ],
+        "summary": "network.habitat.clique.removeMembers",
+        "description": "Remove member(s) to a clique. The clique must be editable by the caller.",
+        "operationId": "network.habitat.clique.removeMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "clique",
+                  "members"
+                ],
+                "properties": {
+                  "clique": {
+                    "$ref": "#/components/schemas/network.habitat.grantee.clique"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2460,6 +3032,9 @@
     },
     {
       "name": "network.habitat.repo"
+    },
+    {
+      "name": "network.habitat.org"
     }
   ]
 }

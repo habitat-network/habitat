@@ -1,0 +1,26 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.removeAdmin",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Remove an admin from the org. Only callable by existing admins. The last admin cannot be removed.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "admin"
+                    ],
+                    "properties": {
+                        "admin": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "The DID of the admin to remove."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

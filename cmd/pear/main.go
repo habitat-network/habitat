@@ -169,6 +169,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(corsMiddleware)
 
 	// handle waitlist signups
+	// TODO: this should be moved to a separate server; no need to run it for orgs
 	waitlistSvc, err := NewWaitlistService(
 		egCtx,
 		os.Getenv("WAITLIST_SHEET_ID"),
@@ -187,11 +188,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
 
 	// auth routes
+	// TODO: who is allowed to call the oauth handlers in an org?
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
-
-	// app routes
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes

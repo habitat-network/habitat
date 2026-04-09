@@ -1024,6 +1024,164 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgAddAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.addAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Add an admin to the org. Only callable by existing admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the user to add as an admin.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgAddMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.addMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Add member(s) to the org. Only callable by admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'The DIDs of the users to add as members.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgGetAdmins: {
+    lexicon: 1,
+    id: 'network.habitat.org.getAdmins',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get the list of admins in the org. Callable by any org member.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admins'],
+            properties: {
+              admins: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgGetMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.getMembers',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get the list of members in the org. Callable by any org member.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgRemoveAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.removeAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove an admin from the org. Only callable by existing admins. The last admin cannot be removed.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the admin to remove.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgRemoveMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.removeMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Remove member(s) from the org. Only callable by admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'The DIDs of the members to remove.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatPermissionsAddPermission: {
     lexicon: 1,
     id: 'network.habitat.permissions.addPermission',
@@ -1854,6 +2012,12 @@ export const ids = {
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
+  NetworkHabitatOrgAddAdmin: 'network.habitat.org.addAdmin',
+  NetworkHabitatOrgAddMembers: 'network.habitat.org.addMembers',
+  NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
+  NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
+  NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
+  NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
   NetworkHabitatPermissionsListPermissions:

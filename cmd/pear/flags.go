@@ -20,6 +20,7 @@ var (
 	fPdsCredEncryptKey = "pds_cred_encrypt_key"
 	fOauthServerSecret = "oauth_server_secret"
 	fOauthClientSecret = "oauth_client_secret"
+	fOrg               = "org"
 )
 var profiles []string
 
@@ -76,6 +77,11 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Usage:    "32-byte base64-encoded secret for the OAuth client. Can use cmd/keygen to generate",
 				Required: true,
 				Sources:  getSources(fOauthClientSecret),
+			},
+			&cli.BoolFlag{
+				Name:     fOrg,
+				Usage:    "Whether the server is being run as part of an organization",
+				Required: false,
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{

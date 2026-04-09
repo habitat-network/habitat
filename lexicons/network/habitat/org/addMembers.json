@@ -1,0 +1,29 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.addMembers",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Add member(s) to the org. Only callable by admins.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "members"
+                    ],
+                    "properties": {
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            },
+                            "description": "The DIDs of the users to add as members."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
