@@ -63,7 +63,7 @@ func NewServer(
 
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}
@@ -206,7 +206,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}
@@ -255,7 +255,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}
@@ -419,7 +419,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}
@@ -456,7 +456,7 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 // However, this is currently only used in the UI to show all the permissions a particular user has granted to other people, as a way of
 // inspecting and easily adding / removing permission grants on your data. We should rename this and/or also make it generic.
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}
@@ -486,7 +486,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}
@@ -516,7 +516,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}
@@ -572,7 +572,7 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	// You can only call this method on your own node.
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.FromContext(r.Context())
 	if !ok {
 		return
 	}

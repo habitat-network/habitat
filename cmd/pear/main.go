@@ -151,7 +151,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
+	serviceAuth := authn.NewServiceAuthMethod(dir)
+	pearServer := server.NewServer(dir, pear, oauthServer, serviceAuth)
 
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
@@ -181,6 +182,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Err(err).Msgf("unable to set up waitlist service")
 	}
 
+	// serve did:web DID doc for this server
+	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
+
 	// auth routes
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
@@ -189,30 +193,33 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes
-	// repo
-	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
-	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
+	// Use both oauth and serviceauth methods for all routes on pear (for now)
+	authnMiddleware := authn.Middleware(oauthServer, serviceAuth)
+	pearRouter := mux.NewRoute().Subrouter()
+	pearRouter.Use(authnMiddleware)
 
-	// blobs
-	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
-	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
+	// pear repo
+	pearRouter.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
+	pearRouter.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
+	pearRouter.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
+	pearRouter.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
+	pearRouter.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 
-	// permissions
-	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
-	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
-	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
+	// pear blobs
+	pearRouter.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
+	pearRouter.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
 
-	// cliques
-	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", pearServer.CreateClique)
-	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", pearServer.AddCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
+	// pear permissions
+	pearRouter.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
+	pearRouter.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
+	pearRouter.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
 
-	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
+	// pear cliques
+	pearRouter.HandleFunc("/xrpc/network.habitat.clique.createClique", pearServer.CreateClique)
+	pearRouter.HandleFunc("/xrpc/network.habitat.clique.addMembers", pearServer.AddCliqueMembers)
+	pearRouter.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
+	pearRouter.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
+	pearRouter.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
@@ -396,22 +403,4 @@ func setupOAuthServer(
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")
 	}
 	return oauthServer
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().
-			Set("Access-Control-Allow-Headers", "Content-Type, Authorization, habitat-auth-method, User-Agent, atproto-accept-labelers, at-proxy")
-		w.Header().Set("Access-Control-Max-Age", "86400") // Cache preflight for 24 hours
-
-		// Handle preflight OPTIONS request
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
