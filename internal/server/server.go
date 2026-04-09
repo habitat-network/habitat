@@ -782,7 +782,10 @@ func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	panic("unimplemented")
+
+	// TODO: implement once we have a provisioner process; til then this is manual
+	w.Write([]byte("unimplemented"))
+	w.WriteHeader(http.StatusNotImplemented)
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
