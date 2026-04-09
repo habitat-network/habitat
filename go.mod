@@ -1,6 +1,6 @@
 module github.com/habitat-network/habitat
 
-go 1.26
+go 1.25.7
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
