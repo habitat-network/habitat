@@ -78,6 +78,7 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Required: true,
 				Sources:  getSources(fOauthClientSecret),
 			},
+			// TODO: should this be more than just a bool flag?
 			&cli.BoolFlag{
 				Name:     fOrg,
 				Usage:    "Whether the server is being run as part of an organization",
