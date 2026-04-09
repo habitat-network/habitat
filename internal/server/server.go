@@ -18,6 +18,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
@@ -32,9 +33,23 @@ type authMethods struct {
 	serviceAuth authn.Method
 }
 
+type options struct {
+	orgMgr org.Manager
+}
+
+type Option func(*options)
+
+func WithOrgManager(orgMgr org.Manager) Option {
+	return func(o *options) {
+		o.orgMgr = orgMgr
+	}
+}
+
 type Server struct {
-	// Implementation of permission-enforcint atprotocol repo
+	options *options
+	// Implementation of permission-enforcing atprotocol repo
 	pear pear.Pear
+
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 
@@ -48,10 +63,17 @@ func NewServer(
 	pear pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
+	opts ...Option,
 ) *Server {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	server := &Server{
-		dir:  dir,
-		pear: pear,
+		options: o,
+		dir:     dir,
+		pear:    pear,
 		authMethods: authMethods{
 			oauth:       oauthServer,
 			serviceAuth: serviceAuthMethod,
@@ -752,4 +774,61 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
 		return
 	}
+}
+
+// Org APIs
+func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
+	if orgMgr := s.options.orgMgr; orgMgr == nil {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	panic("unimplemented")
+}
+
+func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
+	if orgMgr := s.options.orgMgr; orgMgr == nil {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	panic("unimplemented")
+}
+
+func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
+	if orgMgr := s.options.orgMgr; orgMgr == nil {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	panic("unimplemented")
+}
+
+func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
+	if orgMgr := s.options.orgMgr; orgMgr == nil {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	panic("unimplemented")
+}
+
+func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
+	if orgMgr := s.options.orgMgr; orgMgr == nil {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	panic("unimplemented")
+}
+
+func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
+	if orgMgr := s.options.orgMgr; orgMgr == nil {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	panic("unimplemented")
+}
+
+func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
+	if orgMgr := s.options.orgMgr; orgMgr == nil {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	panic("unimplemented")
 }
