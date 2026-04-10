@@ -35,6 +35,7 @@ import (
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -151,7 +152,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), org.NewEveryoneOrg())
 
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
@@ -181,11 +182,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Err(err).Msgf("unable to set up waitlist service")
 	}
 
+	// always public routes
+	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
+	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
+
 	// auth routes
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
-	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
+
+	// app routes
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes
@@ -211,8 +217,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
-
-	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
