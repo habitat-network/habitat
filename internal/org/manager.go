@@ -16,33 +16,33 @@ var (
 	ErrLastAdmin = errors.New("org must have at least one admin")
 )
 
-// org.Manager is used to manage the organization tied to a pear node
+// org.Store is used to manage the organization tied to a pear node
 // It enforces permissions on its methods; i.e non-admins cannot add admins or members.
 //
 // Eventually we can add management scopes to member vs. admin roles, to allow members to add other members etc.
-type Manager interface {
+type Store interface {
 	// Function for one time use to bootstrap the admin who created the org after provisioning necessary infra.
-	BootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error
+	bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error
 
 	// It is expected that all methods will only be called by members of the org (authn has happened, non-org members rejected).
-	// The Manager is responsible for doing authz within these methods, if the method action cannot be taken by anyone in the org.
+	// The Store is responsible for doing authz within these methods, if the method action cannot be taken by anyone in the org.
 
 	// Get* is call-able by anyone in the org.
-	GetAdmins(ctx context.Context) ([]syntax.DID, error)
-	GetMembers(ctx context.Context) ([]syntax.DID, error)
+	getAdmins(ctx context.Context) ([]syntax.DID, error)
+	getMembers(ctx context.Context) ([]syntax.DID, error)
 
 	// Only admins can call the following commands.
-	AddAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error
-	AddMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error
-	RemoveAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error
-	RemoveMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error
+	addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error
+	addMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error
+	removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error
+	removeMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error
 
 	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
 	// The authz in this package is only for managing identities in the org.
 	// In the future, we may not want to be so prescriptive about the admin / member setup.
 
-	// For internal use only by the middleware
-	isMember(ctx context.Context, member syntax.DID) (bool, error)
+	// This is exported because other packages may want to do membership lookup
+	IsMember(ctx context.Context, member syntax.DID) (bool, error)
 }
 
 // Keep track of members in the org.
@@ -60,7 +60,7 @@ type manager struct {
 	db *gorm.DB
 }
 
-func NewManager(org org.Org, db *gorm.DB) (Manager, error) {
+func NewStore(org org.Org, db *gorm.DB) (Store, error) {
 	if err := db.AutoMigrate(&member{}); err != nil {
 		return nil, err
 	}
@@ -70,8 +70,8 @@ func NewManager(org org.Org, db *gorm.DB) (Manager, error) {
 	}, nil
 }
 
-// AddAdmin implements Manager.
-func (m *manager) AddAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
+// AddAdmin implements Store.
+func (m *manager) addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
 	isAdmin, err := m.isAdmin(ctx, actor)
 	if err != nil {
 		return err
@@ -89,8 +89,8 @@ func (m *manager) AddAdmin(ctx context.Context, actor syntax.DID, admin syntax.D
 	}).Error
 }
 
-// AddMembers implements Manager.
-func (m *manager) AddMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
+// AddMembers implements Store.
+func (m *manager) addMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
 	isAdmin, err := m.isAdmin(ctx, actor)
 	if err != nil {
 		return err
@@ -112,13 +112,13 @@ func (m *manager) AddMembers(ctx context.Context, actor syntax.DID, members []sy
 	}).Create(&rows).Error
 }
 
-// BootstrapAdmin implements Manager.
-func (m *manager) BootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error {
+// BootstrapAdmin implements Store.
+func (m *manager) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error {
 	panic("unimplemented")
 }
 
-// GetAdmins implements Manager.
-func (m *manager) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
+// GetAdmins implements Store.
+func (m *manager) getAdmins(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := m.db.WithContext(ctx).Where("role = ?", org.Admin).Find(&rows).Error; err != nil {
 		return nil, err
@@ -134,8 +134,8 @@ func (m *manager) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-// GetMembers implements Manager.
-func (m *manager) GetMembers(ctx context.Context) ([]syntax.DID, error) {
+// GetMembers implements Store.
+func (m *manager) getMembers(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := m.db.WithContext(ctx).Find(&rows).Error; err != nil {
 		return nil, err
@@ -151,8 +151,8 @@ func (m *manager) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-// RemoveAdmin implements Manager.
-func (m *manager) RemoveAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
+// RemoveAdmin implements Store.
+func (m *manager) removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
 	isAdmin, err := m.isAdmin(ctx, actor)
 	if err != nil {
 		return err
@@ -170,8 +170,8 @@ func (m *manager) RemoveAdmin(ctx context.Context, actor syntax.DID, admin synta
 	return m.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), org.Admin).Delete(&member{}).Error
 }
 
-// RemoveMembers implements Manager.
-func (m *manager) RemoveMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
+// RemoveMembers implements Store.
+func (m *manager) removeMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
 	isAdmin, err := m.isAdmin(ctx, actor)
 	if err != nil {
 		return err
@@ -195,8 +195,8 @@ func (m *manager) isAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	return err == nil, err
 }
 
-// isMember implements Manager.
-func (m *manager) isMember(ctx context.Context, did syntax.DID) (bool, error) {
+// isMember implements Store.
+func (m *manager) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := m.db.WithContext(ctx).Where("member = ?", did.String()).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -205,4 +205,4 @@ func (m *manager) isMember(ctx context.Context, did syntax.DID) (bool, error) {
 	return err == nil, err
 }
 
-var _ Manager = &manager{}
+var _ Store = &manager{}
