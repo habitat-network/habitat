@@ -82,9 +82,11 @@ func (s *store) addMembers(ctx context.Context, actor syntax.DID, members []synt
 }
 
 // BootstrapAdmin implements Store.
+/*
 func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error {
 	panic("unimplemented")
 }
+*/
 
 // GetAdmins implements Store.
 func (s *store) getAdmins(ctx context.Context) ([]syntax.DID, error) {
