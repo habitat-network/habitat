@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/pkg/org"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -15,7 +14,7 @@ func newTestStore(t *testing.T) *store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewStore(org.Org{Domain: "test.example.com"}, db)
+	s, err := NewStore(Org{Domain: "test.example.com"}, db)
 	require.NoError(t, err)
 	return s.(*store)
 }

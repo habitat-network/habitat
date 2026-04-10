@@ -35,6 +35,7 @@ import (
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -151,7 +152,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear servers")
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), org.NewEveryoneOrg())
 
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {

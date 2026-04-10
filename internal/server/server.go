@@ -33,22 +33,12 @@ type authMethods struct {
 	serviceAuth authn.Method
 }
 
-type options struct {
-	org org.Store
-}
-
-type Option func(*options)
-
-func WithOrg(org org.Store) Option {
-	return func(o *options) {
-		o.org = org
-	}
-}
-
 type Server struct {
-	options *options
 	// Implementation of permission-enforcing atprotocol repo
 	pear pear.Pear
+
+	// The organization this pear server belongs to
+	org org.Store
 
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
@@ -63,43 +53,36 @@ func NewServer(
 	pear pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
-	opts ...Option,
+	orgStore org.Store,
 ) *Server {
-	o := &options{}
-	for _, opt := range opts {
-		opt(o)
-	}
-
 	server := &Server{
-		options: o,
-		dir:     dir,
-		pear:    pear,
+		dir:  dir,
+		pear: pear,
 		authMethods: authMethods{
 			oauth:       oauthServer,
 			serviceAuth: serviceAuthMethod,
 		},
 		decoder: schema.NewDecoder(),
+		org:     orgStore,
 	}
 	return server
 }
 
 func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMethod ...authn.Method) (syntax.DID, bool) {
-	callerDID, ok := s.authnWithOrg(w, r, authnMethod...)
+	callerDID, ok := authn.Validate(w, r, authnMethod...)
 
 	// If unable to authenticate, return false
 	if !ok {
 		return "", false
 	}
 
-	// Otherwise if this server doesn't belong to an org, return
-	if s.options.org == nil {
-		return callerDID, true
-	}
-
 	// Otherwise, only authn if part of org
-	ok, err := s.options.org.IsMember(r.Context(), callerDID)
+	ok, err := s.org.IsMember(r.Context(), callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking org.isMember", http.StatusInternalServerError)
+		return "", false
+	}
+	if !ok {
 		return "", false
 	}
 

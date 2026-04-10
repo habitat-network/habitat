@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/pkg/org"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -16,20 +15,20 @@ var (
 	ErrLastAdmin = errors.New("org must have at least one admin")
 )
 
-// org.Store is used to manage the organization tied to a pear node
+// Store is used to manage the organization tied to a pear node
 // It enforces permissions on its methods; i.e non-admins cannot add admins or members.
 //
 // Eventually we can add management scopes to member vs. admin roles, to allow members to add other members etc.
 type Store interface {
 	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
-	// The authz in this package is only for managing identities in the org.
+	// The authz in this package is only for managing identities in the
 	// In the future, we may not want to be so prescriptive about the admin / member setup.
 
 	// This is exported because other packages may want to do membership lookup
 	IsMember(ctx context.Context, member syntax.DID) (bool, error)
 }
 
-// Keep track of members in the org.
+// Keep track of members in the
 type member struct {
 	Member    string `gorm:"primaryKey"`
 	Role      string
@@ -37,14 +36,14 @@ type member struct {
 }
 
 type store struct {
-	org org.Org
+	org Org
 
 	// Manages all backing data for an org
 	// Currently just an org_members table
 	db *gorm.DB
 }
 
-func NewStore(org org.Org, db *gorm.DB) (Store, error) {
+func NewStore(org Org, db *gorm.DB) (Store, error) {
 	if err := db.AutoMigrate(&member{}); err != nil {
 		return nil, err
 	}
@@ -58,10 +57,10 @@ func NewStore(org org.Org, db *gorm.DB) (Store, error) {
 func (s *store) addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "member"}},
-		DoUpdates: clause.Assignments(map[string]any{"role": org.Admin}),
+		DoUpdates: clause.Assignments(map[string]any{"role": Admin}),
 	}).Create(&member{
 		Member:    admin.String(),
-		Role:      string(org.Admin),
+		Role:      string(Admin),
 		CreatedAt: time.Now(),
 	}).Error
 }
@@ -72,7 +71,7 @@ func (s *store) addMembers(ctx context.Context, actor syntax.DID, members []synt
 	for _, did := range members {
 		rows = append(rows, member{
 			Member:    did.String(),
-			Role:      string(org.Member),
+			Role:      string(Member),
 			CreatedAt: time.Now(),
 		})
 	}
@@ -90,7 +89,7 @@ func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admi
 // GetAdmins implements Store.
 func (s *store) getAdmins(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
-	if err := s.db.WithContext(ctx).Where("role = ?", org.Admin).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("role = ?", Admin).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	dids := make([]syntax.DID, 0, len(rows))
@@ -124,13 +123,13 @@ func (s *store) getMembers(ctx context.Context) ([]syntax.DID, error) {
 // RemoveAdmin implements Store.
 func (s *store) removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
 	var adminCount int64
-	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", org.Admin).Count(&adminCount).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
 		return err
 	}
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return s.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), org.Admin).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), Admin).Delete(&member{}).Error
 }
 
 // RemoveMembers implements Store.
@@ -139,7 +138,7 @@ func (s *store) removeMembers(ctx context.Context, actor syntax.DID, members []s
 	for _, did := range members {
 		dids = append(dids, did.String())
 	}
-	return s.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, org.Member).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, Member).Delete(&member{}).Error
 }
 
 /*
@@ -147,7 +146,7 @@ func (s *store) removeMembers(ctx context.Context, actor syntax.DID, members []s
 This will be used once we use the org store
 func (s *store) isAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
-	err := s.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), org.Admin).First(&row).Error
+	err := s.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), Admin).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
