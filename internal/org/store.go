@@ -21,22 +21,6 @@ var (
 //
 // Eventually we can add management scopes to member vs. admin roles, to allow members to add other members etc.
 type Store interface {
-	// Function for one time use to bootstrap the admin who created the org after provisioning necessary infra.
-	bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error
-
-	// It is expected that all methods will only be called by members of the org (authn has happened, non-org members rejected).
-	// The Store is responsible for doing authz within these methods, if the method action cannot be taken by anyone in the org.
-
-	// Get* is call-able by anyone in the org.
-	getAdmins(ctx context.Context) ([]syntax.DID, error)
-	getMembers(ctx context.Context) ([]syntax.DID, error)
-
-	// Only admins can call the following commands.
-	addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error
-	addMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error
-	removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error
-	removeMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error
-
 	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
 	// The authz in this package is only for managing identities in the org.
 	// In the future, we may not want to be so prescriptive about the admin / member setup.
