@@ -52,7 +52,7 @@ type member struct {
 	CreatedAt time.Time // when this member was added
 }
 
-type manager struct {
+type store struct {
 	org org.Org
 
 	// Manages all backing data for an org
@@ -64,22 +64,15 @@ func NewStore(org org.Org, db *gorm.DB) (Store, error) {
 	if err := db.AutoMigrate(&member{}); err != nil {
 		return nil, err
 	}
-	return &manager{
+	return &store{
 		org: org,
 		db:  db,
 	}, nil
 }
 
 // AddAdmin implements Store.
-func (m *manager) addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
-	isAdmin, err := m.isAdmin(ctx, actor)
-	if err != nil {
-		return err
-	}
-	if !isAdmin {
-		return ErrNotAdmin
-	}
-	return m.db.WithContext(ctx).Clauses(clause.OnConflict{
+func (s *store) addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "member"}},
 		DoUpdates: clause.Assignments(map[string]any{"role": org.Admin}),
 	}).Create(&member{
@@ -90,14 +83,7 @@ func (m *manager) addAdmin(ctx context.Context, actor syntax.DID, admin syntax.D
 }
 
 // AddMembers implements Store.
-func (m *manager) addMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
-	isAdmin, err := m.isAdmin(ctx, actor)
-	if err != nil {
-		return err
-	}
-	if !isAdmin {
-		return ErrNotAdmin
-	}
+func (s *store) addMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
 	rows := make([]member, 0, len(members))
 	for _, did := range members {
 		rows = append(rows, member{
@@ -106,21 +92,21 @@ func (m *manager) addMembers(ctx context.Context, actor syntax.DID, members []sy
 			CreatedAt: time.Now(),
 		})
 	}
-	return m.db.WithContext(ctx).Clauses(clause.OnConflict{
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "member"}},
 		DoNothing: true,
 	}).Create(&rows).Error
 }
 
 // BootstrapAdmin implements Store.
-func (m *manager) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error {
+func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error {
 	panic("unimplemented")
 }
 
 // GetAdmins implements Store.
-func (m *manager) getAdmins(ctx context.Context) ([]syntax.DID, error) {
+func (s *store) getAdmins(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
-	if err := m.db.WithContext(ctx).Where("role = ?", org.Admin).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("role = ?", org.Admin).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	dids := make([]syntax.DID, 0, len(rows))
@@ -135,9 +121,9 @@ func (m *manager) getAdmins(ctx context.Context) ([]syntax.DID, error) {
 }
 
 // GetMembers implements Store.
-func (m *manager) getMembers(ctx context.Context) ([]syntax.DID, error) {
+func (s *store) getMembers(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
-	if err := m.db.WithContext(ctx).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	dids := make([]syntax.DID, 0, len(rows))
@@ -152,57 +138,48 @@ func (m *manager) getMembers(ctx context.Context) ([]syntax.DID, error) {
 }
 
 // RemoveAdmin implements Store.
-func (m *manager) removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
-	isAdmin, err := m.isAdmin(ctx, actor)
-	if err != nil {
-		return err
-	}
-	if !isAdmin {
-		return ErrNotAdmin
-	}
+func (s *store) removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
 	var adminCount int64
-	if err := m.db.WithContext(ctx).Model(&member{}).Where("role = ?", org.Admin).Count(&adminCount).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", org.Admin).Count(&adminCount).Error; err != nil {
 		return err
 	}
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return m.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), org.Admin).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), org.Admin).Delete(&member{}).Error
 }
 
 // RemoveMembers implements Store.
-func (m *manager) removeMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
-	isAdmin, err := m.isAdmin(ctx, actor)
-	if err != nil {
-		return err
-	}
-	if !isAdmin {
-		return ErrNotAdmin
-	}
+func (s *store) removeMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
 	dids := make([]string, 0, len(members))
 	for _, did := range members {
 		dids = append(dids, did.String())
 	}
-	return m.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, org.Member).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, org.Member).Delete(&member{}).Error
 }
 
-func (m *manager) isAdmin(ctx context.Context, did syntax.DID) (bool, error) {
+/*
+
+This will be used once we use the org store
+func (s *store) isAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
-	err := m.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), org.Admin).First(&row).Error
+	err := s.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), org.Admin).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
 	return err == nil, err
 }
+
+*/
 
 // isMember implements Store.
-func (m *manager) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
+func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
-	err := m.db.WithContext(ctx).Where("member = ?", did.String()).First(&row).Error
+	err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
 	return err == nil, err
 }
 
-var _ Store = &manager{}
+var _ Store = &store{}
