@@ -6,7 +6,7 @@ import { AuthManager } from "@/authManager";
 import { Button } from "./ui/button";
 import { UserItem } from "./UserItem";
 import { Spinner } from "./ui/spinner";
-import { XIcon } from "lucide-react";
+import { XIcon, GlobeIcon } from "lucide-react";
 
 interface ShareDialogProps {
   grantees: Actor[];
@@ -14,13 +14,20 @@ interface ShareDialogProps {
   onRemovePermission: (grantee: Actor) => void;
   authManager: AuthManager;
   isAdding?: boolean;
+  isPublic?: boolean;
+  isMakingPublic?: boolean;
+  onMakePublic?: () => void;
 }
+
 const ShareDialog = ({
   grantees,
   authManager,
   isAdding,
   onAddPermission,
   onRemovePermission,
+  isPublic,
+  isMakingPublic,
+  onMakePublic,
 }: ShareDialogProps) => {
   const [newGrantees, setNewGrantees] = useState<Actor[]>([]);
   return (
@@ -28,39 +35,56 @@ const ShareDialog = ({
       <DialogTrigger render={<Button>Share</Button>} />
       <DialogContent>
         <DialogTitle>Share</DialogTitle>
-        <UserCombobox
-          value={newGrantees}
-          onValueChange={setNewGrantees}
-          authManager={authManager}
-        />
-        <Button
-          onClick={() => {
-            onAddPermission(newGrantees);
-            setNewGrantees([]);
-          }}
-          disabled={isAdding}
-        >
-          {isAdding && <Spinner />}
-          Add
-        </Button>
-        {grantees.map((g) => {
-          return (
-            <UserItem
-              key={g.handle}
-              actor={g}
-              actions={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Remove ${g.handle}`}
-                  onClick={() => onRemovePermission(g)}
-                >
-                  <XIcon />
-                </Button>
-              }
+        {isPublic ? (
+          <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+            <GlobeIcon className="size-4 shrink-0" />
+            <span>This document is public — anyone can view it.</span>
+          </div>
+        ) : (
+          <>
+            {onMakePublic && (
+              <Button
+                variant="outline"
+                disabled={isMakingPublic}
+                onClick={onMakePublic}
+              >
+                {isMakingPublic ? <Spinner /> : <GlobeIcon className="size-4" />}
+                Make public
+              </Button>
+            )}
+            <UserCombobox
+              value={newGrantees}
+              onValueChange={setNewGrantees}
+              authManager={authManager}
             />
-          );
-        })}
+            <Button
+              onClick={() => {
+                onAddPermission(newGrantees);
+                setNewGrantees([]);
+              }}
+              disabled={isAdding}
+            >
+              {isAdding && <Spinner />}
+              Add
+            </Button>
+            {grantees.map((g) => (
+              <UserItem
+                key={g.handle}
+                actor={g}
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${g.handle}`}
+                    onClick={() => onRemovePermission(g)}
+                  >
+                    <XIcon />
+                  </Button>
+                }
+              />
+            ))}
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -22,6 +22,7 @@ import { peerIdFromString } from "@libp2p/peer-id";
 import {
   addPermissionMutationOptions,
   removePermissionMutationOptions,
+  makePublicMutationOptions,
   docEditsQueryOptions,
   docQueryOptions,
   docsListQueryOptions,
@@ -300,25 +301,30 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { mutate: save } = useMutation({
       mutationFn: async () => {
         const heading = getHeadingFromYdoc(ydoc);
-        const collection =
-          docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
-        const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
+        const isOwner = docDID === did;
+        const isPublic = doc.value.isPublic;
+        const collection = isOwner ? "network.habitat.docs" : "network.habitat.docs.edit";
+        const mappedKey = isOwner ? rkey : `${docDID}-${rkey}`;
+        const record = {
+          name: heading ?? "Untitled",
+          blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
+          editorClique: doc.value.editorClique,
+          ...(isPublic && { isPublic: true }),
+        };
 
-        await procedure(
-          "network.habitat.putRecord",
-          {
-            repo: did!,
-            collection: collection,
-            rkey: mappedKey,
-            record: {
-              name: heading ?? "Untitled",
-              blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
-              editorClique: doc.value.editorClique,
-            },
-            grantees: doc.permissions,
-          },
-          { authManager },
-        );
+        if (isPublic) {
+          await procedure(
+            "com.atproto.repo.putRecord",
+            { repo: did!, collection, rkey: mappedKey, record },
+            { authManager },
+          );
+        } else {
+          await procedure(
+            "network.habitat.putRecord",
+            { repo: did!, collection, rkey: mappedKey, record, grantees: doc.permissions },
+            { authManager },
+          );
+        }
       },
 
       onSuccess: () => {
@@ -330,6 +336,14 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { mutate: removePermission } = useMutation(
       removePermissionMutationOptions(authManager),
     );
+    const navigate = Route.useNavigate();
+    const { mutate: makePublic, isPending: isMakingPublic } = useMutation({
+      ...makePublicMutationOptions(authManager),
+      onSuccess: (newUri: string) => {
+        queryClient.invalidateQueries(docsListQueryOptions(authManager));
+        navigate({ to: "/$uri", params: { uri: newUri } });
+      },
+    });
     // debounce
     const handleUpdate = useMemo(() => {
       let prevTimeout: number | undefined;
@@ -416,7 +430,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           <HelpDialog />
 
           {docDID === authManager.getAuthInfo()?.did &&
-            doc.value.editorClique && (
+            (doc.value.editorClique || doc.value.isPublic) && (
               <ShareDialog
                 isAdding={isAddingPermission}
                 grantees={(editorProfiles ?? []).filter(
@@ -435,6 +449,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                     editorCliqueUri: doc.value.editorClique,
                   })
                 }
+                isPublic={doc.value.isPublic}
+                isMakingPublic={isMakingPublic}
+                onMakePublic={() => makePublic({ uri, doc: doc.value })}
               />
             )}
         </PageHeader>

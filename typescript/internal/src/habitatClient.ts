@@ -20,6 +20,8 @@ import type {
   NetworkHabitatCliqueAddMembers,
   NetworkHabitatCliqueGetMembers,
   NetworkHabitatCliqueRemoveMembers,
+  ComAtprotoRepoPutRecord,
+  ComAtprotoRepoDeleteRecord,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -89,6 +91,14 @@ type ProcedureEndpoints = {
   "com.atproto.repo.createRecord": Procedure<
     ComAtprotoRepoCreateRecord.InputSchema,
     ComAtprotoRepoCreateRecord.OutputSchema
+  >;
+  "com.atproto.repo.putRecord": Procedure<
+    ComAtprotoRepoPutRecord.InputSchema,
+    ComAtprotoRepoPutRecord.OutputSchema
+  >;
+  "com.atproto.repo.deleteRecord": Procedure<
+    ComAtprotoRepoDeleteRecord.InputSchema,
+    {}
   >;
   "network.habitat.putRecord": Procedure<
     NetworkHabitatRepoPutRecord.InputSchema,
@@ -218,6 +228,39 @@ interface ListRecordsResponse<T extends Record<string, unknown>>
   extends NetworkHabitatRepoListRecords.OutputSchema {
   records: TypedRecord<T>[];
 }
+
+export const getPublicRecord = async <T = Record<string, unknown>>(
+  authManager: AuthManager,
+  collection: string,
+  rkey: string,
+  repo: string,
+): Promise<TypedRecord<T>> => {
+  const response = await query(
+    "com.atproto.repo.getRecord",
+    { collection, rkey, repo },
+    { authManager },
+  );
+  return { uri: response.uri, value: response.value as T, permissions: [] };
+};
+
+export const listPublicRecords = async <T extends Record<string, unknown>>(
+  authManager: AuthManager,
+  collection: string,
+  repo: string,
+): Promise<{ records: TypedRecord<T>[] }> => {
+  const response = await query(
+    "com.atproto.repo.listRecords",
+    { collection, repo },
+    { authManager },
+  );
+  return {
+    records: (response.records ?? []).map((r) => ({
+      uri: r.uri,
+      value: r.value as T,
+      permissions: [],
+    })),
+  };
+};
 
 export const listPrivateRecords = async <T extends Record<string, unknown>>(
   authManager: AuthManager,

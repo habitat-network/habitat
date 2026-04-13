@@ -3,34 +3,72 @@ import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import {
   AuthManager,
   getPrivateRecord,
+  getPublicRecord,
   listPrivateRecords,
+  listPublicRecords,
   procedure,
   query,
   TypedRecord,
 } from "internal";
 
+const isPublicUri = (uri: string) => uri.startsWith("at://");
+
+const getDoc = (
+  authManager: AuthManager,
+  uri: string,
+  includePermissions?: boolean,
+): Promise<TypedRecord<HabitatDoc>> => {
+  const [, , did, , rkey] = uri.split("/");
+  if (isPublicUri(uri)) {
+    return getPublicRecord<HabitatDoc>(authManager, "network.habitat.docs", rkey, did);
+  }
+  return getPrivateRecord<HabitatDoc>(
+    authManager,
+    "network.habitat.docs",
+    rkey,
+    did,
+    includePermissions,
+  );
+};
+
+const deleteDoc = async (authManager: AuthManager, uri: string): Promise<void> => {
+  const [, , repo, , rkey] = uri.split("/");
+  if (isPublicUri(uri)) {
+    await procedure(
+      "com.atproto.repo.deleteRecord",
+      { repo, collection: "network.habitat.docs", rkey },
+      { authManager },
+    );
+  } else {
+    await procedure(
+      "network.habitat.repo.deleteRecord",
+      { repo, collection: "network.habitat.docs", rkey },
+      { authManager },
+    );
+  }
+};
+
 export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
     queryKey: ["docs"],
     staleTime: 1000 * 60 * 5,
-    queryFn: () =>
-      listPrivateRecords<HabitatDoc>(authManager, "network.habitat.docs"),
+    queryFn: async () => {
+      const did = authManager.getAuthInfo()?.did;
+      const [privateResult, publicResult] = await Promise.all([
+        listPrivateRecords<HabitatDoc>(authManager, "network.habitat.docs"),
+        did
+          ? listPublicRecords<HabitatDoc>(authManager, "network.habitat.docs", did)
+          : Promise.resolve({ records: [] as TypedRecord<HabitatDoc>[] }),
+      ]);
+      return { records: [...privateResult.records, ...publicResult.records] };
+    },
   });
 
-export const docQueryOptions = (uri: string, authManager: AuthManager) => {
-  const [, , docDID, , rkey] = uri.split("/");
-  return queryOptions({
+export const docQueryOptions = (uri: string, authManager: AuthManager) =>
+  queryOptions({
     queryKey: ["doc", uri],
-    queryFn: () =>
-      getPrivateRecord<HabitatDoc>(
-        authManager,
-        "network.habitat.docs",
-        rkey,
-        docDID,
-        true,
-      ),
+    queryFn: () => getDoc(authManager, uri, true),
   });
-};
 
 export const docEditorsQueryOptions = (
   editorCliqueUri: string,
@@ -41,9 +79,7 @@ export const docEditorsQueryOptions = (
     queryFn: async () => {
       const { members } = await query(
         "network.habitat.clique.getMembers",
-        {
-          clique: editorCliqueUri,
-        },
+        { clique: editorCliqueUri },
         { authManager },
       );
       return members ?? [];
@@ -68,9 +104,7 @@ export const editorProfilesQueryOptions = (
       }
       const { profiles } = await query(
         "app.bsky.actor.getProfiles",
-        {
-          actors: dids,
-        },
+        { actors: dids },
         { authManager },
       );
       return profiles;
@@ -95,18 +129,16 @@ export const docEditsQueryOptions = (
       }
 
       const [, , ownerDID, , ownerRkey] = ownerRecord.uri.split("/");
-      // editRkey is the rkey used in network.habitat.docs.edit for this doc
       const editRkey = `${ownerDID}-${ownerRkey}`;
       return Promise.all(
         permissions.map(async (did) => {
           try {
-            const edit = await getPrivateRecord<HabitatDoc>(
+            return await getPrivateRecord<HabitatDoc>(
               authManager,
               "network.habitat.docs.edit",
               editRkey,
               did,
             );
-            return edit;
           } catch {
             /* silently skip */
           }
@@ -117,18 +149,7 @@ export const docEditsQueryOptions = (
 
 export const deleteDocMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
-    mutationFn: async ({ uri }: { uri: string }) => {
-      const [, , repo, , rkey] = uri.split("/");
-      await procedure(
-        "network.habitat.repo.deleteRecord",
-        {
-          repo,
-          collection: "network.habitat.docs",
-          rkey,
-        },
-        { authManager },
-      );
-    },
+    mutationFn: ({ uri }: { uri: string }) => deleteDoc(authManager, uri),
   });
 
 export const addPermissionMutationOptions = (authManager: AuthManager) =>
@@ -188,5 +209,24 @@ export const removePermissionMutationOptions = (authManager: AuthManager) =>
       await client.invalidateQueries(
         docEditorsQueryOptions(editorCliqueUri, authManager),
       );
+    },
+  });
+
+export const makePublicMutationOptions = (authManager: AuthManager) =>
+  mutationOptions({
+    mutationFn: async ({ uri, doc }: { uri: string; doc: HabitatDoc }) => {
+      const [, , repo, , rkey] = uri.split("/");
+      await procedure(
+        "com.atproto.repo.putRecord",
+        {
+          repo,
+          collection: "network.habitat.docs",
+          rkey,
+          record: { ...doc, isPublic: true },
+        },
+        { authManager },
+      );
+      await deleteDoc(authManager, uri);
+      return `at://${repo}/network.habitat.docs/${rkey}`;
     },
   });

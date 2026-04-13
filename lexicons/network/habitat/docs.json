@@ -25,6 +25,10 @@
                         "type": "string",
                         "format": "uri",
                         "description": "URI of the clique whose members may edit this document."
+                    },
+                    "isPublic": {
+                        "type": "boolean",
+                        "description": "Whether this document is stored on the public AT Proto PDS and readable by anyone."
                     }
                 }
             }
