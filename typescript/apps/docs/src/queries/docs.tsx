@@ -1,4 +1,4 @@
-import { HabitatDoc } from "@/habitatDoc";
+import { HabitatDoc, HabitatDocEdit } from "@/habitatDoc";
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import {
   AuthManager,
@@ -111,6 +111,7 @@ export const editorProfilesQueryOptions = (
     },
   });
 
+
 export const docEditsQueryOptions = (
   ownerRecord: TypedRecord<HabitatDoc>,
   authManager: AuthManager,
@@ -118,6 +119,31 @@ export const docEditsQueryOptions = (
   queryOptions({
     queryKey: ["edits", ownerRecord.uri],
     queryFn: async ({ client }) => {
+      if (isPublicUri(ownerRecord.uri)) {
+        // Fetch backlinks from constellation
+        const params = new URLSearchParams({ subject: ownerRecord.uri, source: "network.habitat.docs.edit:doc" });
+        const resp = await fetch(
+          `https://constellation.microcosm.blue/xrpc/blue.microcosm.links.getBacklinks?${params}`,
+        );
+        if (!resp.ok) return [];
+        const data = await resp.json() as { records?: { did: string; collection: string; rkey: string }[] };
+        const records = data.records ?? [];
+        return Promise.all(
+          records.map(async ({ did, rkey }) => {
+            try {
+              return await getPublicRecord<HabitatDocEdit>(
+                authManager,
+                "network.habitat.docs.edit",
+                rkey,
+                did,
+              );
+            } catch {
+              /* silently skip */
+            }
+          }),
+        );
+      }
+
       if (!ownerRecord.value.editorClique) {
         return [];
       }
@@ -133,7 +159,7 @@ export const docEditsQueryOptions = (
       return Promise.all(
         permissions.map(async (did) => {
           try {
-            return await getPrivateRecord<HabitatDoc>(
+            return await getPrivateRecord<HabitatDocEdit>(
               authManager,
               "network.habitat.docs.edit",
               editRkey,
@@ -216,13 +242,15 @@ export const makePublicMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
     mutationFn: async ({ uri, doc }: { uri: string; doc: HabitatDoc }) => {
       const [, , repo, , rkey] = uri.split("/");
+      const record = { ...doc, isPublic: true }
+      delete record["editorClique"];
       await procedure(
         "com.atproto.repo.putRecord",
         {
           repo,
           collection: "network.habitat.docs",
           rkey,
-          record: { ...doc, isPublic: true },
+          record,
         },
         { authManager },
       );

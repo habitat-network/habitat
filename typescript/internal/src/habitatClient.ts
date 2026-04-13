@@ -183,11 +183,13 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   params: ProcedureEndpoints[T]["params"],
   options: QueryOptions,
 ): Promise<ProcedureEndpoints[T]["output"]> => {
+  const headers = options.headers ?? new Headers();
+  headers.set("Content-Type", "application/json");
   const response = await options.authManager.fetch(
     "/xrpc/" + endpoint,
     "POST",
     JSON.stringify(params),
-    options.headers,
+    headers,
     options.fetchOptions,
   );
 

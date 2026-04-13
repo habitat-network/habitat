@@ -305,11 +305,15 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         const isPublic = doc.value.isPublic;
         const collection = isOwner ? "network.habitat.docs" : "network.habitat.docs.edit";
         const mappedKey = isOwner ? rkey : `${docDID}-${rkey}`;
+        const docUri = isPublic
+          ? `at://${docDID}/network.habitat.docs/${rkey}`
+          : `habitat://${docDID}/network.habitat.docs/${rkey}`;
         const record = {
           name: heading ?? "Untitled",
           blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
           editorClique: doc.value.editorClique,
           ...(isPublic && { isPublic: true }),
+          ...(!isOwner && { doc: docUri }),
         };
 
         if (isPublic) {
@@ -450,6 +454,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                   })
                 }
                 isPublic={doc.value.isPublic}
+                publicUrl={doc.value.isPublic ? window.location.href : undefined}
                 isMakingPublic={isMakingPublic}
                 onMakePublic={() => makePublic({ uri, doc: doc.value })}
               />

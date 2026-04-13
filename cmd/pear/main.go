@@ -218,6 +218,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
 
+	// special-case: handle public getRecord explicitly since forwarding needs to go to the right host
+	// TODO: do this for listRecords / other getters
+	mux.HandleFunc("/xrpc/com.atproto.repo.getRecord", pearServer.GetPublicRecord)
+
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -779,5 +780,61 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
 		return
+	}
+}
+
+// GetPublicRecord handles com.atproto.repo.getRecord by forwarding to the record
+// owner's PDS. Unlike pdsForwarding (which forwards to the *caller's* PDS), this
+// resolves the destination from the `repo` query param so cross-user reads work.
+// No authentication is required — com.atproto.repo.getRecord is a public endpoint.
+func (s *Server) GetPublicRecord(w http.ResponseWriter, r *http.Request) {
+	repoParam := r.URL.Query().Get("repo")
+	if repoParam == "" {
+		http.Error(w, `{"error":"InvalidRequest","message":"missing repo param"}`, http.StatusBadRequest)
+		return
+	}
+
+	atid, err := syntax.ParseAtIdentifier(repoParam)
+	if err != nil {
+		http.Error(w, `{"error":"InvalidRequest","message":"invalid repo param"}`, http.StatusBadRequest)
+		return
+	}
+
+	id, err := s.dir.Lookup(r.Context(), atid)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "resolving repo DID", http.StatusBadRequest)
+		return
+	}
+
+	pdsEndpoint, ok := id.Services["atproto_pds"]
+	if !ok {
+		http.Error(w, `{"error":"InvalidRequest","message":"no atproto_pds service for DID"}`, http.StatusBadRequest)
+		return
+	}
+
+	target, err := url.Parse(pdsEndpoint.URL)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing PDS endpoint", http.StatusInternalServerError)
+		return
+	}
+
+	forwardURL := target.ResolveReference(&url.URL{
+		Path:     "/xrpc/com.atproto.repo.getRecord",
+		RawQuery: r.URL.RawQuery,
+	})
+
+	resp, err := http.Get(forwardURL.String())
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "forwarding getRecord to owner PDS", http.StatusBadGateway)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+	w.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		if utils.ShouldLog(err) {
+			log.Error().Err(err).Msg("[GetPublicRecord]: failed to copy response body")
+		}
 	}
 }
