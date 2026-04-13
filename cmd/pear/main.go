@@ -154,7 +154,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// TODO: take in non-everything org depending on CLI flag
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), org.NewEveryoneOrg())
+	servingOrg := cmd.Bool(fOrg)
+
+	// Default: no org == org that serves everyone
+	orgStore := org.NewEveryoneOrg()
+	if servingOrg {
+		orgStore, err = org.NewStore(org.Org{Domain: domain}, db)
+		if err != nil {
+			log.Fatal().Err(err).Msgf("unable to setup backing store for org with domain: %s", domain)
+		}
+	}
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgStore)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
@@ -218,11 +228,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
-
-	// org management
-	if servingOrg {
-		// TODO: add org management paths here
-	}
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)

@@ -40,3 +40,6 @@ cmd/pear/repo.db
 
 # Ignore custom VSCode/Cursor settings
 .vscode/settings.json
+
+# Ignore claude worktrees
+.claude
