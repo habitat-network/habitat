@@ -9,6 +9,7 @@ import {
 import { schemas } from './lexicons.js'
 import { CID } from 'multiformats/cid'
 import { type OmitKey, type Un$Typed } from './util.js'
+import * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 import * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
 import * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
 import * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
@@ -52,6 +53,7 @@ import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/lis
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
+export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
 export * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
 export * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
@@ -162,6 +164,17 @@ export class ComAtprotoRepoNS {
 
   constructor(client: XrpcClient) {
     this._client = client
+  }
+
+  createRecord(
+    data?: ComAtprotoRepoCreateRecord.InputSchema,
+    opts?: ComAtprotoRepoCreateRecord.CallOptions,
+  ): Promise<ComAtprotoRepoCreateRecord.Response> {
+    return this._client
+      .call('com.atproto.repo.createRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw ComAtprotoRepoCreateRecord.toKnownErr(e)
+      })
   }
 
   deleteRecord(

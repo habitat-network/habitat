@@ -10,8 +10,5 @@
   "include": [
     "**/*"
   ],
-  "exclude": [
-    "index.ts"
-  ], // the api in here is unused; generation doesn't fully work for it
   "references": []
 }
