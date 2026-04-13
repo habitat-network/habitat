@@ -150,10 +150,21 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pear servers")
+		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), org.NewEveryoneOrg())
 
+	// TODO: take in non-everything org depending on CLI flag
+	servingOrg := cmd.Bool(fOrg)
+
+	// Default: no org == org that serves everyone
+	orgStore := org.NewEveryoneOrg()
+	if servingOrg {
+		orgStore, err = org.NewStore(org.Org{Domain: domain}, db)
+		if err != nil {
+			log.Fatal().Err(err).Msgf("unable to setup backing store for org with domain: %s", domain)
+		}
+	}
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgStore)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
@@ -169,6 +180,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(corsMiddleware)
 
 	// handle waitlist signups
+	// TODO: this should be moved to a separate server; no need to run it for orgs
 	waitlistSvc, err := NewWaitlistService(
 		egCtx,
 		os.Getenv("WAITLIST_SHEET_ID"),
@@ -187,11 +199,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
 
 	// auth routes
+	// TODO: who is allowed to call the oauth handlers in an org?
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
-
-	// app routes
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 
 	// pear routes

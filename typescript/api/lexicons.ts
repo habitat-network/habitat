@@ -10,6 +10,90 @@ import {
 import { type $Typed, is$typed, maybe$typed } from './util.js'
 
 export const schemaDict = {
+  ComAtprotoRepoCreateRecord: {
+    lexicon: 1,
+    id: 'com.atproto.repo.createRecord',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a single new repository record. Requires auth, implemented by PDS.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repo', 'collection', 'record'],
+            properties: {
+              repo: {
+                type: 'string',
+                format: 'at-identifier',
+                description:
+                  'The handle or DID of the repo (aka, current account).',
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'The NSID of the record collection.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description: 'The Record Key.',
+                maxLength: 512,
+              },
+              validate: {
+                type: 'boolean',
+                description:
+                  "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons.",
+              },
+              record: {
+                type: 'unknown',
+                description: 'The record itself. Must contain a $type field.',
+              },
+              swapCommit: {
+                type: 'string',
+                format: 'cid',
+                description:
+                  'Compare and swap with the previous commit by CID.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri', 'cid'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'at-uri',
+              },
+              cid: {
+                type: 'string',
+                format: 'cid',
+              },
+              commit: {
+                type: 'ref',
+                ref: 'lex:com.atproto.repo.defs#commitMeta',
+              },
+              validationStatus: {
+                type: 'string',
+                knownValues: ['valid', 'unknown'],
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'InvalidSwap',
+            description:
+              "Indicates that 'swapCommit' didn't match current repo commit.",
+          },
+        ],
+      },
+    },
+  },
   ComAtprotoRepoDefs: {
     lexicon: 1,
     id: 'com.atproto.repo.defs',
@@ -1024,6 +1108,164 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgAddAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.addAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Add an admin to the org. Only callable by existing admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the user to add as an admin.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgAddMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.addMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Add member(s) to the org. Only callable by admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'The DIDs of the users to add as members.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgGetAdmins: {
+    lexicon: 1,
+    id: 'network.habitat.org.getAdmins',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get the list of admins in the org. Callable by any org member.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admins'],
+            properties: {
+              admins: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgGetMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.getMembers',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get the list of members in the org. Callable by any org member.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgRemoveAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.removeAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove an admin from the org. Only callable by existing admins. The last admin cannot be removed.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the admin to remove.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgRemoveMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.removeMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Remove member(s) from the org. Only callable by admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'The DIDs of the members to remove.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatPermissionsAddPermission: {
     lexicon: 1,
     id: 'network.habitat.permissions.addPermission',
@@ -1830,6 +2072,7 @@ export function validate(
 }
 
 export const ids = {
+  ComAtprotoRepoCreateRecord: 'com.atproto.repo.createRecord',
   ComAtprotoRepoDefs: 'com.atproto.repo.defs',
   ComAtprotoRepoDeleteRecord: 'com.atproto.repo.deleteRecord',
   ComAtprotoRepoGetRecord: 'com.atproto.repo.getRecord',
@@ -1854,6 +2097,12 @@ export const ids = {
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
+  NetworkHabitatOrgAddAdmin: 'network.habitat.org.addAdmin',
+  NetworkHabitatOrgAddMembers: 'network.habitat.org.addMembers',
+  NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
+  NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
+  NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
+  NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
   NetworkHabitatPermissionsListPermissions:

@@ -9,6 +9,7 @@ import {
 import { schemas } from './lexicons.js'
 import { CID } from 'multiformats/cid'
 import { type OmitKey, type Un$Typed } from './util.js'
+import * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 import * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
 import * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
 import * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
@@ -32,6 +33,12 @@ import * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
+import * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
+import * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+import * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
+import * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
+import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
+import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
@@ -46,6 +53,7 @@ import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/lis
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
 
+export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
 export * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
 export * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
@@ -69,6 +77,12 @@ export * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
+export * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
+export * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+export * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
+export * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
+export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
+export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
@@ -150,6 +164,17 @@ export class ComAtprotoRepoNS {
 
   constructor(client: XrpcClient) {
     this._client = client
+  }
+
+  createRecord(
+    data?: ComAtprotoRepoCreateRecord.InputSchema,
+    opts?: ComAtprotoRepoCreateRecord.CallOptions,
+  ): Promise<ComAtprotoRepoCreateRecord.Response> {
+    return this._client
+      .call('com.atproto.repo.createRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw ComAtprotoRepoCreateRecord.toKnownErr(e)
+      })
   }
 
   deleteRecord(
@@ -270,7 +295,7 @@ export class CommunityLexiconCalendarEventRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarEvent.Record>,
@@ -353,7 +378,7 @@ export class CommunityLexiconCalendarInviteRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarInvite.Record>,
@@ -436,7 +461,7 @@ export class CommunityLexiconCalendarRsvpRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarRsvp.Record>,
@@ -507,6 +532,7 @@ export class NetworkHabitatNS {
   photo: NetworkHabitatPhotoRecord
   clique: NetworkHabitatCliqueNS
   internal: NetworkHabitatInternalNS
+  org: NetworkHabitatOrgNS
   permissions: NetworkHabitatPermissionsNS
   render: NetworkHabitatRenderNS
   repo: NetworkHabitatRepoNS
@@ -515,6 +541,7 @@ export class NetworkHabitatNS {
     this._client = client
     this.clique = new NetworkHabitatCliqueNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
+    this.org = new NetworkHabitatOrgNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.render = new NetworkHabitatRenderNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
@@ -623,6 +650,86 @@ export class NetworkHabitatInternalNS {
   }
 }
 
+export class NetworkHabitatOrgNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addAdmin(
+    data?: NetworkHabitatOrgAddAdmin.InputSchema,
+    opts?: NetworkHabitatOrgAddAdmin.CallOptions,
+  ): Promise<NetworkHabitatOrgAddAdmin.Response> {
+    return this._client.call(
+      'network.habitat.org.addAdmin',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  addMembers(
+    data?: NetworkHabitatOrgAddMembers.InputSchema,
+    opts?: NetworkHabitatOrgAddMembers.CallOptions,
+  ): Promise<NetworkHabitatOrgAddMembers.Response> {
+    return this._client.call(
+      'network.habitat.org.addMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  getAdmins(
+    params?: NetworkHabitatOrgGetAdmins.QueryParams,
+    opts?: NetworkHabitatOrgGetAdmins.CallOptions,
+  ): Promise<NetworkHabitatOrgGetAdmins.Response> {
+    return this._client.call(
+      'network.habitat.org.getAdmins',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  getMembers(
+    params?: NetworkHabitatOrgGetMembers.QueryParams,
+    opts?: NetworkHabitatOrgGetMembers.CallOptions,
+  ): Promise<NetworkHabitatOrgGetMembers.Response> {
+    return this._client.call(
+      'network.habitat.org.getMembers',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  removeAdmin(
+    data?: NetworkHabitatOrgRemoveAdmin.InputSchema,
+    opts?: NetworkHabitatOrgRemoveAdmin.CallOptions,
+  ): Promise<NetworkHabitatOrgRemoveAdmin.Response> {
+    return this._client.call(
+      'network.habitat.org.removeAdmin',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  removeMembers(
+    data?: NetworkHabitatOrgRemoveMembers.InputSchema,
+    opts?: NetworkHabitatOrgRemoveMembers.CallOptions,
+  ): Promise<NetworkHabitatOrgRemoveMembers.Response> {
+    return this._client.call(
+      'network.habitat.org.removeMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
 export class NetworkHabitatPermissionsNS {
   _client: XrpcClient
 
@@ -713,7 +820,7 @@ export class NetworkHabitatRenderSchemaRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatRenderSchema.Record>,
@@ -894,7 +1001,7 @@ export class NetworkHabitatDocsRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatDocs.Record>,
@@ -973,7 +1080,7 @@ export class NetworkHabitatPhotoRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatPhoto.Record>,
