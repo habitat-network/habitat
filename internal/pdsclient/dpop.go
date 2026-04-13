@@ -187,8 +187,6 @@ func doInternal(
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 
-	fmt.Println("Url", req.URL.String())
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err

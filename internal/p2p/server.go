@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -30,17 +31,17 @@ type peerRegistry struct {
 	mu sync.RWMutex
 
 	// Map of record (gossipsub topics) --> peerID currently subscribed --> channel on which to notify peer of new peers
-	peersByTopic map[habitat_syntax.HabitatURI]map[peer.ID]chan peer.ID
+	peersByTopic map[string]map[peer.ID]chan peer.ID
 }
 
 func newPeerRegistry() *peerRegistry {
 	return &peerRegistry{
 		mu:           sync.RWMutex{},
-		peersByTopic: make(map[habitat_syntax.HabitatURI]map[peer.ID]chan peer.ID),
+		peersByTopic: make(map[string]map[peer.ID]chan peer.ID),
 	}
 }
 
-func (pr *peerRegistry) register(topic habitat_syntax.HabitatURI, peerID peer.ID) chan peer.ID {
+func (pr *peerRegistry) register(topic string, peerID peer.ID) chan peer.ID {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 	if _, ok := pr.peersByTopic[topic]; !ok {
@@ -71,7 +72,7 @@ func (pr *peerRegistry) deregister(peerID peer.ID) {
 	}
 }
 
-func (pr *peerRegistry) peers(topic habitat_syntax.HabitatURI) []string {
+func (pr *peerRegistry) peers(topic string) []string {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
 	result := make([]string, 0, len(pr.peersByTopic[topic]))
@@ -88,7 +89,7 @@ func (pr *peerRegistry) Listen(network.Network, ma.Multiaddr)      {}
 func (pr *peerRegistry) ListenClose(network.Network, ma.Multiaddr) {}
 func (pr *peerRegistry) Connected(network.Network, network.Conn)   {}
 
-func (pr *peerRegistry) notifySubscribedPeers(topic habitat_syntax.HabitatURI, peerID peer.ID) {
+func (pr *peerRegistry) notifySubscribedPeers(topic string, peerID peer.ID) {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
 	for other, ch := range pr.peersByTopic[topic] {
@@ -182,31 +183,38 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 			return
 		}
 
-		// TODO: validate req.Credential and check topic permissions
-		topic, err := habitat_syntax.ParseHabitatURI(req.Topic)
-		if err != nil {
-			return
+		var topic string
+		if strings.HasPrefix(req.Topic, "habitat://") {
+			// Private record
+			// TODO: validate req.Credential and check topic permissions
+			uri, err := habitat_syntax.ParseHabitatURI(req.Topic)
+			if err != nil {
+				return
+			}
+			topic = uri.String()
+
+			// Always use service auth here -- the service is p2p peer discovery for habitat.
+			did, authn, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
+			if err != nil || !authn {
+				// Ignore this peer -- don't let it know about others and don't let others discover it
+				return
+			}
+
+			authz, err := s.pear.HasPermission(
+				ctx,
+				did,
+				did,
+				uri.Authority().DID(),
+				uri.Collection(),
+				uri.RecordKey(),
+			)
+			if err != nil || !authz {
+				// Ignore this peer -- don't let it know about others and don't let others discover it
+				return
+			}
 		}
 
-		// Always use service auth here -- the service is p2p peer discovery for habitat.
-		did, authn, err := s.serviceAuth.ValidateRaw(ctx, req.ServiceAuthToken)
-		if err != nil || !authn {
-			// Ignore this peer -- don't let it know about others and don't let others discover it
-			return
-		}
-
-		authz, err := s.pear.HasPermission(
-			ctx,
-			did,
-			did,
-			topic.Authority().DID(),
-			topic.Collection(),
-			topic.RecordKey(),
-		)
-		if err != nil || !authz {
-			// Ignore this peer -- don't let it know about others and don't let others discover it
-			return
-		}
+		// Otherwise it's a public record; allow anyone to join the topic
 
 		ch := registry.register(topic, peerID)
 		defer registry.deregister(peerID)
