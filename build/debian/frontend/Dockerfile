@@ -22,6 +22,10 @@ RUN pnpm install --frozen-lockfile
 # Copy the rest of the source
 COPY . .
 
+# Build workspace dependencies in order before the frontend
+RUN pnpm --filter api build
+RUN pnpm --filter internal build
+
 # Build with domains baked in and hash routing enabled
 RUN DOMAIN=$DOMAIN HABITAT_DOMAIN=$HABITAT_DOMAIN HASH_ROUTING=true \
     pnpm --filter frontend build
