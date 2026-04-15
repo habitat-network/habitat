@@ -69,14 +69,11 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward the request using the dpopClient
 	resp, err := dpopClient.Do(req)
 	if err != nil {
-		// TODO: REMOVE THIS STRING MATCH (unrelated bugs that happen to have 'invalid' such as 'http2: invalid Connection request header' get turned into logouts)
-		if strings.Contains(err.Error(), "invalid") {
-			utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusUnauthorized)
-			return
-		} else {
-			utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
-			return
-		}
+		// dpopClient.Do only returns an error for transport-level failures (network
+		// errors, signing errors, etc.) — never for PDS auth failures, which come
+		// back as valid HTTP responses. So always return 502 here.
+		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
+		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 	// Copy response headers
