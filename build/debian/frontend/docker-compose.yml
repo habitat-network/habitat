@@ -1,7 +1,7 @@
 services:
   frontend:
     build:
-      context: ../..
+      context: ../../..
       dockerfile: build/debian/frontend/Dockerfile
       args:
         # Required: the domain where the frontend is served (no https:// prefix)

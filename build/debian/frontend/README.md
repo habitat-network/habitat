@@ -32,6 +32,8 @@ HABITAT_DOMAIN=pear.example.com
 
 **3. Build and start**
 
+From the `build/debian/frontend` directory:
+
 ```bash
 docker compose build
 docker compose up -d
@@ -49,9 +51,9 @@ Point your reverse proxy at `http://localhost:3000`. On YunoHost, install the **
 - Access: Visitors
 
 ## Updates
+Pull the latest version of the git repo
 
 ```bash
-git pull
 docker compose build
 docker compose up -d
 ```
