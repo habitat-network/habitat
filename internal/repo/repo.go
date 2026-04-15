@@ -135,23 +135,16 @@ func (r *repo) PutRecord(
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
 	err = r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("did = ?", rec.Did).
-			Where("collection = ?", rec.Collection).
-			Where("rkey = ?", rec.Rkey).
-			Delete(&record{}).
-			Error; err != nil {
-			return err
-		}
 		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
 		}
 		r := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
-		if err := tx.Create(&r).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&r).Error; err != nil {
 			return err
 		}
 		if len(refs) > 0 {
-			if err := tx.Create(&refs).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&refs).Error; err != nil {
 				return err
 			}
 		}
