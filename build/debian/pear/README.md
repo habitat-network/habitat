@@ -11,7 +11,7 @@
 **1. Download the compose file**
 
 ```bash
-curl -O https://raw.githubusercontent.com/habitat-network/habitat/master/build/debian/docker-compose.yml
+curl -O https://raw.githubusercontent.com/habitat-network/habitat/master/build/debian/pear/docker-compose.yml
 ```
 
 **2. Create a `.env` file in the same directory**

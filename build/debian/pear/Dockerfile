@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy binaries and entrypoint from build stage
 COPY --from=build /app/bin/pear /app/pear
 COPY --from=build /app/bin/keygen /app/keygen
-COPY build/debian/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY build/debian/pear/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 # /data is the persistent volume — holds the SQLite DB and auto-generated secrets
