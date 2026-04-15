@@ -5,6 +5,7 @@ on:
     branches: [master]
   release:
     types: [created]
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -29,7 +30,8 @@ jobs:
         with:
           images: ghcr.io/habitat-network/pear
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' && github.event_name != 'workflow_dispatch' }}
+            type=raw,value={{branch}},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=ref,event=tag
 
       - name: Build and push

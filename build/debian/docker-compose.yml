@@ -1,6 +1,6 @@
 services:
   pear:
-    image: ghcr.io/habitat-network/pear:latest
+    image: ghcr.io/habitat-network/pear:${PEAR_TAG:-latest}
     restart: unless-stopped
     ports:
       - "${HABITAT_PORT:-8000}:${HABITAT_PORT:-8000}"
