@@ -94,3 +94,12 @@ pear.example.com {
     reverse_proxy localhost:8000
 }
 ```
+
+
+## Pushing an image for testing without merging PR
+1) Get a github token for writing packages
+2) docker build -f build/debian/pear/Dockerfile -t ghcr.io/habitat-network/pear:[your-test-tag-here] .
+3) docker push ghcr.io/habitat-network/pear:[your-test-tag-here]
+4) On the server: 
+    4a) in build/debian/pear, put PEAR_TAG=[your-test-tag] in .env
+    4b) docker compose pull && docker compose up -d

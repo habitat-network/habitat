@@ -2,6 +2,11 @@ services:
   pear:
     image: ghcr.io/habitat-network/pear:${PEAR_TAG:-latest}
     restart: unless-stopped
+    dns:
+      # Use public DNS instead of YunoHost's dnsmasq, which resolves local
+      # domains to [::1] inside the container, breaking outbound HTTPS requests.
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "${HABITAT_PORT:-8000}:${HABITAT_PORT:-8000}"
     volumes:
