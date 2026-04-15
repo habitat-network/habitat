@@ -1,7 +1,17 @@
 package main
 
-import "github.com/habitat-network/habitat/internal/encrypt"
+import (
+	"fmt"
+	"os"
+
+	"github.com/habitat-network/habitat/internal/encrypt"
+)
 
 func main() {
-	println(encrypt.GenerateKey())
+	key, err := encrypt.GenerateKey()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Println(key)
 }
