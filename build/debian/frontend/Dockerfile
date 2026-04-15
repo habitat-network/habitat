@@ -30,6 +30,6 @@ RUN DOMAIN=$DOMAIN HABITAT_DOMAIN=$HABITAT_DOMAIN HASH_ROUTING=true \
 #### Serve static files with nginx on port 80.
 #### TLS is handled upstream by YunoHost's nginx.
 
-FROM nginx:bookworm-slim
+FROM nginx:stable-bookworm
 
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
