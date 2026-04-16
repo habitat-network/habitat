@@ -38,7 +38,7 @@ type Server struct {
 	pear pear.Pear
 
 	// The organization this pear server belongs to
-	org org.Store
+	org org.Org
 
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
@@ -53,7 +53,7 @@ func NewServer(
 	pear pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
-	orgStore org.Store,
+	orgStore org.Org,
 ) *Server {
 	server := &Server{
 		dir:  dir,

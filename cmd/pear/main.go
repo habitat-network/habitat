@@ -157,14 +157,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 	servingOrg := cmd.Bool(fOrg)
 
 	// Default: no org == org that serves everyone
-	orgStore := org.NewEveryoneOrg()
+	var orgMembership org.Org = org.NewEveryoneOrg()
+	var orgServer *org.Server
 	if servingOrg {
-		orgStore, err = org.NewStore(org.Org{Domain: domain}, db)
+		orgServer, err = org.NewServer(db, oauthServer)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("unable to setup backing store for org with domain: %s", domain)
+			log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 		}
+		orgMembership = orgServer
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgStore)
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgMembership)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")

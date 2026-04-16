@@ -14,8 +14,8 @@ func (e *everyoneOrg) IsMember(ctx context.Context, member syntax.DID) (bool, er
 	return true, nil
 }
 
-var _ Store = &everyoneOrg{}
+var _ Org = &everyoneOrg{}
 
-func NewEveryoneOrg() Store {
+func NewEveryoneOrg() Org {
 	return &everyoneOrg{}
 }

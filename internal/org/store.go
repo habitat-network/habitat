@@ -19,7 +19,7 @@ var (
 // It enforces permissions on its methods; i.e non-admins cannot add admins or members.
 //
 // Eventually we can add management scopes to member vs. admin roles, to allow members to add other members etc.
-type Store interface {
+type Org interface {
 	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
 	// The authz in this package is only for managing identities in the
 	// In the future, we may not want to be so prescriptive about the admin / member setup.
@@ -36,25 +36,22 @@ type member struct {
 }
 
 type store struct {
-	org Org
 
 	// Manages all backing data for an org
 	// Currently just an org_members table
 	db *gorm.DB
 }
 
-func NewStore(org Org, db *gorm.DB) (Store, error) {
+func newStore(db *gorm.DB) (*store, error) {
 	if err := db.AutoMigrate(&member{}); err != nil {
 		return nil, err
 	}
 	return &store{
-		org: org,
-		db:  db,
+		db: db,
 	}, nil
 }
 
-// AddAdmin implements Store.
-func (s *store) addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
+func (s *store) addAdmin(ctx context.Context, admin syntax.DID) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "member"}},
 		DoUpdates: clause.Assignments(map[string]any{"role": Admin}),
@@ -65,8 +62,7 @@ func (s *store) addAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID
 	}).Error
 }
 
-// AddMembers implements Store.
-func (s *store) addMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
+func (s *store) addMembers(ctx context.Context, members []syntax.DID) error {
 	rows := make([]member, 0, len(members))
 	for _, did := range members {
 		rows = append(rows, member{
@@ -88,7 +84,6 @@ func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admi
 }
 */
 
-// GetAdmins implements Store.
 func (s *store) getAdmins(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := s.db.WithContext(ctx).Where("role = ?", Admin).Find(&rows).Error; err != nil {
@@ -105,7 +100,6 @@ func (s *store) getAdmins(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-// GetMembers implements Store.
 func (s *store) getMembers(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := s.db.WithContext(ctx).Find(&rows).Error; err != nil {
@@ -122,8 +116,7 @@ func (s *store) getMembers(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-// RemoveAdmin implements Store.
-func (s *store) removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.DID) error {
+func (s *store) removeAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
 		return err
@@ -134,8 +127,7 @@ func (s *store) removeAdmin(ctx context.Context, actor syntax.DID, admin syntax.
 	return s.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), Admin).Delete(&member{}).Error
 }
 
-// RemoveMembers implements Store.
-func (s *store) removeMembers(ctx context.Context, actor syntax.DID, members []syntax.DID) error {
+func (s *store) removeMembers(ctx context.Context, members []syntax.DID) error {
 	dids := make([]string, 0, len(members))
 	for _, did := range members {
 		dids = append(dids, did.String())
@@ -143,9 +135,6 @@ func (s *store) removeMembers(ctx context.Context, actor syntax.DID, members []s
 	return s.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, Member).Delete(&member{}).Error
 }
 
-/*
-
-This will be used once we use the org store
 func (s *store) isAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), Admin).First(&row).Error
@@ -154,8 +143,6 @@ func (s *store) isAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	}
 	return err == nil, err
 }
-
-*/
 
 // isMember implements Store.
 func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
@@ -166,5 +153,3 @@ func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	}
 	return err == nil, err
 }
-
-var _ Store = &store{}
