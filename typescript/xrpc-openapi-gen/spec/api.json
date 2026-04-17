@@ -2123,28 +2123,6 @@
         "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
         "properties": {}
       },
-      "network.habitat.docs": {
-        "type": "object",
-        "required": [
-          "name",
-          "blob"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "The name of the document, derived from the first heading."
-          },
-          "blob": {
-            "type": "string",
-            "description": "Base64-encoded Yjs state update representing the document content."
-          },
-          "editorClique": {
-            "type": "string",
-            "description": "URI of the clique whose members may edit this document.",
-            "format": "uri"
-          }
-        }
-      },
       "network.habitat.grantee.didGrantee": {
         "type": "object",
         "description": "A DID grantee",
@@ -2215,6 +2193,56 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs": {
+        "type": "object",
+        "required": [
+          "name",
+          "blob"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the document, derived from the first heading."
+          },
+          "blob": {
+            "type": "string",
+            "description": "Base64-encoded Yjs state update representing the document content."
+          },
+          "editorClique": {
+            "type": "string",
+            "description": "URI of the clique whose members may edit this document.",
+            "format": "uri"
+          }
+        }
+      },
+      "network.habitat.docs.edit": {
+        "type": "object",
+        "required": [
+          "name",
+          "blob",
+          "doc"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the document, derived from the first heading."
+          },
+          "blob": {
+            "type": "string",
+            "description": "Base64-encoded Yjs state update representing the document content."
+          },
+          "editorClique": {
+            "type": "string",
+            "description": "URI of the clique whose members may edit this document.",
+            "format": "uri"
+          },
+          "doc": {
+            "type": "string",
+            "description": "URI of the original document this is an edit of.",
+            "format": "uri"
           }
         }
       },
@@ -2438,9 +2466,6 @@
       "name": "network.habitat.clique"
     },
     {
-      "name": "network.habitat.docs"
-    },
-    {
       "name": "network.habitat.grantee"
     },
     {
@@ -2448,6 +2473,9 @@
     },
     {
       "name": "network.habitat.photo"
+    },
+    {
+      "name": "network.habitat.docs"
     },
     {
       "name": "network.habitat.internal"

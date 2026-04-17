@@ -1,6 +1,6 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.docs",
+    "id": "network.habitat.docs.doc",
     "defs": {
         "main": {
             "type": "record",
@@ -25,10 +25,6 @@
                         "type": "string",
                         "format": "uri",
                         "description": "URI of the clique whose members may edit this document."
-                    },
-                    "isPublic": {
-                        "type": "boolean",
-                        "description": "Whether this document is stored on the public AT Proto PDS and readable by anyone."
                     }
                 }
             }

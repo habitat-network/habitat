@@ -312,7 +312,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           name: heading ?? "Untitled",
           blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
           editorClique: doc.value.editorClique,
-          ...(isPublic && { isPublic: true }),
           ...(!isOwner && { doc: docUri }),
         };
 

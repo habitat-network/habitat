@@ -906,6 +906,44 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatDocsEdit: {
+    lexicon: 1,
+    id: 'network.habitat.docs.edit',
+    defs: {
+      main: {
+        type: 'record',
+        description: 'An edit to a collaborative document.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['name', 'blob', 'doc'],
+          properties: {
+            name: {
+              type: 'string',
+              description:
+                'The name of the document, derived from the first heading.',
+            },
+            blob: {
+              type: 'string',
+              description:
+                'Base64-encoded Yjs state update representing the document content.',
+            },
+            editorClique: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the clique whose members may edit this document.',
+            },
+            doc: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the original document this is an edit of.',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatGrantee: {
     lexicon: 1,
     id: 'network.habitat.grantee',
@@ -1850,6 +1888,7 @@ export const ids = {
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
   NetworkHabitatDocs: 'network.habitat.docs',
+  NetworkHabitatDocsEdit: 'network.habitat.docs.edit',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',

@@ -31,7 +31,8 @@ import {
 } from "internal";
 import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { useMemo } from "react";
-import { HabitatDoc } from "@/habitatDoc";
+import { DocRecord } from "@/habitatDoc";
+import { NetworkHabitatDocs } from "api";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
@@ -111,7 +112,7 @@ export const Route = createFileRoute("/_requireAuth")({
               name: "Untitled",
               blob: null,
               editorClique: clique,
-            } satisfies HabitatDoc,
+            } satisfies NetworkHabitatDocs.Main,
             grantees: [
               {
                 $type: "network.habitat.grantee#clique",
@@ -205,7 +206,7 @@ const DocItem = ({
   isDeleting,
   ownerProfile,
 }: {
-  doc: TypedRecord<HabitatDoc>;
+  doc: DocRecord;
   isActive: boolean;
   onDelete: (uri: string) => void;
   isDeleting: boolean;

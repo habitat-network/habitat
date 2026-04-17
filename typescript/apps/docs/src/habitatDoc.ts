@@ -1,12 +1,5 @@
-export type HabitatDoc = {
-  name: string;
-  blob: string | null;
-  editorClique?: string;
-  isPublic?: boolean;
-};
+import { NetworkHabitatDocs, NetworkHabitatDocsEdit } from "api";
+import { TypedRecord } from "internal";
 
-// Stored in network.habitat.docs.edit. `doc` backlinks to the original doc
-// (habitat:// URI for private docs, at:// for public docs).
-export type HabitatDocEdit = HabitatDoc & {
-  doc: string;
-};
+export type DocRecord = TypedRecord<NetworkHabitatDocs.Main> & { isPublic: boolean };
+export type DocEditRecord = TypedRecord<NetworkHabitatDocsEdit.Main>;

@@ -1,4 +1,5 @@
-import { HabitatDoc, HabitatDocEdit } from "@/habitatDoc";
+import { DocRecord } from "@/habitatDoc";
+import { NetworkHabitatDocs, NetworkHabitatDocsEdit } from "api";
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import {
   AuthManager,
@@ -13,22 +14,17 @@ import {
 
 const isPublicUri = (uri: string) => uri.startsWith("at://");
 
-const getDoc = (
+const getDoc = async (
   authManager: AuthManager,
   uri: string,
   includePermissions?: boolean,
-): Promise<TypedRecord<HabitatDoc>> => {
+): Promise<DocRecord> => {
   const [, , did, , rkey] = uri.split("/");
-  if (isPublicUri(uri)) {
-    return getPublicRecord<HabitatDoc>(authManager, "network.habitat.docs", rkey, did);
-  }
-  return getPrivateRecord<HabitatDoc>(
-    authManager,
-    "network.habitat.docs",
-    rkey,
-    did,
-    includePermissions,
-  );
+  const isPublic = isPublicUri(uri);
+  const record = isPublic
+    ? await getPublicRecord<NetworkHabitatDocs.Main>(authManager, "network.habitat.docs", rkey, did)
+    : await getPrivateRecord<NetworkHabitatDocs.Main>(authManager, "network.habitat.docs", rkey, did, includePermissions);
+  return { ...record, isPublic };
 };
 
 const deleteDoc = async (authManager: AuthManager, uri: string): Promise<void> => {
@@ -55,12 +51,16 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
     queryFn: async () => {
       const did = authManager.getAuthInfo()?.did;
       const [privateResult, publicResult] = await Promise.all([
-        listPrivateRecords<HabitatDoc>(authManager, "network.habitat.docs"),
+        listPrivateRecords<NetworkHabitatDocs.Main>(authManager, "network.habitat.docs"),
         did
-          ? listPublicRecords<HabitatDoc>(authManager, "network.habitat.docs", did)
-          : Promise.resolve({ records: [] as TypedRecord<HabitatDoc>[] }),
+          ? listPublicRecords<NetworkHabitatDocs.Main>(authManager, "network.habitat.docs", did)
+          : Promise.resolve({ records: [] as TypedRecord<NetworkHabitatDocs.Main>[] }),
       ]);
-      return { records: [...privateResult.records, ...publicResult.records] };
+      const records: DocRecord[] = [
+        ...privateResult.records.map((r) => ({ ...r, isPublic: false })),
+        ...publicResult.records.map((r) => ({ ...r, isPublic: true })),
+      ];
+      return { records };
     },
   });
 
@@ -113,7 +113,7 @@ export const editorProfilesQueryOptions = (
 
 
 export const docEditsQueryOptions = (
-  ownerRecord: TypedRecord<HabitatDoc>,
+  ownerRecord: DocRecord,
   authManager: AuthManager,
 ) =>
   queryOptions({
@@ -131,7 +131,7 @@ export const docEditsQueryOptions = (
         return Promise.all(
           records.map(async ({ did, rkey }) => {
             try {
-              return await getPublicRecord<HabitatDocEdit>(
+              return await getPublicRecord<NetworkHabitatDocsEdit.Main>(
                 authManager,
                 "network.habitat.docs.edit",
                 rkey,
@@ -159,7 +159,7 @@ export const docEditsQueryOptions = (
       return Promise.all(
         permissions.map(async (did) => {
           try {
-            return await getPrivateRecord<HabitatDocEdit>(
+            return await getPrivateRecord<NetworkHabitatDocsEdit.Main>(
               authManager,
               "network.habitat.docs.edit",
               editRkey,
@@ -240,7 +240,7 @@ export const removePermissionMutationOptions = (authManager: AuthManager) =>
 
 export const makePublicMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
-    mutationFn: async ({ uri, doc }: { uri: string; doc: HabitatDoc }) => {
+    mutationFn: async ({ uri, doc }: { uri: string; doc: NetworkHabitatDocs.Main }) => {
       const [, , repo, , rkey] = uri.split("/");
       const record = { ...doc, isPublic: true }
       delete record["editorClique"];

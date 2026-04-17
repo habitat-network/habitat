@@ -29,6 +29,7 @@ import * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/
 import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 import * as NetworkHabitatDocs from './types/network/habitat/docs.js'
+import * as NetworkHabitatDocsEdit from './types/network/habitat/docs/edit.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -66,6 +67,7 @@ export * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/
 export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 export * as NetworkHabitatDocs from './types/network/habitat/docs.js'
+export * as NetworkHabitatDocsEdit from './types/network/habitat/docs/edit.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -270,7 +272,7 @@ export class CommunityLexiconCalendarEventRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarEvent.Record>,
@@ -353,7 +355,7 @@ export class CommunityLexiconCalendarInviteRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarInvite.Record>,
@@ -436,7 +438,7 @@ export class CommunityLexiconCalendarRsvpRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<CommunityLexiconCalendarRsvp.Record>,
@@ -506,6 +508,7 @@ export class NetworkHabitatNS {
   docs: NetworkHabitatDocsRecord
   photo: NetworkHabitatPhotoRecord
   clique: NetworkHabitatCliqueNS
+  docs: NetworkHabitatDocsNS
   internal: NetworkHabitatInternalNS
   permissions: NetworkHabitatPermissionsNS
   render: NetworkHabitatRenderNS
@@ -514,6 +517,7 @@ export class NetworkHabitatNS {
   constructor(client: XrpcClient) {
     this._client = client
     this.clique = new NetworkHabitatCliqueNS(client)
+    this.docs = new NetworkHabitatDocsNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.render = new NetworkHabitatRenderNS(client)
@@ -599,6 +603,99 @@ export class NetworkHabitatCliqueNS {
       opts?.qp,
       data,
       opts,
+    )
+  }
+}
+
+export class NetworkHabitatDocsNS {
+  _client: XrpcClient
+  edit: NetworkHabitatDocsEditRecord
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.edit = new NetworkHabitatDocsEditRecord(client)
+  }
+}
+
+export class NetworkHabitatDocsEditRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatDocsEdit.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.docs.edit',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: NetworkHabitatDocsEdit.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.docs.edit',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatDocsEdit.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.docs.edit'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatDocsEdit.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.docs.edit'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.docs.edit', ...params },
+      { headers },
     )
   }
 }
@@ -713,7 +810,7 @@ export class NetworkHabitatRenderSchemaRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatRenderSchema.Record>,
@@ -894,7 +991,7 @@ export class NetworkHabitatDocsRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatDocs.Record>,
@@ -973,7 +1070,7 @@ export class NetworkHabitatPhotoRecord {
 
   async create(
     params: OmitKey<
-      NetworkHabitatRepoCreateRecord.InputSchema,
+      ComAtprotoRepoCreateRecord.InputSchema,
       'collection' | 'record'
     >,
     record: Un$Typed<NetworkHabitatPhoto.Record>,
