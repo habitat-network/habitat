@@ -70,8 +70,16 @@ export class AuthManager {
   };
 
   async maybeExchangeCode() {
-    const currentUrl = window.location.href;
-    const url = new URL(currentUrl);
+    const url = new URL(window.location.href);
+    const oauthError = url.searchParams.get("error");
+    if (oauthError) {
+      const description =
+        url.searchParams.get("error_description") ?? oauthError;
+      if (!window.location.pathname.includes("oauth-login")) {
+        window.location.href = `/oauth-login?error=${encodeURIComponent(description)}`;
+      }
+      return false;
+    }
     if (!url.searchParams.get("code") || !url.searchParams.get("state")) {
       return false;
     }

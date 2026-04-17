@@ -375,19 +375,6 @@ func (o *OAuthServer) HandleCallback(
 	}
 
 	did := arf.Did
-	// If there is a DID allowlist, check this against it
-	ok, err = o.allowlistFn(r.Context(), did)
-	if err != nil {
-		o.metrics.callbackErr(err, "allowlist_dids")
-		utils.LogAndHTTPError(w, err, "failed to lookup allowlist did", http.StatusInternalServerError)
-		return
-	}
-
-	if !ok {
-		o.metrics.callbackErr(err, "allowlist_dids")
-		utils.LogAndHTTPError(w, err, "user is not allowed to authenticate with this server", http.StatusUnauthorized)
-		return
-	}
 
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
@@ -399,6 +386,21 @@ func (o *OAuthServer) HandleCallback(
 	if err != nil {
 		o.metrics.callbackErr(err, fositeErrReason(err))
 		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
+		return
+	}
+
+	// Check the DID allowlist after reconstructing authRequest so we can redirect
+	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
+	allowed, err := o.allowlistFn(r.Context(), did)
+	if err != nil {
+		o.metrics.callbackErr(err, "allowlist_dids")
+		o.provider.WriteAuthorizeError(ctx, w, authRequest, fosite.ErrServerError.WithDebug(err.Error()))
+		return
+	}
+	if !allowed {
+		o.metrics.callbackErr(nil, "allowlist_dids")
+		o.provider.WriteAuthorizeError(ctx, w, authRequest,
+			fosite.ErrAccessDenied.WithDescription("You are not a member of this organization.").WithHint(""))
 		return
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), arf.DpopKey)
