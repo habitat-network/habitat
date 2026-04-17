@@ -400,7 +400,7 @@ func (o *OAuthServer) HandleCallback(
 	if !allowed {
 		o.metrics.callbackErr(nil, "allowlist_dids")
 		o.provider.WriteAuthorizeError(ctx, w, authRequest,
-			fosite.ErrAccessDenied.WithDescription("You are not a member of this organization.").WithHint(""))
+			fosite.ErrAccessDenied.WithDescription("You are not a member of this habitat organization.").WithHint(""))
 		return
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), arf.DpopKey)
