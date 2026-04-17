@@ -3,7 +3,6 @@ import {
   getMembersQueryOptions,
   addAdmin,
   addMembers,
-  removeAdmin,
   removeMembers,
   downgradeAdmin,
 } from "internal";
