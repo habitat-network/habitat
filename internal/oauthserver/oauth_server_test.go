@@ -242,7 +242,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		}
 	}
 
-	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	require.Equal(t, http.StatusSeeOther /* What fosite authorize error uses */, resp.StatusCode)
 }
 
 func TestOAuthServerE2E(t *testing.T) {
