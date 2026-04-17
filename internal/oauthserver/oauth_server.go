@@ -158,6 +158,9 @@ type OAuthServer struct {
 	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
 	storage      *store
+
+	// Allowlist of DIDs that can oauth with this server
+	allowlistFn func(context.Context, syntax.DID) (bool, error)
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -187,6 +190,7 @@ func NewOAuthServer(
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
 	meter metric.Meter,
+	allowlistFn func(context.Context, syntax.DID) (bool, error),
 ) (*OAuthServer, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
@@ -197,6 +201,7 @@ func NewOAuthServer(
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 	}
+
 	strategy, err := newStrategy(secretBytes, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
@@ -231,6 +236,7 @@ func NewOAuthServer(
 		directory:    directory,
 		node:         node,
 		storage:      storage,
+		allowlistFn:  allowlistFn,
 	}, nil
 }
 
@@ -367,6 +373,22 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to parse auth request flash", http.StatusBadRequest)
 		return
 	}
+
+	did := arf.Did
+	// If there is a DID allowlist, check this against it
+	ok, err = o.allowlistFn(r.Context(), did)
+	if err != nil {
+		o.metrics.callbackErr(err, "allowlist_dids")
+		utils.LogAndHTTPError(w, err, "failed to lookup allowlist did", http.StatusInternalServerError)
+		return
+	}
+
+	if !ok {
+		o.metrics.callbackErr(err, "allowlist_dids")
+		utils.LogAndHTTPError(w, err, "user is not allowed to authenticate with this server", http.StatusUnauthorized)
+		return
+	}
+
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(err, "recreate_req")
@@ -400,7 +422,7 @@ func (o *OAuthServer) HandleCallback(
 
 	// Store/update user credentials in the database with the PDS tokens
 	err = o.credStore.UpsertCredentials(
-		arf.Did,
+		did,
 		&pdscred.Credentials{
 			AccessToken:  tokenInfo.AccessToken,
 			RefreshToken: tokenInfo.RefreshToken,
@@ -418,7 +440,7 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
+	if serves, err := o.node.ServesDID(r.Context(), did); err != nil {
 		o.metrics.callbackErr(err, "lookup_serves")
 		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
 		return
@@ -436,7 +458,7 @@ func (o *OAuthServer) HandleCallback(
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
-		newAuthorizeSession(authRequest, arf.Did),
+		newAuthorizeSession(authRequest, did),
 	)
 	if err != nil {
 		o.metrics.callbackErr(err, fositeErrReason(err))
