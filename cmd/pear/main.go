@@ -153,26 +153,41 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
 
+	// Create error group for managing goroutines
+	eg, egCtx := errgroup.WithContext(ctx)
+	mux := mux.NewRouter()
+
 	// TODO: take in non-everything org depending on CLI flag
 	servingOrg := cmd.Bool(fOrg)
 
 	// Default: no org == org that serves everyone
-	orgStore := org.NewEveryoneOrg()
+	pearOrg := org.NewEveryoneOrg()
 	if servingOrg {
-		orgStore, err = org.NewStore(org.Org{Domain: domain}, db)
+		pearOrg, err = org.NewOrg(db)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("unable to setup backing store for org with domain: %s", domain)
+			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
 		}
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgStore)
+
+	// Server for org management routes
+	orgServer, err := org.NewServer(pearOrg, oauthServer)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
+	}
+
+	// org management routes — only available on org-serving nodes
+	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
+	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
+	mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
+	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
+
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
-
-	// Create error group for managing goroutines
-	eg, egCtx := errgroup.WithContext(ctx)
-	mux := mux.NewRouter()
 
 	// Order of middlewares = order of "Use" called
 	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
