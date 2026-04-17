@@ -38,6 +38,7 @@ type Org interface {
 	GetMembers(ctx context.Context) ([]syntax.DID, error)
 	RemoveAdmin(ctx context.Context, admin syntax.DID) error
 	RemoveMembers(ctx context.Context, members []syntax.DID) error
+	DowngradeAdmin(ctx context.Context, admin syntax.DID) error
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 }
@@ -130,6 +131,17 @@ func (s *store) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 		dids = append(dids, did)
 	}
 	return dids, nil
+}
+
+func (s *store) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
+	var adminCount int64
+	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
+		return err
+	}
+	if adminCount < 2 {
+		return ErrLastAdmin
+	}
+	return s.db.WithContext(ctx).Model(&member{}).Where("member = ? AND role = ?", admin.String(), Admin).Update("role", Member).Error
 }
 
 func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {

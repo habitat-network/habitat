@@ -20,6 +20,13 @@ import type {
   NetworkHabitatCliqueAddMembers,
   NetworkHabitatCliqueGetMembers,
   NetworkHabitatCliqueRemoveMembers,
+  NetworkHabitatOrgGetAdmins,
+  NetworkHabitatOrgGetMembers,
+  NetworkHabitatOrgAddAdmin,
+  NetworkHabitatOrgAddMembers,
+  NetworkHabitatOrgRemoveAdmin,
+  NetworkHabitatOrgRemoveMembers,
+  NetworkHabitatOrgDowngradeAdmin,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -81,6 +88,14 @@ type QueryEndpoints = {
     NetworkHabitatCliqueGetMembers.QueryParams,
     NetworkHabitatCliqueGetMembers.OutputSchema
   >;
+  "network.habitat.org.getAdmins": Query<
+    NetworkHabitatOrgGetAdmins.QueryParams,
+    NetworkHabitatOrgGetAdmins.OutputSchema
+  >;
+  "network.habitat.org.getMembers": Query<
+    NetworkHabitatOrgGetMembers.QueryParams,
+    NetworkHabitatOrgGetMembers.OutputSchema
+  >;
 };
 
 type Procedure<Params, Output> = { params: Params; output: Output };
@@ -113,6 +128,26 @@ type ProcedureEndpoints = {
   "network.habitat.addPermission": Procedure<
     NetworkHabitatPermissionsAddPermission.InputSchema,
     NetworkHabitatPermissionsAddPermission.Response
+  >;
+  "network.habitat.org.addAdmin": Procedure<
+    NetworkHabitatOrgAddAdmin.InputSchema,
+    void
+  >;
+  "network.habitat.org.addMembers": Procedure<
+    NetworkHabitatOrgAddMembers.InputSchema,
+    void
+  >;
+  "network.habitat.org.removeAdmin": Procedure<
+    NetworkHabitatOrgRemoveAdmin.InputSchema,
+    void
+  >;
+  "network.habitat.org.removeMembers": Procedure<
+    NetworkHabitatOrgRemoveMembers.InputSchema,
+    void
+  >;
+  "network.habitat.org.downgradeAdmin": Procedure<
+    NetworkHabitatOrgDowngradeAdmin.InputSchema,
+    void
   >;
 };
 

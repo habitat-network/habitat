@@ -46,6 +46,7 @@ func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMetho
 		return "", false
 	}
 	if !ok {
+		http.Error(w, "not a member of this org", http.StatusUnauthorized)
 		return "", false
 	}
 
@@ -216,6 +217,41 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 	err = s.org.RemoveAdmin(r.Context(), admin.DID())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing admin", http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
+	caller, ok := s.authnWithOrg(w, r, s.oauth)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		Admin string `json:"admin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	admin, err := syntax.ParseAtIdentifier(req.Admin)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		return
+	}
+
+	ok, err = s.org.IsAdmin(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if err = s.org.DowngradeAdmin(r.Context(), admin.DID()); err != nil {
+		utils.LogAndHTTPError(w, err, "downgrading admin", http.StatusInternalServerError)
 	}
 }
 

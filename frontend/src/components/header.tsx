@@ -4,17 +4,23 @@ import { Button } from "internal/components/ui";
 
 interface HeaderProps {
   profile?: Actor;
+  orgDomain?: string;
   onLogout: () => void;
 }
 
-const Header = ({ profile, onLogout }: HeaderProps) => {
+const Header = ({ profile, orgDomain, onLogout }: HeaderProps) => {
   return (
     <header className="w-full">
       <nav className="flex justify-between py-4 px-6 items-center border-b">
-        <ul>
+        <ul className="flex items-center gap-4">
           <li>
             <Link to="/">🌱 habitat</Link>
           </li>
+          {orgDomain && (
+            <li>
+              <Link to="/org">{orgDomain}</Link>
+            </li>
+          )}
         </ul>
         {profile ? (
           <ul className="flex items-center gap-2">

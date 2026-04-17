@@ -44,6 +44,11 @@ func (e *everyoneOrg) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	return ErrNotSupportedPublic
 }
 
+// DowngradeAdmin implements Org.
+func (e *everyoneOrg) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
+	return ErrNotSupportedPublic
+}
+
 // RemoveMembers implements Org.
 func (e *everyoneOrg) RemoveMembers(ctx context.Context, members []syntax.DID) error {
 	return ErrNotSupportedPublic

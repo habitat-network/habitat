@@ -1160,6 +1160,31 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgDowngradeAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.downgradeAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Downgrade an admin to a regular member. Only callable by existing admins. The last admin cannot be downgraded.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the admin to downgrade to member.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatOrgGetAdmins: {
     lexicon: 1,
     id: 'network.habitat.org.getAdmins',
@@ -2099,6 +2124,7 @@ export const ids = {
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
   NetworkHabitatOrgAddAdmin: 'network.habitat.org.addAdmin',
   NetworkHabitatOrgAddMembers: 'network.habitat.org.addMembers',
+  NetworkHabitatOrgDowngradeAdmin: 'network.habitat.org.downgradeAdmin',
   NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
   NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',

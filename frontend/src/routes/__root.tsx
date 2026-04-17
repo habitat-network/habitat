@@ -1,4 +1,5 @@
 import type { AuthManager } from "internal";
+import { getConfigQueryOptions } from "internal";
 import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
@@ -15,9 +16,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     await context.authManager.maybeExchangeCode();
   },
   async loader({ context }) {
+    const config = await context.queryClient.fetchQuery(
+      getConfigQueryOptions(__HABITAT_DOMAIN__),
+    );
+
     const authInfo = context.authManager.getAuthInfo();
     if (!authInfo) {
-      return { handle: null };
+      return { profile: undefined, orgDomain: config.orgDomain };
     }
     const actor = authInfo.did;
 
@@ -25,15 +30,15 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     const response = await agent.getProfile({ actor: actor });
 
     const profile = response.data;
-    return { profile };
+    return { profile, orgDomain: config.orgDomain };
   },
   staleTime: 1000 * 60 * 60,
   component() {
     const { authManager } = Route.useRouteContext();
-    const { profile } = Route.useLoaderData();
+    const { profile, orgDomain } = Route.useLoaderData();
     return (
       <div className="flex flex-col items-center w-full justify-stretch gap-4">
-        <Header profile={profile} onLogout={authManager.logout} />
+        <Header profile={profile} orgDomain={orgDomain ?? undefined} onLogout={authManager.logout} />
         <div className="container px-4 flex flex-col">
           <Outlet />
         </div>

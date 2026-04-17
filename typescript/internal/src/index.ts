@@ -43,6 +43,18 @@ export {
 export type { TypedRecord } from "./habitatClient";
 export { default as GranteeAvatars } from "./components/GranteeAvatars";
 
+export {
+  getConfigQueryOptions,
+  getAdminsQueryOptions,
+  getMembersQueryOptions,
+  addAdmin,
+  addMembers,
+  removeAdmin,
+  removeMembers,
+  downgradeAdmin,
+} from "./orgClient";
+export type { HabitatConfig } from "./orgClient";
+
 // Utilities
 export { default as clientMetadata } from "./clientMetadata";
 export { default as reportWebVitals } from "./reportWebVitals";

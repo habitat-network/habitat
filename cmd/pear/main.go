@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -175,6 +176,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 	}
 
+	// public config endpoint
+	mux.HandleFunc("/xrpc/network.habitat.getConfig", serveConfig(servingOrg, domain))
+
 	// org management routes — only available on org-serving nodes
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
@@ -182,6 +186,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
 
 	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
@@ -300,6 +305,23 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Err(err).Msgf("server shut down returned an error")
 	}
 	return err
+}
+
+func serveConfig(servingOrg bool, domain string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if servingOrg {
+			// Serving org: JSON object with just one value; the org domain
+			if err := json.NewEncoder(w).Encode(map[string]any{"orgDomain": domain}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		// No org: just empty map for now
+		if err := json.NewEncoder(w).Encode(map[string]any{}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
 }
 
 func serveDid(domain string) http.HandlerFunc {
