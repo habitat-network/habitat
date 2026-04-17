@@ -161,23 +161,29 @@ func run(_ context.Context, cmd *cli.Command) error {
 	servingOrg := cmd.Bool(fOrg)
 
 	// Default: no org == org that serves everyone
-	var orgMembership org.Org = org.NewEveryoneOrg()
+	pearOrg := org.NewEveryoneOrg()
 	if servingOrg {
-		orgServer, err := org.NewServer(db, oauthServer)
+		pearOrg, err = org.NewOrg(db)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
+			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
 		}
-		orgMembership = orgServer
-
-		// org management routes — only available on org-serving nodes
-		mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
-		mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
-		mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
-		mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
-		mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
-		mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
 	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgMembership)
+
+	// Server for org management routes
+	orgServer, err := org.NewServer(pearOrg, oauthServer)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
+	}
+
+	// org management routes — only available on org-serving nodes
+	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
+	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
+	mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
+	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
+
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")

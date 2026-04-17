@@ -11,32 +11,25 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/utils"
-	"gorm.io/gorm"
 )
 
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
-	store *store
+	org   Org
 	oauth *oauthserver.OAuthServer
 }
 
-var _ Org = (*Server)(nil)
-
-func NewServer(db *gorm.DB, oauth *oauthserver.OAuthServer) (*Server, error) {
-	s, err := newStore(db)
-	if err != nil {
-		return nil, err
-	}
+func NewServer(org Org, oauth *oauthserver.OAuthServer) (*Server, error) {
 	return &Server{
-		store: s,
+		org:   org,
 		oauth: oauth,
 	}, nil
 }
 
 // IsMember implements Org so that *Server can be used wherever an Org is expected.
 func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) {
-	return s.store.IsMember(ctx, member)
+	return s.org.IsMember(ctx, member)
 }
 
 func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMethod ...authn.Method) (syntax.DID, bool) {
@@ -48,7 +41,7 @@ func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMetho
 	}
 
 	// Otherwise, only authn if part of org
-	ok, err := s.store.IsMember(r.Context(), callerDID)
+	ok, err := s.org.IsMember(r.Context(), callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking org.isMember", http.StatusInternalServerError)
 		return "", false
@@ -73,7 +66,7 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dids, err := s.store.getAdmins(r.Context())
+	dids, err := s.org.GetAdmins(r.Context())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting org members", http.StatusInternalServerError)
 	}
@@ -96,7 +89,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dids, err := s.store.getMembers(r.Context())
+	dids, err := s.org.GetMembers(r.Context())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting org members", http.StatusInternalServerError)
 	}
@@ -133,7 +126,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// authz: only admin can add admin
-	ok, err = s.store.isAdmin(r.Context(), caller)
+	ok, err = s.org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 	}
@@ -143,7 +136,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.addAdmin(r.Context(), admin.DID())
+	err = s.org.AddAdmin(r.Context(), admin.DID())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding admin", http.StatusInternalServerError)
 	}
@@ -163,7 +156,7 @@ func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// authz: only admin can add members
-	ok, err = s.store.isAdmin(r.Context(), caller)
+	ok, err = s.org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 		return
@@ -184,7 +177,7 @@ func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
 		members = append(members, id.DID())
 	}
 
-	err = s.store.addMembers(r.Context(), members)
+	err = s.org.AddMembers(r.Context(), members)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding members", http.StatusInternalServerError)
 	}
@@ -210,7 +203,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// authz: only admin can remove admin
-	ok, err = s.store.isAdmin(r.Context(), caller)
+	ok, err = s.org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 		return
@@ -221,7 +214,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.removeAdmin(r.Context(), admin.DID())
+	err = s.org.RemoveAdmin(r.Context(), admin.DID())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing admin", http.StatusInternalServerError)
 	}
@@ -241,7 +234,7 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// authz: only admin can remove members
-	ok, err = s.store.isAdmin(r.Context(), caller)
+	ok, err = s.org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 		return
@@ -262,7 +255,7 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 		members = append(members, id.DID())
 	}
 
-	err = s.store.removeMembers(r.Context(), members)
+	err = s.org.RemoveMembers(r.Context(), members)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing members", http.StatusInternalServerError)
 	}

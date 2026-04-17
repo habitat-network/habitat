@@ -14,7 +14,7 @@ func newTestStore(t *testing.T) *store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := newStore(db)
+	s, err := NewOrg(db)
 	require.NoError(t, err)
 	return s
 }
@@ -32,7 +32,7 @@ func TestIsMember(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.NoError(t, s.addMembers(ctx, []syntax.DID{did1}))
+	require.NoError(t, s.AddMembers(ctx, []syntax.DID{did1}))
 
 	ok, err = s.IsMember(ctx, did1)
 
@@ -44,9 +44,9 @@ func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addAdmin(ctx, did1))
+	require.NoError(t, s.AddAdmin(ctx, did1))
 
-	admins, err := s.getAdmins(ctx)
+	admins, err := s.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{did1}, admins)
 }
@@ -55,9 +55,9 @@ func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addAdmin(ctx, did1))
+	require.NoError(t, s.AddAdmin(ctx, did1))
 
-	err := s.removeAdmin(ctx, did1)
+	err := s.RemoveAdmin(ctx, did1)
 	require.ErrorIs(t, err, ErrLastAdmin)
 }
 
@@ -65,12 +65,12 @@ func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addAdmin(ctx, did1))
-	require.NoError(t, s.addAdmin(ctx, did2))
+	require.NoError(t, s.AddAdmin(ctx, did1))
+	require.NoError(t, s.AddAdmin(ctx, did2))
 
-	require.NoError(t, s.removeAdmin(ctx, did2))
+	require.NoError(t, s.RemoveAdmin(ctx, did2))
 
-	admins, err := s.getAdmins(ctx)
+	admins, err := s.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{did1}, admins)
 }
@@ -79,13 +79,13 @@ func TestGetMembers(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	members, err := s.getMembers(ctx)
+	members, err := s.GetMembers(ctx)
 	require.NoError(t, err)
 	require.Empty(t, members)
 
-	require.NoError(t, s.addMembers(ctx, []syntax.DID{did1, did2}))
+	require.NoError(t, s.AddMembers(ctx, []syntax.DID{did1, did2}))
 
-	members, err = s.getMembers(ctx)
+	members, err = s.GetMembers(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{did1, did2}, members)
 }
@@ -94,9 +94,9 @@ func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addMembers(ctx, []syntax.DID{did1, did2}))
+	require.NoError(t, s.AddMembers(ctx, []syntax.DID{did1, did2}))
 
-	require.NoError(t, s.removeMembers(ctx, []syntax.DID{did2}))
+	require.NoError(t, s.RemoveMembers(ctx, []syntax.DID{did2}))
 
 	ok, err := s.IsMember(ctx, did1)
 	require.NoError(t, err)

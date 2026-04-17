@@ -25,7 +25,14 @@ type Org interface {
 	// In the future, we may not want to be so prescriptive about the admin / member setup.
 
 	// This is exported because other packages may want to do membership lookup
-	IsMember(ctx context.Context, member syntax.DID) (bool, error)
+	AddAdmin(ctx context.Context, admin syntax.DID) error
+	AddMembers(ctx context.Context, members []syntax.DID) error
+	GetAdmins(ctx context.Context) ([]syntax.DID, error)
+	GetMembers(ctx context.Context) ([]syntax.DID, error)
+	RemoveAdmin(ctx context.Context, admin syntax.DID) error
+	RemoveMembers(ctx context.Context, members []syntax.DID) error
+	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
+	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 }
 
 // Keep track of members in the
@@ -42,7 +49,9 @@ type store struct {
 	db *gorm.DB
 }
 
-func newStore(db *gorm.DB) (*store, error) {
+var _ Org = &store{}
+
+func NewOrg(db *gorm.DB) (*store, error) {
 	if err := db.AutoMigrate(&member{}); err != nil {
 		return nil, err
 	}
@@ -51,7 +60,7 @@ func newStore(db *gorm.DB) (*store, error) {
 	}, nil
 }
 
-func (s *store) addAdmin(ctx context.Context, admin syntax.DID) error {
+func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "member"}},
 		DoUpdates: clause.Assignments(map[string]any{"role": Admin}),
@@ -62,7 +71,7 @@ func (s *store) addAdmin(ctx context.Context, admin syntax.DID) error {
 	}).Error
 }
 
-func (s *store) addMembers(ctx context.Context, members []syntax.DID) error {
+func (s *store) AddMembers(ctx context.Context, members []syntax.DID) error {
 	rows := make([]member, 0, len(members))
 	for _, did := range members {
 		rows = append(rows, member{
@@ -84,7 +93,7 @@ func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admi
 }
 */
 
-func (s *store) getAdmins(ctx context.Context) ([]syntax.DID, error) {
+func (s *store) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := s.db.WithContext(ctx).Where("role = ?", Admin).Find(&rows).Error; err != nil {
 		return nil, err
@@ -100,7 +109,7 @@ func (s *store) getAdmins(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-func (s *store) getMembers(ctx context.Context) ([]syntax.DID, error) {
+func (s *store) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := s.db.WithContext(ctx).Find(&rows).Error; err != nil {
 		return nil, err
@@ -116,7 +125,7 @@ func (s *store) getMembers(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-func (s *store) removeAdmin(ctx context.Context, admin syntax.DID) error {
+func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
 		return err
@@ -127,7 +136,7 @@ func (s *store) removeAdmin(ctx context.Context, admin syntax.DID) error {
 	return s.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), Admin).Delete(&member{}).Error
 }
 
-func (s *store) removeMembers(ctx context.Context, members []syntax.DID) error {
+func (s *store) RemoveMembers(ctx context.Context, members []syntax.DID) error {
 	dids := make([]string, 0, len(members))
 	for _, did := range members {
 		dids = append(dids, did.String())
@@ -135,7 +144,7 @@ func (s *store) removeMembers(ctx context.Context, members []syntax.DID) error {
 	return s.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, Member).Delete(&member{}).Error
 }
 
-func (s *store) isAdmin(ctx context.Context, did syntax.DID) (bool, error) {
+func (s *store) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), Admin).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
