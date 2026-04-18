@@ -1,0 +1,37 @@
+---
+id: permissions
+slug: /building/permissions.mdx
+sidebar_label: Permissions model
+sidebar_position: 2
+---
+
+# Permissions model
+
+Habitat's permissions model gives record owners fine-grained control over who can read their data. Access is denied by default; owners explicitly grant access to specific users or groups.
+
+## Scope
+
+Permissions apply at the record level: a permission grants access to a single record, identified by owner DID + collection + rkey for a given grantee.
+
+## Grantees
+
+A grantee can be either
+
+- **DID** — a specific user, identified by their AT Protocol DID (e.g. `did:plc:abc123`)
+- **[Clique](../specs/cliques.mdx)** — a named group of DIDs (e.g. `clique:did:plc:abc123/followers`)
+
+Granting to a clique is equivalent to granting to all current and future members of that group. Membership is resolved at read time.
+
+## Default behavior
+
+Access is **denied by default**. A record is only readable by someone other than the owner if an explicit allow exists and is not overridden by a deny.
+
+## API
+
+Permissions are managed through these endpoints and the [clique](/specs/cliques.mdx) APIs:
+
+- `POST /xrpc/network.habitat.addPermission` — grant access to a collection or record
+- `POST /xrpc/network.habitat.removePermission` — revoke access (adds a deny if a broader grant exists)
+- `GET /xrpc/network.habitat.listPermissions` — list grants made by the calling user
+
+See the [API reference](/api) for full request/response shapes.

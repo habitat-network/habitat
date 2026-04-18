@@ -84,7 +84,11 @@ func TestSession(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.NotNil(t, retrievedKey)
-	require.Equal(t, originalKey.D, retrievedKey.D)
+	originalBytes, err := originalKey.Bytes()
+	require.NoError(t, err)
+	retrievedBytes, err := retrievedKey.Bytes()
+	require.NoError(t, err)
+	require.Equal(t, originalBytes, retrievedBytes)
 	require.Equal(t, originalKey.X, retrievedKey.X)
 	require.Equal(t, originalKey.Y, retrievedKey.Y)
 

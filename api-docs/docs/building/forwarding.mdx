@@ -1,0 +1,56 @@
+---
+id: forwarding
+slug: /building/forwarding.mdx
+sidebar_label: PDS Forwarding
+sidebar_position: 1
+---
+
+# PDS Forwarding
+
+Habitat acts as a transparent proxy for standard AT Protocol XRPC calls. Any `/xrpc/` request that isn't one of Habitat's own endpoints is automatically forwarded to the user's PDS on their behalf.
+
+This means your app can call standard AT Protocol APIs (e.g. `com.atproto.*`, `app.bsky.*`) through Habitat using your existing Habitat access token — no separate PDS credentials needed.
+
+## How it works
+
+1. Your app sends an authenticated request to Habitat at any `/xrpc/<lexicon-id>` path
+2. Habitat validates your access token and resolves the caller's DID
+3. Habitat creates a DPoP-authenticated HTTP client for that user's PDS
+4. The request (method, headers, body) is forwarded to the user's PDS
+5. The PDS response (status, headers, body) is streamed back to your app
+
+Your app never directly authenticates with the PDS. Habitat holds encrypted PDS credentials server-side (obtained during login) and handles the DPoP token binding required by AT Protocol PDSes.
+
+## Which requests are forwarded
+
+Any `/xrpc/` path that is **not** a native Habitat endpoint is forwarded. Native Habitat endpoints include:
+
+- `/xrpc/network.habitat.*` — pear repo, permissions, cliques
+
+Everything else under `/xrpc/` is forwarded to the PDS. For example:
+- `com.atproto.repo.createRecord`
+- `com.atproto.sync.*`
+- `app.bsky.*`
+
+## Making a forwarded request
+
+Forwarded requests use the same authentication as any other Habitat request (see [Auth](./auth.mdx)):
+
+```http
+GET /xrpc/com.atproto.repo.listRecords?repo=did:plc:...&collection=app.bsky.feed.post
+Authorization: Bearer <habitat-access-token>
+Habitat-Auth-Method: oauth
+```
+
+No additional headers or credentials are required. Habitat adds the necessary DPoP proof and PDS access token before forwarding.
+
+## Error handling
+
+| Condition | Status returned |
+|---|---|
+| Invalid or expired Habitat token | `401 Unauthorized` |
+| PDS rejects the forwarded request as invalid | `401 Unauthorized` |
+| PDS is unreachable or returns an unexpected error | `502 Bad Gateway` |
+| Other forwarding errors | `500 Internal Server Error` |
+
+The response body from the PDS (including AT Protocol error payloads) is passed through unchanged.

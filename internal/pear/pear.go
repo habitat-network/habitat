@@ -374,18 +374,30 @@ func (p *pear) listRecordsLocal(
 		return nil, fmt.Errorf("only support filtering by a collection")
 	}
 
-	perms, err := p.permissions.ResolvePermissionsForCollection(ctx, caller, collection, subjects)
+	// Resolve grants for both the caller and the clique
+	perms, err := p.permissions.ListGranteePermissions(ctx, caller, collection, subjects)
 	if err != nil {
 		return nil, err
 	}
 
-	records, err := p.repo.ListRecords(ctx, perms)
+	// Exclude caller's own records from the permission-based query — those are fetched
+	// separately below, and a caller may have granted their own records to a clique they belong to.
+	otherPerms := slices.DeleteFunc(perms, func(p permissions.Permission) bool {
+		return p.Owner == caller
+	})
+
+	permissioned, err := p.repo.ListRecordsFromPermissions(ctx, otherPerms)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list records: %w", err)
+		return nil, fmt.Errorf("failed to list permissioned records: %w", err)
+	}
+
+	owned, err := p.repo.ListRecords(ctx, caller.String(), collection.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list own records: %w", err)
 	}
 
 	// TODO: consider checking hasPermission here for each record to detect if we ever return inconsistent state
-	return records, nil
+	return append(permissioned, owned...), nil
 }
 
 /*
@@ -450,9 +462,6 @@ func (p *pear) ListCollections(ctx context.Context, caller syntax.DID, subject s
 			return nil, err
 		}
 
-		perms = slices.DeleteFunc(perms, func(p permissions.Permission) bool {
-			return p.Effect == permissions.Deny
-		})
 		grantees := xslices.Map(perms, func(p permissions.Permission) permissions.Grantee {
 			return p.Grantee
 		})

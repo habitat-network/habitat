@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Habitat API",
-    "summary": "OpenAPI spec generated from Habitat's AT Protocol lexicons.",
-    "description": "Welcome to the Habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned [@habitat.network](https://bsky.app/profile/habitat.network) on Bluesky and [habitat.leaflet.pub](https://habitat.leaflet.pub) for future formal releases.",
+    "title": "habitat's API",
+    "summary": "OpenAPI spec generated from habitat's ATProtocol lexicons.",
+    "description": "Welcome to the habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned [@habitat.network](https://bsky.app/profile/habitat.network) on Bluesky and [habitat.leaflet.pub](https://habitat.leaflet.pub) for future formal releases.",
     "version": "0.0.0",
     "license": {
       "name": "MIT License",
@@ -12,7 +12,7 @@
   },
   "servers": [
     {
-      "url": "https://habitat.network/xrpc",
+      "url": "https://habitat-953995456319.us-west1.run.app/xrpc/",
       "description": "Habitat XRPC server"
     }
   ],
@@ -1003,6 +1003,578 @@
                     "description": "The Record Key to grant read permissions to, if any.",
                     "format": "record-key",
                     "maxLength": 512
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.addAdmin": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.addAdmin",
+        "description": "Add an admin to the org. Only callable by existing admins.",
+        "operationId": "network.habitat.org.addAdmin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "admin"
+                ],
+                "properties": {
+                  "admin": {
+                    "type": "string",
+                    "description": "The DID of the user to add as an admin.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.addMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.addMembers",
+        "description": "Add member(s) to the org. Only callable by admins.",
+        "operationId": "network.habitat.org.addMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "members"
+                ],
+                "properties": {
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.getAdmins": {
+      "get": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.getAdmins",
+        "description": "Get the list of admins in the org. Callable by any org member.",
+        "operationId": "network.habitat.org.getAdmins",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "admins"
+                  ],
+                  "properties": {
+                    "admins": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "did"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.getMembers": {
+      "get": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.getMembers",
+        "description": "Get the list of members in the org. Callable by any org member.",
+        "operationId": "network.habitat.org.getMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "members"
+                  ],
+                  "properties": {
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "did"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.removeAdmin": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.removeAdmin",
+        "description": "Remove an admin from the org. Only callable by existing admins. The last admin cannot be removed.",
+        "operationId": "network.habitat.org.removeAdmin",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "admin"
+                ],
+                "properties": {
+                  "admin": {
+                    "type": "string",
+                    "description": "The DID of the admin to remove.",
+                    "format": "did"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.removeMembers": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.removeMembers",
+        "description": "Remove member(s) from the org. Only callable by admins.",
+        "operationId": "network.habitat.org.removeMembers",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "members"
+                ],
+                "properties": {
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "did"
+                    }
                   }
                 }
               }
@@ -2123,6 +2695,28 @@
         "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
         "properties": {}
       },
+      "network.habitat.docs": {
+        "type": "object",
+        "required": [
+          "name",
+          "blob"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the document, derived from the first heading."
+          },
+          "blob": {
+            "type": "string",
+            "description": "Base64-encoded Yjs state update representing the document content."
+          },
+          "editorClique": {
+            "type": "string",
+            "description": "URI of the clique whose members may edit this document.",
+            "format": "uri"
+          }
+        }
+      },
       "network.habitat.grantee.didGrantee": {
         "type": "object",
         "description": "A DID grantee",
@@ -2227,6 +2821,118 @@
           }
         }
       },
+      "network.habitat.render.schema": {
+        "type": "object",
+        "required": [
+          "targetLexicon",
+          "title",
+          "fields"
+        ],
+        "properties": {
+          "targetLexicon": {
+            "type": "string",
+            "description": "The NSID of the lexicon this render schema applies to."
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable name for this record type."
+          },
+          "description": {
+            "type": "string",
+            "description": "A brief description of what this record type represents."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/network.habitat.render.schema.fieldSchema"
+            }
+          }
+        }
+      },
+      "network.habitat.render.schema.fieldSchema": {
+        "type": "object",
+        "description": "Describes how to display a single field of a record.",
+        "required": [
+          "path",
+          "label",
+          "displayType",
+          "priority"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Dot-notation path into the record value (e.g. 'name', 'startsAt')."
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable label for this field."
+          },
+          "displayType": {
+            "type": "string",
+            "description": "How to render the value.",
+            "enum": [
+              "network.habitat.render.schema#text",
+              "network.habitat.render.schema#datetime",
+              "network.habitat.render.schema#url",
+              "network.habitat.render.schema#badge",
+              "network.habitat.render.schema#list"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "description": "Layout prominence of this field.",
+            "enum": [
+              "network.habitat.render.schema#primary",
+              "network.habitat.render.schema#secondary",
+              "network.habitat.render.schema#metadata"
+            ]
+          },
+          "optional": {
+            "type": "boolean",
+            "description": "If true, omit this field from display when its value is missing or empty."
+          }
+        }
+      },
+      "network.habitat.render.schema.text": {
+        "type": "string",
+        "format": "token",
+        "description": "Render as plain text."
+      },
+      "network.habitat.render.schema.datetime": {
+        "type": "string",
+        "format": "token",
+        "description": "Render as a formatted date/time string."
+      },
+      "network.habitat.render.schema.url": {
+        "type": "string",
+        "format": "token",
+        "description": "Render as a hyperlink."
+      },
+      "network.habitat.render.schema.badge": {
+        "type": "string",
+        "format": "token",
+        "description": "Render as a pill badge, extracting the token name from an NSID#token value."
+      },
+      "network.habitat.render.schema.list": {
+        "type": "string",
+        "format": "token",
+        "description": "Render as a list of items."
+      },
+      "network.habitat.render.schema.primary": {
+        "type": "string",
+        "format": "token",
+        "description": "Most prominent display — used for the record's main identifier (e.g. title)."
+      },
+      "network.habitat.render.schema.secondary": {
+        "type": "string",
+        "format": "token",
+        "description": "Standard field-value display."
+      },
+      "network.habitat.render.schema.metadata": {
+        "type": "string",
+        "format": "token",
+        "description": "De-emphasized display, shown at the bottom or collapsed."
+      },
       "network.habitat.repo.listCollections.collectionMetadata": {
         "type": "object",
         "required": [
@@ -2304,6 +3010,9 @@
       "name": "network.habitat.clique"
     },
     {
+      "name": "network.habitat.docs"
+    },
+    {
       "name": "network.habitat.grantee"
     },
     {
@@ -2317,6 +3026,12 @@
     },
     {
       "name": "network.habitat.permissions"
+    },
+    {
+      "name": "network.habitat.org"
+    },
+    {
+      "name": "network.habitat.render"
     },
     {
       "name": "network.habitat.repo"

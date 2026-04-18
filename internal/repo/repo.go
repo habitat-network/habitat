@@ -28,7 +28,8 @@ type Repo interface {
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
-	ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error)
+	ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error)
+	ListRecords(ctx context.Context, did string, collection string) ([]Record, error)
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
@@ -134,23 +135,16 @@ func (r *repo) PutRecord(
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
 	err = r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("did = ?", rec.Did).
-			Where("collection = ?", rec.Collection).
-			Where("rkey = ?", rec.Rkey).
-			Delete(&record{}).
-			Error; err != nil {
-			return err
-		}
 		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
 		}
 		r := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
-		if err := tx.Create(&r).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&r).Error; err != nil {
 			return err
 		}
 		if len(refs) > 0 {
-			if err := tx.Create(&refs).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&refs).Error; err != nil {
 				return err
 			}
 		}
@@ -271,48 +265,7 @@ func (r *repo) GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID)
 	}), nil
 }
 
-// listRecords implements repo.
-// perms should not include redundant permissions ie
-// if grantee has permission to the collection, perms should not include permissions to specific records in that collection
-func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) ([]Record, error) {
-	if len(perms) == 0 {
-		return []Record{}, nil
-	}
-
-	// Start with base query filtering by did and collection
-	query := r.db
-
-	allowQuery := r.db
-	for _, perm := range perms {
-		if perm.Effect == permissions.Allow {
-			grantQuery := r.db.Where("did = ?", perm.Owner)
-			if perm.Collection != "" {
-				grantQuery = grantQuery.Where("collection = ?", perm.Collection)
-			}
-			if perm.Rkey != "" {
-				// if rkey is not empty
-				grantQuery = grantQuery.Where("rkey = ?", perm.Rkey)
-			}
-			// build up allow `OR`s
-			allowQuery = allowQuery.Or(grantQuery)
-		} else {
-			// build up deny `NOT`s
-			query = query.Not(
-				r.db.Where("collection = ?", perm.Collection).Where("rkey = ?", perm.Rkey),
-			)
-		}
-	}
-	query = query.Where(allowQuery)
-
-	// Order by rkey for consistent pagination
-	query = query.Order("rkey ASC")
-
-	// Execute query
-	var rows []record
-	if err := query.Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
+func rowsToRecords(rows []record) ([]Record, error) {
 	records := make([]Record, len(rows))
 	for i, row := range rows {
 
@@ -331,8 +284,56 @@ func (r *repo) ListRecords(ctx context.Context, perms []permissions.Permission) 
 
 		records[i] = r
 	}
-
 	return records, nil
+}
+
+// listRecords implements repo.
+// perms should not include redundant permissions ie
+// if grantee has permission to the collection, perms should not include permissions to specific records in that collection
+func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error) {
+	if len(perms) == 0 {
+		return []Record{}, nil
+	}
+
+	// Start with base query filtering by did and collection
+	// TODO: simplify this to make it readable
+	query := r.db
+
+	allowQuery := query
+	for _, perm := range perms {
+		grantQuery := r.db.Where("did = ?", perm.Owner)
+		if perm.Collection != "" {
+			grantQuery = grantQuery.Where("collection = ?", perm.Collection)
+		}
+		if perm.Rkey != "" {
+			// if rkey is not empty
+			grantQuery = grantQuery.Where("rkey = ?", perm.Rkey)
+		}
+		// build up allow `OR`s
+		allowQuery = allowQuery.Or(grantQuery)
+	}
+	query = query.Where(allowQuery)
+
+	// Order by rkey for consistent pagination
+	query = query.Order("rkey ASC")
+
+	// Execute query
+	var rows []record
+	if err := query.Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return rowsToRecords(rows)
+}
+
+func (r *repo) ListRecords(ctx context.Context, did string, collection string) ([]Record, error) {
+	// Execute query
+	var rows []record
+	if err := r.db.Where("did = ?", did).Where("collection = ?", collection).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return rowsToRecords(rows)
 }
 
 // Ugly: hack to support SQLITE and Postgres

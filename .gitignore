@@ -13,8 +13,8 @@ coverage.out
 # Bin directory
 bin/
 
-# Developer specific environment
-dev.env
+# Environment variables for development
+**/*.env
 
 # Ignore frontend build
 frontend_server/build
@@ -40,3 +40,6 @@ cmd/pear/repo.db
 
 # Ignore custom VSCode/Cursor settings
 .vscode/settings.json
+
+# Ignore claude worktrees
+.claude

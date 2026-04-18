@@ -7,6 +7,8 @@
     "noEmit": false,
     "strict": false
   },
-  "include": ["**/*"],
+  "include": [
+    "**/*"
+  ],
   "references": []
 }

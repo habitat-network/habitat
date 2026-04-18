@@ -1,11 +1,21 @@
+import React from "react";
 import { Actor } from "@/types/Actor";
 import { UserAvatar } from "./UserAvatar";
+import {
+  Item,
+  ItemMedia,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemActions,
+} from "./ui/item";
 
 export interface UserItemProps {
   actor: Actor;
   avatarLink?: boolean;
   size?: "default" | "sm" | "lg";
   className?: string;
+  actions?: React.ReactNode;
 }
 
 export function UserItem({
@@ -13,24 +23,22 @@ export function UserItem({
   avatarLink = false,
   size = "default",
   className,
+  actions,
 }: UserItemProps) {
   const { displayName, handle } = actor;
   return (
-    <div className={`flex items-center gap-3 ${className || ""}`}>
-      <UserAvatar actor={actor} link={avatarLink} size={size} />
-      <div className="flex flex-col min-w-0 flex-1">
-        {displayName && (
-          <div className="font-semibold truncate">{displayName}</div>
-        )}
-        {handle && (
-          <div className="text-sm text-muted-foreground truncate">
-            @{handle}
-          </div>
-        )}
+    <Item className={className}>
+      <ItemMedia variant="image">
+        <UserAvatar actor={actor} link={avatarLink} size={size} />
+      </ItemMedia>
+      <ItemContent>
+        {displayName && <ItemTitle>{displayName}</ItemTitle>}
+        {handle && <ItemDescription>@{handle}</ItemDescription>}
         {!displayName && !handle && (
-          <div className="text-sm text-muted-foreground">Unknown User</div>
+          <ItemDescription>Unknown User</ItemDescription>
         )}
-      </div>
-    </div>
+      </ItemContent>
+      {actions && <ItemActions>{actions}</ItemActions>}
+    </Item>
   );
 }

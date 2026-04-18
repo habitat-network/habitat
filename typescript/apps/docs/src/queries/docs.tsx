@@ -115,6 +115,22 @@ export const docEditsQueryOptions = (
     },
   });
 
+export const deleteDocMutationOptions = (authManager: AuthManager) =>
+  mutationOptions({
+    mutationFn: async ({ uri }: { uri: string }) => {
+      const [, , repo, , rkey] = uri.split("/");
+      await procedure(
+        "network.habitat.repo.deleteRecord",
+        {
+          repo,
+          collection: "network.habitat.docs",
+          rkey,
+        },
+        { authManager },
+      );
+    },
+  });
+
 export const addPermissionMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
     mutationFn: async (
@@ -136,6 +152,36 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
             clique: editorCliqueUri,
           },
           members: grantees,
+        },
+        { authManager },
+      );
+      await client.invalidateQueries(
+        docEditorsQueryOptions(editorCliqueUri, authManager),
+      );
+    },
+  });
+
+export const removePermissionMutationOptions = (authManager: AuthManager) =>
+  mutationOptions({
+    mutationFn: async (
+      {
+        grantee,
+        editorCliqueUri,
+      }: {
+        grantee: string;
+        editorCliqueUri: string | undefined;
+      },
+      { client },
+    ) => {
+      if (!editorCliqueUri) return;
+      await procedure(
+        "network.habitat.clique.removeMembers",
+        {
+          clique: {
+            $type: "network.habitat.grantee#clique",
+            clique: editorCliqueUri,
+          },
+          members: [grantee],
         },
         { authManager },
       );

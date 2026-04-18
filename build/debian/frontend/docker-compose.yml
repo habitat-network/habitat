@@ -1,0 +1,16 @@
+services:
+  frontend:
+    build:
+      context: ../../..
+      dockerfile: build/debian/frontend/Dockerfile
+      args:
+        # Required: the domain where the frontend is served (no https:// prefix)
+        DOMAIN: ${DOMAIN}
+        # Required: the domain of the pear server (no https:// prefix)
+        HABITAT_DOMAIN: ${HABITAT_DOMAIN}
+    restart: unless-stopped
+    ports:
+      # Maps host port 3000 to nginx inside the container (port 80).
+      # YunoHost's reverse proxy should point to http://localhost:3000.
+      # Change FRONTEND_PORT if 3000 is already in use on your server.
+      - "${FRONTEND_PORT:-3000}:80"

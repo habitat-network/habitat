@@ -1,6 +1,6 @@
 module github.com/habitat-network/habitat/cmd/didgen
 
-go 1.24
+go 1.26
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20251020231157-aa7fd7f7a301

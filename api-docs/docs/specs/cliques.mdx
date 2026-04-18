@@ -1,0 +1,56 @@
+---
+id: cliques
+slug: /specs/cliques.mdx
+sidebar_label: Cliques
+sidebar_position: 1
+---
+
+# Cliques
+
+A **clique** is a named group of DIDs owned by a single user. Cliques are used as [permission](../building/permissions.mdx) grantees, so you can grant access to an entire group rather than managing permissions for each member individually. Membership is resolved at read time, meaning permissions automatically apply to anyone who joins the clique later.
+
+## Format
+
+Cliques are identified by a string in the form:
+
+```
+clique:<owner-did>/<clique-key>
+```
+
+For example:
+
+```
+clique:did:plc:abc123/random-uuid-you-cannot-set
+```
+
+The `clique-key` is an opaque identifier assigned by Habitat when the clique is created and returned in the `createClique` response.
+
+## Ownership and clique scopes
+
+A clique is owned by the DID that created it. For now, only the owner can add or remove members, or delete the clique, though we may add scopes to cliques in the future. Any authenticated user can query the members of a clique that they have read access to.
+
+## Using cliques with permissions
+
+Granting a clique access to a collection or record works the same as granting an individual DID — use the clique identifier as the grantee:
+
+```json
+{
+  "grantee": { "clique": "clique:did:plc:abc123/850c764e-a664-4adb-b40a-090d116e8e20" },
+  "collection": "app.bsky.feed.post",
+  "effect": "allow"
+}
+```
+
+See [Permissions model](../building/permissions.mdx) for full details on how grants are evaluated.
+
+## API
+
+Cliques are managed through these endpoints:
+
+- `POST /xrpc/network.habitat.clique.createClique` — create a new clique, optionally with initial members; returns the clique identifier
+- `POST /xrpc/network.habitat.clique.addMembers` — add one or more DIDs to a clique you own
+- `POST /xrpc/network.habitat.clique.removeMembers` — remove one or more DIDs from a clique you own
+- `GET /xrpc/network.habitat.clique.getMembers` — list all members of a clique
+- `GET /xrpc/network.habitat.clique.isMember` — check whether a specific DID belongs to a clique
+
+See the [API reference](/api) for full request/response shapes.

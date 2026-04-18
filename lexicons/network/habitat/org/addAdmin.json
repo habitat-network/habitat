@@ -1,0 +1,26 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.addAdmin",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Add an admin to the org. Only callable by existing admins.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "admin"
+                    ],
+                    "properties": {
+                        "admin": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "The DID of the user to add as an admin."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,28 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.getMembers",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Get the list of members in the org. Callable by any org member.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "members"
+                    ],
+                    "properties": {
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

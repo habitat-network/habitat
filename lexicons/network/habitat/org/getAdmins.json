@@ -1,0 +1,28 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.getAdmins",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Get the list of admins in the org. Callable by any org member.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "admins"
+                    ],
+                    "properties": {
+                        "admins": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

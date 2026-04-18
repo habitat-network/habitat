@@ -1,8 +1,8 @@
-import { procedure, TypedRecord } from "internal";
+import { Actor, procedure, TypedRecord, UserAvatar } from "internal";
 
-import { useMutation } from "@tanstack/react-query";
-import { docsListQueryOptions } from "@/queries/docs";
-import { profileQueryOptions } from "@/queries/profile";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { deleteDocMutationOptions, docsListQueryOptions } from "@/queries/docs";
+import { profileQueryOptions, profilesQueryOptions } from "@/queries/profile";
 import {
   createFileRoute,
   Link,
@@ -13,14 +13,24 @@ import {
 } from "@tanstack/react-router";
 import {
   AppLayout,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuItem,
   SidebarMenuButton,
 } from "internal";
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
+import { useMemo } from "react";
 import { HabitatDoc } from "@/habitatDoc";
 
 export const Route = createFileRoute("/_requireAuth")({
@@ -35,16 +45,33 @@ export const Route = createFileRoute("/_requireAuth")({
     const profile = await context.queryClient.fetchQuery(
       profileQueryOptions(did, context.authManager),
     );
-    const docs = await context.queryClient.fetchQuery(
-      docsListQueryOptions(context.authManager),
-    );
-    const userDocs = docs.records.filter((d) => d.uri.includes(did));
-    const sharedDocs = docs.records.filter((d) => !d.uri.includes(did));
-    return { profile, userDocs, sharedDocs };
+    await context.queryClient.prefetchQuery(docsListQueryOptions(context.authManager));
+    return { profile, did };
   },
   component() {
-    const { profile, userDocs, sharedDocs } = Route.useLoaderData();
+    const { profile, did } = Route.useLoaderData();
     const { authManager, queryClient } = Route.useRouteContext();
+    const { data: docsData } = useQuery(docsListQueryOptions(authManager));
+    const userDocs = useMemo(
+      () => docsData?.records.filter((d) => d.uri.includes(did)) ?? [],
+      [docsData, did],
+    );
+    const sharedDocs = useMemo(
+      () => docsData?.records.filter((d) => !d.uri.includes(did)) ?? [],
+      [docsData, did],
+    );
+    const ownerDids = useMemo(
+      () => [...new Set(sharedDocs.map((d) => d.uri.split("/")[2]))],
+      [sharedDocs],
+    );
+    const { data: ownerProfilesList } = useQuery({
+      ...profilesQueryOptions(ownerDids, authManager),
+      enabled: ownerDids.length > 0,
+    });
+    const ownerProfileMap = useMemo(
+      () => Object.fromEntries((ownerProfilesList ?? []).map((p) => [p.did, p])),
+      [ownerProfilesList],
+    );
     const router = useRouter();
     const navigate = Route.useNavigate();
 
@@ -52,6 +79,17 @@ export const Route = createFileRoute("/_requireAuth")({
       select: (state) =>
         state.matches.find((x) => x.routeId === "/_requireAuth/$uri")?.params
           .uri,
+    });
+
+    const { mutate: deleteDoc, isPending: isDeleting } = useMutation({
+      ...deleteDocMutationOptions(authManager),
+      onSuccess: (_, { uri }) => {
+        queryClient.invalidateQueries(docsListQueryOptions(authManager));
+        router.invalidate();
+        if (currentUri === uri) {
+          navigate({ to: "/" });
+        }
+      },
     });
 
     const { mutate: create, isPending } = useMutation({
@@ -124,6 +162,8 @@ export const Route = createFileRoute("/_requireAuth")({
                         key={doc.uri}
                         doc={doc}
                         isActive={currentUri === doc.uri}
+                        onDelete={(uri) => deleteDoc({ uri })}
+                        isDeleting={isDeleting}
                       />
                     ))}
                   </SidebarMenu>
@@ -140,6 +180,9 @@ export const Route = createFileRoute("/_requireAuth")({
                         key={doc.uri}
                         doc={doc}
                         isActive={currentUri === doc.uri}
+                        onDelete={(uri) => deleteDoc({ uri })}
+                        isDeleting={isDeleting}
+                        ownerProfile={ownerProfileMap[doc.uri.split("/")[2]]}
                       />
                     ))}
                   </SidebarMenu>
@@ -158,10 +201,21 @@ export const Route = createFileRoute("/_requireAuth")({
 const DocItem = ({
   doc,
   isActive,
+  onDelete,
+  isDeleting,
+  ownerProfile,
 }: {
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
+  onDelete: (uri: string) => void;
+  isDeleting: boolean;
+  ownerProfile?: Actor;
 }) => {
+  const docName =
+    !doc.value.name || doc.value.name === "Untitled"
+      ? `Untitled (${doc.uri.split("/")[4]})`
+      : doc.value.name;
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -173,13 +227,39 @@ const DocItem = ({
           />
         }
       >
-        <FileTextIcon />
-        <span>
-          {!doc.value.name || doc.value.name === "Untitled"
-            ? `Untitled (${doc.uri.split("/")[4]})`
-            : doc.value.name}
-        </span>
+        {ownerProfile ? <UserAvatar actor={ownerProfile} size="sm" /> : <FileTextIcon />}
+        <span>{docName}</span>
       </SidebarMenuButton>
+      <Dialog>
+        <DialogTrigger
+          render={
+            <SidebarMenuAction
+              showOnHover
+              aria-label={`Delete ${docName}`}
+            />
+          }
+        >
+          <XIcon />
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete document?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{docName}&quot;? This
+              action is irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter showCloseButton>
+            <Button
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={() => onDelete(doc.uri)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarMenuItem>
   );
 };

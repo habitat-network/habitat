@@ -47,8 +47,17 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to create forwarding request", http.StatusInternalServerError)
 		return
 	}
-	// Copy headers from original request
+	// Copy headers from original request, stripping hop-by-hop headers that
+	// must not be forwarded (e.g. Connection: upgrade, which HTTP/2 rejects).
 	req.Header = r.Header.Clone()
+	for _, h := range strings.Split(req.Header.Get("Connection"), ",") {
+		req.Header.Del(strings.TrimSpace(h))
+	}
+	req.Header.Del("Connection")
+	req.Header.Del("Upgrade")
+	req.Header.Del("Keep-Alive")
+	req.Header.Del("Transfer-Encoding")
+	req.Header.Del("Te")
 
 	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
 	if err != nil {
@@ -60,14 +69,11 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward the request using the dpopClient
 	resp, err := dpopClient.Do(req)
 	if err != nil {
-		// TODO: be a bit more specific about these errors
-		if strings.Contains(err.Error(), "invalid") {
-			utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusUnauthorized)
-			return
-		} else {
-			utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
-			return
-		}
+		// dpopClient.Do only returns an error for transport-level failures (network
+		// errors, signing errors, etc.) — never for PDS auth failures, which come
+		// back as valid HTTP responses. So always return 502 here.
+		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
+		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 	// Copy response headers

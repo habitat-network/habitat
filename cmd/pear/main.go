@@ -35,6 +35,7 @@ import (
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -149,18 +150,44 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pear servers")
-	}
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir))
-
-	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup p2p server")
+		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
 	mux := mux.NewRouter()
+
+	// TODO: take in non-everything org depending on CLI flag
+	servingOrg := cmd.Bool(fOrg)
+
+	// Default: no org == org that serves everyone
+	pearOrg := org.NewEveryoneOrg()
+	if servingOrg {
+		pearOrg, err = org.NewOrg(db)
+		if err != nil {
+			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
+		}
+	}
+
+	// Server for org management routes
+	orgServer, err := org.NewServer(pearOrg, oauthServer)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
+	}
+
+	// org management routes — only available on org-serving nodes
+	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
+	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
+	mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
+	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
+
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
+	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup p2p server")
+	}
 
 	// Order of middlewares = order of "Use" called
 	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
@@ -168,6 +195,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(corsMiddleware)
 
 	// handle waitlist signups
+	// TODO: this should be moved to a separate server; no need to run it for orgs
 	waitlistSvc, err := NewWaitlistService(
 		egCtx,
 		os.Getenv("WAITLIST_SHEET_ID"),
@@ -181,9 +209,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Err(err).Msgf("unable to set up waitlist service")
 	}
 
-	// auth routes
-	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
+	// always public routes
+	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
+
+	// auth routes
+	// TODO: who is allowed to call the oauth handlers in an org?
+	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
@@ -211,8 +243,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
-
-	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)

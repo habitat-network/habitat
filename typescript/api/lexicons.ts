@@ -957,6 +957,39 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatDocs: {
+    lexicon: 1,
+    id: 'network.habitat.docs',
+    defs: {
+      main: {
+        type: 'record',
+        description: 'A collaborative document.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['name', 'blob'],
+          properties: {
+            name: {
+              type: 'string',
+              description:
+                'The name of the document, derived from the first heading.',
+            },
+            blob: {
+              type: 'string',
+              description:
+                'Base64-encoded Yjs state update representing the document content.',
+            },
+            editorClique: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'URI of the clique whose members may edit this document.',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatGrantee: {
     lexicon: 1,
     id: 'network.habitat.grantee',
@@ -1070,6 +1103,164 @@ export const schemaDict = {
           logoUri: {
             type: 'string',
             description: 'The logo URI of this app.',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgAddAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.addAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Add an admin to the org. Only callable by existing admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the user to add as an admin.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgAddMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.addMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Add member(s) to the org. Only callable by admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'The DIDs of the users to add as members.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgGetAdmins: {
+    lexicon: 1,
+    id: 'network.habitat.org.getAdmins',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get the list of admins in the org. Callable by any org member.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admins'],
+            properties: {
+              admins: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgGetMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.getMembers',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get the list of members in the org. Callable by any org member.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgRemoveAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.removeAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove an admin from the org. Only callable by existing admins. The last admin cannot be removed.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the admin to remove.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgRemoveMembers: {
+    lexicon: 1,
+    id: 'network.habitat.org.removeMembers',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Remove member(s) from the org. Only callable by admins.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'The DIDs of the members to remove.',
+              },
+            },
           },
         },
       },
@@ -1237,6 +1428,122 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  NetworkHabitatRenderSchema: {
+    lexicon: 1,
+    id: 'network.habitat.render.schema',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'A render schema describing how to display records of a given lexicon type.',
+        key: 'any',
+        record: {
+          type: 'object',
+          required: ['targetLexicon', 'title', 'fields'],
+          properties: {
+            targetLexicon: {
+              type: 'string',
+              description:
+                'The NSID of the lexicon this render schema applies to.',
+            },
+            title: {
+              type: 'string',
+              description: 'Human-readable name for this record type.',
+            },
+            description: {
+              type: 'string',
+              description:
+                'A brief description of what this record type represents.',
+            },
+            fields: {
+              type: 'array',
+              description: 'Ordered list of field display descriptors.',
+              items: {
+                type: 'ref',
+                ref: 'lex:network.habitat.render.schema#fieldSchema',
+              },
+            },
+          },
+        },
+      },
+      fieldSchema: {
+        type: 'object',
+        description: 'Describes how to display a single field of a record.',
+        required: ['path', 'label', 'displayType', 'priority'],
+        properties: {
+          path: {
+            type: 'string',
+            description:
+              "Dot-notation path into the record value (e.g. 'name', 'startsAt').",
+          },
+          label: {
+            type: 'string',
+            description: 'Human-readable label for this field.',
+          },
+          displayType: {
+            type: 'string',
+            description: 'How to render the value.',
+            knownValues: [
+              'network.habitat.render.schema#text',
+              'network.habitat.render.schema#datetime',
+              'network.habitat.render.schema#url',
+              'network.habitat.render.schema#badge',
+              'network.habitat.render.schema#list',
+            ],
+          },
+          priority: {
+            type: 'string',
+            description: 'Layout prominence of this field.',
+            knownValues: [
+              'network.habitat.render.schema#primary',
+              'network.habitat.render.schema#secondary',
+              'network.habitat.render.schema#metadata',
+            ],
+          },
+          optional: {
+            type: 'boolean',
+            description:
+              'If true, omit this field from display when its value is missing or empty.',
+            default: false,
+          },
+        },
+      },
+      text: {
+        type: 'token',
+        description: 'Render as plain text.',
+      },
+      datetime: {
+        type: 'token',
+        description: 'Render as a formatted date/time string.',
+      },
+      url: {
+        type: 'token',
+        description: 'Render as a hyperlink.',
+      },
+      badge: {
+        type: 'token',
+        description:
+          'Render as a pill badge, extracting the token name from an NSID#token value.',
+      },
+      list: {
+        type: 'token',
+        description: 'Render as a list of items.',
+      },
+      primary: {
+        type: 'token',
+        description:
+          "Most prominent display — used for the record's main identifier (e.g. title).",
+      },
+      secondary: {
+        type: 'token',
+        description: 'Standard field-value display.',
+      },
+      metadata: {
+        type: 'token',
+        description: 'De-emphasized display, shown at the bottom or collapsed.',
       },
     },
   },
@@ -1785,10 +2092,17 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
+  NetworkHabitatDocs: 'network.habitat.docs',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
+  NetworkHabitatOrgAddAdmin: 'network.habitat.org.addAdmin',
+  NetworkHabitatOrgAddMembers: 'network.habitat.org.addMembers',
+  NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
+  NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
+  NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
+  NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:
     'network.habitat.permissions.addPermission',
   NetworkHabitatPermissionsListPermissions:
@@ -1796,6 +2110,7 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
+  NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',

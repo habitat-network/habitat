@@ -1,4 +1,4 @@
-import { Editor, EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -21,8 +21,10 @@ import { webTransport } from "@libp2p/webtransport";
 import { peerIdFromString } from "@libp2p/peer-id";
 import {
   addPermissionMutationOptions,
+  removePermissionMutationOptions,
   docEditsQueryOptions,
   docQueryOptions,
+  docsListQueryOptions,
   editorProfilesQueryOptions,
 } from "@/queries/docs";
 import {
@@ -33,6 +35,7 @@ import {
   procedure,
 } from "internal";
 import {
+  AvatarGroup,
   Button,
   Popover,
   PopoverContent,
@@ -40,6 +43,7 @@ import {
   PopoverTrigger,
   Spinner,
 } from "internal/components/ui";
+import { UserAvatar } from "internal";
 import { HelpDialog } from "@/components/HelpDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { CheckIcon } from "lucide-react";
@@ -69,7 +73,7 @@ async function startPeerDiscovery(
 
     const encoder = new TextEncoder();
     stream.sink(
-      (async function*() {
+      (async function* () {
         yield encoder.encode(
           JSON.stringify({
             topic: uri,
@@ -110,11 +114,39 @@ async function startPeerDiscovery(
   } catch { }
 }
 
+// Preserve ydocs across navigations so the editor never flashes stale content.
+// Re-applying the backend blob on each load is safe — YJS updates are idempotent.
+const ydocRegistry = new Map<string, Y.Doc>();
+
+function getHeadingFromYdoc(ydoc: Y.Doc): string | undefined {
+  const fragment = ydoc.getXmlFragment("default");
+  for (const child of fragment.toArray()) {
+    if (child instanceof Y.XmlElement && child.nodeName === "heading") {
+      return child
+        .toArray()
+        .filter((n): n is Y.XmlText => n instanceof Y.XmlText)
+        .map((n) => n.toJSON())
+        .join("");
+    }
+  }
+  return undefined;
+}
+
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
-    const ydoc = new Y.Doc();
-    // Fetch the record
     const { uri } = params;
+
+    // Reuse an existing ydoc for this URI if available so the editor never
+    // has to reinitialize from scratch (prevents visible content flash).
+    const existingYdoc = ydocRegistry.get(uri);
+    const ydoc = existingYdoc ?? new Y.Doc();
+    if (!existingYdoc) {
+      ydocRegistry.set(uri, ydoc);
+    }
+
+    // Always re-apply the backend state — YJS CRDT merges are idempotent,
+    // so this picks up any changes made by other users without overwriting
+    // local edits that are ahead of the last save.
     const data = await context.queryClient.fetchQuery(
       docQueryOptions(uri, context.authManager),
     );
@@ -174,9 +206,15 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         // Already connected to relay
         return;
       }
-      const conn = await node.dial(relayAddr);
-      const relayPeerId = conn.remotePeer;
-      void startPeerDiscovery(uri, relayPeerId, node, context.authManager);
+      try {
+        const conn = await node.dial(relayAddr);
+        const relayPeerId = conn.remotePeer;
+        void startPeerDiscovery(uri, relayPeerId, node, context.authManager);
+      } catch {
+        // Relay unreachable — document still works, real-time collaboration unavailable
+        // TODO: can we signal to the user somehow that real-time collaboration is not working ?
+        console.error("unable to connect to habitat relay; continuing without real-time collaboration")
+      }
     }
 
     await dialRelayAndStartPeerDiscovery();
@@ -201,8 +239,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   },
   onLeave({ loaderData }) {
     loaderData?.provider.destroy();
-    loaderData?.ydoc.destroy();
     loaderData?.node.stop();
+    // ydoc is intentionally kept alive in ydocRegistry so navigating back
+    // reuses the same in-memory state without a content flash.
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
@@ -216,8 +255,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       dialRelayAndStartPeerDiscovery,
     } = Route.useLoaderData();
     const [, , docDID, , rkey] = uri.split("/");
+    const { authManager, queryClient } = Route.useRouteContext();
+    const did = authManager.getAuthInfo()?.did;
 
-    const { authManager } = Route.useRouteContext();
     useEffect(() => {
       async function handleVisibilityChange() {
         // When the page becomes visible again, reconnect to the relay and fetch any updates that may have happened since
@@ -232,14 +272,34 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         );
     }, [dialRelayAndStartPeerDiscovery]);
 
+    useEffect(() => {
+      const syncHeading = () => {
+        const name = getHeadingFromYdoc(ydoc) ?? "Untitled";
+        queryClient.setQueryData(
+          docsListQueryOptions(authManager).queryKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              records: old.records.map((r) =>
+                r.uri === uri ? { ...r, value: { ...r.value, name } } : r
+              ),
+            };
+          }
+        );
+      };
+      ydoc.on("update", syncHeading);
+      syncHeading();
+      return () => ydoc.off("update", syncHeading);
+    }, [ydoc, uri, queryClient, authManager]);
+
     const [dirty, setDirty] = useState(false);
     const { data: editorProfiles } = useQuery(
       editorProfilesQueryOptions(doc.value.editorClique, authManager),
     );
     const { mutate: save } = useMutation({
-      mutationFn: async ({ editor }: { editor: Editor }) => {
-        const did = authManager.getAuthInfo()?.did;
-        const heading = editor.$node("heading")?.textContent;
+      mutationFn: async () => {
+        const heading = getHeadingFromYdoc(ydoc);
         const collection =
           docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
         const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
@@ -261,18 +321,23 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         );
       },
 
-      onSuccess: () => setDirty(false),
+      onSuccess: () => {
+        setDirty(false);
+      },
     });
     const { mutate: addPermission, isPending: isAddingPermission } =
       useMutation(addPermissionMutationOptions(authManager));
+    const { mutate: removePermission } = useMutation(
+      removePermissionMutationOptions(authManager),
+    );
     // debounce
     const handleUpdate = useMemo(() => {
       let prevTimeout: number | undefined;
-      return ({ editor }: { editor: Editor }) => {
+      return () => {
         setDirty(true);
         clearTimeout(prevTimeout);
         prevTimeout = window.setTimeout(() => {
-          save({ editor });
+          save();
         }, 1000);
       };
     }, [save]);
@@ -309,34 +374,64 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
         <PageHeader>
-          <Popover>
-            <PopoverTrigger
-              render={
-                <Button size="icon" variant="outline">
-                  {dirty ? <Spinner /> : <CheckIcon />}
-                </Button>
-              }
-            />
-            <PopoverContent>
-              <PopoverTitle>Sync status</PopoverTitle>
-              <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
-              <PopoverTitle>Peer info</PopoverTitle>
-              <span className="break-all">
-                Node id: {node.peerId.toString()}
-              </span>
-            </PopoverContent>
-          </Popover>
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button size="icon" variant="outline">
+                    {dirty ? <Spinner /> : <CheckIcon />}
+                  </Button>
+                }
+              />
+              <PopoverContent>
+                <PopoverTitle>Sync status</PopoverTitle>
+                <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
+                <PopoverTitle>Peer info</PopoverTitle>
+                <span className="break-all">
+                  Node id: {node.peerId.toString()}
+                </span>
+              </PopoverContent>
+            </Popover>
+            {editorProfiles && editorProfiles.length > 0 && (
+              <div className="flex items-center gap-1">
+                {editorProfiles.find((p) => p.did === docDID) && (
+                  <UserAvatar
+                    actor={editorProfiles.find((p) => p.did === docDID)!}
+                    size="sm"
+                    className="ring-2 ring-foreground"
+                  />
+                )}
+                {editorProfiles.filter((p) => p.did !== docDID).length > 0 && (
+                  <AvatarGroup>
+                    {editorProfiles
+                      .filter((p) => p.did !== docDID)
+                      .map((p) => (
+                        <UserAvatar key={p.did} actor={p} size="sm" />
+                      ))}
+                  </AvatarGroup>
+                )}
+              </div>
+            )}
+          </div>
           <HelpDialog />
 
           {docDID === authManager.getAuthInfo()?.did &&
             doc.value.editorClique && (
               <ShareDialog
                 isAdding={isAddingPermission}
-                grantees={editorProfiles ?? []}
+                grantees={(editorProfiles ?? []).filter(
+                  (p) => p.did !== authManager.getAuthInfo()?.did,
+                )}
                 authManager={authManager}
                 onAddPermission={(actors) =>
                   addPermission({
                     grantees: actors.map((actor) => actor.did),
+                    editorCliqueUri: doc.value.editorClique,
+                  })
+                }
+                onRemovePermission={(actor) =>
+                  removePermission({
+                    grantee: actor.did,
                     editorCliqueUri: doc.value.editorClique,
                   })
                 }
@@ -349,9 +444,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   errorComponent({ error }) {
     if (error instanceof XRPCError) {
       if (error.status === 403) {
-        return <p>you do not have permission to view this doc</p>;
+        return <p>You do not have access to this doc</p>;
       }
     }
+    console.error(error)
     return <p>Something went wrong.</p>;
   },
   pendingComponent: () => <article>Loading...</article>,

@@ -12,11 +12,16 @@ tasks:
       HABITAT_DEBUG: 'true'
       HABITAT_SERVICE_NAME: "habitat_local"
       DEBUG: 'true'
+      DATABASE_URL: "postgres://habitat:habitat@localhost:5432/habitat"
     deps:
+    - postgres
     - target: funnel:start
       args:
       - '8000'
       - pear
+  postgres:
+    command: docker compose -f ../../infra/docker-compose.yml up
+    preset: server
   docker-build:
     options:
       internal: false

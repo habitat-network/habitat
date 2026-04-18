@@ -1,0 +1,38 @@
+services:
+  pear:
+    image: ghcr.io/habitat-network/pear:${PEAR_TAG:-latest}
+    restart: unless-stopped
+    dns:
+      # Use public DNS instead of YunoHost's dnsmasq, which resolves local
+      # domains to [::1] inside the container, breaking outbound HTTPS requests.
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "${HABITAT_PORT:-8000}:${HABITAT_PORT:-8000}"
+    volumes:
+      - pear_data:/data
+    environment:
+      # Required: the publicly accessible domain for this server (no https:// prefix)
+      HABITAT_DOMAIN: ${HABITAT_DOMAIN}
+
+      # Optional: path to the SQLite database file (default: /data/repo.db)
+      # The /data directory is a persistent volume — do not change this unless you
+      # also update the volume mount above.
+      HABITAT_DB: ${HABITAT_DB:-/data/repo.db}
+
+      # Optional: directory containing TLS certs (fullchain.pem + privkey.pem).
+      # Leave unset if TLS is terminated upstream (e.g. by a reverse proxy like nginx).
+      HABITAT_HTTPSCERTS: ${HABITAT_HTTPSCERTS:-}
+
+      # Optional: whether this server is running as part of an organization.
+      HABITAT_ORG: ${HABITAT_ORG:-true}
+
+      # The three secrets below are auto-generated on first run and saved to
+      # /data/.secrets.env inside the volume. You can override them by setting
+      # these env vars explicitly (e.g. in a .env file next to this compose file).
+      HABITAT_PDS_CRED_ENCRYPT_KEY: ${HABITAT_PDS_CRED_ENCRYPT_KEY:-}
+      HABITAT_OAUTH_SERVER_SECRET: ${HABITAT_OAUTH_SERVER_SECRET:-}
+      HABITAT_OAUTH_CLIENT_SECRET: ${HABITAT_OAUTH_CLIENT_SECRET:-}
+
+volumes:
+  pear_data:

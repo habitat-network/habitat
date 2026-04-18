@@ -1,0 +1,29 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.removeMembers",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Remove member(s) from the org. Only callable by admins.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "members"
+                    ],
+                    "properties": {
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            },
+                            "description": "The DIDs of the members to remove."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

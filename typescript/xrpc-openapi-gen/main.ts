@@ -92,9 +92,9 @@ for (const lexiconPath of lexiconPaths) {
 const api: OpenAPIV3_1.Document = {
     openapi: "3.1.0",
     info: {
-        title: "Habitat API",
-        summary: "OpenAPI spec generated from Habitat's AT Protocol lexicons.",
-        description: "Welcome to the Habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned [@habitat.network](https://bsky.app/profile/habitat.network) on Bluesky and [habitat.leaflet.pub](https://habitat.leaflet.pub) for future formal releases.",
+        title: "habitat's API",
+        summary: "OpenAPI spec generated from habitat's ATProtocol lexicons.",
+        description: "Welcome to the habitat API reference! We are currently under development and our API may make breaking changes without notice. Stay tuned [@habitat.network](https://bsky.app/profile/habitat.network) on Bluesky and [habitat.leaflet.pub](https://habitat.leaflet.pub) for future formal releases.",
         version: "0.0.0",
         license: {
             name: "MIT License",
@@ -103,7 +103,7 @@ const api: OpenAPIV3_1.Document = {
     },
     servers: [
         {
-            url: "https://habitat.network/xrpc", // TODO: should this be hitting dev server locally for generation from a given branch?
+            url: "https://habitat-953995456319.us-west1.run.app/xrpc/", // TODO: should this be hitting dev server locally for generation from a given branch?
             description: "Habitat XRPC server",
         },
     ],

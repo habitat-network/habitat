@@ -7,7 +7,7 @@ export function PageHeader({ children }: { children?: React.ReactNode }) {
   const isMobile = useIsMobile();
 
   return (
-    <header className="px-3 py-1 border-b flex justify-between sticky top-0 bg-background">
+    <header className="px-3 py-1 border-b flex justify-between items-center sticky top-0 bg-background">
       {isMobile && (
         <Button onClick={toggleSidebar} size="icon" variant="ghost">
           <MenuIcon />

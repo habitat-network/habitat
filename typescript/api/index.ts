@@ -29,13 +29,21 @@ import * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 import * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
+import * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
+import * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
+import * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+import * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
+import * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
+import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
+import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+import * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 import * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 import * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -65,13 +73,21 @@ export * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 export * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
+export * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
+export * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
+export * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+export * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
+export * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
+export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
+export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+export * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 export * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 export * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
@@ -93,6 +109,16 @@ export const COMMUNITY_LEXICON_CALENDAR = {
   RsvpInterested: 'community.lexicon.calendar.rsvp#interested',
   RsvpGoing: 'community.lexicon.calendar.rsvp#going',
   RsvpNotgoing: 'community.lexicon.calendar.rsvp#notgoing',
+}
+export const NETWORK_HABITAT_RENDER = {
+  SchemaText: 'network.habitat.render.schema#text',
+  SchemaDatetime: 'network.habitat.render.schema#datetime',
+  SchemaUrl: 'network.habitat.render.schema#url',
+  SchemaBadge: 'network.habitat.render.schema#badge',
+  SchemaList: 'network.habitat.render.schema#list',
+  SchemaPrimary: 'network.habitat.render.schema#primary',
+  SchemaSecondary: 'network.habitat.render.schema#secondary',
+  SchemaMetadata: 'network.habitat.render.schema#metadata',
 }
 
 export class AtpBaseClient extends XrpcClient {
@@ -502,18 +528,24 @@ export class NetworkNS {
 
 export class NetworkHabitatNS {
   _client: XrpcClient
+  docs: NetworkHabitatDocsRecord
   photo: NetworkHabitatPhotoRecord
   clique: NetworkHabitatCliqueNS
   internal: NetworkHabitatInternalNS
+  org: NetworkHabitatOrgNS
   permissions: NetworkHabitatPermissionsNS
+  render: NetworkHabitatRenderNS
   repo: NetworkHabitatRepoNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.clique = new NetworkHabitatCliqueNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
+    this.org = new NetworkHabitatOrgNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
+    this.render = new NetworkHabitatRenderNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
+    this.docs = new NetworkHabitatDocsRecord(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
   }
 
@@ -618,6 +650,86 @@ export class NetworkHabitatInternalNS {
   }
 }
 
+export class NetworkHabitatOrgNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addAdmin(
+    data?: NetworkHabitatOrgAddAdmin.InputSchema,
+    opts?: NetworkHabitatOrgAddAdmin.CallOptions,
+  ): Promise<NetworkHabitatOrgAddAdmin.Response> {
+    return this._client.call(
+      'network.habitat.org.addAdmin',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  addMembers(
+    data?: NetworkHabitatOrgAddMembers.InputSchema,
+    opts?: NetworkHabitatOrgAddMembers.CallOptions,
+  ): Promise<NetworkHabitatOrgAddMembers.Response> {
+    return this._client.call(
+      'network.habitat.org.addMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  getAdmins(
+    params?: NetworkHabitatOrgGetAdmins.QueryParams,
+    opts?: NetworkHabitatOrgGetAdmins.CallOptions,
+  ): Promise<NetworkHabitatOrgGetAdmins.Response> {
+    return this._client.call(
+      'network.habitat.org.getAdmins',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  getMembers(
+    params?: NetworkHabitatOrgGetMembers.QueryParams,
+    opts?: NetworkHabitatOrgGetMembers.CallOptions,
+  ): Promise<NetworkHabitatOrgGetMembers.Response> {
+    return this._client.call(
+      'network.habitat.org.getMembers',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  removeAdmin(
+    data?: NetworkHabitatOrgRemoveAdmin.InputSchema,
+    opts?: NetworkHabitatOrgRemoveAdmin.CallOptions,
+  ): Promise<NetworkHabitatOrgRemoveAdmin.Response> {
+    return this._client.call(
+      'network.habitat.org.removeAdmin',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  removeMembers(
+    data?: NetworkHabitatOrgRemoveMembers.InputSchema,
+    opts?: NetworkHabitatOrgRemoveMembers.CallOptions,
+  ): Promise<NetworkHabitatOrgRemoveMembers.Response> {
+    return this._client.call(
+      'network.habitat.org.removeMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
 export class NetworkHabitatPermissionsNS {
   _client: XrpcClient
 
@@ -658,6 +770,99 @@ export class NetworkHabitatPermissionsNS {
       opts?.qp,
       data,
       opts,
+    )
+  }
+}
+
+export class NetworkHabitatRenderNS {
+  _client: XrpcClient
+  schema: NetworkHabitatRenderSchemaRecord
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.schema = new NetworkHabitatRenderSchemaRecord(client)
+  }
+}
+
+export class NetworkHabitatRenderSchemaRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatRenderSchema.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.render.schema',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: NetworkHabitatRenderSchema.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.render.schema',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatRenderSchema.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.render.schema'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatRenderSchema.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.render.schema'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.render.schema', ...params },
+      { headers },
     )
   }
 }
@@ -760,6 +965,85 @@ export class NetworkHabitatRepoNS {
       opts?.qp,
       data,
       opts,
+    )
+  }
+}
+
+export class NetworkHabitatDocsRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatDocs.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.docs',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{ uri: string; cid: string; value: NetworkHabitatDocs.Record }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.docs',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatDocs.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.docs'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatDocs.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.docs'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.docs', ...params },
+      { headers },
     )
   }
 }
