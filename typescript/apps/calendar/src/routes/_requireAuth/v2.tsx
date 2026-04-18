@@ -8,7 +8,6 @@ import { Button, Calendar } from "internal/components/ui";
 import { useState } from "react";
 
 export const Route = createFileRoute("/_requireAuth/v2")({
-  loader: async ({ context }) => { },
   component: () => {
     const { eventCollection, authManager } = Route.useRouteContext();
     const [date, setDate] = useState(() => new Date());

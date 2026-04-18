@@ -12,13 +12,11 @@ import {
   FieldLabel,
   Input,
 } from "internal/components/ui";
-import { EventForm, type CreateEventInput } from "./EventForm.tsx";
+import { type CreateEventInput } from "./EventForm.tsx";
 import { ReactElement } from "react";
 import { useRouteContext } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { Actor, UserCombobox } from "internal";
-
-type InitialEvent = Partial<CreateEventInput>;
 
 interface EventFormFields {
   name: string;
@@ -47,17 +45,9 @@ export function CreateEventModal({
   isOpen,
   onClose,
   onSubmit,
-  onCancel,
-  isPending,
-  error,
 }: CreateEventModalProps) {
   const { authManager } = useRouteContext({ from: "/_requireAuth" });
-  const {
-    register,
-    handleSubmit,
-    control,
-    trigger: formTrigger,
-  } = useForm<EventFormFields>({
+  const { register, handleSubmit, control } = useForm<EventFormFields>({
     defaultValues: {
       name: initialEvent?.name ?? "",
       description: initialEvent?.description ?? "",

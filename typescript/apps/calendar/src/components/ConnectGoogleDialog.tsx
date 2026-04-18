@@ -9,13 +9,8 @@ import {
   DialogTrigger,
   Spinner,
 } from "internal/components/ui";
-import { ReactElement } from "react";
 
-interface ConnectGoogleDialogProps {
-  trigger?: ReactElement;
-}
-
-const ConnectGoogleDialog = ({ trigger }: ConnectGoogleDialogProps) => {
+const ConnectGoogleDialog = () => {
   const { authManager } = useRouteContext({ from: "/_requireAuth" });
   const {
     data,

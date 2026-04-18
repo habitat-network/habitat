@@ -1,6 +1,5 @@
 import {
   createCollection,
-  parseLoadSubsetOptions,
   parseWhereExpression,
 } from "@tanstack/react-db";
 import { queryCollectionOptions } from "@tanstack/query-db-collection";
