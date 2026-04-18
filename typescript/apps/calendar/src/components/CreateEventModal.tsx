@@ -12,7 +12,7 @@ import {
   FieldLabel,
   Input,
 } from "internal/components/ui";
-import { type CreateEventInput } from "./EventForm.tsx";
+import { EventForm, type CreateEventInput } from "./EventForm.tsx";
 import { ReactElement } from "react";
 import { useRouteContext } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
@@ -29,15 +29,15 @@ interface EventFormFields {
 }
 
 interface CreateEventModalProps {
-  initialEvent?: InitialEvent;
+  initialEvent?: Partial<CreateEventInput>;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSubmit?: (event: CreateEventInput, invitedDids: string[]) => void;
   onCancel?: () => void;
   isPending?: boolean;
   error?: Error | null;
   title?: string;
   trigger?: ReactElement;
-  isOpen?: boolean;
-  onClose?: () => void;
-  onSubmit?: (input: CreateEventInput, inivitedDids: string[]) => void;
 }
 
 export function CreateEventModal({
@@ -47,9 +47,17 @@ export function CreateEventModal({
   isOpen,
   onClose,
   onSubmit,
+  onCancel,
+  isPending,
+  error,
 }: CreateEventModalProps) {
   const { authManager } = useRouteContext({ from: "/_requireAuth" });
-  const { register, handleSubmit, control } = useForm<EventFormFields>({
+  const {
+    register,
+    handleSubmit,
+    control,
+    trigger: formTrigger,
+  } = useForm<EventFormFields>({
     defaultValues: {
       name: initialEvent?.name ?? "",
       description: initialEvent?.description ?? "",
@@ -59,26 +67,36 @@ export function CreateEventModal({
       endsAt: initialEvent?.endsAt ? toDatetimeLocal(initialEvent.endsAt) : "",
     },
   });
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      onClose?.();
+    }
+  };
+
+  const handle = Dialog.createHandle();
+  const handleFormSubmit = async (data: EventFormFields) => {
+    if (onSubmit) {
+      onSubmit(
+        {
+          name: data.name,
+          description: data.description,
+          startsAt: new Date(data.startsAt).toISOString(),
+          endsAt: data.endsAt ? new Date(data.endsAt).toISOString() : undefined,
+        },
+        data.invitees.map((a) => a.did),
+      );
+      handle.close();
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
-      <DialogTrigger render={trigger}></DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange} handle={handle}>
+      {trigger && <DialogTrigger render={trigger}></DialogTrigger>}
       <DialogContent>
         <DialogTitle>{title ?? "Create Event"}</DialogTitle>
 
-        <form
-          onSubmit={handleSubmit((data) => {
-            onSubmit?.(
-              {
-                name: data.name,
-                description: data.description,
-                endsAt: data.endsAt,
-                startsAt: data.startsAt,
-              },
-              data.invitees.map((x) => x.did),
-            );
-            console.log(data);
-          })}
-        >
+        <form onSubmit={handleSubmit(handleFormSubmit)}>
           <FieldGroup>
             <Field>
               <FieldLabel>Name</FieldLabel>
