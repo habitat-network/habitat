@@ -1,6 +1,6 @@
 module github.com/habitat-network/habitat/cmd/pear
 
-go 1.25.7
+go 1.26
 
 replace github.com/habitat-network/habitat => ../..
 
