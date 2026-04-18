@@ -14,7 +14,7 @@ func newTestStore(t *testing.T) *store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg(db)
+	s, err := NewOrg("test-domain", db)
 	require.NoError(t, err)
 	return s
 }

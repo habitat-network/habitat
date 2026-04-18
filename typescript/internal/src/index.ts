@@ -27,6 +27,7 @@ export {
   DialogTrigger,
 } from "./components/ui/dialog";
 export { Button } from "./components/ui/button";
+export { Input } from "./components/ui/input";
 export {
   // Managers and Sessions
   AuthManager,
@@ -42,18 +43,6 @@ export {
 } from "./habitatClient";
 export type { TypedRecord } from "./habitatClient";
 export { default as GranteeAvatars } from "./components/GranteeAvatars";
-
-export {
-  getConfigQueryOptions,
-  getAdminsQueryOptions,
-  getMembersQueryOptions,
-  addAdmin,
-  addMembers,
-  removeAdmin,
-  removeMembers,
-  downgradeAdmin,
-} from "./orgClient";
-export type { HabitatConfig } from "./orgClient";
 
 // Utilities
 export { default as clientMetadata } from "./clientMetadata";

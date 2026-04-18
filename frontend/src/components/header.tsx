@@ -1,14 +1,15 @@
 import { Link } from "@tanstack/react-router";
+import { NetworkHabitatOrgGetMetadata } from "api";
 import { Actor, UserAvatar } from "internal";
 import { Button } from "internal/components/ui";
 
 interface HeaderProps {
   profile?: Actor;
-  orgDomain?: string;
+  org?: NetworkHabitatOrgGetMetadata.OutputSchema;
   onLogout: () => void;
 }
 
-const Header = ({ profile, orgDomain, onLogout }: HeaderProps) => {
+const Header = ({ profile, org, onLogout }: HeaderProps) => {
   return (
     <header className="w-full">
       <nav className="flex justify-between py-4 px-6 items-center border-b">
@@ -16,9 +17,9 @@ const Header = ({ profile, orgDomain, onLogout }: HeaderProps) => {
           <li>
             <Link to="/">🌱 habitat</Link>
           </li>
-          {orgDomain && (
+          {org && (
             <li>
-              <Link to="/org">{orgDomain}</Link>
+              <Link to="/org">{org.domain /* TODO: this should be org.name eventually */}</Link>
             </li>
           )}
         </ul>

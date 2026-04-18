@@ -1,20 +1,15 @@
+import type { AuthManager } from "internal";
+import { query, procedure } from "internal";
 import { queryOptions } from "@tanstack/react-query";
-import { AuthManager } from "./authManager";
-import { query, procedure } from "./habitatClient";
 
 export interface HabitatConfig {
   orgDomain: string | null;
 }
 
-export function getConfigQueryOptions(habitatDomain: string) {
+export function getConfigQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["config"],
-    queryFn: async (): Promise<HabitatConfig> => {
-      const response = await fetch(
-        `https://${habitatDomain}/xrpc/network.habitat.getConfig`,
-      );
-      return response.json();
-    },
+    queryFn: () => query("network.habitat.org.getMetadata", {}, { authManager }),
     staleTime: Infinity,
   });
 }

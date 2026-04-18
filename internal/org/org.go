@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -41,6 +42,9 @@ type Org interface {
 	DowngradeAdmin(ctx context.Context, admin syntax.DID) error
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
+
+	// Generic config about this org
+	GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput
 }
 
 // Keep track of members in the
@@ -51,6 +55,9 @@ type member struct {
 }
 
 type store struct {
+	// The domain where this org is hosted; for config
+	// Eventually turn this into more enriched metadata about this rog
+	domain string
 
 	// Manages all backing data for an org
 	// Currently just an org_members table
@@ -59,13 +66,21 @@ type store struct {
 
 var _ Org = &store{}
 
-func NewOrg(db *gorm.DB) (*store, error) {
+func NewOrg(domain string, db *gorm.DB) (*store, error) {
 	if err := db.AutoMigrate(&member{}); err != nil {
 		return nil, err
 	}
 	return &store{
-		db: db,
+		domain: domain,
+		db:     db,
 	}, nil
+}
+
+// GetConfig implements Org.
+func (s *store) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
+	return habitat.NetworkHabitatOrgGetMetadataOutput{
+		Domain: s.domain,
+	}
 }
 
 func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {

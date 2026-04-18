@@ -15,11 +15,14 @@ import (
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
+	// domain where this org is hosted
+	domain string
+
 	org  Org
 	auth authn.Method
 }
 
-func NewServer(org Org, auth authn.Method) (*Server, error) {
+func NewServer(domain string, org Org, auth authn.Method) (*Server, error) {
 	return &Server{
 		org:  org,
 		auth: auth,
@@ -226,9 +229,7 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Admin string `json:"admin"`
-	}
+	var req habitat.NetworkHabitatOrgDowngradeAdminInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
 		return
@@ -293,5 +294,18 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 	err = s.org.RemoveMembers(r.Context(), members)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing members", http.StatusInternalServerError)
+	}
+}
+
+// TODO: figure out a way to configure / store more metadata about the org
+func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
+	_, ok := s.authnWithOrg(w, r, s.oauth)
+	if !ok {
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(s.org.GetMetadata()); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
 	}
 }

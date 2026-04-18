@@ -1239,6 +1239,38 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgGetMetadata: {
+    lexicon: 1,
+    id: 'network.habitat.org.getMetadata',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Get general info about this organization.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['domain'],
+            properties: {
+              domain: {
+                type: 'string',
+                description:
+                  'The domain where habitat is hosted for this organization.',
+              },
+              name: {
+                type: 'string',
+                description: 'The name of this organization.',
+              },
+              description: {
+                type: 'string',
+                description: 'A description for this organization.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatOrgRemoveAdmin: {
     lexicon: 1,
     id: 'network.habitat.org.removeAdmin',
@@ -2127,6 +2159,7 @@ export const ids = {
   NetworkHabitatOrgDowngradeAdmin: 'network.habitat.org.downgradeAdmin',
   NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
   NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
+  NetworkHabitatOrgGetMetadata: 'network.habitat.org.getMetadata',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
   NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:

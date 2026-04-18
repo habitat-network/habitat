@@ -27,6 +27,7 @@ import type {
   NetworkHabitatOrgRemoveAdmin,
   NetworkHabitatOrgRemoveMembers,
   NetworkHabitatOrgDowngradeAdmin,
+  NetworkHabitatOrgGetMetadata,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -96,6 +97,10 @@ type QueryEndpoints = {
     NetworkHabitatOrgGetMembers.QueryParams,
     NetworkHabitatOrgGetMembers.OutputSchema
   >;
+  "network.habitat.org.getMetadata": Query<
+    NetworkHabitatOrgGetMetadata.QueryParams,
+    NetworkHabitatOrgGetMetadata.OutputSchema
+  >
 };
 
 type Procedure<Params, Output> = { params: Params; output: Output };

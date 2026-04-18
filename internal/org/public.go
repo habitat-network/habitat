@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 )
 
 // Create an org that has everyone for instances that don't belong to an org, they just host pear servers for people.
@@ -13,6 +14,11 @@ type everyoneOrg struct{}
 var (
 	ErrNotSupportedPublic = errors.New("method not supported on public org")
 )
+
+// GetMetadata implements Org.
+func (e *everyoneOrg) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
+	return habitat.NetworkHabitatOrgGetMetadataOutput{}
+}
 
 // AddAdmin implements Org.
 func (e *everyoneOrg) AddAdmin(ctx context.Context, admin syntax.DID) error {

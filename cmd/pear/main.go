@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -158,7 +157,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Default: no org == org that serves everyone
 	pearOrg := org.NewEveryoneOrg()
 	if servingOrg {
-		pearOrg, err = org.NewOrg(db)
+		pearOrg, err = org.NewOrg(domain, db)
 		if err != nil {
 			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
 		}
@@ -171,15 +170,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Server for org management routes
-	orgServer, err := org.NewServer(pearOrg, oauthServer)
+	orgServer, err := org.NewServer(domain, pearOrg, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 	}
 
-	// public config endpoint
-	mux.HandleFunc("/xrpc/network.habitat.getConfig", serveConfig(servingOrg, domain))
-
 	// org management routes — only available on org-serving nodes
+	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
@@ -305,23 +302,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Err(err).Msgf("server shut down returned an error")
 	}
 	return err
-}
-
-func serveConfig(servingOrg bool, domain string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if servingOrg {
-			// Serving org: JSON object with just one value; the org domain
-			if err := json.NewEncoder(w).Encode(map[string]any{"orgDomain": domain}); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
-		}
-		// No org: just empty map for now
-		if err := json.NewEncoder(w).Encode(map[string]any{}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
 }
 
 func serveDid(domain string) http.HandlerFunc {

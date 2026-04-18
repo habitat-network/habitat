@@ -5,7 +5,8 @@ import {
   addMembers,
   removeMembers,
   downgradeAdmin,
-} from "internal";
+} from "@/queries/org";
+import { Button, Input } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
@@ -88,14 +89,6 @@ function MemberSection({
     onSuccess: () => setInput(""),
   });
 
-  const { mutate: handleRemove } = useMutation({
-    mutationFn: (did: string) => onRemove(did),
-  });
-
-  const { mutate: handlePromote } = useMutation({
-    mutationFn: (did: string) => onPromote!(did),
-  });
-
   return (
     <section>
       <h2 className="text-lg font-semibold mb-2">{title}</h2>
@@ -107,21 +100,21 @@ function MemberSection({
               {isAdmin && (
                 <td className="py-2 flex gap-2 justify-end">
                   {canPromote && onPromote && (
-                    <button
-                      type="button"
-                      className="text-xs underline"
-                      onClick={() => handlePromote(did)}
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => onPromote(did)}
                     >
                       Make admin
-                    </button>
+                    </Button>
                   )}
-                  <button
-                    type="button"
-                    className="text-xs underline text-red-600"
-                    onClick={() => handleRemove(did)}
+                  <Button
+                    variant="destructive"
+                    size="xs"
+                    onClick={() => onRemove(did)}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </td>
               )}
             </tr>
@@ -130,20 +123,20 @@ function MemberSection({
       </table>
       {isAdmin && (
         <div className="flex gap-2 mt-3">
-          <input
-            className="border rounded px-2 py-1 text-sm flex-1 font-mono"
+          <Input
+            className="flex-1 font-mono"
             placeholder="did:plc:..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <button
-            type="button"
-            className="border rounded px-3 py-1 text-sm"
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!input || adding}
             onClick={() => handleAdd()}
           >
             {addLabel}
-          </button>
+          </Button>
         </div>
       )}
     </section>
