@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -105,4 +106,14 @@ func TestRemoveMembers(t *testing.T) {
 	ok, err = s.IsMember(ctx, did2)
 	require.NoError(t, err)
 	require.False(t, ok)
+}
+
+func TestGetMetadata(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	s, err := NewOrg("test-domain", db)
+	require.NoError(t, err)
+
+	md := s.GetMetadata()
+	require.Equal(t, md, habitat.NetworkHabitatOrgGetMetadataOutput{Domain: "test-domain"})
 }

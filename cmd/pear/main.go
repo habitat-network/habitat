@@ -170,7 +170,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Server for org management routes
-	orgServer, err := org.NewServer(domain, pearOrg, oauthServer)
+	orgServer, err := org.NewServer(pearOrg, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 	}

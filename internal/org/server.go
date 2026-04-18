@@ -15,14 +15,11 @@ import (
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
-	// domain where this org is hosted
-	domain string
-
 	org  Org
 	auth authn.Method
 }
 
-func NewServer(domain string, org Org, auth authn.Method) (*Server, error) {
+func NewServer(org Org, auth authn.Method) (*Server, error) {
 	return &Server{
 		org:  org,
 		auth: auth,
