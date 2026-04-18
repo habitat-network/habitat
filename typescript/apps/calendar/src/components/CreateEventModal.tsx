@@ -1,64 +1,143 @@
-import { EventForm, type CreateEventInput } from "./EventForm.tsx";
+import {
+  Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+  Field,
+  FieldContent,
+  FieldGroup,
+  FieldLabel,
+  Input,
+} from "internal/components/ui";
+import { type CreateEventInput } from "./EventForm.tsx";
+import { ReactElement } from "react";
+import { useRouteContext } from "@tanstack/react-router";
+import { Controller, useForm } from "react-hook-form";
+import { Actor, UserCombobox } from "internal";
 
 type InitialEvent = Partial<CreateEventInput>;
 
+interface EventFormFields {
+  name: string;
+  description: string;
+  startsAt: string;
+  endsAt: string;
+  invitees: Actor[];
+}
+
 interface CreateEventModalProps {
-  isOpen: boolean;
   initialEvent?: InitialEvent;
-  onClose: () => void;
-  onSubmit: (event: CreateEventInput, invitedDids: string[]) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
   isPending?: boolean;
   error?: Error | null;
   title?: string;
+  trigger?: ReactElement;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSubmit?: (input: CreateEventInput, inivitedDids: string[]) => void;
 }
 
 export function CreateEventModal({
-  isOpen,
   initialEvent,
+  title,
+  trigger,
+  isOpen,
   onClose,
   onSubmit,
-  onCancel,
-  isPending = false,
-  error,
-  title,
 }: CreateEventModalProps) {
-  function handleCancel() {
-    onCancel();
-    onClose();
-  }
-
-  function handleClose() {
-    onClose();
-  }
-
+  const { authManager } = useRouteContext({ from: "/_requireAuth" });
+  const { register, handleSubmit, control } = useForm<EventFormFields>({
+    defaultValues: {
+      name: initialEvent?.name ?? "",
+      description: initialEvent?.description ?? "",
+      startsAt: initialEvent?.startsAt
+        ? toDatetimeLocal(initialEvent.startsAt)
+        : "",
+      endsAt: initialEvent?.endsAt ? toDatetimeLocal(initialEvent.endsAt) : "",
+    },
+  });
   return (
-    <dialog
-      open={isOpen}
-      onClose={handleClose}
-      onCancel={handleClose}
-      style={{ maxWidth: "32rem", overflow: "visible" }}
-    >
-      <article style={{ overflow: "visible" }}>
-        <header>
-          <button
-            type="button"
-            aria-label="Close"
-            className="close"
-            onClick={handleCancel}
-          />
-          <h2>{title ?? "Create Event"}</h2>
-        </header>
-        <EventForm
-          key={initialEvent?.startsAt ?? "new"}
-          initialEvent={initialEvent}
-          onSubmit={onSubmit}
-          onCancel={handleCancel}
-          isPending={isPending}
-          error={error}
-          title={title}
-        />
-      </article>
-    </dialog>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
+      <DialogTrigger render={trigger}></DialogTrigger>
+      <DialogContent>
+        <DialogTitle>{title ?? "Create Event"}</DialogTitle>
+
+        <form
+          onSubmit={handleSubmit((data) => {
+            onSubmit?.(
+              {
+                name: data.name,
+                description: data.description,
+                endsAt: data.endsAt,
+                startsAt: data.startsAt,
+              },
+              data.invitees.map((x) => x.did),
+            );
+            console.log(data);
+          })}
+        >
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Name</FieldLabel>
+              <FieldContent>
+                <Input type="text" {...register("name", { required: true })} />
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel>Description</FieldLabel>
+              <FieldContent>
+                <Input type="text" {...register("description")} />
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel>Starts at</FieldLabel>
+              <FieldContent>
+                <Input type="datetime-local" {...register("startsAt")} />
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel>Ends at</FieldLabel>
+              <FieldContent>
+                <Input type="datetime-local" {...register("endsAt")} />
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel>Invite</FieldLabel>
+              <FieldContent>
+                <Controller
+                  control={control}
+                  name="invitees"
+                  render={({ field }) => {
+                    return (
+                      <UserCombobox
+                        value={field.value}
+                        authManager={authManager}
+                        onValueChange={field.onChange}
+                      />
+                    );
+                  }}
+                />
+              </FieldContent>
+            </Field>
+          </FieldGroup>
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary" />}>
+              Cancel
+            </DialogClose>
+            <Button type="submit">Save</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
+}
+
+/** Converts ISO string to datetime-local input format (YYYY-MM-DDTHH:mm). */
+function toDatetimeLocal(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

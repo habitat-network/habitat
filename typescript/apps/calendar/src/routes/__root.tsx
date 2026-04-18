@@ -2,10 +2,12 @@ import type { AuthManager } from "internal";
 import { type QueryClient } from "@tanstack/react-query";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { eventCollection } from "@/collections/events";
 
 interface RouterContext {
   queryClient: QueryClient;
   authManager: AuthManager;
+  eventCollection: ReturnType<typeof eventCollection>;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({

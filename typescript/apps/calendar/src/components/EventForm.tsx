@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { ActorTypeahead } from "./ActorTypeahead.tsx";
+
+import { Field, FieldContent, FieldLabel, Input } from "internal/components/ui";
+import { UserCombobox } from "internal";
+import { useRouteContext } from "@tanstack/react-router";
 
 /** Event data for creation. */
 export interface CreateEventInput {
@@ -22,8 +25,6 @@ interface EventFormProps {
   /** Pre-filled values (e.g. from calendar dateClick/select). */
   initialEvent?: Partial<CreateEventInput>;
   onSubmit: (event: CreateEventInput, invitedDids: string[]) => void;
-  onCancel: () => void;
-  isPending?: boolean;
   error?: Error | null;
   title?: string;
 }
@@ -31,13 +32,13 @@ interface EventFormProps {
 export function EventForm({
   initialEvent,
   onSubmit,
-  onCancel,
-  isPending = false,
   error,
   title,
 }: EventFormProps) {
-  const [invitedDids, setInvitedDids] = useState<string[]>([]);
+  const { authManager } = useRouteContext({ from: "/_requireAuth" });
+  const [invitedDids] = useState<string[]>([]);
 
+  const isPending = false;
   const { register, handleSubmit } = useForm<EventFormFields>({
     defaultValues: {
       name: initialEvent?.name ?? "",
@@ -62,49 +63,39 @@ export function EventForm({
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)}>
-      <div>
-        <label>
-          Name:
-          <input
-            type="text"
-            {...register("name", { required: true })}
-            required
-          />
-        </label>
-      </div>
-      <div>
-        <label>
-          Description:
-          <input type="text" {...register("description")} />
-        </label>
-      </div>
-      <div>
-        <label>
-          Starts At:
-          <input type="datetime-local" {...register("startsAt")} />
-        </label>
-      </div>
-      <div>
-        <label>
-          Ends At:
-          <input type="datetime-local" {...register("endsAt")} />
-        </label>
-      </div>
-      <div>
-        <ActorTypeahead
-          value={invitedDids}
-          onChange={setInvitedDids}
-          label="Invite"
-          placeholder="Search by handle or name..."
-          disabled={isPending}
-        />
-      </div>
+      <Field>
+        <FieldLabel>Name</FieldLabel>
+        <FieldContent>
+          <Input type="text" {...register("name", { required: true })} />
+        </FieldContent>
+      </Field>
+      <Field>
+        <FieldLabel>Description</FieldLabel>
+        <FieldContent>
+          <Input type="text" {...register("description")} />
+        </FieldContent>
+      </Field>
+      <Field>
+        <FieldLabel>Starts at</FieldLabel>
+        <FieldContent>
+          <Input type="datetime-local" {...register("startsAt")} />
+        </FieldContent>
+      </Field>
+      <Field>
+        <FieldLabel>Ends at</FieldLabel>
+        <FieldContent>
+          <Input type="datetime-local" {...register("endsAt")} />
+        </FieldContent>
+      </Field>
+      <Field>
+        <FieldLabel>Invite</FieldLabel>
+        <FieldContent>
+          <UserCombobox authManager={authManager} onValueChange={() => { }} />
+        </FieldContent>
+      </Field>
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
         <button type="submit" disabled={isPending}>
           {isPending ? "Saving..." : (title ?? "Create Event")}
-        </button>
-        <button type="button" onClick={onCancel} disabled={isPending}>
-          Cancel
         </button>
       </div>
       {error && (
