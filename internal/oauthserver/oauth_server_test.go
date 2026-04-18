@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/node"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			"not-valid-base64!!!",
-			nil, nil, nil, nil, nil, nil, noop.Meter{}, func(ctx context.Context, d syntax.DID) (bool, error) { return true, nil },
+			nil, nil, nil, nil, nil, nil, noop.Meter{}, org.NewEveryoneOrg(),
 		)
 		require.Error(t, err)
 	})
@@ -52,7 +53,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		func(ctx context.Context, d syntax.DID) (bool, error) { return true, nil },
+		org.NewEveryoneOrg(),
 	)
 	require.NoError(t, err)
 
@@ -158,7 +159,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		func(ctx context.Context, d syntax.DID) (bool, error) { return false, nil },
+		org.NewEveryoneOrg(),
 	)
 	require.NoError(t, err)
 
@@ -272,7 +273,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		func(ctx context.Context, d syntax.DID) (bool, error) { return true, nil },
+		org.NewEveryoneOrg(),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 

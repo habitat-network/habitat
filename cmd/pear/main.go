@@ -422,7 +422,7 @@ func setupOAuthServer(
 		credStore,
 		db,
 		meter,
-		org.IsMember,
+		org,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")

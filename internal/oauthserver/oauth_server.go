@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/node"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -159,8 +160,8 @@ type OAuthServer struct {
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
 	storage      *store
 
-	// Allowlist of DIDs that can oauth with this server
-	allowlistFn func(context.Context, syntax.DID) (bool, error)
+	// Org this server belongs to
+	org org.Org
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -190,7 +191,7 @@ func NewOAuthServer(
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
 	meter metric.Meter,
-	allowlistFn func(context.Context, syntax.DID) (bool, error),
+	org org.Org,
 ) (*OAuthServer, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
@@ -236,7 +237,7 @@ func NewOAuthServer(
 		directory:    directory,
 		node:         node,
 		storage:      storage,
-		allowlistFn:  allowlistFn,
+		org:          org,
 	}, nil
 }
 
@@ -374,8 +375,6 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	did := arf.Did
-
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(err, "recreate_req")
@@ -391,7 +390,7 @@ func (o *OAuthServer) HandleCallback(
 
 	// Check the DID allowlist after reconstructing authRequest so we can redirect
 	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	allowed, err := o.allowlistFn(r.Context(), did)
+	allowed, err := o.org.IsMember(r.Context(), arf.Did)
 	if err != nil {
 		o.metrics.callbackErr(err, "allowlist_dids")
 		o.provider.WriteAuthorizeError(ctx, w, authRequest, fosite.ErrServerError.WithDebug(err.Error()))
@@ -424,7 +423,7 @@ func (o *OAuthServer) HandleCallback(
 
 	// Store/update user credentials in the database with the PDS tokens
 	err = o.credStore.UpsertCredentials(
-		did,
+		arf.Did,
 		&pdscred.Credentials{
 			AccessToken:  tokenInfo.AccessToken,
 			RefreshToken: tokenInfo.RefreshToken,
@@ -442,7 +441,7 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	if serves, err := o.node.ServesDID(r.Context(), did); err != nil {
+	if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
 		o.metrics.callbackErr(err, "lookup_serves")
 		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
 		return
@@ -460,7 +459,7 @@ func (o *OAuthServer) HandleCallback(
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
-		newAuthorizeSession(authRequest, did),
+		newAuthorizeSession(authRequest, arf.Did),
 	)
 	if err != nil {
 		o.metrics.callbackErr(err, fositeErrReason(err))
