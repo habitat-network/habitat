@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { ActorTypeahead } from "./ActorTypeahead.tsx";
+
 import { Field, FieldContent, FieldLabel, Input } from "internal/components/ui";
 import { UserCombobox } from "internal";
 import { useRouteContext } from "@tanstack/react-router";
@@ -36,7 +36,7 @@ export function EventForm({
   title,
 }: EventFormProps) {
   const { authManager } = useRouteContext({ from: "/_requireAuth" });
-  const [invitedDids, setInvitedDids] = useState<string[]>([]);
+  const [invitedDids] = useState<string[]>([]);
 
   const isPending = false;
   const { register, handleSubmit } = useForm<EventFormFields>({

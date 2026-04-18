@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import type { Range } from "@tanstack/react-virtual";
 import FullCalendar from "@fullcalendar/react";
@@ -179,7 +179,7 @@ const CalendarVirtual = ({ date, events }: CalendarVirtualProps) => {
     rowVirtualizer.scrollToOffset(getInitialOffset(date), {
       behavior: "smooth",
     });
-  }, [date]);
+  }, [date, rowVirtualizer]);
 
   return (
     <div className="h-full w-full flex flex-col bg-background">

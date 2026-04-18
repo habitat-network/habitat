@@ -12,7 +12,7 @@ import {
   FieldLabel,
   Input,
 } from "internal/components/ui";
-import { EventForm, type CreateEventInput } from "./EventForm.tsx";
+import { type CreateEventInput } from "./EventForm.tsx";
 import { ReactElement } from "react";
 import { useRouteContext } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
@@ -47,8 +47,7 @@ export function CreateEventModal({
     register,
     handleSubmit,
     control,
-    trigger: formTrigger,
-  } = useForm<EventFormFields>({
+    } = useForm<EventFormFields>({
     defaultValues: {
       name: initialEvent?.name ?? "",
       description: initialEvent?.description ?? "",
