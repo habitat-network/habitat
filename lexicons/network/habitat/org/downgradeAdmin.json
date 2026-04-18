@@ -1,0 +1,26 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.downgradeAdmin",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Downgrade an admin to a regular member. Only callable by existing admins. The last admin cannot be downgraded.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "admin"
+                    ],
+                    "properties": {
+                        "admin": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "The DID of the admin to downgrade to member."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

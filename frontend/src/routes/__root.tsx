@@ -1,9 +1,10 @@
 import type { AuthManager } from "internal";
+import { getConfigQueryOptions } from "@/queries/org";
 import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
+import { AtpAgent } from "@atproto/api";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { AtpAgent } from "@atproto/api";
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -17,23 +18,25 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   async loader({ context }) {
     const authInfo = context.authManager.getAuthInfo();
     if (!authInfo) {
-      return { handle: null };
+      return { profile: undefined, org: undefined };
     }
-    const actor = authInfo.did;
 
-    const agent = new AtpAgent({ service: "https://public.api.bsky.app" });
-    const response = await agent.getProfile({ actor: actor });
+    const [config, profileResponse] = await Promise.all([
+      context.queryClient.fetchQuery(getConfigQueryOptions(context.authManager)),
+      new AtpAgent({ service: "https://public.api.bsky.app" }).getProfile({
+        actor: authInfo.did,
+      }),
+    ]);
 
-    const profile = response.data;
-    return { profile };
+    return { profile: profileResponse.data, org: config };
   },
   staleTime: 1000 * 60 * 60,
   component() {
     const { authManager } = Route.useRouteContext();
-    const { profile } = Route.useLoaderData();
+    const { profile, org } = Route.useLoaderData();
     return (
       <div className="flex flex-col items-center w-full justify-stretch gap-4">
-        <Header profile={profile} onLogout={authManager.logout} />
+        <Header profile={profile} org={org} onLogout={authManager.logout} />
         <div className="container px-4 flex flex-col">
           <Outlet />
         </div>

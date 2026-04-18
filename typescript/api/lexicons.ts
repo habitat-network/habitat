@@ -1160,6 +1160,31 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgDowngradeAdmin: {
+    lexicon: 1,
+    id: 'network.habitat.org.downgradeAdmin',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Downgrade an admin to a regular member. Only callable by existing admins. The last admin cannot be downgraded.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin'],
+            properties: {
+              admin: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the admin to downgrade to member.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatOrgGetAdmins: {
     lexicon: 1,
     id: 'network.habitat.org.getAdmins',
@@ -1207,6 +1232,38 @@ export const schemaDict = {
                   type: 'string',
                   format: 'did',
                 },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgGetMetadata: {
+    lexicon: 1,
+    id: 'network.habitat.org.getMetadata',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Get general info about this organization.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['domain'],
+            properties: {
+              domain: {
+                type: 'string',
+                description:
+                  'The domain where habitat is hosted for this organization.',
+              },
+              name: {
+                type: 'string',
+                description: 'The name of this organization.',
+              },
+              description: {
+                type: 'string',
+                description: 'A description for this organization.',
               },
             },
           },
@@ -2099,8 +2156,10 @@ export const ids = {
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
   NetworkHabitatOrgAddAdmin: 'network.habitat.org.addAdmin',
   NetworkHabitatOrgAddMembers: 'network.habitat.org.addMembers',
+  NetworkHabitatOrgDowngradeAdmin: 'network.habitat.org.downgradeAdmin',
   NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
   NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
+  NetworkHabitatOrgGetMetadata: 'network.habitat.org.getMetadata',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
   NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:
