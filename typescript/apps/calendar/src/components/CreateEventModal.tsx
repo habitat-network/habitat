@@ -30,24 +30,26 @@ interface EventFormFields {
 
 interface CreateEventModalProps {
   initialEvent?: InitialEvent;
-  onCancel: () => void;
+  onCancel?: () => void;
   isPending?: boolean;
   error?: Error | null;
   title?: string;
-  trigger: ReactElement;
+  trigger?: ReactElement;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onSubmit?: (input: CreateEventInput, inivitedDids: string[]) => void;
 }
 
 export function CreateEventModal({
   initialEvent,
   title,
   trigger,
+  isOpen,
+  onClose,
+  onSubmit,
 }: CreateEventModalProps) {
   const { authManager } = useRouteContext({ from: "/_requireAuth" });
-  const {
-    register,
-    handleSubmit,
-    control,
-    } = useForm<EventFormFields>({
+  const { register, handleSubmit, control } = useForm<EventFormFields>({
     defaultValues: {
       name: initialEvent?.name ?? "",
       description: initialEvent?.description ?? "",
@@ -58,13 +60,22 @@ export function CreateEventModal({
     },
   });
   return (
-    <Dialog>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
       <DialogTrigger render={trigger}></DialogTrigger>
       <DialogContent>
         <DialogTitle>{title ?? "Create Event"}</DialogTitle>
 
         <form
           onSubmit={handleSubmit((data) => {
+            onSubmit?.(
+              {
+                name: data.name,
+                description: data.description,
+                endsAt: data.endsAt,
+                startsAt: data.startsAt,
+              },
+              data.invitees.map((x) => x.did),
+            );
             console.log(data);
           })}
         >
