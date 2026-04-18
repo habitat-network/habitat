@@ -221,7 +221,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.oauth)
+	caller, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -296,7 +296,7 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 
 // TODO: figure out a way to configure / store more metadata about the org
 func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
-	_, ok := s.authnWithOrg(w, r, s.oauth)
+	_, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
