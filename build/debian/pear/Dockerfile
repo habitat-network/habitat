@@ -1,7 +1,7 @@
 #### BUILD STAGE
 #### Builds the Go binaries. Uses Debian-based Go image for CGO support (required by SQLite).
 
-FROM golang:1.25.7-bookworm AS build
+FROM golang:1.26-bookworm AS build
 WORKDIR /app
 
 # Copy go module files first for better layer caching
