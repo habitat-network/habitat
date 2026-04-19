@@ -7,9 +7,13 @@ import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { XIcon } from "lucide-react";
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
+function DialogInner({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
+
+const Dialog = Object.assign(DialogInner, {
+  createHandle: DialogPrimitive.createHandle,
+});
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
