@@ -3,10 +3,12 @@ package oauthserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -400,4 +402,188 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to read response body")
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
+}
+
+// testIsMemberOrg wraps an org.Org and overrides IsMember, letting individual
+// tests inject specific outcomes without reimplementing the full interface.
+type testIsMemberOrg struct {
+	org.Org
+	fn func(ctx context.Context, did syntax.DID) (bool, error)
+}
+
+func (o *testIsMemberOrg) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
+	return o.fn(ctx, did)
+}
+
+// acquireAccessToken drives the full authorization code flow and returns the
+// resulting bearer access token issued by srv.
+func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclient.ClientMetadata) string {
+	t.Helper()
+	flowServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			srv.HandleAuthorize(w, r)
+		case "/callback":
+			srv.HandleCallback(w, r)
+		case "/token":
+			srv.HandleToken(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(flowServer.Close)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	flowServer.Client().Jar = jar
+	clientMetadata.RedirectUris = []string{flowServer.URL + "/callback"}
+
+	verifier := oauth2.GenerateVerifier()
+	oauthCfg := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  flowServer.URL + "/authorize",
+			TokenURL: flowServer.URL + "/token",
+		},
+	}
+
+	var capturedToken string
+	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client-metadata.json":
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+				ClientId:      "http://" + r.Host + "/client-metadata.json",
+				RedirectUris:  []string{"http://" + r.Host + "/callback"},
+				ResponseTypes: []string{"code"},
+				GrantTypes:    []string{"authorization_code", "refresh_token"},
+			}))
+		case "/callback":
+			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, flowServer.Client())
+			token, exchangeErr := oauthCfg.Exchange(ctx, r.URL.Query().Get("code"), oauth2.VerifierOption(verifier))
+			require.NoError(t, exchangeErr)
+			capturedToken = token.AccessToken
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(clientApp.Close)
+
+	oauthCfg.ClientID = clientApp.URL + "/client-metadata.json"
+	oauthCfg.RedirectURL = clientApp.URL + "/callback"
+
+	authReq, err := http.NewRequest(http.MethodGet,
+		oauthCfg.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+"&handle=did:web:test",
+		nil,
+	)
+	require.NoError(t, err)
+	_, err = flowServer.Client().Do(authReq)
+	require.NoError(t, err)
+	require.NotEmpty(t, capturedToken, "no access token captured during OAuth flow")
+	return capturedToken
+}
+
+// TestValidate tests every error and success pathway of OAuthServer.Validate.
+func TestValidate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+
+	// newSrv creates an OAuthServer sharing the same secret and database.
+	// Stateless JWT introspection means tokens issued by any server here are
+	// valid for all others created with the same secret.
+	newSrv := func(o org.Org) *OAuthServer {
+		s, srvErr := NewOAuthServer(
+			secret,
+			oauthClient,
+			sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
+			node.NewDummy(),
+			pdsclient.NewDummyDirectory("http://pds.url"),
+			credStore,
+			db,
+			noop.Meter{},
+			o,
+		)
+		require.NoError(t, srvErr)
+		return s
+	}
+
+	// Issue a real JWT via the complete OAuth flow.
+	validToken := acquireAccessToken(t, newSrv(org.NewEveryoneOrg()), clientMetadata)
+
+	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
+	// and returns the HTTP status code together with Validate's return values.
+	callValidate := func(srv *OAuthServer, bearerToken string) (status int, did syntax.DID, ok bool) {
+		var (
+			mu     sync.Mutex
+			retDID syntax.DID
+			retOK  bool
+		)
+		httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			d, o := srv.Validate(w, r)
+			mu.Lock()
+			retDID, retOK = d, o
+			mu.Unlock()
+		}))
+		defer httpSrv.Close()
+		req, reqErr := http.NewRequest(http.MethodGet, httpSrv.URL+"/", nil)
+		require.NoError(t, reqErr)
+		if bearerToken != "" {
+			req.Header.Set("Authorization", "Bearer "+bearerToken)
+		}
+		resp, doErr := http.DefaultClient.Do(req)
+		require.NoError(t, doErr)
+		require.NoError(t, resp.Body.Close())
+		mu.Lock()
+		defer mu.Unlock()
+		return resp.StatusCode, retDID, retOK
+	}
+
+	t.Run("missing token returns !ok", func(t *testing.T) {
+		status, _, ok := callValidate(newSrv(org.NewEveryoneOrg()), "")
+		require.False(t, ok)
+		require.NotEqual(t, http.StatusOK, status)
+	})
+
+	t.Run("malformed JWT returns !ok", func(t *testing.T) {
+		status, _, ok := callValidate(newSrv(org.NewEveryoneOrg()), "not.a.valid.jwt")
+		require.False(t, ok)
+		require.NotEqual(t, http.StatusOK, status)
+	})
+
+	t.Run("IsMember error returns !ok with 500", func(t *testing.T) {
+		srv := newSrv(&testIsMemberOrg{
+			Org: org.NewEveryoneOrg(),
+			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
+				return false, errors.New("simulated database failure")
+			},
+		})
+		status, _, ok := callValidate(srv, validToken)
+		require.False(t, ok)
+		require.Equal(t, http.StatusInternalServerError, status)
+	})
+
+	t.Run("non-member returns !ok with 401", func(t *testing.T) {
+		srv := newSrv(&testIsMemberOrg{
+			Org: org.NewEveryoneOrg(),
+			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
+				return false, nil
+			},
+		})
+		status, _, ok := callValidate(srv, validToken)
+		require.False(t, ok)
+		require.Equal(t, http.StatusUnauthorized, status)
+	})
+
+	t.Run("valid token for member returns DID and ok with 200", func(t *testing.T) {
+		status, did, ok := callValidate(newSrv(org.NewEveryoneOrg()), validToken)
+		require.True(t, ok)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, syntax.DID("did:web:test"), did)
+	})
 }
