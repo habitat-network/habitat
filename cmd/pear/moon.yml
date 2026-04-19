@@ -20,7 +20,7 @@ tasks:
       - '8000'
       - pear
   postgres:
-    command: docker-compose -f ../../infra/docker-compose.yml up
+    command: docker compose -f ../../infra/docker-compose.yml up
     preset: server
   docker-build:
     options:
