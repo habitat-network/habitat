@@ -535,6 +535,11 @@ func (o *OAuthServer) Validate(
 	if err != nil {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
+		utils.WriteHTTPError(w, fmt.Errorf("unable to validate oauth token: %w", err), http.StatusInternalServerError)
+		return "", false
+	}
+
+	if !ok {
 		utils.WriteHTTPError(w, fmt.Errorf("unable to validate oauth token: %w", err), http.StatusUnauthorized)
 		return "", false
 	}
@@ -547,6 +552,7 @@ func (o *OAuthServer) Validate(
 		utils.WriteHTTPError(w, fmt.Errorf("not a member of this organization"), http.StatusUnauthorized)
 		return "", false
 	}
+
 	return did, true
 }
 
