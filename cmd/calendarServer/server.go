@@ -86,8 +86,6 @@ func (s *Server) serveDid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleConnectGoogle(w http.ResponseWriter, r *http.Request) {
-	dump, _ := httputil.DumpRequest(r, true)
-	log.Printf("handle ConnectGoogle Request: %s", dump)
 	callerDID, ok := s.authMethod.Validate(w, r)
 	if !ok {
 		return
@@ -186,7 +184,7 @@ func (s *Server) getSessionByAuth(w http.ResponseWriter, r *http.Request) (*Sess
 
 	session, err := s.store.GetSessionByDID(callerDID.String())
 	if err != nil {
-		writeError(w, "Unauthorized", "no valid session", http.StatusUnauthorized)
+		return nil, false
 	}
 	return session, true
 }
@@ -196,6 +194,13 @@ func (s *Server) handleGetEvents(w http.ResponseWriter, r *http.Request) {
 	log.Printf("handle ConnectGoogle Request: %s", dump)
 	session, ok := s.getSessionByAuth(w, r)
 	if !ok {
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			Events []CalendarEvent `json:"events"`
+		}{
+			Events: []CalendarEvent{},
+		})
 		return
 	}
 
