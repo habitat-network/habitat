@@ -146,12 +146,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	dir := identity.DefaultDirectory()
 	node := setupNode(cmd, pdsClientFactory, dir)
-	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter)
-
-	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pear")
-	}
 
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -163,10 +157,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Default: no org == org that serves everyone
 	pearOrg := org.NewEveryoneOrg()
 	if servingOrg {
-		pearOrg, err = org.NewOrg(db)
+		pearOrg, err = org.NewOrg(domain, db)
 		if err != nil {
 			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
 		}
+	}
+
+	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter, pearOrg)
+	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
 
 	// Server for org management routes
@@ -176,12 +176,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// org management routes — only available on org-serving nodes
+	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
+	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
 
 	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
@@ -411,6 +413,7 @@ func setupOAuthServer(
 	oauthClient pdsclient.PdsOAuthClient,
 	credStore pdscred.PDSCredentialStore,
 	meter metric.Meter,
+	org org.Org,
 ) *oauthserver.OAuthServer {
 	oauthServer, err := oauthserver.NewOAuthServer(
 		cmd.String(fOauthServerSecret),
@@ -421,6 +424,7 @@ func setupOAuthServer(
 		credStore,
 		db,
 		meter,
+		org,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")

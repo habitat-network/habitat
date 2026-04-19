@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/node"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			"not-valid-base64!!!",
-			nil, nil, nil, nil, nil, nil, noop.Meter{},
+			nil, nil, nil, nil, nil, nil, noop.Meter{}, org.NewEveryoneOrg(),
 		)
 		require.Error(t, err)
 	})
@@ -52,6 +53,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
+		org.NewEveryoneOrg(),
 	)
 	require.NoError(t, err)
 
@@ -137,6 +139,113 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 }
 
+func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+
+	oauthServer, err := NewOAuthServer(
+		secret,
+		oauthClient,
+		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
+		node.NewDummy(),
+		pdsclient.NewDummyDirectory("http://pds.url"),
+		credStore,
+		db,
+		noop.Meter{},
+		org.NewEveryoneOrg(),
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/callback":
+			oauthServer.HandleCallback(w, r)
+		case "/token":
+			oauthServer.HandleToken(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+	clientMetadata.RedirectUris = []string{server.URL + "/callback"}
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/authorize",
+			TokenURL: server.URL + "/token",
+		},
+	}
+
+	clientApp := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/client-metadata.json":
+				w.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+					ClientId:      "http://" + r.Host + "/client-metadata.json",
+					RedirectUris:  []string{"http://" + r.Host + "/callback"},
+					ResponseTypes: []string{"code"},
+					GrantTypes:    []string{"authorization_code", "refresh_token"},
+				}))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}),
+	)
+	defer clientApp.Close()
+
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/callback"
+
+	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
+		"test-state",
+		oauth2.S256ChallengeOption(verifier),
+	)+"&handle=did:web:test", nil)
+	require.NoError(t, err)
+
+	// CheckRedirect stops the client from following past the callback so we can
+	// inspect its status code directly.
+	server.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	// Drive the flow until it hits /callback — the server follows redirects
+	// through the dummy PDS and stops at the first non-redirect from /callback.
+	httpClient := server.Client()
+	resp, err := httpClient.Do(authRequest)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+
+	// Follow redirects manually until we reach /callback.
+	for resp.StatusCode == http.StatusSeeOther {
+		loc := resp.Header.Get("Location")
+		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, nil)
+		require.NoError(t, reqErr)
+		resp, err = httpClient.Do(nextReq)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		if nextReq.URL.Path == "/callback" {
+			break
+		}
+	}
+
+	require.Equal(t, http.StatusSeeOther /* What fosite authorize error uses */, resp.StatusCode)
+}
+
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -164,6 +273,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
+		org.NewEveryoneOrg(),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 

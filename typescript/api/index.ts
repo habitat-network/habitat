@@ -35,8 +35,10 @@ import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/i
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 import * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
 import * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+import * as NetworkHabitatOrgDowngradeAdmin from './types/network/habitat/org/downgradeAdmin.js'
 import * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
 import * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
+import * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMetadata.js'
 import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -79,8 +81,10 @@ export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/i
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 export * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
 export * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+export * as NetworkHabitatOrgDowngradeAdmin from './types/network/habitat/org/downgradeAdmin.js'
 export * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
 export * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
+export * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMetadata.js'
 export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -681,6 +685,18 @@ export class NetworkHabitatOrgNS {
     )
   }
 
+  downgradeAdmin(
+    data?: NetworkHabitatOrgDowngradeAdmin.InputSchema,
+    opts?: NetworkHabitatOrgDowngradeAdmin.CallOptions,
+  ): Promise<NetworkHabitatOrgDowngradeAdmin.Response> {
+    return this._client.call(
+      'network.habitat.org.downgradeAdmin',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
   getAdmins(
     params?: NetworkHabitatOrgGetAdmins.QueryParams,
     opts?: NetworkHabitatOrgGetAdmins.CallOptions,
@@ -699,6 +715,18 @@ export class NetworkHabitatOrgNS {
   ): Promise<NetworkHabitatOrgGetMembers.Response> {
     return this._client.call(
       'network.habitat.org.getMembers',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  getMetadata(
+    params?: NetworkHabitatOrgGetMetadata.QueryParams,
+    opts?: NetworkHabitatOrgGetMetadata.CallOptions,
+  ): Promise<NetworkHabitatOrgGetMetadata.Response> {
+    return this._client.call(
+      'network.habitat.org.getMetadata',
       params,
       undefined,
       opts,

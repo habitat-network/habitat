@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,4 +41,7 @@ func TestEveryoneOrg_ErrorMethods(t *testing.T) {
 
 	err = o.RemoveMembers(ctx, []syntax.DID{did})
 	require.ErrorIs(t, err, ErrNotSupportedPublic)
+
+	md := o.GetMetadata()
+	require.Equal(t, habitat.NetworkHabitatOrgGetMetadataOutput{}, md)
 }

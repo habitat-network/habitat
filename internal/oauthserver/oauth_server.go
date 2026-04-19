@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/node"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -158,6 +159,9 @@ type OAuthServer struct {
 	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
 	storage      *store
+
+	// Org this server belongs to
+	org org.Org
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -187,6 +191,7 @@ func NewOAuthServer(
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
 	meter metric.Meter,
+	org org.Org,
 ) (*OAuthServer, error) {
 	secretBytes, err := encrypt.ParseKey(secret)
 	if err != nil {
@@ -197,6 +202,7 @@ func NewOAuthServer(
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 	}
+
 	strategy, err := newStrategy(secretBytes, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
@@ -231,6 +237,7 @@ func NewOAuthServer(
 		directory:    directory,
 		node:         node,
 		storage:      storage,
+		org:          org,
 	}, nil
 }
 
@@ -367,6 +374,7 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to parse auth request flash", http.StatusBadRequest)
 		return
 	}
+
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(err, "recreate_req")
@@ -377,6 +385,21 @@ func (o *OAuthServer) HandleCallback(
 	if err != nil {
 		o.metrics.callbackErr(err, fositeErrReason(err))
 		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
+		return
+	}
+
+	// Check the DID allowlist after reconstructing authRequest so we can redirect
+	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
+	allowed, err := o.org.IsMember(r.Context(), arf.Did)
+	if err != nil {
+		o.metrics.callbackErr(err, "allowlist_dids")
+		o.provider.WriteAuthorizeError(ctx, w, authRequest, fosite.ErrServerError.WithDebug(err.Error()))
+		return
+	}
+	if !allowed {
+		o.metrics.callbackErr(nil, "allowlist_dids")
+		o.provider.WriteAuthorizeError(ctx, w, authRequest,
+			fosite.ErrAccessDenied.WithDescription("You are not a member of this habitat organization.").WithHint(""))
 		return
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), arf.DpopKey)

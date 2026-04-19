@@ -9,21 +9,20 @@ import (
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
-	org   Org
-	oauth *oauthserver.OAuthServer
+	org  Org
+	auth authn.Method
 }
 
-func NewServer(org Org, oauth *oauthserver.OAuthServer) (*Server, error) {
+func NewServer(org Org, auth authn.Method) (*Server, error) {
 	return &Server{
-		org:   org,
-		oauth: oauth,
+		org:  org,
+		auth: auth,
 	}, nil
 }
 
@@ -47,6 +46,7 @@ func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMetho
 		return "", false
 	}
 	if !ok {
+		http.Error(w, "not a member of this org", http.StatusUnauthorized)
 		return "", false
 	}
 
@@ -61,7 +61,7 @@ func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
-	_, ok := s.authnWithOrg(w, r, s.oauth)
+	_, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -84,7 +84,7 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	_, ok := s.authnWithOrg(w, r, s.oauth)
+	_, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -107,7 +107,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.oauth)
+	caller, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -143,7 +143,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.oauth)
+	caller, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -184,7 +184,7 @@ func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.oauth)
+	caller, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -220,8 +220,41 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
+	caller, ok := s.authnWithOrg(w, r, s.auth)
+	if !ok {
+		return
+	}
+
+	var req habitat.NetworkHabitatOrgDowngradeAdminInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	admin, err := syntax.ParseAtIdentifier(req.Admin)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		return
+	}
+
+	ok, err = s.org.IsAdmin(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if err = s.org.DowngradeAdmin(r.Context(), admin.DID()); err != nil {
+		utils.LogAndHTTPError(w, err, "downgrading admin", http.StatusInternalServerError)
+	}
+}
+
 func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.oauth)
+	caller, ok := s.authnWithOrg(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -258,5 +291,18 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 	err = s.org.RemoveMembers(r.Context(), members)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing members", http.StatusInternalServerError)
+	}
+}
+
+// TODO: figure out a way to configure / store more metadata about the org
+func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
+	_, ok := s.authnWithOrg(w, r, s.auth)
+	if !ok {
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(s.org.GetMetadata()); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
 	}
 }
