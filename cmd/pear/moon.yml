@@ -7,7 +7,6 @@ tasks:
     - --
     - --domain
     - $project.${TS_DOMAIN}
-    - --org
     env:
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'

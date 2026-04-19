@@ -83,6 +83,7 @@ func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMetho
 		return "", false
 	}
 	if !ok {
+		http.Error(w, "not a member of this org", http.StatusUnauthorized)
 		return "", false
 	}
 
