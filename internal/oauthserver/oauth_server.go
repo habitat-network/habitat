@@ -536,8 +536,18 @@ func (o *OAuthServer) Validate(
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
 		utils.WriteHTTPError(w, fmt.Errorf("unable to validate oauth token: %w", err), http.StatusUnauthorized)
+		return "", false
 	}
-	return did, ok
+
+	ok, err = o.org.IsMember(r.Context(), did)
+	if err != nil {
+		utils.WriteHTTPError(w, fmt.Errorf("unable to lookup organization membership"), http.StatusInternalServerError)
+		return "", false
+	} else if !ok {
+		utils.WriteHTTPError(w, fmt.Errorf("not a member of this organization"), http.StatusUnauthorized)
+		return "", false
+	}
+	return did, true
 }
 
 // Validate's the given token and writes an error response to w if validation fails
