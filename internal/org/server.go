@@ -31,28 +31,6 @@ func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) 
 	return s.org.IsMember(ctx, member)
 }
 
-func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMethod ...authn.Method) (syntax.DID, bool) {
-	callerDID, ok := authn.Validate(w, r, authnMethod...)
-
-	// If unable to authenticate, return false
-	if !ok {
-		return "", false
-	}
-
-	// Otherwise, only authn if part of org
-	ok, err := s.org.IsMember(r.Context(), callerDID)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking org.isMember", http.StatusInternalServerError)
-		return "", false
-	}
-	if !ok {
-		http.Error(w, "not a member of this org", http.StatusUnauthorized)
-		return "", false
-	}
-
-	return callerDID, true
-}
-
 // Org APIs
 func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
 	// TODO: implement once we have a provisioner process; til then this is manual
@@ -61,7 +39,7 @@ func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
-	_, ok := s.authnWithOrg(w, r, s.auth)
+	_, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -84,7 +62,7 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	_, ok := s.authnWithOrg(w, r, s.auth)
+	_, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -107,7 +85,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -143,7 +121,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -184,7 +162,7 @@ func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -221,7 +199,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -254,7 +232,7 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
-	caller, ok := s.authnWithOrg(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
@@ -296,7 +274,7 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 
 // TODO: figure out a way to configure / store more metadata about the org
 func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
-	_, ok := s.authnWithOrg(w, r, s.auth)
+	_, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}

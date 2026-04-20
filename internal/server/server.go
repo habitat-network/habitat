@@ -68,35 +68,14 @@ func NewServer(
 	return server
 }
 
-func (s *Server) authnWithOrg(w http.ResponseWriter, r *http.Request, authnMethod ...authn.Method) (syntax.DID, bool) {
-	callerDID, ok := authn.Validate(w, r, authnMethod...)
-
-	// If unable to authenticate, return false
-	if !ok {
-		return "", false
-	}
-
-	// Otherwise, only authn if part of org
-	ok, err := s.org.IsMember(r.Context(), callerDID)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking org.isMember", http.StatusInternalServerError)
-		return "", false
-	}
-	if !ok {
-		return "", false
-	}
-
-	return callerDID, true
-}
-
 // PutRecord puts a potentially encrypted record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
 
-	// TODO: only allow Puts if they have onboarded to habitat. Possibly factor this out into s.authnWithOrg
+	// TODO: only allow Puts if they have onboarded to habitat. Possibly factor this out into authn.Validate
 
 	var req habitat.NetworkHabitatRepoPutRecordInput
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -162,7 +141,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -234,7 +213,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -283,7 +262,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -314,7 +293,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth /* TODO: add service auth here when we support fwding blob reqs */)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth /* TODO: add service auth here when we support fwding blob reqs */)
 	if !ok {
 		return
 	}
@@ -364,7 +343,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -447,7 +426,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -484,7 +463,7 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 // However, this is currently only used in the UI to show all the permissions a particular user has granted to other people, as a way of
 // inspecting and easily adding / removing permission grants on your data. We should rename this and/or also make it generic.
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -514,7 +493,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -544,7 +523,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -573,7 +552,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -600,7 +579,7 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	// You can only call this method on your own node.
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
@@ -639,7 +618,7 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -675,7 +654,7 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -711,7 +690,7 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
@@ -748,7 +727,7 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authnWithOrg(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
 	if !ok {
 		return
 	}
