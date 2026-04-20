@@ -476,7 +476,8 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 		nil,
 	)
 	require.NoError(t, err)
-	_, err = flowServer.Client().Do(authReq)
+	resp, err := flowServer.Client().Do(authReq)
+	defer func() { _ = resp.Body.Close() }()
 	require.NoError(t, err)
 	require.NotEmpty(t, capturedToken, "no access token captured during OAuth flow")
 	return capturedToken
