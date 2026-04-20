@@ -11,6 +11,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Building on habitat',
       items: [
+        'building/intro',
         'building/auth',
         'building/forwarding',
         'building/permissions',

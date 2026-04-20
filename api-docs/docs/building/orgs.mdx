@@ -2,7 +2,7 @@
 id: orgs
 slug: /building/orgs.mdx
 sidebar_label: Organizations
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 # habitat for organizations
@@ -23,7 +23,7 @@ A habitat pear server can be responsible either for generically hosting private 
 
 Each organization has two roles: admin and member. Admins may add and remove other admins or members. Both can see the complete list of admins and members. To take these actions, the `/xrpc/network.habitat.org.*` API endpoints are provided; see the [API reference](/docs/api/network-habitat-org-add-admin).
 
-Organizations are enforced at the authentication (OAuth) layer, rather than authorization layer. Each organization has a dedicated pear server + backing database; a pear server cannot serve multiple organizations or have multi-tenancy. Within an organization, [permissions](/building/permissions.mdx) apply as they normally would using cliques or direct permission grants on records. Records within an organization can only be accessed by members of the organization, for now (see below for future features).
+Organizations are enforced at the authentication (OAuth) layer, rather than authorization layer. Each organization has a dedicated pear server + backing database; a pear server cannot serve multiple organizations or have multi-tenancy (yet). Within an organization, [permissions](/building/permissions.mdx) apply as they normally would using cliques or direct permission grants on records. Records within an organization can only be accessed by members of the organization, for now (see below for future features).
 
 
 ## Self-hosting
