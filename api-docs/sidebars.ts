@@ -14,6 +14,7 @@ const sidebars: SidebarsConfig = {
         'building/auth',
         'building/forwarding',
         'building/permissions',
+        'building/orgs',
         'building/sync',
       ],
     },
