@@ -1,0 +1,191 @@
+# Habitat
+
+> Habitat is an AT Protocol extension that adds private, permission-controlled data storage to the ATmosphere. Records are private by default; owners explicitly grant read access to specific users or groups. Apps built on Habitat get identity, auth, and storage without running their own backend.
+
+Full API reference: https://habitat.network/habitat/api/docs/api
+OpenAPI spec: https://habitat.network/habitat/api/api.json
+
+## Core concepts
+
+- **Repo**: every user has a personal data repository on the Habitat server, identified by their DID
+- **Record**: a JSON object stored at `(repo DID, collection NSID, rkey)`. URI format: `habitat://<did>/<collection>/<rkey>`
+- **Collection**: a namespace for records, identified by an AT Protocol NSID (e.g. `com.myapp.note`)
+- **Permission**: an explicit allow grant from a record owner to a grantee (DID or clique). Deny by default.
+- **Clique**: a named group of DIDs owned by a single user. Granting to a clique grants to all current and future members. Format: `clique:<owner-did>/<uuid>`
+- **PDS Forwarding**: any `/xrpc/` path that isn't a native Habitat endpoint is transparently proxied to the user's AT Protocol PDS
+
+## Authentication
+
+Habitat runs its own OAuth 2.0 server. Your app never talks to the user's PDS directly.
+
+**Login flow:**
+1. User enters their AT Protocol handle (e.g. `alice.bsky.social`)
+2. Habitat resolves handle → DID, initiates OAuth with user's PDS to verify identity
+3. Habitat issues its own access + refresh tokens to your app
+
+**Authenticated requests** require two headers:
+```
+Authorization: Bearer <access_token>
+Habitat-Auth-Method: oauth
+```
+
+**Service auth** (server-to-server): omit `Habitat-Auth-Method`. Pass a signed AT Protocol service JWT as the Bearer token. The issuer DID is used as the caller identity.
+
+Auth docs: https://habitat.network/habitat/api/building/auth.mdx
+
+## Records API
+
+All endpoints are under `POST /xrpc/<nsid>` (mutations) or `GET /xrpc/<nsid>` (queries).
+
+### PUT a record
+`POST /xrpc/network.habitat.repo.putRecord`
+```json
+{
+  "repo": "<did>",
+  "collection": "com.myapp.note",
+  "rkey": "<optional-uuid>",
+  "record": { ...any JSON... },
+  "grantees": [{ "did": "did:plc:abc123" }]
+}
+```
+Returns: `{ "uri": "habitat://did/collection/rkey", "validationStatus": "..." }`
+
+`rkey` is auto-generated as a UUID if omitted. `grantees` sets initial permissions (optional).
+
+### GET a record
+`GET /xrpc/network.habitat.repo.getRecord?repo=<did>&collection=<nsid>&rkey=<rkey>`
+
+Returns: `{ "uri": "...", "value": {...} }`
+
+### LIST records
+`GET /xrpc/network.habitat.repo.listRecords?subjects[]=<did>&collection=<nsid>&limit=50&cursor=<cursor>`
+
+`subjects` is an array of DIDs. Returns the caller's own records plus any records from other subjects that were explicitly granted to the caller.
+
+Returns: `{ "records": [{ "uri": "...", "value": {...} }], "cursor": "..." }`
+
+### DELETE a record
+`POST /xrpc/network.habitat.repo.deleteRecord`
+```json
+{ "repo": "<did>", "collection": "com.myapp.note", "rkey": "<rkey>" }
+```
+
+### List collections
+`GET /xrpc/network.habitat.repo.listCollections`
+
+Returns all collections in the calling user's repo: `{ "collections": [{ "nsid": "...", "recordCount": 3, "grantees": [...] }] }`
+
+## Permissions API
+
+Permissions doc: https://habitat.network/habitat/api/building/permissions.mdx
+
+### Grant access
+`POST /xrpc/network.habitat.permissions.addPermission`
+```json
+{
+  "collection": "com.myapp.note",
+  "rkey": "<optional — omit to grant entire collection>",
+  "grantees": [
+    { "did": "did:plc:abc123" },
+    { "clique": "clique:did:plc:xyz/uuid" }
+  ]
+}
+```
+
+### Revoke access
+`POST /xrpc/network.habitat.permissions.removePermission` — same body shape as addPermission
+
+### List your grants
+`GET /xrpc/network.habitat.permissions.listPermissions`
+
+Returns: `{ "permissions": [{ "collection": "...", "rkey": "...", "grantee": "did:plc:...", "effect": "allow" }] }`
+
+## Cliques API
+
+### Create a clique
+`POST /xrpc/network.habitat.clique.createClique`
+```json
+{ "members": ["did:plc:abc123", "did:plc:def456"] }
+```
+Returns: `{ "clique": "clique:did:plc:<owner>/<uuid>" }`
+
+### Add / remove members
+`POST /xrpc/network.habitat.clique.addMembers`
+```json
+{ "clique": { "clique": "clique:did:plc:owner/uuid" }, "members": ["did:plc:..."] }
+```
+`POST /xrpc/network.habitat.clique.removeMembers` — same shape
+
+### Query membership
+`GET /xrpc/network.habitat.clique.getMembers?clique=clique:...`
+`GET /xrpc/network.habitat.clique.isMember?clique=clique:...&did=did:plc:...`
+
+Only members of a clique can query its membership.
+
+## Blobs API
+
+### Upload
+`POST /xrpc/network.habitat.repo.uploadBlob`
+Body: raw bytes. Set `Content-Type` to the blob's MIME type.
+Returns: `{ "blob": <BlobRef>, "cid": "..." }`
+
+### Download
+`GET /xrpc/network.habitat.repo.getBlob?did=<did>&cid=<cid>`
+
+Blobs are permission-gated: accessible only if the caller can read at least one record referencing the blob. Unreferenced blobs are garbage-collected.
+
+## PDS Forwarding
+
+Any `/xrpc/` path that is not a native Habitat endpoint is forwarded to the user's PDS. Use the same auth headers as normal. No additional credentials needed.
+
+```
+GET /xrpc/com.atproto.repo.listRecords?repo=did:plc:...&collection=app.bsky.feed.post
+Authorization: Bearer <token>
+Habitat-Auth-Method: oauth
+```
+
+Forwarding docs: https://habitat.network/habitat/api/building/forwarding.mdx
+
+## Organizations
+
+A Habitat server can run in org mode (`--org` flag), where only allowlisted members can create repos and authenticate. Each org gets a dedicated server + database.
+
+Roles: **admin** (can add/remove members and other admins) and **member**.
+
+Key org endpoints (all require OAuth; write ops require admin role):
+- `GET /xrpc/network.habitat.org.getMetadata` → `{ "domain": "...", "name": "...", "description": "..." }`
+- `GET /xrpc/network.habitat.org.getMembers` → `{ "members": ["did:plc:..."] }`
+- `GET /xrpc/network.habitat.org.getAdmins` → `{ "admins": ["did:plc:..."] }`
+- `POST /xrpc/network.habitat.org.addMembers` — body: `{ "members": ["did:plc:or-handle"] }`
+- `POST /xrpc/network.habitat.org.addAdmin` — body: `{ "admin": "did:plc:or-handle" }`
+
+Orgs docs: https://habitat.network/habitat/api/building/orgs.mdx
+
+## TypeScript SDK
+
+A generated TypeScript client is available at [`typescript/api/`](https://github.com/habitat-network/habitat/tree/master/typescript/api). It wraps all endpoints with typed method stubs using `@atproto/xrpc` under the hood. An official npm package is coming soon.
+
+```ts
+import { AtpBaseClient } from './typescript/api/index.js'
+
+const client = new AtpBaseClient({ headers: {
+  'Authorization': `Bearer ${accessToken}`,
+  'Habitat-Auth-Method': 'oauth',
+}})
+
+await client.network.habitat.repo.putRecord({
+  repo: myDid,
+  collection: 'com.myapp.note',
+  record: { text: 'hello' },
+})
+```
+
+## Error handling
+
+Habitat returns AT Protocol-style JSON error bodies: `{ "error": "ErrorName", "message": "..." }`
+
+Common errors:
+- `401` — missing or expired token
+- `403` — caller lacks permission to read a record
+- `404` — record not found
+- `502` — PDS unreachable during forwarding

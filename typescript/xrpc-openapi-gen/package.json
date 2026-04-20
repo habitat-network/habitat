@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "generate": "tsx main.ts"
+    "generate": "tsx main.ts && cp spec/api.json ../../api-docs/static/api.json"
   },
   "dependencies": {
     "@atproto/lexicon": "^0.4.4",
