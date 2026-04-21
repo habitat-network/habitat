@@ -33,7 +33,7 @@ async function fetchFromAtProto(nsid: string): Promise<RenderSchema | null> {
       rkey: nsid,
     });
     const res = await fetch(
-      `/xrpc/network.habitat.getRecord?${params.toString()}`,
+      `/xrpc/network.habitat.repo.getRecord?${params.toString()}`,
     );
     if (!res.ok) return null;
     const json = await res.json();

@@ -69,7 +69,7 @@ function LexiconPermissions() {
         ...(formData.rkey ? { rkey: formData.rkey } : {}),
       };
       await authManager?.fetch(
-        `/xrpc/network.habitat.addPermission`,
+        `/xrpc/network.habitat.permissions.addPermission`,
         "POST",
         JSON.stringify(body),
         new Headers({ "Content-Type": "application/json" }),
@@ -168,7 +168,7 @@ function CollectionDetail({
         ...(rkey ? { rkey } : {}),
       };
       await authManager?.fetch(
-        `/xrpc/network.habitat.removePermission`,
+        `/xrpc/network.habitat.permissions.removePermission`,
         "POST",
         JSON.stringify(body),
         new Headers({ "Content-Type": "application/json" }),

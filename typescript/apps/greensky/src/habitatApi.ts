@@ -83,7 +83,7 @@ async function getCliqueMembers(
   params.append("includePermissions", "true");
 
   const response = await authManager.fetch(
-    `/xrpc/network.habitat.getRecord?${params}`,
+    `/xrpc/network.habitat.repo.getRecord?${params}`,
     "GET",
   );
   if (!response.ok) return [];
@@ -132,7 +132,7 @@ export async function getPrivatePosts(
 
   // TODO: use habitat client api
   const response = await authManager.fetch(
-    `/xrpc/network.habitat.listRecords?${params}`,
+    `/xrpc/network.habitat.repo.listRecords?${params}`,
     "GET",
   );
   const data: { records?: PrivatePost[] } = await response.json();
@@ -155,7 +155,7 @@ export async function getPrivatePost(
   params.append("includePermissions", "true");
 
   const response = await authManager.fetch(
-    `/xrpc/network.habitat.getRecord?${params}`,
+    `/xrpc/network.habitat.repo.getRecord?${params}`,
     "GET",
   );
   if (!response.ok) return null;

@@ -172,7 +172,7 @@ export async function createEvent(
 
 
   const eventResponse = await procedure(
-    "network.habitat.putRecord",
+    "network.habitat.repo.putRecord",
     {
       collection: EVENT_COLLECTION,
       record: eventRecord,
@@ -198,7 +198,7 @@ export async function createEvent(
       createdAt,
     };
     return procedure(
-      "network.habitat.putRecord",
+      "network.habitat.repo.putRecord",
       {
         collection: INVITE_COLLECTION,
         record: inviteRecord,
@@ -226,7 +226,7 @@ export async function createEvent(
       status: "community.lexicon.calendar.rsvp#going",
     };
     await procedure(
-      "network.habitat.putRecord",
+      "network.habitat.repo.putRecord",
       {
         collection: RSVP_COLLECTION,
         record: creatorRsvpRecord,
@@ -396,7 +396,7 @@ export async function editEvent(
   if (!parsed) throw new Error(`Invalid event URI: ${eventUri}`);
   const clique = await getEventClique(authManager, eventUri);
   return procedure(
-    "network.habitat.putRecord",
+    "network.habitat.repo.putRecord",
     {
       collection: EVENT_COLLECTION,
       record: event,
@@ -458,7 +458,7 @@ export async function createRsvp(
   };
 
   return procedure(
-    "network.habitat.putRecord",
+    "network.habitat.repo.putRecord",
     {
       repo: authManager.getAuthInfo()?.did ?? "",
       collection: RSVP_COLLECTION,

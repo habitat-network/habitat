@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/view")({
       params.get("collection") || "network.habitat.test",
     );
     const response = await context.authManager?.fetch(
-      `/xrpc/network.habitat.getRecord?${params.toString()}`,
+      `/xrpc/network.habitat.repo.getRecord?${params.toString()}`,
     );
     const json = await response?.json();
     return json.foo;

@@ -201,7 +201,7 @@ func TestCliqueFlowMultiPear(t *testing.T) {
 }
 
 // TestGetBlobRemote verifies that when B requests a blob owned by A (on a remote node),
-// GetBlob forwards the request via a network.habitat.getBlob XRPC and returns the blob data.
+// GetBlob forwards the request via a network.habitat.repo.getBlob XRPC and returns the blob data.
 func TestGetBlobRemote(t *testing.T) {
 	aDID := syntax.DID("did:example:a")
 	bDID := syntax.DID("did:example:b")

@@ -26,7 +26,7 @@ function PersonDetail() {
   const { mutate: remove } = useMutation({
     async mutationFn(lexicon: string) {
       await authManager?.fetch(
-        `/xrpc/network.habitat.removePermission`,
+        `/xrpc/network.habitat.permissions.removePermission`,
         "POST",
         JSON.stringify({ did, lexicon }),
       );

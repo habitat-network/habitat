@@ -224,20 +224,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// pear routes
 	// repo
-	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
+	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
+	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
-
-	// blobs
-	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
-	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
+	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.getBlob", pearServer.GetBlob)
 
 	// permissions
-	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
-	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
-	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission", pearServer.RemovePermission)
 
 	// cliques
 	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", pearServer.CreateClique)

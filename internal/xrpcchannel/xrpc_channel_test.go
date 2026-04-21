@@ -12,7 +12,7 @@ import (
 
 func TestServiceProxyXrpcChannel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/xrpc/network.habitat.getRecord", r.URL.Path)
+		require.Equal(t, "/xrpc/network.habitat.repo.getRecord", r.URL.Path)
 		require.Equal(t, "did:web:habitat.network#habitat", r.Header.Get("atproto-proxy"))
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("hello"))
@@ -24,7 +24,7 @@ func TestServiceProxyXrpcChannel(t *testing.T) {
 		pdsclient.NewDummyClientFactory(server.URL),
 		pdsclient.NewDummyDirectory(server.URL),
 	)
-	req, err := http.NewRequest("GET", "/xrpc/network.habitat.getRecord", nil)
+	req, err := http.NewRequest("GET", "/xrpc/network.habitat.repo.getRecord", nil)
 	require.NoError(t, err)
 	resp, err := channel.SendXRPC(
 		t.Context(),

@@ -68,7 +68,7 @@ func NewServer(
 	return server
 }
 
-// PutRecord puts a potentially encrypted record (see s.inner.putRecord)
+// PutRecord puts a private record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -132,6 +132,82 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
+		Uri: uri.String(),
+	}); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// CreateRecord creates a new record
+func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	if !ok {
+		return
+	}
+
+	var req habitat.NetworkHabitatRepoCreateRecordInput
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	target, err := syntax.ParseAtIdentifier(req.Repo)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		return
+	}
+
+	var rkey string
+	if req.Rkey == "" {
+		rkey = uuid.NewString()
+	} else {
+		rkey = req.Rkey
+	}
+
+	record, ok := req.Record.(map[string]any)
+	if !ok {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("record must be a JSON object"),
+			"invalid record type",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	parsed, err := permissions.ParseGranteesFromInterface(req.Grantees)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	v := true
+	uri, err := s.pear.CreateRecord(r.Context(), callerDID, target.DID(), syntax.NSID(req.Collection), record, syntax.RecordKey(rkey), &v, parsed)
+	if errors.Is(err, repo.ErrRecordAlreadyCreated) {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("putting record for did %s", target.DID().String()),
+			http.StatusConflict,
+		)
+	} else if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("putting record for did %s", target.DID().String()),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoCreateRecordOutput{
 		Uri: uri.String(),
 	}); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)

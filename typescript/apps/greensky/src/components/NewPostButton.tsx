@@ -74,7 +74,7 @@ export function NewPostButton({
 
       if (formData.visibility === "followers") {
         const res = await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
+          "/xrpc/network.habitat.repo.putRecord",
           "POST",
           JSON.stringify({
             repo: did,
@@ -104,7 +104,7 @@ export function NewPostButton({
           }),
         );
         const cliqueRes = await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
+          "/xrpc/network.habitat.repo.putRecord",
           "POST",
           JSON.stringify({
             repo: did,
@@ -121,7 +121,7 @@ export function NewPostButton({
         const cliqueUri = data.uri;
 
         const res = await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
+          "/xrpc/network.habitat.repo.putRecord",
           "POST",
           JSON.stringify({
             repo: did,

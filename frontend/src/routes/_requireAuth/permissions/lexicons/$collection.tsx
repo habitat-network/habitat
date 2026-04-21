@@ -53,7 +53,7 @@ export const Route = createFileRoute(
           ...(data.rkey ? { rkey: data.rkey } : {}),
         };
         await authManager?.fetch(
-          `/xrpc/network.habitat.addPermission`,
+          `/xrpc/network.habitat.permissions.addPermission`,
           "POST",
           JSON.stringify(body),
           new Headers({ "Content-Type": "application/json" }),
@@ -83,7 +83,7 @@ export const Route = createFileRoute(
           ...(rkey ? { rkey } : {}),
         };
         await authManager?.fetch(
-          `/xrpc/network.habitat.removePermission`,
+          `/xrpc/network.habitat.permissions.removePermission`,
           "POST",
           JSON.stringify(body),
           new Headers({ "Content-Type": "application/json" }),

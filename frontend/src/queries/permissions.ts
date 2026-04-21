@@ -7,7 +7,7 @@ export function listPermissions(authManager: AuthManager) {
     queryKey: ["permissions"],
     queryFn: async () => {
       const response = await authManager?.fetch(
-        `/xrpc/network.habitat.listPermissions`,
+        `/xrpc/network.habitat.permissions.listPermissions`,
       );
       const json: NetworkHabitatPermissionsListPermissions.OutputSchema =
         await response?.json();

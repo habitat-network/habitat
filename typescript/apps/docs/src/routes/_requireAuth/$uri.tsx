@@ -305,7 +305,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
 
         await procedure(
-          "network.habitat.putRecord",
+          "network.habitat.repo.putRecord",
           {
             repo: did!,
             collection: collection,

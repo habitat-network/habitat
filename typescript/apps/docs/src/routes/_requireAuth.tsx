@@ -103,7 +103,7 @@ export const Route = createFileRoute("/_requireAuth")({
           { authManager },
         );
         const response = await procedure(
-          "network.habitat.putRecord",
+          "network.habitat.repo.putRecord",
           {
             repo: did ?? "",
             collection: "network.habitat.docs",

@@ -48,6 +48,7 @@ type Pear interface {
 
 	// Repository methods; roughly analagous to com.atproto.repo methods
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
+	CreateRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
 	DeleteRecord(ctx context.Context, caller syntax.DID, target syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
@@ -233,6 +234,52 @@ func (p *pear) PutRecord(
 	}, validate)
 }
 
+// CreateRecord creates the given record on the repo connected to this permissionEnforcingRepo.
+// It does not do any encryption, permissions, auth, etc. It is assumed that only the owner of the store can call this and that
+// is gated by some higher up level. This should be re-written in the future to not give any incorrect impression.
+func (p *pear) CreateRecord(
+	ctx context.Context,
+	caller syntax.DID,
+	target syntax.DID,
+	collection syntax.NSID,
+	record map[string]any,
+	rkey syntax.RecordKey,
+	validate *bool,
+	grantees []permissions.Grantee,
+) (habitat_syntax.HabitatURI, error) {
+	if collection == habitat_syntax.ReservedCliqueNSID {
+		return "", habitat_err.ErrNoSettingCliques
+	}
+	// Basic authz check -- you can only write to your own repo.
+	if target != caller {
+		return "", fmt.Errorf("only owner can put record")
+	}
+
+	// TODO: ensure the caller is a member of a clique before adding it to their grantees.
+	// TODO: do the permissions stuff + repo stuff in a transaction
+
+	did := target
+	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
+	if len(grantees) > 0 {
+		err := p.permissions.AddPermissions(
+			grantees,
+			did,
+			collection,
+			rkey,
+		)
+		if err != nil {
+			return "", fmt.Errorf("adding permissions %w", err)
+		}
+	}
+
+	return p.repo.PutRecord(ctx, repo.Record{
+		Did:        did.String(),
+		Collection: collection.String(),
+		Rkey:       rkey.String(),
+		Value:      record,
+	}, validate)
+}
+
 func (p *pear) getRecordLocal(
 	ctx context.Context,
 	collection syntax.NSID,
@@ -261,7 +308,7 @@ func (p *pear) getRecordRemote(
 	caller syntax.DID,
 ) (*repo.Record, error) {
 	// Otherwise, forward this request to the right repo (the clique member)
-	reqURL, err := url.Parse("/xrpc/network.habitat.getRecord")
+	reqURL, err := url.Parse("/xrpc/network.habitat.repo.getRecord")
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +524,7 @@ func (p *pear) ListCollections(ctx context.Context, caller syntax.DID, subject s
 
 func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
 	// Otherwise, forward this request to the right repo (the clique member)
-	reqURL, err := url.Parse("/xrpc/network.habitat.getBlob")
+	reqURL, err := url.Parse("/xrpc/network.habitat.repo.getBlob")
 	if err != nil {
 		return "", "", nil, err
 	}

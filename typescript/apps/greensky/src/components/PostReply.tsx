@@ -57,7 +57,7 @@ export function PostReply({
         : [];
 
       const res = await authManager.fetch(
-        "/xrpc/network.habitat.putRecord",
+        "/xrpc/network.habitat.repo.putRecord",
         "POST",
         JSON.stringify({
           repo: did,

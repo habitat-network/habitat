@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
               : { $type: "network.habitat.grantee#cliqueRef", uri: g.value },
           );
         const response = await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
+          "/xrpc/network.habitat.repo.putRecord",
           "POST",
           JSON.stringify({
             collection: data.collection,
@@ -88,7 +88,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
         params.set("repo", data.repo);
         params.set("rkey", data.rkey);
         const response = await authManager?.fetch(
-          `/xrpc/network.habitat.getRecord?${params.toString()}`,
+          `/xrpc/network.habitat.repo.getRecord?${params.toString()}`,
         );
         if (!response?.ok) {
           const body = await response?.text();

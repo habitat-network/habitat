@@ -30,8 +30,8 @@ Access is **denied by default**. A record is only readable by someone other than
 
 Permissions are managed through these endpoints and the [clique](/specs/cliques.mdx) APIs:
 
-- `POST /xrpc/network.habitat.addPermission` — grant access to a collection or record
-- `POST /xrpc/network.habitat.removePermission` — revoke access (adds a deny if a broader grant exists)
-- `GET /xrpc/network.habitat.listPermissions` — list grants made by the calling user
+- `POST /xrpc/network.habitat.permissions.addPermission` — grant access to a collection or record
+- `POST /xrpc/network.habitat.permissions.removePermission` — revoke access (adds a deny if a broader grant exists)
+- `GET /xrpc/network.habitat.permissions.listPermissions` — list grants made by the calling user
 
 See the [API reference](/docs/api/network-habitat-permissions-add-permission) for full request/response shapes.
