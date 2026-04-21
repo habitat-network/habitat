@@ -10,6 +10,7 @@ var (
 	fGoogleClientID     = "google-client-id"
 	fGoogleClientSecret = "google-client-secret"
 	fDB                 = "db"
+	fDebug              = "debug"
 )
 
 func getFlags() []cli.Flag {
@@ -43,6 +44,11 @@ func getFlags() []cli.Flag {
 			Usage:   "Path to SQLite database for session storage",
 			Value:   "./calendar.db",
 			Sources: cli.NewValueSourceChain(cli.EnvVar("CALENDAR_DB")),
+		},
+		&cli.BoolFlag{
+			Name:    fDebug,
+			Usage:   "Enable debug logging",
+			Sources: cli.NewValueSourceChain(cli.EnvVar("CALENDAR_DEBUG")),
 		},
 	}
 }
