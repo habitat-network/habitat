@@ -8,6 +8,11 @@ const ROW_HEIGHT = 360;
 const MONTH_HEADER_HEIGHT = 0;
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 const TOTAL_WEEKS = 500 * 53;
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "internal/components/ui";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -42,6 +47,19 @@ const WeekRow = ({ sunday, events }: WeekRowProps) => {
         height="100%"
         initialDate={sunday}
         dayHeaderFormat={{ day: "numeric" }}
+        eventContent={(event) => {
+          return (
+            <HoverCard>
+              <HoverCardTrigger render={<div />}>
+                {event.event.title}
+              </HoverCardTrigger>
+              <HoverCardContent>
+                <div className="font-bold">{event.event.title}</div>
+                {event.event.extendedProps.description}
+              </HoverCardContent>
+            </HoverCard>
+          );
+        }}
       />
     </div>
   );
