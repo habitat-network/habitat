@@ -47,3 +47,8 @@ export { default as GranteeAvatars } from "./components/GranteeAvatars";
 // Utilities
 export { default as clientMetadata } from "./clientMetadata";
 export { default as reportWebVitals } from "./reportWebVitals";
+export {
+  searchActorsTypeahead,
+  getProfiles,
+  getProfile,
+} from "./bskyPublicApi";

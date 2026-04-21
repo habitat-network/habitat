@@ -16,6 +16,10 @@
       "types": "./dist/habitatAppVitePlugin.d.ts",
       "import": "./dist/habitatAppVitePlugin.js"
     },
+    "./bskyPublicApi": {
+      "types": "./src/bskyPublicApi.ts",
+      "import": "./src/bskyPublicApi.ts"
+    },
     "./components/ui": {
       "types": "./src/components/ui/index.ts",
       "import": "./src/components/ui/index.ts"

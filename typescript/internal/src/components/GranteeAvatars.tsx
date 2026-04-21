@@ -3,6 +3,7 @@ import { NetworkHabitatRepoGetRecord } from "api";
 import { AvatarGroup, AvatarGroupCount, Spinner } from "./ui";
 import { UserAvatar } from "./UserAvatar";
 import { query } from "../habitatClient";
+import { getProfiles } from "../bskyPublicApi";
 import { AuthManager } from "../authManager";
 import { Actor } from "@/types/Actor";
 
@@ -47,13 +48,7 @@ const GranteeAvatars = ({
             ),
         ),
       ];
-      const params = new URLSearchParams();
-      actors.forEach((a) => params.append("actors", a));
-      const profilesRes = await fetch(
-        `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles?${params.toString()}`,
-      );
-      const { profiles } = await profilesRes.json();
-      return profiles;
+      return getProfiles(actors);
     },
   });
 

@@ -27,6 +27,7 @@ func NewServer(store Store, oauth authn.Method, serviceAuth authn.Method) *Serve
 		store:       store,
 		oauth:       oauth,
 		serviceAuth: serviceAuth,
+		decoder:     schema.NewDecoder(),
 	}
 }
 

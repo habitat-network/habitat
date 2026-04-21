@@ -31,7 +31,6 @@ const ShareDialog = ({
         <UserCombobox
           value={newGrantees}
           onValueChange={setNewGrantees}
-          authManager={authManager}
         />
         <Button
           onClick={() => {
