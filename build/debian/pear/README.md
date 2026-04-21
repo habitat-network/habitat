@@ -42,6 +42,14 @@ These secrets are stable — they will be reloaded from the volume on every subs
 docker compose pull && docker compose up -d
 ```
 
+**4. Restarting the server**
+
+When restarting the server, make sure to use the same Docker volume as previous runs. You can do this by running `docker ps` to see running containers, identify the pear container (typically a name like `pear-release-pear-1`), and finding that container's mounts via `docker inspect -f '{{ json .Mounts }}' <container-name>]`. You should see an entry that looks something like `[{"Type":"volume","Name":"pear-release_pear_data","Source":"/var/lib/docker/volumes/pear-release_pear_data/_data","Destination":"/data","Driver":"local","Mode":"rw","RW":true,"Propagation":""}]
+`
+
+To restart the server using the same volume with pre-existing data, run `docker compose up -d -v pear_data:/path/to/mounted/directory`, in the example above, it would be `/var/lib/docker/volumes/pear-release_pear_data/_data`.
+
+
 ## Configuration
 
 All settings are configured via environment variables in your `.env` file.

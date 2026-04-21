@@ -7,3 +7,4 @@ tasks:
       - /lexicons/**
     outputs:
       - spec/api.json
+      - /api-docs/static/api.json
