@@ -187,7 +187,6 @@ export function NewPostButton({
               </RadioGroup>
               {visibility === "specific" && (
                 <UserCombobox
-                  authManager={authManager}
                   value={specificUsers}
                   onValueChange={setSpecificUsers}
                 />

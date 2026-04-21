@@ -18,11 +18,8 @@ export const Route = createFileRoute("/_requireAuth/private")({
         .map(async (post): Promise<FeedEntry> => {
           const did = post.uri.split("/")[2] ?? "";
           const [author, grantees] = await Promise.all([
-            getProfile(context.authManager, did),
-            getProfiles(
-              context.authManager,
-              (post.resolvedClique ?? []).slice(0, 5),
-            ),
+            getProfile(did),
+            getProfiles((post.resolvedClique ?? []).slice(0, 5)),
           ]);
           return {
             uri: post.uri,

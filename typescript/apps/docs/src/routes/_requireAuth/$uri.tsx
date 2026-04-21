@@ -422,7 +422,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                 grantees={(editorProfiles ?? []).filter(
                   (p) => p.did !== authManager.getAuthInfo()?.did,
                 )}
-                authManager={authManager}
                 onAddPermission={(actors) =>
                   addPermission({
                     grantees: actors.map((actor) => actor.did),

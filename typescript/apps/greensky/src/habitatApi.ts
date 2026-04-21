@@ -1,4 +1,5 @@
-import { Actor, AuthManager } from "internal";
+import { AuthManager, getProfile, getProfiles } from "internal";
+export { getProfile, getProfiles };
 
 export interface CliqueRefPermission {
   $type: "network.habitat.grantee#cliqueRef";
@@ -58,12 +59,6 @@ export function getPostVisibility(
   return "specific-users";
 }
 
-export interface Profile {
-  did: string;
-  handle: string;
-  displayName?: string;
-  avatar?: string;
-}
 
 async function getCliqueMembers(
   authManager: AuthManager,
@@ -163,27 +158,3 @@ export async function getPrivatePost(
   return resolvePostPermissions(authManager, post);
 }
 
-export async function getProfiles(
-  _authManager: AuthManager,
-  actors: string[],
-): Promise<Actor[]> {
-  if (actors.length === 0) return [];
-  const params = new URLSearchParams();
-  actors.forEach((a) => params.append("actors", a));
-  const response = await fetch(
-    `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles?${params.toString()}`,
-  );
-  const { profiles } = await response.json();
-  return profiles;
-}
-
-export async function getProfile(
-  _authManager: AuthManager,
-  actor: string,
-): Promise<Profile> {
-  const params = new URLSearchParams({ actor });
-  const response = await fetch(
-    `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?${params.toString()}`,
-  );
-  return response.json();
-}

@@ -1,14 +1,13 @@
 import { type ReactNode } from "react";
-import { type AuthManager } from "internal";
+import { type AuthManager, type Actor } from "internal";
 import { Button, Separator } from "internal/components/ui";
-import { type Profile } from "../habitatApi";
 import { NewPostButton } from "./NewPostButton";
 import { Link } from "@tanstack/react-router";
 
 interface NavBarProps {
   left: ReactNode;
   authManager: AuthManager;
-  myProfile: Profile | undefined;
+  myProfile: Actor | undefined;
   isOnboarded: boolean;
 }
 

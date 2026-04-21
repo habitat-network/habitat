@@ -3,7 +3,6 @@ import { useForm } from "react-hook-form";
 
 import { Field, FieldContent, FieldLabel, Input } from "internal/components/ui";
 import { UserCombobox } from "internal";
-import { useRouteContext } from "@tanstack/react-router";
 
 /** Event data for creation. */
 export interface CreateEventInput {
@@ -35,7 +34,6 @@ export function EventForm({
   error,
   title,
 }: EventFormProps) {
-  const { authManager } = useRouteContext({ from: "/_requireAuth" });
   const [invitedDids] = useState<string[]>([]);
 
   const isPending = false;
@@ -90,7 +88,7 @@ export function EventForm({
       <Field>
         <FieldLabel>Invite</FieldLabel>
         <FieldContent>
-          <UserCombobox authManager={authManager} onValueChange={() => { }} />
+          <UserCombobox onValueChange={() => { }} />
         </FieldContent>
       </Field>
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>

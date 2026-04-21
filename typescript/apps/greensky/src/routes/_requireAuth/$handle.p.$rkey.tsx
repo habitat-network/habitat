@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
   async loader({ context, params }) {
     const [post, profile, allPosts] = await Promise.all([
       getPrivatePost(context.authManager, params.handle, params.rkey),
-      getProfile(context.authManager, params.handle),
+      getProfile(params.handle),
       getPrivatePosts(context.authManager),
     ]);
 
@@ -35,8 +35,8 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
     ];
 
     const [grantees, replyAuthorProfiles] = await Promise.all([
-      getProfiles(context.authManager, granteeDids),
-      getProfiles(context.authManager, replyAuthorDids),
+      getProfiles(granteeDids),
+      getProfiles(replyAuthorDids),
     ]);
 
     const replyAuthorByDid = new Map(
@@ -67,7 +67,7 @@ export const Route = createFileRoute("/_requireAuth/$handle/p/$rkey")({
         kind: parentKind,
         isReply: true,
         author: replyAuthor,
-        reply: { handle: profile.handle, parentPostUri: post.uri },
+        reply: { handle: profile.handle ?? "", parentPostUri: post.uri },
       };
     });
 

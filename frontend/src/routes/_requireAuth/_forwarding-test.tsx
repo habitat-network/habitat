@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_requireAuth/forwarding-test")({
+export const Route = createFileRoute("/_requireAuth/_forwarding-test")({
   async loader({ context }) {
     const authInfo = context.authManager.getAuthInfo();
     const resp = await context.authManager.fetch(

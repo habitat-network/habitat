@@ -14,7 +14,6 @@ import {
 } from "internal/components/ui";
 import { type CreateEventInput } from "./EventForm.tsx";
 import { ReactElement } from "react";
-import { useRouteContext } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { Actor, UserCombobox } from "internal";
 
@@ -46,7 +45,6 @@ export function CreateEventModal({
   onClose,
   onSubmit,
 }: CreateEventModalProps) {
-  const { authManager } = useRouteContext({ from: "/_requireAuth" });
   const { register, handleSubmit, control } = useForm<EventFormFields>({
     defaultValues: {
       name: initialEvent?.name ?? "",
@@ -122,7 +120,6 @@ export function CreateEventModal({
                     return (
                       <UserCombobox
                         value={field.value}
-                        authManager={authManager}
                         onValueChange={field.onChange}
                       />
                     );

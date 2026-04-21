@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_requireAuth")({
     }
     const did = context.authManager.getAuthInfo()!.did;
     const [myProfile, didDoc] = await Promise.all([
-      getProfile(context.authManager, did),
+      getProfile(did),
       new DidResolver({}).resolve(did),
     ]);
     const habitatServiceKey = import.meta.env.DEV ? "habitat_local" : "habitat";
