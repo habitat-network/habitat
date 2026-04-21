@@ -13,7 +13,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xslices"
-	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -38,13 +37,6 @@ type Pear interface {
 	RemovePermissions(caller syntax.DID, grantee []permissions.Grantee, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
 	ListPermissionGrants(ctx context.Context, caller syntax.DID, granter syntax.DID) ([]permissions.Permission, error)
 	ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]permissions.Grantee, error)
-
-	// Clique-related methods
-	CreateClique(ctx context.Context, caller syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error)
-	AddCliqueMembers(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique, members []syntax.DID) error
-	RemoveCliqueMembers(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique, members []syntax.DID) error
-	GetCliqueMembers(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique) ([]syntax.DID, error)
-	IsCliqueMember(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
 
 	// Repository methods; roughly analagous to com.atproto.repo methods
 	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
@@ -72,9 +64,6 @@ type pear struct {
 
 	// Backing for permissions
 	permissions permissions.Store
-
-	// Backing for cliques
-	cliqueStore clique.Store
 
 	// The backing store for the data. Should implement similar methods to public atproto repos
 	repo repo.Repo
@@ -176,7 +165,6 @@ func NewPear(
 	dir identity.Directory,
 	perms permissions.Store,
 	repo repo.Repo,
-	cliqueStore clique.Store,
 	inbox inbox.Inbox,
 ) *pear {
 	return &pear{
@@ -185,7 +173,6 @@ func NewPear(
 		permissions: perms,
 		repo:        repo,
 		inbox:       inbox,
-		cliqueStore: cliqueStore,
 	}
 }
 
@@ -628,61 +615,4 @@ func (p *pear) NotifyOfUpdate(
 	rkey string,
 ) error {
 	return p.inbox.Put(ctx, sender, recipient, syntax.NSID(collection), rkey)
-}
-
-// Clique-related methods
-
-// CreateClique implements Pear.
-func (p *pear) CreateClique(ctx context.Context, caller syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error) {
-	return p.cliqueStore.CreateClique(caller, members)
-}
-
-// AddCliqueMembers implements Pear.
-func (p *pear) AddCliqueMembers(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique, members []syntax.DID) error {
-	// authz: does the caller own this clique?
-	if caller != clique.Authority() {
-		return habitat_err.ErrUnauthorized
-	}
-
-	return p.cliqueStore.AddMembers(clique, members)
-}
-
-// GetCliqueMembers implements Pear.
-func (p *pear) GetCliqueMembers(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique) ([]syntax.DID, error) {
-	// authz: is caller a clique member?
-	ok, err := p.cliqueStore.IsMember(clique, caller)
-	if err != nil {
-		return nil, err
-	}
-
-	if !ok {
-		return nil, habitat_err.ErrUnauthorized
-	}
-
-	return p.cliqueStore.GetMembers(clique)
-}
-
-// IsCliqueMember implements Pear.
-func (p *pear) IsCliqueMember(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error) {
-	// authz: is caller a clique member?
-	ok, err := p.cliqueStore.IsMember(clique, caller)
-	if err != nil {
-		return false, err
-	}
-
-	if !ok {
-		return false, habitat_err.ErrUnauthorized
-	}
-
-	return p.cliqueStore.IsMember(clique, maybeMember)
-}
-
-// RemoveCliqueMembers implements Pear.
-func (p *pear) RemoveCliqueMembers(ctx context.Context, caller syntax.DID, clique habitat_syntax.Clique, members []syntax.DID) error {
-	// authz: does the caller own this clique?
-	if caller != clique.Authority() {
-		return habitat_err.ErrUnauthorized
-	}
-
-	return p.cliqueStore.RemoveMembers(clique, members)
 }

@@ -2,7 +2,6 @@ package pear
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,13 +9,11 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/node"
-	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/stretchr/testify/require"
-
-	habitat_err "github.com/habitat-network/habitat/internal/error"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrpcCh xrpcchannel.XrpcChannel) (*pear, *pear) {
@@ -53,8 +50,10 @@ func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrp
 	nodeA := node.New(pearAName, pearAEndpoint, dirA, mockXrpcCh)
 	nodeB := node.New(pearBName, pearBEndpoint, dirB, mockXrpcCh)
 
-	pearA := newPearForTest(t, dirA, withNode(nodeA))
-	pearB := newPearForTest(t, dirB, withNode(nodeB))
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	pearA := newPearForTest(t, db, dirA, withNode(nodeA))
+	pearB := newPearForTest(t, db, dirB, withNode(nodeB))
 
 	return pearA, pearB
 }
@@ -62,142 +61,144 @@ func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrp
 func TestCliqueFlowMultiPear(t *testing.T) {
 	t.Skip("this will fail until we implement remote fetches")
 
-	aDID := syntax.DID("did:example:a")
-	bDID := syntax.DID("did:example:b")
-	cDID := syntax.DID("did:example:c")
+	/*
+		aDID := syntax.DID("did:example:a")
+		bDID := syntax.DID("did:example:b")
+		cDID := syntax.DID("did:example:c")
 
-	mockXRPCs := &mockXrpcChannel{
-		actions: []*http.Response{},
-	}
-	pearAC, pearB := newMultiPears(t, []syntax.DID{aDID, cDID}, []syntax.DID{bDID}, mockXRPCs)
+		mockXRPCs := &mockXrpcChannel{
+			actions: []*http.Response{},
+		}
+		pearAC, pearB := newMultiPears(t, []syntax.DID{aDID, cDID}, []syntax.DID{bDID}, mockXRPCs)
 
-	// A creates the clique and adds B as a member
-	clique, err := pearAC.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
-	require.NoError(t, err)
+		// A creates the clique and adds B as a member
+		clique, err := pearAC.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
+		require.NoError(t, err)
 
-	val := map[string]any{"data": "value"}
-	validate := true
-	coll := syntax.NSID("my.fake.collection")
-	aRkey := syntax.RecordKey("a-record")
-	bRkey := syntax.RecordKey("b-record")
+		val := map[string]any{"data": "value"}
+		validate := true
+		coll := syntax.NSID("my.fake.collection")
+		aRkey := syntax.RecordKey("a-record")
+		bRkey := syntax.RecordKey("b-record")
 
-	// A and B both are direct grantees of the clique
-	isMember, err := pearAC.IsCliqueMember(t.Context(), aDID, clique, aDID)
-	require.NoError(t, err)
-	require.True(t, isMember)
+		// A and B both are direct grantees of the clique
+		isMember, err := pearAC.IsCliqueMember(t.Context(), aDID, clique, aDID)
+		require.NoError(t, err)
+		require.True(t, isMember)
 
-	isMember, err = pearB.IsCliqueMember(t.Context(), bDID, clique, bDID)
-	require.NoError(t, err)
-	require.True(t, isMember)
+		isMember, err = pearB.IsCliqueMember(t.Context(), bDID, clique, bDID)
+		require.NoError(t, err)
+		require.True(t, isMember)
 
-	// A creates a record and grants access to the clique
-	_, err = pearAC.PutRecord(t.Context(), aDID, aDID, coll, val, aRkey, &validate, []permissions.Grantee{clique})
-	require.NoError(t, err)
+		// A creates a record and grants access to the clique
+		_, err = pearAC.PutRecord(t.Context(), aDID, aDID, coll, val, aRkey, &validate, []permissions.Grantee{clique})
+		require.NoError(t, err)
 
-	// B creates a record and grants access to the same clique
-	_, err = pearB.PutRecord(t.Context(), bDID, bDID, coll, val, bRkey, &validate, []permissions.Grantee{clique})
-	require.NoError(t, err)
+		// B creates a record and grants access to the same clique
+		_, err = pearB.PutRecord(t.Context(), bDID, bDID, coll, val, bRkey, &validate, []permissions.Grantee{clique})
+		require.NoError(t, err)
 
-	// Both A and B can see both records
-	got, err := pearAC.GetRecord(t.Context(), coll, aRkey, aDID, aDID)
-	require.NoError(t, err)
-	require.NotNil(t, got)
+		// Both A and B can see both records
+		got, err := pearAC.GetRecord(t.Context(), coll, aRkey, aDID, aDID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
 
-	// This is going to call out to B's pear. So mock an xrpc.
-	bRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
-	require.NoError(t, err)
-	output := &habitat.NetworkHabitatRepoGetRecordOutput{
-		Uri: fmt.Sprintf(
-			"habitat://%s/%s/%s",
-			bDID.String(),
-			coll,
-			bRkey,
-		),
-		Value: bRec.Value,
-	}
-	output.Value = bRec.Value
+		// This is going to call out to B's pear. So mock an xrpc.
+		bRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
+		require.NoError(t, err)
+		output := &habitat.NetworkHabitatRepoGetRecordOutput{
+			Uri: fmt.Sprintf(
+				"habitat://%s/%s/%s",
+				bDID.String(),
+				coll,
+				bRkey,
+			),
+			Value: bRec.Value,
+		}
+		output.Value = bRec.Value
 
-	body, err := json.Marshal(output)
-	require.NoError(t, err)
+		body, err := json.Marshal(output)
+		require.NoError(t, err)
 
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(body)),
-		Header:     make(http.Header),
-	}
-	mockXRPCs.actions = append(mockXRPCs.actions, resp)
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(body)),
+			Header:     make(http.Header),
+		}
+		mockXRPCs.actions = append(mockXRPCs.actions, resp)
 
-	got, err = pearAC.GetRecord(t.Context(), coll, bRkey, bDID, aDID)
-	require.NoError(t, err)
-	require.NotNil(t, got)
+		got, err = pearAC.GetRecord(t.Context(), coll, bRkey, bDID, aDID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
 
-	// This is going to call out to A's pear. So mock an xrpc.
-	aRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
-	require.NoError(t, err)
-	output = &habitat.NetworkHabitatRepoGetRecordOutput{
-		Uri: fmt.Sprintf(
-			"habitat://%s/%s/%s",
-			aDID.String(),
-			coll,
-			aRkey,
-		),
-		Value: aRec.Value,
-	}
-	output.Value = aRec.Value
-	body, err = json.Marshal(output)
-	require.NoError(t, err)
+		// This is going to call out to A's pear. So mock an xrpc.
+		aRec, err := pearB.getRecordLocal(t.Context(), coll, bRkey, bDID, bDID)
+		require.NoError(t, err)
+		output = &habitat.NetworkHabitatRepoGetRecordOutput{
+			Uri: fmt.Sprintf(
+				"habitat://%s/%s/%s",
+				aDID.String(),
+				coll,
+				aRkey,
+			),
+			Value: aRec.Value,
+		}
+		output.Value = aRec.Value
+		body, err = json.Marshal(output)
+		require.NoError(t, err)
 
-	resp = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(body)),
-		Header:     make(http.Header),
-	}
-	mockXRPCs.actions = append(mockXRPCs.actions, resp)
+		resp = &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(body)),
+			Header:     make(http.Header),
+		}
+		mockXRPCs.actions = append(mockXRPCs.actions, resp)
 
-	// Both A and B can list both records via ListRecords
-	aRecords, err := pearAC.ListRecords(t.Context(), aDID, coll, nil)
-	require.NoError(t, err)
-	require.Len(t, aRecords, 2)
+		// Both A and B can list both records via ListRecords
+		aRecords, err := pearAC.ListRecords(t.Context(), aDID, coll, nil)
+		require.NoError(t, err)
+		require.Len(t, aRecords, 2)
 
-	bRecords, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
-	require.NoError(t, err)
-	require.Len(t, bRecords, 2)
+		bRecords, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
+		require.NoError(t, err)
+		require.Len(t, bRecords, 2)
 
-	// A adds C to the clique
-	require.NoError(t, pearAC.cliqueStore.AddMembers(clique, []syntax.DID{cDID}))
+		// A adds C to the clique
+		require.NoError(t, pearAC.cliqueStore.AddMembers(clique, []syntax.DID{cDID}))
 
-	// C can see both records
-	got, err = pearAC.GetRecord(t.Context(), coll, aRkey, aDID, cDID)
-	require.NoError(t, err)
-	require.NotNil(t, got)
+		// C can see both records
+		got, err = pearAC.GetRecord(t.Context(), coll, aRkey, aDID, cDID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
 
-	got, err = pearAC.GetRecord(t.Context(), coll, bRkey, bDID, cDID)
-	require.NoError(t, err)
-	require.NotNil(t, got)
+		got, err = pearAC.GetRecord(t.Context(), coll, bRkey, bDID, cDID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
 
-	// C can also list both records via ListRecords
-	cRecords, err := pearAC.ListRecords(t.Context(), cDID, coll, nil)
-	require.NoError(t, err)
-	require.Len(t, cRecords, 2)
+		// C can also list both records via ListRecords
+		cRecords, err := pearAC.ListRecords(t.Context(), cDID, coll, nil)
+		require.NoError(t, err)
+		require.Len(t, cRecords, 2)
 
-	// A removes B from the clique
-	require.NoError(t, pearAC.RemoveCliqueMembers(t.Context(), aDID, clique, []syntax.DID{bDID}))
+		// A removes B from the clique
+		require.NoError(t, pearAC.RemoveCliqueMembers(t.Context(), aDID, clique, []syntax.DID{bDID}))
 
-	// B can no longer see A's record
-	got, err = pearB.GetRecord(t.Context(), coll, aRkey, aDID, bDID)
-	require.Nil(t, got)
-	require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
+		// B can no longer see A's record
+		got, err = pearB.GetRecord(t.Context(), coll, aRkey, aDID, bDID)
+		require.Nil(t, got)
+		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
-	// B can still see its own record
-	got, err = pearB.GetRecord(t.Context(), coll, bRkey, bDID, bDID)
-	require.NoError(t, err)
-	require.NotNil(t, got)
+		// B can still see its own record
+		got, err = pearB.GetRecord(t.Context(), coll, bRkey, bDID, bDID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
 
-	// B can no longer list A's record; only sees its own
-	bRecordsAfterRemoval, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
-	require.NoError(t, err)
-	require.Len(t, bRecordsAfterRemoval, 1)
-	require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)
+		// B can no longer list A's record; only sees its own
+		bRecordsAfterRemoval, err := pearB.ListRecords(t.Context(), bDID, coll, nil)
+		require.NoError(t, err)
+		require.Len(t, bRecordsAfterRemoval, 1)
+		require.Equal(t, bDID.String(), bRecordsAfterRemoval[0].Did)
+	*/
 }
 
 // TestGetBlobRemote verifies that when B requests a blob owned by A (on a remote node),

@@ -52,11 +52,7 @@ func withNode(node node.Node) option {
 	}
 }
 
-func newPearForTest(t *testing.T, dir identity.Directory, opts ...option) *pear {
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
-	require.NoError(t, err)
-
+func newPearForTest(t *testing.T, db *gorm.DB, dir identity.Directory, opts ...option) *pear {
 	o := &options{
 		node: node.New(testServiceName, testServiceEndpoint, dir, &mockXrpcChannel{}),
 	}
@@ -74,7 +70,7 @@ func newPearForTest(t *testing.T, dir identity.Directory, opts ...option) *pear 
 
 	permissions, err := permissions.NewStore(db, cliqueStore)
 	require.NoError(t, err)
-	p := NewPear(o.node, dir, permissions, repo, cliqueStore, inbox)
+	p := NewPear(o.node, dir, permissions, repo, inbox)
 	return p
 }
 
@@ -96,7 +92,9 @@ func mockIdentities(dids []syntax.DID) identity.Directory {
 func TestMockIdentities(t *testing.T) {
 	example := syntax.DID("did:example:myid")
 	dir := mockIdentities([]syntax.DID{example})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	id, err := dir.LookupDID(t.Context(), example)
 	require.NoError(t, err)
@@ -116,7 +114,9 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	}
 
 	dir := mockIdentities([]syntax.DID{"did:example:myid", "did:example:anotherid"})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -155,7 +155,9 @@ func TestListOwnRecords(t *testing.T) {
 		"someKey": "someVal",
 	}
 	dir := mockIdentities([]syntax.DID{"did:example:myid"})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -177,7 +179,9 @@ func TestListOwnRecords(t *testing.T) {
 
 func TestListRecords(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:myid", "did:example:otherid", "did:example:readerid", "did:example:specificreader"})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -186,7 +190,7 @@ func TestListRecords(t *testing.T) {
 	coll1 := syntax.NSID("my.fake.collection1")
 	coll2 := syntax.NSID("my.fake.collection2")
 
-	_, err := p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll1, val, "rkey1", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll1, val, "rkey1", &validate, []permissions.Grantee{})
 	require.NoError(t, err)
 	_, err = p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll1, val, "rkey2", &validate, []permissions.Grantee{})
 	require.NoError(t, err)
@@ -249,7 +253,9 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, grantee1DID, grantee2DID, nonGranteeDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	val := map[string]any{"data": "secret"}
 	coll := syntax.NSID("my.fake.collection")
@@ -282,12 +288,14 @@ func TestPutRecordCrossUserUnauthorized(t *testing.T) {
 	targetDID := syntax.DID("did:plc:target")
 
 	dir := mockIdentities([]syntax.DID{callerDID, targetDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	val := map[string]any{"data": "value"}
 	validate := true
 
-	_, err := p.PutRecord(t.Context(), syntax.DID(callerDID), syntax.DID(targetDID), "my.fake.collection", val, "some-rkey", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(t.Context(), syntax.DID(callerDID), syntax.DID(targetDID), "my.fake.collection", val, "some-rkey", &validate, []permissions.Grantee{})
 	require.Error(t, err)
 }
 
@@ -297,10 +305,15 @@ func TestCliqueFlow(t *testing.T) {
 	cDID := syntax.DID("did:example:c")
 
 	dir := mockIdentities([]syntax.DID{aDID, bDID, cDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
+
+	cs, err := clique.NewStore(db)
+	require.NoError(t, err)
 
 	// A creates the clique and adds B as a member
-	clique, err := p.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
+	clique, err := cs.CreateClique(aDID, []syntax.DID{bDID})
 	require.NoError(t, err)
 
 	val := map[string]any{"data": "value"}
@@ -310,11 +323,11 @@ func TestCliqueFlow(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	isMember, err := p.IsCliqueMember(t.Context(), aDID, clique, aDID)
+	isMember, err := cs.IsMember(clique, aDID)
 	require.NoError(t, err)
 	require.True(t, isMember)
 
-	isMember, err = p.IsCliqueMember(t.Context(), bDID, clique, bDID)
+	isMember, err = cs.IsMember(clique, bDID)
 	require.NoError(t, err)
 	require.True(t, isMember)
 
@@ -353,7 +366,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, bRecords, 2)
 
 	// A adds C to the clique
-	require.NoError(t, p.AddCliqueMembers(t.Context(), aDID, clique, []syntax.DID{cDID}))
+	require.NoError(t, cs.AddMembers(clique, []syntax.DID{cDID}))
 
 	// C can see both records
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(cDID))
@@ -370,7 +383,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, cRecords, 2)
 
 	// A removes B from the clique
-	require.NoError(t, p.RemoveCliqueMembers(t.Context(), aDID, clique, []syntax.DID{bDID}))
+	require.NoError(t, cs.RemoveMembers(clique, []syntax.DID{bDID}))
 
 	// B can no longer see A's record
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(bDID))
@@ -394,7 +407,9 @@ func TestNotifyOfUpdate(t *testing.T) {
 	recipientDID := syntax.DID("did:plc:recipient")
 
 	dir := mockIdentities([]syntax.DID{senderDID, recipientDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	collection := "my.fake.collection"
 	rkey := "my-rkey"
@@ -457,10 +472,15 @@ func TestListCollections(t *testing.T) {
 	granteeDID := syntax.DID("did:example:grantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, memberDID, granteeDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
+
+	cs, err := clique.NewStore(db)
+	require.NoError(t, err)
 
 	// Create a clique owned by owner with member as a member
-	clique, err := p.CreateClique(t.Context(), ownerDID, []syntax.DID{memberDID})
+	clique, err := cs.CreateClique(ownerDID, []syntax.DID{memberDID})
 	require.NoError(t, err)
 
 	coll := syntax.NSID("my.fake.collection")
@@ -493,14 +513,16 @@ func TestDeleteRecord(t *testing.T) {
 	otherDID := syntax.DID("did:example:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, otherDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 	val := map[string]any{"key": "val"}
 
-	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, val, rkey, &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, val, rkey, &validate, []permissions.Grantee{})
 	require.NoError(t, err)
 
 	t.Run("non-owner cannot delete", func(t *testing.T) {
@@ -528,7 +550,9 @@ func TestDeleteRecord(t *testing.T) {
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:alice"})
-	pear := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	pear := newPearForTest(t, db, dir)
 
 	did := syntax.DID("did:example:alice")
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
@@ -574,7 +598,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	require.NoError(t, err)
 	perms, err := permissions.NewStore(db, cliqueStore)
 	require.NoError(t, err)
-	p := NewPear(n, dir, perms, repoStore, cliqueStore, inboxInstance)
+	p := NewPear(n, dir, perms, repoStore, inboxInstance)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -688,7 +712,9 @@ func TestGetBlobPermissionsViaRecord(t *testing.T) {
 	bobDID := syntax.DID("did:example:bob")
 	charlieDID := syntax.DID("did:example:charlie")
 	dir := mockIdentities([]syntax.DID{aliceDID, bobDID, charlieDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	// Alice uploads a blob.
 	blobData := []byte("this is my test blob")

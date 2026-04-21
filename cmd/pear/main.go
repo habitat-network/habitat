@@ -164,7 +164,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter, pearOrg)
-	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
+	cliqueStore, err := clique.NewStore(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup clique store")
+	}
+
+	pear, err := setupPear(cmd, dir, node, cliqueStore, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
@@ -184,6 +189,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
+
+	cliqueServer := clique.NewServer(cliqueStore, oauthServer, authn.NewServiceAuthMethod(dir))
 
 	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
@@ -239,11 +246,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission", pearServer.RemovePermission)
 
 	// cliques
-	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", pearServer.CreateClique)
-	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", pearServer.AddCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
+	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
+	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", cliqueServer.RemoveCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
 	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
@@ -378,6 +385,7 @@ func setupPear(
 	cmd *cli.Command,
 	dir identity.Directory,
 	node node.Node,
+	cliqueStore clique.Store,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	clientFactory pdsclient.HttpClientFactory,
@@ -385,11 +393,6 @@ func setupPear(
 	repo, err := repo.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
-	}
-
-	cliqueStore, err := clique.NewStore(db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create clique store: %w", err)
 	}
 
 	permissions, err := permissions.NewStore(db, cliqueStore)
@@ -402,7 +405,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, cliqueStore, inbox), nil
+	return pear.NewPear(node, dir, permissions, repo, inbox), nil
 }
 
 func setupOAuthServer(
