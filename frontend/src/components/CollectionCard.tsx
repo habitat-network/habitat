@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
+import { CollectionMetadata } from "api/types/network/habitat/repo/describeRepo";
 import { AuthManager, GranteeAvatars } from "internal";
 import {
   Item,

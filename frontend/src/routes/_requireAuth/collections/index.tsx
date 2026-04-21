@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
   async loader({ context }) {
     const { authManager } = context;
     const collectionsData = await query(
-      "network.habitat.repo.listCollections",
+      "network.habitat.repo.describeRepo",
       {},
       { authManager },
     );

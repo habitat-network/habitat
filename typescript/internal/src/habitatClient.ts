@@ -13,7 +13,7 @@ import type {
   NetworkHabitatListConnectedApps,
   NetworkHabitatRepoDeleteRecord,
   NetworkHabitatRepoGetRecord,
-  NetworkHabitatRepoListCollections,
+  NetworkHabitatRepoDescribeRepo,
   NetworkHabitatRepoListRecords,
   NetworkHabitatRepoPutRecord,
   NetworkHabitatPermissionsAddPermission,
@@ -77,9 +77,9 @@ type QueryEndpoints = {
     AppBskyActorGetProfiles.QueryParams,
     AppBskyActorGetProfiles.OutputSchema
   >;
-  "network.habitat.repo.listCollections": Query<
-    NetworkHabitatRepoListCollections.QueryParams,
-    NetworkHabitatRepoListCollections.OutputSchema
+  "network.habitat.repo.describeRepo": Query<
+    NetworkHabitatRepoDescribeRepo.QueryParams,
+    NetworkHabitatRepoDescribeRepo.OutputSchema
   >;
   "network.habitat.listConnectedApps": Query<
     NetworkHabitatListConnectedApps.QueryParams,

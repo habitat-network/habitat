@@ -1,24 +1,42 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.repo.listCollections",
+    "id": "network.habitat.repo.describeRepo",
     "defs": {
         "main": {
             "type": "query",
-            "description": "List collections for a given user. Returns collections for the authenticated user.",
+            "description": "Get information about an account and repository, including the list of collections.",
             "output": {
                 "encoding": "application/json",
                 "schema": {
                     "type": "object",
                     "required": [
-                        "collections"
+                        "handle",
+                        "did",
+                        "didDoc",
+                        "collections",
+                        "handleIsCorrect"
                     ],
                     "properties": {
+                        "handle": {
+                            "type": "string",
+                            "format": "handle"
+                        },
+                        "did": {
+                            "type": "string",
+                            "format": "did"
+                        },
+                        "didDoc": {
+                            "type": "unknown"
+                        },
                         "collections": {
                             "type": "array",
                             "items": {
                                 "type": "ref",
-                                "ref": "network.habitat.repo.listCollections#collectionMetadata"
+                                "ref": "network.habitat.repo.describeRepo#collectionMetadata"
                             }
+                        },
+                        "handleIsCorrect": {
+                            "type": "boolean"
                         }
                     }
                 }
@@ -35,7 +53,7 @@
             "properties": {
                 "nsid": {
                     "type": "string",
-                    "description": "The NSID of this collection,"
+                    "description": "The NSID of this collection."
                 },
                 "recordCount": {
                     "type": "integer",

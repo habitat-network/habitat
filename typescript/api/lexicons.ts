@@ -1726,6 +1726,83 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatRepoDescribeRepo: {
+    lexicon: 1,
+    id: 'network.habitat.repo.describeRepo',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get information about an account and repository, including the list of collections.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: [
+              'handle',
+              'did',
+              'didDoc',
+              'collections',
+              'handleIsCorrect',
+            ],
+            properties: {
+              handle: {
+                type: 'string',
+                format: 'handle',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+              },
+              didDoc: {
+                type: 'unknown',
+              },
+              collections: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.repo.describeRepo#collectionMetadata',
+                },
+              },
+              handleIsCorrect: {
+                type: 'boolean',
+              },
+            },
+          },
+        },
+      },
+      collectionMetadata: {
+        type: 'object',
+        required: ['nsid', 'recordCount', 'lastTouched', 'grantees'],
+        properties: {
+          nsid: {
+            type: 'string',
+            description: 'The NSID of this collection.',
+          },
+          recordCount: {
+            type: 'integer',
+            description: 'Number of records for this collection.',
+          },
+          lastTouched: {
+            type: 'string',
+            format: 'datetime',
+            description:
+              'The last time a record in this collection was touched.',
+          },
+          grantees: {
+            type: 'array',
+            items: {
+              type: 'union',
+              refs: [
+                'lex:network.habitat.grantee#didGrantee',
+                'lex:network.habitat.grantee#clique',
+              ],
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatRepoGetBlob: {
     lexicon: 1,
     id: 'network.habitat.repo.getBlob',
@@ -1838,63 +1915,6 @@ export const schemaDict = {
             name: 'RecordNotFound',
           },
         ],
-      },
-    },
-  },
-  NetworkHabitatRepoListCollections: {
-    lexicon: 1,
-    id: 'network.habitat.repo.listCollections',
-    defs: {
-      main: {
-        type: 'query',
-        description:
-          'List collections for a given user. Returns collections for the authenticated user.',
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['collections'],
-            properties: {
-              collections: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.repo.listCollections#collectionMetadata',
-                },
-              },
-            },
-          },
-        },
-      },
-      collectionMetadata: {
-        type: 'object',
-        required: ['nsid', 'recordCount', 'lastTouched', 'grantees'],
-        properties: {
-          nsid: {
-            type: 'string',
-            description: 'The NSID of this collection,',
-          },
-          recordCount: {
-            type: 'integer',
-            description: 'Number of records for this collection.',
-          },
-          lastTouched: {
-            type: 'string',
-            format: 'datetime',
-            description:
-              'The last time a record in this collection was touched.',
-          },
-          grantees: {
-            type: 'array',
-            items: {
-              type: 'union',
-              refs: [
-                'lex:network.habitat.grantee#didGrantee',
-                'lex:network.habitat.grantee#clique',
-              ],
-            },
-          },
-        },
       },
     },
   },
@@ -2172,9 +2192,9 @@ export const ids = {
   NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',
+  NetworkHabitatRepoDescribeRepo: 'network.habitat.repo.describeRepo',
   NetworkHabitatRepoGetBlob: 'network.habitat.repo.getBlob',
   NetworkHabitatRepoGetRecord: 'network.habitat.repo.getRecord',
-  NetworkHabitatRepoListCollections: 'network.habitat.repo.listCollections',
   NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',

@@ -466,7 +466,7 @@ func TestNotifyOfUpdate(t *testing.T) {
 	})
 }
 
-func TestListCollections(t *testing.T) {
+func TestDescribeRepo(t *testing.T) {
 	ownerDID := syntax.DID("did:example:owner")
 	memberDID := syntax.DID("did:example:member")
 	granteeDID := syntax.DID("did:example:grantee")
@@ -499,13 +499,14 @@ func TestListCollections(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	collections, err := p.ListCollections(t.Context(), ownerDID, ownerDID)
+	description, err := p.DescribeRepo(t.Context(), ownerDID, ownerDID)
 	require.NoError(t, err)
-	require.Len(t, collections, 1)
-	require.Equal(t, coll.String(), collections[0].Name)
+	require.Equal(t, ownerDID, description.DID)
+	require.Len(t, description.Collections, 1)
+	require.Equal(t, coll.String(), description.Collections[0].Name)
 
 	// Only the DID grantee should be returned, not the clique grantee
-	require.Len(t, collections[0].Grantees, 2)
+	require.Len(t, description.Collections[0].Grantees, 2)
 }
 
 func TestDeleteRecord(t *testing.T) {

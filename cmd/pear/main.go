@@ -234,7 +234,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
+	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)

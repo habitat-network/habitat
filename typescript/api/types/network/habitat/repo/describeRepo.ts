@@ -14,13 +14,17 @@ import type * as NetworkHabitatGrantee from '../grantee.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.repo.listCollections'
+const id = 'network.habitat.repo.describeRepo'
 
 export type QueryParams = {}
 export type InputSchema = undefined
 
 export interface OutputSchema {
+  handle: string
+  did: string
+  didDoc: { [_ in string]: unknown }
   collections: CollectionMetadata[]
+  handleIsCorrect: boolean
 }
 
 export interface CallOptions {
@@ -39,8 +43,8 @@ export function toKnownErr(e: any) {
 }
 
 export interface CollectionMetadata {
-  $type?: 'network.habitat.repo.listCollections#collectionMetadata'
-  /** The NSID of this collection, */
+  $type?: 'network.habitat.repo.describeRepo#collectionMetadata'
+  /** The NSID of this collection. */
   nsid: string
   /** Number of records for this collection. */
   recordCount: number

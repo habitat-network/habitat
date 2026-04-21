@@ -500,24 +500,29 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
+func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
 
-	collections, err := s.pear.ListCollections(r.Context(), callerDID, callerDID)
+	description, err := s.pear.DescribeRepo(r.Context(), callerDID, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "listing collections", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "describing repo", http.StatusInternalServerError)
 		return
 	}
 
-	var output habitat.NetworkHabitatRepoListCollectionsOutput
-	output.Collections = make([]habitat.NetworkHabitatRepoListCollectionsCollectionMetadata, len(collections))
+	output := habitat.NetworkHabitatRepoDescribeRepoOutput{
+		Did:             description.DID.String(),
+		Handle:          description.Handle,
+		DidDoc:          description.DIDDoc,
+		HandleIsCorrect: description.HandleIsCorrect,
+		Collections:     make([]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata, len(description.Collections)),
+	}
 
-	for i, c := range collections {
+	for i, c := range description.Collections {
 		grantees := permissions.ConstructInterfaceFromGrantees(c.Grantees)
-		output.Collections[i] = habitat.NetworkHabitatRepoListCollectionsCollectionMetadata{
+		output.Collections[i] = habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata{
 			Grantees:    grantees,
 			LastTouched: c.LastTouched.Format(time.RFC3339Nano),
 			Nsid:        c.Name,
@@ -525,8 +530,7 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
+	if err = json.NewEncoder(w).Encode(output); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}

@@ -46,7 +46,7 @@ type Pear interface {
 	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
 	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error)
 	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
-	ListCollections(ctx context.Context, caller syntax.DID, subject syntax.DID) ([]CollectionMetadata, error)
+	DescribeRepo(ctx context.Context, caller syntax.DID, subject syntax.DID) (*RepoDescription, error)
 
 	// Inbox / Node-to-node communication related methods
 	NotifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
@@ -479,9 +479,22 @@ type CollectionMetadata struct {
 	Grantees []permissions.Grantee
 }
 
-func (p *pear) ListCollections(ctx context.Context, caller syntax.DID, subject syntax.DID) ([]CollectionMetadata, error) {
+type RepoDescription struct {
+	DID             syntax.DID
+	Handle          string
+	DIDDoc          identity.DIDDocument
+	HandleIsCorrect bool
+	Collections     []CollectionMetadata
+}
+
+func (p *pear) DescribeRepo(ctx context.Context, caller syntax.DID, subject syntax.DID) (*RepoDescription, error) {
 	if caller != subject {
 		return nil, habitat_err.ErrUnauthorized
+	}
+
+	id, err := p.dir.LookupDID(ctx, subject)
+	if err != nil {
+		return nil, err
 	}
 
 	collections, err := p.repo.ListCollections(ctx, subject)
@@ -506,7 +519,13 @@ func (p *pear) ListCollections(ctx context.Context, caller syntax.DID, subject s
 		}
 	}
 
-	return md, nil
+	return &RepoDescription{
+		DID:             id.DID,
+		Handle:          id.Handle.String(),
+		DIDDoc:          id.DIDDocument(),
+		HandleIsCorrect: id.Handle != syntax.HandleInvalid,
+		Collections:     md,
+	}, nil
 }
 
 func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
