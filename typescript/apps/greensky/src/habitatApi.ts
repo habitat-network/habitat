@@ -1,4 +1,4 @@
-import { Actor, AuthManager, query } from "internal";
+import { Actor, AuthManager } from "internal";
 
 export interface CliqueRefPermission {
   $type: "network.habitat.grantee#cliqueRef";
@@ -164,33 +164,26 @@ export async function getPrivatePost(
 }
 
 export async function getProfiles(
-  authManager: AuthManager,
+  _authManager: AuthManager,
   actors: string[],
 ): Promise<Actor[]> {
   if (actors.length === 0) return [];
-  const { profiles } = await query(
-    "app.bsky.actor.getProfiles",
-    {
-      actors,
-    },
-    { authManager },
+  const params = new URLSearchParams();
+  actors.forEach((a) => params.append("actors", a));
+  const response = await fetch(
+    `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles?${params.toString()}`,
   );
+  const { profiles } = await response.json();
   return profiles;
 }
 
 export async function getProfile(
-  authManager: AuthManager,
+  _authManager: AuthManager,
   actor: string,
 ): Promise<Profile> {
-  const headers = new Headers();
-  headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
-  const params = new URLSearchParams();
-  params.append("actor", actor);
-  const response = await authManager.fetch(
-    `/xrpc/app.bsky.actor.getProfile?${params.toString()}`,
-    "GET",
-    null,
-    headers,
+  const params = new URLSearchParams({ actor });
+  const response = await fetch(
+    `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?${params.toString()}`,
   );
   return response.json();
 }

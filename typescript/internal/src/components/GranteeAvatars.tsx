@@ -37,21 +37,21 @@ const GranteeAvatars = ({
             return members;
           }) ?? [],
       );
-      const { profiles } = await query(
-        "app.bsky.actor.getProfiles",
-        {
-          actors: [
-            ...new Set(
-              cliqueMemberLists
-                .flat()
-                .concat(
-                  grantees?.filter((g) => "did" in g).map((g) => g.did) ?? [],
-                ),
+      const actors = [
+        ...new Set(
+          cliqueMemberLists
+            .flat()
+            .concat(
+              grantees?.filter((g) => "did" in g).map((g) => g.did) ?? [],
             ),
-          ],
-        },
-        { authManager },
+        ),
+      ];
+      const params = new URLSearchParams();
+      actors.forEach((a) => params.append("actors", a));
+      const profilesRes = await fetch(
+        `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfiles?${params.toString()}`,
       );
+      const { profiles } = await profilesRes.json();
       return profiles;
     },
   });

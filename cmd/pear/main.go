@@ -253,7 +253,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
 	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
-	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
+	// Only forward specific routes that we know we handle correctly; for now.
+	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
+	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
+	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", pdsForwarding.ServeHTTP)
 
 	postHogUrl, err := url.Parse("https://us.i.posthog.com")
 	if err != nil {
