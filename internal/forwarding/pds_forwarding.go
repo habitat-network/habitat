@@ -1,4 +1,4 @@
-package main
+package forwarding
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/oauthserver"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -32,23 +32,23 @@ var targetRoutedMethods = map[string]string{
 	"com.atproto.sync.getBlob":         "did",
 }
 
-type pdsForwarding struct {
-	oauthServer      *oauthserver.OAuthServer
+type PDSForwarding struct {
+	oauth            authn.Method
 	pdsClientFactory pdsclient.HttpClientFactory
 	dir              identity.Directory
 	plainHTTPClient  *http.Client
 }
 
-var _ http.Handler = (*pdsForwarding)(nil)
+var _ http.Handler = (*PDSForwarding)(nil)
 
-func newPDSForwarding(
+func NewPDSForwarding(
 	credStore pdscred.PDSCredentialStore,
-	oauthServer *oauthserver.OAuthServer,
+	oauthServer authn.Method,
 	pdsClientFactory pdsclient.HttpClientFactory,
 	dir identity.Directory,
-) *pdsForwarding {
-	return &pdsForwarding{
-		oauthServer:      oauthServer,
+) *PDSForwarding {
+	return &PDSForwarding{
+		oauth:            oauthServer,
 		pdsClientFactory: pdsClientFactory,
 		dir:              dir,
 		plainHTTPClient:  &http.Client{},
@@ -56,7 +56,7 @@ func newPDSForwarding(
 }
 
 // ServeHTTP implements http.Handler.
-func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (p *PDSForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := strings.TrimPrefix(r.URL.Path, "/xrpc/")
 	if paramName, ok := targetRoutedMethods[method]; ok {
 		target := r.URL.Query().Get(paramName)
@@ -81,7 +81,7 @@ func (p *pdsForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.serveCallerPDS(w, r)
 }
 
-func (p *pdsForwarding) serveTargetPDS(w http.ResponseWriter, r *http.Request, caller syntax.AtIdentifier) {
+func (p *PDSForwarding) serveTargetPDS(w http.ResponseWriter, r *http.Request, caller syntax.AtIdentifier) {
 	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
 	id, err := p.dir.Lookup(context.Background(), caller)
 	if err != nil {
@@ -157,8 +157,8 @@ func (p *pdsForwarding) serveTargetPDS(w http.ResponseWriter, r *http.Request, c
 	}
 }
 
-func (p *pdsForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
-	did, ok := p.oauthServer.Validate(w, r)
+func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
+	did, ok := p.oauth.Validate(w, r)
 	if !ok {
 		return
 	}
