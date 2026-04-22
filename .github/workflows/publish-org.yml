@@ -1,4 +1,4 @@
-name: Publish Pear Image
+name: Publish Org Image
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/habitat-network/pear
+          images: ghcr.io/habitat-network/org
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' && github.event_name != 'workflow_dispatch' }}
             type=raw,value={{branch}},enable=${{ github.event_name == 'workflow_dispatch' }}
@@ -41,7 +41,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: build/debian/pear/Dockerfile
+          file: build/debian/org/Dockerfile
           push: true
           platforms: linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
