@@ -16,8 +16,6 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/oauthserver"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
@@ -36,9 +34,6 @@ type Server struct {
 	// Implementation of permission-enforcing atprotocol repo
 	pear pear.Pear
 
-	// The organization this pear server belongs to
-	org org.Org
-
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
 
@@ -50,9 +45,8 @@ type Server struct {
 func NewServer(
 	dir identity.Directory,
 	pear pear.Pear,
-	oauthServer *oauthserver.OAuthServer,
+	oauthServer authn.Method,
 	serviceAuthMethod authn.Method,
-	orgStore org.Org,
 ) *Server {
 	server := &Server{
 		dir:  dir,
@@ -62,7 +56,6 @@ func NewServer(
 			serviceAuth: serviceAuthMethod,
 		},
 		decoder: schema.NewDecoder(),
-		org:     orgStore,
 	}
 	return server
 }

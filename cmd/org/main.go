@@ -152,8 +152,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	mux := mux.NewRouter()
 
-	everyoneOrg := org.NewEveryoneOrg()
-	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter, everyoneOrg)
+	// Default: no org == org that serves everyone
+	pearOrg, err := org.NewOrg(domain, db)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
+	}
+
+	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter, pearOrg)
 	cliqueStore, err := clique.NewStore(db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup clique store")
@@ -165,7 +170,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Server for org management routes
-	orgServer, err := org.NewServer(everyoneOrg, oauthServer)
+	orgServer, err := org.NewServer(pearOrg, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 	}
@@ -192,21 +197,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
 	mux.Use(otelmux.Middleware("habitat-server"))
 	mux.Use(corsMiddleware)
-
-	// handle waitlist signups
-	// TODO: this should be moved to a separate server; no need to run it for orgs
-	waitlistSvc, err := NewWaitlistService(
-		egCtx,
-		os.Getenv("WAITLIST_SHEET_ID"),
-		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
-	)
-	if err == nil {
-		log.Info().Msgf("successfully set up waitlist service")
-		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
-	} else {
-		// Not a fatal error: log and move on
-		log.Err(err).Msgf("unable to set up waitlist service")
-	}
 
 	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
