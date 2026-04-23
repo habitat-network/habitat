@@ -23,7 +23,6 @@ export const Route = createFileRoute("/_requireAuth/_forwarding-test")({
           style={{ width: 50, height: 50, borderRadius: "50%" }}
         />
         {data.displayName || data.handle}
-        <span>{data.followersCount} followers</span>
       </div>
     );
   },

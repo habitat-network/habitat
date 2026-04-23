@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/view")({
       { repo: did, rkey, collection: "network.habitat.test" },
       { authManager: context.authManager },
     );
-    return json.foo;
+    return JSON.stringify(json);
   },
   component() {
     const message = Route.useLoaderData();

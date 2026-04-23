@@ -30,7 +30,6 @@ interface NewPostButtonProps {
 
 export function NewPostButton({
   authManager,
-  _isOnboarded,
 }: NewPostButtonProps) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,18 +59,6 @@ export function NewPostButton({
         createdAt: new Date().toISOString(),
       };
 
-      async function checkResponse(res: Response) {
-        if (!res.ok) {
-          let message = `Request failed: ${res.status} ${res.statusText}`;
-          try {
-            const body = await res.json();
-            if (body.message) message = body.message;
-            else if (body.error) message = body.error;
-          } catch { }
-          throw new Error(message);
-        }
-      }
-
       if (formData.visibility === "followers") {
         await procedure(
           "network.habitat.repo.putRecord",
@@ -81,8 +68,8 @@ export function NewPostButton({
             record,
             grantees: [
               {
-                $type: "network.habitat.grantee#cliqueRef",
-                uri: `habitat://${did}/network.habitat.clique/followers`,
+                $type: "network.habitat.grantee#clique",
+                clique: `habitat://${did}/network.habitat.clique/followers`,
               },
             ],
           },
@@ -123,8 +110,8 @@ export function NewPostButton({
             record,
             grantees: [
               {
-                $type: "network.habitat.grantee#cliqueRef",
-                uri: cliqueUri,
+                $type: "network.habitat.grantee#clique",
+                clique: cliqueUri,
               },
             ],
           },
