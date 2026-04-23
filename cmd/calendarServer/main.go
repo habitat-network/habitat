@@ -48,6 +48,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		store,
 		authMethod,
 		cmd.String(fDomain),
+		cmd.Bool(fDebug),
 	)
 
 	port := cmd.Int(fPort)

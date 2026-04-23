@@ -28,6 +28,7 @@ func NewServer(
 	store *Store,
 	authMethod authn.Method,
 	domain string,
+	debug bool,
 ) *Server {
 	s := &Server{
 		router:     mux.NewRouter(),
@@ -35,6 +36,20 @@ func NewServer(
 		store:      store,
 		authMethod: authMethod,
 		domain:     domain,
+	}
+
+	if debug {
+		s.router.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				dump, err := httputil.DumpRequest(r, true)
+				if err == nil {
+					log.Println(string(dump))
+				} else {
+					log.Println("failed to dump request", err)
+				}
+				next.ServeHTTP(w, r)
+			})
+		})
 	}
 
 	s.setupRoutes()
@@ -306,6 +321,7 @@ func writeError(w http.ResponseWriter, error string, message string, status int)
 }
 
 type CalendarEvent struct {
+	ID          string                  `json:"id"`
 	Name        string                  `json:"name"`
 	Description string                  `json:"description,omitempty"`
 	CreatedAt   string                  `json:"createdAt"`
@@ -343,6 +359,7 @@ func googleEventToCalendarEvent(e *calendar.Event) CalendarEvent {
 	}
 
 	event := CalendarEvent{
+		ID:          e.Id,
 		Name:        e.Summary,
 		Description: e.Description,
 		CreatedAt:   e.Created,

@@ -43,3 +43,5 @@ cmd/pear/repo.db
 
 # Ignore claude worktrees
 .claude
+
+**/*.db
