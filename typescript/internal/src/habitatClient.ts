@@ -17,6 +17,8 @@ import type {
   NetworkHabitatRepoListRecords,
   NetworkHabitatRepoPutRecord,
   NetworkHabitatPermissionsAddPermission,
+  NetworkHabitatPermissionsListPermissions,
+  NetworkHabitatPermissionsRemovePermission,
   NetworkHabitatCliqueAddMembers,
   NetworkHabitatCliqueGetMembers,
   NetworkHabitatCliqueRemoveMembers,
@@ -100,7 +102,11 @@ type QueryEndpoints = {
   "network.habitat.org.getMetadata": Query<
     NetworkHabitatOrgGetMetadata.QueryParams,
     NetworkHabitatOrgGetMetadata.OutputSchema
-  >
+  >;
+  "network.habitat.permissions.listPermissions": Query<
+    NetworkHabitatPermissionsListPermissions.QueryParams,
+    NetworkHabitatPermissionsListPermissions.OutputSchema
+  >;
 };
 
 type Procedure<Params, Output> = { params: Params; output: Output };
@@ -152,6 +158,10 @@ type ProcedureEndpoints = {
   >;
   "network.habitat.org.downgradeAdmin": Procedure<
     NetworkHabitatOrgDowngradeAdmin.InputSchema,
+    void
+  >;
+  "network.habitat.permissions.removePermission": Procedure<
+    NetworkHabitatPermissionsRemovePermission.InputSchema,
     void
   >;
 };

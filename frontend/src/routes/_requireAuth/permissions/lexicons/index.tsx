@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
+import { procedure } from "internal";
 import { Permission } from "api/types/network/habitat/permissions/listPermissions";
 
 // Concrete wire types matching what the server's parseGrantees expects
@@ -68,11 +69,10 @@ function LexiconPermissions() {
         collection: formData.collection,
         ...(formData.rkey ? { rkey: formData.rkey } : {}),
       };
-      await authManager?.fetch(
-        `/xrpc/network.habitat.permissions.addPermission`,
-        "POST",
-        JSON.stringify(body),
-        new Headers({ "Content-Type": "application/json" }),
+      await procedure(
+        "network.habitat.permissions.addPermission",
+        body,
+        { authManager },
       );
       addForm.reset({ rkey: "" });
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
@@ -167,11 +167,10 @@ function CollectionDetail({
         collection,
         ...(rkey ? { rkey } : {}),
       };
-      await authManager?.fetch(
-        `/xrpc/network.habitat.permissions.removePermission`,
-        "POST",
-        JSON.stringify(body),
-        new Headers({ "Content-Type": "application/json" }),
+      await procedure(
+        "network.habitat.permissions.removePermission",
+        body,
+        { authManager },
       );
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
