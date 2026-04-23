@@ -2,6 +2,7 @@ import React from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useFieldArray, useForm } from "react-hook-form";
+import { procedure, query } from "internal";
 
 interface Grantee {
   type: "did" | "clique";
@@ -55,23 +56,17 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
               ? { $type: "network.habitat.grantee#didGrantee", did: g.value }
               : { $type: "network.habitat.grantee#cliqueRef", uri: g.value },
           );
-        const response = await authManager.fetch(
-          "/xrpc/network.habitat.repo.putRecord",
-          "POST",
-          JSON.stringify({
+        await procedure(
+          "network.habitat.repo.putRecord",
+          {
             collection: data.collection,
             record: recordObj,
             repo: data.repo,
             rkey: data.rkey,
             ...(grantees.length > 0 ? { grantees } : {}),
-          }),
+          },
+          { authManager },
         );
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(
-            body || `Request failed with status ${response.status}`,
-          );
-        }
       },
     });
 
@@ -83,18 +78,11 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
       error: getError,
     } = useMutation({
       async mutationFn(data: getData) {
-        const params = new URLSearchParams();
-        params.set("collection", data.collection);
-        params.set("repo", data.repo);
-        params.set("rkey", data.rkey);
-        const response = await authManager?.fetch(
-          `/xrpc/network.habitat.repo.getRecord?${params.toString()}`,
+        const json = await query(
+          "network.habitat.repo.getRecord",
+          { collection: data.collection, repo: data.repo, rkey: data.rkey },
+          { authManager },
         );
-        if (!response?.ok) {
-          const body = await response?.text();
-          throw new Error(`[${response?.status}] ${body || "Request failed"}`);
-        }
-        const json = await response.json();
         setFetchedRecord(JSON.stringify(json.value));
       },
     });

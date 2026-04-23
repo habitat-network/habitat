@@ -1,17 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getProfile } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/_forwarding-test")({
   async loader({ context }) {
     const authInfo = context.authManager.getAuthInfo();
-    const resp = await context.authManager.fetch(
-      `/xrpc/app.bsky.actor.getProfile?actor=${authInfo?.did}`,
-    );
-    const data: {
-      displayName: string;
-      avatar: string;
-      handle: string;
-      followersCount: number;
-    } = await resp?.json();
+    const data = await getProfile(authInfo?.did ?? "");
     return { data };
   },
   component() {

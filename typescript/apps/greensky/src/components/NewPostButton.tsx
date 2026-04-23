@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Actor, AuthManager } from "internal";
+import { Actor, AuthManager, procedure } from "internal";
 import {
   Button,
   Dialog,
@@ -73,10 +73,9 @@ export function NewPostButton({
       }
 
       if (formData.visibility === "followers") {
-        const res = await authManager.fetch(
-          "/xrpc/network.habitat.repo.putRecord",
-          "POST",
-          JSON.stringify({
+        await procedure(
+          "network.habitat.repo.putRecord",
+          {
             repo: did,
             collection: "app.bsky.feed.post",
             record,
@@ -86,9 +85,9 @@ export function NewPostButton({
                 uri: `habitat://${did}/network.habitat.clique/followers`,
               },
             ],
-          }),
+          },
+          { authManager },
         );
-        await checkResponse(res);
       } else {
         const dids = await Promise.all(
           specificUsers.map(async ({ handle }) => {
@@ -101,10 +100,9 @@ export function NewPostButton({
             return did;
           }),
         );
-        const cliqueRes = await authManager.fetch(
-          "/xrpc/network.habitat.repo.putRecord",
-          "POST",
-          JSON.stringify({
+        const cliqueData = await procedure(
+          "network.habitat.repo.putRecord",
+          {
             repo: did,
             collection: "network.habitat.clique",
             record,
@@ -112,16 +110,14 @@ export function NewPostButton({
               $type: "network.habitat.grantee#didGrantee",
               did,
             })),
-          }),
+          },
+          { authManager },
         );
-        await checkResponse(cliqueRes);
-        const data = await cliqueRes.json();
-        const cliqueUri = data.uri;
+        const cliqueUri = cliqueData.uri;
 
-        const res = await authManager.fetch(
-          "/xrpc/network.habitat.repo.putRecord",
-          "POST",
-          JSON.stringify({
+        await procedure(
+          "network.habitat.repo.putRecord",
+          {
             repo: did,
             collection: "app.bsky.feed.post",
             record,
@@ -131,9 +127,9 @@ export function NewPostButton({
                 uri: cliqueUri,
               },
             ],
-          }),
+          },
+          { authManager },
         );
-        await checkResponse(res);
       }
     },
   });
