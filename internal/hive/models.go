@@ -66,10 +66,10 @@ import (
 // The opaqueIDs must match the following pattern:
 var opaqueIDPattern = regexp.MustCompile(`^[a-z0-9]{6}$`)
 
-type member struct {
+type ident struct {
 	// Identifiers needed in DID doc
-	Handle   string
-	OpaqueID string
+	Handle   string `gorm:"primaryKey"`
+	OpaqueID string `gorm:"uniqueIndex"`
 
 	// Key management
 	SigningPublicKey     string
@@ -78,4 +78,11 @@ type member struct {
 	// Automatically managed by gorm
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// Parts of an identity that are publicly revealed in the DID doc
+type IdentPublic struct {
+	Handle           string
+	OpaqueID         string
+	SigningPublicKey string
 }

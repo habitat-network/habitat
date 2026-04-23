@@ -640,6 +640,100 @@
         }
       }
     },
+    "/network.habitat.hive.mintIdentity": {
+      "post": {
+        "tags": [
+          "network.habitat.hive"
+        ],
+        "summary": "network.habitat.hive.mintIdentity",
+        "description": "Add a new identity to this hive store",
+        "operationId": "network.habitat.hive.mintIdentity",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "description": "The handle for the newly minted identity."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.internal.notifyOfUpdate": {
       "post": {
         "tags": [
@@ -3230,6 +3324,9 @@
     },
     {
       "name": "network.habitat.photo"
+    },
+    {
+      "name": "network.habitat.hive"
     },
     {
       "name": "network.habitat.internal"

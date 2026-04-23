@@ -31,6 +31,7 @@ import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/is
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 import * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
+import * as NetworkHabitatHiveMintIdentity from './types/network/habitat/hive/mintIdentity.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 import * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
@@ -77,6 +78,7 @@ export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/is
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 export * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
+export * as NetworkHabitatHiveMintIdentity from './types/network/habitat/hive/mintIdentity.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 export * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
@@ -535,6 +537,7 @@ export class NetworkHabitatNS {
   docs: NetworkHabitatDocsRecord
   photo: NetworkHabitatPhotoRecord
   clique: NetworkHabitatCliqueNS
+  hive: NetworkHabitatHiveNS
   internal: NetworkHabitatInternalNS
   org: NetworkHabitatOrgNS
   permissions: NetworkHabitatPermissionsNS
@@ -544,6 +547,7 @@ export class NetworkHabitatNS {
   constructor(client: XrpcClient) {
     this._client = client
     this.clique = new NetworkHabitatCliqueNS(client)
+    this.hive = new NetworkHabitatHiveNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.org = new NetworkHabitatOrgNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
@@ -627,6 +631,26 @@ export class NetworkHabitatCliqueNS {
   ): Promise<NetworkHabitatCliqueRemoveMembers.Response> {
     return this._client.call(
       'network.habitat.clique.removeMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatHiveNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  mintIdentity(
+    data?: NetworkHabitatHiveMintIdentity.InputSchema,
+    opts?: NetworkHabitatHiveMintIdentity.CallOptions,
+  ): Promise<NetworkHabitatHiveMintIdentity.Response> {
+    return this._client.call(
+      'network.habitat.hive.mintIdentity',
       opts?.qp,
       data,
       opts,

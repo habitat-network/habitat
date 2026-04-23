@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Server struct {
@@ -18,7 +20,7 @@ func NewServer(hive Hive) (*Server, error) {
 
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
 func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
-	handle, err := syntax.ParseHandle(r.PathValue("handle"))
+	handle, err := syntax.ParseHandle(r.Host)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -36,7 +38,8 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
-	did, err := syntax.ParseDID(r.PathValue("did"))
+	did, err := syntax.ParseDID("did:web:" + r.Host)
+	fmt.Println("did", did)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -56,5 +59,22 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(doc)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) MintIdentity(w http.ResponseWriter, r *http.Request) {
+	// TODO: authz here with a token via link or something so only blessed people can mint identity
+
+	var req habitat.NetworkHabitatHiveMintIdentityInput
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	err = s.hive.MintIdentity(req.Handle)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "minting identity", http.StatusInternalServerError)
+		return
 	}
 }

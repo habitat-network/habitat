@@ -33,6 +33,7 @@ import (
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/forwarding"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -152,6 +153,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	mux := mux.NewRouter()
 
+	// Order of middlewares = order of "Use" called
+	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
+	mux.Use(otelmux.Middleware("habitat-server"))
+	mux.Use(corsMiddleware)
+
 	// TODO: take in non-everything org depending on CLI flag
 	servingOrg := cmd.Bool(fOrg)
 
@@ -199,10 +205,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
 
-	// Order of middlewares = order of "Use" called
-	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
-	mux.Use(otelmux.Middleware("habitat-server"))
-	mux.Use(corsMiddleware)
+	orgHive, err := hive.NewHive(domain, "", db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
+	}
+	hiveServer, err := hive.NewServer(orgHive)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup hive server")
+	}
+
+	// hive server routes
+	mux.HandleFunc("/xrpc/network.habitat.hive.mintIdentity", hiveServer.MintIdentity) // TODO: this should not be public
 
 	// handle waitlist signups
 	// TODO: this should be moved to a separate server; no need to run it for orgs
@@ -221,6 +234,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
+	mux.Host("{opaqueID:.+}." + domain).Path("/.well-known/did.json").HandlerFunc(hiveServer.ServeDIDDoc)
+	mux.Host("{handle:.+}." + domain).Path("/.well-known/atproto-did").HandlerFunc(hiveServer.ServeHandle)
 	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
 
 	// auth routes
