@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { query } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/pear-test/view")({
   validateSearch(search) {
@@ -9,18 +10,12 @@ export const Route = createFileRoute("/_requireAuth/pear-test/view")({
   },
   loaderDeps: ({ search }) => search,
   async loader({ deps: { did, rkey }, context }) {
-    const params = new URLSearchParams();
-    params.set("repo", params.get("repo") || did);
-    params.set("rkey", params.get("rkey") || rkey);
-    params.set(
-      "collection",
-      params.get("collection") || "network.habitat.test",
+    const json = await query(
+      "network.habitat.repo.getRecord",
+      { repo: did, rkey, collection: "network.habitat.test" },
+      { authManager: context.authManager },
     );
-    const response = await context.authManager?.fetch(
-      `/xrpc/network.habitat.getRecord?${params.toString()}`,
-    );
-    const json = await response?.json();
-    return json.foo;
+    return JSON.stringify(json);
   },
   component() {
     const message = Route.useLoaderData();

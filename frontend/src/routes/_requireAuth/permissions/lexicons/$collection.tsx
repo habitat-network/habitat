@@ -2,6 +2,7 @@ import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
+import { procedure } from "internal";
 
 // Concrete wire types for the grantee union variants the server parses
 interface DidGranteeObj {
@@ -52,11 +53,10 @@ export const Route = createFileRoute(
           collection: data.collection,
           ...(data.rkey ? { rkey: data.rkey } : {}),
         };
-        await authManager?.fetch(
-          `/xrpc/network.habitat.addPermission`,
-          "POST",
-          JSON.stringify(body),
-          new Headers({ "Content-Type": "application/json" }),
+        await procedure(
+          "network.habitat.permissions.addPermission",
+          body,
+          { authManager },
         );
         form.reset({ collection: params.collection, rkey: "" });
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
@@ -82,11 +82,10 @@ export const Route = createFileRoute(
           collection: params.collection,
           ...(rkey ? { rkey } : {}),
         };
-        await authManager?.fetch(
-          `/xrpc/network.habitat.removePermission`,
-          "POST",
-          JSON.stringify(body),
-          new Headers({ "Content-Type": "application/json" }),
+        await procedure(
+          "network.habitat.permissions.removePermission",
+          body,
+          { authManager },
         );
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();

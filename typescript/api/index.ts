@@ -48,9 +48,9 @@ import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 import * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 import * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 import * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
+import * as NetworkHabitatRepoDescribeRepo from './types/network/habitat/repo/describeRepo.js'
 import * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
-import * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
@@ -94,9 +94,9 @@ export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
 export * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 export * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 export * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
+export * as NetworkHabitatRepoDescribeRepo from './types/network/habitat/repo/describeRepo.js'
 export * as NetworkHabitatRepoGetBlob from './types/network/habitat/repo/getBlob.js'
 export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRecord.js'
-export * as NetworkHabitatRepoListCollections from './types/network/habitat/repo/listCollections.js'
 export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
@@ -926,6 +926,18 @@ export class NetworkHabitatRepoNS {
     )
   }
 
+  describeRepo(
+    params?: NetworkHabitatRepoDescribeRepo.QueryParams,
+    opts?: NetworkHabitatRepoDescribeRepo.CallOptions,
+  ): Promise<NetworkHabitatRepoDescribeRepo.Response> {
+    return this._client.call(
+      'network.habitat.repo.describeRepo',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
   getBlob(
     params?: NetworkHabitatRepoGetBlob.QueryParams,
     opts?: NetworkHabitatRepoGetBlob.CallOptions,
@@ -946,18 +958,6 @@ export class NetworkHabitatRepoNS {
       .catch((e) => {
         throw NetworkHabitatRepoGetRecord.toKnownErr(e)
       })
-  }
-
-  listCollections(
-    params?: NetworkHabitatRepoListCollections.QueryParams,
-    opts?: NetworkHabitatRepoListCollections.CallOptions,
-  ): Promise<NetworkHabitatRepoListCollections.Response> {
-    return this._client.call(
-      'network.habitat.repo.listCollections',
-      params,
-      undefined,
-      opts,
-    )
   }
 
   listRecords(

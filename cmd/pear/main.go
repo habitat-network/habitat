@@ -32,6 +32,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -164,7 +165,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter, pearOrg)
-	pear, err := setupPear(cmd, dir, node, db, oauthServer, pdsClientFactory)
+	cliqueStore, err := clique.NewStore(db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup clique store")
+	}
+
+	pear, err := setupPear(cmd, dir, node, cliqueStore, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
@@ -184,6 +190,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
+
+	cliqueServer := clique.NewServer(cliqueStore, oauthServer, authn.NewServiceAuthMethod(dir))
 
 	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
@@ -224,30 +232,32 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// pear routes
 	// repo
-	mux.HandleFunc("/xrpc/network.habitat.putRecord", pearServer.PutRecord)
-	mux.HandleFunc("/xrpc/network.habitat.getRecord", pearServer.GetRecord)
-	mux.HandleFunc("/xrpc/network.habitat.listRecords", pearServer.ListRecords)
-	mux.HandleFunc("/xrpc/network.habitat.repo.listCollections", pearServer.ListCollections)
+	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
+	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
+	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
-
-	// blobs
-	mux.HandleFunc("/xrpc/network.habitat.uploadBlob", pearServer.UploadBlob)
-	mux.HandleFunc("/xrpc/network.habitat.getBlob", pearServer.GetBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
+	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
+	mux.HandleFunc("/xrpc/network.habitat.repo.getBlob", pearServer.GetBlob)
 
 	// permissions
-	mux.HandleFunc("/xrpc/network.habitat.listPermissions", pearServer.ListPermissions)
-	mux.HandleFunc("/xrpc/network.habitat.addPermission", pearServer.AddPermission)
-	mux.HandleFunc("/xrpc/network.habitat.removePermission", pearServer.RemovePermission)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
+	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission", pearServer.RemovePermission)
 
 	// cliques
-	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", pearServer.CreateClique)
-	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", pearServer.AddCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", pearServer.RemoveCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", pearServer.GetCliqueMembers)
-	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", pearServer.IsCliqueMember)
+	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
+	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", cliqueServer.RemoveCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
+	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	pdsForwarding := newPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory)
-	mux.PathPrefix("/xrpc/").Handler(pdsForwarding)
+	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
+	// Only forward specific routes that we know we handle correctly; for now.
+	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
+	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
+	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", pdsForwarding.ServeHTTP)
 
 	postHogUrl, err := url.Parse("https://us.i.posthog.com")
 	if err != nil {
@@ -379,6 +389,7 @@ func setupPear(
 	cmd *cli.Command,
 	dir identity.Directory,
 	node node.Node,
+	cliqueStore clique.Store,
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	clientFactory pdsclient.HttpClientFactory,
@@ -386,11 +397,6 @@ func setupPear(
 	repo, err := repo.NewRepo(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
-	}
-
-	cliqueStore, err := clique.NewStore(db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create clique store: %w", err)
 	}
 
 	permissions, err := permissions.NewStore(db, cliqueStore)
@@ -403,7 +409,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, cliqueStore, inbox), nil
+	return pear.NewPear(node, dir, permissions, repo, inbox), nil
 }
 
 func setupOAuthServer(

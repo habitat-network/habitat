@@ -16,8 +16,8 @@ import { Route as DevtoolsRouteImport } from './routes/devtools'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
-import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/forwarding-test'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
+import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/_forwarding-test'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthPearTestIndexRouteImport } from './routes/_requireAuth/pear-test/index'
 import { Route as RequireAuthOrgIndexRouteImport } from './routes/_requireAuth/org/index'
@@ -65,17 +65,16 @@ const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   path: '/permissions',
   getParentRoute: () => RequireAuthRoute,
 } as any)
-const RequireAuthForwardingTestRoute =
-  RequireAuthForwardingTestRouteImport.update({
-    id: '/forwarding-test',
-    path: '/forwarding-test',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
 const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
   id: '/data',
   path: '/data',
   getParentRoute: () => RequireAuthRoute,
 } as any)
+const RequireAuthForwardingTestRoute =
+  RequireAuthForwardingTestRouteImport.update({
+    id: '/_forwarding-test',
+    getParentRoute: () => RequireAuthRoute,
+  } as any)
 const RequireAuthPermissionsIndexRoute =
   RequireAuthPermissionsIndexRouteImport.update({
     id: '/',
@@ -153,7 +152,6 @@ export interface FileRoutesByFullPath {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
-  '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
@@ -175,7 +173,6 @@ export interface FileRoutesByTo {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
-  '/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
@@ -196,8 +193,8 @@ export interface FileRoutesById {
   '/explore': typeof ExploreRoute
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
+  '/_requireAuth/_forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
-  '/_requireAuth/forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/_requireAuth/': typeof RequireAuthIndexRoute
   '/_requireAuth/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
@@ -221,7 +218,6 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
-    | '/forwarding-test'
     | '/permissions'
     | '/'
     | '/collections/$collection'
@@ -243,7 +239,6 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
-    | '/forwarding-test'
     | '/'
     | '/collections/$collection'
     | '/pear-test/view'
@@ -263,8 +258,8 @@ export interface FileRouteTypes {
     | '/explore'
     | '/oauth-login'
     | '/onboard'
+    | '/_requireAuth/_forwarding-test'
     | '/_requireAuth/data'
-    | '/_requireAuth/forwarding-test'
     | '/_requireAuth/permissions'
     | '/_requireAuth/'
     | '/_requireAuth/collections/$collection'
@@ -340,18 +335,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/forwarding-test': {
-      id: '/_requireAuth/forwarding-test'
-      path: '/forwarding-test'
-      fullPath: '/forwarding-test'
-      preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
     '/_requireAuth/data': {
       id: '/_requireAuth/data'
       path: '/data'
       fullPath: '/data'
       preLoaderRoute: typeof RequireAuthDataRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/_forwarding-test': {
+      id: '/_requireAuth/_forwarding-test'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/permissions/': {
@@ -494,8 +489,8 @@ const RequireAuthPermissionsRouteWithChildren =
   )
 
 interface RequireAuthRouteChildren {
-  RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthForwardingTestRoute: typeof RequireAuthForwardingTestRoute
+  RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
@@ -507,8 +502,8 @@ interface RequireAuthRouteChildren {
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
-  RequireAuthDataRoute: RequireAuthDataRoute,
   RequireAuthForwardingTestRoute: RequireAuthForwardingTestRoute,
+  RequireAuthDataRoute: RequireAuthDataRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,

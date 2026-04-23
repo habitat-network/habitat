@@ -15,7 +15,7 @@ import {
   ItemHeader,
   ItemTitle,
 } from "internal/components/ui";
-import { CollectionMetadata } from "api/types/network/habitat/repo/listCollections";
+import { CollectionMetadata } from "api/types/network/habitat/repo/describeRepo";
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
 
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/_requireAuth/")({
 
     // List collections for manage your data preview
     const data = await query(
-      "network.habitat.repo.listCollections",
+      "network.habitat.repo.describeRepo",
       {},
       { authManager },
     );

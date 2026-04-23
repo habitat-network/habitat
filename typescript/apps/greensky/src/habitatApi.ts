@@ -1,4 +1,4 @@
-import { Actor, AuthManager, query } from "internal";
+import { AuthManager, query } from "internal";
 
 export interface CliqueRefPermission {
   $type: "network.habitat.grantee#cliqueRef";
@@ -58,12 +58,6 @@ export function getPostVisibility(
   return "specific-users";
 }
 
-export interface Profile {
-  did: string;
-  handle: string;
-  displayName?: string;
-  avatar?: string;
-}
 
 async function getCliqueMembers(
   authManager: AuthManager,
@@ -76,18 +70,16 @@ async function getCliqueMembers(
   const rkey = parts[parts.length - 1];
   const collection = parts.slice(1, -1).join("/");
 
-  const params = new URLSearchParams();
-  params.append("repo", repo!);
-  params.append("collection", collection);
-  params.append("rkey", rkey!);
-  params.append("includePermissions", "true");
-
-  const response = await authManager.fetch(
-    `/xrpc/network.habitat.getRecord?${params}`,
-    "GET",
-  );
-  if (!response.ok) return [];
-  const data: { permissions?: Permission[] } = await response.json();
+  let data: { permissions?: Permission[] };
+  try {
+    data = await query(
+      "network.habitat.repo.getRecord",
+      { repo: repo!, collection, rkey: rkey!, includePermissions: true },
+      { authManager },
+    );
+  } catch {
+    return [];
+  }
   const res = (data.permissions ?? [])
     .filter(
       (p): p is DidGranteePermission =>
@@ -123,20 +115,16 @@ export async function getPrivatePosts(
   authManager: AuthManager,
   handle?: string,
 ): Promise<PrivatePost[]> {
-  const params = new URLSearchParams();
-  params.append("collection", "app.bsky.feed.post");
-  if (handle) {
-    params.append("subjects", handle);
-  }
-  params.append("includePermissions", "true");
-
-  // TODO: use habitat client api
-  const response = await authManager.fetch(
-    `/xrpc/network.habitat.listRecords?${params}`,
-    "GET",
+  const response = await query(
+    "network.habitat.repo.listRecords",
+    {
+      collection: "app.bsky.feed.post",
+      subjects: handle ? [handle] : [],
+      includePermissions: true,
+    },
+    { authManager },
   );
-  const data: { records?: PrivatePost[] } = await response.json();
-  const posts = data.records ?? [];
+  const posts = (response.records ?? []) as unknown as PrivatePost[];
 
   return Promise.all(
     posts.map((post) => resolvePostPermissions(authManager, post)),
@@ -148,49 +136,16 @@ export async function getPrivatePost(
   repo: string,
   rkey: string,
 ): Promise<PrivatePost | null> {
-  const params = new URLSearchParams();
-  params.append("repo", repo);
-  params.append("collection", "app.bsky.feed.post");
-  params.append("rkey", rkey);
-  params.append("includePermissions", "true");
-
-  const response = await authManager.fetch(
-    `/xrpc/network.habitat.getRecord?${params}`,
-    "GET",
-  );
-  if (!response.ok) return null;
-  const post: PrivatePost = await response.json();
+  let post: PrivatePost;
+  try {
+    post = await query(
+      "network.habitat.repo.getRecord",
+      { repo, collection: "app.bsky.feed.post", rkey, includePermissions: true },
+      { authManager },
+    ) as unknown as PrivatePost;
+  } catch {
+    return null;
+  }
   return resolvePostPermissions(authManager, post);
 }
 
-export async function getProfiles(
-  authManager: AuthManager,
-  actors: string[],
-): Promise<Actor[]> {
-  if (actors.length === 0) return [];
-  const { profiles } = await query(
-    "app.bsky.actor.getProfiles",
-    {
-      actors,
-    },
-    { authManager },
-  );
-  return profiles;
-}
-
-export async function getProfile(
-  authManager: AuthManager,
-  actor: string,
-): Promise<Profile> {
-  const headers = new Headers();
-  headers.append("at-proxy", "did:web:api.bsky.app#bsky_appview");
-  const params = new URLSearchParams();
-  params.append("actor", actor);
-  const response = await authManager.fetch(
-    `/xrpc/app.bsky.actor.getProfile?${params.toString()}`,
-    "GET",
-    null,
-    headers,
-  );
-  return response.json();
-}

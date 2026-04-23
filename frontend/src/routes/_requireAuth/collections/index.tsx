@@ -1,13 +1,13 @@
 import { CollectionCard } from "@/components/CollectionCard";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { query } from "internal";
+import { query, getProfiles } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/collections/")({
   component: CollectionsGrid,
   async loader({ context }) {
     const { authManager } = context;
     const collectionsData = await query(
-      "network.habitat.repo.listCollections",
+      "network.habitat.repo.describeRepo",
       {},
       { authManager },
     );
@@ -30,22 +30,9 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
     const profilesByDid: Record<string, { avatar?: string; handle: string }> =
       {};
     if (granteeDids.length > 0) {
-      const headers = new Headers();
-      const params = new URLSearchParams();
-      for (const did of granteeDids) params.append("actors", did);
-      const resp = await authManager.fetch(
-        `/xrpc/app.bsky.actor.getProfiles?${params.toString()}`,
-        "GET",
-        null,
-        headers,
-      );
-      if (resp.ok) {
-        const profileData: {
-          profiles: { did: string; handle: string; avatar?: string }[];
-        } = await resp.json();
-        for (const p of profileData.profiles) {
-          profilesByDid[p.did] = { avatar: p.avatar, handle: p.handle };
-        }
+      const profiles = await getProfiles(granteeDids);
+      for (const p of profiles) {
+        profilesByDid[p.did] = { avatar: p.avatar, handle: p.handle ?? "" };
       }
     }
 

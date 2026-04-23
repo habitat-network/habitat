@@ -1,4 +1,3 @@
-import { AuthManager } from "../authManager";
 import {
   Combobox,
   ComboboxChip,
@@ -15,36 +14,21 @@ import { useDebounce } from "@uidotdev/usehooks";
 import { useQuery } from "@tanstack/react-query";
 import { UserAvatar } from "./UserAvatar";
 import { Actor } from "@/types/Actor";
+import { searchActorsTypeahead } from "../bskyPublicApi";
 
 interface UserComboboxProps {
-  authManager: AuthManager;
   value?: Actor[];
   onValueChange: (value: Actor[]) => void;
 }
 
-const UserCombobox = ({
-  authManager,
-  value,
-  onValueChange,
-}: UserComboboxProps) => {
+const UserCombobox = ({ value, onValueChange }: UserComboboxProps) => {
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearchValue = useDebounce(searchValue, 250);
   const anchor = useComboboxAnchor();
 
   const { data: suggestions = [] } = useQuery<Actor[]>({
     queryKey: ["actorSearch", debouncedSearchValue],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        q: debouncedSearchValue,
-        limit: "8",
-      });
-      const res = await authManager.fetch(
-        `/xrpc/app.bsky.actor.searchActorsTypeahead?${params}`,
-        "GET",
-      );
-      const data: { actors: Actor[] } = await res.json();
-      return data.actors ?? [];
-    },
+    queryFn: () => searchActorsTypeahead(debouncedSearchValue),
     enabled: !!debouncedSearchValue.trim(),
   });
 

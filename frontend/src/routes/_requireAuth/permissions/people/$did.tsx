@@ -1,34 +1,38 @@
 import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { procedure } from "internal";
 
 export const Route = createFileRoute("/_requireAuth/permissions/people/$did")({
   async loader({ context, params }) {
     const data = await context.queryClient.fetchQuery(
       listPermissions(context.authManager),
     );
-    // Derive lexicons for this person from the already-cached full map
-    const lexicons = data.permissions
+    return data.permissions
       .filter((p) => p.grantee === params.did)
-      .map((p) => p.collection + "." + p.rkey);
-    return lexicons.sort();
+      .map((p) => ({ collection: p.collection, rkey: p.rkey }))
+      .sort((a, b) => a.collection.localeCompare(b.collection));
   },
   component: PersonDetail,
 });
 
 function PersonDetail() {
-  const lexicons = Route.useLoaderData();
+  const permissions = Route.useLoaderData();
   const { did } = Route.useParams();
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
 
   const { mutate: remove } = useMutation({
-    async mutationFn(lexicon: string) {
-      await authManager?.fetch(
-        `/xrpc/network.habitat.removePermission`,
-        "POST",
-        JSON.stringify({ did, lexicon }),
+    async mutationFn({ collection, rkey }: { collection: string; rkey?: string }) {
+      await procedure(
+        "network.habitat.permissions.removePermission",
+        {
+          grantees: [{ $type: "network.habitat.grantee#didGrantee", did }],
+          collection,
+          ...(rkey ? { rkey } : {}),
+        },
+        { authManager },
       );
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
@@ -44,21 +48,23 @@ function PersonDetail() {
       <table>
         <thead>
           <tr>
-            <th>NSID</th>
+            <th>Collection</th>
+            <th>Record Key</th>
             <th />
           </tr>
         </thead>
         <tbody>
-          {lexicons.length === 0 && (
+          {permissions.length === 0 && (
             <tr>
-              <td colSpan={2}>No permissions for this person.</td>
+              <td colSpan={3}>No permissions for this person.</td>
             </tr>
           )}
-          {lexicons.map((lexicon) => (
-            <tr key={lexicon}>
-              <td>{lexicon}</td>
+          {permissions.map((perm) => (
+            <tr key={`${perm.collection}:${perm.rkey}`}>
+              <td>{perm.collection}</td>
+              <td>{perm.rkey || "*"}</td>
               <td>
-                <button type="button" onClick={() => remove(lexicon)}>
+                <button type="button" onClick={() => remove(perm)}>
                   Remove
                 </button>
               </td>

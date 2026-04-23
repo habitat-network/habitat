@@ -23,6 +23,7 @@ import (
 
 type Repo interface {
 	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
+	CreateRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	DeleteRecord(ctx context.Context, did string, collection string, rkey string) error
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
@@ -32,6 +33,10 @@ type Repo interface {
 	ListRecords(ctx context.Context, did string, collection string) ([]Record, error)
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
+
+var (
+	ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
+)
 
 // Persist private data within repos that mirror public repos.
 // A repo currently implements four basic methods: putRecord, getRecord, uploadBlob, getBlob
@@ -151,6 +156,68 @@ func (r *repo) PutRecord(
 		return nil
 	})
 
+	return uri, err
+}
+
+// createRecord create  a record for the given rkey into the repo no matter what; if a record already exists this errors
+func (r *repo) CreateRecord(
+	ctx context.Context,
+	rec Record,
+	validate *bool,
+) (habitat_syntax.HabitatURI, error) {
+	if validate != nil && *validate {
+		err := atdata.Validate(rec.Value)
+		if err != nil {
+			return "", fmt.Errorf("unable to validate record: %w", err)
+		}
+	}
+
+	// TODO: find a way to extraact blobs without marshalling + unmarshalling
+	marshalled, err := json.Marshal(rec.Value)
+	if err != nil {
+		return "", err
+	}
+
+	// atdata.UnmarshalJSON unmarshals the type with structured atdata types, so that ExtractBlobs works
+	// However, atdata.Validate needs to be called on a generic map[string]any (not with the atdata structured types)
+	val, err := atdata.UnmarshalJSON(marshalled)
+	if err != nil {
+		return "", fmt.Errorf("unable to umarshal: %w", err)
+	}
+
+	uri := habitat_syntax.ConstructHabitatUri(rec.Did, rec.Collection, rec.Rkey)
+	blobs := atdata.ExtractBlobs(val)
+	refs := xslices.Map(blobs, func(b atdata.Blob) link {
+		return link{
+			Ref: uri,
+			Cid: syntax.CID(b.Ref.String()),
+			Did: syntax.DID(rec.Did),
+		}
+	})
+
+	// Store rkey directly (no concatenation with collection)
+	// Always put (even if something exists).
+	err = r.db.Transaction(func(tx *gorm.DB) error {
+		bytes, err := json.Marshal(val)
+		if err != nil {
+			return err
+		}
+		r := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&r)
+
+		if result.RowsAffected == 0 {
+			// If the desired record already exists, return an error
+			return ErrRecordAlreadyCreated
+		} else if result.Error != nil {
+			return err
+		}
+		if len(refs) > 0 {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&refs).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	return uri, err
 }
 

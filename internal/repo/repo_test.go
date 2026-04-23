@@ -336,6 +336,45 @@ func TestPutRecordOnConflict(t *testing.T) {
 	})
 }
 
+func TestCreateRecord(t *testing.T) {
+	ctx := t.Context()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	repo, err := NewRepo(db)
+	require.NoError(t, err)
+
+	did := "did:plc:testuser"
+	collection := "network.habitat.test"
+	val := map[string]any{"msg": "hello"}
+
+	t.Run("creates a new record and returns the correct URI", func(t *testing.T) {
+		uri, err := repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-1", Value: val}, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, uri)
+
+		got, err := repo.GetRecord(ctx, did, collection, "rkey-1")
+		require.NoError(t, err)
+		require.Equal(t, val, got.Value)
+	})
+
+	t.Run("errors when record already exists", func(t *testing.T) {
+		_, err := repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val}, nil)
+		require.NoError(t, err)
+
+		_, err = repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val}, nil)
+		require.ErrorIs(t, err, ErrRecordAlreadyCreated)
+	})
+
+	t.Run("different rkeys in same collection are independent", func(t *testing.T) {
+		_, err := repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-a", Value: map[string]any{"n": "a"}}, nil)
+		require.NoError(t, err)
+
+		_, err = repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-b", Value: map[string]any{"n": "b"}}, nil)
+		require.NoError(t, err)
+	})
+}
+
 func TestDeleteRecord(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

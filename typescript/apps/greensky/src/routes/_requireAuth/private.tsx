@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { getProfile, getProfiles } from "internal";
 import {
   getPrivatePosts,
   getPostVisibility,
-  getProfile,
-  getProfiles,
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
@@ -18,11 +17,8 @@ export const Route = createFileRoute("/_requireAuth/private")({
         .map(async (post): Promise<FeedEntry> => {
           const did = post.uri.split("/")[2] ?? "";
           const [author, grantees] = await Promise.all([
-            getProfile(context.authManager, did),
-            getProfiles(
-              context.authManager,
-              (post.resolvedClique ?? []).slice(0, 5),
-            ),
+            getProfile(did),
+            getProfiles((post.resolvedClique ?? []).slice(0, 5)),
           ]);
           return {
             uri: post.uri,

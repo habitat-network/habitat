@@ -6,6 +6,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 )
@@ -19,13 +21,15 @@ func TestHasPermission(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonGranteeDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
+	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
 	require.NoError(t, err)
 
 	t.Run("owner can check if owner has permission", func(t *testing.T) {
@@ -78,13 +82,15 @@ func TestAddPermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{})
 	require.NoError(t, err)
 
 	t.Run("non-owner cannot add permissions", func(t *testing.T) {
@@ -135,13 +141,15 @@ func TestRemovePermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
+	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
 	require.NoError(t, err)
 
 	t.Run("non-owner cannot remove permissions", func(t *testing.T) {
@@ -173,13 +181,15 @@ func TestListPermissionGrants(t *testing.T) {
 	otherDID := syntax.DID("did:plc:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, otherDID})
-	p := newPearForTest(t, dir)
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
+	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
 	require.NoError(t, err)
 
 	t.Run("caller that is not the granter gets habitat_err.ErrUnauthorized", func(t *testing.T) {

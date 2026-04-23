@@ -3,7 +3,9 @@ import { NetworkHabitatRepoGetRecord } from "api";
 import { AvatarGroup, AvatarGroupCount, Spinner } from "./ui";
 import { UserAvatar } from "./UserAvatar";
 import { query } from "../habitatClient";
+import { getProfiles } from "../bskyPublicApi";
 import { AuthManager } from "../authManager";
+import { Actor } from "@/types/Actor";
 
 interface GranteeAvatarProps {
   uri: string;
@@ -37,22 +39,16 @@ const GranteeAvatars = ({
             return members;
           }) ?? [],
       );
-      const { profiles } = await query(
-        "app.bsky.actor.getProfiles",
-        {
-          actors: [
-            ...new Set(
-              cliqueMemberLists
-                .flat()
-                .concat(
-                  grantees?.filter((g) => "did" in g).map((g) => g.did) ?? [],
-                ),
+      const actors = [
+        ...new Set(
+          cliqueMemberLists
+            .flat()
+            .concat(
+              grantees?.filter((g) => "did" in g).map((g) => g.did) ?? [],
             ),
-          ],
-        },
-        { authManager },
-      );
-      return profiles;
+        ),
+      ];
+      return getProfiles(actors);
     },
   });
 
@@ -62,7 +58,7 @@ const GranteeAvatars = ({
 
   return (
     <AvatarGroup>
-      {profiles?.slice(0, max).map((p) => (
+      {profiles?.slice(0, max).map((p: Actor) => (
         <UserAvatar size={size} actor={p} key={p.did} />
       ))}
       {profiles && max && profiles.length > max && (

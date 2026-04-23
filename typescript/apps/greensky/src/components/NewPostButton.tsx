@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Actor, AuthManager, query } from "internal";
+import { Actor, AuthManager, procedure } from "internal";
 import {
   Button,
   Dialog,
@@ -30,7 +30,6 @@ interface NewPostButtonProps {
 
 export function NewPostButton({
   authManager,
-  _isOnboarded,
 }: NewPostButtonProps) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,53 +59,37 @@ export function NewPostButton({
         createdAt: new Date().toISOString(),
       };
 
-      async function checkResponse(res: Response) {
-        if (!res.ok) {
-          let message = `Request failed: ${res.status} ${res.statusText}`;
-          try {
-            const body = await res.json();
-            if (body.message) message = body.message;
-            else if (body.error) message = body.error;
-          } catch { }
-          throw new Error(message);
-        }
-      }
-
       if (formData.visibility === "followers") {
-        const res = await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
+        await procedure(
+          "network.habitat.repo.putRecord",
+          {
             repo: did,
             collection: "app.bsky.feed.post",
             record,
             grantees: [
               {
-                $type: "network.habitat.grantee#cliqueRef",
-                uri: `habitat://${did}/network.habitat.clique/followers`,
+                $type: "network.habitat.grantee#clique",
+                clique: `habitat://${did}/network.habitat.clique/followers`,
               },
             ],
-          }),
+          },
+          { authManager },
         );
-        await checkResponse(res);
       } else {
         const dids = await Promise.all(
           specificUsers.map(async ({ handle }) => {
             if (!handle) return "";
-            const { did } = await query(
-              "com.atproto.identity.resolveHandle",
-              {
-                handle,
-              },
-              { authManager },
+            const params = new URLSearchParams({ handle });
+            const res = await fetch(
+              `https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?${params.toString()}`,
             );
+            const { did } = await res.json();
             return did;
           }),
         );
-        const cliqueRes = await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
+        const cliqueData = await procedure(
+          "network.habitat.repo.putRecord",
+          {
             repo: did,
             collection: "network.habitat.clique",
             record,
@@ -114,28 +97,26 @@ export function NewPostButton({
               $type: "network.habitat.grantee#didGrantee",
               did,
             })),
-          }),
+          },
+          { authManager },
         );
-        await checkResponse(cliqueRes);
-        const data = await cliqueRes.json();
-        const cliqueUri = data.uri;
+        const cliqueUri = cliqueData.uri;
 
-        const res = await authManager.fetch(
-          "/xrpc/network.habitat.putRecord",
-          "POST",
-          JSON.stringify({
+        await procedure(
+          "network.habitat.repo.putRecord",
+          {
             repo: did,
             collection: "app.bsky.feed.post",
             record,
             grantees: [
               {
-                $type: "network.habitat.grantee#cliqueRef",
-                uri: cliqueUri,
+                $type: "network.habitat.grantee#clique",
+                clique: cliqueUri,
               },
             ],
-          }),
+          },
+          { authManager },
         );
-        await checkResponse(res);
       }
     },
   });
@@ -189,7 +170,6 @@ export function NewPostButton({
               </RadioGroup>
               {visibility === "specific" && (
                 <UserCombobox
-                  authManager={authManager}
                   value={specificUsers}
                   onValueChange={setSpecificUsers}
                 />

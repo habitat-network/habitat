@@ -41,7 +41,7 @@ function RouteComponent() {
       const headers = new Headers();
       headers.append("Content-Type", file.type || "application/octet-stream");
       const res = await authManager.fetch(
-        "/xrpc/network.habitat.uploadBlob",
+        "/xrpc/network.habitat.repo.uploadBlob",
         "POST",
         buf,
         headers,
@@ -76,7 +76,7 @@ function RouteComponent() {
 
     try {
       const res = await authManager.fetch(
-        `/xrpc/network.habitat.getBlob?cid=${encodeURIComponent(cid)}&did=${authManager.getAuthInfo()?.did}`,
+        `/xrpc/network.habitat.repo.getBlob?cid=${encodeURIComponent(cid)}&did=${authManager.getAuthInfo()?.did}`,
         "GET",
       );
 

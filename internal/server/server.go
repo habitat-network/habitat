@@ -10,7 +10,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bradenaw/juniper/xslices"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
@@ -68,7 +67,7 @@ func NewServer(
 	return server
 }
 
-// PutRecord puts a potentially encrypted record (see s.inner.putRecord)
+// PutRecord puts a private record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
@@ -132,6 +131,82 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
+		Uri: uri.String(),
+	}); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// CreateRecord creates a new record
+func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
+	if !ok {
+		return
+	}
+
+	var req habitat.NetworkHabitatRepoCreateRecordInput
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	target, err := syntax.ParseAtIdentifier(req.Repo)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		return
+	}
+
+	var rkey string
+	if req.Rkey == "" {
+		rkey = uuid.NewString()
+	} else {
+		rkey = req.Rkey
+	}
+
+	record, ok := req.Record.(map[string]any)
+	if !ok {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("record must be a JSON object"),
+			"invalid record type",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	parsed, err := permissions.ParseGranteesFromInterface(req.Grantees)
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	v := true
+	uri, err := s.pear.CreateRecord(r.Context(), callerDID, target.DID(), syntax.NSID(req.Collection), record, syntax.RecordKey(rkey), &v, parsed)
+	if errors.Is(err, repo.ErrRecordAlreadyCreated) {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("putting record for did %s", target.DID().String()),
+			http.StatusConflict,
+		)
+	} else if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("putting record for did %s", target.DID().String()),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoCreateRecordOutput{
 		Uri: uri.String(),
 	}); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
@@ -425,24 +500,29 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
+func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
 	if !ok {
 		return
 	}
 
-	collections, err := s.pear.ListCollections(r.Context(), callerDID, callerDID)
+	description, err := s.pear.DescribeRepo(r.Context(), callerDID, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "listing collections", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "describing repo", http.StatusInternalServerError)
 		return
 	}
 
-	var output habitat.NetworkHabitatRepoListCollectionsOutput
-	output.Collections = make([]habitat.NetworkHabitatRepoListCollectionsCollectionMetadata, len(collections))
+	output := habitat.NetworkHabitatRepoDescribeRepoOutput{
+		Did:             description.DID.String(),
+		Handle:          description.Handle,
+		DidDoc:          description.DIDDoc,
+		HandleIsCorrect: description.HandleIsCorrect,
+		Collections:     make([]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata, len(description.Collections)),
+	}
 
-	for i, c := range collections {
+	for i, c := range description.Collections {
 		grantees := permissions.ConstructInterfaceFromGrantees(c.Grantees)
-		output.Collections[i] = habitat.NetworkHabitatRepoListCollectionsCollectionMetadata{
+		output.Collections[i] = habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata{
 			Grantees:    grantees,
 			LastTouched: c.LastTouched.Format(time.RFC3339Nano),
 			Nsid:        c.Name,
@@ -450,8 +530,7 @@ func (s *Server) ListCollections(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
+	if err = json.NewEncoder(w).Encode(output); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
@@ -573,190 +652,6 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
-	// You can only call this method on your own node.
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth)
-	if !ok {
-		return
-	}
-
-	var input habitat.NetworkHabitatCliqueCreateCliqueInput
-	err := json.NewDecoder(r.Body).Decode(&input)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
-		return
-	}
-
-	dids := make([]syntax.DID, len(input.Members))
-	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "decode members field of input", http.StatusBadRequest)
-			return
-		}
-		dids[i] = did
-	}
-
-	clique, err := s.pear.CreateClique(r.Context(), callerDID, dids)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "creating clique", http.StatusInternalServerError)
-		return
-	}
-
-	output := habitat.NetworkHabitatCliqueCreateCliqueOutput{
-		Clique: string(clique),
-	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
-	if !ok {
-		return
-	}
-
-	var input habitat.NetworkHabitatCliqueAddMembersInput
-	err := json.NewDecoder(r.Body).Decode(&input)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
-		return
-	}
-
-	dids := make([]syntax.DID, len(input.Members))
-	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "decode members field of input", http.StatusBadRequest)
-			return
-		}
-		dids[i] = did
-	}
-
-	clique, err := habitat_syntax.ParseClique(input.Clique.Clique)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique", http.StatusBadRequest)
-		return
-	}
-
-	err = s.pear.AddCliqueMembers(r.Context(), callerDID, clique, dids)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "adding clique members", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
-	if !ok {
-		return
-	}
-
-	var input habitat.NetworkHabitatCliqueRemoveMembersInput
-	err := json.NewDecoder(r.Body).Decode(&input)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
-		return
-	}
-
-	dids := make([]syntax.DID, len(input.Members))
-	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "decode members field of input", http.StatusBadRequest)
-			return
-		}
-		dids[i] = did
-	}
-
-	clique, err := habitat_syntax.ParseClique(input.Clique.Clique)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique", http.StatusBadRequest)
-		return
-	}
-
-	err = s.pear.RemoveCliqueMembers(r.Context(), callerDID, clique, dids)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "adding clique members", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
-	if !ok {
-		return
-	}
-
-	var params habitat.NetworkHabitatCliqueGetMembersParams
-	err := s.decoder.Decode(&params, r.URL.Query())
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
-		return
-	}
-	clique, err := habitat_syntax.ParseClique(params.Clique)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique from url param", http.StatusBadRequest)
-		return
-	}
-	dids, err := s.pear.GetCliqueMembers(r.Context(), callerDID, clique)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting clique members", http.StatusInternalServerError)
-		return
-	}
-
-	members := xslices.Map(dids, func(m syntax.DID) string {
-		return m.String()
-	})
-	output := habitat.NetworkHabitatCliqueGetMembersOutput{
-		Members: members,
-	}
-
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
-}
-
-func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth, s.authMethods.serviceAuth)
-	if !ok {
-		return
-	}
-
-	var params habitat.NetworkHabitatCliqueIsMemberParams
-	clique, err := habitat_syntax.ParseClique(params.Clique)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique from url param", http.StatusBadRequest)
-		return
-	}
-
-	did, err := syntax.ParseDID(params.Did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode did from url param", http.StatusBadRequest)
-		return
-	}
-
-	isMember, err := s.pear.IsCliqueMember(r.Context(), callerDID, clique, did)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking if clique member", http.StatusInternalServerError)
-		return
-	}
-
-	output := habitat.NetworkHabitatCliqueIsMemberOutput{
-		Found: isMember,
-	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
 		return
 	}
 }

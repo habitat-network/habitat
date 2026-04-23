@@ -3,6 +3,7 @@ import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import {
   AuthManager,
   getPrivateRecord,
+  getProfiles,
   listPrivateRecords,
   procedure,
   query,
@@ -66,13 +67,7 @@ export const editorProfilesQueryOptions = (
       if (!dids.length) {
         return [];
       }
-      const { profiles } = await query(
-        "app.bsky.actor.getProfiles",
-        {
-          actors: dids,
-        },
-        { authManager },
-      );
+      const profiles = await getProfiles(dids);
       return profiles;
     },
   });

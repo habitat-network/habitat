@@ -13,10 +13,12 @@ import type {
   NetworkHabitatListConnectedApps,
   NetworkHabitatRepoDeleteRecord,
   NetworkHabitatRepoGetRecord,
-  NetworkHabitatRepoListCollections,
+  NetworkHabitatRepoDescribeRepo,
   NetworkHabitatRepoListRecords,
   NetworkHabitatRepoPutRecord,
   NetworkHabitatPermissionsAddPermission,
+  NetworkHabitatPermissionsListPermissions,
+  NetworkHabitatPermissionsRemovePermission,
   NetworkHabitatCliqueAddMembers,
   NetworkHabitatCliqueGetMembers,
   NetworkHabitatCliqueRemoveMembers,
@@ -53,11 +55,11 @@ type QueryEndpoints = {
     ComAtprotoServerGetServiceAuth.QueryParams,
     ComAtprotoServerGetServiceAuth.OutputSchema
   >;
-  "network.habitat.getRecord": Query<
+  "network.habitat.repo.getRecord": Query<
     NetworkHabitatRepoGetRecord.QueryParams,
     NetworkHabitatRepoGetRecord.OutputSchema
   >;
-  "network.habitat.listRecords": Query<
+  "network.habitat.repo.listRecords": Query<
     NetworkHabitatRepoListRecords.QueryParams,
     NetworkHabitatRepoListRecords.OutputSchema
   >;
@@ -77,9 +79,9 @@ type QueryEndpoints = {
     AppBskyActorGetProfiles.QueryParams,
     AppBskyActorGetProfiles.OutputSchema
   >;
-  "network.habitat.repo.listCollections": Query<
-    NetworkHabitatRepoListCollections.QueryParams,
-    NetworkHabitatRepoListCollections.OutputSchema
+  "network.habitat.repo.describeRepo": Query<
+    NetworkHabitatRepoDescribeRepo.QueryParams,
+    NetworkHabitatRepoDescribeRepo.OutputSchema
   >;
   "network.habitat.listConnectedApps": Query<
     NetworkHabitatListConnectedApps.QueryParams,
@@ -100,7 +102,11 @@ type QueryEndpoints = {
   "network.habitat.org.getMetadata": Query<
     NetworkHabitatOrgGetMetadata.QueryParams,
     NetworkHabitatOrgGetMetadata.OutputSchema
-  >
+  >;
+  "network.habitat.permissions.listPermissions": Query<
+    NetworkHabitatPermissionsListPermissions.QueryParams,
+    NetworkHabitatPermissionsListPermissions.OutputSchema
+  >;
 };
 
 type Procedure<Params, Output> = { params: Params; output: Output };
@@ -110,7 +116,7 @@ type ProcedureEndpoints = {
     ComAtprotoRepoCreateRecord.InputSchema,
     ComAtprotoRepoCreateRecord.OutputSchema
   >;
-  "network.habitat.putRecord": Procedure<
+  "network.habitat.repo.putRecord": Procedure<
     NetworkHabitatRepoPutRecord.InputSchema,
     NetworkHabitatRepoPutRecord.OutputSchema
   >;
@@ -130,7 +136,7 @@ type ProcedureEndpoints = {
     NetworkHabitatCliqueRemoveMembers.InputSchema,
     void
   >;
-  "network.habitat.addPermission": Procedure<
+  "network.habitat.permissions.addPermission": Procedure<
     NetworkHabitatPermissionsAddPermission.InputSchema,
     NetworkHabitatPermissionsAddPermission.Response
   >;
@@ -152,6 +158,10 @@ type ProcedureEndpoints = {
   >;
   "network.habitat.org.downgradeAdmin": Procedure<
     NetworkHabitatOrgDowngradeAdmin.InputSchema,
+    void
+  >;
+  "network.habitat.permissions.removePermission": Procedure<
+    NetworkHabitatPermissionsRemovePermission.InputSchema,
     void
   >;
 };
@@ -247,7 +257,7 @@ export const getPrivateRecord = async <T = Record<string, unknown>>(
   includePermissions?: boolean,
 ): Promise<NetworkHabitatRepoGetRecord.OutputSchema & { value: T }> => {
   const response = await query(
-    "network.habitat.getRecord",
+    "network.habitat.repo.getRecord",
     { collection, rkey, repo, includePermissions },
     { authManager },
   );
@@ -268,7 +278,7 @@ export const listPrivateRecords = async <T extends Record<string, unknown>>(
   includePermissions?: boolean,
 ): Promise<ListRecordsResponse<T>> => {
   const response = await query(
-    "network.habitat.listRecords",
+    "network.habitat.repo.listRecords",
     { collection, limit, cursor, subjects: subjects ?? [], includePermissions },
     { authManager },
   );

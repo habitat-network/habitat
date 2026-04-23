@@ -1,6 +1,7 @@
 import { listPermissions } from "@/queries/permissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { procedure } from "internal";
 import { Permission } from "api/types/network/habitat/permissions/listPermissions";
 import { useState } from "react";
 
@@ -108,11 +109,10 @@ function PersonDetail({
         collection,
         ...(rkey ? { rkey } : {}),
       };
-      await authManager?.fetch(
-        `/xrpc/network.habitat.removePermission`,
-        "POST",
-        JSON.stringify(body),
-        new Headers({ "Content-Type": "application/json" }),
+      await procedure(
+        "network.habitat.permissions.removePermission",
+        body,
+        { authManager },
       );
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();

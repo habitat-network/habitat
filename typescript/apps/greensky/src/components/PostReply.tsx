@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { AuthManager } from "internal";
+import { AuthManager, procedure } from "internal";
 import {
   Button,
   Dialog,
@@ -56,26 +56,16 @@ export function PostReply({
         ? [{ $type: "network.habitat.grantee#cliqueRef", uri: postClique }]
         : [];
 
-      const res = await authManager.fetch(
-        "/xrpc/network.habitat.putRecord",
-        "POST",
-        JSON.stringify({
+      await procedure(
+        "network.habitat.repo.putRecord",
+        {
           repo: did,
           collection: "app.bsky.feed.post",
           record,
           grantees,
-        }),
+        },
+        { authManager },
       );
-
-      if (!res.ok) {
-        let message = `Request failed: ${res.status} ${res.statusText}`;
-        try {
-          const body = await res.json();
-          if (body.message) message = body.message;
-          else if (body.error) message = body.error;
-        } catch { }
-        throw new Error(message);
-      }
     },
   });
 

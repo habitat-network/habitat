@@ -1,12 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Actor, AuthManager } from "internal";
+import { Actor } from "internal";
+import { getProfile, getProfiles } from "internal";
 import {
   type PrivatePost,
-  type Profile,
   getPrivatePosts,
   getPostVisibility,
-  getProfile,
-  getProfiles,
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
@@ -37,17 +35,13 @@ interface FeedItem {
 export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   async loader({ context, params }) {
     const publicItems: FeedItem[] = await getAuthorFeed(
-      context.authManager,
       params.handle,
     );
     const privateItems: PrivatePost[] = await getPrivatePosts(
       context.authManager,
       params.handle,
     );
-    const profile: Profile = await getProfile(
-      context.authManager,
-      params.handle,
-    );
+    const profile = await getProfile(params.handle);
 
     const entries: FeedEntry[] = [
       ...(await Promise.all(
@@ -56,10 +50,7 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           .map(async (post): Promise<FeedEntry> => {
             const authorDid = post.uri.split("/")[2] ?? "";
             const granteeDids = (post.resolvedClique ?? []).slice(0, 5);
-            const grantees = await getProfiles(
-              context.authManager,
-              granteeDids,
-            );
+            const grantees = await getProfiles(granteeDids);
             return {
               uri: post.uri,
               clique: post.clique,
@@ -125,18 +116,13 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
 });
 
 async function getAuthorFeed(
-  authManager: AuthManager,
   handle: string,
 ): Promise<FeedItem[]> {
-  const headers = new Headers();
   const params = new URLSearchParams();
   params.append("actor", handle);
   params.append("limit", "30");
-  const response = await authManager.fetch(
-    `/xrpc/app.bsky.feed.getAuthorFeed?${params.toString()}`,
-    "GET",
-    null,
-    headers,
+  const response = await fetch(
+    `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?${params.toString()}`
   );
   const data: { feed: FeedItem[] } = await response.json();
   return data.feed;

@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "./ui/dialog";
 import UserCombobox from "./UserCombobox";
 import { useState } from "react";
 import { Actor } from "@/types/Actor";
-import { AuthManager } from "@/authManager";
 import { Button } from "./ui/button";
 import { UserItem } from "./UserItem";
 import { Spinner } from "./ui/spinner";
@@ -12,12 +11,10 @@ interface ShareDialogProps {
   grantees: Actor[];
   onAddPermission: (grantees: Actor[]) => void;
   onRemovePermission: (grantee: Actor) => void;
-  authManager: AuthManager;
   isAdding?: boolean;
 }
 const ShareDialog = ({
   grantees,
-  authManager,
   isAdding,
   onAddPermission,
   onRemovePermission,
@@ -31,7 +28,6 @@ const ShareDialog = ({
         <UserCombobox
           value={newGrantees}
           onValueChange={setNewGrantees}
-          authManager={authManager}
         />
         <Button
           onClick={() => {
