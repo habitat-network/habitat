@@ -83,6 +83,7 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:     fOrg,
 				Usage:    "Whether the server is being run as part of an organization",
 				Required: false,
+				Sources:  getSources(fOrg),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
