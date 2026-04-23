@@ -3,6 +3,7 @@ package hive
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -21,7 +22,11 @@ func generateOpaqueID() (string, error) {
 		}
 		b[i] = opaqueIDAlphabet[n.Int64()]
 	}
-	return string(b), nil
+	str := string(b)
+	if !opaqueIDPattern.MatchString(str) {
+		return "", fmt.Errorf("generated opaqueID does not pass regex: %s", str)
+	}
+	return str, nil
 }
 
 var (

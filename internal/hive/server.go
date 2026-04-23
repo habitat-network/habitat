@@ -33,7 +33,7 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprint(w, ident.DID.String())
+	_, _ = w.Write([]byte(ident.DID.String()))
 }
 
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
