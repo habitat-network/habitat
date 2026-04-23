@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { DidResolver } from "@atproto/identity";
-import { getProfile } from "../habitatApi";
+import { getProfile } from "internal";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {

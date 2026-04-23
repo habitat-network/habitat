@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { getProfile, getProfiles } from "internal";
 import {
   getPrivatePosts,
   getPostVisibility,
-  getProfile,
-  getProfiles,
 } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";

@@ -1,5 +1,4 @@
-import { AuthManager, getProfile, getProfiles, query } from "internal";
-export { getProfile, getProfiles };
+import { AuthManager, query } from "internal";
 
 export interface CliqueRefPermission {
   $type: "network.habitat.grantee#cliqueRef";
