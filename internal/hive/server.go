@@ -2,7 +2,6 @@ package hive
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -39,7 +38,6 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	did, err := syntax.ParseDID("did:web:" + r.Host)
-	fmt.Println("did", did)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
