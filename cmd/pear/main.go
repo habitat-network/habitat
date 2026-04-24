@@ -205,21 +205,21 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
 
-	if servingOrg {
-		orgHive, err := hive.NewHive(domain, "", db)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
-		}
-		hiveServer, err := hive.NewServer(orgHive)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup hive server")
-		}
-
-		// hive server routes
-		mux.HandleFunc("/xrpc/network.habitat.hive.mintIdentity", hiveServer.MintIdentity)
-		mux.Host("{opaqueID:.+}." + domain).Path("/.well-known/did.json").HandlerFunc(hiveServer.ServeDIDDoc)
-		mux.Host("{handle:.+}." + domain).Path("/.well-known/atproto-did").HandlerFunc(hiveServer.ServeHandle)
+	// hive is the identity minting service for orgs
+	// It is incomplete and needs authz, currently anyone can mint an identity.
+	orgHive, err := hive.NewHive("members."+domain, domain, db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
+	hiveServer, err := hive.NewServer(orgHive)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup hive server")
+	}
+
+	// hive server routes
+	mux.HandleFunc("/xrpc/network.habitat.hive.mintIdentity", hiveServer.MintIdentity) // TODO: this needs auth on it
+	mux.Host("{opaqueID:.+}." + domain).Path("/.well-known/did.json").HandlerFunc(hiveServer.ServeDIDDoc)
+	mux.Host("{handle:.+}." + domain).Path("/.well-known/atproto-did").HandlerFunc(hiveServer.ServeHandle)
 
 	// handle waitlist signups
 	// TODO: this should be moved to a separate server; no need to run it for orgs
