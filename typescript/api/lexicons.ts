@@ -1018,6 +1018,29 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatHiveMintIdentity: {
+    lexicon: 1,
+    id: 'network.habitat.hive.mintIdentity',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Add a new identity to this hive store',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['handle'],
+            properties: {
+              handle: {
+                type: 'string',
+                description: 'The handle for the newly minted identity.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatInternalNotifyOfUpdate: {
     lexicon: 1,
     id: 'network.habitat.internal.notifyOfUpdate',
@@ -2171,6 +2194,7 @@ export const ids = {
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
   NetworkHabitatDocs: 'network.habitat.docs',
   NetworkHabitatGrantee: 'network.habitat.grantee',
+  NetworkHabitatHiveMintIdentity: 'network.habitat.hive.mintIdentity',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
