@@ -79,10 +79,3 @@ type ident struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
-
-// Parts of an identity that are publicly revealed in the DID doc
-type IdentPublic struct {
-	Handle           string
-	OpaqueID         string
-	SigningPublicKey string
-}

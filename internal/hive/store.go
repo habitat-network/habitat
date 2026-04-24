@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// Generate the opaqueID used in the did:web: identities that are minted
 const opaqueIDAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 func generateOpaqueID() (string, error) {
@@ -33,16 +34,25 @@ var (
 	ErrNotCreated = errors.New("no identity was created")
 )
 
+// A store is the backing store for hive identities.
 type store struct {
 	db *gorm.DB
+
+	// template for creating *identity.Identity from a row value
+	template idTemplate
 }
 
-func newStore(db *gorm.DB) (*store, error) {
+type idTemplate func(handleInternal, opaqueID, signingPublicKey string) *identity.Identity
+
+func newStore(db *gorm.DB, template idTemplate) (*store, error) {
 	err := db.AutoMigrate(&ident{})
 	if err != nil {
 		return nil, err
 	}
-	return &store{db: db}, nil
+	return &store{
+		db:       db,
+		template: template,
+	}, nil
 }
 
 // createMember generates all the necessary keys / ids for a DID identity + doc with this handle
@@ -76,35 +86,28 @@ func (s *store) createIdentity(handle string) error {
 }
 
 // getMemberByHandle fetches the member via handle (with member namespace stripped already) from the store
-func (s *store) getIdentityByHandle(handle string) (IdentPublic, error) {
+func (s *store) getIdentityByHandle(internalHandle string) (*identity.Identity, error) {
 	var id ident
-	result := s.db.Where("handle = ?", handle).First(&id)
+	result := s.db.Where("handle = ?", internalHandle).First(&id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return IdentPublic{}, identity.ErrHandleNotFound
+		return nil, identity.ErrHandleNotFound
 	}
 	if result.Error != nil {
-		return IdentPublic{}, result.Error
+		return nil, result.Error
 	}
-	return IdentPublic{
-		Handle:           id.Handle,
-		OpaqueID:         id.OpaqueID,
-		SigningPublicKey: id.SigningPublicKey,
-	}, nil
+	return s.template(id.Handle, id.OpaqueID, id.SigningPublicKey), nil
 }
 
 // getMemberByDID fetches the member via opaque ID from the store
-func (s *store) getIdentityByID(opaqueID string) (IdentPublic, error) {
+func (s *store) getIdentityByID(opaqueID string) (*identity.Identity, error) {
+
 	var id ident
 	result := s.db.Where("opaque_id = ?", opaqueID).First(&id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return IdentPublic{}, identity.ErrDIDNotFound
+		return nil, identity.ErrDIDNotFound
 	}
 	if result.Error != nil {
-		return IdentPublic{}, result.Error
+		return nil, result.Error
 	}
-	return IdentPublic{
-		Handle:           id.Handle,
-		OpaqueID:         id.OpaqueID,
-		SigningPublicKey: id.SigningPublicKey,
-	}, nil
+	return s.template(id.Handle, id.OpaqueID, id.SigningPublicKey), nil
 }

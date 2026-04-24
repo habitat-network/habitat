@@ -13,34 +13,34 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func newTestHive(t *testing.T, domain, memberNamespace string) Hive {
+func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
-	h, err := NewHive(domain, memberNamespace, db)
+	h, err := NewHive(memberDomain, pearDomain, db)
 	require.NoError(t, err)
 	return h
 }
 
 func TestMintIdentity(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 	require.NoError(t, h.MintIdentity("alice"))
 }
 
 func TestMintIdentity_InvalidHandle(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 	require.ErrorIs(t, h.MintIdentity("alice!invalid"), identity.ErrInvalidHandle)
 }
 
 func TestMintIdentity_Duplicate(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	require.NoError(t, h.MintIdentity("alice"))
 	require.ErrorIs(t, h.MintIdentity("alice"), ErrNotCreated)
 }
 
 func TestLookupHandle(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	require.NoError(t, h.MintIdentity("alice"))
 
@@ -51,14 +51,14 @@ func TestLookupHandle(t *testing.T) {
 }
 
 func TestLookupHandle_NotFound(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.LookupHandle(context.Background(), syntax.Handle("nobody.example.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupHandle_WrongDomain(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	require.NoError(t, h.MintIdentity("alice"))
 
@@ -67,7 +67,7 @@ func TestLookupHandle_WrongDomain(t *testing.T) {
 }
 
 func TestLookupDID(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	require.NoError(t, h.MintIdentity("alice"))
 
@@ -81,7 +81,7 @@ func TestLookupDID(t *testing.T) {
 }
 
 func TestLookupDID_NotFound(t *testing.T) {
-	h := newTestHive(t, "example.com", "")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.LookupDID(context.Background(), syntax.DID("did:web:xxxxxx.example.com"))
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
