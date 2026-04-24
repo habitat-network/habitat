@@ -30,6 +30,7 @@ import type {
   NetworkHabitatOrgRemoveMembers,
   NetworkHabitatOrgDowngradeAdmin,
   NetworkHabitatOrgGetMetadata,
+  NetworkHabitatOrgIssueInviteToken,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -163,6 +164,10 @@ type ProcedureEndpoints = {
   "network.habitat.permissions.removePermission": Procedure<
     NetworkHabitatPermissionsRemovePermission.InputSchema,
     void
+  >;
+  "network.habitat.org.issueInviteToken": Procedure<
+    NetworkHabitatOrgIssueInviteToken.InputSchema,
+    NetworkHabitatOrgIssueInviteToken.OutputSchema
   >;
 };
 

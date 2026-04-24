@@ -2,14 +2,14 @@ import {
   getAdminsQueryOptions,
   getMembersQueryOptions,
   addAdmin,
-  addMembers,
   removeMembers,
   downgradeAdmin,
+  issueInviteToken,
 } from "@/queries/org";
 import { Button, Input } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export const Route = createFileRoute("/_requireAuth/org/")({
   async loader({ context }) {
@@ -54,12 +54,67 @@ function OrgPage() {
         dids={members}
         isAdmin={isAdmin}
         onRemove={(did) => removeMembers(authManager, [did]).then(invalidate)}
-        addLabel="Add member"
-        onAdd={(did) => addMembers(authManager, [did]).then(invalidate)}
         onPromote={(did) => addAdmin(authManager, did).then(invalidate)}
         canPromote={true}
       />
+      {isAdmin && <InviteSection authManager={authManager} />}
     </div>
+  );
+}
+
+function InviteSection({
+  authManager,
+}: {
+  authManager: Parameters<typeof issueInviteToken>[0];
+}) {
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const { mutate: generateLink, isPending } = useMutation({
+    mutationFn: () => issueInviteToken(authManager),
+    onSuccess: ({ token }) => {
+      setInviteUrl(`${window.location.origin}/org/join?token=${token}`);
+      setCopied(false);
+    },
+  });
+
+  const copy = () => {
+    if (!inviteUrl) return;
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold mb-2">Invite</h2>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isPending}
+          onClick={() => generateLink()}
+        >
+          Generate invite link
+        </Button>
+      </div>
+      {inviteUrl && (
+        <div className="flex gap-2 mt-3">
+          <Input
+            ref={inputRef}
+            className="flex-1 font-mono text-xs"
+            readOnly
+            value={inviteUrl}
+            onFocus={() => inputRef.current?.select()}
+          />
+          <Button variant="outline" size="sm" onClick={copy}>
+            {copied ? "Copied!" : "Copy"}
+          </Button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -77,15 +132,15 @@ function MemberSection({
   dids: string[];
   isAdmin: boolean;
   onRemove: (did: string) => Promise<void>;
-  onAdd: (did: string) => Promise<void>;
-  addLabel: string;
+  onAdd?: (did: string) => Promise<void>;
+  addLabel?: string;
   onPromote?: (did: string) => Promise<void>;
   canPromote: boolean;
 }) {
   const [input, setInput] = useState("");
 
   const { mutate: handleAdd, isPending: adding } = useMutation({
-    mutationFn: () => onAdd(input),
+    mutationFn: () => onAdd!(input),
     onSuccess: () => setInput(""),
   });
 
@@ -121,7 +176,7 @@ function MemberSection({
           ))}
         </tbody>
       </table>
-      {isAdmin && (
+      {isAdmin && onAdd && addLabel && (
         <div className="flex gap-2 mt-3">
           <Input
             className="flex-1 font-mono"

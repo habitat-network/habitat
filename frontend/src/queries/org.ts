@@ -64,3 +64,13 @@ export function downgradeAdmin(authManager: AuthManager, admin: string) {
     { authManager },
   );
 }
+
+export function issueInviteToken(authManager: AuthManager) {
+  return procedure(
+    "network.habitat.org.issueInviteToken",
+    {
+      reusable: true,
+    },
+    { authManager },
+  ) as Promise<{ token: string }>;
+}
