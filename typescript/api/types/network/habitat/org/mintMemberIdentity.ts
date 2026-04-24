@@ -19,9 +19,9 @@ export type QueryParams = {}
 
 export interface InputSchema {
   /** The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member. */
-  handle?: string
+  handle: string
   /** The token that was issued by an org admin to allow members to join the organization.. */
-  token?: string
+  token: string
 }
 
 export interface OutputSchema {

@@ -1451,6 +1451,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "token",
+                  "handle"
+                ],
                 "properties": {
                   "handle": {
                     "type": "string",

@@ -1323,9 +1323,9 @@ export const schemaDict = {
           'Mint a new organization member identity with the given handle and token.',
         input: {
           encoding: 'application/json',
-          required: ['token', 'handle'],
           schema: {
             type: 'object',
+            required: ['token', 'handle'],
             properties: {
               handle: {
                 type: 'string',
