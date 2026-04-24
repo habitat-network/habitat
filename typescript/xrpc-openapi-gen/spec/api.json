@@ -640,100 +640,6 @@
         }
       }
     },
-    "/network.habitat.hive.mintIdentity": {
-      "post": {
-        "tags": [
-          "network.habitat.hive"
-        ],
-        "summary": "network.habitat.hive.mintIdentity",
-        "description": "Add a new identity to this hive store",
-        "operationId": "network.habitat.hive.mintIdentity",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "handle"
-                ],
-                "properties": {
-                  "handle": {
-                    "type": "string",
-                    "description": "The handle for the newly minted identity."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.internal.notifyOfUpdate": {
       "post": {
         "tags": [
@@ -772,331 +678,6 @@
                   "rkey": {
                     "type": "string",
                     "description": "The record key which was updated."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.permissions.addPermission": {
-      "post": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.addPermission",
-        "description": "Grant read permission to a user or a clique for a specific collection or a specific record.",
-        "operationId": "network.habitat.permissions.addPermission",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "grantees",
-                  "collection"
-                ],
-                "properties": {
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the lexicon or record to grant read permission for.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key to grant read permissions to, if any.",
-                    "format": "record-key",
-                    "maxLength": 512
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.permissions.listPermissions": {
-      "get": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.listPermissions",
-        "description": "List read permissions visible to the authenticated user.",
-        "operationId": "network.habitat.permissions.listPermissions",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "permissions"
-                  ],
-                  "properties": {
-                    "permissions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.permissions.listPermissions.permission"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.permissions.removePermission": {
-      "post": {
-        "tags": [
-          "network.habitat.permissions"
-        ],
-        "summary": "network.habitat.permissions.removePermission",
-        "description": "Revoke read permission from a user or a clique for a specific lexicon or record.",
-        "operationId": "network.habitat.permissions.removePermission",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "grantees",
-                  "collection"
-                ],
-                "properties": {
-                  "grantees": {
-                    "type": "array",
-                    "items": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
-                        },
-                        {
-                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
-                        }
-                      ]
-                    },
-                    "maxItems": 100
-                  },
-                  "collection": {
-                    "type": "string",
-                    "description": "The NSID of the lexicon or record to grant read permission for.",
-                    "format": "nsid"
-                  },
-                  "rkey": {
-                    "type": "string",
-                    "description": "The Record Key to grant read permissions to, if any.",
-                    "format": "record-key",
-                    "maxLength": 512
                   }
                 }
               }
@@ -1739,6 +1320,234 @@
         }
       }
     },
+    "/network.habitat.org.issueInviteToken": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.issueInviteToken",
+        "description": "Generate an invite token that can be sent to a member to join this organization.",
+        "operationId": "network.habitat.org.issueInviteToken",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expiresAt": {
+                    "type": "string",
+                    "description": "When this token expires; defaults to 1 week.",
+                    "format": "date-time"
+                  },
+                  "reusable": {
+                    "type": "boolean",
+                    "description": "Whether this token is reusable to invite more than one member; defaults to false."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "The generated invite token."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.org.mintMemberIdentity": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.mintMemberIdentity",
+        "description": "Mint a new organization member identity with the given handle and token.",
+        "operationId": "network.habitat.org.mintMemberIdentity",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "description": "The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member."
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "The token that was issued by an org admin to allow members to join the organization.."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "handle",
+                    "did"
+                  ],
+                  "properties": {
+                    "handle": {
+                      "type": "string",
+                      "description": "The full handle of the newly minted member identity."
+                    },
+                    "did": {
+                      "type": "string",
+                      "description": "The DID of the newly minted member identity."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.org.removeAdmin": {
       "post": {
         "tags": [
@@ -1863,6 +1672,331 @@
                       "type": "string",
                       "format": "did"
                     }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.permissions.addPermission": {
+      "post": {
+        "tags": [
+          "network.habitat.permissions"
+        ],
+        "summary": "network.habitat.permissions.addPermission",
+        "description": "Grant read permission to a user or a clique for a specific collection or a specific record.",
+        "operationId": "network.habitat.permissions.addPermission",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
+                "properties": {
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the lexicon or record to grant read permission for.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key to grant read permissions to, if any.",
+                    "format": "record-key",
+                    "maxLength": 512
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.permissions.listPermissions": {
+      "get": {
+        "tags": [
+          "network.habitat.permissions"
+        ],
+        "summary": "network.habitat.permissions.listPermissions",
+        "description": "List read permissions visible to the authenticated user.",
+        "operationId": "network.habitat.permissions.listPermissions",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "permissions"
+                  ],
+                  "properties": {
+                    "permissions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.permissions.listPermissions.permission"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.permissions.removePermission": {
+      "post": {
+        "tags": [
+          "network.habitat.permissions"
+        ],
+        "summary": "network.habitat.permissions.removePermission",
+        "description": "Revoke read permission from a user or a clique for a specific lexicon or record.",
+        "operationId": "network.habitat.permissions.removePermission",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
+                "properties": {
+                  "grantees": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.didGrantee"
+                        },
+                        {
+                          "$ref": "#/components/schemas/network.habitat.grantee.clique"
+                        }
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "The NSID of the lexicon or record to grant read permission for.",
+                    "format": "nsid"
+                  },
+                  "rkey": {
+                    "type": "string",
+                    "description": "The Record Key to grant read permissions to, if any.",
+                    "format": "record-key",
+                    "maxLength": 512
                   }
                 }
               }
@@ -3326,16 +3460,13 @@
       "name": "network.habitat.photo"
     },
     {
-      "name": "network.habitat.hive"
-    },
-    {
       "name": "network.habitat.internal"
     },
     {
-      "name": "network.habitat.permissions"
+      "name": "network.habitat.org"
     },
     {
-      "name": "network.habitat.org"
+      "name": "network.habitat.permissions"
     },
     {
       "name": "network.habitat.render"

@@ -1,0 +1,40 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.issueInviteToken",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Generate an invite token that can be sent to a member to join this organization.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "expiresAt": {
+                            "type": "string",
+                            "format": "datetime",
+                            "description": "When this token expires; defaults to 1 week."
+                        },
+                        "reusable": {
+                            "type": "boolean",
+                            "description": "Whether this token is reusable to invite more than one member; defaults to false."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["token"],
+                    "properties": {
+                        "token": {
+                            "type": "string",
+                            "description": "The generated invite token."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -13,13 +13,22 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.hive.mintIdentity'
+const id = 'network.habitat.org.mintMemberIdentity'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The handle for the newly minted identity. */
+  /** The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member. */
+  handle?: string
+  /** The token that was issued by an org admin to allow members to join the organization.. */
+  token?: string
+}
+
+export interface OutputSchema {
+  /** The full handle of the newly minted member identity. */
   handle: string
+  /** The DID of the newly minted member identity. */
+  did: string
 }
 
 export interface CallOptions {
@@ -32,6 +41,7 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

@@ -56,15 +56,15 @@ func newStore(db *gorm.DB, template idTemplate) (*store, error) {
 }
 
 // createMember generates all the necessary keys / ids for a DID identity + doc with this handle
-func (s *store) createIdentity(handle string) error {
+func (s *store) createIdentity(handle string) (*identity.Identity, error) {
 	opaqueID, err := generateOpaqueID()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	pubMultibase, privMultibase, err := generateSigningKeyPair()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	id := &ident{
@@ -76,13 +76,13 @@ func (s *store) createIdentity(handle string) error {
 
 	result := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(id)
 	if result.Error != nil {
-		return result.Error
+		return nil, result.Error
 	} else if result.RowsAffected == 0 {
 		// On conflict do nothing and surface the error if no row was created
-		return ErrNotCreated
+		return nil, ErrNotCreated
 	}
 
-	return nil
+	return s.template(id.Handle, id.OpaqueID, id.SigningPublicKey), nil
 }
 
 // getMemberByHandle fetches the member via handle (with member namespace stripped already) from the store

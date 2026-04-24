@@ -161,10 +161,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// TODO: take in non-everything org depending on CLI flag
 	servingOrg := cmd.Bool(fOrg)
 
+	// hive is the identity minting service for orgs
+	orgHive, err := hive.NewHive(domain /* todo is this right; should be flag maybe */, domain, db)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
+	}
+
 	// Default: no org == org that serves everyone
 	pearOrg := org.NewEveryoneOrg()
 	if servingOrg {
-		pearOrg, err = org.NewOrg(domain, db)
+		pearOrg, err = org.NewOrg(domain, orgHive, db)
 		if err != nil {
 			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
 		}
@@ -196,6 +202,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
+	mux.HandleFunc("/xrpc/network.habitat.org.issueInviteToken", orgServer.IssueInviteToken)
+	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
 
 	cliqueServer := clique.NewServer(cliqueStore, oauthServer, authn.NewServiceAuthMethod(dir))
 
@@ -205,19 +213,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
 
-	// hive is the identity minting service for orgs
-	// It is incomplete and needs authz, currently anyone can mint an identity.
-	orgHive, err := hive.NewHive(domain, domain, db)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
-	}
 	hiveServer, err := hive.NewServer(orgHive)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive server")
 	}
 
 	// hive server routes
-	mux.HandleFunc("/xrpc/network.habitat.hive.mintIdentity", hiveServer.MintIdentity) // TODO: this needs auth on it
 	mux.Host("{opaqueID:.+}." + domain).Path("/.well-known/did.json").HandlerFunc(hiveServer.ServeDIDDoc)
 	mux.Host("{handle:.+}." + domain).Path("/.well-known/atproto-did").HandlerFunc(hiveServer.ServeHandle)
 

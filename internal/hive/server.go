@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
+// Serve DID docs and handle --> did mappings.
+// Does not serve the MintIdentity endpoint.
 type Server struct {
 	hive Hive
 }
@@ -59,22 +59,5 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(doc)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) MintIdentity(w http.ResponseWriter, r *http.Request) {
-	// TODO: authz here with a token via link or something so only blessed people can mint identity
-
-	var req habitat.NetworkHabitatHiveMintIdentityInput
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
-		return
-	}
-
-	err = s.hive.MintIdentity(req.Handle)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "minting identity", http.StatusInternalServerError)
-		return
 	}
 }

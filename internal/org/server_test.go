@@ -1,0 +1,79 @@
+package org
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/stretchr/testify/require"
+)
+
+type stubAuth struct {
+	did syntax.DID
+}
+
+func (s *stubAuth) CanHandle(r *http.Request) bool { return true }
+func (s *stubAuth) Validate(w http.ResponseWriter, r *http.Request, scopes ...string) (syntax.DID, bool) {
+	return s.did, true
+}
+func (s *stubAuth) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
+	return s.did, true, nil
+}
+
+func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
+	t.Helper()
+	store := newTestStoreWithHive(t)
+	require.NoError(t, store.AddAdmin(context.Background(), adminDID))
+	srv, err := NewServer(store, &stubAuth{did: adminDID})
+	require.NoError(t, err)
+	return srv
+}
+
+func TestIssueTokenThenMintIdentity(t *testing.T) {
+	srv := newTestServer(t, did1)
+
+	// Admin issues an invite token
+	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
+		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
+	})
+	issueReq := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.issueInviteToken", bytes.NewReader(issueBody))
+	issueReq.Header.Set("Content-Type", "application/json")
+	issueW := httptest.NewRecorder()
+	srv.IssueInviteToken(issueW, issueReq)
+	require.Equal(t, http.StatusOK, issueW.Code)
+
+	var issueOut habitat.NetworkHabitatOrgIssueInviteTokenOutput
+	require.NoError(t, json.NewDecoder(issueW.Body).Decode(&issueOut))
+	require.NotEmpty(t, issueOut.Token)
+
+	// Someone uses the token to mint an identity
+	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
+		Token:  issueOut.Token,
+		Handle: "alice",
+	})
+	mintReq := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.mintMemberIdentity", bytes.NewReader(mintBody))
+	mintReq.Header.Set("Content-Type", "application/json")
+	mintW := httptest.NewRecorder()
+	srv.MintMemberIdentity(mintW, mintReq)
+	require.Equal(t, http.StatusOK, mintW.Code)
+
+	var mintOut habitat.NetworkHabitatOrgMintMemberIdentityOutput
+	require.NoError(t, json.NewDecoder(mintW.Body).Decode(&mintOut))
+	require.NotEmpty(t, mintOut.Did)
+	require.NotEmpty(t, mintOut.Handle)
+
+	newMemberDID, err := syntax.ParseDID(mintOut.Did)
+	require.NoError(t, err)
+
+	members, err := srv.org.GetMembers(context.Background())
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+	require.Contains(t, members, did1, "contains the admin")
+	require.Contains(t, members, newMemberDID, "contains the new member")
+}

@@ -3,7 +3,9 @@ package org
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xslices"
@@ -280,6 +282,89 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(s.org.GetMetadata()); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
+	caller, ok := authn.Validate(w, r, s.auth)
+	if !ok {
+		return
+	}
+
+	// authz: only admins can generate invite tokens
+	ok, err := s.org.IsAdmin(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	var req habitat.NetworkHabitatOrgIssueInviteTokenInput
+	err = json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	// Default expiry of token = in a week
+	expiresAt := time.Now().AddDate(0, 0, 7)
+	if req.ExpiresAt != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, req.ExpiresAt)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parsing expiresAt", http.StatusBadRequest)
+			return
+		}
+		expiresAt = parsed
+	}
+
+	token, err := s.org.IssueIdentityToken(r.Context(), caller, req.Reusable /* defaults to false */, expiresAt)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "generating identity token", http.StatusInternalServerError)
+		return
+	}
+
+	output := habitat.NetworkHabitatOrgIssueInviteTokenOutput{
+		Token: token,
+	}
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
+	// no authn/authz: this is called by new members who don't exist yet
+	var req habitat.NetworkHabitatOrgMintMemberIdentityInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Token == "" || req.Handle == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	id, err := s.org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle)
+	if errors.Is(err, ErrInvalidToken) {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	} else if err != nil {
+		utils.LogAndHTTPError(w, err, "minting member identity", http.StatusInternalServerError)
+		return
+	}
+
+	output := habitat.NetworkHabitatOrgMintMemberIdentityOutput{
+		Did:    id.DID.String(),
+		Handle: id.Handle.String(),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(output); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
