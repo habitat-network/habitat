@@ -207,7 +207,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// hive is the identity minting service for orgs
 	// It is incomplete and needs authz, currently anyone can mint an identity.
-	orgHive, err := hive.NewHive("members."+domain, domain, db)
+	orgHive, err := hive.NewHive(domain, domain, db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
