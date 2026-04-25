@@ -1,7 +1,7 @@
 import clientMetadata from "./clientMetadata";
 import * as client from "openid-client";
 import { decodeJwt } from "jose";
-import { create } from "zustand";
+import { create, StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
 const stateLocalStorageKey = "state";
@@ -15,14 +15,7 @@ interface AuthInfo {
 
 export class AuthManager {
   private serverDomain: string;
-  private store = create(
-    persist<{ authInfo: AuthInfo | undefined }>(
-      () => ({ authInfo: undefined }),
-      {
-        name: "auth-info",
-      },
-    ),
-  );
+  private store: StoreApi<{ authInfo: AuthInfo | undefined }>;
   private config: client.Configuration;
   private onUnauthenticated: () => void;
   private refreshPromise: Promise<void> | undefined;
@@ -43,6 +36,14 @@ export class AuthManager {
       client_id,
     );
     this.serverDomain = serverDomain;
+    this.store = create(
+      persist<{ authInfo: AuthInfo | undefined }>(
+        () => ({ authInfo: undefined }),
+        {
+          name: `auth-info-${domain}`,
+        },
+      ),
+    );
 
     this.onUnauthenticated = onUnauthenticated;
   }
