@@ -17,99 +17,6 @@
     }
   ],
   "paths": {
-    "/network.habitat.listConnectedApps": {
-      "get": {
-        "tags": [
-          "network.habitat.listConnectedApps"
-        ],
-        "summary": "network.habitat.listConnectedApps",
-        "description": "List apps connected to habitat for a given user. Returns connected apps for the authenticated user.",
-        "operationId": "network.habitat.listConnectedApps",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "apps"
-                  ],
-                  "properties": {
-                    "apps": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.listConnectedApps.app"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.clique.addMembers": {
       "post": {
         "tags": [
@@ -687,6 +594,99 @@
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.listConnectedApps": {
+      "get": {
+        "tags": [
+          "network.habitat.listConnectedApps"
+        ],
+        "summary": "network.habitat.listConnectedApps",
+        "description": "List apps connected to habitat for a given user. Returns connected apps for the authenticated user.",
+        "operationId": "network.habitat.listConnectedApps",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "apps"
+                  ],
+                  "properties": {
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.listConnectedApps.app"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad Request",
@@ -3216,22 +3216,6 @@
           }
         }
       },
-      "network.habitat.photo": {
-        "type": "object",
-        "required": [
-          "ref"
-        ],
-        "properties": {
-          "ref": {
-            "type": "string",
-            "format": "binary"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "network.habitat.permissions.listPermissions.permission": {
         "type": "object",
         "required": [
@@ -3260,6 +3244,22 @@
               "allow",
               "deny"
             ]
+          }
+        }
+      },
+      "network.habitat.photo": {
+        "type": "object",
+        "required": [
+          "ref"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "format": "binary"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -3458,19 +3458,19 @@
       "name": "network.habitat.grantee"
     },
     {
-      "name": "network.habitat.listConnectedApps"
-    },
-    {
-      "name": "network.habitat.photo"
-    },
-    {
       "name": "network.habitat.internal"
+    },
+    {
+      "name": "network.habitat.listConnectedApps"
     },
     {
       "name": "network.habitat.org"
     },
     {
       "name": "network.habitat.permissions"
+    },
+    {
+      "name": "network.habitat.photo"
     },
     {
       "name": "network.habitat.render"
