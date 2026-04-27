@@ -11,26 +11,15 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/stretchr/testify/require"
 )
-
-type stubAuth struct {
-	did syntax.DID
-}
-
-func (s *stubAuth) CanHandle(r *http.Request) bool { return true }
-func (s *stubAuth) Validate(w http.ResponseWriter, r *http.Request, scopes ...string) (syntax.DID, bool) {
-	return s.did, true
-}
-func (s *stubAuth) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
-	return s.did, true, nil
-}
 
 func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 	t.Helper()
 	store := newTestStoreWithHive(t)
 	require.NoError(t, store.AddAdmin(context.Background(), adminDID))
-	srv, err := NewServer(store, &stubAuth{did: adminDID})
+	srv, err := NewServer(store, authn.NewStubAuthnForTest(adminDID))
 	require.NoError(t, err)
 	return srv
 }

@@ -162,7 +162,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	servingOrg := cmd.Bool(fOrg)
 
 	// hive is the identity minting service for orgs
-	orgHive, err := hive.NewHive(domain /* todo is this right; should be flag maybe */, domain, db)
+	orgHive, err := hive.NewHive(domain /* member domain (alice.[member domain]) */, domain /* pear domain for DID doc service */, db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
