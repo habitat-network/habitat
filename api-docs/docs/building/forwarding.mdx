@@ -16,6 +16,7 @@ As a convenience for local-first applications, habitat proxies a scoped set of s
 All methods under these two namespaces are forwarded. Habitat routes them in one of two ways depending on whether the method reads from a specific target repository or writes to the caller's own:
 
 **Forwarded to the caller's PDS** (authenticated, via DPoP):
+
 - Write methods: `createRecord`, `putRecord`, `applyWrites`, `uploadBlob`, `importRepo`
 - `com.atproto.sync` methods with no specific target: `listRepos`, `listReposByCollection`, `requestCrawl`
 
@@ -23,24 +24,25 @@ All methods under these two namespaces are forwarded. Habitat routes them in one
 
 These methods accept a `repo` or `did` query parameter identifying a specific account. Habitat resolves that identity's DID document to find their PDS and forwards the request there without auth headers.
 
-| Method | Target param |
-|---|---|
-| `com.atproto.repo.getRecord` | `repo` |
-| `com.atproto.repo.listRecords` | `repo` |
-| `com.atproto.repo.describeRepo` | `repo` |
-| `com.atproto.sync.getRepo` | `did` |
-| `com.atproto.sync.getRecord` | `did` |
-| `com.atproto.sync.listBlobs` | `did` |
-| `com.atproto.sync.getLatestCommit` | `did` |
-| `com.atproto.sync.getRepoStatus` | `did` |
-| `com.atproto.sync.getBlob` | `did` |
+| Method                             | Target param |
+| ---------------------------------- | ------------ |
+| `com.atproto.repo.getRecord`       | `repo`       |
+| `com.atproto.repo.listRecords`     | `repo`       |
+| `com.atproto.repo.describeRepo`    | `repo`       |
+| `com.atproto.sync.getRepo`         | `did`        |
+| `com.atproto.sync.getRecord`       | `did`        |
+| `com.atproto.sync.listBlobs`       | `did`        |
+| `com.atproto.sync.getLatestCommit` | `did`        |
+| `com.atproto.sync.getRepoStatus`   | `did`        |
+| `com.atproto.sync.getBlob`         | `did`        |
 
 ### `com.atproto.server.getServiceAuth`
 
 Forwarded to the caller's PDS (authenticated, via DPoP). Used to obtain a signed service auth token from the user's own PDS for inter-service calls.
 
 ## Methods NOT forwarded through Habitat
-Everything else. For example,  `app.bsky.*` and `com.atproto.identity.*` methods should be called directly against the public Bluesky AppView:
+
+Everything else. For example, `app.bsky.*` and `com.atproto.identity.*` methods should be called directly against the public Bluesky AppView:
 
 ```
 https://public.api.bsky.app/xrpc/<lexicon-id>
@@ -81,13 +83,13 @@ GET /xrpc/com.atproto.repo.getRecord?repo=did:plc:...&collection=app.bsky.feed.p
 
 ## Error handling
 
-| Condition | Status returned |
-|---|---|
-| Invalid or expired Habitat token (caller-PDS path) | `401 Unauthorized` |
-| Missing `repo`/`did` param on target-routed method | `400 Bad Request` |
-| Target DID cannot be resolved | `502 Bad Gateway` |
-| Target has no `atproto_pds` service in their DID doc | `502 Bad Gateway` |
-| PDS is unreachable or returns an unexpected error | `502 Bad Gateway` |
-| Other forwarding errors | `500 Internal Server Error` |
+| Condition                                            | Status returned             |
+| ---------------------------------------------------- | --------------------------- |
+| Invalid or expired Habitat token (caller-PDS path)   | `401 Unauthorized`          |
+| Missing `repo`/`did` param on target-routed method   | `400 Bad Request`           |
+| Target DID cannot be resolved                        | `502 Bad Gateway`           |
+| Target has no `atproto_pds` service in their DID doc | `502 Bad Gateway`           |
+| PDS is unreachable or returns an unexpected error    | `502 Bad Gateway`           |
+| Other forwarding errors                              | `500 Internal Server Error` |
 
 The response body from the PDS (including AT Protocol error payloads) is passed through unchanged.
