@@ -1,0 +1,50 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.mintMemberIdentity",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Mint a new organization member identity with the given handle and token.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "token",
+                        "handle"
+                    ],
+                    "properties": {
+                        "handle": {
+                            "type": "string",
+                            "description": "The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member."
+                        },
+                        "token": {
+                            "type": "string",
+                            "description": "The token that was issued by an org admin to allow members to join the organization.."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "handle",
+                        "did"
+                    ],
+                    "properties": {
+                        "handle": {
+                            "type": "string",
+                            "description": "The full handle of the newly minted member identity."
+                        },
+                        "did": {
+                            "type": "string",
+                            "description": "The DID of the newly minted member identity."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

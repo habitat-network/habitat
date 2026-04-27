@@ -1,5 +1,5 @@
 tasks:
-  gen-api-docs:
+  generate:
     command: pnpm
     args: gen-api-docs
     deps:
@@ -13,14 +13,14 @@ tasks:
     command: pnpm
     args: start
     deps:
-      - gen-api-docs
+      - generate
     options:
       persistent: true
       mergeDeps: replace
       mergeArgs: replace
   build:
     deps:
-      - gen-api-docs
+      - generate
     outputs:
       - build
     options:

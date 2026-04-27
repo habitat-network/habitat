@@ -17,10 +17,10 @@ import type { OpenAPIV3_1 } from "openapi-types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const lexiconPaths = await fg("../../lexicons/network/**/*.json", {
+const lexiconPaths = (await fg("../../lexicons/network/**/*.json", {
     cwd: __dirname,
     absolute: true,
-});
+})).sort();
 
 const paths: OpenAPIV3_1.PathsObject = {};
 const components: OpenAPIV3_1.ComponentsObject = {

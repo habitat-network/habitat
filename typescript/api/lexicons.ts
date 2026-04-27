@@ -1018,29 +1018,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatHiveMintIdentity: {
-    lexicon: 1,
-    id: 'network.habitat.hive.mintIdentity',
-    defs: {
-      main: {
-        type: 'procedure',
-        description: 'Add a new identity to this hive store',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['handle'],
-            properties: {
-              handle: {
-                type: 'string',
-                description: 'The handle for the newly minted identity.',
-              },
-            },
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatInternalNotifyOfUpdate: {
     lexicon: 1,
     id: 'network.habitat.internal.notifyOfUpdate',
@@ -1287,6 +1264,96 @@ export const schemaDict = {
               description: {
                 type: 'string',
                 description: 'A description for this organization.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgIssueInviteToken: {
+    lexicon: 1,
+    id: 'network.habitat.org.issueInviteToken',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Generate an invite token that can be sent to a member to join this organization.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              expiresAt: {
+                type: 'string',
+                format: 'datetime',
+                description: 'When this token expires; defaults to 1 week.',
+              },
+              reusable: {
+                type: 'boolean',
+                description:
+                  'Whether this token is reusable to invite more than one member; defaults to false.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+                description: 'The generated invite token.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgMintMemberIdentity: {
+    lexicon: 1,
+    id: 'network.habitat.org.mintMemberIdentity',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Mint a new organization member identity with the given handle and token.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token', 'handle'],
+            properties: {
+              handle: {
+                type: 'string',
+                description:
+                  'The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member.',
+              },
+              token: {
+                type: 'string',
+                description:
+                  'The token that was issued by an org admin to allow members to join the organization..',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['handle', 'did'],
+            properties: {
+              handle: {
+                type: 'string',
+                description:
+                  'The full handle of the newly minted member identity.',
+              },
+              did: {
+                type: 'string',
+                description: 'The DID of the newly minted member identity.',
               },
             },
           },
@@ -2194,7 +2261,6 @@ export const ids = {
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
   NetworkHabitatDocs: 'network.habitat.docs',
   NetworkHabitatGrantee: 'network.habitat.grantee',
-  NetworkHabitatHiveMintIdentity: 'network.habitat.hive.mintIdentity',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
@@ -2204,6 +2270,8 @@ export const ids = {
   NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
   NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
   NetworkHabitatOrgGetMetadata: 'network.habitat.org.getMetadata',
+  NetworkHabitatOrgIssueInviteToken: 'network.habitat.org.issueInviteToken',
+  NetworkHabitatOrgMintMemberIdentity: 'network.habitat.org.mintMemberIdentity',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
   NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:

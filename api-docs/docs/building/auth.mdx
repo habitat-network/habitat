@@ -36,8 +36,7 @@ You can use a standard OAuth client that supports PKCE to authenticate with Habi
 
 ## Authentication method: Service Auth
 
-Internal services can authenticate using **signed JWTs** instead of user OAuth tokens. JWTs can be retrieved via the [getServiceAuth endpoint](https://docs.bsky.app/docs/api/com-atproto-server-get-service-auth) on a user's PDS and included as a `Bearer` token in the `Authorization` header. The JWT is signed with the PDS's private key and verified against its public key from the service's DID document. The issuer DID is used as the caller identity. 
-
+Internal services can authenticate using **signed JWTs** instead of user OAuth tokens. JWTs can be retrieved via the [getServiceAuth endpoint](https://docs.bsky.app/docs/api/com-atproto-server-get-service-auth) on a user's PDS and included as a `Bearer` token in the `Authorization` header. The JWT is signed with the PDS's private key and verified against its public key from the service's DID document. The issuer DID is used as the caller identity.
 
 ## Your app's perspective
 
@@ -46,4 +45,3 @@ When making requests to Habitat on behalf of a user:
 - Include the access token as a `Bearer` token in the `Authorization` header
 - Set `Habitat-Auth-Method: oauth` to indicate the Direct authentication method. Otherwise the Service Auth method is assumed.
 - Refresh the token before it expires
-

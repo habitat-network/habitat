@@ -13,13 +13,20 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.hive.mintIdentity'
+const id = 'network.habitat.org.issueInviteToken'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The handle for the newly minted identity. */
-  handle: string
+  /** When this token expires; defaults to 1 week. */
+  expiresAt?: string
+  /** Whether this token is reusable to invite more than one member; defaults to false. */
+  reusable?: boolean
+}
+
+export interface OutputSchema {
+  /** The generated invite token. */
+  token: string
 }
 
 export interface CallOptions {
@@ -32,6 +39,7 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

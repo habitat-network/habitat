@@ -31,7 +31,6 @@ import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/is
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 import * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
-import * as NetworkHabitatHiveMintIdentity from './types/network/habitat/hive/mintIdentity.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 import * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
@@ -40,6 +39,8 @@ import * as NetworkHabitatOrgDowngradeAdmin from './types/network/habitat/org/do
 import * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
 import * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
 import * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMetadata.js'
+import * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
+import * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
 import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -78,7 +79,6 @@ export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/is
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 export * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
-export * as NetworkHabitatHiveMintIdentity from './types/network/habitat/hive/mintIdentity.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 export * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
@@ -87,6 +87,8 @@ export * as NetworkHabitatOrgDowngradeAdmin from './types/network/habitat/org/do
 export * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
 export * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
 export * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMetadata.js'
+export * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
+export * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
 export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -537,7 +539,6 @@ export class NetworkHabitatNS {
   docs: NetworkHabitatDocsRecord
   photo: NetworkHabitatPhotoRecord
   clique: NetworkHabitatCliqueNS
-  hive: NetworkHabitatHiveNS
   internal: NetworkHabitatInternalNS
   org: NetworkHabitatOrgNS
   permissions: NetworkHabitatPermissionsNS
@@ -547,7 +548,6 @@ export class NetworkHabitatNS {
   constructor(client: XrpcClient) {
     this._client = client
     this.clique = new NetworkHabitatCliqueNS(client)
-    this.hive = new NetworkHabitatHiveNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.org = new NetworkHabitatOrgNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
@@ -631,26 +631,6 @@ export class NetworkHabitatCliqueNS {
   ): Promise<NetworkHabitatCliqueRemoveMembers.Response> {
     return this._client.call(
       'network.habitat.clique.removeMembers',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
-}
-
-export class NetworkHabitatHiveNS {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  mintIdentity(
-    data?: NetworkHabitatHiveMintIdentity.InputSchema,
-    opts?: NetworkHabitatHiveMintIdentity.CallOptions,
-  ): Promise<NetworkHabitatHiveMintIdentity.Response> {
-    return this._client.call(
-      'network.habitat.hive.mintIdentity',
       opts?.qp,
       data,
       opts,
@@ -753,6 +733,30 @@ export class NetworkHabitatOrgNS {
       'network.habitat.org.getMetadata',
       params,
       undefined,
+      opts,
+    )
+  }
+
+  issueInviteToken(
+    data?: NetworkHabitatOrgIssueInviteToken.InputSchema,
+    opts?: NetworkHabitatOrgIssueInviteToken.CallOptions,
+  ): Promise<NetworkHabitatOrgIssueInviteToken.Response> {
+    return this._client.call(
+      'network.habitat.org.issueInviteToken',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  mintMemberIdentity(
+    data?: NetworkHabitatOrgMintMemberIdentity.InputSchema,
+    opts?: NetworkHabitatOrgMintMemberIdentity.CallOptions,
+  ): Promise<NetworkHabitatOrgMintMemberIdentity.Response> {
+    return this._client.call(
+      'network.habitat.org.mintMemberIdentity',
+      opts?.qp,
+      data,
       opts,
     )
   }

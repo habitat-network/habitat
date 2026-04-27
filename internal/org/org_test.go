@@ -3,19 +3,35 @@ package org
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-func newTestStore(t *testing.T) *store {
+var testSigningSecret = []byte("test-signing-secret-for-org-00000")
+
+func newTestStore(t *testing.T) Org {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", db)
+	s, err := NewOrg("test-domain", nil, db, testSigningSecret)
+	require.NoError(t, err)
+	return s
+}
+
+func newTestStoreWithHive(t *testing.T) Org {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	s, err := NewOrg("test-domain", h, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -111,9 +127,76 @@ func TestRemoveMembers(t *testing.T) {
 func TestGetMetadata(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", db)
+	s, err := NewOrg("test-domain", nil, db, testSigningSecret)
 	require.NoError(t, err)
 
 	md := s.GetMetadata()
 	require.Equal(t, md, habitat.NetworkHabitatOrgGetMetadataOutput{Domain: "test-domain"})
+}
+
+func TestGenerateAndUseIdentityToken(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStoreWithHive(t)
+
+	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	require.NoError(t, err)
+
+	members, err := s.GetMembers(ctx)
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+}
+
+func TestIdentityToken_CannotReuse(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStoreWithHive(t)
+
+	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	require.NoError(t, err)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "bob")
+	require.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func TestMintIdentity_DuplicateHandle(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStoreWithHive(t)
+
+	token1, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	token2, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	_, err = s.CreateNewMemberIdentity(ctx, token1, "alice")
+	require.NoError(t, err)
+	_, err = s.CreateNewMemberIdentity(ctx, token2, "alice")
+	require.ErrorIs(t, err, hive.ErrNotCreated)
+}
+
+func TestIdentityToken_Reusable(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStoreWithHive(t)
+
+	token, err := s.IssueIdentityToken(ctx, did1, true, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	require.NoError(t, err)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "bob")
+	require.NoError(t, err)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	require.ErrorIs(t, err, hive.ErrNotCreated)
+}
+
+func TestIssueIdentityToken_ExpiryTooLate(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStoreWithHive(t)
+
+	_, err := s.IssueIdentityToken(ctx, did1, false, time.Now().AddDate(0, 1, 1))
+	require.ErrorIs(t, err, ErrInvalidTokenExpiry)
 }

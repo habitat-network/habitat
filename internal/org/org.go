@@ -2,11 +2,17 @@ package org
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/hive"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -19,8 +25,10 @@ const (
 )
 
 var (
-	ErrNotAdmin  = errors.New("caller is not an admin")
-	ErrLastAdmin = errors.New("org must have at least one admin")
+	ErrNotAdmin           = errors.New("caller is not an admin")
+	ErrLastAdmin          = errors.New("org must have at least one admin")
+	ErrInvalidToken       = errors.New("an invalid token was presented")
+	ErrInvalidTokenExpiry = errors.New("token expiry must be < 1 month from now")
 )
 
 // Store is used to manage the organization tied to a pear node
@@ -43,15 +51,32 @@ type Org interface {
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
+	// Org member identity management; may eventually replace some of the methods above
+	IssueIdentityToken(ctx context.Context, caller syntax.DID, reusable bool, expiresAt time.Time) (token string, err error)
+	CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string) (*identity.Identity, error)
+
 	// Generic config about this org
 	GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput
 }
 
 // Keep track of members in the
 type member struct {
-	Member    string `gorm:"primaryKey"`
-	Role      string
-	CreatedAt time.Time // when this member was added
+	Member string `gorm:"primaryKey"`
+	Role   string
+
+	// Automatically populated by gorm
+	CreatedAt time.Time
+}
+
+// spentToken tracks consumed single-use invite tokens by their JWT ID.
+type spentToken struct {
+	JTI        string    `gorm:"primaryKey"`
+	ConsumedAt time.Time `gorm:"not null"`
+}
+
+type inviteTokenClaims struct {
+	jwt.Claims
+	Reusable bool `json:"reusable"`
 }
 
 type store struct {
@@ -59,20 +84,28 @@ type store struct {
 	// Eventually turn this into more enriched metadata about this rog
 	domain string
 
+	// Identity management service for orgs
+	hive hive.Hive
+
 	// Manages all backing data for an org
 	// Currently just an org_members table
 	db *gorm.DB
+
+	// HMAC-SHA256 key for signing and verifying invite tokens
+	signingSecret []byte
 }
 
 var _ Org = &store{}
 
-func NewOrg(domain string, db *gorm.DB) (*store, error) {
-	if err := db.AutoMigrate(&member{}); err != nil {
+func NewOrg(domain string, hive hive.Hive, db *gorm.DB, signingSecret []byte) (Org, error) {
+	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &store{
-		domain: domain,
-		db:     db,
+		domain:        domain,
+		hive:          hive,
+		db:            db,
+		signingSecret: signingSecret,
 	}, nil
 }
 
@@ -195,4 +228,86 @@ func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (s *store) validateIdentityToken(ctx context.Context, token string) error {
+	parsed, err := jwt.ParseSigned(token)
+	if err != nil {
+		return ErrInvalidToken
+	}
+
+	var claims inviteTokenClaims
+	if err := parsed.Claims(s.signingSecret, &claims); err != nil {
+		return ErrInvalidToken
+	}
+
+	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
+		return ErrInvalidToken
+	}
+
+	if !claims.Reusable {
+		result := s.db.WithContext(ctx).
+			Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&spentToken{JTI: claims.ID, ConsumedAt: time.Now()})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrInvalidToken
+		}
+	}
+	return nil
+}
+
+// IssueIdentityToken implements Org.
+func (s *store) IssueIdentityToken(ctx context.Context, caller syntax.DID, reusable bool, expiresAt time.Time) (string, error) {
+	if expiresAt.After(time.Now().AddDate(0, 1, 0)) {
+		return "", ErrInvalidTokenExpiry
+	}
+
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	jti := base64.RawURLEncoding.EncodeToString(b)
+
+	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: s.signingSecret}, nil)
+	if err != nil {
+		return "", err
+	}
+
+	claims := inviteTokenClaims{
+		Claims: jwt.Claims{
+			ID:     jti,
+			Issuer: caller.String(),
+			Expiry: jwt.NewNumericDate(expiresAt),
+		},
+		Reusable: reusable,
+	}
+	return jwt.Signed(sig).Claims(claims).CompactSerialize()
+}
+
+// CreateNewMemberIdentity implements Org.
+func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string) (*identity.Identity, error) {
+	// Validate the token
+	err := s.validateIdentityToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	// If token is valid, call into hive to mint the new identity and serve it
+	id, err := s.hive.MintIdentity(internalHandle)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: we could have orphaned identities if the next step fails; should handle this somehow.
+
+	// Automatically add this member to the org
+	err = s.AddMembers(ctx, []syntax.DID{id.DID})
+	if err != nil {
+		return nil, err
+	}
+
+	return id, nil
 }

@@ -1,41 +1,41 @@
-import { themes as prismThemes } from 'prism-react-renderer';
-import type { Config } from '@docusaurus/types';
-import type * as Preset from '@docusaurus/preset-classic';
+import { themes as prismThemes } from "prism-react-renderer";
+import type { Config } from "@docusaurus/types";
+import type * as Preset from "@docusaurus/preset-classic";
 
-const baseUrl = process.env.BASE_URL ?? '/';
+const baseUrl = process.env.BASE_URL ?? "/";
 
 const config: Config = {
-  title: 'Habitat API',
-  favicon: 'img/habitat.ico',
+  title: "Habitat API",
+  favicon: "img/habitat.ico",
 
   future: {
     v4: true,
   },
 
-  url: 'https://habitat.network',
+  url: "https://habitat.network",
   baseUrl: baseUrl, // /habitat/api in production, just localhost:3000/ in dev
 
-  organizationName: 'habitat',
-  projectName: 'habitat',
+  organizationName: "habitat",
+  projectName: "habitat",
 
-  onBrokenLinks: 'warn',
+  onBrokenLinks: "warn",
 
   i18n: {
-    defaultLocale: 'en',
-    locales: ['en'],
+    defaultLocale: "en",
+    locales: ["en"],
   },
 
   presets: [
     [
-      'classic',
+      "classic",
       {
         docs: {
-          sidebarPath: './sidebars.ts',
-          docItemComponent: '@theme/ApiItem',
+          sidebarPath: "./sidebars.ts",
+          docItemComponent: "@theme/ApiItem",
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
+          customCss: "./src/css/custom.css",
         },
       } satisfies Preset.Options,
     ],
@@ -43,64 +43,64 @@ const config: Config = {
 
   plugins: [
     [
-      'docusaurus-plugin-openapi-docs',
+      "docusaurus-plugin-openapi-docs",
       {
-        id: 'openapi',
-        docsPluginId: 'classic',
+        id: "openapi",
+        docsPluginId: "classic",
         config: {
           habitat: {
-            specPath: '../typescript/xrpc-openapi-gen/spec/api.json',
-            outputDir: 'docs/api',
-            sidebarOptions: { groupPathsBy: 'tag' },
+            specPath: "../typescript/xrpc-openapi-gen/spec/api.json",
+            outputDir: "docs/api",
+            sidebarOptions: { groupPathsBy: "tag" },
           },
         },
       },
     ],
   ],
 
-  themes: ['docusaurus-theme-openapi-docs'],
+  themes: ["docusaurus-theme-openapi-docs"],
 
   themeConfig: {
     colorMode: {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Habitat API',
+      title: "Habitat API",
       logo: {
-        alt: 'Habitat Logo',
-        src: 'img/habitat.svg',
+        alt: "Habitat Logo",
+        src: "img/habitat.svg",
       },
       items: [
         {
-          to: 'docs/api',
-          position: 'left',
-          label: 'API Reference',
+          to: "docs/api",
+          position: "left",
+          label: "API Reference",
         },
         {
-          href: 'https://github.com/habitat-network/habitat',
-          label: 'GitHub',
-          position: 'right',
+          href: "https://github.com/habitat-network/habitat",
+          label: "GitHub",
+          position: "right",
         },
       ],
     },
     footer: {
-      style: 'dark',
+      style: "dark",
       links: [
         {
-          title: 'Docs',
+          title: "Docs",
           items: [
             {
-              label: 'API Reference',
-              to: '/docs/api',
+              label: "API Reference",
+              to: "/docs/api",
             },
           ],
         },
         {
-          title: 'More',
+          title: "More",
           items: [
             {
-              label: 'GitHub',
-              href: 'https://github.com/habitat-network/habitat',
+              label: "GitHub",
+              href: "https://github.com/habitat-network/habitat",
             },
           ],
         },

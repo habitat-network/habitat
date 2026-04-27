@@ -1,40 +1,35 @@
-import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
-import apiSidebar from './docs/api/sidebar';
+import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
+import apiSidebar from "./docs/api/sidebar";
 
 const sidebars: SidebarsConfig = {
   docs: [
     {
-      type: 'doc',
-      id: 'habitat',
+      type: "doc",
+      id: "habitat",
     },
     {
-      type: 'category',
-      label: 'Building on habitat',
+      type: "category",
+      label: "Building on habitat",
       items: [
-        'building/intro',
-        'building/auth',
-        'building/forwarding',
-        'building/permissions',
-        'building/orgs',
-        'building/sync',
+        "building/intro",
+        "building/auth",
+        "building/forwarding",
+        "building/permissions",
+        "building/orgs",
+        "building/sync",
       ],
     },
     {
-      type: 'category',
-      label: 'Specs',
-      items: [
-        'specs/pear',
-        'specs/cliques'
-      ],
+      type: "category",
+      label: "Specs",
+      items: ["specs/pear", "specs/cliques"],
     },
     {
-      type: 'category',
-      label: 'HTTP Reference',
-      items: [
-        ...apiSidebar,
-      ],
-    }
-  ]
+      type: "category",
+      label: "HTTP Reference",
+      items: [...apiSidebar],
+    },
+  ],
 };
 
 export default sidebars;

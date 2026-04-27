@@ -24,25 +24,30 @@ func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 
 func TestMintIdentity(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
-	require.NoError(t, h.MintIdentity("alice"))
+	_, err := h.MintIdentity("alice")
+	require.NoError(t, err)
 }
 
 func TestMintIdentity_InvalidHandle(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
-	require.ErrorIs(t, h.MintIdentity("alice!invalid"), identity.ErrInvalidHandle)
+	_, err := h.MintIdentity("alice!invalid")
+	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
 func TestMintIdentity_Duplicate(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	require.NoError(t, h.MintIdentity("alice"))
-	require.ErrorIs(t, h.MintIdentity("alice"), ErrNotCreated)
+	_, err := h.MintIdentity("alice")
+	require.NoError(t, err)
+	_, err = h.MintIdentity("alice")
+	require.ErrorIs(t, err, ErrNotCreated)
 }
 
 func TestLookupHandle(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	require.NoError(t, h.MintIdentity("alice"))
+	_, err := h.MintIdentity("alice")
+	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
 	require.NoError(t, err)
@@ -60,16 +65,18 @@ func TestLookupHandle_NotFound(t *testing.T) {
 func TestLookupHandle_WrongDomain(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	require.NoError(t, h.MintIdentity("alice"))
+	_, err := h.MintIdentity("alice")
+	require.NoError(t, err)
 
-	_, err := h.LookupHandle(context.Background(), syntax.Handle("alice.other.com"))
+	_, err = h.LookupHandle(context.Background(), syntax.Handle("alice.other.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupDID(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	require.NoError(t, h.MintIdentity("alice"))
+	_, err := h.MintIdentity("alice")
+	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
 	require.NoError(t, err)

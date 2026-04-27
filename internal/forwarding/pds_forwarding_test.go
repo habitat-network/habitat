@@ -1,29 +1,16 @@
 package forwarding
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
-
-// stubAuthn implements authn.Method for tests, always returning the given DID.
-type stubAuthn struct {
-	did syntax.DID
-}
-
-func (s *stubAuthn) CanHandle(_ *http.Request) bool { return true }
-func (s *stubAuthn) Validate(_ http.ResponseWriter, _ *http.Request, _ ...string) (syntax.DID, bool) {
-	return s.did, true
-}
-func (s *stubAuthn) ValidateRaw(_ context.Context, _ string, _ ...string) (syntax.DID, bool, error) {
-	return s.did, true, nil
-}
 
 // fakePDSServer returns a test server that records the last request path it received.
 func fakePDSServer(t *testing.T) (*httptest.Server, *string) {
@@ -91,7 +78,7 @@ func TestServeHTTP_ForwardsToCallerPDS(t *testing.T) {
 
 	callerDID := syntax.DID("did:plc:caller123")
 	p := &PDSForwarding{
-		oauth:            &stubAuthn{did: callerDID},
+		oauth:            authn.NewStubAuthnForTest(callerDID),
 		pdsClientFactory: pdsclient.NewDummyClientFactory(fakePDS.URL),
 		plainHTTPClient:  fakePDS.Client(),
 	}

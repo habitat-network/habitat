@@ -20,7 +20,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string) error
+	MintIdentity(handle string) (*identity.Identity, error)
 
 	// FUTURE METHODS:
 	// Updating a handle
@@ -141,15 +141,11 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return nil
 }
 
-// MintOrgMember implements Hive.
-// TODO: we need either a password or piggy back on some other credential here
-// For now (development), no password, return true from oauth server always
-func (h *hive) MintIdentity(handle string) error {
-	// TODO: authz here
-
+// MintIdentity implements Hive.
+func (h *hive) MintIdentity(handle string) (*identity.Identity, error) {
 	// Ensure handle passes regex
 	if !handlePattern.MatchString(handle) {
-		return identity.ErrInvalidHandle
+		return nil, identity.ErrInvalidHandle
 	}
 	return h.store.createIdentity(handle)
 }
