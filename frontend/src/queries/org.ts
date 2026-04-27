@@ -72,5 +72,5 @@ export function issueInviteToken(authManager: AuthManager) {
       reusable: true,
     },
     { authManager },
-  ) as Promise<{ token: string }>;
+  );
 }

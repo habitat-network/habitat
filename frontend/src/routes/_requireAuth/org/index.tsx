@@ -8,8 +8,9 @@ import {
 } from "@/queries/org";
 import { Button, Input } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 export const Route = createFileRoute("/_requireAuth/org/")({
   async loader({ context }) {
@@ -68,22 +69,18 @@ function InviteSection({
   authManager: Parameters<typeof issueInviteToken>[0];
 }) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const { mutate: generateLink, isPending } = useMutation({
     mutationFn: () => issueInviteToken(authManager),
     onSuccess: ({ token }) => {
       setInviteUrl(`${window.location.origin}/org/join?token=${token}`);
-      setCopied(false);
     },
   });
 
   const copy = () => {
     if (!inviteUrl) return;
     navigator.clipboard.writeText(inviteUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast("Copied to clipboard");
     });
   };
 
@@ -101,18 +98,23 @@ function InviteSection({
         </Button>
       </div>
       {inviteUrl && (
-        <div className="flex gap-2 mt-3">
+        <form
+          className="flex gap-2 mt-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            copy();
+          }}
+        >
           <Input
-            ref={inputRef}
             className="flex-1 font-mono text-xs"
             readOnly
             value={inviteUrl}
-            onFocus={() => inputRef.current?.select()}
+            onFocus={(e) => e.currentTarget.select()}
           />
-          <Button variant="outline" size="sm" onClick={copy}>
-            {copied ? "Copied!" : "Copy"}
+          <Button type="submit" variant="outline" size="sm">
+            Copy
           </Button>
-        </div>
+        </form>
       )}
     </section>
   );

@@ -5,6 +5,7 @@ import { type QueryClient } from "@tanstack/react-query";
 import { AtpAgent } from "@atproto/api";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { Toaster } from "sonner";
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -41,6 +42,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           <Outlet />
         </div>
         <TanStackRouterDevtools />
+        <Toaster />
       </div>
     );
   },
