@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -48,7 +49,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
 		secret,
-		oauthClient,
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
@@ -67,8 +68,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			oauthSrv.HandleCallback(w, r)
 		case "/token":
 			oauthSrv.HandleToken(w, r)
-		case "/client-metadata":
-			oauthSrv.HandleClientMetadata(w, r)
 		case "/resource":
 			oauthSrv.Validate(w, r)
 		default:
@@ -86,14 +85,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("CanHandle returns false without oauth header", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		require.False(t, oauthSrv.CanHandle(r))
-	})
-
-	t.Run("HandleClientMetadata returns metadata as JSON", func(t *testing.T) {
-		resp, err := server.Client().Get(server.URL + "/client-metadata")
-		require.NoError(t, err)
-		defer func() { _ = resp.Body.Close() }()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 	})
 
 	t.Run("HandleAuthorize rejects request missing OAuth params", func(t *testing.T) {
@@ -154,7 +145,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		secret,
-		oauthClient,
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
@@ -268,7 +259,7 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		secret,
-		oauthClient,
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
 		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
@@ -501,7 +492,7 @@ func TestValidate(t *testing.T) {
 	newSrv := func(o org.Org) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			secret,
-			oauthClient,
+			login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
 			sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
