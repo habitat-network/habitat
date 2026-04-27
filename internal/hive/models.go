@@ -27,8 +27,8 @@ import (
     "publicKeyMultibase": "zQ3sh..."
   }],
   "service": [{
-    "id": "#atproto_pds",
-    "type": "AtprotoPersonalDataServer",
+    "id": "#habitat",
+    "type": "HabitatServer",
     "serviceEndpoint": "https://habitat.sf.club"
   }]
 }
@@ -50,8 +50,8 @@ import (
     "publicKeyMultibase": "zQ3sh..."
   }],
   "service": [{
-    "id": "#atproto_pds",
-    "type": "AtprotoPersonalDataServer",
+    "id": "#habitat",
+    "type": "HabitatServer",
     "serviceEndpoint": "https://myorg.habitat.network"
   }]
 }
