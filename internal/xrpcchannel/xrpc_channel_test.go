@@ -22,7 +22,7 @@ func TestServiceProxyXrpcChannel(t *testing.T) {
 	channel := NewServiceProxyXrpcChannel(
 		"habitat",
 		pdsclient.NewDummyClientFactory(server.URL),
-		pdsclient.NewDummyDirectory(server.URL),
+		pdsclient.NewDummyDirectory(server.URL, pdsclient.WithHabitatService()),
 	)
 	req, err := http.NewRequest("GET", "/xrpc/network.habitat.repo.getRecord", nil)
 	require.NoError(t, err)

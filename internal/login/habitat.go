@@ -2,7 +2,6 @@ package login
 
 import (
 	"context"
-	"errors"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -20,10 +19,11 @@ func (h *habitatProvider) CanHandle(id *identity.Identity) bool {
 	return hasHabitat && !hasPDS
 }
 
+// Allow all logins to work for now, this is a work-in-progress
 func (h *habitatProvider) BeginLogin(_ context.Context, _ *identity.Identity) (string, []byte, error) {
-	return "", nil, errors.New("habitat-native auth not yet implemented")
+	return "", []byte("placeholder"), nil
 }
 
 func (h *habitatProvider) CompleteLogin(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
-	return errors.New("habitat-native auth not yet implemented")
+	return nil
 }
