@@ -15,6 +15,7 @@ import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as DevtoolsRouteImport } from './routes/devtools'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
+import { Route as OrgJoinRouteImport } from './routes/org/join'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/_forwarding-test'
@@ -59,6 +60,11 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => RequireAuthRoute,
+} as any)
+const OrgJoinRoute = OrgJoinRouteImport.update({
+  id: '/org/join',
+  path: '/org/join',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   id: '/permissions',
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
+  '/org/join': typeof OrgJoinRoute
   '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
@@ -173,6 +180,7 @@ export interface FileRoutesByTo {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
+  '/org/join': typeof OrgJoinRoute
   '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/_requireAuth/_forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
+  '/org/join': typeof OrgJoinRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
   '/_requireAuth/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/_requireAuth/pear-test/view': typeof RequireAuthPearTestViewRoute
@@ -219,6 +228,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/data'
     | '/permissions'
+    | '/org/join'
     | '/'
     | '/collections/$collection'
     | '/pear-test/view'
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
+    | '/org/join'
     | '/'
     | '/collections/$collection'
     | '/pear-test/view'
@@ -261,6 +272,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/_forwarding-test'
     | '/_requireAuth/data'
     | '/_requireAuth/permissions'
+    | '/org/join'
     | '/_requireAuth/'
     | '/_requireAuth/collections/$collection'
     | '/_requireAuth/pear-test/view'
@@ -282,6 +294,7 @@ export interface RootRouteChildren {
   ExploreRoute: typeof ExploreRoute
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
+  OrgJoinRoute: typeof OrgJoinRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -327,6 +340,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof RequireAuthIndexRouteImport
       parentRoute: typeof RequireAuthRoute
+    }
+    '/org/join': {
+      id: '/org/join'
+      path: '/org/join'
+      fullPath: '/org/join'
+      preLoaderRoute: typeof OrgJoinRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_requireAuth/permissions': {
       id: '/_requireAuth/permissions'
@@ -524,6 +544,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExploreRoute: ExploreRoute,
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
+  OrgJoinRoute: OrgJoinRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

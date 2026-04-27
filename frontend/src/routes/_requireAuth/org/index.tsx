@@ -2,12 +2,13 @@ import {
   getAdminsQueryOptions,
   getMembersQueryOptions,
   addAdmin,
-  addMembers,
   removeMembers,
   downgradeAdmin,
+  issueInviteToken,
 } from "@/queries/org";
 import { Button, Input } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -54,12 +55,68 @@ function OrgPage() {
         dids={members}
         isAdmin={isAdmin}
         onRemove={(did) => removeMembers(authManager, [did]).then(invalidate)}
-        addLabel="Add member"
-        onAdd={(did) => addMembers(authManager, [did]).then(invalidate)}
         onPromote={(did) => addAdmin(authManager, did).then(invalidate)}
         canPromote={true}
       />
+      {isAdmin && <InviteSection authManager={authManager} />}
     </div>
+  );
+}
+
+function InviteSection({
+  authManager,
+}: {
+  authManager: Parameters<typeof issueInviteToken>[0];
+}) {
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+
+  const { mutate: generateLink, isPending } = useMutation({
+    mutationFn: () => issueInviteToken(authManager),
+    onSuccess: ({ token }) => {
+      setInviteUrl(`${window.location.origin}/org/join?token=${token}`);
+    },
+  });
+
+  const copy = () => {
+    if (!inviteUrl) return;
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      toast("Copied to clipboard");
+    });
+  };
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold mb-2">Invite</h2>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isPending}
+          onClick={() => generateLink()}
+        >
+          Generate invite link
+        </Button>
+      </div>
+      {inviteUrl && (
+        <form
+          className="flex gap-2 mt-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            copy();
+          }}
+        >
+          <Input
+            className="flex-1 font-mono text-xs"
+            readOnly
+            value={inviteUrl}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <Button type="submit" variant="outline" size="sm">
+            Copy
+          </Button>
+        </form>
+      )}
+    </section>
   );
 }
 
@@ -77,15 +134,15 @@ function MemberSection({
   dids: string[];
   isAdmin: boolean;
   onRemove: (did: string) => Promise<void>;
-  onAdd: (did: string) => Promise<void>;
-  addLabel: string;
+  onAdd?: (did: string) => Promise<void>;
+  addLabel?: string;
   onPromote?: (did: string) => Promise<void>;
   canPromote: boolean;
 }) {
   const [input, setInput] = useState("");
 
   const { mutate: handleAdd, isPending: adding } = useMutation({
-    mutationFn: () => onAdd(input),
+    mutationFn: () => onAdd!(input),
     onSuccess: () => setInput(""),
   });
 
@@ -121,7 +178,7 @@ function MemberSection({
           ))}
         </tbody>
       </table>
-      {isAdmin && (
+      {isAdmin && onAdd && addLabel && (
         <div className="flex gap-2 mt-3">
           <Input
             className="flex-1 font-mono"

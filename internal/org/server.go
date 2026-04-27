@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -350,6 +351,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("got req", req)
 	id, err := s.org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle)
 	if errors.Is(err, ErrInvalidToken) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -359,6 +361,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("created identity", id)
 	output := habitat.NetworkHabitatOrgMintMemberIdentityOutput{
 		Did:    id.DID.String(),
 		Handle: id.Handle.String(),
