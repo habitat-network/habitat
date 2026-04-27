@@ -3,14 +3,14 @@ package org
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/hive"
 	"gorm.io/gorm"
@@ -68,16 +68,15 @@ type member struct {
 	CreatedAt time.Time
 }
 
-// TODO: we should clean up this table
-type identityToken struct {
-	TokenHash string `gorm:"primaryKey"`
-	Reusable  bool
-	ExpiresAt time.Time  `gorm:"not null"`
-	IssuedBy  string     // DID of admin who created this token
-	UsedAt    *time.Time // nil until consumed (only meaningful for non-reusable)
+// spentToken tracks consumed single-use invite tokens by their JWT ID.
+type spentToken struct {
+	JTI        string    `gorm:"primaryKey"`
+	ConsumedAt time.Time `gorm:"not null"`
+}
 
-	// Automatically populated by gorm
-	CreatedAt time.Time
+type inviteTokenClaims struct {
+	jwt.Claims
+	Reusable bool `json:"reusable"`
 }
 
 type store struct {
@@ -91,18 +90,22 @@ type store struct {
 	// Manages all backing data for an org
 	// Currently just an org_members table
 	db *gorm.DB
+
+	// HMAC-SHA256 key for signing and verifying invite tokens
+	signingSecret []byte
 }
 
 var _ Org = &store{}
 
-func NewOrg(domain string, hive hive.Hive, db *gorm.DB) (Org, error) {
-	if err := db.AutoMigrate(&member{}, &identityToken{}); err != nil {
+func NewOrg(domain string, hive hive.Hive, db *gorm.DB, signingSecret []byte) (Org, error) {
+	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &store{
-		domain: domain,
-		hive:   hive,
-		db:     db,
+		domain:        domain,
+		hive:          hive,
+		db:            db,
+		signingSecret: signingSecret,
 	}, nil
 }
 
@@ -227,66 +230,61 @@ func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	return err == nil, err
 }
 
-func hashToken(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
-}
-
-// Returns ErrTokenDenied if the token could not be validated, otherwise an error if unable to validate, otherwise nil
 func (s *store) validateIdentityToken(ctx context.Context, token string) error {
-	hash := hashToken(token)
+	parsed, err := jwt.ParseSigned(token)
+	if err != nil {
+		return ErrInvalidToken
+	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var t identityToken
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}). // lock on this row to prevent TOCTOU race
-									Where("token_hash = ?", hash).
-									First(&t).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	var claims inviteTokenClaims
+	if err := parsed.Claims(s.signingSecret, &claims); err != nil {
+		return ErrInvalidToken
+	}
+
+	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
+		return ErrInvalidToken
+	}
+
+	if !claims.Reusable {
+		result := s.db.WithContext(ctx).
+			Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&spentToken{JTI: claims.ID, ConsumedAt: time.Now()})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
 			return ErrInvalidToken
 		}
-		if err != nil {
-			return err
-		}
-
-		if time.Now().After(t.ExpiresAt) {
-			return ErrInvalidToken
-		}
-
-		if !t.Reusable {
-			if t.UsedAt != nil {
-				return ErrInvalidToken
-			}
-			now := time.Now()
-			if err := tx.Model(&t).Update("used_at", &now).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // IssueIdentityToken implements Org.
 func (s *store) IssueIdentityToken(ctx context.Context, caller syntax.DID, reusable bool, expiresAt time.Time) (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	token := base64.RawURLEncoding.EncodeToString(b)
-
 	if expiresAt.After(time.Now().AddDate(0, 1, 0)) {
 		return "", ErrInvalidTokenExpiry
 	}
 
-	row := identityToken{
-		TokenHash: hashToken(token),
-		Reusable:  reusable,
-		ExpiresAt: expiresAt,
-		IssuedBy:  caller.String(),
-	}
-	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return token, nil
+	jti := base64.RawURLEncoding.EncodeToString(b)
+
+	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: s.signingSecret}, nil)
+	if err != nil {
+		return "", err
+	}
+
+	claims := inviteTokenClaims{
+		Claims: jwt.Claims{
+			ID:     jti,
+			Issuer: caller.String(),
+			Expiry: jwt.NewNumericDate(expiresAt),
+		},
+		Reusable: reusable,
+	}
+	return jwt.Signed(sig).Claims(claims).CompactSerialize()
 }
 
 // CreateNewMemberIdentity implements Org.

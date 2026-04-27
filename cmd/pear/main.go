@@ -170,7 +170,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Default: no org == org that serves everyone
 	pearOrg := org.NewEveryoneOrg()
 	if servingOrg {
-		pearOrg, err = org.NewOrg(domain, orgHive, db)
+		inviteSecret, err := encrypt.ParseKey(cmd.String(fInviteTokenSecret))
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to parse org invite signing secret (HABITAT_ORG_INVITE_SIGNING_SECRET)")
+		}
+		pearOrg, err = org.NewOrg(domain, orgHive, db, inviteSecret)
 		if err != nil {
 			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
 		}

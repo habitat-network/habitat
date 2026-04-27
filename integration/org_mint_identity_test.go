@@ -30,7 +30,7 @@ func TestMintThenLookup(t *testing.T) {
 	require.NoError(t, err)
 
 	adminDID := syntax.DID("did:plc:admin1234")
-	o, err := org.NewOrg("example.com", h, db)
+	o, err := org.NewOrg("example.com", h, db, []byte("test-signing-secret-for-org-00000"))
 	require.NoError(t, err)
 	require.NoError(t, o.AddAdmin(ctx, adminDID))
 

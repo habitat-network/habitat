@@ -14,11 +14,13 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+var testSigningSecret = []byte("test-signing-secret-for-org-00000")
+
 func newTestStore(t *testing.T) Org {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", nil, db)
+	s, err := NewOrg("test-domain", nil, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -29,7 +31,7 @@ func newTestStoreWithHive(t *testing.T) Org {
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", h, db)
+	s, err := NewOrg("test-domain", h, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -125,7 +127,7 @@ func TestRemoveMembers(t *testing.T) {
 func TestGetMetadata(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", nil, db)
+	s, err := NewOrg("test-domain", nil, db, testSigningSecret)
 	require.NoError(t, err)
 
 	md := s.GetMetadata()

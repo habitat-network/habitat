@@ -21,6 +21,7 @@ var (
 	fOauthServerSecret = "oauth_server_secret"
 	fOauthClientSecret = "oauth_client_secret"
 	fOrg               = "org"
+	fInviteTokenSecret = "org_invite_signing_secret"
 )
 var profiles []string
 
@@ -84,6 +85,11 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Usage:    "Whether the server is being run as part of an organization",
 				Required: false,
 				Sources:  getSources(fOrg),
+			},
+			&cli.StringFlag{
+				Name:    fInviteTokenSecret,
+				Usage:   "32-byte base64-encoded secret for signing org invite tokens (HABITAT_ORG_INVITE_SIGNING_SECRET). Required when --org is set.",
+				Sources: getSources(fInviteTokenSecret),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
