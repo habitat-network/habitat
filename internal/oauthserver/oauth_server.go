@@ -468,7 +468,6 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
-
 var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
