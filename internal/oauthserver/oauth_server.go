@@ -4,9 +4,6 @@ package oauthserver
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"encoding/gob"
 	"encoding/json"
 	"errors"
@@ -21,9 +18,9 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
@@ -45,10 +42,10 @@ const (
 // This data is temporarily stored during the OAuth authorization flow to preserve
 // request context across redirects.
 type authRequestFlash struct {
-	Form           url.Values // Original authorization request form data
-	DpopKey        []byte
-	AuthorizeState *pdsclient.AuthorizeState // AT Protocol authorization state
-	Did            syntax.DID                // DID of the user
+	Form          url.Values         // Original authorization request form data
+	ProviderType  login.ProviderType // Which login provider initiated this flow
+	ProviderState []byte             // Opaque provider-specific state
+	Did           syntax.DID         // DID of the user
 }
 
 type metrics struct {
@@ -156,7 +153,7 @@ type OAuthServer struct {
 	provider     fosite.OAuth2Provider
 	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
 	sessionStore sessions.Store             // Session storage for authorization flow state
-	oauthClient  pdsclient.PdsOAuthClient   // Client for communicating with AT Protocol services
+	loginRouter  *login.Router              // Routes login flows by DID service endpoint
 	directory    identity.Directory         // AT Protocol identity directory for handle resolution
 	storage      *store
 
@@ -184,7 +181,7 @@ type OAuthServer struct {
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
 	secret string,
-	oauthClient pdsclient.PdsOAuthClient,
+	loginRouter *login.Router,
 	sessionStore sessions.Store,
 	node node.Node,
 	directory identity.Directory,
@@ -213,7 +210,6 @@ func NewOAuthServer(
 	}
 	// Register types for session serialization
 	gob.Register(&authRequestFlash{})
-	gob.Register(pdsclient.AuthorizeState{})
 
 	oauthMetrics, err := newMetrics(meter)
 	if err != nil {
@@ -232,7 +228,7 @@ func NewOAuthServer(
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
 		credStore:    credStore,
-		oauthClient:  oauthClient,
+		loginRouter:  loginRouter,
 		sessionStore: sessionStore,
 		directory:    directory,
 		node:         node,
@@ -293,36 +289,25 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusInternalServerError)
 		return
 	}
-	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+
+	provider, err := o.loginRouter.For(id)
 	if err != nil {
-		o.metrics.authorizeErr(err, "gen_dpop_key")
-		utils.LogAndHTTPError(w, err, "failed to generate key", http.StatusInternalServerError)
+		o.metrics.authorizeErr(err, "no_provider")
+		utils.LogAndHTTPError(w, err, "no login provider for identity", http.StatusBadRequest)
 		return
 	}
-	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
-	redirect, state, err := o.oauthClient.Authorize(dpopClient, id)
+	redirect, providerState, err := provider.BeginLogin(ctx, id)
 	if err != nil {
-		o.metrics.authorizeErr(err, fositeErrReason(err))
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"failed to initiate authorization",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	dpopKeyBytes, err := dpopKey.Bytes()
-	if err != nil {
-		o.metrics.authorizeErr(err, "serialize_dpop")
-		utils.LogAndHTTPError(w, err, "failed to serialize key", http.StatusInternalServerError)
+		o.metrics.authorizeErr(err, "begin_login")
+		utils.LogAndHTTPError(w, err, "failed to initiate authorization", http.StatusInternalServerError)
 		return
 	}
 	authorizeSession, _ := o.sessionStore.New(r, sessionName)
 	authorizeSession.AddFlash(&authRequestFlash{
-		Form:           requester.GetRequestForm(),
-		AuthorizeState: state,
-		DpopKey:        dpopKeyBytes,
-		Did:            id.DID,
+		Form:          requester.GetRequestForm(),
+		ProviderType:  provider.Type(),
+		ProviderState: providerState,
+		Did:           id.DID,
 	})
 	if err := authorizeSession.Save(r, w); err != nil {
 		o.metrics.authorizeErr(err, "save_flash")
@@ -402,42 +387,21 @@ func (o *OAuthServer) HandleCallback(
 			fosite.ErrAccessDenied.WithDescription("You are not a member of this habitat organization.").WithHint(""))
 		return
 	}
-	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), arf.DpopKey)
+	provider, err := o.loginRouter.ByType(arf.ProviderType)
 	if err != nil {
-		o.metrics.callbackErr(err, "parse_dpop")
-		utils.LogAndHTTPError(w, err, "failed to parse dpop key", http.StatusBadRequest)
+		o.metrics.callbackErr(err, "no_provider")
+		utils.LogAndHTTPError(w, err, "no login provider for session", http.StatusBadRequest)
 		return
 	}
-	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
-	tokenInfo, err := o.oauthClient.ExchangeCode(
-		dpopClient,
+	if err := provider.CompleteLogin(
+		ctx,
+		arf.Did,
 		r.URL.Query().Get("code"),
 		r.URL.Query().Get("iss"),
-		arf.AuthorizeState,
-	)
-	if err != nil {
-		o.metrics.callbackErr(err, fositeErrReason(err))
-		utils.LogAndHTTPError(w, err, "failed to exchange code", http.StatusInternalServerError)
-		return
-	}
-
-	// Store/update user credentials in the database with the PDS tokens
-	err = o.credStore.UpsertCredentials(
-		arf.Did,
-		&pdscred.Credentials{
-			AccessToken:  tokenInfo.AccessToken,
-			RefreshToken: tokenInfo.RefreshToken,
-			DpopKey:      dpopKey,
-		},
-	)
-	if err != nil {
-		o.metrics.callbackErr(err, "upsert_creds")
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"failed to save user credentials",
-			http.StatusInternalServerError,
-		)
+		arf.ProviderState,
+	); err != nil {
+		o.metrics.callbackErr(err, "complete_login")
+		utils.LogAndHTTPError(w, err, "failed to complete login", http.StatusInternalServerError)
 		return
 	}
 
@@ -504,19 +468,6 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
-func (o *OAuthServer) HandleClientMetadata(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(o.oauthClient.ClientMetadata())
-	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"failed to encode client metadata",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-}
 
 var _ authn.Method = (*OAuthServer)(nil)
 
