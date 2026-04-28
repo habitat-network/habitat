@@ -29,7 +29,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -462,7 +461,6 @@ func setupOAuthServer(
 	oauthServer, err := oauthserver.NewOAuthServer(
 		cmd.String(fOauthServerSecret),
 		loginRouter,
-		sessions.NewCookieStore([]byte("my super secret signing password")),
 		node,
 		identity.DefaultDirectory(),
 		credStore,

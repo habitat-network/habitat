@@ -4,17 +4,18 @@ package oauthserver
 
 import (
 	"context"
-	"encoding/gob"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -150,12 +151,14 @@ type OAuthServer struct {
 	// The habitat service name to look up in DID docs.
 	node node.Node
 
-	provider     fosite.OAuth2Provider
-	credStore    pdscred.PDSCredentialStore // Database storage for OAuth sessions
-	sessionStore sessions.Store             // Session storage for authorization flow state
-	loginRouter  *login.Router              // Routes login flows by DID service endpoint
-	directory    identity.Directory         // AT Protocol identity directory for handle resolution
-	storage      *store
+	provider    fosite.OAuth2Provider
+	credStore   pdscred.PDSCredentialStore // Database storage for OAuth sessions
+	loginRouter *login.Router              // Routes login flows by DID service endpoint
+	directory   identity.Directory         // AT Protocol identity directory for handle resolution
+	storage     *store
+
+	flashMu    sync.Mutex
+	flashStore map[string]*authRequestFlash
 
 	// Org this server belongs to
 	org org.Org
@@ -171,18 +174,15 @@ type OAuthServer struct {
 //   - Database storage for OAuth sessions and PDS tokens
 //
 // Parameters:
-//   - oauthClient: Client for AT Protocol OAuth operations
-//   - sessionStore: Store for managing user sessions during authorization flow
+//   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
 //   - credStore: Store for PDS credentials
-//   - userStore: Store for managing users (can be nil if not needed)
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
 	secret string,
 	loginRouter *login.Router,
-	sessionStore sessions.Store,
 	node node.Node,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
@@ -208,8 +208,6 @@ func NewOAuthServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
-	// Register types for session serialization
-	gob.Register(&authRequestFlash{})
 
 	oauthMetrics, err := newMetrics(meter)
 	if err != nil {
@@ -227,13 +225,13 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		credStore:    credStore,
-		loginRouter:  loginRouter,
-		sessionStore: sessionStore,
-		directory:    directory,
-		node:         node,
-		storage:      storage,
-		org:          org,
+		credStore:   credStore,
+		loginRouter: loginRouter,
+		flashStore:  make(map[string]*authRequestFlash),
+		directory:   directory,
+		node:        node,
+		storage:     storage,
+		org:         org,
 	}, nil
 }
 
@@ -296,28 +294,38 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "no login provider for identity", http.StatusBadRequest)
 		return
 	}
-	redirect, providerState, err := provider.BeginLogin(ctx, id)
+	redirect, providerState, err := provider.Authorize(ctx, id)
 	if err != nil {
 		o.metrics.authorizeErr(err, "begin_login")
 		utils.LogAndHTTPError(w, err, "failed to initiate authorization", http.StatusInternalServerError)
 		return
 	}
-	authorizeSession, _ := o.sessionStore.New(r, sessionName)
-	authorizeSession.AddFlash(&authRequestFlash{
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		o.metrics.authorizeErr(err, "gen_flash_id")
+		utils.LogAndHTTPError(w, err, "failed to generate session id", http.StatusInternalServerError)
+		return
+	}
+	flashID := hex.EncodeToString(b)
+	o.flashMu.Lock()
+	o.flashStore[flashID] = &authRequestFlash{
 		Form:          requester.GetRequestForm(),
 		ProviderType:  provider.Type(),
 		ProviderState: providerState,
 		Did:           id.DID,
-	})
-	if err := authorizeSession.Save(r, w); err != nil {
-		o.metrics.authorizeErr(err, "save_flash")
-		utils.LogAndHTTPError(w, err, "failed to save session", http.StatusInternalServerError)
-		return
 	}
+	o.flashMu.Unlock()
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionName,
+		Value:    flashID,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+		Path:     "/oauth-callback",
+	})
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 	o.metrics.authorizeSuccess()
-
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -340,23 +348,19 @@ func (o *OAuthServer) HandleCallback(
 	r *http.Request,
 ) {
 	ctx := r.Context()
-	authorizeSession, err := o.sessionStore.Get(r, sessionName)
+	cookie, err := r.Cookie(sessionName)
 	if err != nil {
 		o.metrics.callbackErr(err, "get_session")
-		utils.LogAndHTTPError(w, err, "failed to get session", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "failed to get session cookie", http.StatusBadRequest)
 		return
 	}
-	flashes := authorizeSession.Flashes()
-	_ = authorizeSession.Save(r, w)
-	if len(flashes) == 0 {
-		o.metrics.callbackErr(err, "save_flash")
-		utils.LogAndHTTPError(w, err, "failed to get auth request flash", http.StatusBadRequest)
-		return
-	}
-	arf, ok := flashes[0].(*authRequestFlash)
+	o.flashMu.Lock()
+	arf, ok := o.flashStore[cookie.Value]
+	delete(o.flashStore, cookie.Value)
+	o.flashMu.Unlock()
 	if !ok {
-		o.metrics.callbackErr(err, "flash_type")
-		utils.LogAndHTTPError(w, err, "failed to parse auth request flash", http.StatusBadRequest)
+		o.metrics.callbackErr(nil, "no_flash")
+		utils.LogAndHTTPError(w, nil, "no state found for session", http.StatusBadRequest)
 		return
 	}
 
@@ -393,7 +397,7 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "no login provider for session", http.StatusBadRequest)
 		return
 	}
-	if err := provider.CompleteLogin(
+	if err := provider.Exchange(
 		ctx,
 		arf.Did,
 		r.URL.Query().Get("code"),

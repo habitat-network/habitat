@@ -38,7 +38,7 @@ func (p *pdsProvider) CanHandle(id *identity.Identity) bool {
 	return hasPDS && !hasHabitat
 }
 
-func (p *pdsProvider) BeginLogin(_ context.Context, id *identity.Identity) (string, []byte, error) {
+func (p *pdsProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate dpop key: %w", err)
@@ -59,7 +59,7 @@ func (p *pdsProvider) BeginLogin(_ context.Context, id *identity.Identity) (stri
 	return redirect, stateBytes, nil
 }
 
-func (p *pdsProvider) CompleteLogin(_ context.Context, did syntax.DID, code string, issuer string, stateBytes []byte) error {
+func (p *pdsProvider) Exchange(_ context.Context, did syntax.DID, code string, issuer string, stateBytes []byte) error {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return fmt.Errorf("unmarshal pds provider state: %w", err)
