@@ -20,10 +20,10 @@ func (h *habitatProvider) CanHandle(id *identity.Identity) bool {
 }
 
 // Allow all logins to work for now, this is a work-in-progress
-func (h *habitatProvider) BeginLogin(_ context.Context, _ *identity.Identity) (string, []byte, error) {
-	return "", []byte("placeholder"), nil
+func (h *habitatProvider) Authorize(_ context.Context, _ *identity.Identity) (string, []byte, error) {
+	return "https://habitat.network/login/habitat", []byte("placeholder"), nil // TODO: to work in dev this should really be https://[frontend_domain]/login/habitat
 }
 
-func (h *habitatProvider) CompleteLogin(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
+func (h *habitatProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
 	return nil
 }

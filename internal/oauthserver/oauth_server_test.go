@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/gorilla/securecookie"
-	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
@@ -32,7 +30,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			"not-valid-base64!!!",
-			nil, nil, nil, nil, nil, nil, noop.Meter{}, org.NewEveryoneOrg(),
+			nil, nil, nil, nil, nil, noop.Meter{}, org.NewEveryoneOrg(),
 		)
 		require.Error(t, err)
 	})
@@ -50,7 +48,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secret,
 		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
-		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -64,7 +61,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		switch r.URL.Path {
 		case "/authorize":
 			oauthSrv.HandleAuthorize(w, r)
-		case "/callback":
+		case "/oauth-callback":
 			oauthSrv.HandleCallback(w, r)
 		case "/token":
 			oauthSrv.HandleToken(w, r)
@@ -97,7 +94,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 
 	t.Run("HandleCallback rejects request with no session flash", func(t *testing.T) {
 		// No prior /authorize call, so the session contains no flash data.
-		resp, err := server.Client().Get(server.URL + "/callback")
+		resp, err := server.Client().Get(server.URL + "/oauth-callback")
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -146,7 +143,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	oauthServer, err := NewOAuthServer(
 		secret,
 		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
-		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -160,7 +156,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		switch r.URL.Path {
 		case "/authorize":
 			oauthServer.HandleAuthorize(w, r)
-		case "/callback":
+		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
 		case "/token":
 			oauthServer.HandleToken(w, r)
@@ -173,7 +169,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	server.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{server.URL + "/callback"}
+	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
@@ -190,7 +186,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
 					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/callback"},
+					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				}))
@@ -202,7 +198,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	defer clientApp.Close()
 
 	config.ClientID = clientApp.URL + "/client-metadata.json"
-	config.RedirectURL = clientApp.URL + "/callback"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
 
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
@@ -216,14 +212,14 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		return http.ErrUseLastResponse
 	}
 
-	// Drive the flow until it hits /callback — the server follows redirects
-	// through the dummy PDS and stops at the first non-redirect from /callback.
+	// Drive the flow until it hits /oauth-callback — the server follows redirects
+	// through the dummy PDS and stops at the first non-redirect from /oauth-callback.
 	httpClient := server.Client()
 	resp, err := httpClient.Do(authRequest)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 
-	// Follow redirects manually until we reach /callback.
+	// Follow redirects manually until we reach /oauth-callback.
 	for resp.StatusCode == http.StatusSeeOther {
 		loc := resp.Header.Get("Location")
 		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, nil)
@@ -231,7 +227,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		resp, err = httpClient.Do(nextReq)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
-		if nextReq.URL.Path == "/callback" {
+		if nextReq.URL.Path == "/oauth-callback" {
 			break
 		}
 	}
@@ -260,7 +256,6 @@ func TestOAuthServerE2E(t *testing.T) {
 	oauthServer, err := NewOAuthServer(
 		secret,
 		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
-		sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -276,7 +271,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		case "/authorize":
 			oauthServer.HandleAuthorize(w, r)
 			return
-		case "/callback":
+		case "/oauth-callback":
 			oauthServer.HandleCallback(w, r)
 			return
 		case "/token":
@@ -296,7 +291,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to create cookie jar")
 	server.Client().Jar = jar
 	// set the server's oauthClient redirectUri now that we know the url
-	clientMetadata.RedirectUris = []string{server.URL + "/callback"}
+	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
 
 	// setup client app that oauth server can make requests to
 	verifier := oauth2.GenerateVerifier()
@@ -313,13 +308,13 @@ func TestOAuthServerE2E(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
 					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/callback"},
+					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
 				require.NoError(t, err, "failed to encode client metadata")
 				return
-			case "/callback":
+			case "/oauth-callback":
 				ctx := context.WithValue(r.Context(), oauth2.HTTPClient, server.Client())
 				token, err := config.Exchange(
 					ctx,
@@ -339,7 +334,7 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	// Set the client app's OAuth configuration now that we know the url
 	config.ClientID = clientApp.URL + "/client-metadata.json"
-	config.RedirectURL = clientApp.URL + "/callback"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
 
 	// create authorize request
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
@@ -414,7 +409,7 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 		switch r.URL.Path {
 		case "/authorize":
 			srv.HandleAuthorize(w, r)
-		case "/callback":
+		case "/oauth-callback":
 			srv.HandleCallback(w, r)
 		case "/token":
 			srv.HandleToken(w, r)
@@ -427,7 +422,7 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	flowServer.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{flowServer.URL + "/callback"}
+	clientMetadata.RedirectUris = []string{flowServer.URL + "/oauth-callback"}
 
 	verifier := oauth2.GenerateVerifier()
 	oauthCfg := &oauth2.Config{
@@ -444,11 +439,11 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 			w.Header().Set("Content-Type", "application/json")
 			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
 				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/callback"},
+				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
-		case "/callback":
+		case "/oauth-callback":
 			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, flowServer.Client())
 			token, exchangeErr := oauthCfg.Exchange(ctx, r.URL.Query().Get("code"), oauth2.VerifierOption(verifier))
 			require.NoError(t, exchangeErr)
@@ -460,7 +455,7 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 	t.Cleanup(clientApp.Close)
 
 	oauthCfg.ClientID = clientApp.URL + "/client-metadata.json"
-	oauthCfg.RedirectURL = clientApp.URL + "/callback"
+	oauthCfg.RedirectURL = clientApp.URL + "/oauth-callback"
 
 	authReq, err := http.NewRequest(http.MethodGet,
 		oauthCfg.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+"&handle=did:web:test",
@@ -493,7 +488,6 @@ func TestValidate(t *testing.T) {
 		s, srvErr := NewOAuthServer(
 			secret,
 			login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
-			sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
 			credStore,

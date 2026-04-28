@@ -117,32 +117,32 @@ func TestPDSProvider_CanHandle(t *testing.T) {
 	require.False(t, p.CanHandle(idWithNoServices()), "identity with no services should not be handled")
 }
 
-func TestPDSProvider_BeginLogin(t *testing.T) {
+func TestPDSProvider_Authorize(t *testing.T) {
 	client := &stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}
 	p := NewPDSProvider(client, newStubCredStore())
 
-	redirect, state, err := p.BeginLogin(context.Background(), idWithPDSOnly())
+	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly())
 	require.NoError(t, err)
 	require.Equal(t, "https://pds.example.com/authorize", redirect)
 	require.NotEmpty(t, state)
 
-	// state must round-trip through CompleteLogin — verify it's valid JSON with expected fields
+	// state must round-trip through Exchange — verify it's valid JSON with expected fields
 	var s pdsProviderState
 	require.NoError(t, unmarshalProviderState(state, &s))
 	require.NotEmpty(t, s.DpopKey)
 	require.Equal(t, "verifier", s.AuthorizeState.Verifier)
 }
 
-func TestPDSProvider_CompleteLogin(t *testing.T) {
+func TestPDSProvider_Exchange(t *testing.T) {
 	credStore := newStubCredStore()
 	p := NewPDSProvider(&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}, credStore)
 	did := syntax.DID("did:web:pds.example.com")
 
-	// Obtain valid state from BeginLogin.
-	_, state, err := p.BeginLogin(context.Background(), idWithPDSOnly())
+	// Obtain valid state from Authorize.
+	_, state, err := p.Authorize(context.Background(), idWithPDSOnly())
 	require.NoError(t, err)
 
-	err = p.CompleteLogin(context.Background(), did, "code", "https://pds.example.com", state)
+	err = p.Exchange(context.Background(), did, "code", "https://pds.example.com", state)
 	require.NoError(t, err)
 
 	creds, stored := credStore.upserted[did]
@@ -163,15 +163,15 @@ func TestHabitatProvider_CanHandle(t *testing.T) {
 	require.False(t, p.CanHandle(idWithNoServices()), "identity with no services should not be handled")
 }
 
-func TestHabitatProvider_BeginLogin_AlwaysSucceeds(t *testing.T) {
+func TestHabitatProvider_Authorize_AlwaysSucceeds(t *testing.T) {
 	p := NewHabitatProvider()
-	_, _, err := p.BeginLogin(context.Background(), idWithHabitatOnly())
+	_, _, err := p.Authorize(context.Background(), idWithHabitatOnly())
 	require.NoError(t, err)
 }
 
-func TestHabitatProvider_CompleteLogin_AlwaysSucceeds(t *testing.T) {
+func TestHabitatProvider_Exchange_AlwaysSucceeds(t *testing.T) {
 	p := NewHabitatProvider()
-	err := p.CompleteLogin(context.Background(), "did:web:test", "code", "issuer", nil)
+	err := p.Exchange(context.Background(), "did:web:test", "code", "issuer", nil)
 	require.NoError(t, err)
 }
 
