@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
@@ -35,6 +36,15 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(ident.DID.String()))
 }
 
+type didDocWithContext struct {
+	Context []string `json:"@context"`
+	identity.DIDDocument
+}
+
+var (
+	didCtx = []string{"https://www.w3.org/ns/did/v1", "https://w3id.org/security/multikey/v1", "https://w3id.org/security/suites/secp256k1-2019/v1"}
+)
+
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	did, err := syntax.ParseDID("did:web:" + r.Host)
@@ -50,7 +60,10 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	doc := ident.DIDDocument()
+	doc := didDocWithContext{
+		Context:     didCtx,
+		DIDDocument: ident.DIDDocument(),
+	}
 
 	w.Header().Set("Content-Type", "application/did+ld+json")
 	w.Header().Set("Cache-Control", "max-age=3600")

@@ -37,7 +37,7 @@ type hive struct {
 	// "members" in alice.members.sf.club and "" in alice.sf.club
 	memberDomain string
 
-	// The domain at which identity's pear is hosted at (what goes in the #atproto_pds) service in DID doc
+	// The domain at which identity's pear is hosted at (what goes in the #habitat) service in DID doc
 	pearDomain string
 
 	// The backing data store for hive
@@ -62,8 +62,8 @@ func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
 				},
 			},
 			Services: map[string]identity.ServiceEndpoint{
-				"atproto_pds": {
-					Type: "AtprotoPersonalDataServer",
+				"habitat": {
+					Type: "HabitatServer",
 					URL:  "https://" + pearDomain,
 				},
 			},
