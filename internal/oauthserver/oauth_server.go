@@ -157,6 +157,7 @@ type OAuthServer struct {
 	directory   identity.Directory         // AT Protocol identity directory for handle resolution
 	storage     *store
 
+	// Store a map of opaque cookie id --> flash between Authorize and Callback since session cookies have a size limit
 	flashMu    sync.Mutex
 	flashStore map[string]*authRequestFlash
 
@@ -300,6 +301,8 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "failed to initiate authorization", http.StatusInternalServerError)
 		return
 	}
+
+	// Generate opaque flash id to store in cookie
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		o.metrics.authorizeErr(err, "gen_flash_id")
@@ -307,6 +310,7 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 	flashID := hex.EncodeToString(b)
+
 	o.flashMu.Lock()
 	o.flashStore[flashID] = &authRequestFlash{
 		Form:          requester.GetRequestForm(),
@@ -315,6 +319,7 @@ func (o *OAuthServer) HandleAuthorize(
 		Did:           id.DID,
 	}
 	o.flashMu.Unlock()
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionName,
 		Value:    flashID,
@@ -354,10 +359,13 @@ func (o *OAuthServer) HandleCallback(
 		utils.LogAndHTTPError(w, err, "failed to get session cookie", http.StatusBadRequest)
 		return
 	}
+
+	// Lookup cookie --> flash
 	o.flashMu.Lock()
 	arf, ok := o.flashStore[cookie.Value]
 	delete(o.flashStore, cookie.Value)
 	o.flashMu.Unlock()
+
 	if !ok {
 		o.metrics.callbackErr(nil, "no_flash")
 		utils.LogAndHTTPError(w, nil, "no state found for session", http.StatusBadRequest)
