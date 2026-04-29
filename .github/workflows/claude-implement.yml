@@ -6,7 +6,7 @@ on:
 
 jobs:
   implement:
-    if: github.event.label.name == 'for-claude'
+    if: ${{ github.event.label.name == 'for-claude' && (github.event.issue.user.login == 'arushibandi' || github.event.issue.user.login == 'sashankg') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,7 +19,9 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: "25"
           prompt: |
+            Read CLAUDE.md before starting.
             Implement the feature described in this issue. 
             Follow all conventions in CLAUDE.md.
             Run tests before finishing.
