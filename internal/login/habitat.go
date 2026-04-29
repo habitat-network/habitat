@@ -21,7 +21,7 @@ func (h *habitatProvider) CanHandle(id *identity.Identity) bool {
 
 // Allow all logins to work for now, this is a work-in-progress
 func (h *habitatProvider) Authorize(_ context.Context, _ *identity.Identity) (string, []byte, error) {
-	return "https://habitat.network/login/habitat", []byte("placeholder"), nil // TODO: to work in dev this should really be https://[frontend_domain]/login/habitat
+	return "https://habitat.network/habitat/#/login/habitat", []byte("placeholder"), nil // TODO: to work in dev this should really be https://[frontend_domain]/login/habitat
 }
 
 func (h *habitatProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
