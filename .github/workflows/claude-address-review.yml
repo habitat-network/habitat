@@ -9,6 +9,7 @@ jobs:
     if: ${{
       github.event.pull_request.draft == false &&
       github.event.review.user.login != 'github-actions[bot]' &&
+      (github.event.pull_request.user.login == 'arushibandi' || github.event.pull_request.user.login == 'sashankg') &&
       (
         (github.event_name == 'pull_request_review' && github.event.review.state == 'changes_requested' && contains(github.event.pull_request.labels.*.name, 'claude-address-review')) ||
         (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'claude-address-review')
