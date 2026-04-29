@@ -9,14 +9,32 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+type options struct {
+	withHabitatService bool
+}
+
+type Option func(*options)
+
+func WithHabitatService() Option {
+	return func(o *options) {
+		o.withHabitatService = true
+	}
+}
+
 type DummyDirectory struct {
+	options    *options
 	pdsUrl     string
 	PrivateKey *atcrypto.PrivateKeyK256
 }
 
-func NewDummyDirectory(pdsUrl string) *DummyDirectory {
+func NewDummyDirectory(pdsUrl string, opts ...Option) *DummyDirectory {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
 	privateKey, _ := atcrypto.GeneratePrivateKeyK256()
 	return &DummyDirectory{
+		options:    o,
 		pdsUrl:     pdsUrl,
 		PrivateKey: privateKey,
 	}
@@ -49,14 +67,11 @@ func (d *DummyDirectory) Purge(ctx context.Context, atid syntax.AtIdentifier) er
 
 func (d *DummyDirectory) getIdentity(did string) *identity.Identity {
 	publicKey, _ := d.PrivateKey.PublicKey()
-	return &identity.Identity{
+	id := &identity.Identity{
 		DID: syntax.DID(did),
 		Services: map[string]identity.ServiceEndpoint{
 			"atproto_pds": {
 				URL: d.pdsUrl,
-			},
-			"habitat": {
-				URL: "https://habitat.network",
 			},
 		},
 		Keys: map[string]identity.VerificationMethod{
@@ -66,4 +81,10 @@ func (d *DummyDirectory) getIdentity(did string) *identity.Identity {
 			},
 		},
 	}
+	if d.options.withHabitatService {
+		id.Services["habitat"] = identity.ServiceEndpoint{
+			URL: "https://habitat.network",
+		}
+	}
+	return id
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -28,13 +29,13 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/inbox"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
@@ -243,7 +244,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
-	mux.HandleFunc("/client-metadata.json", oauthServer.HandleClientMetadata)
+	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
 
 	// auth routes
 	// TODO: who is allowed to call the oauth handlers in an org?
@@ -361,6 +362,16 @@ func serveDid(domain string) http.HandlerFunc {
 	}
 }
 
+func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc {
+	metadata := oauthClient.ClientMetadata()
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(metadata); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
 func setupDB(cmd *cli.Command) *gorm.DB {
 	var db *gorm.DB
 	var err error
@@ -443,10 +454,13 @@ func setupOAuthServer(
 	meter metric.Meter,
 	org org.Org,
 ) *oauthserver.OAuthServer {
+	loginRouter := login.NewRouter(
+		login.NewPDSProvider(oauthClient, credStore),
+		login.NewHabitatProvider(),
+	)
 	oauthServer, err := oauthserver.NewOAuthServer(
 		cmd.String(fOauthServerSecret),
-		oauthClient,
-		sessions.NewCookieStore([]byte("my super secret signing password")),
+		loginRouter,
 		node,
 		identity.DefaultDirectory(),
 		credStore,

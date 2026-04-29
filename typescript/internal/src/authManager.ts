@@ -86,12 +86,17 @@ export class AuthManager {
     }
     const state = localStorage.getItem(stateLocalStorageKey);
     if (!state) {
-      throw new Error("No state found");
+      // State is missing — the browser session was cleared or a prior exchange
+      // failed. Redirect to login so the user can retry.
+      window.location.href = `/oauth-login?error=${encodeURIComponent("Login session expired. Please try again.")}`;
+      return false;
     }
-    localStorage.removeItem(stateLocalStorageKey);
     const token = await client.authorizationCodeGrant(this.config, url, {
       expectedState: state,
     });
+    // Only remove state after a successful exchange so a failed exchange
+    // (network error, etc.) can be retried without losing the state.
+    localStorage.removeItem(stateLocalStorageKey);
     this.setAuthState(token);
     // Remove code and state from URL
     url.searchParams.delete("code");
