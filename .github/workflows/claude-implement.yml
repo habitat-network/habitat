@@ -1,0 +1,29 @@
+# .github/workflows/claude-implement.yml
+name: Claude Implement Feature
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  implement:
+    if: ${{ github.event.label.name == 'for-claude' && (github.event.issue.user.login == 'arushibandi' || github.event.issue.user.login == 'sashankg') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: "25"
+          prompt: |
+            Read CLAUDE.md before starting.
+            Implement the feature described in this issue. 
+            Follow all conventions in CLAUDE.md.
+            Run tests before finishing.
+            Open a PR referencing this issue when done.
+            If you get stuck or it starts to get complicated, stop, clean up your work and make a draft PR with why you stopped in the description.

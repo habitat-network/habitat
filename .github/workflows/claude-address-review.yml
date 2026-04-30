@@ -1,0 +1,40 @@
+# .github/workflows/claude-address-review.yml
+name: Claude Address Review Comments
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  fix:
+    if: ${{
+      github.event.pull_request.draft == false &&
+      github.event.review.user.login != 'github-actions[bot]' &&
+      (github.event.pull_request.user.login == 'arushibandi' || github.event.pull_request.user.login == 'sashankg') &&
+      (
+        (github.event_name == 'pull_request_review' && github.event.review.state == 'changes_requested' && contains(github.event.pull_request.labels.*.name, 'claude-address-review')) ||
+        (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'claude-address-review')
+      )
+    }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: "10"
+          prompt: |
+            Read .claude/skills/pr-review/SKILL.md and follow it exactly. 
+
+            Address the review comments on this PR.
+            - Only fix what you are confident about and is straightforward.
+            - Only address comments that have not already been resolved, responded to, or fixed in the code.
+            - Run tests before committing.
+            - Commit with message "claude: <what you did>"
+            - Post a PR comment summarizing what you addressed and what you left for the human
