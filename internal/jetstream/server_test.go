@@ -166,7 +166,9 @@ func TestServerClientDisconnectHTTP(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	srv.us.mu.RLock()
 	initialCount := len(srv.us.subscribers)
@@ -177,7 +179,7 @@ func TestServerClientDisconnectHTTP(t *testing.T) {
 	// immediately on cancel, but the server handler may still be running defer unsubscribe().
 	// Use Eventually to wait for the server-side teardown to complete.
 	cancel()
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	require.Eventually(t, func() bool {
 		srv.us.mu.RLock()
@@ -191,13 +193,16 @@ func TestServerSlowConsumerRemovedHTTP(t *testing.T) {
 	defer teardown()
 
 	resp := sseRequest(t, ts)
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// Flood events without reading the response body. Once the TCP buffer fills the
 	// handler stalls, the subscriber channel fills to capacity, and listenForUpdates
 	// closes the channel and removes the subscriber.
 	removed := make(chan struct{})
 	go func() {
+		defer close(removed)
 		for {
 			srv.us.mu.RLock()
 			count := len(srv.us.subscribers)
