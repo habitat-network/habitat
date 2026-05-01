@@ -7,12 +7,19 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/jetstream/pkg/models"
-	"github.com/bradenaw/juniper/xmaps"
+	"github.com/bradenaw/juniper/stream"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-// Server actually listens to subscribers over HTTP/2 SSE and emits events
-// We don't use Websocket because it's more expensive and complex operationally,
+// This package provides a service that fulfills a jetstream-like API for a habitat organization.
+// Products that integrate with habitat need a method to receive real-time changes that are relevant
+// to their application and index / aggregate them however they want.
+//
+// This has no authorization primitives attached; it sends all updates flowing through the repo.
+// This will be added as a follow up.
+
+// The Server handles listening for updates from an ingestion stream and fanning them out to many upstream
+// jetstream subscribers over HTTP SSE. We don't use Websocket because it's more expensive and complex operationally,
 // and this usecase doesn't support the client sending messages.
 //
 // The official jetstream API uses bi-directionality so that the client can update
@@ -20,24 +27,16 @@ import (
 // that the client can close the connection and re-open it with the new parameters and the
 // timestamp cursor from where it left off.
 
-type subscriber struct{}
-
-func (s *subscriber) Wants(ev models.Event) bool {
-	return true // TODO: logic for filtering based on desired collections / dids / etc.
-}
-
 type Server struct {
-	hjs HabitatJetstream
-	// For now simple set; on each change iterate through and see who wants it
-	// Eventually, maintain an index for easy look-ups on collection --> sub / did --> sub
-	subscribers xmaps.Set[subscriber]
+	ctx context.Context
+	us  *updateService
 }
 
-func (s *Server) newSubscriber(collections, dids []string) chan *models.Event {
-	sub, ch := s.hjs.Subscribe()
-	// add sub to subscribers
-	s.subscribers.Add(sub)
-	return ch
+func NewServer(ctx context.Context, in stream.Stream[models.Event]) *Server {
+	return &Server{
+		ctx: ctx,
+		us:  NewUpdateService(ctx, in),
+	}
 }
 
 func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +60,7 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: support maxMessageSize and compression
 
-	ch := s.newSubscriber(wantedCollections, wantedDIDs)
+	ch := s.us.subscribe(r.Context(), wantedCollections, wantedDIDs)
 	enc := json.NewEncoder(w)
 
 	for {
