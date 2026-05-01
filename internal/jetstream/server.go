@@ -68,15 +68,13 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 			// Report length of subscription; some other metrics here
 			return
 		// case <-s.ctx.Done():
-		case ev, ok := <-ch:
-			if !ok {
-				// This means the channel was closed; tell the client it is too slow and needs to re-open the connection
-			}
-
+		case ev := <-ch:
+			// TODO: do i need to check if subscriber channel was closed on the sender side?
 			// Receive an event from the hjs service and write it out to
 			err := enc.Encode(ev)
 			if err != nil {
 				// break or whatever
+				break
 			}
 			flusher.Flush()
 			// case <- t.C send pings to client
