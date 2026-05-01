@@ -187,7 +187,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup clique store")
 	}
 
-	pear, err := setupPear(cmd, dir, node, cliqueStore, db, oauthServer, pdsClientFactory)
+	pear, err := setupPear(ctx, cmd, dir, node, cliqueStore, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
@@ -419,6 +419,7 @@ func setupNode(
 }
 
 func setupPear(
+	ctx context.Context,
 	cmd *cli.Command,
 	dir identity.Directory,
 	node node.Node,
@@ -427,7 +428,7 @@ func setupPear(
 	oauthServer *oauthserver.OAuthServer,
 	clientFactory pdsclient.HttpClientFactory,
 ) (pear.Pear, error) {
-	repo, err := repo.NewRepo(db)
+	repo, err := repo.NewRepo(ctx, db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}

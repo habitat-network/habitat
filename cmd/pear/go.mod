@@ -6,7 +6,6 @@ replace github.com/habitat-network/habitat => ../..
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
-	github.com/gorilla/sessions v1.4.0
 	github.com/habitat-network/habitat v0.0.2-testing-9
 	github.com/rs/zerolog v1.34.0
 	github.com/urfave/cli-altsrc/v3 v3.1.0
@@ -32,16 +31,19 @@ require (
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/bluesky-social/jetstream v0.0.0-20260415170838-8a65de4eda28 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.19.0 // indirect
+	github.com/gorilla/sessions v1.4.0 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/ipfs/boxo v0.37.0 // indirect
 	github.com/jaegertracing/jaeger-idl v0.6.0 // indirect
