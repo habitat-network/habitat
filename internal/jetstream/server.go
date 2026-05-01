@@ -40,6 +40,8 @@ func NewServer(ctx context.Context, in stream.Stream[models.Event]) *Server {
 }
 
 func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
+	// TODO: authz that the caller is authorized by the org
+
 	// Set required SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -66,7 +68,8 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: support maxMessageSize and compression
 
-	ch := s.us.subscribe(r.Context(), wantedCollections, wantedDIDs)
+	ch, unsubscribe := s.us.subscribe(r.Context(), wantedCollections, wantedDIDs)
+	defer unsubscribe()
 
 	for {
 		select {
@@ -74,13 +77,22 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 			// Report length of subscription; some other metrics here
 			return
 		// case <-s.ctx.Done():
-		case ev := <-ch:
-			data, err := json.Marshal(ev)
-			if err != nil {
-				break
+		case ev, ok := <-ch:
+			if !ok {
+				//  the channel being closed indicates that this subscriber is too slow
+				// Can i send a message or something?
+				return
+			} else {
+				data, err := json.Marshal(ev)
+				if err != nil {
+					return
+				}
+				_, err = fmt.Fprintf(w, "event: update\ndata: %s\n\n", data)
+				if err != nil {
+					return
+				}
+				flusher.Flush()
 			}
-			fmt.Fprintf(w, "event: update\ndata: %s\n\n", data)
-			flusher.Flush()
 			// case <- t.C send pings to client
 		}
 	}

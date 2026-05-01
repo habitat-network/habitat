@@ -28,10 +28,15 @@ func NewUpdateService(ctx context.Context, in stream.Stream[models.Event]) *upda
 	return us
 }
 
-func (us *updateService) subscribe(ctx context.Context, collections, dids []string) chan *models.Event {
+const (
+	// Add a small buffer to the channel to manage slowdowns
+	subscriberBufferSize = 500
+)
+
+func (us *updateService) subscribe(ctx context.Context, collections, dids []string) (chan *models.Event, func()) {
 	sub := &subscriber{
 		ctx:         ctx,
-		ch:          make(chan *models.Event),
+		ch:          make(chan *models.Event, subscriberBufferSize),
 		collections: collections,
 		dids:        dids,
 	}
@@ -39,7 +44,15 @@ func (us *updateService) subscribe(ctx context.Context, collections, dids []stri
 	us.mu.Lock()
 	defer us.mu.Unlock()
 	us.subscribers.Add(sub)
-	return sub.ch
+	return sub.ch, func() {
+		us.unsubscribe(sub)
+	}
+}
+
+func (us *updateService) unsubscribe(sub *subscriber) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+	us.subscribers.Remove(sub)
 }
 
 func (us *updateService) listenForUpdates(ctx context.Context, in stream.Stream[models.Event]) {
@@ -55,12 +68,25 @@ func (us *updateService) listenForUpdates(ctx context.Context, in stream.Stream[
 			return
 		}
 
+		// TODO: there's a better way of handling slow subscribers + locking
+		toClose := make(xmaps.Set[*subscriber])
 		us.mu.RLock()
-		// TODO: don't hold lock while iterating over this
-		for sub, _ := range us.subscribers {
-			sub.send(&ev)
+		for sub := range us.subscribers {
+			blocked := sub.send(&ev) // TODO: do something here if the sender is blocked
+			if blocked {
+				toClose.Add(sub)
+			}
 		}
 		us.mu.RUnlock()
+
+		if len(toClose) > 0 {
+			us.mu.Lock()
+			for sub := range toClose {
+				close(sub.ch) // Signals to the server that this subscriber needs to go away and come back
+				us.subscribers.Remove(sub)
+			}
+			us.mu.Unlock()
+		}
 	}
 }
 
@@ -76,13 +102,18 @@ func (s *subscriber) wants(ev *models.Event) bool {
 	return true // TODO: logic for filtering based on desired collections / dids / etc.
 }
 
-func (s *subscriber) send(ev *models.Event) {
+// Returns whether the send was successful
+func (s *subscriber) send(ev *models.Event) (blocked bool) {
 	if s.wants(ev) {
 		select {
 		case <-s.ctx.Done():
-			return
+			return false
 		case s.ch <- ev:
-			// TODO: should we timeout sending since this is centrally blocking?
+			// TODO: should we timeout sending since this is centrally blocking
+			return false
+		default:
+			return true
 		}
 	}
+	return false
 }
