@@ -15,6 +15,18 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
+type writeOptions struct {
+	tx *gorm.Tx
+}
+
+type WriteOption func(*writeOptions)
+
+func WithTransaction(tx *gorm.Tx) WriteOption {
+	return func(wo *writeOptions) {
+		wo.tx = tx
+	}
+}
+
 type Store interface {
 	// Whether the requester is directly granted permission to this record.
 	// If the requester has indirect permissions via cliques, this returns false.
@@ -30,12 +42,14 @@ type Store interface {
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
+		opts ...WriteOption,
 	) error
 	RemovePermissions(
 		grantee []Grantee,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
+		opts ...WriteOption,
 	) error
 	ListGranteePermissions(
 		ctx context.Context,

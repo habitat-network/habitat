@@ -21,12 +21,35 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type writeOptions struct {
+	tx *gorm.Tx
+}
+
+type WriteOption func(*writeOptions)
+
+func WithTransaction(tx *gorm.Tx) WriteOption {
+	return func(wo *writeOptions) {
+		wo.tx = tx
+	}
+}
+
+func applyOpts(opts ...WriteOption) *writeOptions {
+	o := &writeOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
 type Repo interface {
-	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
-	CreateRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
+	// Writes
+	PutRecord(ctx context.Context, record Record, validate *bool, opts ...WriteOption) (habitat_syntax.HabitatURI, error)
+	CreateRecord(ctx context.Context, record Record, validate *bool, opts ...WriteOption) (habitat_syntax.HabitatURI, error)
+	DeleteRecord(ctx context.Context, did string, collection string, rkey string, opts ...WriteOption) error
+	UploadBlob(ctx context.Context, did string, data []byte, mimeType string, opts ...WriteOption) (*BlobRef, error)
+
+	// Reads
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
-	DeleteRecord(ctx context.Context, did string, collection string, rkey string) error
-	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
 	ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error)
@@ -106,6 +129,7 @@ func (r *repo) PutRecord(
 	ctx context.Context,
 	rec Record,
 	validate *bool,
+	opts ...WriteOption,
 ) (habitat_syntax.HabitatURI, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec.Value)
