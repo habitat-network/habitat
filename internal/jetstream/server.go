@@ -20,16 +20,22 @@ import (
 
 type subscriber struct{}
 
-func (s *subscriber) Wants(ev models.Event) bool {}
+func (s *subscriber) Wants(ev models.Event) bool {
+	return true // TODO: logic for filtering based on desired collections / dids / etc.
+}
 
 type Server struct {
+	hjs HabitatJetstream
 	// For now simple set; on each change iterate through and see who wants it
 	// Eventually, maintain an index for easy look-ups on collection --> sub / did --> sub
 	subscribers xmaps.Set[subscriber]
 }
 
 func (s *Server) newSubscriber(collections, dids []string) chan *models.Event {
-
+	sub, ch := s.hjs.Subscribe()
+	// add sub to subscribers
+	s.subscribers.Add(sub)
+	return ch
 }
 
 func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {

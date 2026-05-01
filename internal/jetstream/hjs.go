@@ -1,5 +1,7 @@
 package jetstream
 
+import "github.com/bluesky-social/jetstream/pkg/models"
+
 // This package provides a service that fulfills a jetstream-like API for a habitat organization.
 // Products that integrate with habitat need a method to receive real-time changes that are relevant
 // to their application and index / aggregate them however they want.
@@ -10,5 +12,5 @@ package jetstream
 // The HabitatJetstream services handles listening for updates and fanning them out to many upstream
 // jetstream subscribers.
 type HabitatJetstream interface {
-	Subscribe()
+	Subscribe( /* subscribe params go in here */ ) (subscriber subscriber, ch chan *models.Event)
 }
