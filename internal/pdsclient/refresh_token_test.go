@@ -32,19 +32,13 @@ func TestOAuthClient_RefreshToken_Success(t *testing.T) {
 	dpopClient := testDpopClientFromSession(t, dpopSession)
 
 	identity, exists, err := dpopSession.GetIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	issuer, exists, err := dpopSession.GetIssuer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenInfo, exists, err := dpopSession.GetTokenInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenResp, err := client.RefreshToken(dpopClient, identity, issuer, tokenInfo.RefreshToken)
 
@@ -79,19 +73,13 @@ func TestOAuthClient_RefreshToken_ProtectedResourceError(t *testing.T) {
 	dpopClient := testDpopClientFromSession(t, dpopSession)
 
 	identity, exists, err := dpopSession.GetIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	issuer, exists, err := dpopSession.GetIssuer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenInfo, exists, err := dpopSession.GetTokenInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	_, err = client.RefreshToken(dpopClient, identity, issuer, tokenInfo.RefreshToken)
 
@@ -118,19 +106,13 @@ func TestOAuthClient_RefreshToken_NoAuthorizationServers(t *testing.T) {
 	dpopClient := testDpopClientFromSession(t, dpopSession)
 
 	identity, exists, err := dpopSession.GetIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	issuer, exists, err := dpopSession.GetIssuer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenInfo, exists, err := dpopSession.GetTokenInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	_, err = client.RefreshToken(dpopClient, identity, issuer, tokenInfo.RefreshToken)
 
@@ -174,19 +156,13 @@ func TestOAuthClient_RefreshToken_AuthServerError(t *testing.T) {
 	dpopClient := testDpopClientFromSession(t, dpopSession)
 
 	identity, exists, err := dpopSession.GetIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	issuer, exists, err := dpopSession.GetIssuer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenInfo, exists, err := dpopSession.GetTokenInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	_, err = client.RefreshToken(dpopClient, identity, issuer, tokenInfo.RefreshToken)
 
@@ -217,19 +193,13 @@ func TestOAuthClient_RefreshToken_HTTPRequestError(t *testing.T) {
 	dpopClient := testDpopClientFromSession(t, dpopSession)
 
 	identity, exists, err := dpopSession.GetIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	issuer, exists, err := dpopSession.GetIssuer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenInfo, exists, err := dpopSession.GetTokenInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	_, err = client.RefreshToken(dpopClient, identity, issuer, tokenInfo.RefreshToken)
 
@@ -255,19 +225,13 @@ func TestOAuthClient_RefreshToken_NonOKStatus(t *testing.T) {
 	dpopClient := testDpopClientFromSession(t, dpopSession)
 
 	identity, exists, err := dpopSession.GetIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	issuer, exists, err := dpopSession.GetIssuer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenInfo, exists, err := dpopSession.GetTokenInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	_, err = client.RefreshToken(dpopClient, identity, issuer, tokenInfo.RefreshToken)
 
@@ -380,19 +344,13 @@ func TestOAuthClient_RefreshToken_RequestParameters(t *testing.T) {
 	dpopClient := testDpopClientFromSession(t, dpopSession)
 
 	identity, exists, err := dpopSession.GetIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	issuer, exists, err := dpopSession.GetIssuer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenInfo, exists, err := dpopSession.GetTokenInfo()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.Error(t, err)
 	require.True(t, exists)
 	tokenResp, err := client.RefreshToken(dpopClient, identity, issuer, tokenInfo.RefreshToken)
 
