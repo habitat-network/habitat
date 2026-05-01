@@ -4,22 +4,24 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/bradenaw/juniper/stream"
 	"github.com/stretchr/testify/require"
 )
 
-func setupServerTest(t *testing.T) (*stream.PipeSender[models.Event], *httptest.Server, func()) {
+func setupServerTest(t *testing.T) (*stream.PipeSender[models.Event], *Server, *httptest.Server, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sender, receiver := stream.Pipe[models.Event](1)
 	srv := NewServer(ctx, receiver)
 	ts := httptest.NewServer(http.HandlerFunc(srv.HandleSubscribe))
-	return sender, ts, func() {
+	return sender, srv, ts, func() {
 		ts.Close()
 		cancel()
 	}
@@ -55,11 +57,13 @@ func readSSEEvent(t *testing.T, r *bufio.Reader) (eventType string, ev models.Ev
 }
 
 func TestServerSingleSubscriberHTTP(t *testing.T) {
-	sender, ts, teardown := setupServerTest(t)
+	sender, _, ts, teardown := setupServerTest(t)
 	defer teardown()
 
 	resp := sseRequest(t, ts)
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	events := []models.Event{
 		{Did: "did:plc:alpha"},
@@ -76,15 +80,43 @@ func TestServerSingleSubscriberHTTP(t *testing.T) {
 	}
 }
 
+func TestServerFilterByDIDHTTP(t *testing.T) {
+	t.Skip("this should fail until filtering is implemented")
+
+	sender, _, ts, teardown := setupServerTest(t)
+	defer teardown()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"?wantedDids=did:plc:target", nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+	// Send a non-matching event then a matching one.
+	// With filtering implemented, only the matching event should arrive.
+	require.NoError(t, sender.Send(context.Background(), models.Event{Did: "did:plc:other"}))
+	require.NoError(t, sender.Send(context.Background(), models.Event{Did: "did:plc:target"}))
+
+	_, got := readSSEEvent(t, bufio.NewReader(resp.Body))
+	require.Equal(t, "did:plc:target", got.Did)
+}
+
 func TestServerMultipleSubscribersHTTP(t *testing.T) {
-	sender, ts, teardown := setupServerTest(t)
+	sender, _, ts, teardown := setupServerTest(t)
 	defer teardown()
 
 	// Establish both connections before sending so both handlers are in the event loop.
 	resp1 := sseRequest(t, ts)
-	defer resp1.Body.Close()
+	defer func() {
+		_ = resp1.Body.Close()
+	}()
 	resp2 := sseRequest(t, ts)
-	defer resp2.Body.Close()
+	defer func() {
+		_ = resp2.Body.Close()
+	}()
 
 	events := []models.Event{
 		{Did: "did:plc:alpha"},
@@ -123,4 +155,70 @@ func TestServerMultipleSubscribersHTTP(t *testing.T) {
 		require.Equal(t, ev.Did, r1.ev.Did)
 		require.Equal(t, ev.Did, r2.ev.Did)
 	}
+}
+
+func TestServerClientDisconnectHTTP(t *testing.T) {
+	_, srv, ts, teardown := setupServerTest(t)
+	defer teardown()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	srv.us.mu.RLock()
+	initialCount := len(srv.us.subscribers)
+	srv.us.mu.RUnlock()
+	require.Equal(t, 1, initialCount)
+
+	// Cancel the client context to simulate disconnect. The client transport returns
+	// immediately on cancel, but the server handler may still be running defer unsubscribe().
+	// Use Eventually to wait for the server-side teardown to complete.
+	cancel()
+	resp.Body.Close()
+
+	require.Eventually(t, func() bool {
+		srv.us.mu.RLock()
+		defer srv.us.mu.RUnlock()
+		return len(srv.us.subscribers) == 0
+	}, time.Second, time.Millisecond)
+}
+
+func TestServerSlowConsumerRemovedHTTP(t *testing.T) {
+	sender, srv, ts, teardown := setupServerTest(t)
+	defer teardown()
+
+	resp := sseRequest(t, ts)
+	defer resp.Body.Close()
+
+	// Flood events without reading the response body. Once the TCP buffer fills the
+	// handler stalls, the subscriber channel fills to capacity, and listenForUpdates
+	// closes the channel and removes the subscriber.
+	removed := make(chan struct{})
+	go func() {
+		for {
+			srv.us.mu.RLock()
+			count := len(srv.us.subscribers)
+			srv.us.mu.RUnlock()
+			if count == 0 {
+				return
+			}
+			_ = sender.Send(context.Background(), models.Event{Did: "did:plc:flood"})
+		}
+	}()
+
+	// Wait for listenForUpdates to remove the slow subscriber, then drain the response
+	// body to unblock any stalled server writes so the handler can read the closed
+	// channel and exit cleanly.
+	<-removed
+	_, _ = io.ReadAll(resp.Body)
+
+	// TODO: this is just asserting the same as above. it should be a counter from inside server.HandleSubscribe
+	require.Eventually(t, func() bool {
+		srv.us.mu.RLock()
+		defer srv.us.mu.RUnlock()
+		return len(srv.us.subscribers) == 0
+	}, time.Second, time.Millisecond)
 }
