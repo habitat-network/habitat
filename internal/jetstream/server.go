@@ -52,6 +52,12 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Flush headers immediately so the client unblocks before the first event arrives.
+	// TODO: idk if this is the right thing to do but in tests httpClient.Do blocks until it gets a status header via
+	// directly written or a write, and we don't do writes until after sending an event.
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
@@ -61,7 +67,6 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	// TODO: support maxMessageSize and compression
 
 	ch := s.us.subscribe(r.Context(), wantedCollections, wantedDIDs)
-	enc := json.NewEncoder(w)
 
 	for {
 		select {
@@ -70,13 +75,11 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 			return
 		// case <-s.ctx.Done():
 		case ev := <-ch:
-			// TODO: do i need to check if subscriber channel was closed on the sender side?
-			// Receive an event from the hjs service and write it out to
-			err := enc.Encode(ev)
+			data, err := json.Marshal(ev)
 			if err != nil {
-				// break or whatever
 				break
 			}
+			fmt.Fprintf(w, "event: update\ndata: %s\n\n", data)
 			flusher.Flush()
 			// case <- t.C send pings to client
 		}
