@@ -45,6 +45,13 @@ export const Route = createFileRoute("/devtools")({
         icon: "🍾",
         link: "/onboard",
       },
+      {
+        id: "jetstream",
+        name: "Jetstream",
+        description: "Live SSE event stream from the Jetstream server",
+        icon: "📡",
+        link: "/jetstream",
+      },
     ];
   },
   component() {

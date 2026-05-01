@@ -18,6 +18,7 @@ import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/inde
 import { Route as OrgJoinRouteImport } from './routes/org/join'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
+import { Route as RequireAuthJetstreamRouteImport } from './routes/_requireAuth/jetstream'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/_forwarding-test'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
@@ -75,6 +76,11 @@ const LoginHabitatRoute = LoginHabitatRouteImport.update({
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+const RequireAuthJetstreamRoute = RequireAuthJetstreamRouteImport.update({
+  id: '/jetstream',
+  path: '/jetstream',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
+  '/jetstream': typeof RequireAuthJetstreamRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/login/habitat': typeof LoginHabitatRoute
   '/org/join': typeof OrgJoinRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
+  '/jetstream': typeof RequireAuthJetstreamRoute
   '/login/habitat': typeof LoginHabitatRoute
   '/org/join': typeof OrgJoinRoute
   '/': typeof RequireAuthIndexRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/_requireAuth/_forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
+  '/_requireAuth/jetstream': typeof RequireAuthJetstreamRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/login/habitat': typeof LoginHabitatRoute
   '/org/join': typeof OrgJoinRoute
@@ -236,6 +245,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
+    | '/jetstream'
     | '/permissions'
     | '/login/habitat'
     | '/org/join'
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/oauth-login'
     | '/onboard'
     | '/data'
+    | '/jetstream'
     | '/login/habitat'
     | '/org/join'
     | '/'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/_requireAuth/_forwarding-test'
     | '/_requireAuth/data'
+    | '/_requireAuth/jetstream'
     | '/_requireAuth/permissions'
     | '/login/habitat'
     | '/org/join'
@@ -373,6 +385,13 @@ declare module '@tanstack/react-router' {
       path: '/permissions'
       fullPath: '/permissions'
       preLoaderRoute: typeof RequireAuthPermissionsRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/jetstream': {
+      id: '/_requireAuth/jetstream'
+      path: '/jetstream'
+      fullPath: '/jetstream'
+      preLoaderRoute: typeof RequireAuthJetstreamRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/data': {
@@ -531,6 +550,7 @@ const RequireAuthPermissionsRouteWithChildren =
 interface RequireAuthRouteChildren {
   RequireAuthForwardingTestRoute: typeof RequireAuthForwardingTestRoute
   RequireAuthDataRoute: typeof RequireAuthDataRoute
+  RequireAuthJetstreamRoute: typeof RequireAuthJetstreamRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
@@ -544,6 +564,7 @@ interface RequireAuthRouteChildren {
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthForwardingTestRoute: RequireAuthForwardingTestRoute,
   RequireAuthDataRoute: RequireAuthDataRoute,
+  RequireAuthJetstreamRoute: RequireAuthJetstreamRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,
