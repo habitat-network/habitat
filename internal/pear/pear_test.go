@@ -60,7 +60,7 @@ func newPearForTest(t *testing.T, db *gorm.DB, dir identity.Directory, opts ...o
 		opt(o)
 	}
 
-	repo, err := repo.NewRepo(t.Context(), db)
+	repo, _, err := repo.NewRepo(t.Context(), db)
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
@@ -587,7 +587,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create pear with the shared database
-	repoStore, err := repo.NewRepo(t.Context(), db)
+	repoStore, _, err := repo.NewRepo(t.Context(), db)
 	require.NoError(t, err)
 	inboxInstance, err := inbox.New(db)
 	require.NoError(t, err)

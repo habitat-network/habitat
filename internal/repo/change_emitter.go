@@ -82,5 +82,7 @@ func (c *changeEmitter) EmitChangeEvent(did, collection, rkey string, op operati
 	err := c.sender.Send(c.ctx, ev)
 	// TODO handle error
 	// For now long the error and move on
-	log.Err(err).Msg("error emitting change event")
+	if err != nil {
+		log.Err(err).Msg("error emitting change event")
+	}
 }

@@ -21,7 +21,7 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), pearDB)
+	repo, _, err := NewRepo(t.Context(), pearDB)
 	require.NoError(t, err)
 
 	collection := "test.collection"
@@ -56,7 +56,7 @@ func TestRepoListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, _, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
 	_, err = repo.PutRecord(
 		t.Context(),
@@ -122,7 +122,7 @@ func TestRepoListCollections(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, _, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
 
 	did := syntax.DID("did:plc:testuser")
@@ -178,7 +178,7 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, _, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -231,7 +231,7 @@ func TestListRecords(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, _, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -284,7 +284,7 @@ func TestPutRecordOnConflict(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, _, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -341,7 +341,7 @@ func TestCreateRecord(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, _, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -379,7 +379,7 @@ func TestDeleteRecord(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	repo, err := NewRepo(t.Context(), db)
+	repo, _, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
 
 	ownerDID := syntax.DID("did:example:owner")

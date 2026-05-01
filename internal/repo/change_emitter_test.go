@@ -66,18 +66,18 @@ func TestEmitAfterConsumeDeliversEvent(t *testing.T) {
 	require.Equal(t, record, ev.Commit.Record)
 }
 
-func newTestRepo(t *testing.T) *repo {
+func newTestRepo(t *testing.T) (*repo, ChangeEmitter) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	r, err := NewRepo(t.Context(), db)
+	r, ce, err := NewRepo(t.Context(), db)
 	require.NoError(t, err)
-	return r
+	return r, ce
 }
 
 func TestPutRecordEmitsCreate(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	_, err = r.PutRecord(t.Context(), Record{
@@ -98,8 +98,8 @@ func TestPutRecordEmitsCreate(t *testing.T) {
 }
 
 func TestPutRecordEmitsUpdate(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	rec := Record{Did: "did:plc:test", Collection: "network.habitat.test", Rkey: "rkey-1", Value: map[string]any{"msg": "hello"}}
@@ -120,8 +120,8 @@ func TestPutRecordEmitsUpdate(t *testing.T) {
 }
 
 func TestCreateRecordEmitsCreate(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	_, err = r.CreateRecord(t.Context(), Record{
@@ -142,8 +142,8 @@ func TestCreateRecordEmitsCreate(t *testing.T) {
 }
 
 func TestDeleteRecordEmitsDelete(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	_, err = r.PutRecord(t.Context(), Record{

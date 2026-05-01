@@ -187,7 +187,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup clique store")
 	}
 
-	pear, err := setupPear(ctx, cmd, dir, node, cliqueStore, db, oauthServer, pdsClientFactory)
+	pear, _, err := setupPear(ctx, cmd, dir, node, cliqueStore, db, oauthServer, pdsClientFactory)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup pear")
 	}
@@ -241,6 +241,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 		// Not a fatal error: log and move on
 		log.Err(err).Msgf("unable to set up waitlist service")
 	}
+
+	// TODO: enable this when jetstream has auth on it
+	/*
+		consumer, err := changeEmitter.Consume()
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup change emitter consumer for jetstream service")
+		}
+		jss := jetstream.NewServer(egCtx, consumer)
+		mux.HandleFunc("/jetstream", jss.HandleSubscribe)
+	*/
 
 	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
@@ -427,23 +437,23 @@ func setupPear(
 	db *gorm.DB,
 	oauthServer *oauthserver.OAuthServer,
 	clientFactory pdsclient.HttpClientFactory,
-) (pear.Pear, error) {
-	repo, err := repo.NewRepo(ctx, db)
+) (pear.Pear, repo.ChangeEmitter, error) {
+	repo, ce, err := repo.NewRepo(ctx, db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pear repo: %w", err)
+		return nil, nil, fmt.Errorf("failed to create pear repo: %w", err)
 	}
 
 	permissions, err := permissions.NewStore(db, cliqueStore)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create permission store: %w", err)
+		return nil, nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
 
 	inbox, err := inbox.New(db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create inbox: %w", err)
+		return nil, nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, inbox), nil
+	return pear.NewPear(node, dir, permissions, repo, inbox), ce, nil
 }
 
 func setupOAuthServer(

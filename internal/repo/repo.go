@@ -100,15 +100,16 @@ type link struct {
 }
 
 // TODO: create table etc.
-func NewRepo(ctx context.Context, db *gorm.DB) (*repo, error) {
+func NewRepo(ctx context.Context, db *gorm.DB) (*repo, ChangeEmitter, error) {
 	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	ce := newChangeEmitter(ctx, changeEmitterBufferSize)
 	return &repo{
-		ce: newChangeEmitter(ctx, changeEmitterBufferSize),
+		ce: ce,
 		db: db,
-	}, nil
+	}, ce, nil
 }
 
 // putRecord puts a record for the given rkey into the repo no matter what; if a record always exists, it is overwritten.
