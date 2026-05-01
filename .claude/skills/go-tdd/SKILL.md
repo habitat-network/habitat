@@ -119,9 +119,9 @@ func TestParseConfig(t *testing.T) {
             got, err := ParseConfig(tt.input)
 
             if tt.wantErr {
-                require.Error(t, errr)
+                require.Error(t, err)
             }
-
+            require.NoError(t, err)
             require.True(t, reflect.DeepEqual(got, tt.want))
         })
     }
