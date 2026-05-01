@@ -46,6 +46,7 @@ require (
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
@@ -163,6 +164,7 @@ require (
 )
 
 require (
+	github.com/bluesky-social/jetstream v0.0.0-20260415170838-8a65de4eda28
 	github.com/bradenaw/juniper v0.15.3
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
