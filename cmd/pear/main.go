@@ -248,6 +248,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Err(err).Msgf("unable to set up waitlist service")
 	}
 
+	// TODO: enable this when jetstream has auth on it
+	/*
+		consumer, err := changeEmitter.Consume()
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup change emitter consumer for jetstream service")
+		}
+		jss := jetstream.NewServer(egCtx, consumer)
+		mux.HandleFunc("/jetstream", jss.HandleSubscribe)
+	*/
+
 	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
@@ -443,7 +453,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, inbox), nil
+	return pear.NewPear(node, dir, permissions, repo, inbox), ce, nil
 }
 
 func setupOAuthServer(
