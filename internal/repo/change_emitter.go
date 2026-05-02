@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type changeEmitter struct {
+type Changelog struct {
 	ctx context.Context
 
 	// Only one receiver is supported
@@ -25,17 +25,29 @@ type changeEmitter struct {
 	receiver stream.Stream[models.Event]
 }
 
-type ChangeEmitter interface {
+type EventEmitter interface {
+	EmitChangeEvent(did, collection, rkey string, op operation, ts time.Time, record json.RawMessage)
+}
+
+// Consumers can subscribe to the EventProvider
+type EventProvider interface {
 	// Consumers call consume to receive a stream they can listen for new events on
 	Consume() (stream.Stream[models.Event], error)
 }
 
-func newChangeEmitter(ctx context.Context, bufferSize int) *changeEmitter {
+var _ EventEmitter = &Changelog{}
+var _ EventProvider = &Changelog{}
+
+const (
+	DefaultChangeBufferSize = 1000
+)
+
+func NewChangeEmitter(ctx context.Context, bufferSize int) *Changelog {
 	// bufferSize = how many messages to buffer if the consumer is slow to read
 	// If the buffer is full, send the consumer away and recreate the sender + receiver TODO: lock
 	sender, receiver := stream.Pipe[models.Event](bufferSize)
 
-	return &changeEmitter{
+	return &Changelog{
 		ctx:      ctx,
 		sender:   sender,
 		receiver: receiver,
@@ -43,7 +55,7 @@ func newChangeEmitter(ctx context.Context, bufferSize int) *changeEmitter {
 }
 
 // Consume implements stem.Stem.
-func (c *changeEmitter) Consume() (stream.Stream[models.Event], error) {
+func (c *Changelog) Consume() (stream.Stream[models.Event], error) {
 	if !c.consumed.CompareAndSwap(false, true) {
 		return nil, fmt.Errorf("only one consumer allowed for now")
 	}
@@ -62,7 +74,7 @@ const (
 // EmitChangeEvent emits a jetstream event based on the given change data
 // Right now the change emitter relies on some caller to explicitly write out every change. In the future it could tail
 // a database WAL or something else similar.
-func (c *changeEmitter) EmitChangeEvent(did, collection, rkey string, op operation, ts time.Time, record json.RawMessage) {
+func (c *Changelog) EmitChangeEvent(did, collection, rkey string, op operation, ts time.Time, record json.RawMessage) {
 	if !c.consumed.Load() {
 		return
 	}

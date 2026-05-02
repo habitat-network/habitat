@@ -57,7 +57,7 @@ var (
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type repo struct {
-	ce *changeEmitter
+	ee EventEmitter
 	db *gorm.DB
 }
 
@@ -100,13 +100,13 @@ type link struct {
 }
 
 // TODO: create table etc.
-func NewRepo(ctx context.Context, db *gorm.DB) (*repo, error) {
+func NewRepo(ee EventEmitter, db *gorm.DB) (Repo, error) {
 	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
 		return nil, err
 	}
 
 	return &repo{
-		ce: newChangeEmitter(ctx, changeEmitterBufferSize),
+		ee: ee,
 		db: db,
 	}, nil
 }
@@ -182,7 +182,7 @@ func (r *repo) PutRecord(
 	})
 
 	// Emit the change
-	r.ce.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, op, ts, marshalled)
+	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, op, ts, marshalled)
 	return uri, err
 }
 
@@ -252,7 +252,7 @@ func (r *repo) CreateRecord(
 	}
 
 	// Emit the change
-	r.ce.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, OperationCreate, ts, marshalled)
+	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, OperationCreate, ts, marshalled)
 	return uri, nil
 }
 
@@ -309,7 +309,7 @@ func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, 
 	}
 
 	// Emit the change
-	r.ce.EmitChangeEvent(did, collection, rkey, OperationDelete, ts, nil /* delete changes don't include record value */)
+	r.ee.EmitChangeEvent(did, collection, rkey, OperationDelete, ts, nil /* delete changes don't include record value */)
 	return nil
 }
 
