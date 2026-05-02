@@ -11,6 +11,7 @@ Habitat is building a data ownership layer for organizations, built with AT Prot
 - NEVER commit secrets, credentials, or .env files
 - NEVER remove comments unless they are TODOs you are directly solving. Prefer adding comments on complx code.
 - ALWAYS read a file before editing it
+- When updating names or signatures, write a sed script instead of doing each change yourself.
 
 ## Key Components
 

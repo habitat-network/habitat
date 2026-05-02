@@ -22,11 +22,14 @@ import (
 )
 
 type Repo interface {
+	// Writes
 	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
 	CreateRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
-	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	DeleteRecord(ctx context.Context, did string, collection string, rkey string) error
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
+
+	// Read
+	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
 	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
 	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
 	ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error)
@@ -50,6 +53,7 @@ var (
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type repo struct {
+	ee EventEmitter
 	db *gorm.DB
 }
 
@@ -92,11 +96,13 @@ type link struct {
 }
 
 // TODO: create table etc.
-func NewRepo(db *gorm.DB) (*repo, error) {
+func NewRepo(ee EventEmitter, db *gorm.DB) (Repo, error) {
 	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
 		return nil, err
 	}
+
 	return &repo{
+		ee: ee,
 		db: db,
 	}, nil
 }
@@ -139,23 +145,40 @@ func (r *repo) PutRecord(
 
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
+	op := OperationUpdate
+	var ts time.Time
 	err = r.db.Transaction(func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
 		}
+
+		// Check for existence to determine whether this was a true update or create operation
+		err = tx.Where("did = ? AND rkey = ? AND collection = ?", rec.Did, rec.Rkey, rec.Collection).First(&record{}).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// If a matching record is found, this is an update
+			// We can't rely on result.RowsAffected below because that returns 1 for both a create and and update
+			op = OperationCreate
+		} else if err != nil {
+			return fmt.Errorf("existence check failed with err: %w", err)
+		}
+
 		r := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
 		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&r).Error; err != nil {
 			return err
 		}
+
 		if len(refs) > 0 {
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&refs).Error; err != nil {
 				return err
 			}
 		}
+		ts = tx.NowFunc()
 		return nil
 	})
 
+	// Emit the change
+	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, op, ts, marshalled)
 	return uri, err
 }
 
@@ -197,6 +220,7 @@ func (r *repo) CreateRecord(
 
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
+	var ts time.Time
 	err = r.db.Transaction(func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
@@ -216,9 +240,16 @@ func (r *repo) CreateRecord(
 				return err
 			}
 		}
+		ts = tx.NowFunc()
 		return nil
 	})
-	return uri, err
+	if err != nil {
+		return "", err
+	}
+
+	// Emit the change
+	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, OperationCreate, ts, marshalled)
+	return uri, nil
 }
 
 var (
@@ -259,7 +290,23 @@ func (r *repo) GetRecord(
 
 // DeleteRecord implements Repo.
 func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, rkey string) error {
-	return r.db.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).Delete(&record{}).Error
+	var ts time.Time
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		err := tx.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).Delete(&record{}).Error
+		if err != nil {
+			return err
+		}
+
+		ts = tx.NowFunc()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Emit the change
+	r.ee.EmitChangeEvent(did, collection, rkey, OperationDelete, ts, nil /* delete changes don't include record value */)
+	return nil
 }
 
 type BlobRef struct {
