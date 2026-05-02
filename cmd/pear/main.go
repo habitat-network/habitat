@@ -453,7 +453,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create inbox: %w", err)
 	}
 
-	return pear.NewPear(node, dir, permissions, repo, inbox), ce, nil
+	return pear.NewPear(node, dir, permissions, repo, inbox), nil
 }
 
 func setupOAuthServer(
