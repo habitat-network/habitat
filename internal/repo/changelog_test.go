@@ -14,7 +14,7 @@ import (
 
 func TestConsumeOnce(t *testing.T) {
 	ctx := context.Background()
-	ce := newChangeEmitter(ctx, 10)
+	ce := NewChangeEmitter(ctx, 10)
 
 	s, err := ce.Consume()
 	require.NoError(t, err)
@@ -23,7 +23,7 @@ func TestConsumeOnce(t *testing.T) {
 
 func TestConsumeTwiceErrors(t *testing.T) {
 	ctx := context.Background()
-	ce := newChangeEmitter(ctx, 10)
+	ce := NewChangeEmitter(ctx, 10)
 
 	_, err := ce.Consume()
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestConsumeTwiceErrors(t *testing.T) {
 
 func TestEmitBeforeConsumeIsNoop(t *testing.T) {
 	ctx := context.Background()
-	ce := newChangeEmitter(ctx, 10)
+	ce := NewChangeEmitter(ctx, 10)
 
 	// Should not block or panic with no consumer attached.
 	ce.EmitChangeEvent("did:example:123", "app.test.record", "rkey1", OperationCreate, time.Now(), json.RawMessage(`{}`))
@@ -42,7 +42,7 @@ func TestEmitBeforeConsumeIsNoop(t *testing.T) {
 
 func TestEmitAfterConsumeDeliversEvent(t *testing.T) {
 	ctx := context.Background()
-	ce := newChangeEmitter(ctx, 10)
+	ce := NewChangeEmitter(ctx, 10)
 
 	s, err := ce.Consume()
 	require.NoError(t, err)
@@ -66,18 +66,19 @@ func TestEmitAfterConsumeDeliversEvent(t *testing.T) {
 	require.Equal(t, record, ev.Commit.Record)
 }
 
-func newTestRepo(t *testing.T) *repo {
+func newTestRepo(t *testing.T) (Repo, *Changelog) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	r, err := NewRepo(t.Context(), db)
+	ce := NewChangeEmitter(t.Context(), DefaultChangeBufferSize)
+	r, err := NewRepo(ce, db)
 	require.NoError(t, err)
-	return r
+	return r, ce
 }
 
 func TestPutRecordEmitsCreate(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	_, err = r.PutRecord(t.Context(), Record{
@@ -98,8 +99,8 @@ func TestPutRecordEmitsCreate(t *testing.T) {
 }
 
 func TestPutRecordEmitsUpdate(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	rec := Record{Did: "did:plc:test", Collection: "network.habitat.test", Rkey: "rkey-1", Value: map[string]any{"msg": "hello"}}
@@ -120,8 +121,8 @@ func TestPutRecordEmitsUpdate(t *testing.T) {
 }
 
 func TestCreateRecordEmitsCreate(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	_, err = r.CreateRecord(t.Context(), Record{
@@ -142,8 +143,8 @@ func TestCreateRecordEmitsCreate(t *testing.T) {
 }
 
 func TestDeleteRecordEmitsDelete(t *testing.T) {
-	r := newTestRepo(t)
-	s, err := r.ce.Consume()
+	r, ce := newTestRepo(t)
+	s, err := ce.Consume()
 	require.NoError(t, err)
 
 	_, err = r.PutRecord(t.Context(), Record{
