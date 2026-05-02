@@ -3,10 +3,12 @@ package jetstream
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/bradenaw/juniper/xmaps"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // Server actually listens to subscribers over HTTP/2 SSE and emits events
@@ -47,7 +49,7 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	// Ensure the response writer supports flushing
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, fmt.Errorf("streaming unsupported on client"), "jetstream: connection open", http.StatusBadRequest)
 		return
 	}
 
