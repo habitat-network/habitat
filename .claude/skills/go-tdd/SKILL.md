@@ -119,19 +119,10 @@ func TestParseConfig(t *testing.T) {
             got, err := ParseConfig(tt.input)
 
             if tt.wantErr {
-                if err == nil {
-                    t.Error("expected error, got nil")
-                }
-                return
+                require.Error(t, err)
             }
-
-            if err != nil {
-                t.Fatalf("unexpected error: %v", err)
-            }
-
-            if !reflect.DeepEqual(got, tt.want) {
-                t.Errorf("got %+v; want %+v", got, tt.want)
-            }
+            require.NoError(t, err)
+            require.True(t, reflect.DeepEqual(got, tt.want))
         })
     }
 }
