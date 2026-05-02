@@ -37,10 +37,6 @@ type Repo interface {
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
-const (
-	changeEmitterBufferSize = 1000
-)
-
 var (
 	ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
 )
