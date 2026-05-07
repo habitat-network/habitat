@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -83,7 +82,6 @@ func (p *LoginProvider) Exchange(_ context.Context, _ syntax.DID, code, _ string
 }
 
 func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("got request")
 	var req habitat.NetworkHabitatOrgLoginMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -92,7 +90,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	ok, err := p.org.AuthenticateMember(r.Context(), req.Handle, req.Password)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, "error while authenticating", http.StatusInternalServerError)
 		return
 	}
 	if !ok {
@@ -102,12 +100,16 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	token, err := p.issueToken()
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, "error while issuing callback token", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(habitat.NetworkHabitatOrgLoginMemberOutput{
+	err = json.NewEncoder(w).Encode(habitat.NetworkHabitatOrgLoginMemberOutput{
 		CallbackURL: "/oauth-callback?code=" + token,
 	})
+	if err != nil {
+		http.Error(w, "encoding response", http.StatusInternalServerError)
+		return
+	}
 }
