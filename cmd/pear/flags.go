@@ -22,6 +22,7 @@ var (
 	fOauthClientSecret = "oauth_client_secret"
 	fOrg               = "org"
 	fInviteTokenSecret = "org_invite_signing_secret"
+	fFrontendDomain    = "frontend_domain"
 )
 var profiles []string
 
@@ -90,6 +91,12 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fInviteTokenSecret,
 				Usage:   "32-byte base64-encoded secret for signing org invite tokens (HABITAT_ORG_INVITE_SIGNING_SECRET). Required when --org is set.",
 				Sources: getSources(fInviteTokenSecret),
+			},
+			&cli.StringFlag{
+				Name:     fFrontendDomain,
+				Usage:    "The publicly available domain at which the habitat frontend can be found",
+				Required: true,
+				Sources:  getSources(fFrontendDomain),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{

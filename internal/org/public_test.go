@@ -24,9 +24,6 @@ func TestEveryoneOrg_ErrorMethods(t *testing.T) {
 	err := o.AddAdmin(ctx, did)
 	require.ErrorIs(t, err, ErrNotSupportedPublic)
 
-	err = o.AddMembers(ctx, []syntax.DID{did})
-	require.ErrorIs(t, err, ErrNotSupportedPublic)
-
 	_, err = o.GetAdmins(ctx)
 	require.ErrorIs(t, err, ErrNotSupportedPublic)
 

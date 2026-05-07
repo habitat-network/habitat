@@ -22,14 +22,17 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       return { profile: undefined, org: undefined };
     }
 
-    const [config, profileResponse] = await Promise.all([
+    const [config, profileResult] = await Promise.allSettled([
       context.queryClient.fetchQuery(getConfigQueryOptions(context.authManager)),
       new AtpAgent({ service: "https://public.api.bsky.app" }).getProfile({
         actor: authInfo.did,
       }),
     ]);
 
-    return { profile: profileResponse.data, org: config };
+    return {
+      profile: profileResult.status === "fulfilled" ? profileResult.value.data : undefined,
+      org: config.status === "fulfilled" ? config.value : undefined,
+    };
   },
   staleTime: 1000 * 60 * 60,
   component() {

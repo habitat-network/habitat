@@ -155,7 +155,7 @@ func TestPDSProvider_Exchange(t *testing.T) {
 // --- habitatProvider ---
 
 func TestHabitatProvider_CanHandle(t *testing.T) {
-	p := NewHabitatProvider()
+	p := NewHabitatProvider("frontend.test")
 
 	require.True(t, p.CanHandle(idWithHabitatOnly()), "habitat-only identity should be handled")
 	require.False(t, p.CanHandle(idWithPDSOnly()), "pds-only identity should not be handled")
@@ -164,13 +164,13 @@ func TestHabitatProvider_CanHandle(t *testing.T) {
 }
 
 func TestHabitatProvider_Authorize_AlwaysSucceeds(t *testing.T) {
-	p := NewHabitatProvider()
+	p := NewHabitatProvider("frontend.test")
 	_, _, err := p.Authorize(context.Background(), idWithHabitatOnly())
 	require.NoError(t, err)
 }
 
 func TestHabitatProvider_Exchange_AlwaysSucceeds(t *testing.T) {
-	p := NewHabitatProvider()
+	p := NewHabitatProvider("frontend.test")
 	err := p.Exchange(context.Background(), "did:web:test", "code", "issuer", nil)
 	require.NoError(t, err)
 }
@@ -180,7 +180,7 @@ func TestHabitatProvider_Exchange_AlwaysSucceeds(t *testing.T) {
 func newTestRouter() *Router {
 	return NewRouter(
 		NewPDSProvider(&stubOAuthClient{}, newStubCredStore()),
-		NewHabitatProvider(),
+		NewHabitatProvider("frontend.test"),
 	)
 }
 

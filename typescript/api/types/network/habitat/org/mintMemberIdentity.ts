@@ -22,6 +22,8 @@ export interface InputSchema {
   handle: string
   /** The token that was issued by an org admin to allow members to join the organization.. */
   token: string
+  /** The password for the new member's account. */
+  password: string
 }
 
 export interface OutputSchema {

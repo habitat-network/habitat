@@ -20,8 +20,8 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string) (*identity.Identity, error)
-
+	MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error)
+	BaseDomain() string
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -86,6 +86,10 @@ func NewHive(memberDomain string, pearDomain string, db *gorm.DB) (Hive, error) 
 	return h, nil
 }
 
+func (h *hive) BaseDomain() string {
+	return h.memberDomain
+}
+
 // Lookup implements identity.Directory
 func (h *hive) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.Identity, error) {
 	if atid.IsDID() {
@@ -142,10 +146,16 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 }
 
 // MintIdentity implements Hive.
-func (h *hive) MintIdentity(handle string) (*identity.Identity, error) {
+func (h *hive) MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error) {
 	// Ensure handle passes regex
 	if !handlePattern.MatchString(handle) {
-		return nil, identity.ErrInvalidHandle
+		return nil, nil, identity.ErrInvalidHandle
 	}
-	return h.store.createIdentity(handle)
+	row, id, err := h.store.prepareIdentity(handle)
+	if err != nil {
+		return nil, nil, err
+	}
+	return id, func(tx *gorm.DB) error {
+		return persistIdentity(tx, row)
+	}, nil
 }

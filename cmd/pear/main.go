@@ -138,18 +138,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msgf("unable to setup oauth client")
 	}
 
-	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
-		pdsCredStore,
-		oauthClient,
-		identity.DefaultDirectory(),
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup PDS client factory")
-	}
-
-	dir := identity.DefaultDirectory()
-	node := setupNode(cmd, pdsClientFactory, dir)
-
 	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
 	mux := mux.NewRouter()
@@ -162,11 +150,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// TODO: take in non-everything org depending on CLI flag
 	servingOrg := cmd.Bool(fOrg)
 
-	// hive is the identity minting service for orgs
+	// hive is the identity minting service for orgs.
+	// In the non-org case, this goes unused and the hive server serves atproto DIDs / DID docs of which there are none.
 	orgHive, err := hive.NewHive(domain /* member domain (alice.[member domain]) */, domain /* pear domain for DID doc service */, db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
+	dir := hive.NewWrappedDirectory(orgHive, identity.DefaultDirectory())
 
 	// Default: no org == org that serves everyone
 	pearOrg := org.NewEveryoneOrg()
@@ -181,7 +171,36 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 	}
 
-	oauthServer := setupOAuthServer(cmd, node, db, oauthClient, pdsCredStore, meter, pearOrg)
+	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
+		pdsCredStore,
+		oauthClient,
+		dir,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup PDS client factory")
+	}
+
+	node := setupNode(cmd, pdsClientFactory, dir)
+
+	loginRouter := login.NewRouter(
+		login.NewPDSProvider(oauthClient, pdsCredStore),
+		login.NewHabitatProvider(cmd.String(fFrontendDomain)),
+	)
+
+	oauthServer, err := oauthserver.NewOAuthServer(
+		cmd.String(fOauthServerSecret),
+		loginRouter,
+		node,
+		dir,
+		pdsCredStore,
+		db,
+		meter,
+		pearOrg,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("unable to setup oauth server")
+	}
+
 	cliqueStore, err := clique.NewStore(db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup clique store")
@@ -209,7 +228,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
-	mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
+	// mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
@@ -454,35 +473,6 @@ func setupPear(
 	}
 
 	return pear.NewPear(node, dir, permissions, repo, inbox), nil
-}
-
-func setupOAuthServer(
-	cmd *cli.Command,
-	node node.Node,
-	db *gorm.DB,
-	oauthClient pdsclient.PdsOAuthClient,
-	credStore pdscred.PDSCredentialStore,
-	meter metric.Meter,
-	org org.Org,
-) *oauthserver.OAuthServer {
-	loginRouter := login.NewRouter(
-		login.NewPDSProvider(oauthClient, credStore),
-		login.NewHabitatProvider(),
-	)
-	oauthServer, err := oauthserver.NewOAuthServer(
-		cmd.String(fOauthServerSecret),
-		loginRouter,
-		node,
-		identity.DefaultDirectory(),
-		credStore,
-		db,
-		meter,
-		org,
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup oauth server")
-	}
-	return oauthServer
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

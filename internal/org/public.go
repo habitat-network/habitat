@@ -74,8 +74,13 @@ func (e *everyoneOrg) IssueIdentityToken(ctx context.Context, caller syntax.DID,
 }
 
 // CreateNewMemberIdentity implements Org.
-func (e *everyoneOrg) CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string) (*identity.Identity, error) {
+func (e *everyoneOrg) CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string, password string) (*identity.Identity, error) {
 	return nil, ErrNotSupportedPublic
+}
+
+// AuthenticateMember implements Org.
+func (e *everyoneOrg) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
+	return false, ErrNotSupportedPublic
 }
 
 var _ Org = &everyoneOrg{}

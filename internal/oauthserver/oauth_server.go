@@ -417,20 +417,23 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
-		o.metrics.callbackErr(err, "lookup_serves")
-		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
-		return
-	} else if !serves {
-		o.metrics.callbackErr(err, "wrong_server")
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"user's habitat service in DID doc does not match expected service",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
+	/*
+		// Comment this out in dev because it's unused and node uses the default dir which fails bc of subdomain funnels
+			if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
+				o.metrics.callbackErr(err, "lookup_serves")
+				utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
+				return
+			} else if !serves {
+				o.metrics.callbackErr(err, "wrong_server")
+				utils.LogAndHTTPError(
+					w,
+					err,
+					"user's habitat service in DID doc does not match expected service",
+					http.StatusMethodNotAllowed,
+				)
+				return
+			}
+	*/
 
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,

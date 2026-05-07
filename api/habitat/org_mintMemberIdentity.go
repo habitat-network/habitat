@@ -4,8 +4,9 @@ package habitat
 
 // NetworkHabitatOrgMintMemberIdentityInput represents the input for network.habitat.org.mintMemberIdentity
 type NetworkHabitatOrgMintMemberIdentityInput struct {
-	Handle string `json:"handle"`
-	Token  string `json:"token"`
+	Handle   string `json:"handle"`
+	Password string `json:"password"`
+	Token    string `json:"token"`
 }
 
 // NetworkHabitatOrgMintMemberIdentityOutput represents the output for network.habitat.org.mintMemberIdentity

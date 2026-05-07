@@ -30,6 +30,7 @@ require (
 	filippo.io/keygen v0.0.0-20260114151900-8e2790ea4c5b // indirect
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0 // indirect
+	github.com/alexedwards/argon2id v1.0.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/bluesky-social/jetstream v0.0.0-20260415170838-8a65de4eda28 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
