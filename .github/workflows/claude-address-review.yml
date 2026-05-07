@@ -29,7 +29,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: "10"
+          claude_args: "--max-turns 10"
           prompt: |
             Read .claude/skills/pr-review/SKILL.md and follow it exactly. 
 
