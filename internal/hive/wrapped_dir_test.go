@@ -71,3 +71,58 @@ func TestWrappedDirLookupDIDFallback(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, external.DID, ident.DID)
 }
+
+func TestWrappedDirLookupViaAtIdentifierHiveHosted(t *testing.T) {
+	h, db := newTestHive(t, "example.com", "pear.example.com")
+	mintAndPersist(t, h, db, "alice")
+
+	fallback := identity.NewMockDirectory()
+	dir := NewWrappedDirectory(h, fallback)
+
+	atid, err := syntax.ParseAtIdentifier("alice.example.com")
+	require.NoError(t, err)
+
+	ident, err := dir.Lookup(context.Background(), atid)
+	require.NoError(t, err)
+	require.Equal(t, syntax.Handle("alice.example.com"), ident.Handle)
+}
+
+func TestWrappedDirLookupViaAtIdentifierFallback(t *testing.T) {
+	h, _ := newTestHive(t, "example.com", "pear.example.com")
+
+	fallback := identity.NewMockDirectory()
+	external := identity.Identity{
+		DID:    syntax.DID("did:plc:abcdef1234567890abcdefgh"),
+		Handle: syntax.Handle("bob.other.com"),
+	}
+	fallback.Insert(external)
+
+	dir := NewWrappedDirectory(h, fallback)
+
+	atid, err := syntax.ParseAtIdentifier("bob.other.com")
+	require.NoError(t, err)
+
+	ident, err := dir.Lookup(context.Background(), atid)
+	require.NoError(t, err)
+	require.Equal(t, external.Handle, ident.Handle)
+}
+
+func TestWrappedDirPurgeHiveHosted(t *testing.T) {
+	h, _ := newTestHive(t, "example.com", "pear.example.com")
+	fallback := identity.NewMockDirectory()
+	dir := NewWrappedDirectory(h, fallback)
+
+	atid, err := syntax.ParseAtIdentifier("alice.example.com")
+	require.NoError(t, err)
+	require.NoError(t, dir.Purge(context.Background(), atid))
+}
+
+func TestWrappedDirPurgeFallback(t *testing.T) {
+	h, _ := newTestHive(t, "example.com", "pear.example.com")
+	fallback := identity.NewMockDirectory()
+	dir := NewWrappedDirectory(h, fallback)
+
+	atid, err := syntax.ParseAtIdentifier("bob.other.com")
+	require.NoError(t, err)
+	require.NoError(t, dir.Purge(context.Background(), atid))
+}
