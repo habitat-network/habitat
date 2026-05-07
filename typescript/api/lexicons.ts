@@ -1325,7 +1325,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['token', 'handle'],
+            required: ['token', 'handle', 'password'],
             properties: {
               handle: {
                 type: 'string',
@@ -1336,6 +1336,10 @@ export const schemaDict = {
                 type: 'string',
                 description:
                   'The token that was issued by an org admin to allow members to join the organization..',
+              },
+              password: {
+                type: 'string',
+                description: "The password for the new member's account.",
               },
             },
           },

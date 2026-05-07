@@ -16,7 +16,7 @@ import (
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
-func newTestStore(t *testing.T) Org {
+func newTestStore(t *testing.T) *store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -41,6 +41,9 @@ var (
 	did2 = syntax.DID("did:plc:bob2222")
 )
 
+const testPasswordHash = "testhash"
+const testPassword = "test-password-123"
+
 func TestIsMember(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
@@ -49,7 +52,7 @@ func TestIsMember(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.NoError(t, s.AddMembers(ctx, []syntax.DID{did1}))
+	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
 
 	ok, err = s.IsMember(ctx, did1)
 
@@ -66,6 +69,14 @@ func TestAddAdmin_GetAdmins(t *testing.T) {
 	admins, err := s.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{did1}, admins)
+}
+
+func TestAddAdmin_NotMember(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	err := s.AddAdmin(ctx, did1)
+	require.ErrorIs(t, err, ErrNotMember)
 }
 
 func TestRemoveAdmin_LastAdmin(t *testing.T) {
@@ -100,7 +111,8 @@ func TestGetMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, members)
 
-	require.NoError(t, s.AddMembers(ctx, []syntax.DID{did1, did2}))
+	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
 
 	members, err = s.GetMembers(ctx)
 	require.NoError(t, err)
@@ -111,8 +123,8 @@ func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.AddMembers(ctx, []syntax.DID{did1, did2}))
-
+	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
 	require.NoError(t, s.RemoveMembers(ctx, []syntax.DID{did2}))
 
 	ok, err := s.IsMember(ctx, did1)
@@ -142,7 +154,7 @@ func TestGenerateAndUseIdentityToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
 	require.NoError(t, err)
 
 	members, err := s.GetMembers(ctx)
@@ -157,9 +169,9 @@ func TestIdentityToken_CannotReuse(t *testing.T) {
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "bob")
+	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash)
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
@@ -172,9 +184,9 @@ func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	token2, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token1, "alice")
+	_, err = s.CreateNewMemberIdentity(ctx, token1, "alice", testPasswordHash)
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token2, "alice")
+	_, err = s.CreateNewMemberIdentity(ctx, token2, "alice", testPasswordHash)
 	require.ErrorIs(t, err, hive.ErrNotCreated)
 }
 
@@ -185,12 +197,35 @@ func TestIdentityToken_Reusable(t *testing.T) {
 	token, err := s.IssueIdentityToken(ctx, did1, true, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "bob")
+	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash)
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice")
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
 	require.ErrorIs(t, err, hive.ErrNotCreated)
+}
+
+func TestCreateNewMemberIdentity_AuthenticateMember(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStoreWithHive(t)
+
+	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPassword)
+	require.NoError(t, err)
+
+	ok, err := s.AuthenticateMember(ctx, "alice.example.com", testPassword)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = s.AuthenticateMember(ctx, "alice.example.com", "wrong-password")
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	ok, err = s.AuthenticateMember(ctx, "nobody.example.com", testPassword)
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestIssueIdentityToken_ExpiryTooLate(t *testing.T) {

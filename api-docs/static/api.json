@@ -1453,7 +1453,8 @@
                 "type": "object",
                 "required": [
                   "token",
-                  "handle"
+                  "handle",
+                  "password"
                 ],
                 "properties": {
                   "handle": {
@@ -1463,6 +1464,10 @@
                   "token": {
                     "type": "string",
                     "description": "The token that was issued by an org admin to allow members to join the organization.."
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "The password for the new member's account."
                   }
                 }
               }

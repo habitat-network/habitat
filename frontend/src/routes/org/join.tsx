@@ -1,4 +1,4 @@
-import { Button, Input } from "internal";
+import { Button, Field, FieldError, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
@@ -10,7 +10,7 @@ export const Route = createFileRoute("/org/join")({
   component: JoinPage,
 });
 
-type FormValues = { handle: string };
+type FormValues = { handle: string; password: string };
 
 function JoinPage() {
   const { token } = Route.useSearch();
@@ -25,13 +25,12 @@ function JoinPage() {
     formState: { isSubmitting, errors },
   } = useForm<FormValues>();
 
-  const onSubmit = async ({ handle }: FormValues) => {
+  const onSubmit = async ({ handle, password }: FormValues) => {
     try {
-      // TODO: is this the right way to target habitat domain ?
       const res = await fetch(`https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.org.mintMemberIdentity`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, handle }),
+        body: JSON.stringify({ token, handle, password }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -64,17 +63,29 @@ function JoinPage() {
     <div className="flex flex-col gap-4 max-w-md mx-auto mt-16">
       <h1 className="text-2xl font-semibold">Join Organization</h1>
       <p className="text-muted-foreground text-sm">
-        Choose a handle for your new account.
+        Choose a handle and password for your new account.
       </p>
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3">
-        <Input
-          placeholder="handle"
-          disabled={isSubmitting}
-          {...register("handle", { required: true })}
-        />
-        {errors.root && (
-          <p className="text-sm text-destructive">{errors.root.message}</p>
-        )}
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <Field>
+          <FieldLabel>Handle</FieldLabel>
+          <Input
+            placeholder="handle"
+            disabled={isSubmitting}
+            {...register("handle", { required: true })}
+          />
+          <FieldError errors={[errors.handle]} />
+        </Field>
+        <Field>
+          <FieldLabel>Password</FieldLabel>
+          <Input
+            type="password"
+            placeholder="password"
+            disabled={isSubmitting}
+            {...register("password", { required: true })}
+          />
+          <FieldError errors={[errors.password]} />
+        </Field>
+        <FieldError errors={[errors.root]} />
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Joining..." : "Join"}
         </Button>

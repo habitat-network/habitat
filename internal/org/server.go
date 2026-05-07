@@ -122,6 +122,11 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
+// Commented out because a member can only be added through the new identity flow
+// We will allow non-org-hosted identities to join an org in the future but right now
+// this causes confusion because AT protocol does not support the concept of multiple repos well enough.
+//
 func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
 	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
@@ -162,6 +167,7 @@ func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "adding members", http.StatusInternalServerError)
 	}
 }
+*/
 
 func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 	caller, ok := authn.Validate(w, r, s.auth)
@@ -288,24 +294,26 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
-	if !ok {
-		return
-	}
+	/*
+		caller, ok := authn.Validate(w, r, s.auth)
+		if !ok {
+			return
+		}
 
-	// authz: only admins can generate invite tokens
-	ok, err := s.org.IsAdmin(r.Context(), caller)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
-		return
-	}
-	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+		// authz: only admins can generate invite tokens
+		ok, err := s.org.IsAdmin(r.Context(), caller)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+	*/
 
 	var req habitat.NetworkHabitatOrgIssueInviteTokenInput
-	err = json.NewDecoder(r.Body).Decode(&req)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
 		return
@@ -322,7 +330,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		expiresAt = parsed
 	}
 
-	token, err := s.org.IssueIdentityToken(r.Context(), caller, req.Reusable /* defaults to false */, expiresAt)
+	token, err := s.org.IssueIdentityToken(r.Context(), "", req.Reusable /* defaults to false */, expiresAt)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "generating identity token", http.StatusInternalServerError)
 		return
@@ -345,12 +353,12 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Token == "" || req.Handle == "" {
+	if req.Token == "" || req.Handle == "" || req.Password == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	id, err := s.org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle)
+	id, err := s.org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle, req.Password)
 	if errors.Is(err, ErrInvalidToken) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return

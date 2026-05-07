@@ -55,34 +55,37 @@ func newStore(db *gorm.DB, template idTemplate) (*store, error) {
 	}, nil
 }
 
-// createMember generates all the necessary keys / ids for a DID identity + doc with this handle
-func (s *store) createIdentity(handle string) (*identity.Identity, error) {
+// prepareIdentity generates all keys and IDs for a new identity without writing to the DB.
+// Returns the row to persist and the public identity.
+func (s *store) prepareIdentity(handle string) (*ident, *identity.Identity, error) {
 	opaqueID, err := generateOpaqueID()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pubMultibase, privMultibase, err := generateSigningKeyPair()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	id := &ident{
+	row := &ident{
 		Handle:               handle,
 		OpaqueID:             opaqueID,
 		SigningPublicKey:     pubMultibase,
 		SigningPrivateKeyEnc: privMultibase, // TODO: encrypt before storing
 	}
+	return row, s.template(row.Handle, row.OpaqueID, row.SigningPublicKey), nil
+}
 
-	result := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(id)
+// persistIdentity writes a prepared ident row to the given DB (or transaction).
+func persistIdentity(tx *gorm.DB, row *ident) error {
+	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(row)
 	if result.Error != nil {
-		return nil, result.Error
+		return result.Error
 	} else if result.RowsAffected == 0 {
-		// On conflict do nothing and surface the error if no row was created
-		return nil, ErrNotCreated
+		return ErrNotCreated
 	}
-
-	return s.template(id.Handle, id.OpaqueID, id.SigningPublicKey), nil
+	return nil
 }
 
 // getMemberByHandle fetches the member via handle (with member namespace stripped already) from the store
