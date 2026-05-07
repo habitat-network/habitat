@@ -25,7 +25,7 @@ func newTestStore(t *testing.T) *store {
 	return s
 }
 
-func newTestStoreWithHive(t *testing.T) Org {
+func newTestStoreWithHive(t *testing.T) *store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
@@ -64,6 +64,7 @@ func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
+	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 
 	admins, err := s.GetAdmins(ctx)
@@ -83,6 +84,7 @@ func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
+	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 
 	err := s.RemoveAdmin(ctx, did1)
@@ -93,6 +95,8 @@ func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
+	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 	require.NoError(t, s.AddAdmin(ctx, did2))
 
