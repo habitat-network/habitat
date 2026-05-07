@@ -1432,6 +1432,121 @@
         }
       }
     },
+    "/network.habitat.org.loginMember": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.loginMember",
+        "description": "Authenticate a habitat org member with their handle and password, returning a short-lived token for use in the OAuth callback flow.",
+        "operationId": "network.habitat.org.loginMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle",
+                  "password"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "description": "The full handle of the member (e.g. alice.example.com)."
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "The member's password."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "callbackURL"
+                  ],
+                  "properties": {
+                    "callbackURL": {
+                      "type": "string",
+                      "description": "The URL to redirect the browser to in order to complete the OAuth flow."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.org.mintMemberIdentity": {
       "post": {
         "tags": [

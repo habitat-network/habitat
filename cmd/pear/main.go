@@ -182,13 +182,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	node := setupNode(cmd, pdsClientFactory, dir)
 
+	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to parse oauth server secret for login provider")
+	}
+	orgLoginProvider := org.NewLoginProvider(pearOrg, cmd.String(fFrontendDomain), oauthSecret)
+
 	loginRouter := login.NewRouter(
 		login.NewPDSProvider(oauthClient, pdsCredStore),
-		login.NewHabitatProvider(cmd.String(fFrontendDomain)),
+		orgLoginProvider,
 	)
 
 	oauthServer, err := oauthserver.NewOAuthServer(
-		cmd.String(fOauthServerSecret),
+		oauthSecret,
 		loginRouter,
 		node,
 		dir,
@@ -277,6 +283,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
+	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", orgLoginProvider.HandlePasswordLogin)
 
 	// pear routes
 	// repo

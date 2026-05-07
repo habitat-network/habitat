@@ -40,6 +40,7 @@ import * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmi
 import * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
 import * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMetadata.js'
 import * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
+import * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/loginMember.js'
 import * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
 import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
@@ -88,6 +89,7 @@ export * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmi
 export * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
 export * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMetadata.js'
 export * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
+export * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/loginMember.js'
 export * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
 export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
@@ -743,6 +745,18 @@ export class NetworkHabitatOrgNS {
   ): Promise<NetworkHabitatOrgIssueInviteToken.Response> {
     return this._client.call(
       'network.habitat.org.issueInviteToken',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  loginMember(
+    data?: NetworkHabitatOrgLoginMember.InputSchema,
+    opts?: NetworkHabitatOrgLoginMember.CallOptions,
+  ): Promise<NetworkHabitatOrgLoginMember.Response> {
+    return this._client.call(
+      'network.habitat.org.loginMember',
       opts?.qp,
       data,
       opts,

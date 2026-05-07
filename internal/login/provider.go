@@ -8,7 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-type ProviderType string
+type ProviderType = string
 
 const (
 	ProviderTypePDS     ProviderType = "pds"

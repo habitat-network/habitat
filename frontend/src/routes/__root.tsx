@@ -29,8 +29,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       }),
     ]);
 
+    const profile =
+      profileResult.status === "fulfilled"
+        ? profileResult.value.data
+        : { did: authInfo.did };
+
     return {
-      profile: profileResult.status === "fulfilled" ? profileResult.value.data : undefined,
+      profile,
       org: config.status === "fulfilled" ? config.value : undefined,
     };
   },
