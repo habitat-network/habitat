@@ -1,6 +1,7 @@
 import { Button, Field, FieldError, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
+import { procedure } from "internal";
 
 export const Route = createFileRoute("/login/habitat")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -13,6 +14,7 @@ type FormValues = { password: string };
 
 function HabitatLoginPage() {
   const { handle } = Route.useSearch();
+  const { authManager } = Route.useRouteContext();
 
   const {
     register,
@@ -23,17 +25,11 @@ function HabitatLoginPage() {
 
   const onSubmit = async ({ password }: FormValues) => {
     try {
-      const res = await fetch(`https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.org.loginMember`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle, password }),
-      });
-      if (!res.ok) {
-        throw new Error(
-          res.status === 401 ? "Invalid credentials" : "Login failed",
-        );
-      }
-      const { callbackURL } = await res.json();
+      const { callbackURL } = await procedure(
+        "network.habitat.org.loginMember",
+        { handle, password },
+        { authManager },
+      );
       window.location.href = `https://${__HABITAT_DOMAIN__}${callbackURL}`;
     } catch (err) {
       setError("root", {
@@ -48,21 +44,22 @@ function HabitatLoginPage() {
       {handle && (
         <p className="text-sm text-muted-foreground font-mono">{handle}</p>
       )}
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <Field>
-          <FieldLabel>Password</FieldLabel>
-          <Input
-            type="password"
-            placeholder="password"
-            disabled={isSubmitting}
-            {...register("password", { required: true })}
-          />
-          <FieldError errors={[errors.password]} />
-        </Field>
-        <FieldError errors={[errors.root]} />
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Signing in..." : "Sign in"}
-        </Button>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <fieldset disabled={isSubmitting} className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel>Password</FieldLabel>
+            <Input
+              type="password"
+              placeholder="password"
+              {...register("password", { required: true })}
+            />
+            <FieldError errors={[errors.password]} />
+          </Field>
+          <FieldError errors={[errors.root]} />
+          <Button type="submit">
+            {isSubmitting ? "Signing in..." : "Sign in"}
+          </Button>
+        </fieldset>
       </form>
     </div>
   );

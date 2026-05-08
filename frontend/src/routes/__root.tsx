@@ -3,7 +3,7 @@ import { getConfigQueryOptions } from "@/queries/org";
 import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
 import { AtpAgent } from "@atproto/api";
-import { Outlet, createRootRouteWithContext, useRouterState } from "@tanstack/react-router";
+import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Toaster } from "sonner";
 
@@ -43,11 +43,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component() {
     const { authManager } = Route.useRouteContext();
     const { profile, org } = Route.useLoaderData();
-    const pathname = useRouterState({ select: (s) => s.location.pathname });
-    const showHeader = !pathname.startsWith("/login");
     return (
       <div className="flex flex-col items-center w-full justify-stretch gap-4">
-        {showHeader && <Header profile={profile} org={org} onLogout={authManager.logout} />}
+        {<Header profile={profile} org={org} onLogout={authManager.logout} />}
         <div className="container px-4 flex flex-col">
           <Outlet />
         </div>

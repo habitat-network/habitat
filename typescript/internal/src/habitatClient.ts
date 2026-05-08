@@ -31,6 +31,8 @@ import type {
   NetworkHabitatOrgDowngradeAdmin,
   NetworkHabitatOrgGetMetadata,
   NetworkHabitatOrgIssueInviteToken,
+  NetworkHabitatOrgLoginMember,
+  NetworkHabitatOrgMintMemberIdentity,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -168,6 +170,14 @@ type ProcedureEndpoints = {
   "network.habitat.org.issueInviteToken": Procedure<
     NetworkHabitatOrgIssueInviteToken.InputSchema,
     NetworkHabitatOrgIssueInviteToken.OutputSchema
+  >;
+  "network.habitat.org.loginMember": Procedure<
+    NetworkHabitatOrgLoginMember.InputSchema,
+    NetworkHabitatOrgLoginMember.OutputSchema
+  >;
+  "network.habitat.org.mintMemberIdentity": Procedure<
+    NetworkHabitatOrgMintMemberIdentity.InputSchema,
+    NetworkHabitatOrgMintMemberIdentity.OutputSchema
   >;
 };
 

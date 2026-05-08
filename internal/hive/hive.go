@@ -21,7 +21,6 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 type Hive interface {
 	// Minting new identities for members
 	MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error)
-	BaseDomain() string
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -84,10 +83,6 @@ func NewHive(memberDomain string, pearDomain string, db *gorm.DB) (Hive, error) 
 		// TODO: add a cache directory here
 	}
 	return h, nil
-}
-
-func (h *hive) BaseDomain() string {
-	return h.memberDomain
 }
 
 // Lookup implements identity.Directory

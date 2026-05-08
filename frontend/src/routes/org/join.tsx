@@ -2,6 +2,7 @@ import { Button, Field, FieldError, FieldLabel, Input } from "internal/component
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
+import { procedure } from "internal";
 
 export const Route = createFileRoute("/org/join")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -14,9 +15,11 @@ type FormValues = { handle: string; password: string };
 
 function JoinPage() {
   const { token } = Route.useSearch();
-  const [result, setResult] = useState<{ handle: string; did: string } | null>(
+  const [result] = useState<{ handle: string; did: string } | null>(
     null,
   );
+  const { authManager } = Route.useRouteContext();
+
 
   const {
     register,
@@ -27,18 +30,10 @@ function JoinPage() {
 
   const onSubmit = async ({ handle, password }: FormValues) => {
     try {
-      const res = await fetch(`https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.org.mintMemberIdentity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, handle, password }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          (data as { message?: string }).message ?? "Failed to join organization",
-        );
-      }
-      setResult(await res.json());
+      await procedure("network.habitat.org.mintMemberIdentity",
+        { token, handle, password },
+        { authManager },
+      );
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",

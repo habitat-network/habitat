@@ -234,7 +234,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
-	// mux.HandleFunc("/xrpc/network.habitat.org.addMembers", orgServer.AddMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeAdmin", orgServer.RemoveAdmin)
 	mux.HandleFunc("/xrpc/network.habitat.org.removeMembers", orgServer.RemoveMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.downgradeAdmin", orgServer.DowngradeAdmin)
