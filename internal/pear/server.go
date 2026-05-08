@@ -1,4 +1,4 @@
-package server
+package pear
 
 import (
 	"encoding/json"
@@ -18,7 +18,6 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -34,7 +33,7 @@ type authMethods struct {
 
 type Server struct {
 	// Implementation of permission-enforcing atprotocol repo
-	pear pear.Pear
+	pear Pear
 
 	// The organization this pear server belongs to
 	org org.Org
@@ -49,7 +48,7 @@ type Server struct {
 // NewServer returns a pear server.
 func NewServer(
 	dir identity.Directory,
-	pear pear.Pear,
+	pear Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
 	orgStore org.Org,
@@ -249,7 +248,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, repo.ErrRecordNotFound) {
 			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
 			return
-		} else if errors.Is(err, pear.ErrNotLocalRepo) {
+		} else if errors.Is(err, ErrNotLocalRepo) {
 			// TODO: is this still relevant?
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
@@ -455,7 +454,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 	records, err := s.pear.ListRecords(r.Context(), callerDID, collection, dids)
 	if err != nil {
-		if errors.Is(err, pear.ErrNotLocalRepo) {
+		if errors.Is(err, ErrNotLocalRepo) {
 			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
 			return
 		}

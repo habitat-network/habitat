@@ -30,13 +30,13 @@ type Store interface {
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-	) error
+	) (func(*gorm.DB) error, error)
 	RemovePermissions(
 		grantee []Grantee,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
-	) error
+	) (func(*gorm.DB) error, error)
 	ListGranteePermissions(
 		ctx context.Context,
 		grantee syntax.DID,
@@ -176,13 +176,13 @@ func (s *store) AddPermissions(
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-) error {
+) (func(tx *gorm.DB) error, error) {
 	if collection == "" {
-		return fmt.Errorf("collection is required")
+		return nil, fmt.Errorf("collection is required")
 	}
 
 	if rkey == "" {
-		return ErrCollectionLevelNotSupported
+		return nil, ErrCollectionLevelNotSupported
 	}
 
 	grantees := xslices.Map(granteesTyped, func(g Grantee) string {
@@ -191,7 +191,7 @@ func (s *store) AddPermissions(
 
 	// Delete any existing permission for this record before inserting the deny.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return func(tx *gorm.DB) error {
 		var existing []string
 		err := tx.Model(&permission{}).
 			Where("grantee IN ?", grantees).
@@ -226,7 +226,7 @@ func (s *store) AddPermissions(
 			return fmt.Errorf("failed to add lexicon permission: %w", err)
 		}
 		return nil
-	})
+	}, nil
 }
 
 // RemovePermissions removes read permission for a specific record and the given grantees.
@@ -235,21 +235,23 @@ func (s *store) RemovePermissions(
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
-) error {
+) (func(*gorm.DB) error, error) {
 	grantees := xslices.Map(granteesTyped, func(g Grantee) string {
 		return g.String()
 	})
 
 	if rkey == "" {
-		return ErrCollectionLevelNotSupported
+		return nil, ErrCollectionLevelNotSupported
 	}
 
 	// Delete any existing allows on this record.
-	return s.db.Where("grantee IN ?", grantees).
-		Where("owner = ?", owner).
-		Where("collection = ?", collection).
-		Where("rkey = ?", rkey).
-		Delete(&permission{}).Error
+	return func(tx *gorm.DB) error {
+		return tx.Where("grantee IN ?", grantees).
+			Where("owner = ?", owner).
+			Where("collection = ?", collection).
+			Where("rkey = ?", rkey).
+			Delete(&permission{}).Error
+	}, nil
 }
 
 // Returns all permissions which have the given grantee for records part of collection and owned by owners

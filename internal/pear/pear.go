@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
+	"gorm.io/gorm"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -58,6 +59,7 @@ type Pear interface {
 // The permissionEnforcingRepo wraps a repo, and enforces permissions on any calls.
 type pear struct {
 	dir identity.Directory
+	db  *gorm.DB
 
 	// Context about where this pear lives and communicatino channel with other nodes
 	node node.Node
@@ -84,7 +86,12 @@ func (p *pear) AddPermissions(
 	if caller != owner {
 		return habitat_err.ErrUnauthorized
 	}
-	return p.permissions.AddPermissions(grantees, owner, collection, rkey)
+	add, err := p.permissions.AddPermissions(grantees, owner, collection, rkey)
+	if err != nil {
+		return err
+	}
+
+	return add(p.db)
 }
 
 // RemoveReadPermissions implements Pear.
@@ -99,7 +106,13 @@ func (p *pear) RemovePermissions(
 	if caller != owner {
 		return habitat_err.ErrUnauthorized
 	}
-	return p.permissions.RemovePermissions(grantee, owner, collection, rkey)
+
+	remove, err := p.permissions.RemovePermissions(grantee, owner, collection, rkey)
+	if err != nil {
+		return err
+	}
+
+	return remove(p.db)
 }
 
 // HasPermission implements Pear.
@@ -201,8 +214,10 @@ func (p *pear) PutRecord(
 
 	did := target
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
+	var add func(tx *gorm.DB) error
+	var err error
 	if len(grantees) > 0 {
-		err := p.permissions.AddPermissions(
+		add, err = p.permissions.AddPermissions(
 			grantees,
 			did,
 			collection,
@@ -213,12 +228,22 @@ func (p *pear) PutRecord(
 		}
 	}
 
-	return p.repo.PutRecord(ctx, repo.Record{
+	uri, put, err := p.repo.PutRecord(ctx, repo.Record{
 		Did:        did.String(),
 		Collection: collection.String(),
 		Rkey:       rkey.String(),
 		Value:      record,
 	}, validate)
+	if err != nil {
+		return "", err
+	}
+	return uri, p.db.Transaction(func(tx *gorm.DB) error {
+		err := add(tx)
+		if err != nil {
+			return err
+		}
+		return put(tx)
+	})
 }
 
 // CreateRecord creates the given record on the repo connected to this permissionEnforcingRepo.
@@ -247,8 +272,10 @@ func (p *pear) CreateRecord(
 
 	did := target
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
+	var add func(tx *gorm.DB) error
+	var err error
 	if len(grantees) > 0 {
-		err := p.permissions.AddPermissions(
+		add, err = p.permissions.AddPermissions(
 			grantees,
 			did,
 			collection,
@@ -259,12 +286,22 @@ func (p *pear) CreateRecord(
 		}
 	}
 
-	return p.repo.PutRecord(ctx, repo.Record{
+	uri, put, err := p.repo.CreateRecord(ctx, repo.Record{
 		Did:        did.String(),
 		Collection: collection.String(),
 		Rkey:       rkey.String(),
 		Value:      record,
 	}, validate)
+	if err != nil {
+		return "", err
+	}
+	return uri, p.db.Transaction(func(tx *gorm.DB) error {
+		err := add(tx)
+		if err != nil {
+			return err
+		}
+		return put(tx)
+	})
 }
 
 func (p *pear) getRecordLocal(

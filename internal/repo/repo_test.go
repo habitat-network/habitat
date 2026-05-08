@@ -59,7 +59,7 @@ func TestRepoListRecords(t *testing.T) {
 
 	repo, err := NewRepo(NewDummyChangelog(), db)
 	require.NoError(t, err)
-	_, err = repo.PutRecord(
+	_, put, err := repo.PutRecord(
 		t.Context(),
 		Record{
 			"my-did",
@@ -70,8 +70,9 @@ func TestRepoListRecords(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
+	require.NoError(t, put(db))
 
-	_, err = repo.PutRecord(
+	_, put, err = repo.PutRecord(
 		ctx,
 		Record{
 			"my-did",
@@ -82,8 +83,9 @@ func TestRepoListRecords(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
+	require.NoError(t, put(db))
 
-	_, err = repo.PutRecord(
+	_, put, err = repo.PutRecord(
 		ctx,
 		Record{
 			"my-did",
@@ -94,6 +96,7 @@ func TestRepoListRecords(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
+	require.NoError(t, put(db))
 
 	records, err := repo.ListRecordsFromPermissions(ctx, nil)
 	require.NoError(t, err)
@@ -139,8 +142,9 @@ func TestRepoListCollections(t *testing.T) {
 		{Did: string(did), Collection: "network.habitat.alpha", Rkey: "key-2", Value: map[string]any{"x": "2"}},
 		{Did: string(did), Collection: "network.habitat.beta", Rkey: "key-1", Value: map[string]any{"x": "3"}},
 	} {
-		_, err = repo.PutRecord(ctx, rec, nil)
+		_, put, err := repo.PutRecord(ctx, rec, nil)
 		require.NoError(t, err)
+		require.NoError(t, put(db))
 	}
 
 	collections, err = repo.ListCollections(ctx, did)
@@ -157,13 +161,14 @@ func TestRepoListCollections(t *testing.T) {
 
 	otherDID := syntax.DID("did:plc:other")
 	// Records for a different DID are not included
-	_, err = repo.PutRecord(ctx, Record{
+	_, put, err := repo.PutRecord(ctx, Record{
 		Did:        otherDID.String(),
 		Collection: "network.habitat.otherCollection",
 		Rkey:       "key-1",
 		Value:      map[string]any{"x": "other"},
 	}, nil)
 	require.NoError(t, err)
+	require.NoError(t, put(db))
 
 	collections, err = repo.ListCollections(ctx, did)
 	require.NoError(t, err)

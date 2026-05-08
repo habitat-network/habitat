@@ -23,8 +23,8 @@ import (
 
 type Repo interface {
 	// Writes
-	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
-	CreateRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
+	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, func(*gorm.DB) error, error)
+	CreateRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, func(*gorm.DB) error, error)
 	DeleteRecord(ctx context.Context, did string, collection string, rkey string) error
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 
@@ -112,25 +112,25 @@ func (r *repo) PutRecord(
 	ctx context.Context,
 	rec Record,
 	validate *bool,
-) (habitat_syntax.HabitatURI, error) {
+) (habitat_syntax.HabitatURI, func(*gorm.DB) error, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec.Value)
 		if err != nil {
-			return "", fmt.Errorf("unable to validate record: %w", err)
+			return "", nil, fmt.Errorf("unable to validate record: %w", err)
 		}
 	}
 
 	// TODO: find a way to extraact blobs without marshalling + unmarshalling
 	marshalled, err := json.Marshal(rec.Value)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// atdata.UnmarshalJSON unmarshals the type with structured atdata types, so that ExtractBlobs works
 	// However, atdata.Validate needs to be called on a generic map[string]any (not with the atdata structured types)
 	val, err := atdata.UnmarshalJSON(marshalled)
 	if err != nil {
-		return "", fmt.Errorf("unable to umarshal: %w", err)
+		return "", nil, fmt.Errorf("unable to umarshal: %w", err)
 	}
 
 	uri := habitat_syntax.ConstructHabitatUri(rec.Did, rec.Collection, rec.Rkey)
@@ -147,7 +147,7 @@ func (r *repo) PutRecord(
 	// Always put (even if something exists).
 	op := OperationUpdate
 	var ts time.Time
-	err = r.db.Transaction(func(tx *gorm.DB) error {
+	return uri, func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
@@ -163,8 +163,8 @@ func (r *repo) PutRecord(
 			return fmt.Errorf("existence check failed with err: %w", err)
 		}
 
-		r := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
-		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&r).Error; err != nil {
+		rec := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
+		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&rec).Error; err != nil {
 			return err
 		}
 
@@ -174,12 +174,11 @@ func (r *repo) PutRecord(
 			}
 		}
 		ts = tx.NowFunc()
-		return nil
-	})
 
-	// Emit the change
-	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, op, ts, marshalled)
-	return uri, err
+		// This is bad, but emit the change from inside the transaction
+		r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, op, ts, marshalled)
+		return nil
+	}, nil
 }
 
 // createRecord create  a record for the given rkey into the repo no matter what; if a record already exists this errors
@@ -187,25 +186,25 @@ func (r *repo) CreateRecord(
 	ctx context.Context,
 	rec Record,
 	validate *bool,
-) (habitat_syntax.HabitatURI, error) {
+) (habitat_syntax.HabitatURI, func(*gorm.DB) error, error) {
 	if validate != nil && *validate {
 		err := atdata.Validate(rec.Value)
 		if err != nil {
-			return "", fmt.Errorf("unable to validate record: %w", err)
+			return "", nil, fmt.Errorf("unable to validate record: %w", err)
 		}
 	}
 
 	// TODO: find a way to extraact blobs without marshalling + unmarshalling
 	marshalled, err := json.Marshal(rec.Value)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	// atdata.UnmarshalJSON unmarshals the type with structured atdata types, so that ExtractBlobs works
 	// However, atdata.Validate needs to be called on a generic map[string]any (not with the atdata structured types)
 	val, err := atdata.UnmarshalJSON(marshalled)
 	if err != nil {
-		return "", fmt.Errorf("unable to umarshal: %w", err)
+		return "", nil, fmt.Errorf("unable to umarshal: %w", err)
 	}
 
 	uri := habitat_syntax.ConstructHabitatUri(rec.Did, rec.Collection, rec.Rkey)
@@ -221,13 +220,13 @@ func (r *repo) CreateRecord(
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
 	var ts time.Time
-	err = r.db.Transaction(func(tx *gorm.DB) error {
+	return uri, func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
 		}
-		r := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
-		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&r)
+		rec := record{Did: rec.Did, Rkey: rec.Rkey, Collection: rec.Collection, Value: bytes}
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rec)
 
 		if result.RowsAffected == 0 {
 			// If the desired record already exists, return an error
@@ -241,15 +240,11 @@ func (r *repo) CreateRecord(
 			}
 		}
 		ts = tx.NowFunc()
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
 
-	// Emit the change
-	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, OperationCreate, ts, marshalled)
-	return uri, nil
+		// Bad but emit the change from inside the transaction only if it completes
+		r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, OperationCreate, ts, marshalled)
+		return nil
+	}, nil
 }
 
 var (
