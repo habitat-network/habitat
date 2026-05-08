@@ -1,0 +1,45 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.org.loginMember",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Authenticate a habitat org member with their handle and password, returning a short-lived token for use in the OAuth callback flow.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "handle",
+                        "password"
+                    ],
+                    "properties": {
+                        "handle": {
+                            "type": "string",
+                            "description": "The full handle of the member (e.g. alice.example.com)."
+                        },
+                        "password": {
+                            "type": "string",
+                            "description": "The member's password."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "callbackURL"
+                    ],
+                    "properties": {
+                        "callbackURL": {
+                            "type": "string",
+                            "description": "The URL to redirect the browser to in order to complete the OAuth flow."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

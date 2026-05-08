@@ -22,14 +22,22 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       return { profile: undefined, org: undefined };
     }
 
-    const [config, profileResponse] = await Promise.all([
+    const [config, profileResult] = await Promise.allSettled([
       context.queryClient.fetchQuery(getConfigQueryOptions(context.authManager)),
       new AtpAgent({ service: "https://public.api.bsky.app" }).getProfile({
         actor: authInfo.did,
       }),
     ]);
 
-    return { profile: profileResponse.data, org: config };
+    const profile =
+      profileResult.status === "fulfilled"
+        ? profileResult.value.data
+        : { did: authInfo.did };
+
+    return {
+      profile,
+      org: config.status === "fulfilled" ? config.value : undefined,
+    };
   },
   staleTime: 1000 * 60 * 60,
   component() {
@@ -37,7 +45,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     const { profile, org } = Route.useLoaderData();
     return (
       <div className="flex flex-col items-center w-full justify-stretch gap-4">
-        <Header profile={profile} org={org} onLogout={authManager.logout} />
+        {<Header profile={profile} org={org} onLogout={authManager.logout} />}
         <div className="container px-4 flex flex-col">
           <Outlet />
         </div>

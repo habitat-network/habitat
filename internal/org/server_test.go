@@ -17,9 +17,10 @@ import (
 
 func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 	t.Helper()
-	store := newTestStoreWithHive(t)
-	require.NoError(t, store.AddAdmin(context.Background(), adminDID))
-	srv, err := NewServer(store, authn.NewStubAuthnForTest(adminDID))
+	s := newTestStoreWithHive(t)
+	require.NoError(t, s.addMember(context.Background(), adminDID, testPasswordHash))
+	require.NoError(t, s.AddAdmin(context.Background(), adminDID))
+	srv, err := NewServer(s, authn.NewStubAuthnForTest(adminDID))
 	require.NoError(t, err)
 	return srv
 }
@@ -43,8 +44,9 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 	// Someone uses the token to mint an identity
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
-		Token:  issueOut.Token,
-		Handle: "alice",
+		Token:    issueOut.Token,
+		Password: "password",
+		Handle:   "alice",
 	})
 	mintReq := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.mintMemberIdentity", bytes.NewReader(mintBody))
 	mintReq.Header.Set("Content-Type", "application/json")

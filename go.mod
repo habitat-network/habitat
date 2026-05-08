@@ -164,6 +164,7 @@ require (
 )
 
 require (
+	github.com/alexedwards/argon2id v1.0.0
 	github.com/bluesky-social/jetstream v0.0.0-20260415170838-8a65de4eda28
 	github.com/bradenaw/juniper v0.15.3
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

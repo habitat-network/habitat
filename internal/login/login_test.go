@@ -152,27 +152,22 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	require.NotNil(t, creds.DpopKey)
 }
 
-// --- habitatProvider ---
+// dummyProvider is a test stand-in for any non-PDS provider.
+type dummyProvider struct{}
 
-func TestHabitatProvider_CanHandle(t *testing.T) {
-	p := NewHabitatProvider()
+func NewDummyProvider() Provider { return &dummyProvider{} }
 
-	require.True(t, p.CanHandle(idWithHabitatOnly()), "habitat-only identity should be handled")
-	require.False(t, p.CanHandle(idWithPDSOnly()), "pds-only identity should not be handled")
-	require.False(t, p.CanHandle(idWithBothServices()), "identity with both services should not be handled")
-	require.False(t, p.CanHandle(idWithNoServices()), "identity with no services should not be handled")
+func (d *dummyProvider) Type() ProviderType { return ProviderTypeHabitat }
+func (d *dummyProvider) CanHandle(id *identity.Identity) bool {
+	_, hasHabitat := id.Services["habitat"]
+	_, hasPDS := id.Services["atproto_pds"]
+	return hasHabitat && !hasPDS
 }
-
-func TestHabitatProvider_Authorize_AlwaysSucceeds(t *testing.T) {
-	p := NewHabitatProvider()
-	_, _, err := p.Authorize(context.Background(), idWithHabitatOnly())
-	require.NoError(t, err)
+func (d *dummyProvider) Authorize(_ context.Context, _ *identity.Identity) (string, []byte, error) {
+	return "https://dummy.example.com/login", nil, nil
 }
-
-func TestHabitatProvider_Exchange_AlwaysSucceeds(t *testing.T) {
-	p := NewHabitatProvider()
-	err := p.Exchange(context.Background(), "did:web:test", "code", "issuer", nil)
-	require.NoError(t, err)
+func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
+	return nil
 }
 
 // --- Router ---
@@ -180,7 +175,7 @@ func TestHabitatProvider_Exchange_AlwaysSucceeds(t *testing.T) {
 func newTestRouter() *Router {
 	return NewRouter(
 		NewPDSProvider(&stubOAuthClient{}, newStubCredStore()),
-		NewHabitatProvider(),
+		NewDummyProvider(),
 	)
 }
 

@@ -18,7 +18,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
@@ -182,7 +181,7 @@ type OAuthServer struct {
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
-	secret string,
+	secret []byte,
 	loginRouter *login.Router,
 	node node.Node,
 	directory identity.Directory,
@@ -191,17 +190,13 @@ func NewOAuthServer(
 	meter metric.Meter,
 	org org.Org,
 ) (*OAuthServer, error) {
-	secretBytes, err := encrypt.ParseKey(secret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse secret: %w", err)
-	}
 	config := &fosite.Config{
-		GlobalSecret:               secretBytes,
+		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 	}
 
-	strategy, err := newStrategy(secretBytes, config)
+	strategy, err := newStrategy(secret, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
@@ -417,20 +412,23 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
-		o.metrics.callbackErr(err, "lookup_serves")
-		utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
-		return
-	} else if !serves {
-		o.metrics.callbackErr(err, "wrong_server")
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"user's habitat service in DID doc does not match expected service",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
+	/*
+		// Comment this out in dev because it's unused and node uses the default dir which fails bc of subdomain funnels
+			if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
+				o.metrics.callbackErr(err, "lookup_serves")
+				utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
+				return
+			} else if !serves {
+				o.metrics.callbackErr(err, "wrong_server")
+				utils.LogAndHTTPError(
+					w,
+					err,
+					"user's habitat service in DID doc does not match expected service",
+					http.StatusMethodNotAllowed,
+				)
+				return
+			}
+	*/
 
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,

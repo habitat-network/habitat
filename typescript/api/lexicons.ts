@@ -1313,6 +1313,49 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgLoginMember: {
+    lexicon: 1,
+    id: 'network.habitat.org.loginMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Authenticate a habitat org member with their handle and password, returning a short-lived token for use in the OAuth callback flow.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['handle', 'password'],
+            properties: {
+              handle: {
+                type: 'string',
+                description:
+                  'The full handle of the member (e.g. alice.example.com).',
+              },
+              password: {
+                type: 'string',
+                description: "The member's password.",
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['callbackURL'],
+            properties: {
+              callbackURL: {
+                type: 'string',
+                description:
+                  'The URL to redirect the browser to in order to complete the OAuth flow.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatOrgMintMemberIdentity: {
     lexicon: 1,
     id: 'network.habitat.org.mintMemberIdentity',
@@ -1325,7 +1368,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['token', 'handle'],
+            required: ['token', 'handle', 'password'],
             properties: {
               handle: {
                 type: 'string',
@@ -1336,6 +1379,10 @@ export const schemaDict = {
                 type: 'string',
                 description:
                   'The token that was issued by an org admin to allow members to join the organization..',
+              },
+              password: {
+                type: 'string',
+                description: "The password for the new member's account.",
               },
             },
           },
@@ -2271,6 +2318,7 @@ export const ids = {
   NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',
   NetworkHabitatOrgGetMetadata: 'network.habitat.org.getMetadata',
   NetworkHabitatOrgIssueInviteToken: 'network.habitat.org.issueInviteToken',
+  NetworkHabitatOrgLoginMember: 'network.habitat.org.loginMember',
   NetworkHabitatOrgMintMemberIdentity: 'network.habitat.org.mintMemberIdentity',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
   NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',

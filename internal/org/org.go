@@ -27,6 +27,7 @@ const (
 var (
 	ErrNotAdmin           = errors.New("caller is not an admin")
 	ErrLastAdmin          = errors.New("org must have at least one admin")
+	ErrNotMember          = errors.New("DID is not a member of this org")
 	ErrInvalidToken       = errors.New("an invalid token was presented")
 	ErrInvalidTokenExpiry = errors.New("token expiry must be < 1 month from now")
 )
@@ -42,7 +43,8 @@ type Org interface {
 
 	// This is exported because other packages may want to do membership lookup
 	AddAdmin(ctx context.Context, admin syntax.DID) error
-	AddMembers(ctx context.Context, members []syntax.DID) error
+	// Only support adding members through CreateNewMemberIdentity for now
+	// AddMembers(ctx context.Context, members []syntax.DID) error
 	GetAdmins(ctx context.Context) ([]syntax.DID, error)
 	GetMembers(ctx context.Context) ([]syntax.DID, error)
 	RemoveAdmin(ctx context.Context, admin syntax.DID) error
@@ -53,25 +55,11 @@ type Org interface {
 
 	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(ctx context.Context, caller syntax.DID, reusable bool, expiresAt time.Time) (token string, err error)
-	CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string) (*identity.Identity, error)
+	CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string, password string) (*identity.Identity, error)
+	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
 
 	// Generic config about this org
 	GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput
-}
-
-// Keep track of members in the
-type member struct {
-	Member string `gorm:"primaryKey"`
-	Role   string
-
-	// Automatically populated by gorm
-	CreatedAt time.Time
-}
-
-// spentToken tracks consumed single-use invite tokens by their JWT ID.
-type spentToken struct {
-	JTI        string    `gorm:"primaryKey"`
-	ConsumedAt time.Time `gorm:"not null"`
 }
 
 type inviteTokenClaims struct {
@@ -97,7 +85,7 @@ type store struct {
 
 var _ Org = &store{}
 
-func NewOrg(domain string, hive hive.Hive, db *gorm.DB, signingSecret []byte) (Org, error) {
+func NewOrg(domain string, hive hive.Hive, db *gorm.DB, signingSecret []byte) (*store, error) {
 	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
@@ -117,29 +105,32 @@ func (s *store) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
 }
 
 func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
-	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "member"}},
-		DoUpdates: clause.Assignments(map[string]any{"role": Admin}),
-	}).Create(&member{
-		Member:    admin.String(),
-		Role:      string(Admin),
-		CreatedAt: time.Now(),
-	}).Error
+	result := s.db.WithContext(ctx).Model(&member{}).
+		Where("member = ?", admin.String()).
+		Update("role", Admin)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotMember
+	}
+	return nil
 }
 
-func (s *store) AddMembers(ctx context.Context, members []syntax.DID) error {
-	rows := make([]member, 0, len(members))
-	for _, did := range members {
-		rows = append(rows, member{
-			Member:    did.String(),
-			Role:      string(Member),
-			CreatedAt: time.Now(),
-		})
-	}
-	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+func (s *store) addMember(ctx context.Context, did syntax.DID, passwordHash string) error {
+	return s.addMemberTx(ctx, s.db, did, passwordHash)
+}
+
+func (s *store) addMemberTx(ctx context.Context, tx *gorm.DB, did syntax.DID, passwordHash string) error {
+	return tx.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "member"}},
 		DoNothing: true,
-	}).Create(&rows).Error
+	}).Create(&member{
+		Member:       did.String(),
+		Role:         string(Member),
+		PasswordHash: passwordHash,
+		CreatedAt:    time.Now(),
+	}).Error
 }
 
 // BootstrapAdmin implements Store.
@@ -288,26 +279,50 @@ func (s *store) IssueIdentityToken(ctx context.Context, caller syntax.DID, reusa
 }
 
 // CreateNewMemberIdentity implements Org.
-func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string) (*identity.Identity, error) {
+func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string, password string) (*identity.Identity, error) {
 	// Validate the token
-	err := s.validateIdentityToken(ctx, token)
+	if err := s.validateIdentityToken(ctx, token); err != nil {
+		return nil, err
+	}
+
+	passwordHash, err := hashPassword(password)
 	if err != nil {
 		return nil, err
 	}
 
 	// If token is valid, call into hive to mint the new identity and serve it
-	id, err := s.hive.MintIdentity(internalHandle)
+	id, persistIdent, err := s.hive.MintIdentity(internalHandle)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: we could have orphaned identities if the next step fails; should handle this somehow.
-
-	// Automatically add this member to the org
-	err = s.AddMembers(ctx, []syntax.DID{id.DID})
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := persistIdent(tx); err != nil {
+			return err
+		}
+		return s.addMemberTx(ctx, tx, id.DID, passwordHash)
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	return id, nil
+}
+
+func (s *store) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
+	id, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
+	if err != nil {
+		// Don't leak whether the handle exists
+		return false, nil
+	}
+
+	var row member
+	err = s.db.WithContext(ctx).Where("member = ?", id.DID.String()).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	return verifyPassword(password, row.PasswordHash)
 }

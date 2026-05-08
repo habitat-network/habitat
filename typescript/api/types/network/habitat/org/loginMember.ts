@@ -13,24 +13,20 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.org.mintMemberIdentity'
+const id = 'network.habitat.org.loginMember'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member. */
+  /** The full handle of the member (e.g. alice.example.com). */
   handle: string
-  /** The token that was issued by an org admin to allow members to join the organization.. */
-  token: string
-  /** The password for the new member's account. */
+  /** The member's password. */
   password: string
 }
 
 export interface OutputSchema {
-  /** The full handle of the newly minted member identity. */
-  handle: string
-  /** The DID of the newly minted member identity. */
-  did: string
+  /** The URL to redirect the browser to in order to complete the OAuth flow. */
+  callbackURL: string
 }
 
 export interface CallOptions {

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as OauthLoginRouteImport } from './routes/oauth-login'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as DevtoolsRouteImport } from './routes/devtools'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
@@ -43,6 +44,11 @@ const OauthLoginRoute = OauthLoginRouteImport.update({
   path: '/oauth-login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
@@ -68,9 +74,9 @@ const OrgJoinRoute = OrgJoinRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginHabitatRoute = LoginHabitatRouteImport.update({
-  id: '/login/habitat',
-  path: '/login/habitat',
-  getParentRoute: () => rootRouteImport,
+  id: '/habitat',
+  path: '/habitat',
+  getParentRoute: () => LoginRoute,
 } as any)
 const RequireAuthPermissionsRoute = RequireAuthPermissionsRouteImport.update({
   id: '/permissions',
@@ -161,6 +167,7 @@ const RequireAuthPermissionsLexiconsCollectionRoute =
 export interface FileRoutesByFullPath {
   '/devtools': typeof DevtoolsRoute
   '/explore': typeof ExploreRoute
+  '/login': typeof LoginRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/devtools': typeof DevtoolsRoute
   '/explore': typeof ExploreRoute
+  '/login': typeof LoginRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/devtools': typeof DevtoolsRoute
   '/explore': typeof ExploreRoute
+  '/login': typeof LoginRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
   '/_requireAuth/_forwarding-test': typeof RequireAuthForwardingTestRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/devtools'
     | '/explore'
+    | '/login'
     | '/oauth-login'
     | '/onboard'
     | '/data'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
   to:
     | '/devtools'
     | '/explore'
+    | '/login'
     | '/oauth-login'
     | '/onboard'
     | '/data'
@@ -278,6 +289,7 @@ export interface FileRouteTypes {
     | '/_requireAuth'
     | '/devtools'
     | '/explore'
+    | '/login'
     | '/oauth-login'
     | '/onboard'
     | '/_requireAuth/_forwarding-test'
@@ -304,9 +316,9 @@ export interface RootRouteChildren {
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
   DevtoolsRoute: typeof DevtoolsRoute
   ExploreRoute: typeof ExploreRoute
+  LoginRoute: typeof LoginRouteWithChildren
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
-  LoginHabitatRoute: typeof LoginHabitatRoute
   OrgJoinRoute: typeof OrgJoinRoute
 }
 
@@ -324,6 +336,13 @@ declare module '@tanstack/react-router' {
       path: '/oauth-login'
       fullPath: '/oauth-login'
       preLoaderRoute: typeof OauthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/explore': {
@@ -363,10 +382,10 @@ declare module '@tanstack/react-router' {
     }
     '/login/habitat': {
       id: '/login/habitat'
-      path: '/login/habitat'
+      path: '/habitat'
       fullPath: '/login/habitat'
       preLoaderRoute: typeof LoginHabitatRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof LoginRoute
     }
     '/_requireAuth/permissions': {
       id: '/_requireAuth/permissions'
@@ -558,13 +577,23 @@ const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
   RequireAuthRouteChildren,
 )
 
+interface LoginRouteChildren {
+  LoginHabitatRoute: typeof LoginHabitatRoute
+}
+
+const LoginRouteChildren: LoginRouteChildren = {
+  LoginHabitatRoute: LoginHabitatRoute,
+}
+
+const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   RequireAuthRoute: RequireAuthRouteWithChildren,
   DevtoolsRoute: DevtoolsRoute,
   ExploreRoute: ExploreRoute,
+  LoginRoute: LoginRouteWithChildren,
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
-  LoginHabitatRoute: LoginHabitatRoute,
   OrgJoinRoute: OrgJoinRoute,
 }
 export const routeTree = rootRouteImport

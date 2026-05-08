@@ -62,3 +62,6 @@ type Thing interface {
 - Library preferences:
   - For simple manipulation on slices and maps, if no helper is provided by the `slices` and `maps` libraries, then use `xmaps` and `xslices` from the `github.com/bradenaw/juniper` package.
   - When using the `context` package: Do use context cancellation for cancellation signals. Never store any values in the context (context.WithValue). Call contexts `ctx`
+
+- DOs and DONTs:
+  - Almost never do type assertions, even in tests. This usually indicates a broader issue with type definitions.

@@ -29,7 +29,7 @@ import (
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
-			"not-valid-base64!!!",
+			[]byte("not valid base64"),
 			nil, nil, nil, nil, nil, noop.Meter{}, org.NewEveryoneOrg(),
 		)
 		require.Error(t, err)
@@ -43,7 +43,9 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	clientMetadata := &pdsclient.ClientMetadata{}
 	oauthClient := NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
-	secret, err := encrypt.GenerateKey()
+	secretStr, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	secret, err := encrypt.ParseKey(secretStr)
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
 		secret,
@@ -139,9 +141,11 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
 
 	oauthServer, err := NewOAuthServer(
-		secret,
+		bytes,
 		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
@@ -252,9 +256,12 @@ func TestOAuthServerE2E(t *testing.T) {
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err, "failed to generate secret")
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
 
 	oauthServer, err := NewOAuthServer(
-		secret,
+		bytes,
 		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
@@ -480,13 +487,16 @@ func TestValidate(t *testing.T) {
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
 
 	// newSrv creates an OAuthServer sharing the same secret and database.
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
 	newSrv := func(o org.Org) *OAuthServer {
 		s, srvErr := NewOAuthServer(
-			secret,
+			bytes,
 			login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
