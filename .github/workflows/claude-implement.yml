@@ -20,7 +20,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: "25"
+          claude_args: "--max-turns 25"
           prompt: |
             Read CLAUDE.md before starting.
             Implement the feature described in this issue. 
