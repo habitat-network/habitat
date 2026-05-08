@@ -39,6 +39,9 @@ func newTestStoreWithHive(t *testing.T) *store {
 var (
 	did1 = syntax.DID("did:plc:alice111")
 	did2 = syntax.DID("did:plc:bob2222")
+
+	id1 = ID("test1")
+	id2 = ID("test2")
 )
 
 const testPasswordHash = "testhash"
@@ -52,7 +55,7 @@ func TestIsMember(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id1, testPasswordHash))
 
 	ok, err = s.IsMember(ctx, did1)
 
@@ -64,7 +67,7 @@ func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id1, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 
 	admins, err := s.GetAdmins(ctx)
@@ -84,7 +87,7 @@ func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id1, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 
 	err := s.RemoveAdmin(ctx, did1)
@@ -95,8 +98,8 @@ func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
-	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id2, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 	require.NoError(t, s.AddAdmin(ctx, did2))
 
@@ -115,8 +118,8 @@ func TestGetMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, members)
 
-	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
-	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id2, testPasswordHash))
 
 	members, err = s.GetMembers(ctx)
 	require.NoError(t, err)
@@ -127,8 +130,8 @@ func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 
-	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
-	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id1, testPasswordHash))
+	require.NoError(t, s.addMember(ctx, id2, testPasswordHash))
 	require.NoError(t, s.RemoveMembers(ctx, []syntax.DID{did2}))
 
 	ok, err := s.IsMember(ctx, did1)

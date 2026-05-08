@@ -18,7 +18,7 @@ import (
 func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 	t.Helper()
 	s := newTestStoreWithHive(t)
-	require.NoError(t, s.addMember(context.Background(), adminDID, testPasswordHash))
+	require.NoError(t, s.addMember(context.Background(), "test", testPasswordHash))
 	require.NoError(t, s.AddAdmin(context.Background(), adminDID))
 	srv, err := NewServer(s, authn.NewStubAuthnForTest(adminDID))
 	require.NoError(t, err)

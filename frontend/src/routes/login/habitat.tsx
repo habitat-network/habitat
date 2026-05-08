@@ -1,7 +1,6 @@
 import { Button, Field, FieldError, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
-import { procedure } from "internal";
 
 export const Route = createFileRoute("/login/habitat")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -14,7 +13,6 @@ type FormValues = { password: string };
 
 function HabitatLoginPage() {
   const { handle } = Route.useSearch();
-  const { authManager } = Route.useRouteContext();
 
   const {
     register,
@@ -25,11 +23,22 @@ function HabitatLoginPage() {
 
   const onSubmit = async ({ password }: FormValues) => {
     try {
-      const { callbackURL } = await procedure(
-        "network.habitat.org.loginMember",
-        { handle, password },
-        { authManager },
+      // Bypass authManager: this is the login endpoint itself, so the user has
+      // no session yet. Going through authManager.fetch would short-circuit
+      // and redirect to /oauth-login before the request fires.
+      const res = await fetch(
+        `https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.org.loginMember`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ handle, password }),
+        },
       );
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Login failed (${res.status})`);
+      }
+      const { callbackURL } = (await res.json()) as { callbackURL: string };
       window.location.href = `https://${__HABITAT_DOMAIN__}${callbackURL}`;
     } catch (err) {
       setError("root", {

@@ -2,9 +2,11 @@ package org
 
 import "time"
 
+type ID string
+
 // Keep track of members in the org
 type member struct {
-	Member       string `gorm:"primaryKey"`
+	ID           ID `gorm:"primaryKey"`
 	Role         string
 	PasswordHash string `gorm:"not null"`
 

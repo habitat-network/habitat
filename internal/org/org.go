@@ -117,16 +117,16 @@ func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return nil
 }
 
-func (s *store) addMember(ctx context.Context, did syntax.DID, passwordHash string) error {
-	return s.addMemberTx(ctx, s.db, did, passwordHash)
+func (s *store) addMember(ctx context.Context, id ID, passwordHash string) error {
+	return s.addMemberTx(ctx, s.db, id, passwordHash)
 }
 
-func (s *store) addMemberTx(ctx context.Context, tx *gorm.DB, did syntax.DID, passwordHash string) error {
+func (s *store) addMemberTx(ctx context.Context, tx *gorm.DB, id ID, passwordHash string) error {
 	return tx.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "member"}},
 		DoNothing: true,
 	}).Create(&member{
-		Member:       did.String(),
+		ID:           id,
 		Role:         string(Member),
 		PasswordHash: passwordHash,
 		CreatedAt:    time.Now(),
@@ -147,11 +147,11 @@ func (s *store) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		did, err := syntax.ParseDID(r.Member)
+		id, err := s.hive.LookupID(ctx, string(r.ID))
 		if err != nil {
 			return nil, err
 		}
-		dids = append(dids, did)
+		dids = append(dids, id.DID)
 	}
 	return dids, nil
 }
@@ -163,11 +163,11 @@ func (s *store) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		did, err := syntax.ParseDID(r.Member)
+		id, err := s.hive.LookupID(ctx, string(r.ID))
 		if err != nil {
 			return nil, err
 		}
-		dids = append(dids, did)
+		dids = append(dids, id.DID)
 	}
 	return dids, nil
 }
@@ -213,8 +213,12 @@ func (s *store) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 
 // isMember implements Store.
 func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
+	id, err := s.hive.ResolveID(did)
+	if err != nil {
+		return false, err
+	}
 	var row member
-	err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&row).Error
+	err = s.db.WithContext(ctx).Where("id = ?", id).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
@@ -291,7 +295,7 @@ func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, inter
 	}
 
 	// If token is valid, call into hive to mint the new identity and serve it
-	id, persistIdent, err := s.hive.MintIdentity(internalHandle)
+	ident, opaqueID, persistIdent, err := s.hive.MintIdentity(internalHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -300,13 +304,13 @@ func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, inter
 		if err := persistIdent(tx); err != nil {
 			return err
 		}
-		return s.addMemberTx(ctx, tx, id.DID, passwordHash)
+		return s.addMemberTx(ctx, tx, ID(opaqueID), passwordHash)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return id, nil
+	return ident, nil
 }
 
 func (s *store) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
