@@ -15,18 +15,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
+func newTestServer(t *testing.T) (*Server, syntax.DID) {
 	t.Helper()
 	s := newTestStoreWithHive(t)
-	require.NoError(t, s.addMember(context.Background(), "test", testPasswordHash))
-	require.NoError(t, s.AddAdmin(context.Background(), adminDID))
-	srv, err := NewServer(s, authn.NewStubAuthnForTest(adminDID))
+	ident, opaqueID, persist, err := s.hive.MintIdentity("admin")
 	require.NoError(t, err)
-	return srv
+	require.NoError(t, persist(s.db))
+	require.NoError(t, s.addMember(context.Background(), ID(opaqueID), testPasswordHash))
+	require.NoError(t, s.AddAdmin(context.Background(), ident.DID))
+	srv, err := NewServer(s, authn.NewStubAuthnForTest(ident.DID))
+	require.NoError(t, err)
+	return srv, ident.DID
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
-	srv := newTestServer(t, did1)
+	srv, adminDID := newTestServer(t)
 
 	// Admin issues an invite token
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
@@ -65,6 +68,6 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	members, err := srv.org.GetMembers(context.Background())
 	require.NoError(t, err)
 	require.Len(t, members, 2)
-	require.Contains(t, members, did1, "contains the admin")
+	require.Contains(t, members, adminDID, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
 }

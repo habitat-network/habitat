@@ -105,8 +105,12 @@ func (s *store) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
 }
 
 func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
+	id, err := s.hive.ResolveID(admin)
+	if err != nil {
+		return err
+	}
 	result := s.db.WithContext(ctx).Model(&member{}).
-		Where("member = ?", admin.String()).
+		Where("id = ?", id).
 		Update("role", Admin)
 	if result.Error != nil {
 		return result.Error
@@ -123,7 +127,7 @@ func (s *store) addMember(ctx context.Context, id ID, passwordHash string) error
 
 func (s *store) addMemberTx(ctx context.Context, tx *gorm.DB, id ID, passwordHash string) error {
 	return tx.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "member"}},
+		Columns:   []clause.Column{{Name: "id"}},
 		DoNothing: true,
 	}).Create(&member{
 		ID:           id,
@@ -173,6 +177,10 @@ func (s *store) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 }
 
 func (s *store) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
+	id, err := s.hive.ResolveID(admin)
+	if err != nil {
+		return err
+	}
 	var adminCount int64
 	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
 		return err
@@ -180,10 +188,14 @@ func (s *store) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return s.db.WithContext(ctx).Model(&member{}).Where("member = ? AND role = ?", admin.String(), Admin).Update("role", Member).Error
+	return s.db.WithContext(ctx).Model(&member{}).Where("id = ? AND role = ?", id, Admin).Update("role", Member).Error
 }
 
 func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
+	id, err := s.hive.ResolveID(admin)
+	if err != nil {
+		return err
+	}
 	var adminCount int64
 	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
 		return err
@@ -191,20 +203,28 @@ func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return s.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), Admin).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("id = ? AND role = ?", id, Admin).Delete(&member{}).Error
 }
 
 func (s *store) RemoveMembers(ctx context.Context, members []syntax.DID) error {
-	dids := make([]string, 0, len(members))
+	ids := make([]string, 0, len(members))
 	for _, did := range members {
-		dids = append(dids, did.String())
+		id, err := s.hive.ResolveID(did)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, id)
 	}
-	return s.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, Member).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("id IN ? AND role = ?", ids, Member).Delete(&member{}).Error
 }
 
 func (s *store) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
+	id, err := s.hive.ResolveID(did)
+	if err != nil {
+		return false, err
+	}
 	var row member
-	err := s.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), Admin).First(&row).Error
+	err = s.db.WithContext(ctx).Where("id = ? AND role = ?", id, Admin).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
@@ -314,14 +334,18 @@ func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, inter
 }
 
 func (s *store) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
-	id, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
+	ident, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
 	if err != nil {
 		// Don't leak whether the handle exists
 		return false, nil
 	}
+	opaqueID, err := s.hive.ResolveID(ident.DID)
+	if err != nil {
+		return false, err
+	}
 
 	var row member
-	err = s.db.WithContext(ctx).Where("member = ?", id.DID.String()).First(&row).Error
+	err = s.db.WithContext(ctx).Where("id = ?", opaqueID).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	} else if err != nil {
