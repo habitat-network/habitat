@@ -195,13 +195,15 @@ type ProcedureEndpoints = {
   >;
 };
 
-interface QueryOptions {
+interface AuthedOptions {
+  unauthenticated?: false
   authManager: AuthManager;
   headers?: Headers;
   fetchOptions?: DPoPOptions;
 }
 
 interface UnauthedOptions {
+  unauthenticated: true
   domain: string;
   headers?: Headers;
 }
@@ -211,20 +213,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-    ? UnauthedOptions
-    : QueryOptions;
-
-// Runtime registry of endpoints that should bypass auth. Kept in sync with
-// `UnauthedProcedure` entries in `ProcedureEndpoints` via the `satisfies`
-// constraint — adding a new unauthenticated endpoint without listing it here
-// is a type error.
-const unauthenticatedEndpoints = {
-  "network.habitat.org.loginMember": true,
-} satisfies {
-  [K in keyof ProcedureEndpoints as ProcedureEndpoints[K]["unauthenticated"] extends true
-  ? K
-  : never]: true;
-};
+  ? UnauthedOptions
+  : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;
@@ -241,7 +231,7 @@ export class XRPCError extends Error {
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
   params: QueryEndpoints[T]["params"],
-  options: QueryOptions,
+  options: AuthedOptions,
 ): Promise<QueryEndpoints[T]["output"]> => {
   const queryParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -278,9 +268,9 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   options: ProcedureOptions<T>,
 ): Promise<ProcedureEndpoints[T]["output"]> => {
   const response =
-    endpoint in unauthenticatedEndpoints
+    options.unauthenticated
       ? await unauthedRequest(endpoint, params, options as UnauthedOptions)
-      : await authedRequest(endpoint, params, options as QueryOptions);
+      : await authedRequest(endpoint, params, options as AuthedOptions);
 
   const data = await response.json().catch(() => undefined);
   if (!response.ok) {
@@ -292,7 +282,7 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
 const authedRequest = (
   endpoint: string,
   params: unknown,
-  options: QueryOptions,
+  options: AuthedOptions,
 ) =>
   options.authManager.fetch(
     "/xrpc/" + endpoint,
