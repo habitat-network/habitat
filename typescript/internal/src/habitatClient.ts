@@ -112,7 +112,21 @@ type QueryEndpoints = {
   >;
 };
 
-type Procedure<Params, Output> = { params: Params; output: Output };
+type Procedure<Params, Output> = {
+  params: Params;
+  output: Output;
+  unauthenticated?: false;
+};
+
+// Procedure variant for endpoints callable without an authenticated session
+// (e.g. login). The flag is checked both at the type level (to make
+// `authManager` optional in `procedure()` options) and at runtime (to bypass
+// authManager's session/redirect logic).
+type UnauthedProcedure<Params, Output> = {
+  params: Params;
+  output: Output;
+  unauthenticated: true;
+};
 
 type ProcedureEndpoints = {
   "com.atproto.repo.createRecord": Procedure<
@@ -171,7 +185,7 @@ type ProcedureEndpoints = {
     NetworkHabitatOrgIssueInviteToken.InputSchema,
     NetworkHabitatOrgIssueInviteToken.OutputSchema
   >;
-  "network.habitat.org.loginMember": Procedure<
+  "network.habitat.org.loginMember": UnauthedProcedure<
     NetworkHabitatOrgLoginMember.InputSchema,
     NetworkHabitatOrgLoginMember.OutputSchema
   >;
@@ -181,11 +195,26 @@ type ProcedureEndpoints = {
   >;
 };
 
-interface QueryOptions {
+interface AuthedOptions {
+  unauthenticated?: false
   authManager: AuthManager;
   headers?: Headers;
   fetchOptions?: DPoPOptions;
 }
+
+interface UnauthedOptions {
+  unauthenticated: true
+  domain: string;
+  headers?: Headers;
+}
+
+// Procedure options switch on the endpoint's `unauthenticated` flag: unauthed
+// endpoints take a raw `domain` (no session yet); authed endpoints take an
+// AuthManager.
+type ProcedureOptions<T extends keyof ProcedureEndpoints> =
+  ProcedureEndpoints[T]["unauthenticated"] extends true
+  ? UnauthedOptions
+  : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;
@@ -202,7 +231,7 @@ export class XRPCError extends Error {
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
   params: QueryEndpoints[T]["params"],
-  options: QueryOptions,
+  options: AuthedOptions,
 ): Promise<QueryEndpoints[T]["output"]> => {
   const queryParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -236,9 +265,26 @@ export const query = async <T extends keyof QueryEndpoints>(
 export const procedure = async <T extends keyof ProcedureEndpoints>(
   endpoint: T,
   params: ProcedureEndpoints[T]["params"],
-  options: QueryOptions,
+  options: ProcedureOptions<T>,
 ): Promise<ProcedureEndpoints[T]["output"]> => {
-  const response = await options.authManager.fetch(
+  const response =
+    options.unauthenticated
+      ? await unauthedRequest(endpoint, params, options as UnauthedOptions)
+      : await authedRequest(endpoint, params, options as AuthedOptions);
+
+  const data = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new XRPCError(response.status, data);
+  }
+  return data;
+};
+
+const authedRequest = (
+  endpoint: string,
+  params: unknown,
+  options: AuthedOptions,
+) =>
+  options.authManager.fetch(
     "/xrpc/" + endpoint,
     "POST",
     JSON.stringify(params),
@@ -246,11 +292,20 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
     options.fetchOptions,
   );
 
-  const data = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw new XRPCError(response.status, data);
+const unauthedRequest = (
+  endpoint: string,
+  params: unknown,
+  options: UnauthedOptions,
+) => {
+  const headers = options.headers ?? new Headers();
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
   }
-  return data;
+  return fetch(`https://${options.domain}/xrpc/${endpoint}`, {
+    method: "POST",
+    body: JSON.stringify(params),
+    headers,
+  });
 };
 
 export const castRecord = <T extends Record<string, unknown>>(record: {

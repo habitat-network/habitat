@@ -14,7 +14,6 @@ type FormValues = { password: string };
 
 function HabitatLoginPage() {
   const { handle } = Route.useSearch();
-  const { authManager } = Route.useRouteContext();
 
   const {
     register,
@@ -28,7 +27,7 @@ function HabitatLoginPage() {
       const { callbackURL } = await procedure(
         "network.habitat.org.loginMember",
         { handle, password },
-        { authManager },
+        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
       );
       window.location.href = `https://${__HABITAT_DOMAIN__}${callbackURL}`;
     } catch (err) {
