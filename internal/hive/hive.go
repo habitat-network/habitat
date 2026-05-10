@@ -114,7 +114,7 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 		return nil, identity.ErrDIDNotFound
 	}
 
-	return h.store.getIdentityByID(opaqueID)
+	return h.store.getIdentityByID(ctx, opaqueID)
 }
 
 // LookupHandle implements identity.Directory
@@ -131,7 +131,7 @@ func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identit
 		return nil, identity.ErrInvalidHandle
 	}
 
-	return h.store.getIdentityByHandle(internalHandle)
+	return h.store.getIdentityByHandle(ctx, internalHandle)
 }
 
 // Purge implements identity.Directory

@@ -33,8 +33,8 @@ import (
 type Pear interface {
 	// Permissions-related methods
 	HasPermission(ctx context.Context, caller syntax.DID, requester syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) (bool, error)
-	AddPermissions(caller syntax.DID, grantees []permissions.Grantee, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
-	RemovePermissions(caller syntax.DID, grantee []permissions.Grantee, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
+	AddPermissions(ctx context.Context, caller syntax.DID, grantees []permissions.Grantee, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
+	RemovePermissions(ctx context.Context, caller syntax.DID, grantee []permissions.Grantee, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
 	ListPermissionGrants(ctx context.Context, caller syntax.DID, granter syntax.DID) ([]permissions.Permission, error)
 	ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]permissions.Grantee, error)
 
@@ -74,6 +74,7 @@ type pear struct {
 
 // Pass throughs to implement permission.Store
 func (p *pear) AddPermissions(
+	ctx context.Context,
 	caller syntax.DID,
 	grantees []permissions.Grantee,
 	owner syntax.DID,
@@ -84,11 +85,12 @@ func (p *pear) AddPermissions(
 	if caller != owner {
 		return habitat_err.ErrUnauthorized
 	}
-	return p.permissions.AddPermissions(grantees, owner, collection, rkey)
+	return p.permissions.AddPermissions(ctx, grantees, owner, collection, rkey)
 }
 
 // RemoveReadPermissions implements Pear.
 func (p *pear) RemovePermissions(
+	ctx context.Context,
 	caller syntax.DID,
 	grantee []permissions.Grantee,
 	owner syntax.DID,
@@ -99,7 +101,7 @@ func (p *pear) RemovePermissions(
 	if caller != owner {
 		return habitat_err.ErrUnauthorized
 	}
-	return p.permissions.RemovePermissions(grantee, owner, collection, rkey)
+	return p.permissions.RemovePermissions(ctx, grantee, owner, collection, rkey)
 }
 
 // HasPermission implements Pear.
@@ -203,6 +205,7 @@ func (p *pear) PutRecord(
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
 	if len(grantees) > 0 {
 		err := p.permissions.AddPermissions(
+			ctx,
 			grantees,
 			did,
 			collection,
@@ -249,6 +252,7 @@ func (p *pear) CreateRecord(
 	// It is assumed right now that if this endpoint is called, the caller wants to put a private record into pear.
 	if len(grantees) > 0 {
 		err := p.permissions.AddPermissions(
+			ctx,
 			grantees,
 			did,
 			collection,
