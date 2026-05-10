@@ -105,12 +105,8 @@ func (s *store) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
 }
 
 func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
-	id, err := s.hive.ResolveID(admin)
-	if err != nil {
-		return err
-	}
 	result := s.db.WithContext(ctx).Model(&member{}).
-		Where("id = ?", id).
+		Where("member = ?", admin.String()).
 		Update("role", Admin)
 	if result.Error != nil {
 		return result.Error
@@ -121,16 +117,16 @@ func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return nil
 }
 
-func (s *store) addMember(ctx context.Context, id ID, passwordHash string) error {
-	return s.addMemberTx(ctx, s.db, id, passwordHash)
+func (s *store) addMember(ctx context.Context, did syntax.DID, passwordHash string) error {
+	return s.addMemberTx(ctx, s.db, did, passwordHash)
 }
 
-func (s *store) addMemberTx(ctx context.Context, tx *gorm.DB, id ID, passwordHash string) error {
+func (s *store) addMemberTx(ctx context.Context, tx *gorm.DB, did syntax.DID, passwordHash string) error {
 	return tx.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
+		Columns:   []clause.Column{{Name: "member"}},
 		DoNothing: true,
 	}).Create(&member{
-		ID:           id,
+		Member:       did.String(),
 		Role:         string(Member),
 		PasswordHash: passwordHash,
 		CreatedAt:    time.Now(),
@@ -151,11 +147,11 @@ func (s *store) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		id, err := s.hive.LookupID(ctx, string(r.ID))
+		did, err := syntax.ParseDID(r.Member)
 		if err != nil {
 			return nil, err
 		}
-		dids = append(dids, id.DID)
+		dids = append(dids, did)
 	}
 	return dids, nil
 }
@@ -167,20 +163,16 @@ func (s *store) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		id, err := s.hive.LookupID(ctx, string(r.ID))
+		did, err := syntax.ParseDID(r.Member)
 		if err != nil {
 			return nil, err
 		}
-		dids = append(dids, id.DID)
+		dids = append(dids, did)
 	}
 	return dids, nil
 }
 
 func (s *store) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
-	id, err := s.hive.ResolveID(admin)
-	if err != nil {
-		return err
-	}
 	var adminCount int64
 	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
 		return err
@@ -188,14 +180,10 @@ func (s *store) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return s.db.WithContext(ctx).Model(&member{}).Where("id = ? AND role = ?", id, Admin).Update("role", Member).Error
+	return s.db.WithContext(ctx).Model(&member{}).Where("member = ? AND role = ?", admin.String(), Admin).Update("role", Member).Error
 }
 
 func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
-	id, err := s.hive.ResolveID(admin)
-	if err != nil {
-		return err
-	}
 	var adminCount int64
 	if err := s.db.WithContext(ctx).Model(&member{}).Where("role = ?", Admin).Count(&adminCount).Error; err != nil {
 		return err
@@ -203,28 +191,20 @@ func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return s.db.WithContext(ctx).Where("id = ? AND role = ?", id, Admin).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("member = ? AND role = ?", admin.String(), Admin).Delete(&member{}).Error
 }
 
 func (s *store) RemoveMembers(ctx context.Context, members []syntax.DID) error {
-	ids := make([]string, 0, len(members))
+	dids := make([]string, 0, len(members))
 	for _, did := range members {
-		id, err := s.hive.ResolveID(did)
-		if err != nil {
-			return err
-		}
-		ids = append(ids, id)
+		dids = append(dids, did.String())
 	}
-	return s.db.WithContext(ctx).Where("id IN ? AND role = ?", ids, Member).Delete(&member{}).Error
+	return s.db.WithContext(ctx).Where("member IN ? AND role = ?", dids, Member).Delete(&member{}).Error
 }
 
 func (s *store) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
-	id, err := s.hive.ResolveID(did)
-	if err != nil {
-		return false, err
-	}
 	var row member
-	err = s.db.WithContext(ctx).Where("id = ? AND role = ?", id, Admin).First(&row).Error
+	err := s.db.WithContext(ctx).Where("member = ? AND role = ?", did.String(), Admin).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
@@ -233,12 +213,8 @@ func (s *store) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 
 // isMember implements Store.
 func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
-	id, err := s.hive.ResolveID(did)
-	if err != nil {
-		return false, err
-	}
 	var row member
-	err = s.db.WithContext(ctx).Where("id = ?", id).First(&row).Error
+	err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
@@ -315,7 +291,7 @@ func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, inter
 	}
 
 	// If token is valid, call into hive to mint the new identity and serve it
-	ident, opaqueID, persistIdent, err := s.hive.MintIdentity(internalHandle)
+	id, persistIdent, err := s.hive.MintIdentity(internalHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -324,28 +300,24 @@ func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, inter
 		if err := persistIdent(tx); err != nil {
 			return err
 		}
-		return s.addMemberTx(ctx, tx, ID(opaqueID), passwordHash)
+		return s.addMemberTx(ctx, tx, id.DID, passwordHash)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return ident, nil
+	return id, nil
 }
 
 func (s *store) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
-	ident, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
+	id, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
 	if err != nil {
 		// Don't leak whether the handle exists
 		return false, nil
 	}
-	opaqueID, err := s.hive.ResolveID(ident.DID)
-	if err != nil {
-		return false, err
-	}
 
 	var row member
-	err = s.db.WithContext(ctx).Where("id = ?", opaqueID).First(&row).Error
+	err = s.db.WithContext(ctx).Where("member = ?", id.DID.String()).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	} else if err != nil {

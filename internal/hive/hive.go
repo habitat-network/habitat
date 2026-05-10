@@ -20,7 +20,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string) (*identity.Identity, string /* opaqueID */, func(*gorm.DB) error, error)
+	MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -29,8 +29,6 @@ type Hive interface {
 
 	// Implements the same interface as the PLC / any identity Directory in atproto land
 	identity.Directory
-	LookupID(ctx context.Context, opaqueID string) (*identity.Identity, error)
-	ResolveID(syntax.DID) (string, error)
 }
 
 type hive struct {
@@ -105,10 +103,17 @@ func (h *hive) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.
 
 // LookupDID implements identity.Directory
 func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
-	opaqueID, err := h.ResolveID(did)
-	if err != nil {
-		return nil, err
+	// Validate DID
+	// DID format: did:web:<opaqueID>.<baseDomain>
+	content := strings.TrimPrefix(did.String(), "did:web:")
+	opaqueID, after, ok := strings.Cut(content, ".")
+	if after != h.memberDomain {
+		return nil, identity.ErrDIDNotFound
 	}
+	if !ok {
+		return nil, identity.ErrDIDNotFound
+	}
+
 	return h.store.getIdentityByID(opaqueID)
 }
 
@@ -136,36 +141,16 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 }
 
 // MintIdentity implements Hive.
-func (h *hive) MintIdentity(handle string) (*identity.Identity, string, func(*gorm.DB) error, error) {
+func (h *hive) MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error) {
 	// Ensure handle passes regex
 	if !handlePattern.MatchString(handle) {
-		return nil, "", nil, identity.ErrInvalidHandle
+		return nil, nil, identity.ErrInvalidHandle
 	}
 	row, id, err := h.store.prepareIdentity(handle)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return id, row.OpaqueID, func(tx *gorm.DB) error {
+	return id, func(tx *gorm.DB) error {
 		return persistIdentity(tx, row)
 	}, nil
-}
-
-// LookupID implements hive
-func (h *hive) LookupID(ctx context.Context, opaqueID string) (*identity.Identity, error) {
-	return h.store.getIdentityByID(opaqueID)
-}
-
-// LookupID implements hive
-func (h *hive) ResolveID(did syntax.DID) (string, error) {
-	// Validate DID
-	// DID format: did:web:<opaqueID>.<baseDomain>
-	content := strings.TrimPrefix(did.String(), "did:web:")
-	opaqueID, after, ok := strings.Cut(content, ".")
-	if after != h.memberDomain {
-		return "", identity.ErrDIDNotFound
-	}
-	if !ok {
-		return "", identity.ErrDIDNotFound
-	}
-	return opaqueID, nil
 }

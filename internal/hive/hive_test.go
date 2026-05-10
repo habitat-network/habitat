@@ -25,7 +25,7 @@ func newTestHive(t *testing.T, memberDomain, pearDomain string) (Hive, *gorm.DB)
 // mintAndPersist is a test helper that mints an identity and persists it atomically.
 func mintAndPersist(t *testing.T, h Hive, db *gorm.DB, handle string) {
 	t.Helper()
-	_, _, persist, err := h.MintIdentity(handle)
+	_, persist, err := h.MintIdentity(handle)
 	require.NoError(t, err)
 	require.NoError(t, persist(db))
 }
@@ -37,7 +37,7 @@ func TestMintIdentity(t *testing.T) {
 
 func TestMintIdentity_InvalidHandle(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
-	_, _, _, err := h.MintIdentity("alice!invalid")
+	_, _, err := h.MintIdentity("alice!invalid")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
@@ -46,7 +46,7 @@ func TestMintIdentity_Duplicate(t *testing.T) {
 
 	mintAndPersist(t, h, db, "alice")
 
-	_, _, persist, err := h.MintIdentity("alice")
+	_, persist, err := h.MintIdentity("alice")
 	require.NoError(t, err)
 	require.ErrorIs(t, persist(db), ErrNotCreated)
 }
