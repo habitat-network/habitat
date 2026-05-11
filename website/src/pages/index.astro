@@ -1,8 +1,10 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
-import Carousel from "../components/Carousel";
 import WaitlistForm from "../components/WaitlistForm";
+import OldWayDiagram from "../components/OldWayDiagram.astro";
+import HabitatWayDiagram from "../components/HabitatWayDiagram.astro";
+import SeatsDiagram from "../components/SeatsDiagram.astro";
 import { Image } from "astro:assets";
 ---
 
@@ -10,99 +12,145 @@ import { Image } from "astro:assets";
   <body class="flex flex-col">
     <Header />
 
-    <main class="flex flex-col gap-16">
-      <!-- Section 1 -->
-      <section id="section-1" class="flex w-full items-stretch">
+    <div class="w-full bg-[#1f1f1f] text-[#fafafa] text-sm text-center py-2 px-4">
+      <a href="/index2" class="underline">Preview the new layout →</a>
+    </div>
+
+    <main class="flex flex-col gap-24">
+      <!-- Hero -->
+      <section id="hero" class="flex w-full items-stretch">
         <div class="hero-background flex-1 min-w-24"></div>
         <div class="flex flex-col items-start justify-center gap-16 pr-8">
           <div class="prose ml-auto py-8 flex flex-col">
-            <h1>We're bringing <b style="font-weight: 800;">user data agency</b> to the web.</h1>
+            <h1><b style="font-weight: 800;">Data ownership for organizations.</b></h1>
             <p>
-              Your data should be yours forever, not the property of companies who want to use it to turn a profit. We are laying the technical foundations to change the default settings of the web and break free from the cycle of data capture that currently exists online.
+              Today, your organizational data belongs to the SaaS providers you use — the Notions, Linears, and Figmas — not to you. Worse, it's siloed in these providers, making the data less useful to you and cross-app workflows clunky. Habitat changes that by providing a unified data layer that third-party apps request access to read and write to, not the other way around.
             </p>
           </div>
         </div>
       </section>
 
-      <!-- Section 2 -->
-      <section id="section-2" class="flex flex-col items-center justify-center px-6 gap-8">
+      <!-- Today vs. With habitat -->
+      <section id="comparison" class="flex flex-col items-center justify-center px-6 gap-8">
         <div class="prose mb-10">
-          <h2>How habitat works</h2>
-          <p>
-            habitat provides a place where all your data lives and can be
-            controlled by you. Developers build frontend apps—no third-party
-            servers involved—so you can interact with that data how you
-            normally would, but safe from extraction and spying. This is
-            built on <a href="https://atproto.com">ATProtocol</a>, an open protocol for the 
-            internet.
-          </p>
+          <h2>Today vs. with habitat</h2>
         </div>
         <div class="flex w-full gap-16 flex-wrap justify-center">
           <div class="flex-1 prose min-w-full sm:min-w-0">
             <h3>The old way</h3>
-            <Image src="/traditional-way.png" alt="Diagram" width={1373} height={1132} class="w-full max-w-8xl px-8" />
-
+            <OldWayDiagram />
             <p>
-              Today, apps own the data you create with the app, and in order
-              to share data with people, they need to use the same app. This
-              enables monopolies to build data moats that stifle competition
-              while offering inferior experiences to users.
+              Today, apps own the data you create with the app. Your organization has to request its own data back from each provider, one silo at a time.
             </p>
           </div>
           <div class="flex-1 prose min-w-full sm:min-w-0">
             <h3>The habitat way</h3>
-            <Image src="/habitat-way.png" alt="Diagram" width={1452} height={1132} class="w-full max-w-8xl px-8" />
-
+            <HabitatWayDiagram />
             <p>
-              With habitat, you own your data and apps run locally on your device.
-              Data is shared directly without involving third parties that can
-              accumulate it. Apps are built to be compatible to leverage existing data to bring innovative
-              user experiences.
+              With habitat, your data lives in one place that you control. Apps need to request access to it, rather than holding it hostage.
             </p>
           </div>
         </div>
       </section>
 
-      <!-- Section 3 -->
-      <section id="section-3" class="flex flex-col items-center justify-center gap-16">
-        <div class="prose px-6">
-          <h2>Big Tech continues to harvest and steal our data.</h2>
+      <!-- What habitat offers -->
+      <section id="offers" class="flex flex-col items-center px-6 gap-8">
+        <div class="prose">
+          <h2>What habitat offers</h2>
         </div>
-          <Carousel
-            client:load
-          items={[
-            { image: "/google2.png", alt: "Google", href: "https://techcrunch.com/2026/02/10/google-sent-personal-and-financial-information-of-student-journalist-to-ice/" },
-            { image: "/grammarly2.png", alt: "Grammarly", href: "https://www.wired.com/story/grammarly-is-offering-expert-ai-reviews-from-your-favorite-authors-dead-or-alive/" },
-            { image: "/ring1.png", alt: "Ring" , href: "https://www.404media.co/with-ring-american-consumers-built-a-surveillance-dragnet/" },
-            { image: "/ibm2.png", alt: "IBM" , href: "https://www.axios.com/2019/03/13/ibm-facial-recognition-flickr-images" },
-            { image: "/meta2.png", alt: "Meta", href: "https://www.wired.com/story/meta-artificial-intelligence-data-deletion/" },
-            { image: "/luxury_surveillance.png", alt: "Reallife Mag", href: "https://reallifemag.com/luxury-surveillance/" },
-            { image: "/grocery.png", alt: "The facial recognition grocery store fight", href: "https://www.politico.com/newsletters/digital-future-daily/2026/03/16/the-facial-recognition-grocery-fight-00830499" },
-            { image: "/sensorveillance.png", alt: "'SENSORVEILLANCE' TURNS ORDINARY LIFE INTO EVIDENCE", href: "https://spectrum.ieee.org/digital-surveillance" },
-            { image: "/glasses.png", alt: "Smart Glasses Have Privacy Advocates Scrambling", href: "https://gizmodo.com/smart-glasses-have-privacy-advocates-scrambling-2000734146" },
-            { image: "/hall_monitors.png", alt: "Hall Monitors", href: "https://reallifemag.com/hall-monitors/" },
-            { image: "/improv.png", alt: "AI companies want to harvest improv actors' skills to train AI on human emotion", href: "https://www.theverge.com/ai-artificial-intelligence/893931/ai-companies-handshake-improv-actors-training-data" },
+        <div class="prose flex flex-col gap-10">
+          <div>
+            <h3>Cross-app workflows are trivial</h3>
+            <p>
+              Integrations between your SaaS providers or workflows spanning many data sources shouldn't be limited by other companies' roadmaps or willingness to work with each other. With habitat, you own <i>all</i> your data, so you can build the agentic workflows and tools that work for your organization specifically; including the ones that no one else would build for you.
+            </p>
+          </div>
 
-          ]}
-        />
-        <div class="prose px-6">
-          <h2>We're actually doing something about it. </h2> 
+          <div>
+            <h3>Your data, ready for AI</h3>
+            <p>
+              You can't safely point agents at data you don't own. Habitat gives your organization a single, governed substrate that agents and models can read from and write to — so you can build AI workflows on your own data, with permissions and auditability intact, rather than handing it off to SaaS providers, or being limited by the AI features they ship.
+            </p>
+          </div>
+
+          <div>
+            <h3>No vendor lock-in</h3>
+            <p>
+              Switching tools today means a migration project, often with dedicated engineering teams: exporting from one SaaS provider, importing into another, and hoping nothing breaks. With habitat, the data never moved — it lives with you. Swapping an app on top is trivial, and your organization's history comes with it.
+            </p>
+          </div>
+
+           <div>
+            <h3>Pay for the people who actually need to use the product</h3>
+            <SeatsDiagram />
+            <p>
+              Today, data is gated by who has access to each SaaS provider. This means your whole org needs to pay for most software, when many seats exist just so people can see that data, not use the SaaS product. Because you own your data with habitat, team members use the product that works for them and pay for only their setas, rather than paying for everyone.
+            </p>
+          </div>
+
+          <div>
+            <h3>Rich access control and permissioning, across apps</h3>
+            <p>
+              We've all seen the Slack channel that was meant to be private, or the doc that accidentally leaked outside the exec team. Habitat provides a rich permissioning layer that is shared across apps, so your team in your docs editor is the same as the team in your messaging platform is the same as your team in your code management platform.
+            </p>
+          </div>
+
+          <div>
+            <h3>Identity management and offboarding without data loss</h3>
+            <p>
+              In habitat, org member identities are owned by the org, persist over time, and each identity gets its own data bucket. When someone leaves the company, their data doesn't become their manager's or get lost in some admin drafts folder — it remains tied to their identity, forever, preserving historical context.
+            </p>
+          </div>
+
+          <div>
+            <h3>Admin app authorization</h3>
+            <p>
+              Control which organizational members can use which products and what data those products have access to.
+            </p>
+          </div>
+
+          <div>
+            <h3>Know where your data lives</h3>
+            <p>
+              "Where is our data, and who can read it?" is a question legal and security teams ask constantly — and one that usually requires a SOC2 packet to answer. With habitat, the answer is short: it's in the data layer you control, accessed only by the apps you've authorized, with every read and write governed by your permissioning policy.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Coming soon -->
+      <section id="coming-soon" class="flex flex-col items-center px-6 gap-8">
+        <div class="prose">
+          <h2>Coming soon</h2>
+        </div>
+        <div class="prose flex flex-col gap-10">
+          <div>
+            <h3>Agent identity platform</h3>
+            <p>Run agents that inherit permissions from their creators.</p>
+          </div>
+          <div>
+            <h3>Audit logging</h3>
+            <p>See exactly who (or whose agent) did what. Get clarity on organizational decision making.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Talk to us -->
+      <section id="contact" class="flex flex-col items-center px-6 gap-6">
+        <div class="prose flex flex-col gap-4">
           <p>
-            Over the last decade, we've collectively
-            experienced the internet get meaningfully... worse. Whether
-            because of the attention economy, surveillance capitalism,
-            enshittification, (or all the above and more), it's clear that the
-            state of the web today isn't meant for us, for people. At the core
-            of these issues lies data capture, through which Big Tech, data
-            brokers, and surveillance dragnets have used our data against us.
-            That's why to build a better web, we're trying
-            to bring about user data ownership and agency at a protocol level.
+            If this sounds like something your organization could use, <a href="mailto:hello@habitat.network">talk to us</a>.
+          </p>
+          <p>
+            If you're a developer and care about giving your users the best experience, learn how to build on habitat through our API docs, or <a href="mailto:hello@habitat.network">reach out</a>.
           </p>
         </div>
       </section>
     </main>
+
     <footer class="flex justify-center pb-8 px-8 my-32">
-      <WaitlistForm client:load from="index" label="Sign up for the waitlist now:" />
+      <WaitlistForm client:load from="index" label="Sign up for the waitlist to get updates:" />
     </footer>
   </body>
 </Layout>

@@ -1,0 +1,182 @@
+---
+// Animated diagram: with habitat, apps request access to a slice of the org's
+// data substrate, while "You" can access the substrate directly.
+//
+// Layout (top -> bottom): substrate (partitioned) -> Apps row -> You.
+// Pulses travel upward, representing access requests / reads.
+---
+
+<div class="habitat-way-diagram">
+  <svg viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Apps and you requesting access to slices of your organizational data substrate">
+    <!-- Substrate (top) -->
+    <g class="substrate">
+      <rect x="30" y="20" width="580" height="80" rx="10" />
+      <!-- Partition lines: 3 slices, one per app -->
+      <line x1="223.33" y1="28" x2="223.33" y2="92" class="partition" />
+      <line x1="416.67" y1="28" x2="416.67" y2="92" class="partition" />
+      <text x="320" y="65" class="substrate-label">Your organizational data substrate</text>
+    </g>
+
+    <!-- Connector paths -->
+    <!-- App N -> its slice of the substrate (short upward) -->
+    <path id="hw-p1" class="wire" d="M 100 180 C 100 150, 127 130, 127 100" />
+    <path id="hw-p2" class="wire" d="M 320 180 L 320 100" />
+    <path id="hw-p3" class="wire" d="M 540 180 C 540 150, 513 130, 513 100" />
+
+    <!-- You -> each App (upward) -->
+    <path id="hw-p4" class="wire" d="M 280 320 C 230 300, 180 280, 130 250" />
+    <path id="hw-p5" class="wire" d="M 320 320 L 320 250" />
+    <path id="hw-p6" class="wire" d="M 360 320 C 410 300, 460 280, 510 250" />
+
+    <!-- You -> substrate (direct, routed through the gap between App #2 and App #3) -->
+    <path id="hw-p7" class="wire wire-direct" d="M 340 320 C 430 290, 430 160, 320 100" />
+
+    <!-- Pulses traveling along each path -->
+    <circle r="4" class="pulse">
+      <animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto" begin="0s">
+        <mpath href="#hw-p1" />
+      </animateMotion>
+    </circle>
+    <circle r="4" class="pulse">
+      <animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto" begin="0.4s">
+        <mpath href="#hw-p2" />
+      </animateMotion>
+    </circle>
+    <circle r="4" class="pulse">
+      <animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto" begin="0.8s">
+        <mpath href="#hw-p3" />
+      </animateMotion>
+    </circle>
+    <circle r="4" class="pulse">
+      <animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto" begin="1.2s">
+        <mpath href="#hw-p4" />
+      </animateMotion>
+    </circle>
+    <circle r="4" class="pulse">
+      <animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto" begin="1.6s">
+        <mpath href="#hw-p5" />
+      </animateMotion>
+    </circle>
+    <circle r="4" class="pulse">
+      <animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto" begin="2.0s">
+        <mpath href="#hw-p6" />
+      </animateMotion>
+    </circle>
+    <circle r="4" class="pulse pulse-direct">
+      <animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto" begin="0.6s">
+        <mpath href="#hw-p7" />
+      </animateMotion>
+    </circle>
+
+    <!-- App boxes (middle) -->
+    <g class="app-box">
+      <rect x="30"  y="180" width="140" height="70" rx="10" />
+      <text x="100" y="221">App #1</text>
+    </g>
+    <g class="app-box">
+      <rect x="250" y="180" width="140" height="70" rx="10" />
+      <text x="320" y="221">App #2</text>
+    </g>
+    <g class="app-box">
+      <rect x="470" y="180" width="140" height="70" rx="10" />
+      <text x="540" y="221">App #3</text>
+    </g>
+
+    <!-- You box (bottom) -->
+    <g class="you-box">
+      <rect x="260" y="320" width="120" height="60" rx="10" />
+      <text x="320" y="356">You</text>
+    </g>
+  </svg>
+</div>
+
+<style>
+  .habitat-way-diagram {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 1rem 0;
+  }
+
+  .habitat-way-diagram svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Substrate */
+  .substrate rect {
+    fill: #fafafa;
+    stroke: #1f1f1f;
+    stroke-width: 1.5;
+  }
+
+  .partition {
+    stroke: #1f1f1f;
+    stroke-width: 1;
+    stroke-opacity: 0.18;
+    stroke-dasharray: 3 4;
+  }
+
+  .substrate-label {
+    fill: #1f1f1f;
+    font-size: 16px;
+    font-weight: 600;
+    text-anchor: middle;
+    font-family: inherit;
+  }
+
+  /* Apps */
+  .app-box rect {
+    fill: #fafafa;
+    stroke: #1f1f1f;
+    stroke-width: 1.5;
+  }
+  .app-box text {
+    fill: #1f1f1f;
+    font-size: 18px;
+    font-weight: 600;
+    text-anchor: middle;
+    font-family: inherit;
+  }
+
+  /* You */
+  .you-box rect {
+    fill: #1f1f1f;
+    stroke: #1f1f1f;
+    stroke-width: 1.5;
+  }
+  .you-box text {
+    fill: #fafafa;
+    font-size: 18px;
+    font-weight: 600;
+    text-anchor: middle;
+    font-family: inherit;
+  }
+
+  /* Wires */
+  .wire {
+    fill: none;
+    stroke: #1f1f1f;
+    stroke-width: 1.5;
+    stroke-opacity: 0.18;
+    stroke-dasharray: 4 6;
+  }
+
+  /* The direct You -> substrate line is a touch more prominent */
+  .wire-direct {
+    stroke-opacity: 0.35;
+    stroke-dasharray: 4 4;
+  }
+
+  /* Pulses */
+  .pulse {
+    fill: #1f1f1f;
+    filter: drop-shadow(0 0 6px rgba(31, 31, 31, 0.45));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse { display: none; }
+    .wire { stroke-opacity: 0.4; stroke-dasharray: none; }
+  }
+</style>

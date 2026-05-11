@@ -9,7 +9,10 @@ import react from '@astrojs/react';
 export default defineConfig({
   site: "https://habitat.network",
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    server: {
+      allowedHosts: ['website.taile529e.ts.net']
+    }
   },
 
   integrations: [react()]

@@ -1,0 +1,931 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+---
+
+<Layout title="Habitat — Data ownership for organizations">
+  <Header />
+
+  <main class="landing">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <h1 class="display reveal">Data ownership for organizations.</h1>
+          <p class="hero-sub reveal" style="--d: 120ms">
+            Habitat is building a unified layer for all your organizational data -- so your data works better for you. With Habitat, make vendor lock-ins, clunky cross-app workflows, and confusing permissions across providers a thing of the past.
+          </p>
+
+          <form class="waitlist reveal" style="--d: 220ms" action="https://formspree.io/f/placeholder" method="POST">
+            <label class="visually-hidden" for="email-hero">your email</label>
+            <input id="email-hero" type="email" name="email" placeholder="your email" required />
+            <button type="submit">Join waitlist <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="helper reveal" style="--d: 320ms">
+            Write to us at <a href="mailto:hello@habitat.network">hello@habitat.network</a> for an early look
+          </p>
+        </div>
+
+        <div class="hero-visual reveal" style="--d: 400ms" aria-hidden="true">
+          <div class="plane">
+            <svg class="diagram-svg" viewBox="0 0 460 400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <filter id="orbGlow" x="-300%" y="-300%" width="700%" height="700%">
+                  <feGaussianBlur stdDeviation="2.6" result="b"/>
+                  <feMerge>
+                    <feMergeNode in="b"/>
+                    <feMergeNode in="b"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+                <filter id="barGlow" x="-20%" y="-300%" width="140%" height="700%">
+                  <feGaussianBlur stdDeviation="7"/>
+                </filter>
+              </defs>
+
+              <!-- ambient green glow under the top data bar -->
+              <rect class="bar-glow" x="30" y="78" width="400" height="12" fill="#008000" filter="url(#barGlow)" />
+
+              <!-- top data layer -->
+              <rect class="node" x="10" y="14" width="440" height="70" rx="1" />
+              <text class="node-label lead-label" x="230" y="55" text-anchor="middle">your organization's data</text>
+
+              <!-- hairline connectors -->
+              <line class="connector" x1="70"  y1="84" x2="70"  y2="240" />
+              <line class="connector" x1="180" y1="84" x2="180" y2="270" />
+              <line class="connector" x1="280" y1="84" x2="280" y2="212" />
+              <line class="connector" x1="390" y1="84" x2="390" y2="230" />
+
+              <!-- traveling orbs -->
+              <circle class="orb" cx="70" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
+                <animate attributeName="cy" values="84;240" dur="2.8s" begin="0s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="0s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="180" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
+                <animate attributeName="cy" values="84;270" dur="2.8s" begin="0.7s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="0.7s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="280" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
+                <animate attributeName="cy" values="84;212" dur="2.8s" begin="1.4s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="1.4s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="390" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
+                <animate attributeName="cy" values="84;230" dur="2.8s" begin="2.1s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="2.1s" repeatCount="indefinite"/>
+              </circle>
+
+              <!-- docs editor -->
+              <rect class="node" x="20" y="240" width="100" height="80" rx="1" />
+              <text class="node-label" x="70" y="276" text-anchor="middle">your</text>
+              <text class="node-label" x="70" y="294" text-anchor="middle">docs editor</text>
+
+              <!-- task management (sits lower) -->
+              <rect class="node" x="130" y="270" width="100" height="76" rx="1" />
+              <text class="node-label" x="180" y="304" text-anchor="middle">task</text>
+              <text class="node-label" x="180" y="322" text-anchor="middle">management</text>
+
+              <!-- agents: two sparkle icons -->
+              <g transform="translate(270 220)">
+                <path class="sparkle" d="M0 -10 L1.6 -1.6 L10 0 L1.6 1.6 L0 10 L-1.6 1.6 L-10 0 L-1.6 -1.6 Z"/>
+              </g>
+              <g transform="translate(297 238)">
+                <path class="sparkle" d="M0 -7 L1.2 -1.2 L7 0 L1.2 1.2 L0 7 L-1.2 1.2 L-7 0 L-1.2 -1.2 Z"/>
+              </g>
+              <text class="node-label" x="283" y="280" text-anchor="middle">your agents</text>
+
+              <!-- custom workflows: outer rect with small squares inside -->
+              <rect class="node" x="340" y="230" width="100" height="130" rx="1" />
+              <rect class="node sm" x="375" y="248" width="14" height="14" />
+              <rect class="node sm" x="395" y="280" width="14" height="14" />
+              <rect class="node sm" x="375" y="312" width="14" height="14" />
+
+              <!-- internal orb hopping between squares -->
+              <circle class="orb" cx="382" cy="255" r="2.6" opacity="0" filter="url(#orbGlow)">
+                <animate attributeName="cx" values="382;402;382;382" keyTimes="0;0.33;0.66;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+                <animate attributeName="cy" values="255;287;319;255" keyTimes="0;0.33;0.66;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+              </circle>
+
+              <text class="node-label" x="390" y="384" text-anchor="middle">your custom workflows</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 1: THE SHIFT -->
+    <section class="section shift">
+      <div class="section-inner">
+        <h2 class="reveal">Your data should belong to you.</h2>
+        <p class="lead reveal" style="--d: 100ms">
+          Today, organizational data belongs to the SaaS providers you use, not to you. Each provider is siloed, making the data less useful and cross-app workflows clunky. Habitat changes that.
+        </p>
+
+        <div class="diagram reveal" style="--d: 200ms" aria-hidden="true">
+          <div class="diagram-col">
+            <div class="diagram-label">Today</div>
+            <svg class="silo-svg" viewBox="0 0 400 360" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <filter id="wallBlur" x="-100%" y="-20%" width="300%" height="140%">
+                  <feGaussianBlur stdDeviation="3"/>
+                </filter>
+                <filter id="orbGlow2" x="-300%" y="-300%" width="700%" height="700%">
+                  <feGaussianBlur stdDeviation="2.6" result="b"/>
+                  <feMerge>
+                    <feMergeNode in="b"/>
+                    <feMergeNode in="b"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+
+              <!-- Silo 1 -->
+              <g transform="translate(70 0)">
+                <rect class="node" x="-44" y="20" width="88" height="40" rx="1"/>
+                <text class="node-label" x="0" y="45" text-anchor="middle">SaaS #1</text>
+                <line class="wall" x1="-44" y1="72" x2="-44" y2="305"/>
+                <line class="wall" x1="44"  y1="72" x2="44"  y2="305"/>
+                <circle class="person" cx="0" cy="170" r="7"/>
+                <path class="person" d="M-13 200 Q-13 184 0 184 Q13 184 13 200"/>
+                <circle class="orb" cx="0" cy="65" r="2.5" opacity="0" filter="url(#orbGlow2)">
+                  <animate attributeName="cy" values="65;155;65" dur="4.4s" begin="0s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.1;0.45;0.85;1" dur="4.4s" begin="0s" repeatCount="indefinite"/>
+                </circle>
+              </g>
+
+              <!-- Silo 2 -->
+              <g transform="translate(200 0)">
+                <rect class="node" x="-44" y="20" width="88" height="40" rx="1"/>
+                <text class="node-label" x="0" y="45" text-anchor="middle">SaaS #2</text>
+                <line class="wall" x1="-44" y1="72" x2="-44" y2="305"/>
+                <line class="wall" x1="44"  y1="72" x2="44"  y2="305"/>
+                <circle class="person" cx="0" cy="170" r="7"/>
+                <path class="person" d="M-13 200 Q-13 184 0 184 Q13 184 13 200"/>
+                <circle class="orb" cx="0" cy="65" r="2.5" opacity="0" filter="url(#orbGlow2)">
+                  <animate attributeName="cy" values="65;155;65" dur="4.4s" begin="0.6s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.1;0.45;0.85;1" dur="4.4s" begin="0.6s" repeatCount="indefinite"/>
+                </circle>
+              </g>
+
+              <!-- Silo 3 -->
+              <g transform="translate(330 0)">
+                <rect class="node" x="-44" y="20" width="88" height="40" rx="1"/>
+                <text class="node-label" x="0" y="45" text-anchor="middle">SaaS #3</text>
+                <line class="wall" x1="-44" y1="72" x2="-44" y2="305"/>
+                <line class="wall" x1="44"  y1="72" x2="44"  y2="305"/>
+                <circle class="person" cx="0" cy="170" r="7"/>
+                <path class="person" d="M-13 200 Q-13 184 0 184 Q13 184 13 200"/>
+                <circle class="orb" cx="0" cy="65" r="2.5" opacity="0" filter="url(#orbGlow2)">
+                  <animate attributeName="cy" values="65;155;65" dur="4.4s" begin="1.2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.1;0.45;0.85;1" dur="4.4s" begin="1.2s" repeatCount="indefinite"/>
+                </circle>
+              </g>
+
+              <!-- blocked cross-silo orbs (data tries to flow both ways, hits the wall, turns into an X) -->
+              <!-- 1 → 2 -->
+              <g>
+                <circle class="orb-red" cy="100" r="2.5" opacity="0">
+                  <animate attributeName="cx" values="114;154;154" keyTimes="0;0.6;1" dur="2.8s" begin="1.6s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.55;0.6;1" dur="2.8s" begin="1.6s" repeatCount="indefinite"/>
+                </circle>
+                <g class="x-mark" transform="translate(156 100)" opacity="0">
+                  <line x1="-4" y1="-4" x2="4" y2="4"/>
+                  <line x1="-4" y1="4"  x2="4" y2="-4"/>
+                  <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.58;0.62;0.85;1" dur="2.8s" begin="1.6s" repeatCount="indefinite"/>
+                </g>
+              </g>
+              <!-- 2 → 1 -->
+              <g>
+                <circle class="orb-red" cy="140" r="2.5" opacity="0">
+                  <animate attributeName="cx" values="156;116;116" keyTimes="0;0.6;1" dur="2.8s" begin="2.3s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.55;0.6;1" dur="2.8s" begin="2.3s" repeatCount="indefinite"/>
+                </circle>
+                <g class="x-mark" transform="translate(114 140)" opacity="0">
+                  <line x1="-4" y1="-4" x2="4" y2="4"/>
+                  <line x1="-4" y1="4"  x2="4" y2="-4"/>
+                  <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.58;0.62;0.85;1" dur="2.8s" begin="2.3s" repeatCount="indefinite"/>
+                </g>
+              </g>
+              <!-- 2 → 3 -->
+              <g>
+                <circle class="orb-red" cy="220" r="2.5" opacity="0">
+                  <animate attributeName="cx" values="244;284;284" keyTimes="0;0.6;1" dur="2.8s" begin="3.0s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.55;0.6;1" dur="2.8s" begin="3.0s" repeatCount="indefinite"/>
+                </circle>
+                <g class="x-mark" transform="translate(286 220)" opacity="0">
+                  <line x1="-4" y1="-4" x2="4" y2="4"/>
+                  <line x1="-4" y1="4"  x2="4" y2="-4"/>
+                  <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.58;0.62;0.85;1" dur="2.8s" begin="3.0s" repeatCount="indefinite"/>
+                </g>
+              </g>
+              <!-- 3 → 2 -->
+              <g>
+                <circle class="orb-red" cy="260" r="2.5" opacity="0">
+                  <animate attributeName="cx" values="286;246;246" keyTimes="0;0.6;1" dur="2.8s" begin="3.7s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.1;0.55;0.6;1" dur="2.8s" begin="3.7s" repeatCount="indefinite"/>
+                </circle>
+                <g class="x-mark" transform="translate(244 260)" opacity="0">
+                  <line x1="-4" y1="-4" x2="4" y2="4"/>
+                  <line x1="-4" y1="4"  x2="4" y2="-4"/>
+                  <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.58;0.62;0.85;1" dur="2.8s" begin="3.7s" repeatCount="indefinite"/>
+                </g>
+              </g>
+            </svg>
+          </div>
+
+          <div class="diagram-col">
+            <div class="diagram-label">With Habitat</div>
+            <svg class="habitat-svg" viewBox="0 0 400 360" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <filter id="orbGlow3" x="-300%" y="-300%" width="700%" height="700%">
+                  <feGaussianBlur stdDeviation="2.6" result="b"/>
+                  <feMerge>
+                    <feMergeNode in="b"/>
+                    <feMergeNode in="b"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+                <filter id="barGlow2" x="-20%" y="-300%" width="140%" height="700%">
+                  <feGaussianBlur stdDeviation="7"/>
+                </filter>
+              </defs>
+
+              <!-- ambient green glow under top data bar -->
+              <rect class="bar-glow" x="20" y="78" width="360" height="12" fill="#008000" filter="url(#barGlow2)"/>
+
+              <!-- top data layer -->
+              <rect class="node" x="10" y="14" width="380" height="70" rx="1"/>
+              <text class="node-label lead-label" x="200" y="55" text-anchor="middle">your organization's data</text>
+
+              <!-- hairline connectors -->
+              <line class="connector" x1="70"  y1="84" x2="70"  y2="140"/>
+              <line class="connector" x1="135" y1="84" x2="135" y2="218"/>
+              <line class="connector" x1="200" y1="84" x2="200" y2="140"/>
+              <line class="connector" x1="265" y1="84" x2="265" y2="215"/>
+              <line class="connector" x1="330" y1="84" x2="330" y2="140"/>
+
+              <!-- bidirectional orbs: down then up on a stagger -->
+              <circle class="orb" cx="70"  r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="84;140" dur="3.6s" begin="0s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="0s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="70"  r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="140;84" dur="3.6s" begin="1.8s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="1.8s" repeatCount="indefinite"/>
+              </circle>
+
+              <circle class="orb" cx="135" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="84;218" dur="3.6s" begin="0.4s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="0.4s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="135" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="218;84" dur="3.6s" begin="2.2s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="2.2s" repeatCount="indefinite"/>
+              </circle>
+
+              <circle class="orb" cx="200" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="84;140" dur="3.6s" begin="0.8s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="0.8s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="200" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="140;84" dur="3.6s" begin="2.6s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="2.6s" repeatCount="indefinite"/>
+              </circle>
+
+              <circle class="orb" cx="265" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="84;215" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="265" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="215;84" dur="3.6s" begin="3.0s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="3.0s" repeatCount="indefinite"/>
+              </circle>
+
+              <circle class="orb" cx="330" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="84;140" dur="3.6s" begin="1.6s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="1.6s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" cx="330" r="3" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cy" values="140;84" dur="3.6s" begin="3.4s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="3.4s" repeatCount="indefinite"/>
+              </circle>
+
+              <!-- SaaS boxes -->
+              <rect class="node" x="26"  y="140" width="88" height="40" rx="1"/>
+              <text class="node-label" x="70"  y="165" text-anchor="middle">SaaS #1</text>
+
+              <rect class="node" x="156" y="140" width="88" height="40" rx="1"/>
+              <text class="node-label" x="200" y="165" text-anchor="middle">SaaS #2</text>
+
+              <rect class="node" x="286" y="140" width="88" height="40" rx="1"/>
+              <text class="node-label" x="330" y="165" text-anchor="middle">SaaS #3</text>
+
+              <!-- user (person icon) -->
+              <circle class="person" cx="135" cy="225" r="7"/>
+              <path class="person" d="M122 255 Q122 239 135 239 Q148 239 148 255"/>
+              <text class="node-label" x="135" y="278" text-anchor="middle">user</text>
+
+              <!-- custom workflows (rect with small squares + internal hopping orb) -->
+              <rect class="node" x="235" y="215" width="60" height="80" rx="1"/>
+              <rect class="node sm" x="244" y="225" width="12" height="12"/>
+              <rect class="node sm" x="272" y="245" width="12" height="12"/>
+              <rect class="node sm" x="244" y="265" width="12" height="12"/>
+              <circle class="orb" cx="250" cy="231" r="2.4" opacity="0" filter="url(#orbGlow3)">
+                <animate attributeName="cx" values="250;278;250;250" keyTimes="0;0.33;0.66;1" dur="4.4s" begin="3.6s" repeatCount="indefinite"/>
+                <animate attributeName="cy" values="231;251;271;231" keyTimes="0;0.33;0.66;1" dur="4.4s" begin="3.6s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" dur="4.4s" begin="3.6s" repeatCount="indefinite"/>
+              </circle>
+              <text class="node-label" x="265" y="313" text-anchor="middle">your custom workflows</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: PILLARS -->
+    <section class="section pillars">
+      <div class="section-inner">
+        <h2 class="reveal">What Habitat offers.</h2>
+
+        <ol class="pillar-list">
+          <li class="pillar reveal">
+            <div class="pillar-num">1</div>
+            <div class="pillar-body">
+              <h3>Rich access control, across apps.</h3>
+              <p>
+                We've all seen the Slack channel meant to be private, or the doc that accidentally
+                leaked. Habitat provides a permissioning layer shared across apps — so your team
+                in docs is the same team in messaging is the same team in code.
+              </p>
+            </div>
+          </li>
+          <li class="pillar reveal">
+            <div class="pillar-num">2</div>
+            <div class="pillar-body">
+              <h3>Safer, more useful agentic workflows.</h3>
+              <p>
+                You can't safely point agents at data you don't own. Habitat gives your organization
+                a single, governed substrate that agents and models can read from and write to —
+                so you can build AI workflows on your own data, with permissions and auditability
+                intact.
+              </p>
+            </div>
+          </li>
+          <li class="pillar reveal">
+            <div class="pillar-num">3</div>
+            <div class="pillar-body">
+              <h3>No vendor lock-in.</h3>
+              <p>
+                Switching tools today means a migration project. With Habitat, the data never
+                moves — it lives with you. Swapping an app on top is trivial, and your
+                organization's history comes with it.
+              </p>
+            </div>
+          </li>
+          <li class="pillar reveal">
+            <div class="pillar-num">4</div>
+            <div class="pillar-body">
+              <h3>Know where your data lives.</h3>
+              <p>
+                "Where is our data, and who can read it?" usually requires a SOC2 packet to answer.
+                With Habitat, the answer is short: it's in the data layer you control, accessed
+                only by the apps you've authorized.
+              </p>
+            </div>
+          </li>
+          <li class="pillar reveal">
+            <div class="pillar-num">5</div>
+            <div class="pillar-body">
+              <h3>Identity that persists.</h3>
+              <p>
+                Member identities are owned by the org and persist over time. When someone leaves,
+                their data doesn't get lost in a manager's drafts folder — it stays tied to their
+                identity, preserving historical context.
+              </p>
+            </div>
+          </li>
+          <li class="pillar reveal">
+            <div class="pillar-num">6</div>
+            <div class="pillar-body">
+              <h3>Pay for the people who actually use the product.</h3>
+              <p>
+                Today, data access is gated by seats, so your whole org pays for tools most people
+                only need to view. With Habitat, you own the data — people can use the tool that
+                works for them.
+              </p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- SECTION 3: COMING SOON -->
+    <section class="section coming-soon">
+      <div class="section-inner">
+        <h2 class="reveal">Coming soon.</h2>
+        <ul class="soon-list">
+          <li class="reveal"><span class="bullet"></span><strong>Agent identity platform.</strong> Run agents that inherit permissions from their creator.</li>
+          <li class="reveal"><span class="bullet"></span><strong>Audit logging.</strong> See exactly who — or whose agent — did what.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- SECTION 4: CLOSING -->
+    <section class="section closing">
+      <div class="section-inner center">
+        <h2 class="reveal">Own your organization's data.</h2>
+        <p class="lead reveal" style="--d: 100ms">
+          Habitat is a customer-controlled data platform for the age of AI. We're working with a
+          small group of design partners now.
+        </p>
+        <form class="waitlist center reveal" style="--d: 200ms" action="https://formspree.io/f/placeholder" method="POST">
+          <label class="visually-hidden" for="email-foot">your email</label>
+          <input id="email-foot" type="email" name="email" placeholder="your email" required />
+          <button type="submit">Join waitlist <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="helper reveal" style="--d: 300ms">
+          <a href="mailto:hello@habitat.network">hello@habitat.network</a>
+        </p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="section-inner footer-inner">
+        <span>habitat</span>
+        <span><a href="mailto:hello@habitat.network">hello@habitat.network</a></span>
+        <span><a href="https://github.com/habitat-network/habitat">GitHub</a></span>
+        <span><a href="https://bsky.app/profile/habitat.network">Bluesky</a></span>
+      </div>
+    </footer>
+  </main>
+</Layout>
+
+<style is:global>
+  @import url('https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --white: #ffffff;
+    --black: #000000;
+    --green: #008000;
+    --rule: rgba(0, 0, 0, 0.10);
+    --muted: rgba(0, 0, 0, 0.60);
+  }
+
+  html, body {
+    background: var(--white);
+    color: var(--black);
+  }
+
+  .landing {
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "ss01";
+    background: var(--white);
+    color: var(--black);
+  }
+
+  .landing h1,
+  .landing h2,
+  .landing h3,
+  .landing p,
+  .landing a,
+  .landing li {
+    font-family: inherit;
+  }
+
+  .landing a { color: var(--black); text-decoration: none; border-bottom: 1px solid var(--black); transition: color 160ms ease, border-color 160ms ease; }
+  .landing a:hover { color: var(--green); border-bottom-color: var(--green); transform: none; text-decoration: none; }
+
+  .section-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  .section-inner.center { text-align: center; }
+
+  /* ---------- HERO ---------- */
+  .hero {
+    padding: 80px 0 140px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .hero-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  .display {
+    font-size: clamp(2.4rem, 5.6vw, 5.25rem);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    font-weight: 500;
+    margin: 0 0 28px;
+    max-width: 14ch;
+  }
+  .hero-sub {
+    font-size: 1.125rem;
+    line-height: 1.55;
+    color: var(--black);
+    max-width: 52ch;
+    margin: 0 0 40px;
+    font-weight: 400;
+  }
+
+  .waitlist {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    max-width: 460px;
+    border-bottom: 1px solid var(--black);
+  }
+  .waitlist.center { margin: 28px auto 0; }
+  .waitlist input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 14px 0;
+    font: inherit;
+    font-size: 1rem;
+    background: transparent;
+    color: var(--black);
+  }
+  .waitlist input::placeholder { color: var(--muted); }
+  .waitlist button {
+    border: none;
+    background: transparent;
+    color: var(--black);
+    font: inherit;
+    font-weight: 500;
+    font-size: 1rem;
+    padding: 14px 0 14px 16px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 160ms ease;
+  }
+  .waitlist button:hover { color: var(--green); }
+  .waitlist button span { transition: transform 200ms ease; }
+  .waitlist button:hover span { transform: translateX(4px); }
+
+  .helper {
+    margin-top: 16px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .helper a { color: var(--muted); border-bottom-color: var(--rule); }
+  .helper a:hover { color: var(--green); border-bottom-color: var(--green); }
+
+  /* ---------- HERO VISUAL ---------- */
+  .hero-visual { width: 100%; }
+  .plane {
+    position: relative;
+    aspect-ratio: 460 / 400;
+    width: 100%;
+    max-width: 540px;
+    margin-left: auto;
+    background: var(--white);
+  }
+  .diagram-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+  }
+  .diagram-svg .node {
+    fill: var(--white);
+    stroke: var(--black);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .diagram-svg .node.sm { stroke-width: 0.9; }
+  .diagram-svg .sparkle {
+    fill: none;
+    stroke: var(--black);
+    stroke-width: 1;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .diagram-svg .node-label {
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+    font-size: 12.5px;
+    font-weight: 400;
+    fill: var(--black);
+    letter-spacing: 0.005em;
+  }
+  .diagram-svg .lead-label {
+    font-size: 14px;
+    font-weight: 450;
+  }
+  .diagram-svg .connector {
+    stroke: rgba(0, 0, 0, 0.16);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .diagram-svg .orb {
+    fill: var(--green);
+  }
+  .diagram-svg .bar-glow {
+    opacity: 0.35;
+  }
+
+  /* ---------- GENERIC SECTION ---------- */
+  .section { padding: 120px 0; border-bottom: 1px solid var(--rule); }
+  .section h2 {
+    font-size: clamp(1.875rem, 3.2vw, 2.75rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+    margin: 0 0 32px;
+    max-width: 36ch;
+  }
+  .section.closing h2 { max-width: none; margin-left: auto; margin-right: auto; }
+  .lead {
+    font-size: 1.125rem;
+    line-height: 1.55;
+    max-width: 60ch;
+    margin: 0 0 48px;
+  }
+  .section.closing .lead { margin-left: auto; margin-right: auto; }
+
+  /* ---------- WITH HABITAT DIAGRAM ---------- */
+  .habitat-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+    margin-top: 8px;
+    max-width: 540px;
+  }
+  .habitat-svg .node {
+    fill: var(--white);
+    stroke: var(--black);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .habitat-svg .node.sm { stroke-width: 0.9; }
+  .habitat-svg .node-label {
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    fill: var(--black);
+  }
+  .habitat-svg .lead-label {
+    font-size: 14px;
+    font-weight: 450;
+  }
+  .habitat-svg .connector {
+    stroke: rgba(0, 0, 0, 0.16);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .habitat-svg .person {
+    fill: none;
+    stroke: var(--black);
+    stroke-width: 1;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .habitat-svg .orb {
+    fill: var(--green);
+  }
+  .habitat-svg .bar-glow {
+    opacity: 0.35;
+  }
+
+  /* ---------- SILO DIAGRAM (Today) ---------- */
+  .silo-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+    margin-top: 8px;
+    max-width: 540px;
+  }
+  .silo-svg .node {
+    fill: var(--white);
+    stroke: var(--black);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .silo-svg .node-label {
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    fill: var(--black);
+  }
+  .silo-svg .wall {
+    stroke: rgba(0, 0, 0, 0.28);
+    stroke-width: 1;
+    fill: none;
+    vector-effect: non-scaling-stroke;
+  }
+  .silo-svg .orb-red { fill: #cc0000; }
+  .silo-svg .x-mark line {
+    stroke: #cc0000;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .silo-svg .person {
+    fill: none;
+    stroke: var(--black);
+    stroke-width: 1;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .silo-svg .orb {
+    fill: var(--green);
+  }
+
+  /* ---------- DIAGRAM ---------- */
+  .diagram {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    margin-top: 32px;
+    border-top: 1px solid var(--rule);
+    padding-top: 48px;
+  }
+  .diagram-label {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+  .diagram-stack { display: flex; flex-direction: column; gap: 16px; }
+  .app-row {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .app-row:last-child { border-bottom: 1px solid var(--rule); }
+  .app {
+    font-size: 1rem;
+    font-weight: 500;
+  }
+  .app.hollow {
+    border: 1px solid var(--black);
+    padding: 12px 16px;
+    text-align: center;
+    background: var(--white);
+  }
+  .data-block {
+    height: 14px;
+    background: var(--black);
+    width: 100%;
+  }
+  .diagram-stack.unified .apps-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .unified-layer {
+    background: var(--green);
+    color: var(--white);
+    padding: 18px 16px;
+    text-align: center;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    letter-spacing: 0.01em;
+  }
+
+  /* ---------- PILLARS ---------- */
+  .pillar-list {
+    list-style: none;
+    padding: 0;
+    margin: 24px 0 0;
+    border-top: 1px solid var(--rule);
+  }
+  .pillar {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 32px;
+    padding: 36px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .pillar-num {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.875rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .pillar-body h3 {
+    font-size: 1.375rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+  }
+  .pillar-body p {
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    max-width: 64ch;
+    margin: 0;
+    color: var(--black);
+  }
+
+  /* ---------- COMING SOON ---------- */
+  .soon-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 64ch;
+  }
+  .soon-list li {
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+  }
+  .bullet {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--green);
+    flex: 0 0 8px;
+    transform: translateY(2px);
+  }
+
+  /* ---------- FOOTER ---------- */
+  .footer { padding: 32px 0 48px; }
+  .footer-inner {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .footer a { color: var(--muted); border-bottom-color: var(--rule); }
+  .footer a:hover { color: var(--green); border-bottom-color: var(--green); }
+
+  /* ---------- REVEAL ---------- */
+  .reveal {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 700ms ease-out, transform 700ms ease-out;
+    transition-delay: var(--d, 0ms);
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width: 880px) {
+    .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+    .plane { max-width: 100%; margin-left: 0; }
+    .diagram { grid-template-columns: 1fr; gap: 48px; }
+    .pillar { grid-template-columns: 48px 1fr; gap: 20px; }
+    .section { padding: 80px 0; }
+    .hero { padding: 48px 0 96px; }
+  }
+
+  /* ---------- REDUCED MOTION ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .diagram-svg .orb,
+    .silo-svg .orb,
+    .silo-svg .orb-red,
+    .silo-svg .x-mark,
+    .habitat-svg .orb { display: none; }
+    .diagram-svg .bar-glow,
+    .habitat-svg .bar-glow { opacity: 0.3; }
+  }
+</style>
+
+<script>
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add('is-visible');
+          io.unobserve(e.target);
+        }
+      }
+    },
+    { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+  );
+
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+</script>
