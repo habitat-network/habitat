@@ -36,8 +36,8 @@ type Server struct {
 	// Implementation of permission-enforcing atprotocol repo
 	pear pear.Pear
 
-	// The organization this pear server belongs to
-	org org.Org
+	// Org store for membership lookups
+	orgStore org.Store
 
 	// Used for resolving handles -> did, did -> PDS
 	dir identity.Directory
@@ -52,7 +52,7 @@ func NewServer(
 	pear pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
-	orgStore org.Org,
+	orgStore org.Store,
 ) *Server {
 	server := &Server{
 		dir:  dir,
@@ -62,7 +62,7 @@ func NewServer(
 			serviceAuth: serviceAuthMethod,
 		},
 		decoder: schema.NewDecoder(),
-		org:     orgStore,
+		orgStore: orgStore,
 	}
 	return server
 }

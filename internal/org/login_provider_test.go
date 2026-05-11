@@ -3,6 +3,7 @@ package org
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,16 +12,36 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/hive"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func newTestLoginProvider(t *testing.T) (*LoginProvider, *store) {
 	t.Helper()
-	s := newTestStoreWithHive(t)
-	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), s
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+
+	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	require.NoError(t, err)
+
+	require.NoError(t, db.Create(&Organization{
+		ID:            "test-org",
+		Domain:        "example.com",
+		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
+	}).Error)
+
+	scoped, err := s.GetOrg(context.Background(), "test-org")
+	require.NoError(t, err)
+
+	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), scoped.(*store)
 }
 
 func TestLoginProvider_Type(t *testing.T) {

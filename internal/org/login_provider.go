@@ -21,16 +21,16 @@ type loginTokenClaims struct {
 	jwt.Claims
 }
 
-// LoginProvider wraps Org and implements login.Provider for habitat-hosted member identities.
+// LoginProvider wraps Store and implements login.Provider for habitat-hosted member identities.
 type LoginProvider struct {
-	org            Org
+	store          Store
 	frontendDomain string
 	signingSecret  []byte
 }
 
-func NewLoginProvider(o Org, frontendDomain string, signingSecret []byte) *LoginProvider {
+func NewLoginProvider(store Store, frontendDomain string, signingSecret []byte) *LoginProvider {
 	return &LoginProvider{
-		org:            o,
+		store:          store,
 		frontendDomain: frontendDomain,
 		signingSecret:  signingSecret,
 	}
@@ -88,7 +88,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	ok, err := p.org.AuthenticateMember(r.Context(), req.Handle, req.Password)
+	ok, err := p.store.AuthenticateMember(r.Context(), req.Handle, req.Password)
 	if err != nil {
 		http.Error(w, "error while authenticating", http.StatusInternalServerError)
 		return

@@ -30,7 +30,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
-			nil, nil, nil, nil, nil, noop.Meter{}, org.NewEveryoneOrg(),
+			nil, nil, nil, nil, nil, noop.Meter{}, toStore(org.NewEveryoneOrg()),
 		)
 		require.Error(t, err)
 	})
@@ -55,7 +55,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		org.NewEveryoneOrg(),
+		toStore(org.NewEveryoneOrg()),
 	)
 	require.NoError(t, err)
 
@@ -152,7 +152,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		org.NewEveryoneOrg(),
+		toStore(org.NewEveryoneOrg()),
 	)
 	require.NoError(t, err)
 
@@ -268,7 +268,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		org.NewEveryoneOrg(),
+		toStore(org.NewEveryoneOrg()),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -397,6 +397,27 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
 }
 
+// testEveryoneStore wraps an Org into a Store for tests.
+type testEveryoneStore struct {
+	org.Org
+}
+
+func (s *testEveryoneStore) GetOrg(ctx context.Context, orgID string) (org.Org, error) {
+	return s.Org, nil
+}
+
+func (s *testEveryoneStore) GetOrgByDID(ctx context.Context, did syntax.DID) (org.Org, error) {
+	return s.Org, nil
+}
+
+func (s *testEveryoneStore) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
+	return s.Org.IsMember(ctx, did)
+}
+
+func (s *testEveryoneStore) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
+	return s.Org.AuthenticateMember(ctx, handle, password)
+}
+
 // testIsMemberOrg wraps an org.Org and overrides IsMember, letting individual
 // tests inject specific outcomes without reimplementing the full interface.
 type testIsMemberOrg struct {
@@ -406,6 +427,11 @@ type testIsMemberOrg struct {
 
 func (o *testIsMemberOrg) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	return o.fn(ctx, did)
+}
+
+// toStore wraps an Org into a testEveryoneStore.
+func toStore(o org.Org) *testEveryoneStore {
+	return &testEveryoneStore{Org: o}
 }
 
 // acquireAccessToken drives the full authorization code flow and returns the
@@ -494,7 +520,7 @@ func TestValidate(t *testing.T) {
 	// newSrv creates an OAuthServer sharing the same secret and database.
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
-	newSrv := func(o org.Org) *OAuthServer {
+	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
 			login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
@@ -503,14 +529,14 @@ func TestValidate(t *testing.T) {
 			credStore,
 			db,
 			noop.Meter{},
-			o,
+			st,
 		)
 		require.NoError(t, srvErr)
 		return s
 	}
 
 	// Issue a real JWT via the complete OAuth flow.
-	validToken := acquireAccessToken(t, newSrv(org.NewEveryoneOrg()), clientMetadata)
+	validToken := acquireAccessToken(t, newSrv(toStore(org.NewEveryoneOrg())), clientMetadata)
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
 	// and returns the HTTP status code together with Validate's return values.
@@ -541,43 +567,41 @@ func TestValidate(t *testing.T) {
 	}
 
 	t.Run("missing token returns !ok", func(t *testing.T) {
-		status, _, ok := callValidate(newSrv(org.NewEveryoneOrg()), "")
+		status, _, ok := callValidate(newSrv(toStore(org.NewEveryoneOrg())), "")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
-	})
 
-	t.Run("malformed JWT returns !ok", func(t *testing.T) {
-		status, _, ok := callValidate(newSrv(org.NewEveryoneOrg()), "not.a.valid.jwt")
+		status, _, ok = callValidate(newSrv(toStore(org.NewEveryoneOrg())), "not.a.valid.jwt")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 	})
 
 	t.Run("IsMember error returns !ok with 500", func(t *testing.T) {
-		srv := newSrv(&testIsMemberOrg{
+		srv := newSrv(toStore(&testIsMemberOrg{
 			Org: org.NewEveryoneOrg(),
 			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
 				return false, errors.New("simulated database failure")
 			},
-		})
+		}))
 		status, _, ok := callValidate(srv, validToken)
 		require.False(t, ok)
 		require.Equal(t, http.StatusInternalServerError, status)
 	})
 
 	t.Run("non-member returns !ok with 401", func(t *testing.T) {
-		srv := newSrv(&testIsMemberOrg{
+		srv := newSrv(toStore(&testIsMemberOrg{
 			Org: org.NewEveryoneOrg(),
 			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
 				return false, nil
 			},
-		})
+		}))
 		status, _, ok := callValidate(srv, validToken)
 		require.False(t, ok)
 		require.Equal(t, http.StatusUnauthorized, status)
 	})
 
 	t.Run("valid token for member returns DID and ok with 200", func(t *testing.T) {
-		status, did, ok := callValidate(newSrv(org.NewEveryoneOrg()), validToken)
+		status, did, ok := callValidate(newSrv(toStore(org.NewEveryoneOrg())), validToken)
 		require.True(t, ok)
 		require.Equal(t, http.StatusOK, status)
 		require.Equal(t, syntax.DID("did:web:test"), did)

@@ -160,8 +160,8 @@ type OAuthServer struct {
 	flashMu    sync.Mutex
 	flashStore map[string]*authRequestFlash
 
-	// Org this server belongs to
-	org org.Org
+	// Org store for membership lookups
+	orgStore org.Store
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -188,7 +188,7 @@ func NewOAuthServer(
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
 	meter metric.Meter,
-	org org.Org,
+	orgStore org.Store,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
@@ -227,7 +227,7 @@ func NewOAuthServer(
 		directory:   directory,
 		node:        node,
 		storage:     storage,
-		org:         org,
+		orgStore: orgStore,
 	}, nil
 }
 
@@ -382,7 +382,7 @@ func (o *OAuthServer) HandleCallback(
 
 	// Check the DID allowlist after reconstructing authRequest so we can redirect
 	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	allowed, err := o.org.IsMember(r.Context(), arf.Did)
+	allowed, err := o.orgStore.IsMember(r.Context(), arf.Did)
 	if err != nil {
 		o.metrics.callbackErr(err, "allowlist_dids")
 		o.provider.WriteAuthorizeError(ctx, w, authRequest, fosite.ErrServerError.WithDebug(err.Error()))
@@ -499,7 +499,7 @@ func (o *OAuthServer) Validate(
 		return "", false
 	}
 
-	ok, err = o.org.IsMember(r.Context(), did)
+	ok, err = o.orgStore.IsMember(r.Context(), did)
 	if err != nil {
 		utils.WriteHTTPError(w, fmt.Errorf("unable to lookup organization membership"), http.StatusInternalServerError)
 		return "", false
