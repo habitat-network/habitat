@@ -16,99 +16,39 @@ import Header from "../components/Header.astro";
             Habitat is building a unified layer for all your organizational data -- so your data works better for you. With Habitat, make vendor lock-ins, clunky cross-app workflows, and confusing permissions across providers a thing of the past.
           </p>
 
-          <form class="waitlist reveal" style="--d: 220ms" action="https://formspree.io/f/placeholder" method="POST">
+          <form class="waitlist reveal" style="--d: 220ms" novalidate>
             <label class="visually-hidden" for="email-hero">your email</label>
-            <input id="email-hero" type="email" name="email" placeholder="your email" required />
+            <input id="email-hero" type="text" name="email" placeholder="your email" required />
             <button type="submit">Join waitlist <span aria-hidden="true">→</span></button>
           </form>
+          <p class="waitlist-status reveal" data-status="idle" aria-live="polite"></p>
           <p class="helper reveal" style="--d: 320ms">
-            Write to us at <a href="mailto:hello@habitat.network">hello@habitat.network</a> for an early look
+            Or write to us at <a href="mailto:hello@habitat.network">hello@habitat.network</a> for an early look
           </p>
         </div>
 
         <div class="hero-visual reveal" style="--d: 400ms" aria-hidden="true">
-          <div class="plane">
-            <svg class="diagram-svg" viewBox="0 0 460 400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-              <defs>
-                <filter id="orbGlow" x="-300%" y="-300%" width="700%" height="700%">
-                  <feGaussianBlur stdDeviation="2.6" result="b"/>
-                  <feMerge>
-                    <feMergeNode in="b"/>
-                    <feMergeNode in="b"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-                <filter id="barGlow" x="-20%" y="-300%" width="140%" height="700%">
-                  <feGaussianBlur stdDeviation="7"/>
-                </filter>
-              </defs>
+         <div class="hero-art-wrap">
+          <svg class="hero-art" viewBox="0 0 500 600" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <pattern id="heroTile" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
+                <rect x="5" y="5" width="90" height="90" fill="none" stroke="rgba(0,0,0,0.22)" stroke-width="1"/>
+              </pattern>
+              <linearGradient id="heroFadeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"  stop-color="white" stop-opacity="0"/>
+                <stop offset="22%" stop-color="white" stop-opacity="1"/>
+                <stop offset="100%" stop-color="white" stop-opacity="1"/>
+              </linearGradient>
+              <mask id="heroFadeMask">
+                <rect width="500" height="600" fill="url(#heroFadeGrad)"/>
+              </mask>
 
-              <!-- ambient green glow under the top data bar -->
-              <rect class="bar-glow" x="30" y="78" width="400" height="12" fill="#008000" filter="url(#barGlow)" />
+            </defs>
 
-              <!-- top data layer -->
-              <rect class="node" x="10" y="14" width="440" height="70" rx="1" />
-              <text class="node-label lead-label" x="230" y="55" text-anchor="middle">your organization's data</text>
-
-              <!-- hairline connectors -->
-              <line class="connector" x1="70"  y1="84" x2="70"  y2="240" />
-              <line class="connector" x1="180" y1="84" x2="180" y2="270" />
-              <line class="connector" x1="280" y1="84" x2="280" y2="212" />
-              <line class="connector" x1="390" y1="84" x2="390" y2="230" />
-
-              <!-- traveling orbs -->
-              <circle class="orb" cx="70" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
-                <animate attributeName="cy" values="84;240" dur="2.8s" begin="0s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="0s" repeatCount="indefinite"/>
-              </circle>
-              <circle class="orb" cx="180" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
-                <animate attributeName="cy" values="84;270" dur="2.8s" begin="0.7s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="0.7s" repeatCount="indefinite"/>
-              </circle>
-              <circle class="orb" cx="280" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
-                <animate attributeName="cy" values="84;212" dur="2.8s" begin="1.4s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="1.4s" repeatCount="indefinite"/>
-              </circle>
-              <circle class="orb" cx="390" cy="84" r="3" opacity="0" filter="url(#orbGlow)">
-                <animate attributeName="cy" values="84;230" dur="2.8s" begin="2.1s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="2.1s" repeatCount="indefinite"/>
-              </circle>
-
-              <!-- docs editor -->
-              <rect class="node" x="20" y="240" width="100" height="80" rx="1" />
-              <text class="node-label" x="70" y="276" text-anchor="middle">your</text>
-              <text class="node-label" x="70" y="294" text-anchor="middle">docs editor</text>
-
-              <!-- task management (sits lower) -->
-              <rect class="node" x="130" y="270" width="100" height="76" rx="1" />
-              <text class="node-label" x="180" y="304" text-anchor="middle">task</text>
-              <text class="node-label" x="180" y="322" text-anchor="middle">management</text>
-
-              <!-- agents: two sparkle icons -->
-              <g transform="translate(270 220)">
-                <path class="sparkle" d="M0 -10 L1.6 -1.6 L10 0 L1.6 1.6 L0 10 L-1.6 1.6 L-10 0 L-1.6 -1.6 Z"/>
-              </g>
-              <g transform="translate(297 238)">
-                <path class="sparkle" d="M0 -7 L1.2 -1.2 L7 0 L1.2 1.2 L0 7 L-1.2 1.2 L-7 0 L-1.2 -1.2 Z"/>
-              </g>
-              <text class="node-label" x="283" y="280" text-anchor="middle">your agents</text>
-
-              <!-- custom workflows: outer rect with small squares inside -->
-              <rect class="node" x="340" y="230" width="100" height="130" rx="1" />
-              <rect class="node sm" x="375" y="248" width="14" height="14" />
-              <rect class="node sm" x="395" y="280" width="14" height="14" />
-              <rect class="node sm" x="375" y="312" width="14" height="14" />
-
-              <!-- internal orb hopping between squares -->
-              <circle class="orb" cx="382" cy="255" r="2.6" opacity="0" filter="url(#orbGlow)">
-                <animate attributeName="cx" values="382;402;382;382" keyTimes="0;0.33;0.66;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
-                <animate attributeName="cy" values="255;287;319;255" keyTimes="0;0.33;0.66;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
-              </circle>
-
-              <text class="node-label" x="390" y="384" text-anchor="middle">your custom workflows</text>
-            </svg>
-          </div>
+            <rect width="500" height="600" fill="url(#heroTile)" mask="url(#heroFadeMask)"/>
+          </svg>
+          <canvas class="hero-falling-canvas" aria-hidden="true"></canvas>
+         </div>
         </div>
       </div>
     </section>
@@ -235,9 +175,9 @@ import Header from "../components/Header.astro";
 
           <div class="diagram-col">
             <div class="diagram-label">With Habitat</div>
-            <svg class="habitat-svg" viewBox="0 0 400 360" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+            <svg class="diagram-svg habitat-diagram" viewBox="0 0 460 400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
               <defs>
-                <filter id="orbGlow3" x="-300%" y="-300%" width="700%" height="700%">
+                <filter id="orbGlowH" x="-300%" y="-300%" width="700%" height="700%">
                   <feGaussianBlur stdDeviation="2.6" result="b"/>
                   <feMerge>
                     <feMergeNode in="b"/>
@@ -245,97 +185,66 @@ import Header from "../components/Header.astro";
                     <feMergeNode in="SourceGraphic"/>
                   </feMerge>
                 </filter>
-                <filter id="barGlow2" x="-20%" y="-300%" width="140%" height="700%">
+                <filter id="barGlowH" x="-20%" y="-300%" width="140%" height="700%">
                   <feGaussianBlur stdDeviation="7"/>
                 </filter>
               </defs>
 
-              <!-- ambient green glow under top data bar -->
-              <rect class="bar-glow" x="20" y="78" width="360" height="12" fill="#008000" filter="url(#barGlow2)"/>
+              <rect class="bar-glow" x="30" y="78" width="400" height="12" fill="#008000" filter="url(#barGlowH)" />
 
-              <!-- top data layer -->
-              <rect class="node" x="10" y="14" width="380" height="70" rx="1"/>
-              <text class="node-label lead-label" x="200" y="55" text-anchor="middle">your organization's data</text>
+              <rect class="node" x="10" y="14" width="440" height="70" rx="1" />
+              <text class="node-label lead-label" x="230" y="55" text-anchor="middle">your organization's data</text>
 
-              <!-- hairline connectors -->
-              <line class="connector" x1="70"  y1="84" x2="70"  y2="140"/>
-              <line class="connector" x1="135" y1="84" x2="135" y2="218"/>
-              <line class="connector" x1="200" y1="84" x2="200" y2="140"/>
-              <line class="connector" x1="265" y1="84" x2="265" y2="215"/>
-              <line class="connector" x1="330" y1="84" x2="330" y2="140"/>
+              <line class="connector" x1="70"  y1="84" x2="70"  y2="240" />
+              <line class="connector" x1="180" y1="84" x2="180" y2="270" />
+              <line class="connector" x1="280" y1="84" x2="280" y2="212" />
+              <line class="connector" x1="390" y1="84" x2="390" y2="230" />
 
-              <!-- bidirectional orbs: down then up on a stagger -->
-              <circle class="orb" cx="70"  r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="84;140" dur="3.6s" begin="0s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="0s" repeatCount="indefinite"/>
+              <circle class="orb" cx="70" cy="84" r="3" opacity="0" filter="url(#orbGlowH)">
+                <animate attributeName="cy" values="84;240" dur="2.8s" begin="0s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="0s" repeatCount="indefinite"/>
               </circle>
-              <circle class="orb" cx="70"  r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="140;84" dur="3.6s" begin="1.8s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="1.8s" repeatCount="indefinite"/>
+              <circle class="orb" cx="180" cy="84" r="3" opacity="0" filter="url(#orbGlowH)">
+                <animate attributeName="cy" values="84;270" dur="2.8s" begin="0.7s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="0.7s" repeatCount="indefinite"/>
               </circle>
-
-              <circle class="orb" cx="135" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="84;218" dur="3.6s" begin="0.4s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="0.4s" repeatCount="indefinite"/>
+              <circle class="orb" cx="280" cy="84" r="3" opacity="0" filter="url(#orbGlowH)">
+                <animate attributeName="cy" values="84;212" dur="2.8s" begin="1.4s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="1.4s" repeatCount="indefinite"/>
               </circle>
-              <circle class="orb" cx="135" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="218;84" dur="3.6s" begin="2.2s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="2.2s" repeatCount="indefinite"/>
+              <circle class="orb" cx="390" cy="84" r="3" opacity="0" filter="url(#orbGlowH)">
+                <animate attributeName="cy" values="84;230" dur="2.8s" begin="2.1s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="2.1s" repeatCount="indefinite"/>
               </circle>
 
-              <circle class="orb" cx="200" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="84;140" dur="3.6s" begin="0.8s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="0.8s" repeatCount="indefinite"/>
-              </circle>
-              <circle class="orb" cx="200" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="140;84" dur="3.6s" begin="2.6s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="2.6s" repeatCount="indefinite"/>
+              <rect class="node" x="20" y="240" width="100" height="80" rx="1" />
+              <text class="node-label" x="70" y="276" text-anchor="middle">your</text>
+              <text class="node-label" x="70" y="294" text-anchor="middle">docs editor</text>
+
+              <rect class="node" x="130" y="270" width="100" height="76" rx="1" />
+              <text class="node-label" x="180" y="304" text-anchor="middle">task</text>
+              <text class="node-label" x="180" y="322" text-anchor="middle">management</text>
+
+              <g transform="translate(270 220)">
+                <path class="sparkle" d="M0 -10 L1.6 -1.6 L10 0 L1.6 1.6 L0 10 L-1.6 1.6 L-10 0 L-1.6 -1.6 Z"/>
+              </g>
+              <g transform="translate(297 238)">
+                <path class="sparkle" d="M0 -7 L1.2 -1.2 L7 0 L1.2 1.2 L0 7 L-1.2 1.2 L-7 0 L-1.2 -1.2 Z"/>
+              </g>
+              <text class="node-label" x="283" y="280" text-anchor="middle">your agents</text>
+
+              <rect class="node" x="340" y="230" width="100" height="130" rx="1" />
+              <rect class="node sm" x="375" y="248" width="14" height="14" />
+              <rect class="node sm" x="395" y="280" width="14" height="14" />
+              <rect class="node sm" x="375" y="312" width="14" height="14" />
+
+              <circle class="orb" cx="382" cy="255" r="2.6" opacity="0" filter="url(#orbGlowH)">
+                <animate attributeName="cx" values="382;402;382;382" keyTimes="0;0.33;0.66;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+                <animate attributeName="cy" values="255;287;319;255" keyTimes="0;0.33;0.66;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" dur="3.6s" begin="2.4s" repeatCount="indefinite"/>
               </circle>
 
-              <circle class="orb" cx="265" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="84;215" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
-              </circle>
-              <circle class="orb" cx="265" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="215;84" dur="3.6s" begin="3.0s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="3.0s" repeatCount="indefinite"/>
-              </circle>
-
-              <circle class="orb" cx="330" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="84;140" dur="3.6s" begin="1.6s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="1.6s" repeatCount="indefinite"/>
-              </circle>
-              <circle class="orb" cx="330" r="3" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cy" values="140;84" dur="3.6s" begin="3.4s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="3.4s" repeatCount="indefinite"/>
-              </circle>
-
-              <!-- SaaS boxes -->
-              <rect class="node" x="26"  y="140" width="88" height="40" rx="1"/>
-              <text class="node-label" x="70"  y="165" text-anchor="middle">SaaS #1</text>
-
-              <rect class="node" x="156" y="140" width="88" height="40" rx="1"/>
-              <text class="node-label" x="200" y="165" text-anchor="middle">SaaS #2</text>
-
-              <rect class="node" x="286" y="140" width="88" height="40" rx="1"/>
-              <text class="node-label" x="330" y="165" text-anchor="middle">SaaS #3</text>
-
-              <!-- user (person icon) -->
-              <circle class="person" cx="135" cy="225" r="7"/>
-              <path class="person" d="M122 255 Q122 239 135 239 Q148 239 148 255"/>
-              <text class="node-label" x="135" y="278" text-anchor="middle">user</text>
-
-              <!-- custom workflows (rect with small squares + internal hopping orb) -->
-              <rect class="node" x="235" y="215" width="60" height="80" rx="1"/>
-              <rect class="node sm" x="244" y="225" width="12" height="12"/>
-              <rect class="node sm" x="272" y="245" width="12" height="12"/>
-              <rect class="node sm" x="244" y="265" width="12" height="12"/>
-              <circle class="orb" cx="250" cy="231" r="2.4" opacity="0" filter="url(#orbGlow3)">
-                <animate attributeName="cx" values="250;278;250;250" keyTimes="0;0.33;0.66;1" dur="4.4s" begin="3.6s" repeatCount="indefinite"/>
-                <animate attributeName="cy" values="231;251;271;231" keyTimes="0;0.33;0.66;1" dur="4.4s" begin="3.6s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" dur="4.4s" begin="3.6s" repeatCount="indefinite"/>
-              </circle>
-              <text class="node-label" x="265" y="313" text-anchor="middle">your custom workflows</text>
+              <text class="node-label" x="390" y="384" text-anchor="middle">your custom workflows</text>
             </svg>
           </div>
         </div>
@@ -351,84 +260,107 @@ import Header from "../components/Header.astro";
           <li class="pillar reveal">
             <div class="pillar-num">1</div>
             <div class="pillar-body">
-              <h3>Rich access control, across apps.</h3>
+              <h3>Rich access control, across apps</h3>
               <p>
-                We've all seen the Slack channel meant to be private, or the doc that accidentally
-                leaked. Habitat provides a permissioning layer shared across apps — so your team
-                in docs is the same team in messaging is the same team in code.
+                 Habitat provides a permissioning layer shared across apps — so your team in docs is the same team in messaging is the same team in code.
               </p>
             </div>
+            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
+              <rect x="3.5" y="3.5" width="26" height="26"/>
+              <rect x="11.5" y="11.5" width="26" height="26"/>
+              <rect x="19.5" y="19.5" width="25" height="25"/>
+            </svg>
           </li>
           <li class="pillar reveal">
             <div class="pillar-num">2</div>
             <div class="pillar-body">
-              <h3>Safer, more useful agentic workflows.</h3>
+              <h3>Safer and more powerful agentic workflows</h3>
               <p>
-                You can't safely point agents at data you don't own. Habitat gives your organization
+                Habitat gives your organization
                 a single, governed substrate that agents and models can read from and write to —
                 so you can build AI workflows on your own data, with permissions and auditability
-                intact.
+                intact.  Run agents that inherit permissions from their creator and see exactly who — or whose agent — did what.
               </p>
             </div>
+            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
+              <rect x="3.5" y="3.5" width="41" height="41"/>
+              <rect x="15.5" y="15.5" width="17" height="17"/>
+              <line x1="24" y1="15.5" x2="24" y2="32.5"/>
+              <line x1="15.5" y1="24" x2="32.5" y2="24"/>
+            </svg>
           </li>
           <li class="pillar reveal">
             <div class="pillar-num">3</div>
             <div class="pillar-body">
-              <h3>No vendor lock-in.</h3>
+              <h3>No vendor lock-in</h3>
               <p>
                 Switching tools today means a migration project. With Habitat, the data never
                 moves — it lives with you. Swapping an app on top is trivial, and your
                 organization's history comes with it.
               </p>
             </div>
+            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
+              <rect x="3.5" y="18.5" width="10" height="10"/>
+              <line x1="13.5" y1="23.5" x2="18.5" y2="23.5"/>
+              <rect x="18.5" y="18.5" width="10" height="10"/>
+              <line x1="28.5" y1="23.5" x2="33.5" y2="23.5"/>
+              <rect x="33.5" y="18.5" width="10" height="10"/>
+            </svg>
           </li>
           <li class="pillar reveal">
             <div class="pillar-num">4</div>
             <div class="pillar-body">
-              <h3>Know where your data lives.</h3>
+              <h3>Know where your data lives</h3>
               <p>
                 "Where is our data, and who can read it?" usually requires a SOC2 packet to answer.
                 With Habitat, the answer is short: it's in the data layer you control, accessed
                 only by the apps you've authorized.
               </p>
             </div>
+            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+              <ellipse cx="24" cy="12" rx="15" ry="3"/>
+              <path d="M 9 12 L 13 40 Q 24 42.5 35 40 L 39 12"/>
+              <rect x="22" y="24" width="4" height="4" fill="currentColor" stroke="none"/>
+            </svg>
           </li>
           <li class="pillar reveal">
             <div class="pillar-num">5</div>
             <div class="pillar-body">
-              <h3>Identity that persists.</h3>
+              <h3>Identity that persists</h3>
               <p>
                 Member identities are owned by the org and persist over time. When someone leaves,
                 their data doesn't get lost in a manager's drafts folder — it stays tied to their
                 identity, preserving historical context.
               </p>
             </div>
+            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
+              <rect x="3.5" y="27.5" width="6" height="6"/>
+              <rect x="12.5" y="21.5" width="12" height="12"/>
+              <rect x="27.5" y="13.5" width="20" height="20"/>
+            </svg>
           </li>
           <li class="pillar reveal">
             <div class="pillar-num">6</div>
             <div class="pillar-body">
-              <h3>Pay for the people who actually use the product.</h3>
+              <h3>Pay for the people who actually use the product</h3>
               <p>
                 Today, data access is gated by seats, so your whole org pays for tools most people
                 only need to view. With Habitat, you own the data — people can use the tool that
                 works for them.
               </p>
             </div>
+            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
+              <rect x="5.5" y="20.5" width="6" height="6"/>
+              <rect x="13.5" y="20.5" width="6" height="6" fill="currentColor"/>
+              <rect x="21.5" y="20.5" width="6" height="6"/>
+              <rect x="29.5" y="20.5" width="6" height="6" fill="currentColor"/>
+              <rect x="37.5" y="20.5" width="6" height="6"/>
+            </svg>
           </li>
         </ol>
       </div>
     </section>
 
-    <!-- SECTION 3: COMING SOON -->
-    <section class="section coming-soon">
-      <div class="section-inner">
-        <h2 class="reveal">Coming soon.</h2>
-        <ul class="soon-list">
-          <li class="reveal"><span class="bullet"></span><strong>Agent identity platform.</strong> Run agents that inherit permissions from their creator.</li>
-          <li class="reveal"><span class="bullet"></span><strong>Audit logging.</strong> See exactly who — or whose agent — did what.</li>
-        </ul>
-      </div>
-    </section>
 
     <!-- SECTION 4: CLOSING -->
     <section class="section closing">
@@ -438,25 +370,18 @@ import Header from "../components/Header.astro";
           Habitat is a customer-controlled data platform for the age of AI. We're working with a
           small group of design partners now.
         </p>
-        <form class="waitlist center reveal" style="--d: 200ms" action="https://formspree.io/f/placeholder" method="POST">
+        <form class="waitlist center reveal" style="--d: 200ms" novalidate>
           <label class="visually-hidden" for="email-foot">your email</label>
-          <input id="email-foot" type="email" name="email" placeholder="your email" required />
+          <input id="email-foot" type="text" name="email" placeholder="your email" required />
           <button type="submit">Join waitlist <span aria-hidden="true">→</span></button>
         </form>
+        <p class="waitlist-status reveal" data-status="idle" aria-live="polite"></p>
         <p class="helper reveal" style="--d: 300ms">
           <a href="mailto:hello@habitat.network">hello@habitat.network</a>
         </p>
       </div>
     </section>
 
-    <footer class="footer">
-      <div class="section-inner footer-inner">
-        <span>habitat</span>
-        <span><a href="mailto:hello@habitat.network">hello@habitat.network</a></span>
-        <span><a href="https://github.com/habitat-network/habitat">GitHub</a></span>
-        <span><a href="https://bsky.app/profile/habitat.network">Bluesky</a></span>
-      </div>
-    </footer>
   </main>
 </Layout>
 
@@ -571,6 +496,18 @@ import Header from "../components/Header.astro";
   .waitlist button span { transition: transform 200ms ease; }
   .waitlist button:hover span { transform: translateX(4px); }
 
+  .waitlist-status {
+    margin: 12px 0 0;
+    min-height: 1.25rem;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .waitlist-status[data-status="success"] { color: var(--green); }
+  .waitlist-status[data-status="invalid"],
+  .waitlist-status[data-status="error"] { color: var(--black); }
+  .section.closing .waitlist-status { text-align: center; }
+
   .helper {
     margin-top: 16px;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -595,6 +532,34 @@ import Header from "../components/Header.astro";
     height: 100%;
     display: block;
     overflow: visible;
+  }
+  .diagram-svg.habitat-diagram {
+    height: auto;
+    max-width: 540px;
+    margin-top: 8px;
+  }
+
+  /* ---------- HERO ABSTRACT ARTIFACT ---------- */
+  .hero-art-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    aspect-ratio: 5 / 6;
+    margin-left: auto;
+  }
+  .hero-art {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .hero-falling-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 22%, black 100%);
+    mask-image: linear-gradient(to right, transparent 0%, black 22%, black 100%);
   }
   .diagram-svg .node {
     fill: var(--white);
@@ -809,11 +774,23 @@ import Header from "../components/Header.astro";
   }
   .pillar {
     display: grid;
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: 80px 1fr 64px;
     gap: 32px;
     padding: 36px 0;
     border-bottom: 1px solid var(--rule);
-    align-items: baseline;
+    align-items: center;
+  }
+  .pillar-icon {
+    display: block;
+    justify-self: end;
+    color: var(--black);
+  }
+  @media (max-width: 640px) {
+    .pillar {
+      grid-template-columns: 56px 1fr 40px;
+      gap: 16px;
+    }
+    .pillar-icon { width: 32px; height: 32px; }
   }
   .pillar-num {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -907,10 +884,9 @@ import Header from "../components/Header.astro";
     .diagram-svg .orb,
     .silo-svg .orb,
     .silo-svg .orb-red,
-    .silo-svg .x-mark,
-    .habitat-svg .orb { display: none; }
-    .diagram-svg .bar-glow,
-    .habitat-svg .bar-glow { opacity: 0.3; }
+    .silo-svg .x-mark { display: none; }
+    .diagram-svg .bar-glow { opacity: 0.3; }
+    .hero-art .fs animateTransform { display: none; }
   }
 </style>
 
@@ -928,4 +904,196 @@ import Header from "../components/Header.astro";
   );
 
   document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+</script>
+
+<script>
+  const WAITLIST_URL = 'https://habitat-953995456319.us-west1.run.app/waitlist';
+  const MESSAGES: Record<string, string> = {
+    success: "Thanks for signing up! We can't wait to show you what we've been growing 🌱",
+    invalid: "That email wasn't quite right. Please submit an email like abc@example.com.",
+    error: "Hmm, that didn't work. Please try again.",
+  };
+
+  document.querySelectorAll<HTMLFormElement>('form.waitlist').forEach((form) => {
+    const status = form.parentElement?.querySelector<HTMLParagraphElement>('.waitlist-status');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = form.querySelector<HTMLInputElement>('input[name="email"]');
+      if (!input || !status) return;
+      const email = input.value.trim();
+      status.dataset.status = 'idle';
+      status.textContent = '';
+      try {
+        const res = await fetch(WAITLIST_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, from: 'landing' }),
+        });
+        if (res.ok) {
+          status.dataset.status = 'success';
+          status.textContent = MESSAGES.success;
+          input.value = '';
+        } else {
+          const text = (await res.text()).trim().toLowerCase();
+          const kind = text === 'invalid email address' ? 'invalid' : 'error';
+          status.dataset.status = kind;
+          status.textContent = MESSAGES[kind];
+        }
+      } catch {
+        status.dataset.status = 'error';
+        status.textContent = MESSAGES.error;
+      }
+    });
+  });
+</script>
+
+<script>
+  import Matter from 'matter-js';
+
+  const WORLD_W = 500;
+  const WORLD_H = 600;
+
+  // 9 designated cells (avoid col 0; the fade mask hides it)
+  const PILES = [
+    { cx: 150, cy: 50 },
+    { cx: 250, cy: 150 },
+    { cx: 350, cy: 150 },
+    { cx: 450, cy: 250 },
+    { cx: 150, cy: 350 },
+    { cx: 350, cy: 350 },
+    { cx: 250, cy: 450 },
+    { cx: 150, cy: 550 },
+    { cx: 450, cy: 550 },
+  ];
+
+  // Per-cell start delays (s), so cells don't all begin at once
+  const CELL_OFFSETS = [0.0, 0.55, 0.30, 0.45, 0.20, 0.70, 0.40, 0.60, 0.10];
+  const SHAPES_MIN = 5;
+  const SHAPES_MAX = 25;
+
+  const canvas = document.querySelector<HTMLCanvasElement>('.hero-falling-canvas');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (canvas && !reduceMotion) {
+    const ctx = canvas.getContext('2d')!;
+    const { Engine, World, Bodies, Body } = Matter;
+
+    const engine = Engine.create();
+    engine.gravity.y = 1.0;
+    engine.gravity.scale = 0.0015;
+
+    // Static walls per cell. Collision filter isolates each cell so shapes
+    // falling toward cell A don't collide with the walls/floor of cell B.
+    PILES.forEach((p, i) => {
+      const cat = 1 << i;
+      const opts = {
+        isStatic: true,
+        collisionFilter: { category: cat, mask: cat, group: 0 },
+      };
+      // Visible cell square spans cx±45, cy±45 (5px inset inside each 100-tile).
+      World.add(engine.world, [
+        Bodies.rectangle(p.cx, p.cy + 45 + 4, 90, 8, opts),      // floor
+        Bodies.rectangle(p.cx - 45 - 4, p.cy, 8, 90, opts),      // left wall
+        Bodies.rectangle(p.cx + 45 + 4, p.cy, 8, 90, opts),      // right wall
+      ]);
+    });
+
+    type Drawn = Matter.Body & { __kind: 0 | 1 | 2 };
+    const dynamicBodies: Drawn[] = [];
+
+    function dropShape(pileIdx: number, slotIdx: number) {
+      const p = PILES[pileIdx];
+      const cat = 1 << pileIdx;
+      const jitter = (Math.random() - 0.5) * 24;
+      const x = p.cx + jitter;
+      const y = p.cy - 60;
+      const kind = ((pileIdx * 3 + slotIdx) % 3) as 0 | 1 | 2;
+      const opts: Matter.IBodyDefinition = {
+        collisionFilter: { category: cat, mask: cat, group: 0 },
+        friction: 0.5,
+        frictionStatic: 0.8,
+        restitution: 0.12,
+        density: 0.0025,
+      };
+      let body: Matter.Body;
+      if (kind === 0) {
+        body = Bodies.rectangle(x, y, 11, 11, opts);
+      } else if (kind === 1) {
+        body = Bodies.circle(x, y, 5.8, opts);
+      } else {
+        body = Bodies.polygon(x, y, 3, 8, opts);
+      }
+      Body.setAngle(body, Math.random() * Math.PI * 2);
+      Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.18);
+      (body as Drawn).__kind = kind;
+      World.add(engine.world, body);
+      dynamicBodies.push(body as Drawn);
+    }
+
+    const start = () => {
+      PILES.forEach((_, i) => {
+        const count = SHAPES_MIN + Math.floor(Math.random() * (SHAPES_MAX - SHAPES_MIN + 1));
+        for (let s = 0; s < count; s++) {
+          const t = (CELL_OFFSETS[i] + s * 0.22) * 1000;
+          setTimeout(() => dropShape(i, s), t);
+        }
+      });
+    };
+
+    // Resize canvas to its CSS box, with DPR scaling for crisp shapes
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    let last = performance.now();
+    let started = false;
+
+    // Defer starting drops until the canvas scrolls into view, so the pile-up
+    // is visible from the beginning instead of pre-settling off-screen.
+    const visObs = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting && !started) {
+          started = true;
+          last = performance.now();
+          start();
+          visObs.disconnect();
+        }
+      }
+    }, { threshold: 0.1 });
+    visObs.observe(canvas);
+
+    function frame(now: number) {
+      const dt = Math.min(33, now - last);
+      last = now;
+      Engine.update(engine, dt);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const sx = canvas.width / WORLD_W;
+      const sy = canvas.height / WORLD_H;
+      ctx.scale(sx, sy);
+      ctx.fillStyle = '#008000';
+      for (const b of dynamicBodies) {
+        if (b.__kind === 1) {
+          ctx.beginPath();
+          ctx.arc(b.position.x, b.position.y, (b as any).circleRadius || 5.8, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const v = b.vertices;
+          ctx.beginPath();
+          ctx.moveTo(v[0].x, v[0].y);
+          for (let k = 1; k < v.length; k++) ctx.lineTo(v[k].x, v[k].y);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
 </script>
