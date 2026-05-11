@@ -24,12 +24,13 @@ function HabitatLoginPage() {
 
   const onSubmit = async ({ password }: FormValues) => {
     try {
+      const domain = handle.substring(handle.indexOf(".") + 1);
       const { callbackURL } = await procedure(
         "network.habitat.org.loginMember",
         { handle, password },
-        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
+        { unauthenticated: true, domain },
       );
-      window.location.href = `https://${__HABITAT_DOMAIN__}${callbackURL}`;
+      window.location.href = `https://${domain}${callbackURL}`;
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",
