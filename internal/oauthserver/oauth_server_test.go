@@ -417,13 +417,13 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
 }
 
-// testIsMemberStore wraps an org.Store and overrides IsMember.
+// testIsMemberStore wraps an org.Store and overrides GetOrgByDID.
 type testIsMemberStore struct {
 	org.Store
-	fn func(ctx context.Context, did syntax.DID) (bool, error)
+	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
 }
 
-func (s *testIsMemberStore) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
+func (s *testIsMemberStore) GetOrgByDID(ctx context.Context, did syntax.DID) (org.Org, error) {
 	return s.fn(ctx, did)
 }
 
@@ -569,23 +569,23 @@ func TestValidate(t *testing.T) {
 		require.NotEqual(t, http.StatusOK, status)
 	})
 
-	t.Run("IsMember error returns !ok with 500", func(t *testing.T) {
+	t.Run("GetOrgByDID error returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
-				return false, errors.New("simulated database failure")
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
+				return nil, errors.New("simulated database failure")
 			},
 		})
 		status, _, ok := callValidate(srv, validToken)
 		require.False(t, ok)
-		require.Equal(t, http.StatusInternalServerError, status)
+		require.Equal(t, http.StatusUnauthorized, status)
 	})
 
 	t.Run("non-member returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
-				return false, nil
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
+				return nil, org.ErrMemberNotFound
 			},
 		})
 		status, _, ok := callValidate(srv, validToken)

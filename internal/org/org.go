@@ -57,7 +57,6 @@ type Org interface {
 type Store interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
 	GetOrgByDID(ctx context.Context, did syntax.DID) (Org, error)
-	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
 }
 
@@ -386,15 +385,6 @@ func (s *storeImpl) GetOrgByDID(ctx context.Context, did syntax.DID) (Org, error
 	}
 
 	return s.everyone, nil
-}
-
-// IsMember checks if the given DID is a member of any org on this instance.
-func (s *storeImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
-	org, err := s.GetOrgByDID(ctx, did)
-	if err != nil {
-		return false, err
-	}
-	return org.IsMember(ctx, did)
 }
 
 // AuthenticateMember authenticates a member by handle across all orgs.
