@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -13,6 +14,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 var errInvalidLoginToken = errors.New("invalid or expired login token")
@@ -90,7 +92,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	ok, err := p.org.AuthenticateMember(r.Context(), req.Handle, req.Password)
 	if err != nil {
-		http.Error(w, "error while authenticating", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, fmt.Errorf("error while authenticating"), err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if !ok {
