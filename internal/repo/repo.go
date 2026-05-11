@@ -147,7 +147,7 @@ func (r *repo) PutRecord(
 	// Always put (even if something exists).
 	op := OperationUpdate
 	var ts time.Time
-	err = r.db.Transaction(func(tx *gorm.DB) error {
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
@@ -221,7 +221,7 @@ func (r *repo) CreateRecord(
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
 	var ts time.Time
-	err = r.db.Transaction(func(tx *gorm.DB) error {
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
 			return err
@@ -291,7 +291,7 @@ func (r *repo) GetRecord(
 // DeleteRecord implements Repo.
 func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, rkey string) error {
 	var ts time.Time
-	err := r.db.Transaction(func(tx *gorm.DB) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).Delete(&record{}).Error
 		if err != nil {
 			return err
@@ -369,7 +369,7 @@ func (r *repo) GetBlob(
 // GetRefs implements Repo.
 func (r *repo) GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error) {
 	var links []link
-	err := r.db.Where("cid = ?", cid).Where("did = ?", did).Find(&links).Error
+	err := r.db.WithContext(ctx).Where("cid = ?", cid).Where("did = ?", did).Find(&links).Error
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +415,7 @@ func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissio
 
 	allowQuery := query
 	for _, perm := range perms {
-		grantQuery := r.db.Where("did = ?", perm.Owner)
+		grantQuery := r.db.WithContext(ctx).Where("did = ?", perm.Owner)
 		if perm.Collection != "" {
 			grantQuery = grantQuery.Where("collection = ?", perm.Collection)
 		}
@@ -443,7 +443,7 @@ func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissio
 func (r *repo) ListRecords(ctx context.Context, did string, collection string) ([]Record, error) {
 	// Execute query
 	var rows []record
-	if err := r.db.Where("did = ?", did).Where("collection = ?", collection).Find(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("did = ?", did).Where("collection = ?", collection).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -498,7 +498,7 @@ type collectionMetadataRow struct {
 
 func (r *repo) ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error) {
 	var rows []collectionMetadataRow
-	err := r.db.Model(&record{}).
+	err := r.db.WithContext(ctx).Model(&record{}).
 		Select("collection as name, COUNT(*) as record_count, MAX(updated_at) as last_touched").
 		Where("did = ?", did).
 		Group("collection").

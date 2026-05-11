@@ -1,6 +1,7 @@
 package hive
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -89,9 +90,9 @@ func persistIdentity(tx *gorm.DB, row *ident) error {
 }
 
 // getMemberByHandle fetches the member via handle (with member namespace stripped already) from the store
-func (s *store) getIdentityByHandle(internalHandle string) (*identity.Identity, error) {
+func (s *store) getIdentityByHandle(ctx context.Context, internalHandle string) (*identity.Identity, error) {
 	var id ident
-	result := s.db.Where("handle = ?", internalHandle).First(&id)
+	result := s.db.WithContext(ctx).Where("handle = ?", internalHandle).First(&id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, identity.ErrHandleNotFound
 	}
@@ -102,10 +103,10 @@ func (s *store) getIdentityByHandle(internalHandle string) (*identity.Identity, 
 }
 
 // getMemberByDID fetches the member via opaque ID from the store
-func (s *store) getIdentityByID(opaqueID string) (*identity.Identity, error) {
+func (s *store) getIdentityByID(ctx context.Context, opaqueID string) (*identity.Identity, error) {
 
 	var id ident
-	result := s.db.Where("opaque_id = ?", opaqueID).First(&id)
+	result := s.db.WithContext(ctx).Where("opaque_id = ?", opaqueID).First(&id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, identity.ErrDIDNotFound
 	}

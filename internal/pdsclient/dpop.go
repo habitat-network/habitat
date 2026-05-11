@@ -2,6 +2,7 @@ package pdsclient
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
@@ -89,9 +90,9 @@ func newAuthedDpopHttpClient(
 	}
 }
 
-func (c *authedDpopHttpClient) getAccessTokenToUse() (*pdscred.Credentials, error) {
+func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscred.Credentials, error) {
 	getOrRefreshToken := func() (interface{}, error) {
-		cred, err := c.credStore.GetCredentials(c.id.DID)
+		cred, err := c.credStore.GetCredentials(ctx, c.id.DID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user credentials: %w", err)
 		}
@@ -121,7 +122,7 @@ func (c *authedDpopHttpClient) getAccessTokenToUse() (*pdscred.Credentials, erro
 				AccessToken:  tokenInfo.AccessToken,
 				DpopKey:      cred.DpopKey,
 			}
-			if err := c.credStore.UpsertCredentials(c.id.DID, cred); err != nil {
+			if err := c.credStore.UpsertCredentials(ctx, c.id.DID, cred); err != nil {
 				return nil, fmt.Errorf("failed to update credentials: %w", err)
 			}
 		}
@@ -142,7 +143,7 @@ func (c *authedDpopHttpClient) getAccessTokenToUse() (*pdscred.Credentials, erro
 }
 
 func (s *authedDpopHttpClient) Do(req *http.Request) (*http.Response, error) {
-	cred, err := s.getAccessTokenToUse()
+	cred, err := s.getAccessTokenToUse(req.Context())
 	if err != nil {
 		return nil, err
 	}

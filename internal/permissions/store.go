@@ -26,12 +26,14 @@ type Store interface {
 		rkey syntax.RecordKey,
 	) (bool, error)
 	AddPermissions(
+		ctx context.Context,
 		grantees []Grantee,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 	) error
 	RemovePermissions(
+		ctx context.Context,
 		grantee []Grantee,
 		owner syntax.DID,
 		collection syntax.NSID,
@@ -127,7 +129,7 @@ func (s *store) HasPermission(
 	}
 
 	var permissions []permission
-	err := s.db.
+	err := s.db.WithContext(ctx).
 		Where("grantee = ? OR grantee LIKE ?", requester.String(), "clique:%"). // check for the habitat uri prefix for cliques
 		Where("owner = ?", owner).
 		Where("collection = ?", collection).
@@ -153,7 +155,7 @@ func (s *store) HasPermission(
 			// Found a match, return
 			return true, nil
 		case habitat_syntax.Clique:
-			ok, err := s.cliqueStore.IsMember(grantee, requester)
+			ok, err := s.cliqueStore.IsMember(ctx, grantee, requester)
 			if err != nil {
 				return false, err
 			}
@@ -172,6 +174,7 @@ func (s *store) HasPermission(
 
 // AddPermissions grants read permission for an entire collection or specific record.
 func (s *store) AddPermissions(
+	ctx context.Context,
 	granteesTyped []Grantee,
 	owner syntax.DID,
 	collection syntax.NSID,
@@ -191,7 +194,7 @@ func (s *store) AddPermissions(
 
 	// Delete any existing permission for this record before inserting the deny.
 	// This is jank and its because SQLITE/postgres differ in the ON CONFLICT specs. We should fix this.
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing []string
 		err := tx.Model(&permission{}).
 			Where("grantee IN ?", grantees).
@@ -231,6 +234,7 @@ func (s *store) AddPermissions(
 
 // RemovePermissions removes read permission for a specific record and the given grantees.
 func (s *store) RemovePermissions(
+	ctx context.Context,
 	granteesTyped []Grantee,
 	owner syntax.DID,
 	collection syntax.NSID,
@@ -245,7 +249,7 @@ func (s *store) RemovePermissions(
 	}
 
 	// Delete any existing allows on this record.
-	return s.db.Where("grantee IN ?", grantees).
+	return s.db.WithContext(ctx).Where("grantee IN ?", grantees).
 		Where("owner = ?", owner).
 		Where("collection = ?", collection).
 		Where("rkey = ?", rkey).
@@ -255,13 +259,13 @@ func (s *store) RemovePermissions(
 // Returns all permissions which have the given grantee for records part of collection and owned by owners
 func (s *store) ListGranteePermissions(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
 	// Direct permission grants
-	direct, err := s.listPermissions([]Grantee{DIDGrantee(grantee)}, owners, collection, "")
+	direct, err := s.listPermissions(ctx, []Grantee{DIDGrantee(grantee)}, owners, collection, "")
 	if err != nil {
 		return nil, err
 	}
 
 	// Indirect permission grants through clique
-	cliques, err := s.cliqueStore.GetCliquesForMember(grantee)
+	cliques, err := s.cliqueStore.GetCliquesForMember(ctx, grantee)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +276,7 @@ func (s *store) ListGranteePermissions(ctx context.Context, grantee syntax.DID, 
 
 	var indirect []Permission
 	if len(cliqueGrantees) > 0 {
-		indirect, err = s.listPermissions(cliqueGrantees, owners, collection, "")
+		indirect, err = s.listPermissions(ctx, cliqueGrantees, owners, collection, "")
 		if err != nil {
 			return nil, err
 		}
@@ -284,7 +288,7 @@ func (s *store) ListGranteePermissions(ctx context.Context, grantee syntax.DID, 
 
 // ListPermissionGrants implements Store.
 func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID, collection syntax.NSID) ([]Permission, error) {
-	return s.listPermissions([]Grantee{ /* match any */ }, []syntax.DID{granter}, collection, "")
+	return s.listPermissions(ctx, []Grantee{ /* match any */ }, []syntax.DID{granter}, collection, "")
 }
 
 // ListPermissionsForRecord implements Store.
@@ -293,7 +297,7 @@ func (s *store) ListAllowedGranteesForRecord(ctx context.Context, owner syntax.D
 		return nil, fmt.Errorf("this function expects to be called on a particular collection + record key; got collection %s, record %s", collection, rkey)
 	}
 
-	permissions, err := s.listPermissions([]Grantee{ /* match any */ }, []syntax.DID{owner}, collection, rkey)
+	permissions, err := s.listPermissions(ctx, []Grantee{ /* match any */ }, []syntax.DID{owner}, collection, rkey)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +311,7 @@ func (s *store) ListAllowedGranteesForRecord(ctx context.Context, owner syntax.D
 // ListPermissions returns the permissions available to this particular combination of inputs.
 // Any "" inputs are not filtered by.
 func (s *store) listPermissions(
+	ctx context.Context,
 	grantees []Grantee,
 	owners []syntax.DID,
 	collection syntax.NSID,
@@ -314,7 +319,7 @@ func (s *store) listPermissions(
 ) ([]Permission, error) {
 	// TODO prevent table scans if all arguments are ""
 	var queried []permission
-	query := s.db
+	query := s.db.WithContext(ctx)
 	if len(owners) > 0 {
 		query = query.Where("owner IN ?", owners)
 	}

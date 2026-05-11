@@ -279,7 +279,7 @@ func testPdsCredStore(
 	require.NoError(t, err, "failed to sign claims")
 	require.NoError(
 		t,
-		store.UpsertCredentials(syntax.DID("did:plc:test123"), &pdscred.Credentials{
+		store.UpsertCredentials(t.Context(), syntax.DID("did:plc:test123"), &pdscred.Credentials{
 			AccessToken:  accessToken,
 			DpopKey:      key,
 			RefreshToken: "test-refresh-token",

@@ -1,6 +1,7 @@
 package pdscred
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"fmt"
@@ -12,8 +13,8 @@ import (
 )
 
 type PDSCredentialStore interface {
-	UpsertCredentials(did syntax.DID, credentials *Credentials) error
-	GetCredentials(did syntax.DID) (*Credentials, error)
+	UpsertCredentials(ctx context.Context, did syntax.DID, credentials *Credentials) error
+	GetCredentials(ctx context.Context, did syntax.DID) (*Credentials, error)
 }
 
 func NewPDSCredentialStore(
@@ -63,9 +64,9 @@ type Credentials struct {
 	DpopKey      *ecdsa.PrivateKey
 }
 
-func (p *pdsCredentialStore) GetCredentials(did syntax.DID) (*Credentials, error) {
+func (p *pdsCredentialStore) GetCredentials(ctx context.Context, did syntax.DID) (*Credentials, error) {
 	var creds pdsCredentialsModel
-	err := p.db.Where("did = ?", did).First(&creds).Error
+	err := p.db.WithContext(ctx).Where("did = ?", did).First(&creds).Error
 	if err != nil {
 		return nil, fmt.Errorf("user credentials not found: %w", err)
 	}
@@ -94,6 +95,7 @@ func (p *pdsCredentialStore) GetCredentials(did syntax.DID) (*Credentials, error
 
 // UpsertCredentials implements [PDSCredentialStore].
 func (p *pdsCredentialStore) UpsertCredentials(
+	ctx context.Context,
 	did syntax.DID,
 	tokenInfo *Credentials,
 ) error {
@@ -113,7 +115,7 @@ func (p *pdsCredentialStore) UpsertCredentials(
 		return fmt.Errorf("failed to get dpop key bytes: %w", err)
 	}
 	// Save the user credentials (upsert)
-	if err := p.db.Save(&userCreds).Error; err != nil {
+	if err := p.db.WithContext(ctx).Save(&userCreds).Error; err != nil {
 		return fmt.Errorf("failed to save user credentials: %w", err)
 	}
 	return nil
