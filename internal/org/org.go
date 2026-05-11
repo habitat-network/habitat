@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
@@ -311,18 +312,26 @@ func (s *store) CreateNewMemberIdentity(ctx context.Context, token string, inter
 
 func (s *store) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
 	id, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
-	if err != nil {
+	if errors.Is(err, identity.ErrHandleNotFound) || errors.Is(err, identity.ErrInvalidHandle) {
 		// Don't leak whether the handle exists
-		return false, nil
-	}
-
-	var row member
-	err = s.db.WithContext(ctx).Where("member = ?", id.DID.String()).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	} else if err != nil {
 		return false, err
 	}
 
-	return verifyPassword(password, row.PasswordHash)
+	var row member
+	err = s.db.WithContext(ctx).Where("member = ?", id.DID.String()).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Don't leak whether the handle exists
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	ok, err := verifyPassword(password, row.PasswordHash)
+	if errors.Is(err, argon2id.ErrInvalidHash) {
+		// Members created before passwords were required have no usable hash.
+		return false, nil
+	}
+	return ok, err
 }
