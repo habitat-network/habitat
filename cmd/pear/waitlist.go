@@ -21,7 +21,7 @@ type waitlistService struct {
 }
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
-var source = xmaps.Set[string]{"index": {}, "user": {}, "developer": {}}
+var source = xmaps.Set[string]{"index": {}, "user": {}, "developer": {}, "landing": {}}
 
 func getSheetsService(ctx context.Context, credsJSON string) (*sheets.Service, error) {
 	creds, err := google.CredentialsFromJSONWithType(

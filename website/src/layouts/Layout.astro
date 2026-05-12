@@ -4,11 +4,17 @@ import { ClientRouter } from "astro:transitions";
 
 interface Props {
   title: string;
+  description?: string;
   ogImage?: string;
 }
 
-const { title, ogImage = "/trees2.jpeg" } = Astro.props;
+const {
+  title,
+  description = "Habitat is building a unified data ownership layer for organizations — shared access control, portable data, and safer agentic workflows.",
+  ogImage = "/cover.png",
+} = Astro.props;
 const ogImageUrl = new URL(ogImage, Astro.site).toString();
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
 ---
 
 <html lang="en">
@@ -19,9 +25,15 @@ const ogImageUrl = new URL(ogImage, Astro.site).toString();
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
     <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImageUrl} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
     <ClientRouter />
   </head>

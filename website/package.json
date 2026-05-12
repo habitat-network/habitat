@@ -18,12 +18,14 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "astro": "^6.0.4",
+    "matter-js": "^0.20.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
+    "@types/matter-js": "^0.20.2",
     "prettier": "^3.8.1",
     "prettier-plugin-astro": "^0.14.1"
   }
