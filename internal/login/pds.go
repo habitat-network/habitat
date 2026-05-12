@@ -59,7 +59,7 @@ func (p *pdsProvider) Authorize(_ context.Context, id *identity.Identity) (strin
 	return redirect, stateBytes, nil
 }
 
-func (p *pdsProvider) Exchange(_ context.Context, did syntax.DID, code string, issuer string, stateBytes []byte) error {
+func (p *pdsProvider) Exchange(ctx context.Context, did syntax.DID, code string, issuer string, stateBytes []byte) error {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return fmt.Errorf("unmarshal pds provider state: %w", err)
@@ -73,7 +73,7 @@ func (p *pdsProvider) Exchange(_ context.Context, did syntax.DID, code string, i
 	if err != nil {
 		return fmt.Errorf("exchange code: %w", err)
 	}
-	if err := p.credStore.UpsertCredentials(did, &pdscred.Credentials{
+	if err := p.credStore.UpsertCredentials(ctx, did, &pdscred.Credentials{
 		AccessToken:  tokenInfo.AccessToken,
 		RefreshToken: tokenInfo.RefreshToken,
 		DpopKey:      dpopKey,

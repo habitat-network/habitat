@@ -1,6 +1,7 @@
 package clique
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -27,12 +28,12 @@ type cliqueMember struct {
 }
 
 type Store interface {
-	CreateClique(owner syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error)
-	GetMembers(clique habitat_syntax.Clique) ([]syntax.DID, error)
-	GetCliquesForMember(member syntax.DID) ([]habitat_syntax.Clique, error)
-	AddMembers(clique habitat_syntax.Clique, members []syntax.DID) error
-	RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID) error
-	IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
+	CreateClique(ctx context.Context, owner syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error)
+	GetMembers(ctx context.Context, clique habitat_syntax.Clique) ([]syntax.DID, error)
+	GetCliquesForMember(ctx context.Context, member syntax.DID) ([]habitat_syntax.Clique, error)
+	AddMembers(ctx context.Context, clique habitat_syntax.Clique, members []syntax.DID) error
+	RemoveMembers(ctx context.Context, clique habitat_syntax.Clique, members []syntax.DID) error
+	IsMember(ctx context.Context, clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error)
 }
 
 type store struct {
@@ -55,7 +56,7 @@ var (
 )
 
 // CreateClique creates a clique owned by owner, with members, and returns the key of this clique.
-func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error) {
+func (s *store) CreateClique(ctx context.Context, owner syntax.DID, members []syntax.DID) (habitat_syntax.Clique, error) {
 	key := uuid.New().String()
 	rows := make([]cliqueMember, len(members))
 
@@ -80,7 +81,7 @@ func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (habitat_sy
 		})
 	}
 
-	err := s.db.Create(&rows).Error
+	err := s.db.WithContext(ctx).Create(&rows).Error
 	if err != nil {
 		return "", err
 	}
@@ -89,9 +90,9 @@ func (s *store) CreateClique(owner syntax.DID, members []syntax.DID) (habitat_sy
 }
 
 // GetMembers returns all members of the clique identified by (owner, key).
-func (s *store) GetMembers(clique habitat_syntax.Clique) ([]syntax.DID, error) {
+func (s *store) GetMembers(ctx context.Context, clique habitat_syntax.Clique) ([]syntax.DID, error) {
 	var members []string
-	err := s.db.Model(cliqueMember{}).Where("owner = ? AND key = ?", clique.Authority().String(), clique.Key()).Pluck("member", &members).Error
+	err := s.db.WithContext(ctx).Model(cliqueMember{}).Where("owner = ? AND key = ?", clique.Authority().String(), clique.Key()).Pluck("member", &members).Error
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +103,7 @@ func (s *store) GetMembers(clique habitat_syntax.Clique) ([]syntax.DID, error) {
 }
 
 // AddMember adds a member to an existing clique. No-ops if already a member.
-func (s *store) AddMembers(clique habitat_syntax.Clique, members []syntax.DID) error {
+func (s *store) AddMembers(ctx context.Context, clique habitat_syntax.Clique, members []syntax.DID) error {
 	owner := clique.Authority()
 	key := clique.Key()
 
@@ -114,7 +115,7 @@ func (s *store) AddMembers(clique habitat_syntax.Clique, members []syntax.DID) e
 		}
 	})
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// First check existence of the clique
 		var ownerMembership cliqueMember
 		err := tx.Where("owner = ? AND key = ? AND member = ?", owner, key, owner).First(&ownerMembership).Error
@@ -129,9 +130,9 @@ func (s *store) AddMembers(clique habitat_syntax.Clique, members []syntax.DID) e
 	})
 }
 
-func (s *store) GetCliquesForMember(member syntax.DID) ([]habitat_syntax.Clique, error) {
+func (s *store) GetCliquesForMember(ctx context.Context, member syntax.DID) ([]habitat_syntax.Clique, error) {
 	var rows []cliqueMember
-	err := s.db.Model(cliqueMember{}).Where("member = ?", member).Distinct("owner", "key").Find(&rows).Error
+	err := s.db.WithContext(ctx).Model(cliqueMember{}).Where("member = ?", member).Distinct("owner", "key").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +144,12 @@ func (s *store) GetCliquesForMember(member syntax.DID) ([]habitat_syntax.Clique,
 
 // IsMember returns true if maybeMember is in the clique identified by (owner, key).
 // The owner is always considered a member of their own cliques.
-func (s *store) IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error) {
+func (s *store) IsMember(ctx context.Context, clique habitat_syntax.Clique, maybeMember syntax.DID) (bool, error) {
 	owner := clique.Authority()
 	key := clique.Key()
 
 	var row cliqueMember
-	err := s.db.
+	err := s.db.WithContext(ctx).
 		Where("owner = ? AND key = ? AND member = ?", owner, key, maybeMember.String()).
 		First(&row).
 		Error
@@ -162,7 +163,7 @@ func (s *store) IsMember(clique habitat_syntax.Clique, maybeMember syntax.DID) (
 }
 
 // RemoveMember implements Store.
-func (s *store) RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID) error {
+func (s *store) RemoveMembers(ctx context.Context, clique habitat_syntax.Clique, members []syntax.DID) error {
 	owner := clique.Authority()
 	key := clique.Key()
 
@@ -178,7 +179,7 @@ func (s *store) RemoveMembers(clique habitat_syntax.Clique, members []syntax.DID
 		}
 	})
 
-	return s.db.Delete(&cliqueMembers).Error
+	return s.db.WithContext(ctx).Delete(&cliqueMembers).Error
 }
 
 // Helper functions

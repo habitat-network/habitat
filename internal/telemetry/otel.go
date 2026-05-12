@@ -47,7 +47,11 @@ func setupTraceProvider(ctx context.Context, resource *resource.Resource) (*trac
 		return nil, err
 	}
 
-	provider := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithResource(resource))
+	provider := trace.NewTracerProvider(
+		trace.WithBatcher(exporter),
+		trace.WithResource(resource),
+		trace.WithSampler(trace.AlwaysSample()),
+	)
 	return provider, nil
 }
 

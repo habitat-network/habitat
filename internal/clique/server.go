@@ -54,7 +54,7 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 		dids[i] = did
 	}
 
-	clique, err := s.store.CreateClique(callerDID, dids)
+	clique, err := s.store.CreateClique(r.Context(), callerDID, dids)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "creating clique", http.StatusInternalServerError)
 		return
@@ -104,7 +104,7 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.AddMembers(clique, dids)
+	err = s.store.AddMembers(r.Context(), clique, dids)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding clique members", http.StatusInternalServerError)
 		return
@@ -145,7 +145,7 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.RemoveMembers(clique, dids)
+	err = s.store.RemoveMembers(r.Context(), clique, dids)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing clique members", http.StatusInternalServerError)
 		return
@@ -171,7 +171,7 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(clique, callerDID)
+	isMember, err := s.store.IsMember(r.Context(), clique, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking clique membership", http.StatusInternalServerError)
 		return
@@ -181,7 +181,7 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dids, err := s.store.GetMembers(clique)
+	dids, err := s.store.GetMembers(r.Context(), clique)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting clique members", http.StatusInternalServerError)
 		return
@@ -220,7 +220,7 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(clique, callerDID)
+	isMember, err := s.store.IsMember(r.Context(), clique, callerDID)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking clique membership", http.StatusInternalServerError)
 		return
@@ -236,7 +236,7 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	found, err := s.store.IsMember(clique, did)
+	found, err := s.store.IsMember(r.Context(), clique, did)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking if clique member", http.StatusInternalServerError)
 		return

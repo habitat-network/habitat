@@ -14,7 +14,6 @@ type FormValues = { password: string };
 
 function HabitatLoginPage() {
   const { handle } = Route.useSearch();
-  const { authManager } = Route.useRouteContext();
 
   const {
     register,
@@ -25,12 +24,13 @@ function HabitatLoginPage() {
 
   const onSubmit = async ({ password }: FormValues) => {
     try {
+      const domain = handle.substring(handle.indexOf(".") + 1);
       const { callbackURL } = await procedure(
         "network.habitat.org.loginMember",
         { handle, password },
-        { authManager },
+        { unauthenticated: true, domain },
       );
-      window.location.href = `https://${__HABITAT_DOMAIN__}${callbackURL}`;
+      window.location.href = `https://${domain}${callbackURL}`;
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",

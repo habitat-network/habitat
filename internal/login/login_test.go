@@ -57,7 +57,7 @@ func newStubCredStore() *stubCredStore {
 	return &stubCredStore{upserted: make(map[syntax.DID]*pdscred.Credentials)}
 }
 
-func (s *stubCredStore) UpsertCredentials(did syntax.DID, creds *pdscred.Credentials) error {
+func (s *stubCredStore) UpsertCredentials(_ context.Context, did syntax.DID, creds *pdscred.Credentials) error {
 	if s.upsertErr != nil {
 		return s.upsertErr
 	}
@@ -65,7 +65,7 @@ func (s *stubCredStore) UpsertCredentials(did syntax.DID, creds *pdscred.Credent
 	return nil
 }
 
-func (s *stubCredStore) GetCredentials(did syntax.DID) (*pdscred.Credentials, error) {
+func (s *stubCredStore) GetCredentials(_ context.Context, did syntax.DID) (*pdscred.Credentials, error) {
 	return nil, errors.New("not used in these tests")
 }
 

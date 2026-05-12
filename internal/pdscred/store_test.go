@@ -28,7 +28,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	did, err := syntax.ParseDID("did:plc:test123")
 	require.NoError(t, err)
 
-	err = store.UpsertCredentials(did, &Credentials{
+	err = store.UpsertCredentials(t.Context(), did, &Credentials{
 		AccessToken:  "test-access-token",
 		RefreshToken: "test-refresh-token",
 		DpopKey:      dpopKey,
@@ -36,7 +36,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// handles updates
-	err = store.UpsertCredentials(did, &Credentials{
+	err = store.UpsertCredentials(t.Context(), did, &Credentials{
 		AccessToken:  "test-access-token-2",
 		RefreshToken: "test-refresh-token-2",
 		DpopKey:      dpopKey,
@@ -44,7 +44,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get DPoP client
-	credentials, err := store.GetCredentials(did)
+	credentials, err := store.GetCredentials(t.Context(), did)
 	require.NoError(t, err)
 	require.Equal(t, "test-access-token-2", credentials.AccessToken)
 	require.Equal(t, "test-refresh-token-2", credentials.RefreshToken)
@@ -62,7 +62,7 @@ func TestGetDpopClient_NotFound(t *testing.T) {
 	did, err := syntax.ParseDID("did:plc:nonexistent")
 	require.NoError(t, err)
 
-	credentials, err := store.GetCredentials(did)
+	credentials, err := store.GetCredentials(t.Context(), did)
 	require.Error(t, err)
 	require.Nil(t, credentials)
 	require.Contains(t, err.Error(), "user credentials not found")

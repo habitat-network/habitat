@@ -1,6 +1,7 @@
 package pdsclient
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -342,7 +343,7 @@ func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
 		var err1, err2 error
 		go func() {
 			defer wg.Done()
-			_, err1 = client.getAccessTokenToUse()
+			_, err1 = client.getAccessTokenToUse(t.Context())
 		}()
 
 		// Wait until goroutine 1 is blocked inside onGet on <-blockCh.
@@ -353,7 +354,7 @@ func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			_, err2 = client.getAccessTokenToUse()
+			_, err2 = client.getAccessTokenToUse(t.Context())
 			secondCompleted.Store(true)
 		}()
 
@@ -376,13 +377,13 @@ type countingCredStore struct {
 	onGet func()
 }
 
-func (c *countingCredStore) UpsertCredentials(did syntax.DID, creds *pdscred.Credentials) error {
-	return c.inner.UpsertCredentials(did, creds)
+func (c *countingCredStore) UpsertCredentials(ctx context.Context, did syntax.DID, creds *pdscred.Credentials) error {
+	return c.inner.UpsertCredentials(ctx, did, creds)
 }
 
-func (c *countingCredStore) GetCredentials(did syntax.DID) (*pdscred.Credentials, error) {
+func (c *countingCredStore) GetCredentials(ctx context.Context, did syntax.DID) (*pdscred.Credentials, error) {
 	c.onGet()
-	return c.inner.GetCredentials(did)
+	return c.inner.GetCredentials(ctx, did)
 }
 
 func TestDpopHttpClient_RequestFormat(t *testing.T) {

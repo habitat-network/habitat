@@ -15,7 +15,7 @@ type FormValues = { handle: string; password: string };
 
 function JoinPage() {
   const { token } = Route.useSearch();
-  const [result] = useState<{ handle: string; did: string } | null>(
+  const [result, setResult] = useState<{ handle: string; did: string } | null>(
     null,
   );
   const { authManager } = Route.useRouteContext();
@@ -30,10 +30,12 @@ function JoinPage() {
 
   const onSubmit = async ({ handle, password }: FormValues) => {
     try {
-      await procedure("network.habitat.org.mintMemberIdentity",
+      const res = await procedure(
+        "network.habitat.org.mintMemberIdentity",
         { token, handle, password },
         { authManager },
       );
+      setResult({ handle: res.handle, did: res.did });
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",

@@ -589,6 +589,7 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = s.pear.AddPermissions(
+		r.Context(),
 		callerDID,
 		grantees,
 		callerDID,
@@ -623,7 +624,7 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.RemovePermissions(callerDID, grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
+	err = s.pear.RemovePermissions(r.Context(), callerDID, grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return
