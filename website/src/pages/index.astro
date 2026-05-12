@@ -4,7 +4,7 @@ import Header from "../components/Header.astro";
 ---
 
 <Layout
-  title="Habitat — Workplace data ownership for organizations"
+  title="Habitat — Own your workplace data."
   description="A unified layer for all your organizational data."
 >
   <Header />
@@ -14,9 +14,9 @@ import Header from "../components/Header.astro";
     <section class="hero">
       <div class="hero-inner">
         <div class="hero-copy">
-          <h1 class="display reveal">Workplace data ownership for organizations.</h1>
+          <h1 class="display reveal">Own your workplace data.</h1>
           <p class="hero-sub reveal" style="--d: 120ms">
-            Habitat is building a unified layer for all your organizational data -- so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and confusing permissions across providers a thing of the past with Habitat.
+            Habitat is building a unified data layer for your organization, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and confusing permissions across providers a thing of the past with Habitat.
           </p>
 
           <form class="waitlist reveal" style="--d: 220ms" novalidate>
@@ -61,7 +61,7 @@ import Header from "../components/Header.astro";
       <div class="section-inner">
         <h2 class="reveal">Your data should belong to you.</h2>
         <p class="lead reveal" style="--d: 100ms">
-          Today, organizational data belongs to the SaaS providers you use, not to you. Each provider is siloed, making the data less useful and cross-app workflows clunky. Habitat changes that.
+          Today, your data belongs to SaaS providers. Each provider is siloed and limits access through their APIs, making data less useful and integrated agentic workflows harder. Habitat changes that.
         </p>
 
         <div class="diagram reveal" style="--d: 200ms" aria-hidden="true">
@@ -220,13 +220,37 @@ import Header from "../components/Header.astro";
                 <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="2.1s" repeatCount="indefinite"/>
               </circle>
 
+              <!-- shared-data branches: one point on the data bar feeds both docs editor and agents -->
+              <path id="shareToDocs" class="connector" d="M125 84 C 125 170, 70 170, 70 240" fill="none" />
+              <path id="shareToAgents" class="connector" d="M125 84 C 125 150, 280 150, 280 212" fill="none" />
+              <path id="shareToWorkflows" class="connector" d="M280 84 C 280 160, 390 160, 390 230" fill="none" />
+
+              <circle class="orb" r="3" opacity="0" filter="url(#orbGlowH)">
+                <animateMotion dur="2.8s" begin="1.05s" repeatCount="indefinite">
+                  <mpath href="#shareToDocs"/>
+                </animateMotion>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="1.05s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" r="3" opacity="0" filter="url(#orbGlowH)">
+                <animateMotion dur="2.8s" begin="1.05s" repeatCount="indefinite">
+                  <mpath href="#shareToAgents"/>
+                </animateMotion>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="1.05s" repeatCount="indefinite"/>
+              </circle>
+              <circle class="orb" r="3" opacity="0" filter="url(#orbGlowH)">
+                <animateMotion dur="2.8s" begin="1.75s" repeatCount="indefinite">
+                  <mpath href="#shareToWorkflows"/>
+                </animateMotion>
+                <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.88;1" dur="2.8s" begin="1.75s" repeatCount="indefinite"/>
+              </circle>
+
               <rect class="node" x="20" y="240" width="100" height="80" rx="1" />
               <text class="node-label" x="70" y="276" text-anchor="middle">your</text>
-              <text class="node-label" x="70" y="294" text-anchor="middle">docs editor</text>
+              <text class="node-label" x="70" y="294" text-anchor="middle">docs app</text>
 
               <rect class="node" x="130" y="270" width="100" height="76" rx="1" />
-              <text class="node-label" x="180" y="304" text-anchor="middle">task</text>
-              <text class="node-label" x="180" y="322" text-anchor="middle">management</text>
+              <text class="node-label" x="180" y="304" text-anchor="middle">your</text>
+              <text class="node-label" x="180" y="322" text-anchor="middle">tasks app</text>
 
               <g transform="translate(270 220)">
                 <path class="sparkle" d="M0 -10 L1.6 -1.6 L10 0 L1.6 1.6 L0 10 L-1.6 1.6 L-10 0 L-1.6 -1.6 Z"/>
@@ -265,7 +289,7 @@ import Header from "../components/Header.astro";
             <div class="pillar-body">
               <h3>Rich access control, across apps</h3>
               <p>
-                 Habitat provides a permissioning layer shared across apps, so your team in docs is the same team in messaging is the same team in code.
+                 Habitat provides a permissioning layer shared across apps, so your team in docs is the same team in messages is the same team in your code repository.
               </p>
             </div>
             <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
@@ -312,9 +336,9 @@ import Header from "../components/Header.astro";
           <li class="pillar reveal">
             <div class="pillar-num">4</div>
             <div class="pillar-body">
-              <h3>Know where your data lives</h3>
+              <h3>Know where all your data lives</h3>
               <p>
-                "Where is our data, and who can read it?" usually requires a SOC2 packet to answer.
+                "Where is our data, and who can read it?"
                 With Habitat, the answer is short: it's in the data layer you control, accessed
                 only by the apps you've authorized.
               </p>
@@ -322,16 +346,15 @@ import Header from "../components/Header.astro";
             <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
               <ellipse cx="24" cy="12" rx="15" ry="3"/>
               <path d="M 9 12 L 13 40 Q 24 42.5 35 40 L 39 12"/>
-              <rect x="22" y="24" width="4" height="4" fill="currentColor" stroke="none"/>
             </svg>
           </li>
           <li class="pillar reveal">
             <div class="pillar-num">5</div>
             <div class="pillar-body">
-              <h3>Identity that persists</h3>
+              <h3>Lifetime identity management</h3>
               <p>
-                Member identities are owned by the org and persist over time. When someone leaves,
-                their data doesn't get lost in a manager's drafts folder, it stays tied to their
+                When someone leaves,
+                their data doesn't get lost in a manager's drafts folder; it stays tied to their
                 identity, preserving historical context.
               </p>
             </div>
