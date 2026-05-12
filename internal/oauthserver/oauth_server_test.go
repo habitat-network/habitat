@@ -584,7 +584,7 @@ func TestValidate(t *testing.T) {
 		require.NotEqual(t, http.StatusOK, status)
 	})
 
-	t.Run("GetOrgByDID error returns !ok with 401", func(t *testing.T) {
+	t.Run("GetOrgForDID error returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
 			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
