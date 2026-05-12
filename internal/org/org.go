@@ -77,7 +77,7 @@ type inviteTokenClaims struct {
 
 type store struct {
 	orgID         string
-	domain        string
+	name          string
 	hive          hive.Hive
 	db            *gorm.DB
 	signingSecret []byte
@@ -85,13 +85,17 @@ type store struct {
 
 var _ Org = &store{}
 
-func NewOrg(orgID string, domain string, hive hive.Hive, db *gorm.DB, signingSecret []byte) (*store, error) {
+func NewOrg(
+	orgID string,
+	hive hive.Hive,
+	db *gorm.DB,
+	signingSecret []byte,
+) (*store, error) {
 	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &store{
 		orgID:         orgID,
-		domain:        domain,
 		hive:          hive,
 		db:            db,
 		signingSecret: signingSecret,
@@ -101,7 +105,7 @@ func NewOrg(orgID string, domain string, hive hive.Hive, db *gorm.DB, signingSec
 // GetConfig implements Org.
 func (s *store) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		Domain: s.domain,
+		Name: s.name,
 	}
 }
 
@@ -368,7 +372,7 @@ func (s *storeImpl) orgFromModel(org *Organization) (*store, error) {
 	}
 	return &store{
 		orgID:         org.ID,
-		domain:        org.Domain,
+		name:          org.Name,
 		hive:          s.hive,
 		db:            s.db,
 		signingSecret: signingSecret,

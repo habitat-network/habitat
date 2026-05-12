@@ -12,10 +12,10 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/hive"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -34,7 +34,6 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *store) {
 
 	require.NoError(t, db.Create(&Organization{
 		ID:            "test-org",
-		Domain:        "example.com",
 		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
 	}).Error)
 
@@ -90,7 +89,11 @@ func TestLoginProvider_Authorize(t *testing.T) {
 	redirect, state, err := p.Authorize(context.Background(), id)
 	require.NoError(t, err)
 	require.Nil(t, state)
-	require.Equal(t, "https://frontend.example.com/login/habitat?handle=alice.example.com", redirect)
+	require.Equal(
+		t,
+		"https://frontend.example.com/login/habitat?handle=alice.example.com",
+		redirect,
+	)
 }
 
 func TestLoginProvider_Authorize_HandleEscaping(t *testing.T) {

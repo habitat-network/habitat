@@ -40,7 +40,6 @@ func testStore(t *testing.T) org.Store {
 	require.NoError(t, err)
 	require.NoError(t, db.Create(&org.Organization{
 		ID:            "test-org",
-		Domain:        "example.com",
 		SigningSecret: base64.StdEncoding.EncodeToString([]byte("test-signing-secret-1234")),
 	}).Error)
 	return s
@@ -429,20 +428,26 @@ func (s *testIsMemberStore) GetOrgByDID(ctx context.Context, did syntax.DID) (or
 
 // acquireAccessToken drives the full authorization code flow and returns the
 // resulting bearer access token issued by srv.
-func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclient.ClientMetadata) string {
+func acquireAccessToken(
+	t *testing.T,
+	srv *OAuthServer,
+	clientMetadata *pdsclient.ClientMetadata,
+) string {
 	t.Helper()
-	flowServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/authorize":
-			srv.HandleAuthorize(w, r)
-		case "/oauth-callback":
-			srv.HandleCallback(w, r)
-		case "/token":
-			srv.HandleToken(w, r)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
+	flowServer := httptest.NewTLSServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/authorize":
+				srv.HandleAuthorize(w, r)
+			case "/oauth-callback":
+				srv.HandleCallback(w, r)
+			case "/token":
+				srv.HandleToken(w, r)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}),
+	)
 	t.Cleanup(flowServer.Close)
 
 	jar, err := cookiejar.New(nil)
@@ -471,7 +476,11 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 			}))
 		case "/oauth-callback":
 			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, flowServer.Client())
-			token, exchangeErr := oauthCfg.Exchange(ctx, r.URL.Query().Get("code"), oauth2.VerifierOption(verifier))
+			token, exchangeErr := oauthCfg.Exchange(
+				ctx,
+				r.URL.Query().Get("code"),
+				oauth2.VerifierOption(verifier),
+			)
 			require.NoError(t, exchangeErr)
 			capturedToken = token.AccessToken
 		default:
@@ -483,8 +492,12 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 	oauthCfg.ClientID = clientApp.URL + "/client-metadata.json"
 	oauthCfg.RedirectURL = clientApp.URL + "/oauth-callback"
 
-	authReq, err := http.NewRequest(http.MethodGet,
-		oauthCfg.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+"&handle=did:web:test",
+	authReq, err := http.NewRequest(
+		http.MethodGet,
+		oauthCfg.AuthCodeURL(
+			"test-state",
+			oauth2.S256ChallengeOption(verifier),
+		)+"&handle=did:web:test",
 		nil,
 	)
 	require.NoError(t, err)
@@ -539,12 +552,14 @@ func TestValidate(t *testing.T) {
 			retDID syntax.DID
 			retOK  bool
 		)
-		httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			d, o := srv.Validate(w, r)
-			mu.Lock()
-			retDID, retOK = d, o
-			mu.Unlock()
-		}))
+		httpSrv := httptest.NewServer(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				d, o := srv.Validate(w, r)
+				mu.Lock()
+				retDID, retOK = d, o
+				mu.Unlock()
+			}),
+		)
 		defer httpSrv.Close()
 		req, reqErr := http.NewRequest(http.MethodGet, httpSrv.URL+"/", nil)
 		require.NoError(t, reqErr)

@@ -20,7 +20,7 @@ func newTestStore(t *testing.T) *store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-org", "test-domain", nil, db, testSigningSecret)
+	s, err := NewOrg("test-org", nil, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -31,7 +31,7 @@ func newTestStoreWithHive(t *testing.T) *store {
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	s, err := NewOrg("test-org", "test-domain", h, db, testSigningSecret)
+	s, err := NewOrg("test-org", h, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -143,7 +143,7 @@ func TestRemoveMembers(t *testing.T) {
 func TestGetMetadata(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-org", "test-domain", nil, db, testSigningSecret)
+	s, err := NewOrg("test-org", nil, db, testSigningSecret)
 	require.NoError(t, err)
 
 	md := s.GetMetadata()

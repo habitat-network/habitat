@@ -32,7 +32,6 @@ func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 
 	require.NoError(t, db.Create(&Organization{
 		ID:            "test-org",
-		Domain:        "example.com",
 		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
 	}).Error)
 
