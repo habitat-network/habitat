@@ -66,7 +66,7 @@ type Org interface {
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
-	GetOrgByDID(ctx context.Context, did syntax.DID) (Org, error)
+	GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error)
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
 }
 

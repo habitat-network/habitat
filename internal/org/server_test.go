@@ -65,12 +65,16 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 	// Someone uses the token to mint an identity
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
-		OrgID:    "test-org",
+		OrgId:    "test-org",
 		Token:    issueOut.Token,
 		Password: "password",
 		Handle:   "alice",
 	})
-	mintReq := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.mintMemberIdentity", bytes.NewReader(mintBody))
+	mintReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.mintMemberIdentity",
+		bytes.NewReader(mintBody),
+	)
 	mintReq.Header.Set("Content-Type", "application/json")
 	mintW := httptest.NewRecorder()
 	srv.MintMemberIdentity(mintW, mintReq)

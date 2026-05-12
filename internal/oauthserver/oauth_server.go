@@ -382,7 +382,7 @@ func (o *OAuthServer) HandleCallback(
 
 	// Check the DID allowlist after reconstructing authRequest so we can redirect
 	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	_, err = o.orgStore.GetOrgByDID(r.Context(), arf.Did)
+	_, err = o.orgStore.GetOrgForDID(r.Context(), arf.Did)
 	if err != nil {
 		o.metrics.callbackErr(err, "allowlist_dids")
 		o.provider.WriteAuthorizeError(ctx, w, authRequest,
@@ -494,7 +494,7 @@ func (o *OAuthServer) Validate(
 		return "", false
 	}
 
-	_, err = o.orgStore.GetOrgByDID(r.Context(), did)
+	_, err = o.orgStore.GetOrgForDID(r.Context(), did)
 	if err != nil {
 		utils.WriteHTTPError(w, fmt.Errorf("not a member of this organization"), http.StatusUnauthorized)
 		return "", false

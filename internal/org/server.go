@@ -30,7 +30,7 @@ func NewServer(store Store, auth authn.Method) (*Server, error) {
 
 // IsMember checks if the given DID is a member of any org on this instance.
 func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) {
-	_, err := s.store.GetOrgByDID(ctx, member)
+	_, err := s.store.GetOrgForDID(ctx, member)
 	if err != nil {
 		return false, err
 	}
@@ -49,7 +49,7 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -78,7 +78,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -107,7 +107,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -148,7 +148,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -190,7 +190,7 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -229,7 +229,7 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -275,7 +275,7 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -293,7 +293,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrgByDID(r.Context(), caller)
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
@@ -339,12 +339,12 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Token == "" || req.Handle == "" || req.Password == "" || req.OrgID == "" {
+	if req.Token == "" || req.Handle == "" || req.Password == "" || req.OrgId == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	org, err := s.store.GetOrg(r.Context(), req.OrgID)
+	org, err := s.store.GetOrg(r.Context(), req.OrgId)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return

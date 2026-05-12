@@ -422,7 +422,7 @@ type testIsMemberStore struct {
 	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
 }
 
-func (s *testIsMemberStore) GetOrgByDID(ctx context.Context, did syntax.DID) (org.Org, error) {
+func (s *testIsMemberStore) GetOrgForDID(ctx context.Context, did syntax.DID) (org.Org, error) {
 	return s.fn(ctx, did)
 }
 

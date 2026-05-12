@@ -4,9 +4,9 @@ import "time"
 
 // Organization represents a managed org on a pear instance.
 type Organization struct {
-	ID            string    `gorm:"primaryKey"`
-	Domain        string    // member subdomain for this org, e.g. "acme.example.com"
-	SigningSecret string    // base64-encoded HMAC-SHA256 key for invite tokens
+	ID            string `gorm:"primaryKey"`
+	Name          string // optional display name
+	SigningSecret string // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt     time.Time
 }
 
