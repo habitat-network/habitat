@@ -93,3 +93,80 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	require.Contains(t, members, did1, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
 }
+
+func newCreateTestServer(t *testing.T) *Server {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	require.NoError(t, err)
+	srv, err := NewServer(storeImpl, nil)
+	require.NoError(t, err)
+	return srv
+}
+
+func TestCreateOrg(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Domain:        "neworg.example.com",
+		AdminHandle:   "admin",
+		AdminPassword: "securepassword123",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var out habitat.NetworkHabitatOrgCreateOutput
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	require.NotEmpty(t, out.OrgID)
+	require.NotEmpty(t, out.AdminDID)
+	require.Contains(t, out.AdminHandle, "admin")
+
+	adminDID, err := syntax.ParseDID(out.AdminDID)
+	require.NoError(t, err)
+
+	org, err := srv.store.GetOrg(context.Background(), out.OrgID)
+	require.NoError(t, err)
+	members, err := org.GetMembers(context.Background())
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	require.Equal(t, adminDID, members[0])
+
+	admins, err := org.GetAdmins(context.Background())
+	require.NoError(t, err)
+	require.Len(t, admins, 1)
+	require.Equal(t, adminDID, admins[0])
+}
+
+func TestCreateOrg_InvalidHandle(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Domain:        "bad.example.com",
+		AdminHandle:   "invalid handle with spaces!",
+		AdminPassword: "password",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateOrg_MissingFields(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Domain: "missing.example.com",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -32,6 +33,7 @@ var (
 	ErrInvalidTokenExpiry = errors.New("token expiry must be < 1 month from now")
 	ErrOrgNotFound        = errors.New("organization not found")
 	ErrMemberNotFound     = errors.New("member not found in any org")
+	ErrOrgAlreadyExists   = errors.New("organization already exists")
 )
 
 // Org represents a single organization on a pear instance.
@@ -58,6 +60,7 @@ type Store interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
 	GetOrgByDID(ctx context.Context, did syntax.DID) (Org, error)
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
+	CreateOrg(ctx context.Context, domain string, adminHandle string, adminPassword string) (orgID string, id *identity.Identity, err error)
 }
 
 type inviteTokenClaims struct {
@@ -400,4 +403,60 @@ func (s *storeImpl) AuthenticateMember(ctx context.Context, handle string, passw
 	}
 
 	return org.AuthenticateMember(ctx, handle, password)
+}
+
+// CreateOrg creates a new org with a bootstrap admin member and returns the generated org ID and the admin identity.
+func (s *storeImpl) CreateOrg(ctx context.Context, domain string, adminHandle string, adminPassword string) (string, *identity.Identity, error) {
+	// Generate a random org ID
+	orgBytes := make([]byte, 16)
+	if _, err := rand.Read(orgBytes); err != nil {
+		return "", nil, err
+	}
+	orgID := fmt.Sprintf("%x", orgBytes)
+
+	// Generate signing secret
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return "", nil, err
+	}
+	signingSecret := base64.StdEncoding.EncodeToString(secret)
+
+	// Hash the admin password
+	passwordHash, err := hashPassword(adminPassword)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Mint identity for the admin
+	id, persistIdent, err := s.hive.MintIdentity(adminHandle)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Persist org, identity, and admin member in a single transaction
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&Organization{
+			ID:            orgID,
+			Domain:        domain,
+			SigningSecret: signingSecret,
+			CreatedAt:     time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		if err := persistIdent(tx); err != nil {
+			return err
+		}
+		return tx.Create(&member{
+			OrgID:        orgID,
+			Member:       id.DID.String(),
+			Role:         string(Admin),
+			PasswordHash: passwordHash,
+			CreatedAt:    time.Now(),
+		}).Error
+	})
+	if err != nil {
+		return "", nil, err
+	}
+
+	return orgID, id, nil
 }
