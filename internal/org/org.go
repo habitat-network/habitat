@@ -36,7 +36,14 @@ var (
 
 // Org represents a single organization on a pear instance.
 type Org interface {
+	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
+	// The authz in this package is only for managing identities in the
+	// In the future, we may not want to be so prescriptive about the admin / member setup.
+
+	// This is exported because other packages may want to do membership lookup
 	AddAdmin(ctx context.Context, admin syntax.DID) error
+	// Only support adding members through CreateNewMemberIdentity for now
+	// AddMembers(ctx context.Context, members []syntax.DID) error
 	GetAdmins(ctx context.Context) ([]syntax.DID, error)
 	GetMembers(ctx context.Context) ([]syntax.DID, error)
 	RemoveAdmin(ctx context.Context, admin syntax.DID) error
@@ -45,10 +52,12 @@ type Org interface {
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
+	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(ctx context.Context, caller syntax.DID, reusable bool, expiresAt time.Time) (token string, err error)
 	CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string, password string) (*identity.Identity, error)
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
 
+	// Generic config about this org
 	GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput
 }
 
