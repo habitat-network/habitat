@@ -227,7 +227,7 @@ func NewOAuthServer(
 		directory:   directory,
 		node:        node,
 		storage:     storage,
-		orgStore: orgStore,
+		orgStore:    orgStore,
 	}, nil
 }
 

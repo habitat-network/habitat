@@ -61,7 +61,7 @@ func NewServer(
 			oauth:       oauthServer,
 			serviceAuth: serviceAuthMethod,
 		},
-		decoder: schema.NewDecoder(),
+		decoder:  schema.NewDecoder(),
 		orgStore: orgStore,
 	}
 	return server

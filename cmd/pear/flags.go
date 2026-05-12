@@ -20,7 +20,7 @@ var (
 	fPdsCredEncryptKey = "pds_cred_encrypt_key"
 	fOauthServerSecret = "oauth_server_secret"
 	fOauthClientSecret = "oauth_client_secret"
-	fFrontendDomain = "frontend_domain"
+	fFrontendDomain    = "frontend_domain"
 )
 var profiles []string
 
