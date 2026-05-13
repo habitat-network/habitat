@@ -140,16 +140,6 @@ func TestRemoveMembers(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestGetMetadata(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	s, err := NewOrg("test-org", "test-domain", nil, db, testSigningSecret)
-	require.NoError(t, err)
-
-	md := s.GetMetadata()
-	require.Equal(t, md, habitat.NetworkHabitatOrgGetMetadataOutput{Domain: "test-domain"})
-}
-
 func TestGenerateAndUseIdentityToken(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStoreWithHive(t)

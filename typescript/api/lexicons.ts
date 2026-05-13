@@ -1171,13 +1171,8 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['subdomain', 'admin_handle', 'admin_password'],
+            required: ['admin_handle', 'admin_password'],
             properties: {
-              subdomain: {
-                type: 'string',
-                description:
-                  'The member subdomain for this org, e.g. acme.example.com.',
-              },
               admin_handle: {
                 type: 'string',
                 description:

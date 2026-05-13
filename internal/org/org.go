@@ -12,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/hive"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -72,9 +71,6 @@ type Org interface {
 		password string,
 	) (*identity.Identity, error)
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
-
-	// Generic config about this org
-	GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput
 }
 
 // Store is the registry of all orgs on a pear instance.
@@ -85,7 +81,6 @@ type Store interface {
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
 	CreateOrg(
 		ctx context.Context,
-		subdomain string,
 		name string,
 		adminHandle string,
 		adminPassword string,
@@ -99,7 +94,6 @@ type inviteTokenClaims struct {
 
 type orgImpl struct {
 	orgID         string
-	subdomain     string
 	hive          hive.Hive
 	db            *gorm.DB
 	signingSecret []byte
@@ -109,7 +103,6 @@ var _ Org = &orgImpl{}
 
 func NewOrg(
 	orgID string,
-	subdomain string,
 	hive hive.Hive,
 	db *gorm.DB,
 	signingSecret []byte,
@@ -119,18 +112,10 @@ func NewOrg(
 	}
 	return &orgImpl{
 		orgID:         orgID,
-		subdomain:     subdomain,
 		hive:          hive,
 		db:            db,
 		signingSecret: signingSecret,
 	}, nil
-}
-
-// GetConfig implements Org.
-func (s *orgImpl) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
-	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		Domain: s.subdomain,
-	}
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
@@ -441,7 +426,6 @@ func (s *storeImpl) orgFromModel(org *Organization) (*orgImpl, error) {
 	}
 	return &orgImpl{
 		orgID:         org.ID,
-		subdomain:     org.Subdomain,
 		hive:          s.hive,
 		db:            s.db,
 		signingSecret: signingSecret,
@@ -501,7 +485,6 @@ func (s *storeImpl) AuthenticateMember(
 // CreateOrg creates a new org with a bootstrap admin member and returns the generated org ID and the admin identity.
 func (s *storeImpl) CreateOrg(
 	ctx context.Context,
-	subdomain string,
 	name string,
 	adminHandle string,
 	adminPassword string,
@@ -536,7 +519,6 @@ func (s *storeImpl) CreateOrg(
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&Organization{
 			ID:            orgID,
-			Subdomain:     subdomain,
 			Name:          name,
 			SigningSecret: signingSecret,
 			CreatedAt:     time.Now(),

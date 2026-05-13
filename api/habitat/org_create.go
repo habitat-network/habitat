@@ -7,7 +7,6 @@ type NetworkHabitatOrgCreateInput struct {
 	AdminHandle   string `json:"admin_handle"`
 	AdminPassword string `json:"admin_password"`
 	Name          string `json:"name,omitempty"`
-	Subdomain     string `json:"subdomain"`
 }
 
 // NetworkHabitatOrgCreateOutput represents the output for network.habitat.org.create

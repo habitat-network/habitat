@@ -32,7 +32,6 @@ func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 
 	require.NoError(t, db.Create(&Organization{
 		ID:            "test-org",
-		Subdomain:     "example.com",
 		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
 	}).Error)
 
@@ -70,7 +69,6 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 	// Someone uses the token to mint an identity
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
-		OrgId:    "test-org",
 		Token:    issueOut.Token,
 		Password: "password",
 		Handle:   "alice",
@@ -119,7 +117,6 @@ func TestCreateOrg(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Subdomain:     "neworg",
 		Name:          "My Org",
 		AdminHandle:   "admin",
 		AdminPassword: "securepassword123",
@@ -164,7 +161,6 @@ func TestCreateOrg_InvalidHandle(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Subdomain:     "bad",
 		AdminHandle:   "invalid handle with spaces!",
 		AdminPassword: "password",
 	})
@@ -183,7 +179,6 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Subdomain:   "missing",
 		AdminHandle: "admin",
 	})
 	req := httptest.NewRequest(
@@ -195,42 +190,4 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.CreateOrg(w, req)
 	require.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestCreateOrg_DuplicateSubdomain(t *testing.T) {
-	srv := newCreateTestServer(t)
-
-	// Create the first org
-	body1, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Subdomain:     "dup",
-		Name:          "First",
-		AdminHandle:   "admin1",
-		AdminPassword: "password1",
-	})
-	req1 := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body1),
-	)
-	req1.Header.Set("Content-Type", "application/json")
-	w1 := httptest.NewRecorder()
-	srv.CreateOrg(w1, req1)
-	require.Equal(t, http.StatusOK, w1.Code)
-
-	// Try to create another org with the same subdomain
-	body2, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Subdomain:     "dup",
-		Name:          "Second",
-		AdminHandle:   "admin2",
-		AdminPassword: "password2",
-	})
-	req2 := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.org.create",
-		bytes.NewReader(body2),
-	)
-	req2.Header.Set("Content-Type", "application/json")
-	w2 := httptest.NewRecorder()
-	srv.CreateOrg(w2, req2)
-	require.Equal(t, http.StatusConflict, w2.Code)
 }

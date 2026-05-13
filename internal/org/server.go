@@ -52,12 +52,17 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Subdomain == "" || req.AdminHandle == "" || req.AdminPassword == "" {
+	if req.AdminHandle == "" || req.AdminPassword == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	orgID, id, err := s.store.CreateOrg(r.Context(), req.Subdomain, req.Name, req.AdminHandle, req.AdminPassword)
+	orgID, id, err := s.store.CreateOrg(
+		r.Context(),
+		req.Name,
+		req.AdminHandle,
+		req.AdminPassword,
+	)
 	if errors.Is(err, identity.ErrInvalidHandle) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

@@ -18,8 +18,6 @@ const id = 'network.habitat.org.create'
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The member subdomain for this org, e.g. acme.example.com. */
-  subdomain: string
   /** Internal handle for the bootstrap admin (alphanumeric, 1-50 chars). */
   admin_handle: string
   /** Password for the bootstrap admin account. */

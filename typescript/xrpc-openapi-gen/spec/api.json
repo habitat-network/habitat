@@ -958,15 +958,10 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "subdomain",
                   "admin_handle",
                   "admin_password"
                 ],
                 "properties": {
-                  "subdomain": {
-                    "type": "string",
-                    "description": "The member subdomain for this org, e.g. acme.example.com."
-                  },
                   "admin_handle": {
                     "type": "string",
                     "description": "Internal handle for the bootstrap admin (alphanumeric, 1-50 chars)."
