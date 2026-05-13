@@ -85,7 +85,7 @@ type inviteTokenClaims struct {
 	Reusable bool `json:"reusable"`
 }
 
-type store struct {
+type orgImpl struct {
 	orgID         string
 	subdomain     string
 	hive          hive.Hive
@@ -93,7 +93,7 @@ type store struct {
 	signingSecret []byte
 }
 
-var _ Org = &store{}
+var _ Org = &orgImpl{}
 
 func NewOrg(
 	orgID string,
@@ -101,11 +101,11 @@ func NewOrg(
 	hive hive.Hive,
 	db *gorm.DB,
 	signingSecret []byte,
-) (*store, error) {
+) (*orgImpl, error) {
 	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
-	return &store{
+	return &orgImpl{
 		orgID:         orgID,
 		subdomain:     subdomain,
 		hive:          hive,
@@ -115,13 +115,13 @@ func NewOrg(
 }
 
 // GetConfig implements Org.
-func (s *store) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
+func (s *orgImpl) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
 		Domain: s.subdomain,
 	}
 }
 
-func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
+func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	result := s.db.WithContext(ctx).Model(&member{}).
 		Where("org_id = ? AND member = ?", s.orgID, admin.String()).
 		Update("role", Admin)
@@ -134,11 +134,11 @@ func (s *store) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return nil
 }
 
-func (s *store) addMember(ctx context.Context, did syntax.DID, passwordHash string) error {
+func (s *orgImpl) addMember(ctx context.Context, did syntax.DID, passwordHash string) error {
 	return s.addMemberTx(ctx, s.db, did, passwordHash)
 }
 
-func (s *store) addMemberTx(
+func (s *orgImpl) addMemberTx(
 	ctx context.Context,
 	tx *gorm.DB,
 	did syntax.DID,
@@ -163,7 +163,7 @@ func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admi
 }
 */
 
-func (s *store) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
+func (s *orgImpl) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := s.db.WithContext(ctx).
 		Where("org_id = ? AND role = ?", s.orgID, Admin).
@@ -182,7 +182,7 @@ func (s *store) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-func (s *store) GetMembers(ctx context.Context) ([]syntax.DID, error) {
+func (s *orgImpl) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := s.db.WithContext(ctx).Where("org_id = ?", s.orgID).Find(&rows).Error; err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (s *store) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	return dids, nil
 }
 
-func (s *store) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
+func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).
 		Model(&member{}).
@@ -217,7 +217,7 @@ func (s *store) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 		Error
 }
 
-func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
+func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).
 		Model(&member{}).
@@ -235,7 +235,7 @@ func (s *store) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 		Error
 }
 
-func (s *store) RemoveMembers(ctx context.Context, members []syntax.DID) error {
+func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error {
 	dids := make([]string, 0, len(members))
 	for _, did := range members {
 		dids = append(dids, did.String())
@@ -246,7 +246,7 @@ func (s *store) RemoveMembers(ctx context.Context, members []syntax.DID) error {
 		Error
 }
 
-func (s *store) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
+func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).
 		Where("org_id = ? AND member = ? AND role = ?", s.orgID, did.String(), Admin).
@@ -258,7 +258,7 @@ func (s *store) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	return err == nil, err
 }
 
-func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
+func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).
 		Where("org_id = ? AND member = ?", s.orgID, did.String()).
@@ -270,7 +270,7 @@ func (s *store) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	return err == nil, err
 }
 
-func (s *store) validateIdentityToken(ctx context.Context, token string) error {
+func (s *orgImpl) validateIdentityToken(ctx context.Context, token string) error {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
 		return ErrInvalidToken
@@ -300,7 +300,7 @@ func (s *store) validateIdentityToken(ctx context.Context, token string) error {
 }
 
 // IssueIdentityToken implements Org.
-func (s *store) IssueIdentityToken(
+func (s *orgImpl) IssueIdentityToken(
 	ctx context.Context,
 	caller syntax.DID,
 	reusable bool,
@@ -333,7 +333,7 @@ func (s *store) IssueIdentityToken(
 }
 
 // CreateNewMemberIdentity implements Org.
-func (s *store) CreateNewMemberIdentity(
+func (s *orgImpl) CreateNewMemberIdentity(
 	ctx context.Context,
 	token string,
 	internalHandle string,
@@ -368,7 +368,7 @@ func (s *store) CreateNewMemberIdentity(
 	return id, nil
 }
 
-func (s *store) AuthenticateMember(
+func (s *orgImpl) AuthenticateMember(
 	ctx context.Context,
 	handle string,
 	password string,
@@ -431,12 +431,12 @@ func NewStore(
 	}, nil
 }
 
-func (s *storeImpl) orgFromModel(org *Organization) (*store, error) {
+func (s *storeImpl) orgFromModel(org *Organization) (*orgImpl, error) {
 	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
 	if err != nil {
 		return nil, err
 	}
-	return &store{
+	return &orgImpl{
 		orgID:         org.ID,
 		subdomain:     org.Subdomain,
 		hive:          s.hive,

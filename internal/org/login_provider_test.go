@@ -22,7 +22,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func newTestLoginProvider(t *testing.T) (*LoginProvider, *store) {
+func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *store) {
 	scoped, err := s.GetOrg(context.Background(), "test-org")
 	require.NoError(t, err)
 
-	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), scoped.(*store)
+	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), scoped.(*orgImpl)
 }
 
 func TestLoginProvider_Type(t *testing.T) {
@@ -154,7 +154,7 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
-func mintMember(t *testing.T, s *store) {
+func mintMember(t *testing.T, s *orgImpl) {
 	t.Helper()
 	ctx := context.Background()
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))

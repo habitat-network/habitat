@@ -38,7 +38,7 @@ func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 
 	scoped, err := storeImpl.GetOrg(context.Background(), "test-org")
 	require.NoError(t, err)
-	st := scoped.(*store)
+	st := scoped.(*orgImpl)
 	require.NoError(t, st.addMember(context.Background(), adminDID, testPasswordHash))
 	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
 
@@ -54,7 +54,11 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
 		ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339),
 	})
-	issueReq := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.issueInviteToken", bytes.NewReader(issueBody))
+	issueReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.issueInviteToken",
+		bytes.NewReader(issueBody),
+	)
 	issueReq.Header.Set("Content-Type", "application/json")
 	issueW := httptest.NewRecorder()
 	srv.IssueInviteToken(issueW, issueReq)
