@@ -13,6 +13,6 @@ type NetworkHabitatOrgCreateInput struct {
 type NetworkHabitatOrgCreateOutput struct {
 	AdminDid    string `json:"admin_did"`
 	AdminHandle string `json:"admin_handle"`
-	Name        string `json:"name,omitempty"`
+	Name        string `json:"name"`
 	OrgId       string `json:"org_id"`
 }

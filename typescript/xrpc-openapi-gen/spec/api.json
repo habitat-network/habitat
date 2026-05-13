@@ -989,7 +989,8 @@
                   "required": [
                     "org_id",
                     "admin_did",
-                    "admin_handle"
+                    "admin_handle",
+                    "name"
                   ],
                   "properties": {
                     "org_id": {

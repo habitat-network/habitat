@@ -34,7 +34,7 @@ export interface OutputSchema {
   /** The full handle of the bootstrap admin. */
   admin_handle: string
   /** The display name of the created org. */
-  name?: string
+  name: string
 }
 
 export interface CallOptions {

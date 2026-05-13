@@ -1193,7 +1193,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['org_id', 'admin_did', 'admin_handle'],
+            required: ['org_id', 'admin_did', 'admin_handle', 'name'],
             properties: {
               org_id: {
                 type: 'string',
