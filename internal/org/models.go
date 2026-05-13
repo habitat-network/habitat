@@ -2,8 +2,8 @@ package org
 
 import "time"
 
-// Organization represents a managed org on a pear instance.
-type Organization struct {
+// organization represents a managed org on a pear instance.
+type organization struct {
 	ID            string `gorm:"primaryKey"`
 	Name          string // optional display name
 	SigningSecret string // base64-encoded HMAC-SHA256 key for invite tokens

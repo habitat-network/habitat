@@ -414,7 +414,7 @@ func NewStore(
 	dir identity.Directory,
 	pearDomain string,
 ) (Store, error) {
-	if err := db.AutoMigrate(&Organization{}, &member{}, &spentToken{}); err != nil {
+	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &storeImpl{
@@ -426,7 +426,7 @@ func NewStore(
 	}, nil
 }
 
-func (s *storeImpl) orgFromModel(org *Organization) (*orgImpl, error) {
+func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
 	if err != nil {
 		return nil, err
@@ -441,7 +441,7 @@ func (s *storeImpl) orgFromModel(org *Organization) (*orgImpl, error) {
 
 // GetOrg returns the org with the given ID.
 func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
-	var org Organization
+	var org organization
 	if err := s.db.WithContext(ctx).Where("id = ?", orgID).First(&org).Error; err != nil {
 		return nil, ErrOrgNotFound
 	}
@@ -524,7 +524,7 @@ func (s *storeImpl) CreateOrg(
 
 	// Persist org, identity, and admin member in a single transaction
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&Organization{
+		if err := tx.Create(&organization{
 			ID:            orgID,
 			Name:          name,
 			SigningSecret: signingSecret,
