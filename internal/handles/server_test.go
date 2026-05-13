@@ -24,7 +24,7 @@ func newTestServer(t *testing.T) *Server {
 	require.NoError(t, err)
 	h, err := New(db)
 	require.NoError(t, err)
-	srv, err := NewServer(h, authn.NewStubAuthnForTest(testDID), identity.DefaultDirectory(), nil)
+	srv, err := NewServer(h)
 	require.NoError(t, err)
 	return srv
 }
@@ -77,8 +77,7 @@ func TestServeMintHandle_WrongCaller(t *testing.T) {
 	require.NoError(t, err)
 	h, err := New(db)
 	require.NoError(t, err)
-	otherDID := syntax.DID("did:web:other.example.com")
-	srv, err := NewServer(h, authn.NewStubAuthnForTest(otherDID), identity.DefaultDirectory(), nil)
+	srv, err := NewServer(h)
 	require.NoError(t, err)
 
 	body, _ := json.Marshal(map[string]string{
