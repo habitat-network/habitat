@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
+func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
@@ -29,10 +29,10 @@ func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	_, _, err = storeImpl.CreateOrg(t.Context(), "test-org", "admin", "password")
+	orgId, _, err := storeImpl.CreateOrg(t.Context(), "test-org", "admin", "password")
 	require.NoError(t, err)
 
-	scoped, err := storeImpl.GetOrg(context.Background(), "test-org")
+	scoped, err := storeImpl.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	st := scoped.(*orgImpl)
 	require.NoError(t, st.addMember(context.Background(), adminDID, testPasswordHash))
@@ -40,11 +40,11 @@ func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 
 	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID))
 	require.NoError(t, err)
-	return srv
+	return srv, orgId
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
-	srv := newTestServer(t, did1)
+	srv, orgId := newTestServer(t, did1)
 
 	// Admin issues an invite token
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
@@ -66,6 +66,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 	// Someone uses the token to mint an identity
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
+		OrgId:    orgId,
 		Token:    issueOut.Token,
 		Password: "password",
 		Handle:   "alice",
@@ -88,11 +89,11 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	newMemberDID, err := syntax.ParseDID(mintOut.Did)
 	require.NoError(t, err)
 
-	testOrg, err := srv.store.GetOrg(context.Background(), "test-org")
+	testOrg, err := srv.store.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	members, err := testOrg.GetMembers(context.Background())
 	require.NoError(t, err)
-	require.Len(t, members, 2)
+	require.Len(t, members, 3)
 	require.Contains(t, members, did1, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
 }
