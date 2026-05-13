@@ -3,6 +3,7 @@ package org
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,13 +15,33 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-func newTestLoginProvider(t *testing.T) (*LoginProvider, *store) {
+func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	t.Helper()
-	s := newTestStoreWithHive(t)
-	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), s
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+
+	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	require.NoError(t, err)
+
+	require.NoError(t, db.Create(&Organization{
+		ID:            "test-org",
+		Subdomain:     "example",
+		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
+	}).Error)
+
+	scoped, err := s.GetOrg(context.Background(), "test-org")
+	require.NoError(t, err)
+
+	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), scoped.(*orgImpl)
 }
 
 func TestLoginProvider_Type(t *testing.T) {
@@ -69,7 +90,11 @@ func TestLoginProvider_Authorize(t *testing.T) {
 	redirect, state, err := p.Authorize(context.Background(), id)
 	require.NoError(t, err)
 	require.Nil(t, state)
-	require.Equal(t, "https://frontend.example.com/login/habitat?handle=alice.example.com", redirect)
+	require.Equal(
+		t,
+		"https://frontend.example.com/login/habitat?handle=alice.example.com",
+		redirect,
+	)
 }
 
 func TestLoginProvider_Authorize_HandleEscaping(t *testing.T) {
@@ -129,7 +154,7 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
-func mintMember(t *testing.T, s *store) {
+func mintMember(t *testing.T, s *orgImpl) {
 	t.Helper()
 	ctx := context.Background()
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))

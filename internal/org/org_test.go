@@ -16,22 +16,22 @@ import (
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
-func newTestStore(t *testing.T) *store {
+func newTestStore(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", nil, db, testSigningSecret)
+	s, err := NewOrg("test-org", "test-domain", nil, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
 
-func newTestStoreWithHive(t *testing.T) *store {
+func newTestStoreWithHive(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", h, db, testSigningSecret)
+	s, err := NewOrg("test-org", "test-domain", h, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -143,7 +143,7 @@ func TestRemoveMembers(t *testing.T) {
 func TestGetMetadata(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-domain", nil, db, testSigningSecret)
+	s, err := NewOrg("test-org", "test-domain", nil, db, testSigningSecret)
 	require.NoError(t, err)
 
 	md := s.GetMetadata()

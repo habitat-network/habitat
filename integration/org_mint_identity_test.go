@@ -3,12 +3,14 @@ package integration
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -30,11 +32,25 @@ func TestMintThenLookup(t *testing.T) {
 	require.NoError(t, err)
 
 	adminDID := syntax.DID("did:plc:admin1234")
-	o, err := org.NewOrg("example.com", h, db, []byte("test-signing-secret-for-org-00000"))
-	require.NoError(t, err)
-	require.NoError(t, o.AddAdmin(ctx, adminDID))
 
-	orgServer, err := org.NewServer(o, authn.NewStubAuthnForTest(adminDID))
+	// Create the org store and seed an org
+	dir := identity.DefaultDirectory()
+	signingSecret := []byte("test-signing-secret-for-org-00000")
+	orgStore, err := org.NewStore(db, h, dir, "pear.example.com")
+	require.NoError(t, err)
+
+	// Seed the org into the database
+	require.NoError(t, db.Create(&org.Organization{
+		ID:            "test-org",
+		Domain:        "example.com",
+		SigningSecret: base64.StdEncoding.EncodeToString(signingSecret),
+	}).Error)
+
+	testOrg, err := orgStore.GetOrg(ctx, "test-org")
+	require.NoError(t, err)
+	require.NoError(t, testOrg.AddAdmin(ctx, adminDID))
+
+	orgServer, err := org.NewServer(orgStore, authn.NewStubAuthnForTest(adminDID))
 	require.NoError(t, err)
 
 	hiveServer, err := hive.NewServer(h)
@@ -54,6 +70,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	// New member uses the token to mint an identity via org server
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
+		OrgID:  "test-org",
 		Token:  issueOut.Token,
 		Handle: "alice",
 	})

@@ -2,6 +2,7 @@ package oauthserver
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,8 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
@@ -26,11 +29,28 @@ import (
 	"gorm.io/gorm"
 )
 
+// testStore creates a Store with a seeded test org.
+func testStore(t *testing.T) org.Store {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	h, err := hive.NewHive("example.com", "example.com", db)
+	require.NoError(t, err)
+	s, err := org.NewStore(db, h, identity.DefaultDirectory(), "example.com")
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&org.Organization{
+		ID:            "test-org",
+		Subdomain:     "example",
+		SigningSecret: base64.StdEncoding.EncodeToString([]byte("test-signing-secret-1234")),
+	}).Error)
+	return s
+}
+
 func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
-			nil, nil, nil, nil, nil, noop.Meter{}, org.NewEveryoneOrg(),
+			nil, nil, nil, nil, nil, noop.Meter{}, testStore(t),
 		)
 		require.Error(t, err)
 	})
@@ -55,7 +75,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		org.NewEveryoneOrg(),
+		testStore(t),
 	)
 	require.NoError(t, err)
 
@@ -152,7 +172,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		org.NewEveryoneOrg(),
+		testStore(t),
 	)
 	require.NoError(t, err)
 
@@ -268,7 +288,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		credStore,
 		db,
 		noop.Meter{},
-		org.NewEveryoneOrg(),
+		testStore(t),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -397,33 +417,38 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
 }
 
-// testIsMemberOrg wraps an org.Org and overrides IsMember, letting individual
-// tests inject specific outcomes without reimplementing the full interface.
-type testIsMemberOrg struct {
-	org.Org
-	fn func(ctx context.Context, did syntax.DID) (bool, error)
+// testIsMemberStore wraps an org.Store and overrides GetOrgByDID.
+type testIsMemberStore struct {
+	org.Store
+	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
 }
 
-func (o *testIsMemberOrg) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
-	return o.fn(ctx, did)
+func (s *testIsMemberStore) GetOrgForDID(ctx context.Context, did syntax.DID) (org.Org, error) {
+	return s.fn(ctx, did)
 }
 
 // acquireAccessToken drives the full authorization code flow and returns the
 // resulting bearer access token issued by srv.
-func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclient.ClientMetadata) string {
+func acquireAccessToken(
+	t *testing.T,
+	srv *OAuthServer,
+	clientMetadata *pdsclient.ClientMetadata,
+) string {
 	t.Helper()
-	flowServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/authorize":
-			srv.HandleAuthorize(w, r)
-		case "/oauth-callback":
-			srv.HandleCallback(w, r)
-		case "/token":
-			srv.HandleToken(w, r)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
+	flowServer := httptest.NewTLSServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/authorize":
+				srv.HandleAuthorize(w, r)
+			case "/oauth-callback":
+				srv.HandleCallback(w, r)
+			case "/token":
+				srv.HandleToken(w, r)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}),
+	)
 	t.Cleanup(flowServer.Close)
 
 	jar, err := cookiejar.New(nil)
@@ -452,7 +477,11 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 			}))
 		case "/oauth-callback":
 			ctx := context.WithValue(r.Context(), oauth2.HTTPClient, flowServer.Client())
-			token, exchangeErr := oauthCfg.Exchange(ctx, r.URL.Query().Get("code"), oauth2.VerifierOption(verifier))
+			token, exchangeErr := oauthCfg.Exchange(
+				ctx,
+				r.URL.Query().Get("code"),
+				oauth2.VerifierOption(verifier),
+			)
 			require.NoError(t, exchangeErr)
 			capturedToken = token.AccessToken
 		default:
@@ -464,8 +493,12 @@ func acquireAccessToken(t *testing.T, srv *OAuthServer, clientMetadata *pdsclien
 	oauthCfg.ClientID = clientApp.URL + "/client-metadata.json"
 	oauthCfg.RedirectURL = clientApp.URL + "/oauth-callback"
 
-	authReq, err := http.NewRequest(http.MethodGet,
-		oauthCfg.AuthCodeURL("test-state", oauth2.S256ChallengeOption(verifier))+"&handle=did:web:test",
+	authReq, err := http.NewRequest(
+		http.MethodGet,
+		oauthCfg.AuthCodeURL(
+			"test-state",
+			oauth2.S256ChallengeOption(verifier),
+		)+"&handle=did:web:test",
 		nil,
 	)
 	require.NoError(t, err)
@@ -494,7 +527,7 @@ func TestValidate(t *testing.T) {
 	// newSrv creates an OAuthServer sharing the same secret and database.
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
-	newSrv := func(o org.Org) *OAuthServer {
+	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
 			login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
@@ -503,14 +536,14 @@ func TestValidate(t *testing.T) {
 			credStore,
 			db,
 			noop.Meter{},
-			o,
+			st,
 		)
 		require.NoError(t, srvErr)
 		return s
 	}
 
 	// Issue a real JWT via the complete OAuth flow.
-	validToken := acquireAccessToken(t, newSrv(org.NewEveryoneOrg()), clientMetadata)
+	validToken := acquireAccessToken(t, newSrv(testStore(t)), clientMetadata)
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
 	// and returns the HTTP status code together with Validate's return values.
@@ -520,12 +553,14 @@ func TestValidate(t *testing.T) {
 			retDID syntax.DID
 			retOK  bool
 		)
-		httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			d, o := srv.Validate(w, r)
-			mu.Lock()
-			retDID, retOK = d, o
-			mu.Unlock()
-		}))
+		httpSrv := httptest.NewServer(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				d, o := srv.Validate(w, r)
+				mu.Lock()
+				retDID, retOK = d, o
+				mu.Unlock()
+			}),
+		)
 		defer httpSrv.Close()
 		req, reqErr := http.NewRequest(http.MethodGet, httpSrv.URL+"/", nil)
 		require.NoError(t, reqErr)
@@ -541,34 +576,32 @@ func TestValidate(t *testing.T) {
 	}
 
 	t.Run("missing token returns !ok", func(t *testing.T) {
-		status, _, ok := callValidate(newSrv(org.NewEveryoneOrg()), "")
+		status, _, ok := callValidate(newSrv(testStore(t)), "")
+		require.False(t, ok)
+		require.NotEqual(t, http.StatusOK, status)
+
+		status, _, ok = callValidate(newSrv(testStore(t)), "not.a.valid.jwt")
 		require.False(t, ok)
 		require.NotEqual(t, http.StatusOK, status)
 	})
 
-	t.Run("malformed JWT returns !ok", func(t *testing.T) {
-		status, _, ok := callValidate(newSrv(org.NewEveryoneOrg()), "not.a.valid.jwt")
-		require.False(t, ok)
-		require.NotEqual(t, http.StatusOK, status)
-	})
-
-	t.Run("IsMember error returns !ok with 500", func(t *testing.T) {
-		srv := newSrv(&testIsMemberOrg{
-			Org: org.NewEveryoneOrg(),
-			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
-				return false, errors.New("simulated database failure")
+	t.Run("GetOrgForDID error returns !ok with 401", func(t *testing.T) {
+		srv := newSrv(&testIsMemberStore{
+			Store: testStore(t),
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
+				return nil, errors.New("simulated database failure")
 			},
 		})
 		status, _, ok := callValidate(srv, validToken)
 		require.False(t, ok)
-		require.Equal(t, http.StatusInternalServerError, status)
+		require.Equal(t, http.StatusUnauthorized, status)
 	})
 
 	t.Run("non-member returns !ok with 401", func(t *testing.T) {
-		srv := newSrv(&testIsMemberOrg{
-			Org: org.NewEveryoneOrg(),
-			fn: func(_ context.Context, _ syntax.DID) (bool, error) {
-				return false, nil
+		srv := newSrv(&testIsMemberStore{
+			Store: testStore(t),
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
+				return nil, org.ErrMemberNotFound
 			},
 		})
 		status, _, ok := callValidate(srv, validToken)
@@ -577,7 +610,7 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("valid token for member returns DID and ok with 200", func(t *testing.T) {
-		status, did, ok := callValidate(newSrv(org.NewEveryoneOrg()), validToken)
+		status, did, ok := callValidate(newSrv(testStore(t)), validToken)
 		require.True(t, ok)
 		require.Equal(t, http.StatusOK, status)
 		require.Equal(t, syntax.DID("did:web:test"), did)

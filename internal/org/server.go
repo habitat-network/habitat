@@ -17,36 +17,45 @@ import (
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
-	org  Org
-	auth authn.Method
+	store Store
+	auth  authn.Method
 }
 
-func NewServer(org Org, auth authn.Method) (*Server, error) {
+func NewServer(store Store, auth authn.Method) (*Server, error) {
 	return &Server{
-		org:  org,
-		auth: auth,
+		store: store,
+		auth:  auth,
 	}, nil
 }
 
-// IsMember implements Org so that *Server can be used wherever an Org is expected.
+// IsMember checks if the given DID is a member of any org on this instance.
 func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) {
-	return s.org.IsMember(ctx, member)
+	_, err := s.store.GetOrgForDID(ctx, member)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Org APIs
 func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
-	// TODO: implement once we have a provisioner process; til then this is manual
 	_, _ = w.Write([]byte("unimplemented"))
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
-	_, ok := authn.Validate(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
 
-	dids, err := s.org.GetAdmins(r.Context())
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
+	dids, err := org.GetAdmins(r.Context())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting org members", http.StatusInternalServerError)
 	}
@@ -64,12 +73,18 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	_, ok := authn.Validate(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
 
-	dids, err := s.org.GetMembers(r.Context())
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
+	dids, err := org.GetMembers(r.Context())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "getting org members", http.StatusInternalServerError)
 	}
@@ -92,8 +107,14 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
 	var req habitat.NetworkHabitatOrgAddAdminInput
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
 		return
@@ -105,8 +126,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// authz: only admin can add admin
-	ok, err = s.org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 	}
@@ -116,58 +136,11 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.org.AddAdmin(r.Context(), admin.DID())
+	err = org.AddAdmin(r.Context(), admin.DID())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "adding admin", http.StatusInternalServerError)
 	}
 }
-
-/*
-// Commented out because a member can only be added through the new identity flow
-// We will allow non-org-hosted identities to join an org in the future but right now
-// this causes confusion because AT protocol does not support the concept of multiple repos well enough.
-//
-func (s *Server) AddMembers(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
-	if !ok {
-		return
-	}
-
-	var req habitat.NetworkHabitatOrgAddMembersInput
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
-		return
-	}
-
-	// authz: only admin can add members
-	ok, err = s.org.IsAdmin(r.Context(), caller)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
-		return
-	}
-
-	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	members := make([]syntax.DID, 0, len(req.Members))
-	for _, m := range req.Members {
-		id, err := syntax.ParseAtIdentifier(m)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
-			return
-		}
-		members = append(members, id.DID())
-	}
-
-	err = s.org.AddMembers(r.Context(), members)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "adding members", http.StatusInternalServerError)
-	}
-}
-*/
 
 func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 	caller, ok := authn.Validate(w, r, s.auth)
@@ -175,8 +148,14 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
 	var req habitat.NetworkHabitatOrgRemoveAdminInput
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
 		return
@@ -188,8 +167,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// authz: only admin can remove admin
-	ok, err = s.org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 		return
@@ -200,7 +178,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.org.RemoveAdmin(r.Context(), admin.DID())
+	err = org.RemoveAdmin(r.Context(), admin.DID())
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing admin", http.StatusInternalServerError)
 	}
@@ -209,6 +187,12 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
+		return
+	}
+
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
 		return
 	}
 
@@ -224,7 +208,7 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err = s.org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 		return
@@ -234,7 +218,7 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = s.org.DowngradeAdmin(r.Context(), admin.DID()); err != nil {
+	if err = org.DowngradeAdmin(r.Context(), admin.DID()); err != nil {
 		utils.LogAndHTTPError(w, err, "downgrading admin", http.StatusInternalServerError)
 	}
 }
@@ -245,15 +229,20 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
 	var req habitat.NetworkHabitatOrgRemoveMembersInput
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
-	// authz: only admin can remove members
-	ok, err = s.org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
 		return
@@ -274,52 +263,49 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 		members = append(members, id.DID())
 	}
 
-	err = s.org.RemoveMembers(r.Context(), members)
+	err = org.RemoveMembers(r.Context(), members)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing members", http.StatusInternalServerError)
 	}
 }
 
-// TODO: figure out a way to configure / store more metadata about the org
 func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
-	_, ok := authn.Validate(w, r, s.auth)
+	caller, ok := authn.Validate(w, r, s.auth)
 	if !ok {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(s.org.GetMetadata()); err != nil {
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(org.GetMetadata()); err != nil {
 		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
 }
 
 func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
-	/*
-		caller, ok := authn.Validate(w, r, s.auth)
-		if !ok {
-			return
-		}
+	caller, ok := authn.Validate(w, r, s.auth)
+	if !ok {
+		return
+	}
 
-		// authz: only admins can generate invite tokens
-		ok, err := s.org.IsAdmin(r.Context(), caller)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-	*/
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
 
 	var req habitat.NetworkHabitatOrgIssueInviteTokenInput
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
-	// Default expiry of token = in a week
 	expiresAt := time.Now().AddDate(0, 0, 7)
 	if req.ExpiresAt != "" {
 		parsed, err := time.Parse(time.RFC3339Nano, req.ExpiresAt)
@@ -330,7 +316,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		expiresAt = parsed
 	}
 
-	token, err := s.org.IssueIdentityToken(r.Context(), "", req.Reusable /* defaults to false */, expiresAt)
+	token, err := org.IssueIdentityToken(r.Context(), caller, req.Reusable, expiresAt)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "generating identity token", http.StatusInternalServerError)
 		return
@@ -353,12 +339,18 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Token == "" || req.Handle == "" || req.Password == "" {
+	if req.Token == "" || req.Handle == "" || req.Password == "" || req.OrgId == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	id, err := s.org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle, req.Password)
+	org, err := s.store.GetOrg(r.Context(), req.OrgId)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
+	id, err := org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle, req.Password)
 	if errors.Is(err, ErrInvalidToken) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return

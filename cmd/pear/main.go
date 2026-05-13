@@ -147,28 +147,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(otelmux.Middleware("habitat-server"))
 	mux.Use(corsMiddleware)
 
-	// TODO: take in non-everything org depending on CLI flag
-	servingOrg := cmd.Bool(fOrg)
-
 	// hive is the identity minting service for orgs.
-	// In the non-org case, this goes unused and the hive server serves atproto DIDs / DID docs of which there are none.
-	orgHive, err := hive.NewHive(domain /* member domain (alice.[member domain]) */, domain /* pear domain for DID doc service */, db)
+	orgHive, err := hive.NewHive(domain, domain, db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
 	dir := hive.NewWrappedDirectory(orgHive, identity.DefaultDirectory())
 
-	// Default: no org == org that serves everyone
-	pearOrg := org.NewEveryoneOrg()
-	if servingOrg {
-		inviteSecret, err := encrypt.ParseKey(cmd.String(fInviteTokenSecret))
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to parse org invite signing secret (HABITAT_ORG_INVITE_SIGNING_SECRET)")
-		}
-		pearOrg, err = org.NewOrg(domain, orgHive, db, inviteSecret)
-		if err != nil {
-			log.Fatal().Err(err).Msgf("unable to setup org store for domain: %s", domain)
-		}
+	// orgStore manages all orgs on this instance (managed orgs + everyone org for external DIDs)
+	orgStore, err := org.NewStore(db, orgHive, dir, domain)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup org store")
 	}
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
@@ -186,7 +175,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to parse oauth server secret for login provider")
 	}
-	orgLoginProvider := org.NewLoginProvider(pearOrg, cmd.String(fFrontendDomain), oauthSecret)
+	orgLoginProvider := org.NewLoginProvider(orgStore, cmd.String(fFrontendDomain), oauthSecret)
 
 	loginRouter := login.NewRouter(
 		login.NewPDSProvider(oauthClient, pdsCredStore),
@@ -201,7 +190,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		pdsCredStore,
 		db,
 		meter,
-		pearOrg,
+		orgStore,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup oauth server")
@@ -224,12 +213,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Server for org management routes
-	orgServer, err := org.NewServer(pearOrg, oauthServer)
+	orgServer, err := org.NewServer(orgStore, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 	}
-
-	// org management routes — only available on org-serving nodes
 	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
@@ -242,7 +229,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	cliqueServer := clique.NewServer(cliqueStore, oauthServer, authn.NewServiceAuthMethod(dir))
 
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), pearOrg)
+	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgStore)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
