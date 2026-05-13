@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -53,7 +54,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.AdminHandle == "" || req.AdminPassword == "" || req.Name == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
 		return
 	}
 

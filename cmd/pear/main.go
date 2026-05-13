@@ -217,7 +217,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 	}
-	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
@@ -227,10 +226,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 	mux.HandleFunc("/xrpc/network.habitat.org.issueInviteToken", orgServer.IssueInviteToken)
 	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
+	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
 	cliqueServer := clique.NewServer(cliqueStore, oauthServer, authn.NewServiceAuthMethod(dir))
 
-	pearServer := server.NewServer(dir, pear, oauthServer, authn.NewServiceAuthMethod(dir), orgStore)
+	pearServer := server.NewServer(
+		dir,
+		pear,
+		oauthServer,
+		authn.NewServiceAuthMethod(dir),
+		orgStore,
+	)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
@@ -242,8 +248,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// hive server routes
-	mux.Host("{opaqueID:.+}." + domain).Path("/.well-known/did.json").HandlerFunc(hiveServer.ServeDIDDoc)
-	mux.Host("{handle:.+}." + domain).Path("/.well-known/atproto-did").HandlerFunc(hiveServer.ServeHandle)
+	mux.Host("{opaqueID:.+}." + domain).
+		Path("/.well-known/did.json").
+		HandlerFunc(hiveServer.ServeDIDDoc)
+	mux.Host("{handle:.+}." + domain).
+		Path("/.well-known/atproto-did").
+		HandlerFunc(hiveServer.ServeHandle)
 
 	// handle waitlist signups
 	// TODO: this should be moved to a separate server; no need to run it for orgs
@@ -296,7 +306,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// permissions
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
-	mux.HandleFunc("/xrpc/network.habitat.permissions.removePermission", pearServer.RemovePermission)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.permissions.removePermission",
+		pearServer.RemovePermission,
+	)
 
 	// cliques
 	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
