@@ -40,6 +40,7 @@ func testStore(t *testing.T) org.Store {
 	require.NoError(t, err)
 	require.NoError(t, db.Create(&org.Organization{
 		ID:            "test-org",
+		Subdomain:     "example",
 		SigningSecret: base64.StdEncoding.EncodeToString([]byte("test-signing-secret-1234")),
 	}).Error)
 	return s

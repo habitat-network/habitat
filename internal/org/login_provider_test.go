@@ -34,6 +34,7 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *store) {
 
 	require.NoError(t, db.Create(&Organization{
 		ID:            "test-org",
+		Subdomain:     "example",
 		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
 	}).Error)
 
