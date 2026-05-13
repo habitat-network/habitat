@@ -16,7 +16,7 @@ import (
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
-func newTestStore(t *testing.T) *store {
+func newTestStore(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -25,7 +25,7 @@ func newTestStore(t *testing.T) *store {
 	return s
 }
 
-func newTestStoreWithHive(t *testing.T) *store {
+func newTestStoreWithHive(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
