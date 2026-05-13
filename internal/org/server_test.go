@@ -101,3 +101,136 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	require.Contains(t, members, did1, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
 }
+
+func newCreateTestServer(t *testing.T) *Server {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	require.NoError(t, err)
+	srv, err := NewServer(storeImpl, nil)
+	require.NoError(t, err)
+	return srv
+}
+
+func TestCreateOrg(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Subdomain:     "neworg",
+		Name:          "My Org",
+		AdminHandle:   "admin",
+		AdminPassword: "securepassword123",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var out habitat.NetworkHabitatOrgCreateOutput
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	require.NotEmpty(t, out.OrgId)
+	require.NotEmpty(t, out.AdminDid)
+	require.Contains(t, out.AdminHandle, "admin")
+	require.Equal(t, "My Org", out.Name)
+
+	adminDID, err := syntax.ParseDID(out.AdminDid)
+	require.NoError(t, err)
+
+	org, err := srv.store.GetOrg(context.Background(), out.OrgId)
+	require.NoError(t, err)
+	members, err := org.GetMembers(context.Background())
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	require.Equal(t, adminDID, members[0])
+
+	admins, err := org.GetAdmins(context.Background())
+	require.NoError(t, err)
+	require.Len(t, admins, 1)
+	require.Equal(t, adminDID, admins[0])
+
+	md := org.GetMetadata()
+	require.Equal(t, "My Org", md.Name)
+}
+
+func TestCreateOrg_InvalidHandle(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Subdomain:     "bad",
+		AdminHandle:   "invalid handle with spaces!",
+		AdminPassword: "password",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateOrg_MissingFields(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Subdomain:   "missing",
+		AdminHandle: "admin",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateOrg_DuplicateSubdomain(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	// Create the first org
+	body1, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Subdomain:     "dup",
+		Name:          "First",
+		AdminHandle:   "admin1",
+		AdminPassword: "password1",
+	})
+	req1 := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body1),
+	)
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	srv.CreateOrg(w1, req1)
+	require.Equal(t, http.StatusOK, w1.Code)
+
+	// Try to create another org with the same subdomain
+	body2, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Subdomain:     "dup",
+		Name:          "Second",
+		AdminHandle:   "admin2",
+		AdminPassword: "password2",
+	})
+	req2 := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body2),
+	)
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	srv.CreateOrg(w2, req2)
+	require.Equal(t, http.StatusConflict, w2.Code)
+}
