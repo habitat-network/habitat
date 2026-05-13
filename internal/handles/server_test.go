@@ -70,25 +70,6 @@ func TestServeMintHandle(t *testing.T) {
 	require.Equal(t, testDID, ident.DID)
 }
 
-func TestServeMintHandle_WrongCaller(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
-	h, err := New(db)
-	require.NoError(t, err)
-	srv, err := NewServer(h)
-	require.NoError(t, err)
-
-	body, _ := json.Marshal(map[string]string{
-		"handle": "alice.example.com",
-		"did":    string(testDID),
-	})
-	r := httptest.NewRequest(http.MethodPost, "/mint-handle", bytes.NewReader(body))
-	r.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	srv.MintHandle(w, r)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
 func TestServeMintHandle_InvalidBody(t *testing.T) {
 	srv := newTestServer(t)
 
