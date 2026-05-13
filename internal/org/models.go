@@ -6,7 +6,7 @@ import "time"
 type Organization struct {
 	ID            string `gorm:"primaryKey"`
 	Name          string // optional display name
-	Subdomain     string // subdomain hosted under
+	Subdomain     string `gorm:"unique"`
 	SigningSecret string // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt     time.Time
 }
