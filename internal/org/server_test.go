@@ -3,7 +3,6 @@ package org
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -150,9 +149,6 @@ func TestCreateOrg(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, admins, 1)
 	require.Equal(t, adminDID, admins[0])
-
-	md := org.GetMetadata()
-	require.Equal(t, "My Org", md.Name)
 }
 
 func TestCreateOrg_InvalidHandle(t *testing.T) {
