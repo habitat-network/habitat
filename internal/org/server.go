@@ -52,7 +52,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AdminHandle == "" || req.AdminPassword == "" {
+	if req.AdminHandle == "" || req.AdminPassword == "" || req.Name == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -309,24 +309,6 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 	err = org.RemoveMembers(r.Context(), members)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing members", http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
-	if !ok {
-		return
-	}
-
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(org.GetMetadata()); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
-		return
 	}
 }
 

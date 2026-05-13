@@ -1427,6 +1427,10 @@ export const schemaDict = {
             type: 'object',
             required: ['token', 'handle', 'password'],
             properties: {
+              orgId: {
+                type: 'string',
+                description: 'The ID of the org this member is joining.',
+              },
               handle: {
                 type: 'string',
                 description:

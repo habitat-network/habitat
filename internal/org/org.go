@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
@@ -381,12 +382,18 @@ func (s *orgImpl) AuthenticateMember(
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Don't leak whether the handle exists
 		return false, nil
 	} else if err != nil {
 		return false, err
 	}
 
-	return verifyPassword(password, row.PasswordHash)
+	ok, err := verifyPassword(password, row.PasswordHash)
+	if errors.Is(err, argon2id.ErrInvalidHash) {
+		// Members created before passwords were required have no usable hash.
+		return false, nil
+	}
+	return ok, err
 }
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
