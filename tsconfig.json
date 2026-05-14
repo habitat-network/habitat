@@ -5,28 +5,28 @@
   ],
   "references": [
     {
-      "path": "api-docs"
+      "path": "./api-docs"
+    },
+    {
+      "path": "./frontend"
+    },
+    {
+      "path": "./typescript/api"
+    },
+    {
+      "path": "./typescript/apps/calendar"
+    },
+    {
+      "path": "./typescript/apps/docs"
+    },
+    {
+      "path": "./typescript/apps/greensky"
+    },
+    {
+      "path": "./typescript/internal"
     },
     {
       "path": "camera"
-    },
-    {
-      "path": "frontend"
-    },
-    {
-      "path": "typescript/api"
-    },
-    {
-      "path": "typescript/apps/calendar"
-    },
-    {
-      "path": "typescript/apps/docs"
-    },
-    {
-      "path": "typescript/apps/greensky"
-    },
-    {
-      "path": "typescript/internal"
     }
   ]
 }
