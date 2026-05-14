@@ -9,6 +9,7 @@ tasks:
     options:
       mergeDeps: replace
       mergeArgs: replace
+      runInCI: skip
   dev:
     command: pnpm
     args: start
