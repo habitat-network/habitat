@@ -2,7 +2,7 @@ go = "1.26"
 golangci-lint = "2.12.2"
 moon = "2.2.4"
 node = "24.4.1"
-pnpm = "11.1.1"
+pnpm = "10.21.0"
 
 [plugins.tools]
 golangci-lint = "https://raw.githubusercontent.com/b4nst/proto-plugins/refs/heads/main/toml/golangci-lint.toml"
