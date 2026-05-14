@@ -18,8 +18,3 @@ vcs:
     - moon :format --affected --status=staged --no-bail
   defaultBranch: master
   client: git
-docker:
-  scaffold:
-    configsPhaseGlobs:
-    - '**/go.mod'
-    - '**/go.sum'
