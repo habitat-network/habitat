@@ -5,13 +5,11 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Server struct {
 	handles Handles
-	auth    authn.Method
 }
 
 func NewServer(
