@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/rs/zerolog/log"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pear"
@@ -69,13 +70,16 @@ func (s *Server) EvaluateAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	decision := false
-	if req.Action.Name == "can_read" {
+	switch req.Action.Name {
+	case "can_read":
 		var permErr error
 		decision, permErr = s.pear.HasPermission(r.Context(), callerDID, requester, owner, collection, rkey)
 		if permErr != nil {
 			utils.LogAndHTTPError(w, permErr, "permission check failed", http.StatusInternalServerError)
 			return
 		}
+	default:
+		log.Warn().Str("action", req.Action.Name).Msg("authzen: unsupported action, denying")
 	}
 
 	output := &habitat.NetworkHabitatAuthzenEvaluateOutput{

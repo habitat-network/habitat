@@ -75,7 +75,7 @@ func jsonBody(t *testing.T, v any) *strings.Reader {
 
 func requireDecision(t *testing.T, resp *http.Response, expected bool) {
 	t.Helper()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var actual habitat.NetworkHabitatAuthzenEvaluateOutput
 	err := json.NewDecoder(resp.Body).Decode(&actual)
 	require.NoError(t, err)
