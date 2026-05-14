@@ -13,6 +13,5 @@ tasks:
     options:
       internal: true
       runFromWorkspaceRoot: true
-      outputStyle: stream
       cache: false
       runInCI: false
