@@ -19,7 +19,9 @@
   "paths": {
     "/network.habitat.clique.addMembers": {
       "post": {
-        "tags": ["network.habitat.clique"],
+        "tags": [
+          "network.habitat.clique"
+        ],
         "summary": "network.habitat.clique.addMembers",
         "description": "Add member(s) to a clique. The clique must be editable by the caller.",
         "operationId": "network.habitat.clique.addMembers",
@@ -34,7 +36,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["clique", "members"],
+                "required": [
+                  "clique",
+                  "members"
+                ],
                 "properties": {
                   "clique": {
                     "$ref": "#/components/schemas/network.habitat.grantee.clique"
@@ -61,7 +66,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -91,7 +99,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -109,7 +120,9 @@
     },
     "/network.habitat.clique.createClique": {
       "post": {
-        "tags": ["network.habitat.clique"],
+        "tags": [
+          "network.habitat.clique"
+        ],
         "summary": "network.habitat.clique.createClique",
         "description": "Create a clique. The clique is owned by the caller. Optionally provide members to be added to this clique.",
         "operationId": "network.habitat.clique.createClique",
@@ -144,7 +157,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["clique"],
+                  "required": [
+                    "clique"
+                  ],
                   "properties": {
                     "clique": {
                       "type": "string",
@@ -161,7 +176,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -191,7 +209,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -209,7 +230,9 @@
     },
     "/network.habitat.clique.getMembers": {
       "get": {
-        "tags": ["network.habitat.clique"],
+        "tags": [
+          "network.habitat.clique"
+        ],
         "summary": "network.habitat.clique.getMembers",
         "description": "See the member(s) to a clique. The clique must be readable by the caller.",
         "operationId": "network.habitat.clique.getMembers",
@@ -237,7 +260,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["members"],
+                  "required": [
+                    "members"
+                  ],
                   "properties": {
                     "members": {
                       "type": "array",
@@ -257,7 +282,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -287,7 +315,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -305,7 +336,9 @@
     },
     "/network.habitat.clique.isMember": {
       "get": {
-        "tags": ["network.habitat.clique"],
+        "tags": [
+          "network.habitat.clique"
+        ],
         "summary": "network.habitat.clique.isMember",
         "description": "See if a user belongs to a clique. The clique must be readable by the caller.",
         "operationId": "network.habitat.clique.isMember",
@@ -342,7 +375,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["found"],
+                  "required": [
+                    "found"
+                  ],
                   "properties": {
                     "found": {
                       "type": "boolean",
@@ -359,7 +394,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -389,7 +427,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -407,7 +448,9 @@
     },
     "/network.habitat.clique.removeMembers": {
       "post": {
-        "tags": ["network.habitat.clique"],
+        "tags": [
+          "network.habitat.clique"
+        ],
         "summary": "network.habitat.clique.removeMembers",
         "description": "Remove member(s) to a clique. The clique must be editable by the caller.",
         "operationId": "network.habitat.clique.removeMembers",
@@ -422,7 +465,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["clique", "members"],
+                "required": [
+                  "clique",
+                  "members"
+                ],
                 "properties": {
                   "clique": {
                     "$ref": "#/components/schemas/network.habitat.grantee.clique"
@@ -449,7 +495,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -479,7 +528,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -497,7 +549,9 @@
     },
     "/network.habitat.internal.notifyOfUpdate": {
       "post": {
-        "tags": ["network.habitat.internal"],
+        "tags": [
+          "network.habitat.internal"
+        ],
         "summary": "network.habitat.internal.notifyOfUpdate",
         "description": "Notify another DID that there is an update for them on the fiven record.",
         "operationId": "network.habitat.internal.notifyOfUpdate",
@@ -512,7 +566,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["collection", "rkey", "recipient"],
+                "required": [
+                  "collection",
+                  "rkey",
+                  "recipient"
+                ],
                 "properties": {
                   "recipient": {
                     "type": "string",
@@ -543,7 +601,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -573,7 +634,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -591,7 +655,9 @@
     },
     "/network.habitat.listConnectedApps": {
       "get": {
-        "tags": ["network.habitat.listConnectedApps"],
+        "tags": [
+          "network.habitat.listConnectedApps"
+        ],
         "summary": "network.habitat.listConnectedApps",
         "description": "List apps connected to habitat for a given user. Returns connected apps for the authenticated user.",
         "operationId": "network.habitat.listConnectedApps",
@@ -607,7 +673,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["apps"],
+                  "required": [
+                    "apps"
+                  ],
                   "properties": {
                     "apps": {
                       "type": "array",
@@ -626,7 +694,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -656,7 +727,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -674,7 +748,9 @@
     },
     "/network.habitat.org.addAdmin": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.addAdmin",
         "description": "Add an admin to the org. Only callable by existing admins.",
         "operationId": "network.habitat.org.addAdmin",
@@ -689,7 +765,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["admin"],
+                "required": [
+                  "admin"
+                ],
                 "properties": {
                   "admin": {
                     "type": "string",
@@ -711,7 +789,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -741,7 +822,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -759,7 +843,9 @@
     },
     "/network.habitat.org.addMembers": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.addMembers",
         "description": "Add member(s) to the org. Only callable by admins.",
         "operationId": "network.habitat.org.addMembers",
@@ -774,7 +860,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["members"],
+                "required": [
+                  "members"
+                ],
                 "properties": {
                   "members": {
                     "type": "array",
@@ -798,7 +886,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -828,7 +919,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -846,7 +940,9 @@
     },
     "/network.habitat.org.create": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.create",
         "description": "Create a new org with a bootstrap admin member.",
         "operationId": "network.habitat.org.create",
@@ -861,7 +957,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["admin_handle", "admin_password"],
+                "required": [
+                  "admin_handle",
+                  "admin_password"
+                ],
                 "properties": {
                   "admin_handle": {
                     "type": "string",
@@ -887,7 +986,12 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["org_id", "admin_did", "admin_handle", "name"],
+                  "required": [
+                    "org_id",
+                    "admin_did",
+                    "admin_handle",
+                    "name"
+                  ],
                   "properties": {
                     "org_id": {
                       "type": "string",
@@ -916,7 +1020,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -946,7 +1053,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -964,7 +1074,9 @@
     },
     "/network.habitat.org.downgradeAdmin": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.downgradeAdmin",
         "description": "Downgrade an admin to a regular member. Only callable by existing admins. The last admin cannot be downgraded.",
         "operationId": "network.habitat.org.downgradeAdmin",
@@ -979,7 +1091,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["admin"],
+                "required": [
+                  "admin"
+                ],
                 "properties": {
                   "admin": {
                     "type": "string",
@@ -1001,7 +1115,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1031,7 +1148,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1049,7 +1169,9 @@
     },
     "/network.habitat.org.getAdmins": {
       "get": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.getAdmins",
         "description": "Get the list of admins in the org. Callable by any org member.",
         "operationId": "network.habitat.org.getAdmins",
@@ -1065,7 +1187,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["admins"],
+                  "required": [
+                    "admins"
+                  ],
                   "properties": {
                     "admins": {
                       "type": "array",
@@ -1085,7 +1209,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1115,7 +1242,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1133,7 +1263,9 @@
     },
     "/network.habitat.org.getMembers": {
       "get": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.getMembers",
         "description": "Get the list of members in the org. Callable by any org member.",
         "operationId": "network.habitat.org.getMembers",
@@ -1149,7 +1281,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["members"],
+                  "required": [
+                    "members"
+                  ],
                   "properties": {
                     "members": {
                       "type": "array",
@@ -1169,7 +1303,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1199,7 +1336,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1217,7 +1357,9 @@
     },
     "/network.habitat.org.getMetadata": {
       "get": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.getMetadata",
         "description": "Get general info about this organization.",
         "operationId": "network.habitat.org.getMetadata",
@@ -1233,7 +1375,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["domain"],
+                  "required": [
+                    "domain"
+                  ],
                   "properties": {
                     "domain": {
                       "type": "string",
@@ -1258,7 +1402,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1288,7 +1435,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1306,7 +1456,9 @@
     },
     "/network.habitat.org.issueInviteToken": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.issueInviteToken",
         "description": "Generate an invite token that can be sent to a member to join this organization.",
         "operationId": "network.habitat.org.issueInviteToken",
@@ -1343,7 +1495,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["token"],
+                  "required": [
+                    "token"
+                  ],
                   "properties": {
                     "token": {
                       "type": "string",
@@ -1360,7 +1514,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1390,7 +1547,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1408,7 +1568,9 @@
     },
     "/network.habitat.org.loginMember": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.loginMember",
         "description": "Authenticate a habitat org member with their handle and password, returning a short-lived token for use in the OAuth callback flow.",
         "operationId": "network.habitat.org.loginMember",
@@ -1423,7 +1585,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["handle", "password"],
+                "required": [
+                  "handle",
+                  "password"
+                ],
                 "properties": {
                   "handle": {
                     "type": "string",
@@ -1445,7 +1610,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["callbackURL"],
+                  "required": [
+                    "callbackURL"
+                  ],
                   "properties": {
                     "callbackURL": {
                       "type": "string",
@@ -1462,7 +1629,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1492,7 +1662,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1510,7 +1683,9 @@
     },
     "/network.habitat.org.mintMemberIdentity": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.mintMemberIdentity",
         "description": "Mint a new organization member identity with the given handle and token.",
         "operationId": "network.habitat.org.mintMemberIdentity",
@@ -1525,7 +1700,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["token", "handle", "password"],
+                "required": [
+                  "token",
+                  "handle",
+                  "password"
+                ],
                 "properties": {
                   "orgId": {
                     "type": "string",
@@ -1555,7 +1734,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["handle", "did"],
+                  "required": [
+                    "handle",
+                    "did"
+                  ],
                   "properties": {
                     "handle": {
                       "type": "string",
@@ -1576,7 +1758,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1606,7 +1791,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1624,7 +1812,9 @@
     },
     "/network.habitat.org.removeAdmin": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.removeAdmin",
         "description": "Remove an admin from the org. Only callable by existing admins. The last admin cannot be removed.",
         "operationId": "network.habitat.org.removeAdmin",
@@ -1639,7 +1829,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["admin"],
+                "required": [
+                  "admin"
+                ],
                 "properties": {
                   "admin": {
                     "type": "string",
@@ -1661,7 +1853,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1691,7 +1886,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1709,7 +1907,9 @@
     },
     "/network.habitat.org.removeMembers": {
       "post": {
-        "tags": ["network.habitat.org"],
+        "tags": [
+          "network.habitat.org"
+        ],
         "summary": "network.habitat.org.removeMembers",
         "description": "Remove member(s) from the org. Only callable by admins.",
         "operationId": "network.habitat.org.removeMembers",
@@ -1724,7 +1924,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["members"],
+                "required": [
+                  "members"
+                ],
                 "properties": {
                   "members": {
                     "type": "array",
@@ -1748,7 +1950,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1778,7 +1983,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1796,7 +2004,9 @@
     },
     "/network.habitat.permissions.addPermission": {
       "post": {
-        "tags": ["network.habitat.permissions"],
+        "tags": [
+          "network.habitat.permissions"
+        ],
         "summary": "network.habitat.permissions.addPermission",
         "description": "Grant read permission to a user or a clique for a specific collection or a specific record.",
         "operationId": "network.habitat.permissions.addPermission",
@@ -1811,7 +2021,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["grantees", "collection"],
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
                 "properties": {
                   "grantees": {
                     "type": "array",
@@ -1853,7 +2066,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1883,7 +2099,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1901,7 +2120,9 @@
     },
     "/network.habitat.permissions.listPermissions": {
       "get": {
-        "tags": ["network.habitat.permissions"],
+        "tags": [
+          "network.habitat.permissions"
+        ],
         "summary": "network.habitat.permissions.listPermissions",
         "description": "List read permissions visible to the authenticated user.",
         "operationId": "network.habitat.permissions.listPermissions",
@@ -1917,7 +2138,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["permissions"],
+                  "required": [
+                    "permissions"
+                  ],
                   "properties": {
                     "permissions": {
                       "type": "array",
@@ -1936,7 +2159,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -1966,7 +2192,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -1984,7 +2213,9 @@
     },
     "/network.habitat.permissions.removePermission": {
       "post": {
-        "tags": ["network.habitat.permissions"],
+        "tags": [
+          "network.habitat.permissions"
+        ],
         "summary": "network.habitat.permissions.removePermission",
         "description": "Revoke read permission from a user or a clique for a specific lexicon or record.",
         "operationId": "network.habitat.permissions.removePermission",
@@ -1999,7 +2230,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["grantees", "collection"],
+                "required": [
+                  "grantees",
+                  "collection"
+                ],
                 "properties": {
                   "grantees": {
                     "type": "array",
@@ -2041,7 +2275,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2071,7 +2308,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2089,7 +2329,9 @@
     },
     "/network.habitat.repo.createRecord": {
       "post": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.createRecord",
         "description": "Create a pear repository record, creating it if it does not exist already, or updating it as needed.",
         "operationId": "network.habitat.repo.createRecord",
@@ -2104,7 +2346,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["repo", "collection", "record"],
+                "required": [
+                  "repo",
+                  "collection",
+                  "record"
+                ],
                 "properties": {
                   "repo": {
                     "type": "string",
@@ -2157,7 +2403,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["uri"],
+                  "required": [
+                    "uri"
+                  ],
                   "properties": {
                     "uri": {
                       "type": "string",
@@ -2166,7 +2414,10 @@
                     },
                     "validationStatus": {
                       "type": "string",
-                      "enum": ["valid", "unknown"]
+                      "enum": [
+                        "valid",
+                        "unknown"
+                      ]
                     },
                     "clique": {
                       "type": "string",
@@ -2183,7 +2434,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2213,7 +2467,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2231,7 +2488,9 @@
     },
     "/network.habitat.repo.deleteRecord": {
       "post": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.deleteRecord",
         "description": "Delete a repository record, or ensure it doesn't exist. Requires auth, implemented by PDS.",
         "operationId": "network.habitat.repo.deleteRecord",
@@ -2246,7 +2505,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["repo", "collection", "rkey"],
+                "required": [
+                  "repo",
+                  "collection",
+                  "rkey"
+                ],
                 "properties": {
                   "repo": {
                     "type": "string",
@@ -2278,7 +2541,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2308,7 +2574,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2326,7 +2595,9 @@
     },
     "/network.habitat.repo.describeRepo": {
       "get": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.describeRepo",
         "description": "Get information about an account and repository, including the list of collections.",
         "operationId": "network.habitat.repo.describeRepo",
@@ -2379,7 +2650,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2409,7 +2683,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2427,7 +2704,9 @@
     },
     "/network.habitat.repo.getBlob": {
       "get": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.getBlob",
         "description": "Get a blob associated with a given account. Returns the full blob as originally uploaded. Does not require auth; implemented by PDS.",
         "operationId": "network.habitat.repo.getBlob",
@@ -2473,7 +2752,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2518,7 +2800,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2536,7 +2821,9 @@
     },
     "/network.habitat.repo.getRecord": {
       "get": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.getRecord",
         "description": "Get a single record from the pear repository.",
         "operationId": "network.habitat.repo.getRecord",
@@ -2597,7 +2884,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["uri", "value"],
+                  "required": [
+                    "uri",
+                    "value"
+                  ],
                   "properties": {
                     "uri": {
                       "type": "string",
@@ -2629,7 +2919,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2662,7 +2955,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2680,7 +2976,9 @@
     },
     "/network.habitat.repo.listRecords": {
       "get": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.listRecords",
         "description": "List records with optional filters for subjects, lexicons, and timestamps.",
         "operationId": "network.habitat.repo.listRecords",
@@ -2761,7 +3059,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["records"],
+                  "required": [
+                    "records"
+                  ],
                   "properties": {
                     "cursor": {
                       "type": "string"
@@ -2783,7 +3083,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2813,7 +3116,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2831,7 +3137,9 @@
     },
     "/network.habitat.repo.putRecord": {
       "post": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.putRecord",
         "description": "Write a pear repository record, creating it if it does not exist already, or updating it as needed.",
         "operationId": "network.habitat.repo.putRecord",
@@ -2846,7 +3154,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["repo", "collection", "record"],
+                "required": [
+                  "repo",
+                  "collection",
+                  "record"
+                ],
                 "properties": {
                   "repo": {
                     "type": "string",
@@ -2895,7 +3207,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["uri"],
+                  "required": [
+                    "uri"
+                  ],
                   "properties": {
                     "uri": {
                       "type": "string",
@@ -2904,7 +3218,10 @@
                     },
                     "validationStatus": {
                       "type": "string",
-                      "enum": ["valid", "unknown"]
+                      "enum": [
+                        "valid",
+                        "unknown"
+                      ]
                     }
                   }
                 }
@@ -2917,7 +3234,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -2947,7 +3267,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -2965,7 +3288,9 @@
     },
     "/network.habitat.repo.uploadBlob": {
       "post": {
-        "tags": ["network.habitat.repo"],
+        "tags": [
+          "network.habitat.repo"
+        ],
         "summary": "network.habitat.repo.uploadBlob",
         "description": "Upload a new blob, to be referenced from a repository record. The blob will be deleted if it is not referenced within a time window (eg, minutes). Blob restrictions (mimetype, size, etc) are enforced when the reference is created. Requires auth, implemented by PDS.",
         "operationId": "network.habitat.repo.uploadBlob",
@@ -2987,7 +3312,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["blob"],
+                  "required": [
+                    "blob"
+                  ],
                   "properties": {
                     "blob": {
                       "type": "string",
@@ -3008,7 +3335,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "type": "string",
@@ -3038,7 +3368,10 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "properties": {
                     "error": {
                       "const": "AuthMissing"
@@ -3064,7 +3397,10 @@
       },
       "network.habitat.docs": {
         "type": "object",
-        "required": ["name", "blob"],
+        "required": [
+          "name",
+          "blob"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -3084,7 +3420,9 @@
       "network.habitat.grantee.didGrantee": {
         "type": "object",
         "description": "A DID grantee",
-        "required": ["did"],
+        "required": [
+          "did"
+        ],
         "properties": {
           "did": {
             "type": "string",
@@ -3095,7 +3433,9 @@
       "network.habitat.grantee.clique": {
         "type": "object",
         "description": "A clique grantee in the form clique:did:plc:web:arushi/clique-key",
-        "required": ["clique"],
+        "required": [
+          "clique"
+        ],
         "properties": {
           "clique": {
             "type": "string"
@@ -3104,7 +3444,12 @@
       },
       "network.habitat.listConnectedApps.app": {
         "type": "object",
-        "required": ["name", "clientID", "clientUri", "lastUsed"],
+        "required": [
+          "name",
+          "clientID",
+          "clientUri",
+          "lastUsed"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -3131,7 +3476,11 @@
       },
       "network.habitat.permissions.listPermissions.permission": {
         "type": "object",
-        "required": ["grantee", "collection", "effect"],
+        "required": [
+          "grantee",
+          "collection",
+          "effect"
+        ],
         "properties": {
           "grantee": {
             "type": "string",
@@ -3149,13 +3498,18 @@
           "effect": {
             "type": "string",
             "description": "Whether this permission grants or denies access.",
-            "enum": ["allow", "deny"]
+            "enum": [
+              "allow",
+              "deny"
+            ]
           }
         }
       },
       "network.habitat.photo": {
         "type": "object",
-        "required": ["ref"],
+        "required": [
+          "ref"
+        ],
         "properties": {
           "ref": {
             "type": "string",
@@ -3169,7 +3523,11 @@
       },
       "network.habitat.render.schema": {
         "type": "object",
-        "required": ["targetLexicon", "title", "fields"],
+        "required": [
+          "targetLexicon",
+          "title",
+          "fields"
+        ],
         "properties": {
           "targetLexicon": {
             "type": "string",
@@ -3194,7 +3552,12 @@
       "network.habitat.render.schema.fieldSchema": {
         "type": "object",
         "description": "Describes how to display a single field of a record.",
-        "required": ["path", "label", "displayType", "priority"],
+        "required": [
+          "path",
+          "label",
+          "displayType",
+          "priority"
+        ],
         "properties": {
           "path": {
             "type": "string",
@@ -3272,7 +3635,12 @@
       },
       "network.habitat.repo.describeRepo.collectionMetadata": {
         "type": "object",
-        "required": ["nsid", "recordCount", "lastTouched", "grantees"],
+        "required": [
+          "nsid",
+          "recordCount",
+          "lastTouched",
+          "grantees"
+        ],
         "properties": {
           "nsid": {
             "type": "string",
@@ -3303,7 +3671,10 @@
       },
       "network.habitat.repo.listRecords.record": {
         "type": "object",
-        "required": ["uri", "value"],
+        "required": [
+          "uri",
+          "value"
+        ],
         "properties": {
           "uri": {
             "type": "string",

@@ -26,3 +26,8 @@ tasks:
     options:
       mergeDeps: replace
       mergeOutputs: replace
+workspace:
+  inheritedTasks:
+    exclude:
+      - format
+      - format-check
