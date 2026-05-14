@@ -13,3 +13,11 @@ tasks:
     command: golangci-lint run
     inputs:
     - /**/*.go
+  caddy:
+    command: caddy
+    args:
+    - run
+    - --config
+    - '@in(0)'
+    inputs:
+    - Caddyfile

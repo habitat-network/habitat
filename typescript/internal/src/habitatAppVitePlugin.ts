@@ -55,7 +55,7 @@ export default function habitatAppPlugin(options?: {
           base: domain ? `https://${domain}/` : "/",
           server: {
             host: true,
-            allowedHosts: [".ts.net"],
+            allowedHosts: [".ts.net", ".local.habitat.network"],
             port: process.env.SERVER_PORT
               ? parseInt(process.env.SERVER_PORT, 10)
               : undefined,

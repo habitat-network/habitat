@@ -3,33 +3,22 @@ tasks:
     deps:
     - root:build
   dev:
-    args:
-    - --
-    - --domain
-    - local.habitat.network
     env:
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'
       HABITAT_SERVICE_NAME: "habitat_local"
       DEBUG: 'true'
       DATABASE_URL: "postgres://habitat:habitat@localhost:5432/habitat"
+      HABITAT_DOMAIN: pear.local.habitat.network
     deps:
     - postgres
-    - caddy
-    # - target: funnel:start
-    #   args:
-    #   - '8000'
-    #   - pear
+    - root:caddy
   postgres:
     command: docker-compose -f ../../infra/docker-compose.yml up
     preset: server
+    options:
+      internal: true
   docker-build:
     options:
       internal: false
-  caddy:
-    command: caddy run --config Caddyfile
-    preset: server
-docker:
-  file:
-    buildTask: build
-    startTask: start
+      runInCI: true

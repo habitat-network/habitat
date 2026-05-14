@@ -8,3 +8,5 @@ tasks:
     outputs:
       - spec/api.json
       - /api-docs/static/api.json
+    options:
+      runInCI: skip
