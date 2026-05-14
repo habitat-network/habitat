@@ -21,6 +21,7 @@ var (
 	fOauthServerSecret = "oauth_server_secret"
 	fOauthClientSecret = "oauth_client_secret"
 	fFrontendDomain    = "frontend_domain"
+	fHiveDomain        = "hive_domain"
 )
 var profiles []string
 
@@ -83,6 +84,11 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Usage:    "The publicly available domain at which the habitat frontend can be found",
 				Required: true,
 				Sources:  getSources(fFrontendDomain),
+			},
+			&cli.StringFlag{
+				Name:    fHiveDomain,
+				Usage:   "The domain at which the hive hosts identities",
+				Sources: getSources(fHiveDomain),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
