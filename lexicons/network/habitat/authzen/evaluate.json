@@ -1,0 +1,91 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.authzen.evaluate",
+  "defs": {
+    "subject": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object"
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object"
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object"
+        }
+      }
+    },
+    "main": {
+      "type": "procedure",
+      "description": "AuthZEN Access Evaluation — check if a subject has access to a resource with a given action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject", "resource", "action"],
+          "properties": {
+            "subject": {
+              "type": "ref",
+              "ref": "#subject"
+            },
+            "resource": {
+              "type": "ref",
+              "ref": "#resource"
+            },
+            "action": {
+              "type": "ref",
+              "ref": "#action"
+            },
+            "context": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["decision"],
+          "properties": {
+            "decision": {
+              "type": "boolean"
+            },
+            "context": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  }
+}
