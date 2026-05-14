@@ -938,6 +938,140 @@
         }
       }
     },
+    "/network.habitat.org.create": {
+      "post": {
+        "tags": [
+          "network.habitat.org"
+        ],
+        "summary": "network.habitat.org.create",
+        "description": "Create a new org with a bootstrap admin member.",
+        "operationId": "network.habitat.org.create",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "admin_handle",
+                  "admin_password"
+                ],
+                "properties": {
+                  "admin_handle": {
+                    "type": "string",
+                    "description": "Internal handle for the bootstrap admin (alphanumeric, 1-50 chars)."
+                  },
+                  "admin_password": {
+                    "type": "string",
+                    "description": "Password for the bootstrap admin account."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "A display name for this org."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "org_id",
+                    "admin_did",
+                    "admin_handle",
+                    "name"
+                  ],
+                  "properties": {
+                    "org_id": {
+                      "type": "string",
+                      "description": "The ID of the created org."
+                    },
+                    "admin_did": {
+                      "type": "string",
+                      "description": "The DID of the bootstrap admin."
+                    },
+                    "admin_handle": {
+                      "type": "string",
+                      "description": "The full handle of the bootstrap admin."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The display name of the created org."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.org.downgradeAdmin": {
       "post": {
         "tags": [
@@ -1572,6 +1706,10 @@
                   "password"
                 ],
                 "properties": {
+                  "orgId": {
+                    "type": "string",
+                    "description": "The ID of the org this member is joining."
+                  },
                   "handle": {
                     "type": "string",
                     "description": "The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member."

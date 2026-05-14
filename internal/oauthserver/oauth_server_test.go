@@ -2,7 +2,6 @@ package oauthserver
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -38,11 +37,8 @@ func testStore(t *testing.T) org.Store {
 	require.NoError(t, err)
 	s, err := org.NewStore(db, h, identity.DefaultDirectory(), "example.com")
 	require.NoError(t, err)
-	require.NoError(t, db.Create(&org.Organization{
-		ID:            "test-org",
-		Subdomain:     "example",
-		SigningSecret: base64.StdEncoding.EncodeToString([]byte("test-signing-secret-1234")),
-	}).Error)
+	_, _, err = s.CreateOrg(t.Context(), "org-name", "admin", "password")
+	require.NoError(t, err)
 	return s
 }
 

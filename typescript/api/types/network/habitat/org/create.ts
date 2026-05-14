@@ -13,26 +13,28 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.org.mintMemberIdentity'
+const id = 'network.habitat.org.create'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The ID of the org this member is joining. */
-  orgId?: string
-  /** The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member. */
-  handle: string
-  /** The token that was issued by an org admin to allow members to join the organization.. */
-  token: string
-  /** The password for the new member's account. */
-  password: string
+  /** Internal handle for the bootstrap admin (alphanumeric, 1-50 chars). */
+  admin_handle: string
+  /** Password for the bootstrap admin account. */
+  admin_password: string
+  /** A display name for this org. */
+  name?: string
 }
 
 export interface OutputSchema {
-  /** The full handle of the newly minted member identity. */
-  handle: string
-  /** The DID of the newly minted member identity. */
-  did: string
+  /** The ID of the created org. */
+  org_id: string
+  /** The DID of the bootstrap admin. */
+  admin_did: string
+  /** The full handle of the bootstrap admin. */
+  admin_handle: string
+  /** The display name of the created org. */
+  name: string
 }
 
 export interface CallOptions {

@@ -3,7 +3,6 @@ package org
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,13 +31,10 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	require.NoError(t, db.Create(&Organization{
-		ID:            "test-org",
-		Subdomain:     "example",
-		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
-	}).Error)
+	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password")
+	require.NoError(t, err)
 
-	scoped, err := s.GetOrg(context.Background(), "test-org")
+	scoped, err := s.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 
 	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), scoped.(*orgImpl)

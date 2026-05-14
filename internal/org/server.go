@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -41,6 +42,48 @@ func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) 
 func (s *Server) BootstrapAdmin(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("unimplemented"))
 	w.WriteHeader(http.StatusNotImplemented)
+}
+
+func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
+	// no auth: bootstrapping a new org
+	var req habitat.NetworkHabitatOrgCreateInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.AdminHandle == "" || req.AdminPassword == "" || req.Name == "" {
+		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	orgID, id, err := s.store.CreateOrg(
+		r.Context(),
+		req.Name,
+		req.AdminHandle,
+		req.AdminPassword,
+	)
+	if errors.Is(err, identity.ErrInvalidHandle) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	} else if errors.Is(err, ErrOrgAlreadyExists) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	} else if err != nil {
+		utils.LogAndHTTPError(w, err, "creating organization", http.StatusInternalServerError)
+		return
+	}
+
+	output := habitat.NetworkHabitatOrgCreateOutput{
+		OrgId:       orgID,
+		AdminDid:    id.DID.String(),
+		AdminHandle: id.Handle.String(),
+		Name:        req.Name,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
@@ -266,24 +309,6 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 	err = org.RemoveMembers(r.Context(), members)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing members", http.StatusInternalServerError)
-	}
-}
-
-func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
-	if !ok {
-		return
-	}
-
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(org.GetMetadata()); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
-		return
 	}
 }
 

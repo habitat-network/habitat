@@ -7,7 +7,6 @@ tasks:
     - --
     - --domain
     - local.habitat.network
-    - --org
     env:
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'

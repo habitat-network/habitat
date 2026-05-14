@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -12,7 +13,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/hive"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -33,7 +33,12 @@ var (
 	ErrInvalidTokenExpiry = errors.New("token expiry must be < 1 month from now")
 	ErrOrgNotFound        = errors.New("organization not found")
 	ErrMemberNotFound     = errors.New("member not found in any org")
+	ErrOrgAlreadyExists   = errors.New("organization already exists")
 )
+
+func isDuplicateError(err error) bool {
+	return errors.Is(err, gorm.ErrDuplicatedKey)
+}
 
 // Org represents a single organization on a pear instance.
 type Org interface {
@@ -67,9 +72,6 @@ type Org interface {
 		password string,
 	) (*identity.Identity, error)
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
-
-	// Generic config about this org
-	GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput
 }
 
 // Store is the registry of all orgs on a pear instance.
@@ -78,6 +80,12 @@ type Store interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
 	GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error)
 	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
+	CreateOrg(
+		ctx context.Context,
+		name string,
+		adminHandle string,
+		adminPassword string,
+	) (orgID string, id *identity.Identity, err error)
 }
 
 type inviteTokenClaims struct {
@@ -87,7 +95,6 @@ type inviteTokenClaims struct {
 
 type orgImpl struct {
 	orgID         string
-	subdomain     string
 	hive          hive.Hive
 	db            *gorm.DB
 	signingSecret []byte
@@ -97,7 +104,6 @@ var _ Org = &orgImpl{}
 
 func NewOrg(
 	orgID string,
-	subdomain string,
 	hive hive.Hive,
 	db *gorm.DB,
 	signingSecret []byte,
@@ -107,18 +113,10 @@ func NewOrg(
 	}
 	return &orgImpl{
 		orgID:         orgID,
-		subdomain:     subdomain,
 		hive:          hive,
 		db:            db,
 		signingSecret: signingSecret,
 	}, nil
-}
-
-// GetConfig implements Org.
-func (s *orgImpl) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
-	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		Domain: s.subdomain,
-	}
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
@@ -374,11 +372,8 @@ func (s *orgImpl) AuthenticateMember(
 	password string,
 ) (bool, error) {
 	id, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
-	if errors.Is(err, identity.ErrHandleNotFound) || errors.Is(err, identity.ErrInvalidHandle) {
-		// Don't leak whether the handle exists
+	if err != nil {
 		return false, nil
-	} else if err != nil {
-		return false, err
 	}
 
 	var row member
@@ -419,7 +414,7 @@ func NewStore(
 	dir identity.Directory,
 	pearDomain string,
 ) (Store, error) {
-	if err := db.AutoMigrate(&Organization{}, &member{}, &spentToken{}); err != nil {
+	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &storeImpl{
@@ -431,14 +426,13 @@ func NewStore(
 	}, nil
 }
 
-func (s *storeImpl) orgFromModel(org *Organization) (*orgImpl, error) {
+func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
 	if err != nil {
 		return nil, err
 	}
 	return &orgImpl{
 		orgID:         org.ID,
-		subdomain:     org.Subdomain,
 		hive:          s.hive,
 		db:            s.db,
 		signingSecret: signingSecret,
@@ -447,7 +441,7 @@ func (s *storeImpl) orgFromModel(org *Organization) (*orgImpl, error) {
 
 // GetOrg returns the org with the given ID.
 func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
-	var org Organization
+	var org organization
 	if err := s.db.WithContext(ctx).Where("id = ?", orgID).First(&org).Error; err != nil {
 		return nil, ErrOrgNotFound
 	}
@@ -493,4 +487,68 @@ func (s *storeImpl) AuthenticateMember(
 	}
 
 	return org.AuthenticateMember(ctx, handle, password)
+}
+
+// CreateOrg creates a new org with a bootstrap admin member and returns the generated org ID and the admin identity.
+func (s *storeImpl) CreateOrg(
+	ctx context.Context,
+	name string,
+	adminHandle string,
+	adminPassword string,
+) (string, *identity.Identity, error) {
+	// Generate a random org ID
+	orgBytes := make([]byte, 16)
+	if _, err := rand.Read(orgBytes); err != nil {
+		return "", nil, err
+	}
+	orgID := fmt.Sprintf("%x", orgBytes)
+
+	// Generate signing secret
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return "", nil, err
+	}
+	signingSecret := base64.StdEncoding.EncodeToString(secret)
+
+	// Hash the admin password
+	passwordHash, err := hashPassword(adminPassword)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Mint identity for the admin
+	id, persistIdent, err := s.hive.MintIdentity(adminHandle)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Persist org, identity, and admin member in a single transaction
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&organization{
+			ID:            orgID,
+			Name:          name,
+			SigningSecret: signingSecret,
+			CreatedAt:     time.Now(),
+		}).Error; err != nil {
+			if isDuplicateError(err) {
+				return ErrOrgAlreadyExists
+			}
+			return err
+		}
+		if err := persistIdent(tx); err != nil {
+			return err
+		}
+		return tx.Create(&member{
+			OrgID:        orgID,
+			Member:       id.DID.String(),
+			Role:         string(Admin),
+			PasswordHash: passwordHash,
+			CreatedAt:    time.Now(),
+		}).Error
+	})
+	if err != nil {
+		return "", nil, err
+	}
+
+	return orgID, id, nil
 }
