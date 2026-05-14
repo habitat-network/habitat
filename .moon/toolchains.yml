@@ -3,7 +3,7 @@ go:
   tidyOnChange: true
   bins:
   - github.com/vladopajic/go-test-coverage/v2@v2.18.3
-  - github.com/air-verse/air@latest
+  - github.com/air-verse/air@v1.65.1
 node:
   version: null
 pnpm:
