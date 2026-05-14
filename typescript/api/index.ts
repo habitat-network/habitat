@@ -35,6 +35,7 @@ import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/i
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 import * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
 import * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+import * as NetworkHabitatOrgCreate from './types/network/habitat/org/create.js'
 import * as NetworkHabitatOrgDowngradeAdmin from './types/network/habitat/org/downgradeAdmin.js'
 import * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
 import * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
@@ -84,6 +85,7 @@ export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/i
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
 export * as NetworkHabitatOrgAddAdmin from './types/network/habitat/org/addAdmin.js'
 export * as NetworkHabitatOrgAddMembers from './types/network/habitat/org/addMembers.js'
+export * as NetworkHabitatOrgCreate from './types/network/habitat/org/create.js'
 export * as NetworkHabitatOrgDowngradeAdmin from './types/network/habitat/org/downgradeAdmin.js'
 export * as NetworkHabitatOrgGetAdmins from './types/network/habitat/org/getAdmins.js'
 export * as NetworkHabitatOrgGetMembers from './types/network/habitat/org/getMembers.js'
@@ -689,6 +691,13 @@ export class NetworkHabitatOrgNS {
       data,
       opts,
     )
+  }
+
+  create(
+    data?: NetworkHabitatOrgCreate.InputSchema,
+    opts?: NetworkHabitatOrgCreate.CallOptions,
+  ): Promise<NetworkHabitatOrgCreate.Response> {
+    return this._client.call('network.habitat.org.create', opts?.qp, data, opts)
   }
 
   downgradeAdmin(

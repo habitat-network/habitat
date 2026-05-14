@@ -1160,6 +1160,63 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgCreate: {
+    lexicon: 1,
+    id: 'network.habitat.org.create',
+    defs: {
+      main: {
+        type: 'procedure',
+        description: 'Create a new org with a bootstrap admin member.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['admin_handle', 'admin_password'],
+            properties: {
+              admin_handle: {
+                type: 'string',
+                description:
+                  'Internal handle for the bootstrap admin (alphanumeric, 1-50 chars).',
+              },
+              admin_password: {
+                type: 'string',
+                description: 'Password for the bootstrap admin account.',
+              },
+              name: {
+                type: 'string',
+                description: 'A display name for this org.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org_id', 'admin_did', 'admin_handle', 'name'],
+            properties: {
+              org_id: {
+                type: 'string',
+                description: 'The ID of the created org.',
+              },
+              admin_did: {
+                type: 'string',
+                description: 'The DID of the bootstrap admin.',
+              },
+              admin_handle: {
+                type: 'string',
+                description: 'The full handle of the bootstrap admin.',
+              },
+              name: {
+                type: 'string',
+                description: 'The display name of the created org.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatOrgDowngradeAdmin: {
     lexicon: 1,
     id: 'network.habitat.org.downgradeAdmin',
@@ -1370,6 +1427,10 @@ export const schemaDict = {
             type: 'object',
             required: ['token', 'handle', 'password'],
             properties: {
+              orgId: {
+                type: 'string',
+                description: 'The ID of the org this member is joining.',
+              },
               handle: {
                 type: 'string',
                 description:
@@ -2313,6 +2374,7 @@ export const ids = {
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',
   NetworkHabitatOrgAddAdmin: 'network.habitat.org.addAdmin',
   NetworkHabitatOrgAddMembers: 'network.habitat.org.addMembers',
+  NetworkHabitatOrgCreate: 'network.habitat.org.create',
   NetworkHabitatOrgDowngradeAdmin: 'network.habitat.org.downgradeAdmin',
   NetworkHabitatOrgGetAdmins: 'network.habitat.org.getAdmins',
   NetworkHabitatOrgGetMembers: 'network.habitat.org.getMembers',

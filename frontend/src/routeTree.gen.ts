@@ -17,6 +17,7 @@ import { Route as DevtoolsRouteImport } from './routes/devtools'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as OrgJoinRouteImport } from './routes/org/join'
+import { Route as OrgCreateRouteImport } from './routes/org/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
@@ -71,6 +72,11 @@ const RequireAuthIndexRoute = RequireAuthIndexRouteImport.update({
 const OrgJoinRoute = OrgJoinRouteImport.update({
   id: '/org/join',
   path: '/org/join',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrgCreateRoute = OrgCreateRouteImport.update({
+  id: '/org/create',
+  path: '/org/create',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginHabitatRoute = LoginHabitatRouteImport.update({
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/data': typeof RequireAuthDataRoute
   '/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/login/habitat': typeof LoginHabitatRoute
+  '/org/create': typeof OrgCreateRoute
   '/org/join': typeof OrgJoinRoute
   '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/onboard': typeof OnboardRoute
   '/data': typeof RequireAuthDataRoute
   '/login/habitat': typeof LoginHabitatRoute
+  '/org/create': typeof OrgCreateRoute
   '/org/join': typeof OrgJoinRoute
   '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/login/habitat': typeof LoginHabitatRoute
+  '/org/create': typeof OrgCreateRoute
   '/org/join': typeof OrgJoinRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
   '/_requireAuth/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
@@ -248,6 +257,7 @@ export interface FileRouteTypes {
     | '/data'
     | '/permissions'
     | '/login/habitat'
+    | '/org/create'
     | '/org/join'
     | '/'
     | '/collections/$collection'
@@ -271,6 +281,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/data'
     | '/login/habitat'
+    | '/org/create'
     | '/org/join'
     | '/'
     | '/collections/$collection'
@@ -296,6 +307,7 @@ export interface FileRouteTypes {
     | '/_requireAuth/data'
     | '/_requireAuth/permissions'
     | '/login/habitat'
+    | '/org/create'
     | '/org/join'
     | '/_requireAuth/'
     | '/_requireAuth/collections/$collection'
@@ -319,6 +331,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRouteWithChildren
   OauthLoginRoute: typeof OauthLoginRoute
   OnboardRoute: typeof OnboardRoute
+  OrgCreateRoute: typeof OrgCreateRoute
   OrgJoinRoute: typeof OrgJoinRoute
 }
 
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/org/join'
       fullPath: '/org/join'
       preLoaderRoute: typeof OrgJoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/org/create': {
+      id: '/org/create'
+      path: '/org/create'
+      fullPath: '/org/create'
+      preLoaderRoute: typeof OrgCreateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login/habitat': {
@@ -594,6 +614,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRouteWithChildren,
   OauthLoginRoute: OauthLoginRoute,
   OnboardRoute: OnboardRoute,
+  OrgCreateRoute: OrgCreateRoute,
   OrgJoinRoute: OrgJoinRoute,
 }
 export const routeTree = rootRouteImport

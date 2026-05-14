@@ -3,7 +3,6 @@ package org
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +20,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
+func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
@@ -30,13 +29,10 @@ func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	require.NoError(t, db.Create(&Organization{
-		ID:            "test-org",
-		Subdomain:     "example.com",
-		SigningSecret: base64.StdEncoding.EncodeToString(testSigningSecret),
-	}).Error)
+	orgId, _, err := storeImpl.CreateOrg(t.Context(), "test-org", "admin", "password")
+	require.NoError(t, err)
 
-	scoped, err := storeImpl.GetOrg(context.Background(), "test-org")
+	scoped, err := storeImpl.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	st := scoped.(*orgImpl)
 	require.NoError(t, st.addMember(context.Background(), adminDID, testPasswordHash))
@@ -44,11 +40,11 @@ func newTestServer(t *testing.T, adminDID syntax.DID) *Server {
 
 	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID))
 	require.NoError(t, err)
-	return srv
+	return srv, orgId
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
-	srv := newTestServer(t, did1)
+	srv, orgId := newTestServer(t, did1)
 
 	// Admin issues an invite token
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
@@ -70,7 +66,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 	// Someone uses the token to mint an identity
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
-		OrgId:    "test-org",
+		OrgId:    orgId,
 		Token:    issueOut.Token,
 		Password: "password",
 		Handle:   "alice",
@@ -93,11 +89,100 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	newMemberDID, err := syntax.ParseDID(mintOut.Did)
 	require.NoError(t, err)
 
-	testOrg, err := srv.store.GetOrg(context.Background(), "test-org")
+	testOrg, err := srv.store.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	members, err := testOrg.GetMembers(context.Background())
 	require.NoError(t, err)
-	require.Len(t, members, 2)
+	require.Len(t, members, 3)
 	require.Contains(t, members, did1, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
+}
+
+func newCreateTestServer(t *testing.T) *Server {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	require.NoError(t, err)
+	srv, err := NewServer(storeImpl, nil)
+	require.NoError(t, err)
+	return srv
+}
+
+func TestCreateOrg(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		Name:          "My Org",
+		AdminHandle:   "admin",
+		AdminPassword: "securepassword123",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var out habitat.NetworkHabitatOrgCreateOutput
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
+	require.NotEmpty(t, out.OrgId)
+	require.NotEmpty(t, out.AdminDid)
+	require.Contains(t, out.AdminHandle, "admin")
+	require.Equal(t, "My Org", out.Name)
+
+	adminDID, err := syntax.ParseDID(out.AdminDid)
+	require.NoError(t, err)
+
+	org, err := srv.store.GetOrg(context.Background(), out.OrgId)
+	require.NoError(t, err)
+	members, err := org.GetMembers(context.Background())
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	require.Equal(t, adminDID, members[0])
+
+	admins, err := org.GetAdmins(context.Background())
+	require.NoError(t, err)
+	require.Len(t, admins, 1)
+	require.Equal(t, adminDID, admins[0])
+}
+
+func TestCreateOrg_InvalidHandle(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		AdminHandle:   "invalid handle with spaces!",
+		AdminPassword: "password",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateOrg_MissingFields(t *testing.T) {
+	srv := newCreateTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+		AdminHandle: "admin",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.CreateOrg(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }

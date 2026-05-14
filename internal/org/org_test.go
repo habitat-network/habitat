@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -20,7 +19,7 @@ func newTestStore(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-org", "test-domain", nil, db, testSigningSecret)
+	s, err := NewOrg("test-org", nil, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -31,7 +30,7 @@ func newTestStoreWithHive(t *testing.T) *orgImpl {
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	s, err := NewOrg("test-org", "test-domain", h, db, testSigningSecret)
+	s, err := NewOrg("test-org", h, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -138,16 +137,6 @@ func TestRemoveMembers(t *testing.T) {
 	ok, err = s.IsMember(ctx, did2)
 	require.NoError(t, err)
 	require.False(t, ok)
-}
-
-func TestGetMetadata(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	s, err := NewOrg("test-org", "test-domain", nil, db, testSigningSecret)
-	require.NoError(t, err)
-
-	md := s.GetMetadata()
-	require.Equal(t, md, habitat.NetworkHabitatOrgGetMetadataOutput{Domain: "test-domain"})
 }
 
 func TestGenerateAndUseIdentityToken(t *testing.T) {

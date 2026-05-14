@@ -32,6 +32,7 @@ import type {
   NetworkHabitatOrgGetMetadata,
   NetworkHabitatOrgIssueInviteToken,
   NetworkHabitatOrgLoginMember,
+  NetworkHabitatOrgCreate,
   NetworkHabitatOrgMintMemberIdentity,
 } from "api";
 import { AuthManager } from "./authManager";
@@ -184,6 +185,10 @@ type ProcedureEndpoints = {
   "network.habitat.org.issueInviteToken": Procedure<
     NetworkHabitatOrgIssueInviteToken.InputSchema,
     NetworkHabitatOrgIssueInviteToken.OutputSchema
+  >;
+  "network.habitat.org.create": UnauthedProcedure<
+    NetworkHabitatOrgCreate.InputSchema,
+    NetworkHabitatOrgCreate.OutputSchema
   >;
   "network.habitat.org.loginMember": UnauthedProcedure<
     NetworkHabitatOrgLoginMember.InputSchema,
