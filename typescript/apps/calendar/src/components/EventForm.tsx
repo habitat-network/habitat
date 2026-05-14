@@ -88,7 +88,7 @@ export function EventForm({
       <Field>
         <FieldLabel>Invite</FieldLabel>
         <FieldContent>
-          <UserCombobox onValueChange={() => { }} />
+          <UserCombobox onValueChange={() => {}} />
         </FieldContent>
       </Field>
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>

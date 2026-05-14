@@ -201,14 +201,14 @@ type ProcedureEndpoints = {
 };
 
 interface AuthedOptions {
-  unauthenticated?: false
+  unauthenticated?: false;
   authManager: AuthManager;
   headers?: Headers;
   fetchOptions?: DPoPOptions;
 }
 
 interface UnauthedOptions {
-  unauthenticated: true
+  unauthenticated: true;
   domain: string;
   headers?: Headers;
 }
@@ -218,8 +218,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-  ? UnauthedOptions
-  : AuthedOptions;
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;
@@ -272,10 +272,9 @@ export const procedure = async <T extends keyof ProcedureEndpoints>(
   params: ProcedureEndpoints[T]["params"],
   options: ProcedureOptions<T>,
 ): Promise<ProcedureEndpoints[T]["output"]> => {
-  const response =
-    options.unauthenticated
-      ? await unauthedRequest(endpoint, params, options as UnauthedOptions)
-      : await authedRequest(endpoint, params, options as AuthedOptions);
+  const response = options.unauthenticated
+    ? await unauthedRequest(endpoint, params, options as UnauthedOptions)
+    : await authedRequest(endpoint, params, options as AuthedOptions);
 
   const data = await response.json().catch(() => undefined);
   if (!response.ok) {

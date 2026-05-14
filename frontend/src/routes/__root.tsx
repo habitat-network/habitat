@@ -23,7 +23,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     }
 
     const [config, profileResult] = await Promise.allSettled([
-      context.queryClient.fetchQuery(getConfigQueryOptions(context.authManager)),
+      context.queryClient.fetchQuery(
+        getConfigQueryOptions(context.authManager),
+      ),
       new AtpAgent({ service: "https://public.api.bsky.app" }).getProfile({
         actor: authInfo.did,
       }),

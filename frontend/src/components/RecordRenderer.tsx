@@ -8,7 +8,9 @@ import { ExternalLinkIcon } from "lucide-react";
 const T = "network.habitat.render.schema";
 
 // Parse an AT URI (at://<did>/<nsid>/<rkey>) into its components.
-function parseAtUri(uri: string): { did: string; nsid: string; rkey: string } | null {
+function parseAtUri(
+  uri: string,
+): { did: string; nsid: string; rkey: string } | null {
   const parts = uri.split("/");
   // ["at:", "", did, nsid, rkey]
   if (parts.length < 5) return null;
@@ -77,9 +79,7 @@ function FieldValue({ field, value }: { field: FieldSchema; value: unknown }) {
       );
 
     case `${T}#badge`:
-      return (
-        <Badge variant="secondary">{formatBadge(value)}</Badge>
-      );
+      return <Badge variant="secondary">{formatBadge(value)}</Badge>;
 
     case `${T}#list`:
       if (!Array.isArray(value)) return <span>{String(value)}</span>;
@@ -113,7 +113,10 @@ function SchemaRenderer({
 
   function renderField(field: FieldSchema) {
     const value = getNestedValue(record, field.path);
-    if (field.optional && (value === undefined || value === null || value === "")) {
+    if (
+      field.optional &&
+      (value === undefined || value === null || value === "")
+    ) {
       return null;
     }
     return (
@@ -125,12 +128,17 @@ function SchemaRenderer({
 
   function renderLabeledField(field: FieldSchema) {
     const value = getNestedValue(record, field.path);
-    if (field.optional && (value === undefined || value === null || value === "")) {
+    if (
+      field.optional &&
+      (value === undefined || value === null || value === "")
+    ) {
       return null;
     }
     return (
       <div key={field.path} className="flex gap-2 items-baseline">
-        <span className="text-sm text-muted-foreground shrink-0">{field.label}</span>
+        <span className="text-sm text-muted-foreground shrink-0">
+          {field.label}
+        </span>
         <FieldValue field={field} value={value} />
       </div>
     );
@@ -193,10 +201,14 @@ export function RecordRenderer({
 
   const linkHref =
     schema.linkTemplate && uri
-      ? expandLinkTemplate(schema.linkTemplate, uri) ?? undefined
+      ? (expandLinkTemplate(schema.linkTemplate, uri) ?? undefined)
       : undefined;
 
   return (
-    <SchemaRenderer record={record} fields={schema.fields} linkHref={linkHref} />
+    <SchemaRenderer
+      record={record}
+      fields={schema.fields}
+      linkHref={linkHref}
+    />
   );
 }

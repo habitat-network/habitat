@@ -19,8 +19,8 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
         collections.flatMap((c) =>
           c.grantees
             ? c.grantees
-              .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
-              .map((g) => (g as { did: string }).did)
+                .filter((g) => g.$type === "network.habitat.grantee#didGrantee")
+                .map((g) => (g as { did: string }).did)
             : [],
         ),
       ),
@@ -41,16 +41,13 @@ export const Route = createFileRoute("/_requireAuth/collections/")({
 });
 
 function CollectionsGrid() {
-  const { collections, } = Route.useLoaderData()!;
+  const { collections } = Route.useLoaderData()!;
   const { authManager } = Route.useRouteContext();
 
   return (
     <>
       <div className="grid !grid-cols-1 sm:!grid-cols-2 lg:!grid-cols-3 xl:!grid-cols-4">
         {collections.map((collection) => {
-          
-          
-
           return (
             <Link
               to="/collections/$collection"

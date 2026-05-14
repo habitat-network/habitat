@@ -53,11 +53,9 @@ export const Route = createFileRoute(
           collection: data.collection,
           ...(data.rkey ? { rkey: data.rkey } : {}),
         };
-        await procedure(
-          "network.habitat.permissions.addPermission",
-          body,
-          { authManager },
-        );
+        await procedure("network.habitat.permissions.addPermission", body, {
+          authManager,
+        });
         form.reset({ collection: params.collection, rkey: "" });
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();
@@ -82,11 +80,9 @@ export const Route = createFileRoute(
           collection: params.collection,
           ...(rkey ? { rkey } : {}),
         };
-        await procedure(
-          "network.habitat.permissions.removePermission",
-          body,
-          { authManager },
-        );
+        await procedure("network.habitat.permissions.removePermission", body, {
+          authManager,
+        });
         await queryClient.invalidateQueries({ queryKey: ["permissions"] });
         router.invalidate();
       },

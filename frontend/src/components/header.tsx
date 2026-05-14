@@ -19,7 +19,9 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
           </li>
           {org && (
             <li>
-              <Link to="/org">{org.domain /* TODO: this should be org.name eventually */}</Link>
+              <Link to="/org">
+                {org.domain /* TODO: this should be org.name eventually */}
+              </Link>
             </li>
           )}
         </ul>

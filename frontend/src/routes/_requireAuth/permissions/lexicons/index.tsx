@@ -69,11 +69,9 @@ function LexiconPermissions() {
         collection: formData.collection,
         ...(formData.rkey ? { rkey: formData.rkey } : {}),
       };
-      await procedure(
-        "network.habitat.permissions.addPermission",
-        body,
-        { authManager },
-      );
+      await procedure("network.habitat.permissions.addPermission", body, {
+        authManager,
+      });
       addForm.reset({ rkey: "" });
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
@@ -167,11 +165,9 @@ function CollectionDetail({
         collection,
         ...(rkey ? { rkey } : {}),
       };
-      await procedure(
-        "network.habitat.permissions.removePermission",
-        body,
-        { authManager },
-      );
+      await procedure("network.habitat.permissions.removePermission", body, {
+        authManager,
+      });
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
     },

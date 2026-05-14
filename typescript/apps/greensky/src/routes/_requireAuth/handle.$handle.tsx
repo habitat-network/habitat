@@ -34,9 +34,7 @@ interface FeedItem {
 
 export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   async loader({ context, params }) {
-    const publicItems: FeedItem[] = await getAuthorFeed(
-      params.handle,
-    );
+    const publicItems: FeedItem[] = await getAuthorFeed(params.handle);
     const privateItems: PrivatePost[] = await getPrivatePosts(
       context.authManager,
       params.handle,
@@ -72,9 +70,9 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
           reply:
             reply !== undefined && reply.parent.author?.handle
               ? {
-                handle: reply.parent.author.handle,
-                parentPostUri: reply.parent.uri,
-              }
+                  handle: reply.parent.author.handle,
+                  parentPostUri: reply.parent.uri,
+                }
               : undefined,
           repostedByHandle:
             reason?.$type === "app.bsky.feed.defs#reasonRepost"
@@ -115,14 +113,12 @@ export const Route = createFileRoute("/_requireAuth/handle/$handle")({
   },
 });
 
-async function getAuthorFeed(
-  handle: string,
-): Promise<FeedItem[]> {
+async function getAuthorFeed(handle: string): Promise<FeedItem[]> {
   const params = new URLSearchParams();
   params.append("actor", handle);
   params.append("limit", "30");
   const response = await fetch(
-    `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?${params.toString()}`
+    `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?${params.toString()}`,
   );
   const data: { feed: FeedItem[] } = await response.json();
   return data.feed;

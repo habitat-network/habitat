@@ -45,7 +45,9 @@ export const Route = createFileRoute("/_requireAuth")({
     const profile = await context.queryClient.fetchQuery(
       profileQueryOptions(did, context.authManager),
     );
-    await context.queryClient.prefetchQuery(docsListQueryOptions(context.authManager));
+    await context.queryClient.prefetchQuery(
+      docsListQueryOptions(context.authManager),
+    );
     return { profile, did };
   },
   component() {
@@ -69,7 +71,8 @@ export const Route = createFileRoute("/_requireAuth")({
       enabled: ownerDids.length > 0,
     });
     const ownerProfileMap = useMemo(
-      () => Object.fromEntries((ownerProfilesList ?? []).map((p) => [p.did, p])),
+      () =>
+        Object.fromEntries((ownerProfilesList ?? []).map((p) => [p.did, p])),
       [ownerProfilesList],
     );
     const router = useRouter();
@@ -220,23 +223,19 @@ const DocItem = ({
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={isActive}
-        render={
-          <Link
-            to="/$uri"
-            params={{ uri: doc.uri }}
-          />
-        }
+        render={<Link to="/$uri" params={{ uri: doc.uri }} />}
       >
-        {ownerProfile ? <UserAvatar actor={ownerProfile} size="sm" /> : <FileTextIcon />}
+        {ownerProfile ? (
+          <UserAvatar actor={ownerProfile} size="sm" />
+        ) : (
+          <FileTextIcon />
+        )}
         <span>{docName}</span>
       </SidebarMenuButton>
       <Dialog>
         <DialogTrigger
           render={
-            <SidebarMenuAction
-              showOnHover
-              aria-label={`Delete ${docName}`}
-            />
+            <SidebarMenuAction showOnHover aria-label={`Delete ${docName}`} />
           }
         >
           <XIcon />
@@ -245,8 +244,8 @@ const DocItem = ({
           <DialogHeader>
             <DialogTitle>Delete document?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete &quot;{docName}&quot;? This
-              action is irreversible.
+              Are you sure you want to delete &quot;{docName}&quot;? This action
+              is irreversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter showCloseButton>

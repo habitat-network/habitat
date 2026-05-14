@@ -1,20 +1,26 @@
-import { Button, Field, FieldError, FieldLabel, Input } from "internal/components/ui";
+import {
+  Button,
+  Field,
+  FieldError,
+  FieldLabel,
+  Input,
+} from "internal/components/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { procedure } from "internal";
 
-export const Route = createFileRoute('/org/create')({
+export const Route = createFileRoute("/org/create")({
   component: CreateOrgPage,
-})
+});
 
 interface FormValues {
-  name: string
-  admin_handle: string
-  admin_password: string
+  name: string;
+  admin_handle: string;
+  admin_password: string;
 }
 
 function CreateOrgPage() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -22,11 +28,11 @@ function CreateOrgPage() {
     formState: { isSubmitting, errors },
   } = useForm<FormValues>({
     defaultValues: {
-      admin_handle: 'admin',
-      admin_password: '12345',
-      name: 'My Organization'
-    }
-  })
+      admin_handle: "admin",
+      admin_password: "12345",
+      name: "My Organization",
+    },
+  });
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -38,14 +44,17 @@ function CreateOrgPage() {
           name: values.name || undefined,
         },
         { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
-      )
-      await navigate({ to: "/oauth-login", search: { handle: values.admin_handle } })
+      );
+      await navigate({
+        to: "/oauth-login",
+        search: { handle: values.admin_handle },
+      });
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",
-      })
+      });
     }
-  }
+  };
 
   return (
     <div className="flex flex-col gap-4 mt-16">
@@ -54,10 +63,7 @@ function CreateOrgPage() {
         <fieldset disabled={isSubmitting} className="flex flex-col gap-4">
           <Field>
             <FieldLabel>Organization Name</FieldLabel>
-            <Input
-              placeholder="My Organization"
-              {...register("name")}
-            />
+            <Input placeholder="My Organization" {...register("name")} />
             <FieldError errors={[errors.name]} />
           </Field>
           <Field>
@@ -84,5 +90,5 @@ function CreateOrgPage() {
         </fieldset>
       </form>
     </div>
-  )
+  );
 }

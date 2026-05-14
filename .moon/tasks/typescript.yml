@@ -8,7 +8,6 @@ tasks:
       - '@in(0)'
       - --ignore-path
       - '@in(1)'
-      - --write
     inputs:
     - /.prettierignore
     - .gitignore

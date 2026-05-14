@@ -20,7 +20,7 @@ import {
   SidebarMenuButton,
   useSidebar,
   SidebarRail,
-  } from "./ui/sidebar";
+} from "./ui/sidebar";
 import { LogOut } from "lucide-react";
 import { UserItem } from "./UserItem";
 
