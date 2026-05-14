@@ -26,10 +26,7 @@ tasks:
   docker-build:
     options:
       internal: false
+      runInCI: true
   caddy:
     command: caddy run --config Caddyfile
     preset: server
-docker:
-  file:
-    buildTask: build
-    startTask: start
