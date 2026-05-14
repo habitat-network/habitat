@@ -1,0 +1,9 @@
+frontend.local.habitat.network {
+	reverse_proxy 127.0.0.1:6000
+	tls internal
+}
+
+*.pear.local.habitat.network, pear.local.habitat.network {
+	reverse_proxy 127.0.0.1:8000
+	tls internal
+}
