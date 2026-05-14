@@ -6,4 +6,6 @@ tasks:
     options:
       internal: true
       runFromWorkspaceRoot: true
-    preset: utility
+      outputStyle: stream
+      cache: false
+      runInCI: false
