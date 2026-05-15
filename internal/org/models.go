@@ -6,6 +6,7 @@ import "time"
 type organization struct {
 	ID            string `gorm:"primaryKey"`
 	Name          string // optional display name
+	LoginMethod   string // "atproto", "google", "password"
 	SigningSecret string // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt     time.Time
 }

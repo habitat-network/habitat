@@ -58,6 +58,9 @@ type Org interface {
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
+	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
+	LoginMethod() string
+
 	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(
 		ctx context.Context,
@@ -117,6 +120,14 @@ func NewOrg(
 		db:            db,
 		signingSecret: signingSecret,
 	}, nil
+}
+
+func (s *orgImpl) LoginMethod() string {
+	var org organization
+	if err := s.db.First(&org, "id = ?", s.orgID).Error; err != nil {
+		return "password" // safe default
+	}
+	return org.LoginMethod
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
@@ -527,6 +538,7 @@ func (s *storeImpl) CreateOrg(
 		if err := tx.Create(&organization{
 			ID:            orgID,
 			Name:          name,
+			LoginMethod:   "password", // new orgs default to password auth
 			SigningSecret: signingSecret,
 			CreatedAt:     time.Now(),
 		}).Error; err != nil {
