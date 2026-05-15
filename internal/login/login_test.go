@@ -106,20 +106,17 @@ func idWithNoServices() *identity.Identity {
 	}
 }
 
-// --- pdsProvider ---
+type stubMappingStore struct{}
 
-func TestPDSProvider_CanHandle(t *testing.T) {
-	p := NewPDSProvider(&stubOAuthClient{}, newStubCredStore())
-
-	require.True(t, p.CanHandle(idWithPDSOnly()), "pds-only identity should be handled")
-	require.False(t, p.CanHandle(idWithHabitatOnly()), "habitat-only identity should not be handled")
-	require.False(t, p.CanHandle(idWithBothServices()), "identity with both services should not be handled")
-	require.False(t, p.CanHandle(idWithNoServices()), "identity with no services should not be handled")
+func (s *stubMappingStore) GetPublicDID(_ context.Context, _ syntax.DID) (*syntax.DID, error) {
+	return nil, nil // no mapping — use identity as-is
 }
+
+// --- pdsProvider ---
 
 func TestPDSProvider_Authorize(t *testing.T) {
 	client := &stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}
-	p := NewPDSProvider(client, newStubCredStore())
+	p := NewPDSProvider(client, newStubCredStore(), &stubMappingStore{}, nil)
 
 	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly())
 	require.NoError(t, err)
@@ -135,7 +132,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 
 func TestPDSProvider_Exchange(t *testing.T) {
 	credStore := newStubCredStore()
-	p := NewPDSProvider(&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}, credStore)
+	p := NewPDSProvider(&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}, credStore, &stubMappingStore{}, nil)
 	did := syntax.DID("did:web:pds.example.com")
 
 	// Obtain valid state from Authorize.
@@ -157,12 +154,7 @@ type dummyProvider struct{}
 
 func NewDummyProvider() Provider { return &dummyProvider{} }
 
-func (d *dummyProvider) Type() ProviderType { return ProviderTypeHabitat }
-func (d *dummyProvider) CanHandle(id *identity.Identity) bool {
-	_, hasHabitat := id.Services["habitat"]
-	_, hasPDS := id.Services["atproto_pds"]
-	return hasHabitat && !hasPDS
-}
+func (d *dummyProvider) LoginMethod() string { return "password" }
 func (d *dummyProvider) Authorize(_ context.Context, _ *identity.Identity) (string, []byte, error) {
 	return "https://dummy.example.com/login", nil, nil
 }
@@ -174,41 +166,23 @@ func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _
 
 func newTestRouter() *Router {
 	return NewRouter(
-		NewPDSProvider(&stubOAuthClient{}, newStubCredStore()),
+		NewPDSProvider(&stubOAuthClient{}, newStubCredStore(), &stubMappingStore{}, nil),
 		NewDummyProvider(),
 	)
 }
 
-func TestRouter_For(t *testing.T) {
+func TestRouter_ByLoginMethod(t *testing.T) {
 	r := newTestRouter()
 
-	p, err := r.For(idWithPDSOnly())
+	p, err := r.ByLoginMethod("atproto")
 	require.NoError(t, err)
-	require.Equal(t, ProviderTypePDS, p.Type())
+	require.Equal(t, "atproto", p.LoginMethod())
 
-	p, err = r.For(idWithHabitatOnly())
+	p, err = r.ByLoginMethod("password")
 	require.NoError(t, err)
-	require.Equal(t, ProviderTypeHabitat, p.Type())
+	require.Equal(t, "password", p.LoginMethod())
 
-	_, err = r.For(idWithBothServices())
-	require.Error(t, err, "identity with both services should have no provider")
-
-	_, err = r.For(idWithNoServices())
-	require.Error(t, err, "identity with no services should have no provider")
-}
-
-func TestRouter_ByType(t *testing.T) {
-	r := newTestRouter()
-
-	p, err := r.ByType(ProviderTypePDS)
-	require.NoError(t, err)
-	require.Equal(t, ProviderTypePDS, p.Type())
-
-	p, err = r.ByType(ProviderTypeHabitat)
-	require.NoError(t, err)
-	require.Equal(t, ProviderTypeHabitat, p.Type())
-
-	_, err = r.ByType("unknown")
+	_, err = r.ByLoginMethod("unknown")
 	require.Error(t, err)
 }
 

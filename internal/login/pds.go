@@ -15,9 +15,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type mappingStore interface {
+	GetPublicDID(ctx context.Context, did syntax.DID) (*syntax.DID, error)
+}
+
 type pdsProvider struct {
-	oauthClient pdsclient.PdsOAuthClient
-	credStore   pdscred.PDSCredentialStore
+	oauthClient  pdsclient.PdsOAuthClient
+	credStore    pdscred.PDSCredentialStore
+	mappingStore mappingStore
+	dir          identity.Directory
 }
 
 // pdsProviderState is the opaque flash state for the PDS login flow.
@@ -26,17 +32,11 @@ type pdsProviderState struct {
 	AuthorizeState pdsclient.AuthorizeState `json:"authorize_state"`
 }
 
-func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSCredentialStore) Provider {
-	return &pdsProvider{oauthClient: oauthClient, credStore: credStore}
+func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSCredentialStore, ms mappingStore, dir identity.Directory) Provider {
+	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, mappingStore: ms, dir: dir}
 }
 
-func (p *pdsProvider) Type() ProviderType { return ProviderTypePDS }
-
-func (p *pdsProvider) CanHandle(id *identity.Identity) bool {
-	_, hasPDS := id.Services["atproto_pds"]
-	_, hasHabitat := id.Services["habitat"]
-	return hasPDS && !hasHabitat
-}
+func (p *pdsProvider) LoginMethod() string { return "atproto" }
 
 func (p *pdsProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
