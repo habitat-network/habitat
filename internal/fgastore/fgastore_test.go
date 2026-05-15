@@ -11,7 +11,7 @@ func TestNewInMemory_Smoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInMemory: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 }
 
 func TestCheck_ReturnsTrueForExistingTuple(t *testing.T) {
@@ -20,7 +20,7 @@ func TestCheck_ReturnsTrueForExistingTuple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := f.Write(ctx, "user:alice", "can_read", "record:doc1"); err != nil {
 		t.Fatalf("Write: %v", err)
@@ -41,7 +41,7 @@ func TestCheck_ReturnsFalseForNonExistentTuple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	ok, err := f.Check(ctx, "user:alice", "can_read", "record:doc1")
 	if err != nil {
@@ -58,7 +58,7 @@ func TestCheck_ReturnsFalseAfterDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := f.Write(ctx, "user:alice", "can_read", "record:doc1"); err != nil {
 		t.Fatalf("Write: %v", err)
@@ -82,7 +82,7 @@ func TestCheck_DifferentRelation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := f.Write(ctx, "user:alice", "can_read", "record:doc1"); err != nil {
 		t.Fatalf("Write: %v", err)
@@ -103,7 +103,7 @@ func TestCheck_DifferentUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := f.Write(ctx, "user:alice", "can_read", "record:doc1"); err != nil {
 		t.Fatalf("Write: %v", err)
