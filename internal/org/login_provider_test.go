@@ -37,7 +37,12 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	scoped, err := s.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 
-	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), scoped.(*orgImpl)
+	return NewLoginProvider(
+		s,
+		"pear.example.com",
+		"frontend.example.com",
+		testSigningSecret,
+	), scoped.(*orgImpl)
 }
 
 func TestLoginProvider_Type(t *testing.T) {
