@@ -42,8 +42,11 @@ func (p *pdsProvider) Authorize(ctx context.Context, id *identity.Identity) (str
 	// If the org has a public ATProto DID mapping, resolve it and use
 	// that identity's PDS (the org's public identity) for the OAuth flow.
 	// If no mapping exists (e.g. everyone org), use the identity as-is.
-	publicDID, err := p.mappingStore.GetPublicDID(ctx, id.DID)
-	if err == nil && publicDID != nil && p.dir != nil {
+	var publicDID *syntax.DID
+	if p.mappingStore != nil {
+		publicDID, _ = p.mappingStore.GetPublicDID(ctx, id.DID)
+	}
+	if publicDID != nil && p.dir != nil {
 		publicID, lookupErr := p.dir.LookupDID(ctx, *publicDID)
 		if lookupErr == nil {
 			id = publicID

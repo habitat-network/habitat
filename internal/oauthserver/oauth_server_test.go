@@ -28,6 +28,12 @@ import (
 	"gorm.io/gorm"
 )
 
+type stubMappingStore struct{}
+
+func (s *stubMappingStore) GetPublicDID(_ context.Context, _ syntax.DID) (*syntax.DID, error) {
+	return nil, nil
+}
+
 // testStore creates a Store with a seeded test org.
 func testStore(t *testing.T) org.Store {
 	t.Helper()
@@ -65,7 +71,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
 		secret,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, &stubMappingStore{}, nil)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -162,7 +168,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, &stubMappingStore{}, nil)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -278,7 +284,7 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, &stubMappingStore{}, nil)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -526,7 +532,7 @@ func TestValidate(t *testing.T) {
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
-			login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, &stubMappingStore{}, nil)),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
 			credStore,
