@@ -38,13 +38,7 @@ func NewLoginProvider(store Store, frontendDomain string, signingSecret []byte) 
 	}
 }
 
-func (p *LoginProvider) Type() string { return "habitat" }
-
-func (p *LoginProvider) CanHandle(id *identity.Identity) bool {
-	_, hasHabitat := id.Services["habitat"]
-	_, hasPDS := id.Services["atproto_pds"]
-	return hasHabitat && !hasPDS
-}
+func (p *LoginProvider) LoginMethod() string { return "password" }
 
 func (p *LoginProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
 	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(string(id.Handle))
