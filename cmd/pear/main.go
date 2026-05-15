@@ -147,12 +147,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(otelmux.Middleware("habitat-server"))
 	mux.Use(corsMiddleware)
 
+	hiveDomain := cmd.String(fHiveDomain)
+	if hiveDomain == "" {
+		hiveDomain = "id." + domain
+	}
+
 	// hive is the identity minting service for orgs.
-	orgHive, err := hive.NewHive(domain, domain, db)
+	orgHive, err := hive.NewHive(cmd.String(fHiveDomain), domain, db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
-	dir := hive.NewWrappedDirectory(orgHive, identity.DefaultDirectory())
+	dir := identity.DefaultDirectory()
 
 	// orgStore manages all orgs on this instance (managed orgs + everyone org for external DIDs)
 	orgStore, err := org.NewStore(db, orgHive, dir, domain)
