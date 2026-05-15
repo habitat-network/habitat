@@ -26,13 +26,20 @@ type loginTokenClaims struct {
 // LoginProvider wraps Store and implements login.Provider for habitat-hosted member identities.
 type LoginProvider struct {
 	store          Store
+	pearDomain     string
 	frontendDomain string
 	signingSecret  []byte
 }
 
-func NewLoginProvider(store Store, frontendDomain string, signingSecret []byte) *LoginProvider {
+func NewLoginProvider(
+	store Store,
+	pearDomain string,
+	frontendDomain string,
+	signingSecret []byte,
+) *LoginProvider {
 	return &LoginProvider{
 		store:          store,
+		pearDomain:     pearDomain,
 		frontendDomain: frontendDomain,
 		signingSecret:  signingSecret,
 	}
@@ -46,8 +53,13 @@ func (p *LoginProvider) CanHandle(id *identity.Identity) bool {
 	return hasHabitat && !hasPDS
 }
 
-func (p *LoginProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
-	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(string(id.Handle))
+func (p *LoginProvider) Authorize(
+	_ context.Context,
+	id *identity.Identity,
+) (string, []byte, error) {
+	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
+		string(id.Handle),
+	)
 	return redirect, nil, nil
 }
 
@@ -92,7 +104,12 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	ok, err := p.store.AuthenticateMember(r.Context(), req.Handle, req.Password)
 	if err != nil {
-		utils.LogAndHTTPError(w, fmt.Errorf("error while authenticating"), err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("error while authenticating"),
+			err.Error(),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !ok {
@@ -108,7 +125,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(habitat.NetworkHabitatOrgLoginMemberOutput{
-		CallbackURL: "/oauth-callback?code=" + token,
+		CallbackURL: "https://" + p.pearDomain + "/oauth-callback?code=" + token,
 	})
 	if err != nil {
 		http.Error(w, "encoding response", http.StatusInternalServerError)
