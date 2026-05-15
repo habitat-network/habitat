@@ -36,7 +36,7 @@ function HabitatLoginPage() {
         { handle, password },
         { unauthenticated: true, domain },
       );
-      window.location.href = `https://${domain}${callbackURL}`;
+      window.location.href = callbackURL;
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",

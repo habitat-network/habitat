@@ -180,7 +180,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to parse oauth server secret for login provider")
 	}
-	orgLoginProvider := org.NewLoginProvider(orgStore, cmd.String(fFrontendDomain), oauthSecret)
+	orgLoginProvider := org.NewLoginProvider(
+		orgStore,
+		cmd.String(fDomain),
+		cmd.String(fFrontendDomain),
+		oauthSecret,
+	)
 
 	loginRouter := login.NewRouter(
 		login.NewPDSProvider(oauthClient, pdsCredStore),
