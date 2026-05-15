@@ -80,32 +80,6 @@ func idWithPDSOnly() *identity.Identity {
 	}
 }
 
-func idWithHabitatOnly() *identity.Identity {
-	return &identity.Identity{
-		DID: "did:web:habitat.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://habitat.example.com"},
-		},
-	}
-}
-
-func idWithBothServices() *identity.Identity {
-	return &identity.Identity{
-		DID: "did:web:both.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {URL: "https://pds.example.com"},
-			"habitat":     {URL: "https://habitat.example.com"},
-		},
-	}
-}
-
-func idWithNoServices() *identity.Identity {
-	return &identity.Identity{
-		DID:      "did:web:nobody.example.com",
-		Services: map[string]identity.ServiceEndpoint{},
-	}
-}
-
 type stubMappingStore struct{}
 
 func (s *stubMappingStore) GetPublicDID(_ context.Context, _ syntax.DID) (*syntax.DID, error) {
@@ -190,15 +164,7 @@ func TestPDSProvider_AuthorizeWithMapping(t *testing.T) {
 	mappedDID := syntax.DID("did:plc:mapped-public")
 	mapping := &stubMappingStoreWithMapping{mapped: mappedDID}
 	client := &stubOAuthClient{redirectURL: "https://public-pds.example.com/authorize"}
-	dir := &stubDirectory{dids: map[syntax.DID]*identity.Identity{
-		mappedDID: {
-			DID:    mappedDID,
-			Handle: "org.public.example.com",
-			Services: map[string]identity.ServiceEndpoint{
-				"atproto_pds": {URL: "https://public-pds.example.com"},
-			},
-		},
-	}}
+	dir := pdsclient.NewDummyDirectory("https://public-pds.example.com")
 	p := NewPDSProvider(client, newStubCredStore(), mapping, dir)
 
 	orgID := &identity.Identity{
@@ -220,28 +186,6 @@ type stubMappingStoreWithMapping struct {
 func (s *stubMappingStoreWithMapping) GetPublicDID(_ context.Context, _ syntax.DID) (*syntax.DID, error) {
 	return &s.mapped, nil
 }
-
-type stubDirectory struct {
-	dids map[syntax.DID]*identity.Identity
-}
-
-func (d *stubDirectory) LookupHandle(_ context.Context, _ syntax.Handle) (*identity.Identity, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (d *stubDirectory) Lookup(_ context.Context, _ syntax.AtIdentifier) (*identity.Identity, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (d *stubDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
-	id, ok := d.dids[did]
-	if !ok {
-		return nil, errors.New("not found")
-	}
-	return id, nil
-}
-
-func (d *stubDirectory) Purge(_ context.Context, _ syntax.AtIdentifier) error { return nil }
 
 func TestGoogleProvider_LoginMethod(t *testing.T) {
 	p := NewGoogleProvider(&stubGoogleMappingStore{})
