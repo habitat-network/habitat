@@ -243,6 +243,17 @@ func (d *stubDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.
 
 func (d *stubDirectory) Purge(_ context.Context, _ syntax.AtIdentifier) error { return nil }
 
+func TestGoogleProvider_LoginMethod(t *testing.T) {
+	p := NewGoogleProvider(&stubGoogleMappingStore{})
+	require.Equal(t, "google", p.LoginMethod())
+}
+
+type stubGoogleMappingStore struct{}
+
+func (s *stubGoogleMappingStore) GetEmail(_ context.Context, _ syntax.DID) (string, error) {
+	return "", nil
+}
+
 // unmarshalProviderState is a test helper to inspect the opaque pds state bytes.
 func unmarshalProviderState(b []byte, s *pdsProviderState) error {
 	return json.Unmarshal(b, s)
