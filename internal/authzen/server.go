@@ -5,11 +5,11 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/rs/zerolog/log"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/rs/zerolog/log"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
