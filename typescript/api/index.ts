@@ -12,6 +12,7 @@ import { type OmitKey, type Un$Typed } from './util.js'
 import * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 import * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
 import * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
+import * as ComAtprotoRepoDescribeRepo from './types/com/atproto/repo/describeRepo.js'
 import * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
 import * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords.js'
 import * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
@@ -62,6 +63,7 @@ import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
 export * as ComAtprotoRepoDeleteRecord from './types/com/atproto/repo/deleteRecord.js'
+export * as ComAtprotoRepoDescribeRepo from './types/com/atproto/repo/describeRepo.js'
 export * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
 export * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords.js'
 export * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
@@ -198,6 +200,18 @@ export class ComAtprotoRepoNS {
       .catch((e) => {
         throw ComAtprotoRepoDeleteRecord.toKnownErr(e)
       })
+  }
+
+  describeRepo(
+    params?: ComAtprotoRepoDescribeRepo.QueryParams,
+    opts?: ComAtprotoRepoDescribeRepo.CallOptions,
+  ): Promise<ComAtprotoRepoDescribeRepo.Response> {
+    return this._client.call(
+      'com.atproto.repo.describeRepo',
+      params,
+      undefined,
+      opts,
+    )
   }
 
   getRecord(

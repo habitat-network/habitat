@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -103,6 +104,26 @@ func (s *store) getIdentityByHandle(
 		return nil, result.Error
 	}
 	return s.template(id.Handle, id.OpaqueID, id.SigningPublicKey), nil
+}
+
+// getSigningPrivateKeyByID fetches and parses the signing private key for the identity
+// with the given opaqueID. The private key is the atproto signing key registered in the
+// identity's did:web doc, so it can be used to mint atproto-compatible service auth JWTs.
+func (s *store) getSigningPrivateKeyByID(ctx context.Context, opaqueID string) (atcrypto.PrivateKey, error) {
+	var id ident
+	result := s.db.WithContext(ctx).Where("opaque_id = ?", opaqueID).First(&id)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, identity.ErrDIDNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	// TODO: decrypt SigningPrivateKeyEnc once we encrypt it at rest (see prepareIdentity).
+	priv, err := atcrypto.ParsePrivateMultibase(id.SigningPrivateKeyEnc)
+	if err != nil {
+		return nil, fmt.Errorf("parsing stored signing private key: %w", err)
+	}
+	return priv, nil
 }
 
 // getMemberByDID fetches the member via opaque ID from the store

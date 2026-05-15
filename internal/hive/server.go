@@ -2,10 +2,16 @@ package hive
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 const habitatHostHeader = "Habitat-Host"
@@ -22,11 +28,15 @@ func effectiveHost(r *http.Request) string {
 // Serve DID docs and handle --> did mappings.
 // Does not serve the MintIdentity endpoint.
 type Server struct {
-	hive Hive
+	hive  Hive
+	oauth authn.Method
 }
 
-func NewServer(hive Hive) (*Server, error) {
-	return &Server{hive: hive}, nil
+// NewServer constructs the hive HTTP server. The OAuth method is required to
+// authenticate the caller for endpoints that mint things using the identity's
+// signing key (e.g. com.atproto.server.getServiceAuth).
+func NewServer(hive Hive, oauth authn.Method) (*Server, error) {
+	return &Server{hive: hive, oauth: oauth}, nil
 }
 
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
@@ -59,6 +69,69 @@ var (
 		"https://w3id.org/security/suites/secp256k1-2019/v1",
 	}
 )
+
+// GetServiceAuth implements com.atproto.server.getServiceAuth for habitat-hosted
+// identities. Habitat owns the signing key registered in the identity's did:web
+// doc, so it (not the upstream PDS) is what can mint atproto-compatible service
+// auth JWTs. Downstream services verify the token by resolving the DID and
+// fetching the same signing key, with no changes needed on their end.
+func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.oauth)
+	if !ok {
+		return
+	}
+
+	fmt.Println("hive getserviceauth called", callerDID)
+	aud := r.URL.Query().Get("aud")
+	if aud == "" {
+		utils.WriteHTTPError(w, errors.New("missing required parameter: aud"), http.StatusBadRequest)
+		return
+	}
+
+	// exp is the unix-seconds expiration. Default to 60s to match the lexicon
+	// default; cap at 30min to limit blast radius if a token leaks.
+	const defaultTTL = 60 * time.Second
+	const maxTTL = 30 * time.Minute
+	ttl := defaultTTL
+	if expStr := r.URL.Query().Get("exp"); expStr != "" {
+		expUnix, err := strconv.ParseInt(expStr, 10, 64)
+		if err != nil {
+			utils.WriteHTTPError(w, fmt.Errorf("parsing exp: %w", err), http.StatusBadRequest)
+			return
+		}
+		ttl = time.Until(time.Unix(expUnix, 0))
+		if ttl <= 0 {
+			utils.WriteHTTPError(w, errors.New("exp is in the past"), http.StatusBadRequest)
+			return
+		}
+		if ttl > maxTTL {
+			ttl = maxTTL
+		}
+	}
+
+	var lxm *syntax.NSID
+	if lxmStr := r.URL.Query().Get("lxm"); lxmStr != "" {
+		parsed, err := syntax.ParseNSID(lxmStr)
+		if err != nil {
+			utils.WriteHTTPError(w, fmt.Errorf("parsing lxm: %w", err), http.StatusBadRequest)
+			return
+		}
+		lxm = &parsed
+	}
+
+	token, err := s.hive.SignServiceAuth(r.Context(), callerDID, aud, ttl, lxm)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "signing service auth", http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(struct {
+		Token string `json:"token"`
+	}{Token: token}); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+}
 
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {

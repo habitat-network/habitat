@@ -269,7 +269,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
 
-	hiveServer, err := hive.NewServer(orgHive)
+	hiveServer, err := hive.NewServer(orgHive, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive server")
 	}
@@ -325,6 +325,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
+	mux.HandleFunc("/xrpc/com.atproto.repo.describeRepo", pearServer.DescribeRepoPublic)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
@@ -349,7 +350,37 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Only forward specific routes that we know we handle correctly; for now.
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
-	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", pdsForwarding.ServeHTTP)
+
+	// getServiceAuth needs to be dispatched per-caller: bridged users whose
+	// DID doc lists an #atproto_pds service must still have their request
+	// forwarded to that PDS (which holds their signing key). For habitat-native
+	// users whose doc only has #habitat, habitat itself holds the signing key
+	// and mints the JWT locally via hiveServer. Prefer atproto_pds when both
+	// services are present.
+	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", func(w http.ResponseWriter, r *http.Request) {
+		callerDID, ok := oauthServer.Validate(w, r)
+		if !ok {
+			return
+		}
+		id, err := dir.LookupDID(r.Context(), callerDID)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "[getServiceAuth dispatch]: looking up caller DID", http.StatusBadGateway)
+			return
+		}
+		if _, ok := id.Services["atproto_pds"]; ok {
+			pdsForwarding.ServeHTTP(w, r)
+			return
+		}
+		if _, ok := id.Services["habitat"]; ok {
+			hiveServer.GetServiceAuth(w, r)
+			return
+		}
+		utils.LogAndHTTPError(w,
+			fmt.Errorf("no atproto_pds or habitat service in DID doc for %s", id.DID),
+			"[getServiceAuth dispatch]: no usable service in DID doc",
+			http.StatusBadGateway,
+		)
+	})
 
 	postHogUrl, err := url.Parse("https://us.i.posthog.com")
 	if err != nil {
