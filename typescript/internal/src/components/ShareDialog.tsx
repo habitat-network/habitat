@@ -25,10 +25,7 @@ const ShareDialog = ({
       <DialogTrigger render={<Button>Share</Button>} />
       <DialogContent>
         <DialogTitle>Share</DialogTitle>
-        <UserCombobox
-          value={newGrantees}
-          onValueChange={setNewGrantees}
-        />
+        <UserCombobox value={newGrantees} onValueChange={setNewGrantees} />
         <Button
           onClick={() => {
             onAddPermission(newGrantees);

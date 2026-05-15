@@ -10,7 +10,10 @@ export type FieldSchema = NetworkHabitatRenderSchema.FieldSchema;
 const T = "network.habitat.render.schema";
 
 // TODO: make this less hard coded ?
-const docsBasePath = __HABITAT_DOMAIN__ === "habitat-953995456319.us-west1.run.app" ? "habitat.network/habitat/docs/#" : (__DOMAIN__).replace("frontend", "docs")
+const docsBasePath =
+  __HABITAT_DOMAIN__ === "habitat-953995456319.us-west1.run.app"
+    ? "habitat.network/habitat/docs/#"
+    : __DOMAIN__.replace("frontend", "docs");
 
 export const RENDER_SCHEMA_REGISTRY: Record<string, RenderSchema> = {
   "community.lexicon.calendar.event": {

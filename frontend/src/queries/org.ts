@@ -9,7 +9,8 @@ export interface HabitatConfig {
 export function getConfigQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["config"],
-    queryFn: () => query("network.habitat.org.getMetadata", {}, { authManager }),
+    queryFn: () =>
+      query("network.habitat.org.getMetadata", {}, { authManager }),
     staleTime: Infinity,
   });
 }
@@ -24,8 +25,7 @@ export function getAdminsQueryOptions(authManager: AuthManager) {
 export function getMembersQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["org", "members"],
-    queryFn: () =>
-      query("network.habitat.org.getMembers", {}, { authManager }),
+    queryFn: () => query("network.habitat.org.getMembers", {}, { authManager }),
   });
 }
 

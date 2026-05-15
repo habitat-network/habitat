@@ -35,7 +35,11 @@ export default function habitatAppPlugin(options?: {
   const hashRouting = options?.hashRouting ?? !!process.env.HASH_ROUTING;
 
   return [
-    ...devtools({ eventBusConfig: { port: parseInt(process.env.DEVTOOLS_PORT ?? "42069", 10) } }),
+    ...devtools({
+      eventBusConfig: {
+        port: parseInt(process.env.DEVTOOLS_PORT ?? "42069", 10),
+      },
+    }),
     ...tailwindcss(),
     {
       name: "habitat-app-config",
@@ -52,7 +56,9 @@ export default function habitatAppPlugin(options?: {
           server: {
             host: true,
             allowedHosts: [".ts.net", ".local.habitat.network"],
-            port: process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT, 10) : undefined,
+            port: process.env.SERVER_PORT
+              ? parseInt(process.env.SERVER_PORT, 10)
+              : undefined,
           },
           build: {
             outDir: cliArgs.values.outDir,

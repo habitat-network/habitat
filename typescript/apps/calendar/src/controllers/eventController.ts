@@ -158,10 +158,10 @@ export async function createEvent(
   const cliqueResponse = await procedure(
     "network.habitat.clique.createClique",
     {},
-    { authManager }
-  )
+    { authManager },
+  );
 
-  const clique = cliqueResponse.clique
+  const clique = cliqueResponse.clique;
 
   // Step 2: Create the event, granting access via the clique
   const eventRecord = {
@@ -169,17 +169,13 @@ export async function createEvent(
     createdAt,
   } as CalendarEvent;
 
-
-
   const eventResponse = await procedure(
     "network.habitat.repo.putRecord",
     {
       collection: EVENT_COLLECTION,
       record: eventRecord,
       rkey: eventRkey,
-      grantees: [
-        { $type: "network.habitat.grantee#clique", clique },
-      ],
+      grantees: [{ $type: "network.habitat.grantee#clique", clique }],
       repo: userDid,
     },
     { authManager },
@@ -203,9 +199,7 @@ export async function createEvent(
         collection: INVITE_COLLECTION,
         record: inviteRecord,
         rkey: inviteRkey,
-        grantees: [
-          { $type: "network.habitat.grantee#clique", clique },
-        ],
+        grantees: [{ $type: "network.habitat.grantee#clique", clique }],
         repo: userDid,
       },
       { authManager },
@@ -231,9 +225,7 @@ export async function createEvent(
         collection: RSVP_COLLECTION,
         record: creatorRsvpRecord,
         rkey: creatorRsvpRkey,
-        grantees: [
-          { $type: "network.habitat.grantee#clique", clique },
-        ],
+        grantees: [{ $type: "network.habitat.grantee#clique", clique }],
         repo: userDid,
       },
       { authManager },

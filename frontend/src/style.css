@@ -3,4 +3,4 @@
 @source "./**/*.{ts,tsx}";
 @source "../../typescript/internal/src/**/*.{ts,tsx}";
 
-@import 'internal/styles.css';
+@import "internal/styles.css";

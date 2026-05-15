@@ -6,10 +6,10 @@
 @import "internal/styles.css";
 
 .almond {
-  --background: #FFFBFF;
-  --primary: #D3AB9E;
-  --border: #EBD8D0;
-  --muted-foreground: #EBD8D0;
+  --background: #fffbff;
+  --primary: #d3ab9e;
+  --border: #ebd8d0;
+  --muted-foreground: #ebd8d0;
 }
 
 :root {
@@ -38,11 +38,11 @@
 }
 
 .fc .fc-col-header-cell.fc-day-today {
-  background-color: var(--accent)
+  background-color: var(--accent);
 }
 
 .fc .fc-daygrid-day.fc-day-today {
-  background-color: var(--accent)
+  background-color: var(--accent);
 }
 
 .fc .fc-daygrid-day:has(th:hover) {

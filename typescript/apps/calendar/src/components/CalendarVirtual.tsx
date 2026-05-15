@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import type { Range } from "@tanstack/react-virtual";
 import FullCalendar from "@fullcalendar/react";
@@ -224,9 +224,9 @@ const CalendarVirtual = ({ date, events }: CalendarVirtualProps) => {
                   ...(isActive
                     ? { position: "sticky" }
                     : {
-                      position: "absolute",
-                      transform: `translateY(${virtualItem.start}px)`,
-                    }),
+                        position: "absolute",
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }),
                   height: `${virtualItem.size}px`,
                 }}
               >
