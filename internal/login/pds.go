@@ -38,7 +38,18 @@ func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSC
 
 func (p *pdsProvider) LoginMethod() string { return "atproto" }
 
-func (p *pdsProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
+func (p *pdsProvider) Authorize(ctx context.Context, id *identity.Identity) (string, []byte, error) {
+	// If the org has a public ATProto DID mapping, resolve it and use
+	// that identity's PDS (the org's public identity) for the OAuth flow.
+	// If no mapping exists (e.g. everyone org), use the identity as-is.
+	publicDID, err := p.mappingStore.GetPublicDID(ctx, id.DID)
+	if err == nil && publicDID != nil && p.dir != nil {
+		publicID, lookupErr := p.dir.LookupDID(ctx, *publicDID)
+		if lookupErr == nil {
+			id = publicID
+		}
+	}
+
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate dpop key: %w", err)

@@ -186,6 +186,63 @@ func TestRouter_ByLoginMethod(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestPDSProvider_AuthorizeWithMapping(t *testing.T) {
+	mappedDID := syntax.DID("did:plc:mapped-public")
+	mapping := &stubMappingStoreWithMapping{mapped: mappedDID}
+	client := &stubOAuthClient{redirectURL: "https://public-pds.example.com/authorize"}
+	dir := &stubDirectory{dids: map[syntax.DID]*identity.Identity{
+		mappedDID: {
+			DID:    mappedDID,
+			Handle: "org.public.example.com",
+			Services: map[string]identity.ServiceEndpoint{
+				"atproto_pds": {URL: "https://public-pds.example.com"},
+			},
+		},
+	}}
+	p := NewPDSProvider(client, newStubCredStore(), mapping, dir)
+
+	orgID := &identity.Identity{
+		DID: "did:web:internal.org.example.com",
+		Services: map[string]identity.ServiceEndpoint{
+			"habitat": {URL: "https://habitat.example.com"},
+		},
+	}
+	redirect, state, err := p.Authorize(context.Background(), orgID)
+	require.NoError(t, err)
+	require.Equal(t, "https://public-pds.example.com/authorize", redirect)
+	require.NotEmpty(t, state)
+}
+
+type stubMappingStoreWithMapping struct {
+	mapped syntax.DID
+}
+
+func (s *stubMappingStoreWithMapping) GetPublicDID(_ context.Context, _ syntax.DID) (*syntax.DID, error) {
+	return &s.mapped, nil
+}
+
+type stubDirectory struct {
+	dids map[syntax.DID]*identity.Identity
+}
+
+func (d *stubDirectory) LookupHandle(_ context.Context, _ syntax.Handle) (*identity.Identity, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (d *stubDirectory) Lookup(_ context.Context, _ syntax.AtIdentifier) (*identity.Identity, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (d *stubDirectory) LookupDID(_ context.Context, did syntax.DID) (*identity.Identity, error) {
+	id, ok := d.dids[did]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return id, nil
+}
+
+func (d *stubDirectory) Purge(_ context.Context, _ syntax.AtIdentifier) error { return nil }
+
 // unmarshalProviderState is a test helper to inspect the opaque pds state bytes.
 func unmarshalProviderState(b []byte, s *pdsProviderState) error {
 	return json.Unmarshal(b, s)
