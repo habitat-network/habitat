@@ -28,9 +28,7 @@ interface NewPostButtonProps {
   _isOnboarded: boolean; // TODO: add this later when its not a toy demo and we will actually persist your data
 }
 
-export function NewPostButton({
-  authManager,
-}: NewPostButtonProps) {
+export function NewPostButton({ authManager }: NewPostButtonProps) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [specificUsers, setSpecificUsers] = useState<Actor[]>([]);

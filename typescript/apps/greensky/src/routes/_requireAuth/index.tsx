@@ -2,10 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { Actor, AuthManager, getProfile, getProfiles } from "internal";
-import {
-  getPrivatePosts,
-  getPostVisibility,
-} from "../../habitatApi";
+import { getPrivatePosts, getPostVisibility } from "../../habitatApi";
 import { type FeedEntry, Feed } from "../../Feed";
 import { NavBar } from "../../components/NavBar";
 

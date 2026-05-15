@@ -109,11 +109,9 @@ function PersonDetail({
         collection,
         ...(rkey ? { rkey } : {}),
       };
-      await procedure(
-        "network.habitat.permissions.removePermission",
-        body,
-        { authManager },
-      );
+      await procedure("network.habitat.permissions.removePermission", body, {
+        authManager,
+      });
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();
     },

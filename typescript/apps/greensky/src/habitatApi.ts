@@ -58,7 +58,6 @@ export function getPostVisibility(
   return "specific-users";
 }
 
-
 async function getCliqueMembers(
   authManager: AuthManager,
   cliqueUri: string,
@@ -138,14 +137,18 @@ export async function getPrivatePost(
 ): Promise<PrivatePost | null> {
   let post: PrivatePost;
   try {
-    post = await query(
+    post = (await query(
       "network.habitat.repo.getRecord",
-      { repo, collection: "app.bsky.feed.post", rkey, includePermissions: true },
+      {
+        repo,
+        collection: "app.bsky.feed.post",
+        rkey,
+        includePermissions: true,
+      },
       { authManager },
-    ) as unknown as PrivatePost;
+    )) as unknown as PrivatePost;
   } catch {
     return null;
   }
   return resolvePostPermissions(authManager, post);
 }
-

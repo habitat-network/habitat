@@ -2,8 +2,8 @@ layer: application
 tasks:
   dev:
     env:
-      DEVTOOLS_PORT: '42072'
-      SERVER_PORT: '5175'
+      DEVTOOLS_PORT: "42072"
+      SERVER_PORT: "5175"
     deps:
       - target: "pear:dev"
       - target: "funnel:start"

@@ -20,7 +20,11 @@ interface AuthFormProps {
   serverError?: string;
 }
 
-export default function AuthForm({ authManager, redirectUrl, serverError }: AuthFormProps) {
+export default function AuthForm({
+  authManager,
+  redirectUrl,
+  serverError,
+}: AuthFormProps) {
   const { register, handleSubmit } = useForm<AuthFormData>();
   const {
     mutate: login,
@@ -51,8 +55,14 @@ export default function AuthForm({ authManager, redirectUrl, serverError }: Auth
               aria-describedby={errorId}
             />
           </Field>
-          {serverError && <small id={errorId} className="text-red-600">{serverError}</small>}
-          {!serverError && error?.message && <small id={errorId}>{error.message}</small>}
+          {serverError && (
+            <small id={errorId} className="text-red-600">
+              {serverError}
+            </small>
+          )}
+          {!serverError && error?.message && (
+            <small id={errorId}>{error.message}</small>
+          )}
           <Button aria-busy={isPending} type="submit">
             Login
           </Button>

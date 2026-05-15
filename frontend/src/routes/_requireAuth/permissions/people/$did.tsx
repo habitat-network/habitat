@@ -24,7 +24,13 @@ function PersonDetail() {
   const router = useRouter();
 
   const { mutate: remove } = useMutation({
-    async mutationFn({ collection, rkey }: { collection: string; rkey?: string }) {
+    async mutationFn({
+      collection,
+      rkey,
+    }: {
+      collection: string;
+      rkey?: string;
+    }) {
       await procedure(
         "network.habitat.permissions.removePermission",
         {

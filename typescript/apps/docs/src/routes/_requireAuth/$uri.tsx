@@ -111,7 +111,7 @@ async function startPeerDiscovery(
         });
       }
     }
-  } catch { }
+  } catch {}
 }
 
 // Preserve ydocs across navigations so the editor never flashes stale content.
@@ -213,7 +213,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       } catch {
         // Relay unreachable — document still works, real-time collaboration unavailable
         // TODO: can we signal to the user somehow that real-time collaboration is not working ?
-        console.error("unable to connect to habitat relay; continuing without real-time collaboration")
+        console.error(
+          "unable to connect to habitat relay; continuing without real-time collaboration",
+        );
       }
     }
 
@@ -282,10 +284,10 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             return {
               ...old,
               records: old.records.map((r) =>
-                r.uri === uri ? { ...r, value: { ...r.value, name } } : r
+                r.uri === uri ? { ...r, value: { ...r.value, name } } : r,
               ),
             };
-          }
+          },
         );
       };
       ydoc.on("update", syncHeading);
@@ -446,7 +448,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         return <p>You do not have access to this doc</p>;
       }
     }
-    console.error(error)
+    console.error(error);
     return <p>Something went wrong.</p>;
   },
   pendingComponent: () => <article>Loading...</article>,

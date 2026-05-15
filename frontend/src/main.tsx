@@ -10,10 +10,15 @@ import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { reportWebVitals, AuthManager } from "internal";
 
-const authManager = new AuthManager("Habitat", __DOMAIN__, __HABITAT_DOMAIN__, () => {
-  router.invalidate();
-  router.navigate({ to: "/oauth-login" });
-});
+const authManager = new AuthManager(
+  "Habitat",
+  __DOMAIN__,
+  __HABITAT_DOMAIN__,
+  () => {
+    router.invalidate();
+    router.navigate({ to: "/oauth-login" });
+  },
+);
 const queryClient = new QueryClient();
 
 const domainUrl = new URL(`https://${__DOMAIN__}`);

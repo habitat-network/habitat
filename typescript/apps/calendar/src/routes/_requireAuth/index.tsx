@@ -201,11 +201,11 @@ function CalendarPage() {
         initialEvent={
           editingEvent
             ? {
-              name: editingEvent.cal.name,
-              description: editingEvent.cal.description,
-              startsAt: editingEvent.cal.startsAt,
-              endsAt: editingEvent.cal.endsAt,
-            }
+                name: editingEvent.cal.name,
+                description: editingEvent.cal.description,
+                startsAt: editingEvent.cal.startsAt,
+                endsAt: editingEvent.cal.endsAt,
+              }
             : undefined
         }
         title="Edit Event"
