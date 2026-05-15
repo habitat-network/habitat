@@ -43,6 +43,11 @@ var (
 const testPasswordHash = "testhash"
 const testPassword = "test-password-123"
 
+func TestLoginMethod_Default(t *testing.T) {
+	s := newTestStore(t)
+	require.Equal(t, "password", s.LoginMethod())
+}
+
 func TestIsMember(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
