@@ -153,7 +153,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// hive is the identity minting service for orgs.
-	orgHive, err := hive.NewHive(cmd.String(fHiveDomain), domain, db)
+	orgHive, err := hive.NewHive(hiveDomain, domain, db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
