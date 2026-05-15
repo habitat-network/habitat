@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -180,9 +181,15 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 
 	var out habitat.NetworkHabitatOrgLoginMemberOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Contains(t, out.CallbackURL, "/oauth-callback?code=")
 
-	code := out.CallbackURL[len("/oauth-callback?code="):]
+	callbackUrl, err := url.Parse(out.CallbackURL)
+	require.NoError(t, err, "failed to parse callback URL")
+
+	require.Equal(t, callbackUrl.Scheme, "https")
+	require.Equal(t, callbackUrl.Host, "pear.example.com")
+	require.Equal(t, callbackUrl.Path, "/oauth-callback")
+
+	code := callbackUrl.Query().Get("code")
 	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), code, "", nil))
 }
 
