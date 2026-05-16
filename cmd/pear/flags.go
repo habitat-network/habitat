@@ -22,6 +22,8 @@ var (
 	fOauthClientSecret = "oauth_client_secret"
 	fFrontendDomain    = "frontend_domain"
 	fHiveDomain        = "hive_domain"
+	fGoogleClientID    = "google_client_id"
+	fGoogleClientSecret = "google_client_secret"
 )
 var profiles []string
 
@@ -89,6 +91,16 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fHiveDomain,
 				Usage:   "The domain at which the hive hosts identities",
 				Sources: getSources(fHiveDomain),
+			},
+			&cli.StringFlag{
+				Name:    fGoogleClientID,
+				Usage:   "Google OAuth client ID for Google Sign-In login method",
+				Sources: getSources(fGoogleClientID),
+			},
+			&cli.StringFlag{
+				Name:    fGoogleClientSecret,
+				Usage:   "Google OAuth client secret for Google Sign-In login method",
+				Sources: getSources(fGoogleClientSecret),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
