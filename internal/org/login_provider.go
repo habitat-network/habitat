@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
@@ -28,20 +29,32 @@ type LoginProvider struct {
 	store          Store
 	frontendDomain string
 	signingSecret  []byte
+	dir            identity.Directory
 }
 
-func NewLoginProvider(store Store, frontendDomain string, signingSecret []byte) *LoginProvider {
+func NewLoginProvider(
+	store Store,
+	frontendDomain string,
+	signingSecret []byte,
+	dir identity.Directory,
+) *LoginProvider {
 	return &LoginProvider{
 		store:          store,
 		frontendDomain: frontendDomain,
 		signingSecret:  signingSecret,
+		dir:            dir,
 	}
 }
 
 func (p *LoginProvider) LoginMethod() string { return "password" }
 
-func (p *LoginProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
-	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(string(id.Handle))
+func (p *LoginProvider) Authorize(
+	_ context.Context,
+	id *identity.Identity,
+) (string, []byte, error) {
+	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
+		string(id.Handle),
+	)
 	return redirect, nil, nil
 }
 
@@ -84,10 +97,23 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	ok, err := p.store.AuthenticateMember(r.Context(), req.Handle, req.Password)
+	atid, err := syntax.ParseAtIdentifier(req.Handle)
 	if err != nil {
-		utils.LogAndHTTPError(w, fmt.Errorf("error while authenticating"), err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
 		return
+	}
+
+	id, err := p.dir.Lookup(r.Context(), atid)
+
+	member, err := p.store.GetMember(r.Context(), id.DID)
+	ok, err := verifyPassword(req.Password, member.PasswordHash)
+	if !errors.Is(err, argon2id.ErrInvalidHash) {
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("error while authenticating"),
+			err.Error(),
+			http.StatusInternalServerError,
+		)
 	}
 	if !ok {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)

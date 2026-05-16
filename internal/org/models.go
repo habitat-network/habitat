@@ -12,8 +12,8 @@ type organization struct {
 }
 
 // Keep track of members in the org.
-// Each member belongs to exactly one org.
-type member struct {
+// Each Member belongs to exactly one org.
+type Member struct {
 	OrgID        string `gorm:"primaryKey"`
 	Member       string `gorm:"primaryKey"`
 	Role         string

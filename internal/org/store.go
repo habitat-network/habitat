@@ -1,0 +1,176 @@
+package org
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/hive"
+	"gorm.io/gorm"
+)
+
+// Store is the registry of all orgs on a pear instance.
+// It routes DIDs to their org and provides cross-org membership checks.
+type Store interface {
+	GetOrg(ctx context.Context, orgID string) (Org, error)
+	GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error)
+	CreateOrg(
+		ctx context.Context,
+		name string,
+		adminHandle string,
+		adminPassword string,
+	) (orgID string, id *identity.Identity, err error)
+
+	GetMember(ctx context.Context, did syntax.DID) (*Member, error)
+}
+
+// storeImpl is the Store implementation backed by gorm and the identity directory.
+type storeImpl struct {
+	db         *gorm.DB
+	hive       hive.Hive
+	dir        identity.Directory
+	pearDomain string
+	everyone   Org
+}
+
+var _ Store = &storeImpl{}
+
+// NewStore creates a Store that manages multiple orgs on a pear instance.
+func NewStore(
+	db *gorm.DB,
+	hve hive.Hive,
+	dir identity.Directory,
+	pearDomain string,
+) (Store, error) {
+	if err := db.AutoMigrate(&organization{}, &Member{}, &spentToken{}); err != nil {
+		return nil, err
+	}
+	return &storeImpl{
+		db:         db,
+		hive:       hve,
+		dir:        dir,
+		pearDomain: pearDomain,
+		everyone:   NewEveryoneOrg(),
+	}, nil
+}
+
+func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
+	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
+	if err != nil {
+		return nil, err
+	}
+	return &orgImpl{
+		orgID:         org.ID,
+		hive:          s.hive,
+		db:            s.db,
+		signingSecret: signingSecret,
+	}, nil
+}
+
+// GetOrg returns the org with the given ID.
+func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
+	var org organization
+	if err := s.db.WithContext(ctx).Where("id = ?", orgID).First(&org).Error; err != nil {
+		return nil, ErrOrgNotFound
+	}
+	return s.orgFromModel(&org)
+}
+
+// GetOrgForDID returns the org the given DID belongs to.
+// First checks the member table. If the DID isn't in any org, checks if
+// it's managed by our hive. Otherwise returns the everyone org for external DIDs.
+func (s *storeImpl) GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error) {
+	var m Member
+	if err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&m).Error; err == nil {
+		return s.GetOrg(ctx, m.OrgID)
+	}
+
+	id, err := s.dir.LookupDID(ctx, did)
+	if err != nil {
+		return s.everyone, nil
+	}
+
+	svc, hasHabitat := id.Services["habitat"]
+	if hasHabitat && svc.URL == "https://"+s.pearDomain {
+		return nil, ErrMemberNotFound
+	}
+
+	return s.everyone, nil
+}
+
+// CreateOrg creates a new org with a bootstrap admin member and returns the generated org ID and the admin identity.
+func (s *storeImpl) CreateOrg(
+	ctx context.Context,
+	name string,
+	adminHandle string,
+	adminPassword string,
+) (string, *identity.Identity, error) {
+	// Generate a random org ID
+	orgBytes := make([]byte, 16)
+	if _, err := rand.Read(orgBytes); err != nil {
+		return "", nil, err
+	}
+	orgID := fmt.Sprintf("%x", orgBytes)
+
+	// Generate signing secret
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return "", nil, err
+	}
+	signingSecret := base64.StdEncoding.EncodeToString(secret)
+
+	// Hash the admin password
+	passwordHash, err := hashPassword(adminPassword)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Mint identity for the admin
+	id, persistIdent, err := s.hive.MintIdentity(adminHandle)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Persist org, identity, and admin member in a single transaction
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&organization{
+			ID:            orgID,
+			Name:          name,
+			LoginMethod:   "password", // new orgs default to password auth
+			SigningSecret: signingSecret,
+			CreatedAt:     time.Now(),
+		}).Error; err != nil {
+			if isDuplicateError(err) {
+				return ErrOrgAlreadyExists
+			}
+			return err
+		}
+		if err := persistIdent(tx); err != nil {
+			return err
+		}
+		return tx.Create(&Member{
+			OrgID:        orgID,
+			Member:       id.DID.String(),
+			Role:         string(AdminRole),
+			PasswordHash: passwordHash,
+			CreatedAt:    time.Now(),
+		}).Error
+	})
+	if err != nil {
+		return "", nil, err
+	}
+
+	return orgID, id, nil
+}
+
+func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*Member, error) {
+	var m Member
+	if err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&m).Error; err != nil {
+		return nil, ErrMemberNotFound
+	}
+	return &m, nil
+}
