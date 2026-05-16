@@ -45,36 +45,6 @@ function CreateOrgPage() {
 
   const loginMethod = watch("login_method");
 
-  const {} = useMutation({
-    mutationFn: async (values: FormValues) => {
-    try {
-      const body: Record<string, string | undefined> = {
-        admin_handle: values.admin_handle,
-        name: values.name || undefined,
-        login_method: values.login_method,
-      };
-      if (values.login_method === "password") {
-        body.admin_password = values.admin_password;
-      } else {
-        body.login_id = values.login_id || undefined;
-      }
-      await procedure(
-        "network.habitat.org.create",
-        body,
-        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
-      );
-      await navigate({
-        to: "/oauth-login",
-        search: { handle: values.admin_handle },
-      });
-    } catch (err) {
-      setError("root", {
-        message: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-  }
-  })
-
   const onSubmit = async (values: FormValues) => {
     try {
       const body: Record<string, string | undefined> = {
@@ -87,14 +57,14 @@ function CreateOrgPage() {
       } else {
         body.login_id = values.login_id || undefined;
       }
-      await procedure(
+      const { admin_handle } = await procedure(
         "network.habitat.org.create",
         body,
         { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
       );
       await navigate({
         to: "/oauth-login",
-        search: { handle: values.admin_handle },
+        search: { handle: admin_handle },
       });
     } catch (err) {
       setError("root", {
@@ -123,20 +93,24 @@ function CreateOrgPage() {
           </Field>
           <Field>
             <FieldLabel>Login Method</FieldLabel>
-            <Controller 
+            <Controller
               control={control}
               name="login_method"
               render={({ field: { onChange, value, ...field } }) => {
-                return <ToggleGroup
-                  variant="outline"
-                  {...field}
-                  value={[value]}
-                  onValueChange={(value) => onChange(value[0])}
-              >
-                <ToggleGroupItem value="password">Password</ToggleGroupItem>
-                <ToggleGroupItem value="atproto">AT Protocol</ToggleGroupItem>
-                <ToggleGroupItem value="google">Google</ToggleGroupItem>
-              </ToggleGroup>
+                return (
+                  <ToggleGroup
+                    variant="outline"
+                    {...field}
+                    value={[value]}
+                    onValueChange={(value) => onChange(value[0])}
+                  >
+                    <ToggleGroupItem value="password">Password</ToggleGroupItem>
+                    <ToggleGroupItem value="atproto">
+                      AT Protocol
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="google">Google</ToggleGroupItem>
+                  </ToggleGroup>
+                );
               }}
             />
           </Field>
@@ -153,15 +127,11 @@ function CreateOrgPage() {
           ) : (
             <Field>
               <FieldLabel>
-                {loginMethod === "atproto"
-                  ? "AT Protocol DID"
-                  : "Google Email"}
+                {loginMethod === "atproto" ? "AT Protocol DID" : "Google Email"}
               </FieldLabel>
               <Input
                 placeholder={
-                  loginMethod === "atproto"
-                    ? "did:plc:..."
-                    : "user@gmail.com"
+                  loginMethod === "atproto" ? "did:plc:..." : "user@gmail.com"
                 }
                 {...register("login_id", { required: true })}
               />

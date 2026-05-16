@@ -3,7 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AuthForm } from "internal";
 
 export const Route = createFileRoute("/oauth-login")({
+  validateSearch: (search) => {
+    return {
+      handle: String(search.handle),
+    };
+  },
   component() {
+    const { handle } = Route.useSearch();
     const { authManager } = Route.useRouteContext();
     const error =
       new URLSearchParams(window.location.search).get("error") ?? undefined;
@@ -12,6 +18,7 @@ export const Route = createFileRoute("/oauth-login")({
         authManager={authManager}
         redirectUrl={`https://${__DOMAIN__}`}
         serverError={error}
+        defaultHandle={handle}
       />
     );
   },
