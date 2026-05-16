@@ -23,6 +23,8 @@ type Store interface {
 		name string,
 		adminHandle string,
 		adminPassword string,
+		loginMethod string,
+		loginID string,
 	) (orgID string, id *identity.Identity, err error)
 
 	GetMember(ctx context.Context, did syntax.DID) (*Member, error)
@@ -108,25 +110,32 @@ func (s *storeImpl) CreateOrg(
 	name string,
 	adminHandle string,
 	adminPassword string,
+	loginMethod string,
+	loginID string,
 ) (string, *identity.Identity, error) {
-	// Generate a random org ID
 	orgBytes := make([]byte, 16)
 	if _, err := rand.Read(orgBytes); err != nil {
 		return "", nil, err
 	}
 	orgID := fmt.Sprintf("%x", orgBytes)
 
-	// Generate signing secret
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		return "", nil, err
 	}
 	signingSecret := base64.StdEncoding.EncodeToString(secret)
 
-	// Hash the admin password
-	passwordHash, err := hashPassword(adminPassword)
-	if err != nil {
-		return "", nil, err
+	// Determine the member's LoginID based on login method
+	var memberLoginID string
+	switch loginMethod {
+	case "password":
+		hash, err := hashPassword(adminPassword)
+		if err != nil {
+			return "", nil, err
+		}
+		memberLoginID = hash
+	case "atproto", "google":
+		memberLoginID = loginID
 	}
 
 	// Mint identity for the admin
@@ -135,12 +144,11 @@ func (s *storeImpl) CreateOrg(
 		return "", nil, err
 	}
 
-	// Persist org, identity, and admin member in a single transaction
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&organization{
 			ID:            orgID,
 			Name:          name,
-			LoginMethod:   "password", // new orgs default to password auth
+			LoginMethod:   loginMethod,
 			SigningSecret: signingSecret,
 			CreatedAt:     time.Now(),
 		}).Error; err != nil {
@@ -156,7 +164,7 @@ func (s *storeImpl) CreateOrg(
 			OrgID:     orgID,
 			Member:    id.DID.String(),
 			Role:      string(AdminRole),
-			LoginID:   passwordHash,
+			LoginID:   memberLoginID,
 			CreatedAt: time.Now(),
 		}).Error
 	})

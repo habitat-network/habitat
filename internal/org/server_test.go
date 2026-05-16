@@ -29,7 +29,7 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	orgId, _, err := storeImpl.CreateOrg(t.Context(), "test-org", "admin", "password")
+	orgId, _, err := storeImpl.CreateOrg(t.Context(), "test-org", "admin", "password", "", "")
 	require.NoError(t, err)
 
 	scoped, err := storeImpl.GetOrg(context.Background(), orgId)

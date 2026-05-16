@@ -27,24 +27,34 @@ type pdsProviderState struct {
 	AuthorizeState pdsclient.AuthorizeState `json:"authorize_state"`
 }
 
-func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSCredentialStore, dir identity.Directory) Provider {
+func NewPDSProvider(
+	oauthClient pdsclient.PdsOAuthClient,
+	credStore pdscred.PDSCredentialStore,
+	dir identity.Directory,
+) Provider {
 	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir}
 }
 
 func (p *pdsProvider) LoginMethod() string { return "atproto" }
 
-func (p *pdsProvider) Authorize(ctx context.Context, id *identity.Identity, loginID string) (string, []byte, error) {
+func (p *pdsProvider) Authorize(
+	ctx context.Context,
+	id *identity.Identity,
+	loginID string,
+) (string, []byte, error) {
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
 	if loginID != "" && p.dir != nil {
 		publicDID, err := syntax.ParseDID(loginID)
-		if err == nil {
-			publicID, lookupErr := p.dir.LookupDID(ctx, publicDID)
-			if lookupErr == nil {
-				id = publicID
-			}
+		if err != nil {
+			return "", nil, fmt.Errorf("parse loginID: %w", err)
 		}
+		publicID, err := p.dir.LookupDID(ctx, publicDID)
+		if err != nil {
+			return "", nil, fmt.Errorf("lookup loginID: %w", err)
+		}
+		id = publicID
 	}
 
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -67,7 +77,13 @@ func (p *pdsProvider) Authorize(ctx context.Context, id *identity.Identity, logi
 	return redirect, stateBytes, nil
 }
 
-func (p *pdsProvider) Exchange(ctx context.Context, did syntax.DID, code string, issuer string, stateBytes []byte) error {
+func (p *pdsProvider) Exchange(
+	ctx context.Context,
+	did syntax.DID,
+	code string,
+	issuer string,
+	stateBytes []byte,
+) error {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return fmt.Errorf("unmarshal pds provider state: %w", err)

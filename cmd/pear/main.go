@@ -128,9 +128,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	domain := cmd.String(fDomain)
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		"https://"+domain+"/client-metadata.json", /*clientId*/
-		"https://"+domain,                         /*clientUri*/
-		"https://"+domain+"/oauth-callback",       /*redirectUri*/
+		"https://sashankg.github.io/client-metadata.json", /*clientId*/
+		"https://"+domain,                   /*clientUri*/
+		"https://"+domain+"/oauth-callback", /*redirectUri*/
 		cmd.String(fOauthClientSecret),
 		meter,
 	)
