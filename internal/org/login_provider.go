@@ -27,6 +27,7 @@ type loginTokenClaims struct {
 // LoginProvider wraps Store and implements login.Provider for habitat-hosted member identities.
 type LoginProvider struct {
 	store          Store
+	pearDomain     string
 	frontendDomain string
 	signingSecret  []byte
 	dir            identity.Directory
@@ -34,12 +35,14 @@ type LoginProvider struct {
 
 func NewLoginProvider(
 	store Store,
+	pearDomain string,
 	frontendDomain string,
 	signingSecret []byte,
 	dir identity.Directory,
 ) *LoginProvider {
 	return &LoginProvider{
 		store:          store,
+		pearDomain:     pearDomain,
 		frontendDomain: frontendDomain,
 		signingSecret:  signingSecret,
 		dir:            dir,
@@ -128,7 +131,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(habitat.NetworkHabitatOrgLoginMemberOutput{
-		CallbackURL: "/oauth-callback?code=" + token,
+		CallbackURL: "https://" + p.pearDomain + "/oauth-callback?code=" + token,
 	})
 	if err != nil {
 		http.Error(w, "encoding response", http.StatusInternalServerError)
