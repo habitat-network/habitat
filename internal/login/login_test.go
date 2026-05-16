@@ -80,19 +80,13 @@ func idWithPDSOnly() *identity.Identity {
 	}
 }
 
-type stubMappingStore struct{}
-
-func (s *stubMappingStore) GetPublicDID(_ context.Context, _ syntax.DID) (*syntax.DID, error) {
-	return nil, nil // no mapping — use identity as-is
-}
-
 // --- pdsProvider ---
 
 func TestPDSProvider_Authorize(t *testing.T) {
 	client := &stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}
-	p := NewPDSProvider(client, newStubCredStore(), &stubMappingStore{}, nil)
+	p := NewPDSProvider(client, newStubCredStore(), nil)
 
-	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly())
+	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
 	require.NoError(t, err)
 	require.Equal(t, "https://pds.example.com/authorize", redirect)
 	require.NotEmpty(t, state)
@@ -106,11 +100,11 @@ func TestPDSProvider_Authorize(t *testing.T) {
 
 func TestPDSProvider_Exchange(t *testing.T) {
 	credStore := newStubCredStore()
-	p := NewPDSProvider(&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}, credStore, &stubMappingStore{}, nil)
+	p := NewPDSProvider(&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}, credStore, nil)
 	did := syntax.DID("did:web:pds.example.com")
 
 	// Obtain valid state from Authorize.
-	_, state, err := p.Authorize(context.Background(), idWithPDSOnly())
+	_, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
 	require.NoError(t, err)
 
 	err = p.Exchange(context.Background(), did, "code", "https://pds.example.com", state)
@@ -129,7 +123,7 @@ type dummyProvider struct{}
 func NewDummyProvider() Provider { return &dummyProvider{} }
 
 func (d *dummyProvider) LoginMethod() string { return "password" }
-func (d *dummyProvider) Authorize(_ context.Context, _ *identity.Identity) (string, []byte, error) {
+func (d *dummyProvider) Authorize(_ context.Context, _ *identity.Identity, _ string) (string, []byte, error) {
 	return "https://dummy.example.com/login", nil, nil
 }
 func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
@@ -140,7 +134,7 @@ func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _
 
 func newTestRouter() *Router {
 	return NewRouter(
-		NewPDSProvider(&stubOAuthClient{}, newStubCredStore(), &stubMappingStore{}, nil),
+		NewPDSProvider(&stubOAuthClient{}, newStubCredStore(), nil),
 		NewDummyProvider(),
 	)
 }
@@ -160,12 +154,10 @@ func TestRouter_ByLoginMethod(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestPDSProvider_AuthorizeWithMapping(t *testing.T) {
-	mappedDID := syntax.DID("did:plc:mapped-public")
-	mapping := &stubMappingStoreWithMapping{mapped: mappedDID}
+func TestPDSProvider_AuthorizeWithLoginID(t *testing.T) {
 	client := &stubOAuthClient{redirectURL: "https://public-pds.example.com/authorize"}
 	dir := pdsclient.NewDummyDirectory("https://public-pds.example.com")
-	p := NewPDSProvider(client, newStubCredStore(), mapping, dir)
+	p := NewPDSProvider(client, newStubCredStore(), dir)
 
 	orgID := &identity.Identity{
 		DID: "did:web:internal.org.example.com",
@@ -173,29 +165,15 @@ func TestPDSProvider_AuthorizeWithMapping(t *testing.T) {
 			"habitat": {URL: "https://habitat.example.com"},
 		},
 	}
-	redirect, state, err := p.Authorize(context.Background(), orgID)
+	redirect, state, err := p.Authorize(context.Background(), orgID, "did:plc:mapped-public")
 	require.NoError(t, err)
 	require.Equal(t, "https://public-pds.example.com/authorize", redirect)
 	require.NotEmpty(t, state)
 }
 
-type stubMappingStoreWithMapping struct {
-	mapped syntax.DID
-}
-
-func (s *stubMappingStoreWithMapping) GetPublicDID(_ context.Context, _ syntax.DID) (*syntax.DID, error) {
-	return &s.mapped, nil
-}
-
 func TestGoogleProvider_LoginMethod(t *testing.T) {
-	p := NewGoogleProvider(&stubGoogleMappingStore{})
+	p := NewGoogleProvider()
 	require.Equal(t, "google", p.LoginMethod())
-}
-
-type stubGoogleMappingStore struct{}
-
-func (s *stubGoogleMappingStore) GetEmail(_ context.Context, _ syntax.DID) (string, error) {
-	return "", nil
 }
 
 // unmarshalProviderState is a test helper to inspect the opaque pds state bytes.

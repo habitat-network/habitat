@@ -185,10 +185,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 		cmd.String(fDomain),
 		cmd.String(fFrontendDomain),
 		oauthSecret,
+		dir,
 	)
 
 	loginRouter := login.NewRouter(
-		login.NewPDSProvider(oauthClient, pdsCredStore, nil, dir),
+		login.NewPDSProvider(oauthClient, pdsCredStore, dir),
 		orgLoginProvider,
 	)
 

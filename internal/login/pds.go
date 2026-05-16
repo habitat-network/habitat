@@ -15,15 +15,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type mappingStore interface {
-	GetPublicDID(ctx context.Context, did syntax.DID) (*syntax.DID, error)
-}
-
 type pdsProvider struct {
-	oauthClient  pdsclient.PdsOAuthClient
-	credStore    pdscred.PDSCredentialStore
-	mappingStore mappingStore
-	dir          identity.Directory
+	oauthClient pdsclient.PdsOAuthClient
+	credStore   pdscred.PDSCredentialStore
+	dir         identity.Directory
 }
 
 // pdsProviderState is the opaque flash state for the PDS login flow.
@@ -32,24 +27,23 @@ type pdsProviderState struct {
 	AuthorizeState pdsclient.AuthorizeState `json:"authorize_state"`
 }
 
-func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSCredentialStore, ms mappingStore, dir identity.Directory) Provider {
-	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, mappingStore: ms, dir: dir}
+func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSCredentialStore, dir identity.Directory) Provider {
+	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir}
 }
 
 func (p *pdsProvider) LoginMethod() string { return "atproto" }
 
-func (p *pdsProvider) Authorize(ctx context.Context, id *identity.Identity) (string, []byte, error) {
-	// If the org has a public ATProto DID mapping, resolve it and use
-	// that identity's PDS (the org's public identity) for the OAuth flow.
-	// If no mapping exists (e.g. everyone org), use the identity as-is.
-	var publicDID *syntax.DID
-	if p.mappingStore != nil {
-		publicDID, _ = p.mappingStore.GetPublicDID(ctx, id.DID)
-	}
-	if publicDID != nil && p.dir != nil {
-		publicID, lookupErr := p.dir.LookupDID(ctx, *publicDID)
-		if lookupErr == nil {
-			id = publicID
+func (p *pdsProvider) Authorize(ctx context.Context, id *identity.Identity, loginID string) (string, []byte, error) {
+	// If the member has a public ATProto DID as their loginID, resolve it and use
+	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
+	// use the identity as-is.
+	if loginID != "" && p.dir != nil {
+		publicDID, err := syntax.ParseDID(loginID)
+		if err == nil {
+			publicID, lookupErr := p.dir.LookupDID(ctx, publicDID)
+			if lookupErr == nil {
+				id = publicID
+			}
 		}
 	}
 

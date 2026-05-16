@@ -42,10 +42,10 @@ const (
 // This data is temporarily stored during the OAuth authorization flow to preserve
 // request context across redirects.
 type authRequestFlash struct {
-	Form          url.Values  // Original authorization request form data
-	LoginMethod   string      // Which login method initiated this flow
-	ProviderState []byte      // Opaque provider-specific state
-	Did           syntax.DID  // DID of the user
+	Form          url.Values // Original authorization request form data
+	LoginMethod   string     // Which login method initiated this flow
+	ProviderState []byte     // Opaque provider-specific state
+	Did           syntax.DID // DID of the user
 }
 
 type metrics struct {
@@ -298,7 +298,15 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(w, err, "no login provider for org", http.StatusBadRequest)
 		return
 	}
-	redirect, providerState, err := provider.Authorize(ctx, id)
+
+	// Look up the member's login ID (provider-specific identifier) from the store.
+	// If the DID isn't a member (e.g. everyone org), loginID stays empty.
+	loginID := ""
+	if member, err := o.orgStore.GetMember(ctx, id.DID); err == nil {
+		loginID = member.LoginID
+	}
+
+	redirect, providerState, err := provider.Authorize(ctx, id, loginID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "begin_login")
 		utils.LogAndHTTPError(w, err, "failed to initiate authorization", http.StatusInternalServerError)

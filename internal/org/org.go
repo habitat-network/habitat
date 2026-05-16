@@ -127,25 +127,25 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return nil
 }
 
-func (s *orgImpl) addMember(ctx context.Context, did syntax.DID, passwordHash string) error {
-	return s.addMemberTx(ctx, s.db, did, passwordHash)
+func (s *orgImpl) addMember(ctx context.Context, did syntax.DID, loginID string) error {
+	return s.addMemberTx(ctx, s.db, did, loginID)
 }
 
 func (s *orgImpl) addMemberTx(
 	ctx context.Context,
 	tx *gorm.DB,
 	did syntax.DID,
-	passwordHash string,
+	loginID string,
 ) error {
 	return tx.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "org_id"}, {Name: "member"}},
 		DoNothing: true,
 	}).Create(&Member{
-		OrgID:        s.orgID,
-		Member:       did.String(),
-		Role:         string(MemberRole),
-		PasswordHash: passwordHash,
-		CreatedAt:    time.Now(),
+		OrgID:     s.orgID,
+		Member:    did.String(),
+		Role:      string(MemberRole),
+		LoginID:   loginID,
+		CreatedAt: time.Now(),
 	}).Error
 }
 
@@ -383,7 +383,7 @@ func (s *orgImpl) AuthenticateMember(
 		return false, err
 	}
 
-	ok, err := verifyPassword(password, row.PasswordHash)
+	ok, err := verifyPassword(password, row.LoginID)
 	if errors.Is(err, argon2id.ErrInvalidHash) {
 		// Members created before passwords were required have no usable hash.
 		return false, nil

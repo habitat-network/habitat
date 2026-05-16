@@ -43,6 +43,7 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 		"pear.example.com",
 		"frontend.example.com",
 		testSigningSecret,
+		h,
 	), scoped.(*orgImpl)
 }
 
@@ -56,7 +57,7 @@ func TestLoginProvider_Authorize(t *testing.T) {
 	id := &identity.Identity{
 		Handle: "alice.example.com",
 	}
-	redirect, state, err := p.Authorize(context.Background(), id)
+	redirect, state, err := p.Authorize(context.Background(), id, "")
 	require.NoError(t, err)
 	require.Nil(t, state)
 	require.Equal(
@@ -71,7 +72,7 @@ func TestLoginProvider_Authorize_HandleEscaping(t *testing.T) {
 	id := &identity.Identity{
 		Handle: "alice bob",
 	}
-	redirect, _, err := p.Authorize(context.Background(), id)
+	redirect, _, err := p.Authorize(context.Background(), id, "")
 	require.NoError(t, err)
 	require.Contains(t, redirect, "handle=alice+bob")
 }

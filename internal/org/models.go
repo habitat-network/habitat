@@ -14,10 +14,10 @@ type organization struct {
 // Keep track of members in the org.
 // Each Member belongs to exactly one org.
 type Member struct {
-	OrgID        string `gorm:"primaryKey"`
-	Member       string `gorm:"primaryKey"`
-	Role         string
-	PasswordHash string `gorm:"not null"`
+	OrgID   string `gorm:"primaryKey"`
+	Member  string `gorm:"primaryKey"`
+	Role    string
+	LoginID string // provider-specific identifier (password hash, public ATProto DID, google email, etc.)
 
 	// Automatically populated by gorm
 	CreatedAt time.Time

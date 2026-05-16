@@ -8,36 +8,24 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-// GoogleEmailMappingStore resolves an org DID to the email address used
-// for Google Sign-In.
-type GoogleEmailMappingStore interface {
-	GetEmail(ctx context.Context, orgDID syntax.DID) (string, error)
-}
-
 type googleProvider struct {
-	loginMethod  string
-	mappingStore GoogleEmailMappingStore
+	loginMethod string
 }
 
-func NewGoogleProvider(mappingStore GoogleEmailMappingStore) Provider {
+func NewGoogleProvider() Provider {
 	return &googleProvider{
-		loginMethod:  "google",
-		mappingStore: mappingStore,
+		loginMethod: "google",
 	}
 }
 
 func (p *googleProvider) LoginMethod() string { return p.loginMethod }
 
-func (p *googleProvider) Authorize(ctx context.Context, id *identity.Identity) (string, []byte, error) {
-	email, err := p.mappingStore.GetEmail(ctx, id.DID)
-	if err != nil {
-		return "", nil, fmt.Errorf("lookup google email for org %s: %w", id.DID, err)
-	}
-	if email == "" {
+func (p *googleProvider) Authorize(ctx context.Context, id *identity.Identity, loginID string) (string, []byte, error) {
+	if loginID == "" {
 		return "", nil, fmt.Errorf("no google email configured for org %s", id.DID)
 	}
-	// TODO: implement Google OAuth initiation with login_hint=email
-	_ = email
+	// TODO: implement Google OAuth initiation with login_hint=loginID
+	_ = loginID
 	return "", nil, fmt.Errorf("google provider not yet implemented")
 }
 

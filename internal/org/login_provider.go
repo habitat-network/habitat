@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/alexedwards/argon2id"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
@@ -54,6 +52,7 @@ func (p *LoginProvider) LoginMethod() string { return "password" }
 func (p *LoginProvider) Authorize(
 	_ context.Context,
 	id *identity.Identity,
+	_ string,
 ) (string, []byte, error) {
 	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
 		string(id.Handle),
@@ -107,16 +106,20 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 	}
 
 	id, err := p.dir.Lookup(r.Context(), atid)
+	if err != nil {
+		http.Error(w, "invalid handle", http.StatusUnauthorized)
+		return
+	}
 
 	member, err := p.store.GetMember(r.Context(), id.DID)
-	ok, err := verifyPassword(req.Password, member.PasswordHash)
-	if !errors.Is(err, argon2id.ErrInvalidHash) {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("error while authenticating"),
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+	if err != nil {
+		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		return
+	}
+	ok, err := verifyPassword(req.Password, member.LoginID)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "error while authenticating", http.StatusInternalServerError)
+		return
 	}
 	if !ok {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)

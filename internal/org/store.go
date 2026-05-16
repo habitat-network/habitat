@@ -153,11 +153,11 @@ func (s *storeImpl) CreateOrg(
 			return err
 		}
 		return tx.Create(&Member{
-			OrgID:        orgID,
-			Member:       id.DID.String(),
-			Role:         string(AdminRole),
-			PasswordHash: passwordHash,
-			CreatedAt:    time.Now(),
+			OrgID:     orgID,
+			Member:    id.DID.String(),
+			Role:      string(AdminRole),
+			LoginID:   passwordHash,
+			CreatedAt: time.Now(),
 		}).Error
 	})
 	if err != nil {
