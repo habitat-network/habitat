@@ -24,8 +24,8 @@ type organization struct {
 type Member struct {
 	OrgID   string `gorm:"primaryKey"`
 	Member  string `gorm:"primaryKey"`
-	Role    string
-	LoginID string // provider-specific identifier (password hash, public ATProto DID, google email, etc.)
+	Role    string `gorm:"not null"`
+	LoginID string `gorm:"not null"` // provider-specific identifier (password hash, public ATProto DID, google email, etc.)
 
 	// Automatically populated by gorm
 	CreatedAt time.Time

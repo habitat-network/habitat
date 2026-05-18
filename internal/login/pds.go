@@ -46,14 +46,16 @@ func (p *pdsProvider) Authorize(
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
-	if loginID != "" && p.dir != nil {
+	if loginID != "" {
 		publicDID, err := syntax.ParseDID(loginID)
-		if err == nil {
-			publicID, lookupErr := p.dir.LookupDID(ctx, publicDID)
-			if lookupErr == nil {
-				id = publicID
-			}
+		if err != nil {
+			return "", nil, fmt.Errorf("parse loginID: %w", err)
 		}
+		publicID, err := p.dir.LookupDID(ctx, publicDID)
+		if err != nil {
+			return "", nil, fmt.Errorf("lookup loginID: %w", err)
+		}
+		id = publicID
 	}
 
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
