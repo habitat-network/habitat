@@ -72,7 +72,10 @@ func (gc *GoogleClient) GetUserEmail(ctx context.Context, accessToken string) (s
 	return userInfo.Email, nil
 }
 
-func (gc *GoogleClient) GetCalendarService(ctx context.Context, session *Session) (*calendar.Service, error) {
+func (gc *GoogleClient) GetCalendarService(
+	ctx context.Context,
+	session *Session,
+) (*calendar.Service, error) {
 	tok, err := gc.getValidToken(ctx, session)
 	if err != nil {
 		return nil, err
@@ -82,7 +85,10 @@ func (gc *GoogleClient) GetCalendarService(ctx context.Context, session *Session
 	return calendar.NewService(ctx, option.WithHTTPClient(client))
 }
 
-func (gc *GoogleClient) getValidToken(ctx context.Context, session *Session) (*oauth2.Token, error) {
+func (gc *GoogleClient) getValidToken(
+	ctx context.Context,
+	session *Session,
+) (*oauth2.Token, error) {
 	if session.GoogleAccessToken == "" {
 		return nil, fmt.Errorf("no access token available")
 	}
@@ -119,7 +125,13 @@ func (gc *GoogleClient) getValidToken(ctx context.Context, session *Session) (*o
 	return tok, nil
 }
 
-func (gc *GoogleClient) ListEvents(ctx context.Context, session *Session, calendarID string, timeMin, timeMax string, pageSize int64) ([]*calendar.Event, error) {
+func (gc *GoogleClient) ListEvents(
+	ctx context.Context,
+	session *Session,
+	calendarID string,
+	timeMin, timeMax string,
+	pageSize int64,
+) ([]*calendar.Event, error) {
 	svc, err := gc.GetCalendarService(ctx, session)
 	if err != nil {
 		return nil, err
@@ -168,7 +180,11 @@ func (gc *GoogleClient) ListEvents(ctx context.Context, session *Session, calend
 	return events, nil
 }
 
-func (gc *GoogleClient) GetEvent(ctx context.Context, session *Session, calendarID, eventID string) (*calendar.Event, error) {
+func (gc *GoogleClient) GetEvent(
+	ctx context.Context,
+	session *Session,
+	calendarID, eventID string,
+) (*calendar.Event, error) {
 	svc, err := gc.GetCalendarService(ctx, session)
 	if err != nil {
 		return nil, err

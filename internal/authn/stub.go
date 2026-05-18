@@ -13,10 +13,20 @@ type stubAuthn struct {
 }
 
 func (s *stubAuthn) CanHandle(_ *http.Request) bool { return true }
-func (s *stubAuthn) Validate(_ http.ResponseWriter, _ *http.Request, _ ...string) (syntax.DID, bool) {
+
+func (s *stubAuthn) Validate(
+	_ http.ResponseWriter,
+	_ *http.Request,
+	_ ...string,
+) (syntax.DID, bool) {
 	return s.did, true
 }
-func (s *stubAuthn) ValidateRaw(_ context.Context, _ string, _ ...string) (syntax.DID, bool, error) {
+
+func (s *stubAuthn) ValidateRaw(
+	_ context.Context,
+	_ string,
+	_ ...string,
+) (syntax.DID, bool, error) {
 	return s.did, true, nil
 }
 

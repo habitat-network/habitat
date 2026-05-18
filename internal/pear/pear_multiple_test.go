@@ -16,7 +16,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func newMultiPears(t *testing.T, aDIDs []syntax.DID, bDIDs []syntax.DID, mockXrpcCh xrpcchannel.XrpcChannel) (*pear, *pear) {
+func newMultiPears(
+	t *testing.T,
+	aDIDs []syntax.DID,
+	bDIDs []syntax.DID,
+	mockXrpcCh xrpcchannel.XrpcChannel,
+) (*pear, *pear) {
 	pearAName := "pearA"
 	pearAEndpoint := "https://pearA"
 

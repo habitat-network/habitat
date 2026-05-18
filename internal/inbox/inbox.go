@@ -10,8 +10,18 @@ import (
 )
 
 type Inbox interface {
-	Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection syntax.NSID, rkey string) error
-	GetCollectionUpdatesByRecipient(ctx context.Context, recipient syntax.DID, collection syntax.NSID) ([]Notification, error)
+	Put(
+		ctx context.Context,
+		sender syntax.DID,
+		recipient syntax.DID,
+		collection syntax.NSID,
+		rkey string,
+	) error
+	GetCollectionUpdatesByRecipient(
+		ctx context.Context,
+		recipient syntax.DID,
+		collection syntax.NSID,
+	) ([]Notification, error)
 	// Eventually we might have GetRecordUpdates() or GetBySender()
 }
 
@@ -42,7 +52,13 @@ func New(db *gorm.DB) (Inbox, error) {
 	return &inbox{db}, nil
 }
 
-func (i *inbox) Put(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection syntax.NSID, rkey string) error {
+func (i *inbox) Put(
+	ctx context.Context,
+	sender syntax.DID,
+	recipient syntax.DID,
+	collection syntax.NSID,
+	rkey string,
+) error {
 	notification := &Notification{
 		Sender:     sender.String(),
 		Recipient:  recipient.String(),
@@ -66,10 +82,17 @@ func (i *inbox) Put(ctx context.Context, sender syntax.DID, recipient syntax.DID
 }
 
 // GetCollectionUpdatesByRecipient implements Inbox.
-func (i *inbox) GetCollectionUpdatesByRecipient(ctx context.Context, recipient syntax.DID, collection syntax.NSID) ([]Notification, error) {
+func (i *inbox) GetCollectionUpdatesByRecipient(
+	ctx context.Context,
+	recipient syntax.DID,
+	collection syntax.NSID,
+) ([]Notification, error) {
 	var notifs []Notification
 
-	err := i.db.Where("recipient = ?", recipient).Where("collection = ?", collection).Find(&notifs).Error
+	err := i.db.Where("recipient = ?", recipient).
+		Where("collection = ?", collection).
+		Find(&notifs).
+		Error
 	if err != nil {
 		return nil, err
 	}

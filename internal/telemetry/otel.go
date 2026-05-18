@@ -41,7 +41,10 @@ func habitatResourceDefinition() (*resource.Resource, error) {
 	return resource, nil
 }
 
-func setupTraceProvider(ctx context.Context, resource *resource.Resource) (*trace.TracerProvider, error) {
+func setupTraceProvider(
+	ctx context.Context,
+	resource *resource.Resource,
+) (*trace.TracerProvider, error) {
 	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient())
 	if err != nil {
 		return nil, err
@@ -55,17 +58,26 @@ func setupTraceProvider(ctx context.Context, resource *resource.Resource) (*trac
 	return provider, nil
 }
 
-func setupMetricsProvider(ctx context.Context, resource *resource.Resource) (*metric.MeterProvider, error) {
+func setupMetricsProvider(
+	ctx context.Context,
+	resource *resource.Resource,
+) (*metric.MeterProvider, error) {
 	exporter, err := otlpmetrichttp.New(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	provider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(exporter)), metric.WithResource(resource))
+	provider := metric.NewMeterProvider(
+		metric.WithReader(metric.NewPeriodicReader(exporter)),
+		metric.WithResource(resource),
+	)
 	return provider, nil
 }
 
-func setupLoggingProvider(ctx context.Context, resource *resource.Resource) (*otellog.LoggerProvider, error) {
+func setupLoggingProvider(
+	ctx context.Context,
+	resource *resource.Resource,
+) (*otellog.LoggerProvider, error) {
 	exporter, err := otlploghttp.New(ctx,
 		otlploghttp.WithCompression(otlploghttp.GzipCompression),
 	)

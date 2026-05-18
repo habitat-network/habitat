@@ -335,7 +335,12 @@ func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
 		}
 
 		id := testIdentity("https://example.com")
-		client := newAuthedDpopHttpClient(id, countingStore, testOAuthClient(t), &MemoryNonceProvider{})
+		client := newAuthedDpopHttpClient(
+			id,
+			countingStore,
+			testOAuthClient(t),
+			&MemoryNonceProvider{},
+		)
 
 		var wg sync.WaitGroup
 		wg.Add(2)
@@ -367,7 +372,12 @@ func TestAuthedDpopHttpClient_CoalescesAccessTokenFetch(t *testing.T) {
 
 		require.NoError(t, err1)
 		require.NoError(t, err2)
-		require.Equal(t, int32(1), getCredentialsCalls.Load(), "GetCredentials should only be called once due to coalescing")
+		require.Equal(
+			t,
+			int32(1),
+			getCredentialsCalls.Load(),
+			"GetCredentials should only be called once due to coalescing",
+		)
 	})
 }
 
@@ -377,11 +387,18 @@ type countingCredStore struct {
 	onGet func()
 }
 
-func (c *countingCredStore) UpsertCredentials(ctx context.Context, did syntax.DID, creds *pdscred.Credentials) error {
+func (c *countingCredStore) UpsertCredentials(
+	ctx context.Context,
+	did syntax.DID,
+	creds *pdscred.Credentials,
+) error {
 	return c.inner.UpsertCredentials(ctx, did, creds)
 }
 
-func (c *countingCredStore) GetCredentials(ctx context.Context, did syntax.DID) (*pdscred.Credentials, error) {
+func (c *countingCredStore) GetCredentials(
+	ctx context.Context,
+	did syntax.DID,
+) (*pdscred.Credentials, error) {
 	c.onGet()
 	return c.inner.GetCredentials(ctx, did)
 }

@@ -13,7 +13,9 @@ const (
 	ReservedCliqueNSID = "network.habitat.clique"
 )
 
-var CliqueRefRegex = regexp.MustCompile(`^clique:(?P<authority>[a-zA-Z0-9._:%-]+)(\/(?P<key>[a-zA-Z0-9-.]+))$`)
+var CliqueRefRegex = regexp.MustCompile(
+	`^clique:(?P<authority>[a-zA-Z0-9._:%-]+)(\/(?P<key>[a-zA-Z0-9-.]+))$`,
+)
 
 func ConstructClique(owner syntax.DID, key string) Clique {
 	return Clique(fmt.Sprintf("clique:%s/%s", owner, key))

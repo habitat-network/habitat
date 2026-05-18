@@ -24,15 +24,30 @@ import (
 type Repo interface {
 	// Writes
 	PutRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
-	CreateRecord(ctx context.Context, record Record, validate *bool) (habitat_syntax.HabitatURI, error)
+	CreateRecord(
+		ctx context.Context,
+		record Record,
+		validate *bool,
+	) (habitat_syntax.HabitatURI, error)
 	DeleteRecord(ctx context.Context, did string, collection string, rkey string) error
 	UploadBlob(ctx context.Context, did string, data []byte, mimeType string) (*BlobRef, error)
 
 	// Read
 	GetRecord(ctx context.Context, did string, collection string, rkey string) (*Record, error)
-	GetBlob(ctx context.Context, did string, cid string) (string /* mimetype */, []byte /* raw blob */, error)
-	GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error)
-	ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error)
+	GetBlob(
+		ctx context.Context,
+		did string,
+		cid string,
+	) (string /* mimetype */, []byte /* raw blob */, error)
+	GetBlobLinks(
+		ctx context.Context,
+		cid syntax.CID,
+		did syntax.DID,
+	) ([]habitat_syntax.HabitatURI, error)
+	ListRecordsFromPermissions(
+		ctx context.Context,
+		perms []permissions.Permission,
+	) ([]Record, error)
 	ListRecords(ctx context.Context, did string, collection string) ([]Record, error)
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
@@ -154,7 +169,9 @@ func (r *repo) PutRecord(
 		}
 
 		// Check for existence to determine whether this was a true update or create operation
-		err = tx.Where("did = ? AND rkey = ? AND collection = ?", rec.Did, rec.Rkey, rec.Collection).First(&record{}).Error
+		err = tx.Where("did = ? AND rkey = ? AND collection = ?", rec.Did, rec.Rkey, rec.Collection).
+			First(&record{}).
+			Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// If a matching record is found, this is an update
 			// We can't rely on result.RowsAffected below because that returns 1 for both a create and and update
@@ -169,7 +186,9 @@ func (r *repo) PutRecord(
 		}
 
 		if len(refs) > 0 {
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&refs).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
+				Create(&refs).
+				Error; err != nil {
 				return err
 			}
 		}
@@ -236,7 +255,9 @@ func (r *repo) CreateRecord(
 			return err
 		}
 		if len(refs) > 0 {
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&refs).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
+				Create(&refs).
+				Error; err != nil {
 				return err
 			}
 		}
@@ -292,7 +313,9 @@ func (r *repo) GetRecord(
 func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, rkey string) error {
 	var ts time.Time
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).Delete(&record{}).Error
+		err := tx.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
+			Delete(&record{}).
+			Error
 		if err != nil {
 			return err
 		}
@@ -305,7 +328,14 @@ func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, 
 	}
 
 	// Emit the change
-	r.ee.EmitChangeEvent(did, collection, rkey, OperationDelete, ts, nil /* delete changes don't include record value */)
+	r.ee.EmitChangeEvent(
+		did,
+		collection,
+		rkey,
+		OperationDelete,
+		ts,
+		nil, /* delete changes don't include record value */
+	)
 	return nil
 }
 
@@ -367,7 +397,11 @@ func (r *repo) GetBlob(
 }
 
 // GetRefs implements Repo.
-func (r *repo) GetBlobLinks(ctx context.Context, cid syntax.CID, did syntax.DID) ([]habitat_syntax.HabitatURI, error) {
+func (r *repo) GetBlobLinks(
+	ctx context.Context,
+	cid syntax.CID,
+	did syntax.DID,
+) ([]habitat_syntax.HabitatURI, error) {
 	var links []link
 	err := r.db.WithContext(ctx).Where("cid = ?", cid).Where("did = ?", did).Find(&links).Error
 	if err != nil {
@@ -404,7 +438,10 @@ func rowsToRecords(rows []record) ([]Record, error) {
 // listRecords implements repo.
 // perms should not include redundant permissions ie
 // if grantee has permission to the collection, perms should not include permissions to specific records in that collection
-func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissions.Permission) ([]Record, error) {
+func (r *repo) ListRecordsFromPermissions(
+	ctx context.Context,
+	perms []permissions.Permission,
+) ([]Record, error) {
 	if len(perms) == 0 {
 		return []Record{}, nil
 	}
@@ -443,7 +480,11 @@ func (r *repo) ListRecordsFromPermissions(ctx context.Context, perms []permissio
 func (r *repo) ListRecords(ctx context.Context, did string, collection string) ([]Record, error) {
 	// Execute query
 	var rows []record
-	if err := r.db.WithContext(ctx).Where("did = ?", did).Where("collection = ?", collection).Find(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Where("did = ?", did).
+		Where("collection = ?", collection).
+		Find(&rows).
+		Error; err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -509,7 +550,11 @@ func (r *repo) ListCollections(ctx context.Context, did syntax.DID) ([]Collectio
 
 	md := make([]CollectionMetadata, len(rows))
 	for i, row := range rows {
-		md[i] = CollectionMetadata{Name: row.Name, RecordCount: row.RecordCount, LastTouched: row.LastTouched.inner}
+		md[i] = CollectionMetadata{
+			Name:        row.Name,
+			RecordCount: row.RecordCount,
+			LastTouched: row.LastTouched.inner,
+		}
 	}
 	return md, nil
 }

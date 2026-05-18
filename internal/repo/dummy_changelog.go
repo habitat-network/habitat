@@ -16,7 +16,14 @@ func (d *dummyChangelog) Consume() (stream.Stream[models.Event], error) {
 }
 
 // EmitChangeEvent implements EventEmitter.
-func (d *dummyChangelog) EmitChangeEvent(did string, collection string, rkey string, op operation, ts time.Time, record json.RawMessage) {
+func (d *dummyChangelog) EmitChangeEvent(
+	did string,
+	collection string,
+	rkey string,
+	op operation,
+	ts time.Time,
+	record json.RawMessage,
+) {
 }
 
 func NewDummyChangelog() *dummyChangelog {

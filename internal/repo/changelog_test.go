@@ -37,7 +37,14 @@ func TestEmitBeforeConsumeIsNoop(t *testing.T) {
 	ce := NewChangeEmitter(ctx, 10)
 
 	// Should not block or panic with no consumer attached.
-	ce.EmitChangeEvent("did:example:123", "app.test.record", "rkey1", OperationCreate, time.Now(), json.RawMessage(`{}`))
+	ce.EmitChangeEvent(
+		"did:example:123",
+		"app.test.record",
+		"rkey1",
+		OperationCreate,
+		time.Now(),
+		json.RawMessage(`{}`),
+	)
 }
 
 func TestEmitAfterConsumeDeliversEvent(t *testing.T) {
@@ -103,7 +110,12 @@ func TestPutRecordEmitsUpdate(t *testing.T) {
 	s, err := ce.Consume()
 	require.NoError(t, err)
 
-	rec := Record{Did: "did:plc:test", Collection: "network.habitat.test", Rkey: "rkey-1", Value: map[string]any{"msg": "hello"}}
+	rec := Record{
+		Did:        "did:plc:test",
+		Collection: "network.habitat.test",
+		Rkey:       "rkey-1",
+		Value:      map[string]any{"msg": "hello"},
+	}
 
 	_, err = r.PutRecord(t.Context(), rec, nil)
 	require.NoError(t, err)
