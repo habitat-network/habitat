@@ -34,7 +34,7 @@ type Provider interface {
 
 // Router selects the correct Provider for a given login method.
 type Router struct {
-	providers map[string]Provider
+	providers map[org.LoginMethod]Provider
 }
 
 func NewRouter(providers ...Provider) *Router {
