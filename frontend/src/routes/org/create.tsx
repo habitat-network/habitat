@@ -11,7 +11,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { procedure } from "internal";
 
-
 export const Route = createFileRoute("/org/create")({
   component: CreateOrgPage,
 });

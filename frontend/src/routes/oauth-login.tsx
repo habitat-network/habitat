@@ -5,7 +5,9 @@ import { AuthForm } from "internal";
 export const Route = createFileRoute("/oauth-login")({
   validateSearch: (search) => {
     return {
-      handle: String(search.handle),
+      handle: search.handle as string,
+    } satisfies {
+      handle?: string;
     };
   },
   component() {
