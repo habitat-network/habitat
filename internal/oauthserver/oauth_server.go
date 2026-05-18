@@ -321,12 +321,14 @@ func (o *OAuthServer) HandleAuthorize(
 
 	// Look up the member's login ID (provider-specific identifier) from the store.
 	// If the DID isn't a member (e.g. everyone org), loginID stays empty.
-	loginID := ""
-	if member, err := o.orgStore.GetMember(ctx, id.DID); err == nil {
-		loginID = member.LoginID
+	member, err := o.orgStore.GetMember(ctx, id.DID)
+	if err != nil {
+		o.metrics.authorizeErr(err, "get_member")
+		utils.LogAndHTTPError(w, err, "no member found for identity", http.StatusBadRequest)
+		return
 	}
 
-	redirect, providerState, err := provider.Authorize(ctx, id, loginID)
+	redirect, providerState, err := provider.Authorize(ctx, id, member.LoginID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "begin_login")
 		utils.LogAndHTTPError(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,13 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	"gorm.io/gorm"
 )
+
+type OrgMember struct {
+	Org     Org
+	DID     syntax.DID
+	Role    Role
+	LoginID string
+}
 
 // Store is the registry of all orgs on a pear instance.
 // It routes DIDs to their org and provides cross-org membership checks.
@@ -25,7 +33,7 @@ type Store interface {
 		adminPassword string,
 	) (orgID string, id *identity.Identity, err error)
 
-	GetMember(ctx context.Context, did syntax.DID) (*Member, error)
+	GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error)
 }
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
@@ -46,7 +54,7 @@ func NewStore(
 	dir identity.Directory,
 	pearDomain string,
 ) (Store, error) {
-	if err := db.AutoMigrate(&organization{}, &Member{}, &spentToken{}); err != nil {
+	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &storeImpl{
@@ -84,8 +92,8 @@ func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
 // First checks the member table. If the DID isn't in any org, checks if
 // it's managed by our hive. Otherwise returns the everyone org for external DIDs.
 func (s *storeImpl) GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error) {
-	var m Member
-	if err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&m).Error; err == nil {
+	var m member
+	if err := s.db.WithContext(ctx).Where("did = ?", did.String()).First(&m).Error; err == nil {
 		return s.GetOrg(ctx, m.OrgID)
 	}
 
@@ -152,9 +160,9 @@ func (s *storeImpl) CreateOrg(
 		if err := persistIdent(tx); err != nil {
 			return err
 		}
-		return tx.Create(&Member{
+		return tx.Create(&member{
 			OrgID:     orgID,
-			Member:    id.DID.String(),
+			Did:       id.DID.String(),
 			Role:      string(AdminRole),
 			LoginID:   passwordHash,
 			CreatedAt: time.Now(),
@@ -167,10 +175,27 @@ func (s *storeImpl) CreateOrg(
 	return orgID, id, nil
 }
 
-func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*Member, error) {
-	var m Member
-	if err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&m).Error; err != nil {
-		return nil, ErrMemberNotFound
+func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {
+	var m member
+	if err := s.db.WithContext(ctx).Where("did = ?", did.String()).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &OrgMember{
+				Org:     s.everyone,
+				DID:     did,
+				Role:    MemberRole,
+				LoginID: "",
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to get member: %w", err)
 	}
-	return &m, nil
+	org, err := s.orgFromModel(&m.Organization)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get org from model: %w", err)
+	}
+	return &OrgMember{
+		Org:     org,
+		DID:     syntax.DID(m.Did),
+		Role:    Role(m.Role),
+		LoginID: m.LoginID,
+	}, nil
 }
