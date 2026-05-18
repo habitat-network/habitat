@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -29,6 +28,7 @@ type LoginProvider struct {
 	pearDomain     string
 	frontendDomain string
 	signingSecret  []byte
+	dir            identity.Directory
 }
 
 func NewLoginProvider(
@@ -36,26 +36,23 @@ func NewLoginProvider(
 	pearDomain string,
 	frontendDomain string,
 	signingSecret []byte,
+	dir identity.Directory,
 ) *LoginProvider {
 	return &LoginProvider{
 		store:          store,
 		pearDomain:     pearDomain,
 		frontendDomain: frontendDomain,
 		signingSecret:  signingSecret,
+		dir:            dir,
 	}
 }
 
-func (p *LoginProvider) Type() string { return "habitat" }
-
-func (p *LoginProvider) CanHandle(id *identity.Identity) bool {
-	_, hasHabitat := id.Services["habitat"]
-	_, hasPDS := id.Services["atproto_pds"]
-	return hasHabitat && !hasPDS
-}
+func (p *LoginProvider) LoginMethod() LoginMethod { return LoginMethodPassword }
 
 func (p *LoginProvider) Authorize(
 	_ context.Context,
 	id *identity.Identity,
+	_ string,
 ) (string, []byte, error) {
 	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
 		string(id.Handle),
@@ -102,14 +99,26 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	ok, err := p.store.AuthenticateMember(r.Context(), req.Handle, req.Password)
+	atid, err := syntax.ParseAtIdentifier(req.Handle)
 	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			fmt.Errorf("error while authenticating"),
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		return
+	}
+
+	id, err := p.dir.Lookup(r.Context(), atid)
+	if err != nil {
+		http.Error(w, "invalid handle", http.StatusUnauthorized)
+		return
+	}
+
+	member, err := p.store.GetMember(r.Context(), id.DID)
+	if err != nil {
+		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		return
+	}
+	ok, err := verifyPassword(req.Password, member.LoginID)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "error while authenticating", http.StatusInternalServerError)
 		return
 	}
 	if !ok {

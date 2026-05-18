@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/rs/zerolog/log"
@@ -18,6 +19,7 @@ import (
 type pdsProvider struct {
 	oauthClient pdsclient.PdsOAuthClient
 	credStore   pdscred.PDSCredentialStore
+	dir         identity.Directory
 }
 
 // pdsProviderState is the opaque flash state for the PDS login flow.
@@ -26,19 +28,36 @@ type pdsProviderState struct {
 	AuthorizeState pdsclient.AuthorizeState `json:"authorize_state"`
 }
 
-func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSCredentialStore) Provider {
-	return &pdsProvider{oauthClient: oauthClient, credStore: credStore}
+func NewPDSProvider(
+	oauthClient pdsclient.PdsOAuthClient,
+	credStore pdscred.PDSCredentialStore,
+	dir identity.Directory,
+) Provider {
+	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir}
 }
 
-func (p *pdsProvider) Type() ProviderType { return ProviderTypePDS }
+func (p *pdsProvider) LoginMethod() org.LoginMethod { return org.LoginMethodAtproto }
 
-func (p *pdsProvider) CanHandle(id *identity.Identity) bool {
-	_, hasPDS := id.Services["atproto_pds"]
-	_, hasHabitat := id.Services["habitat"]
-	return hasPDS && !hasHabitat
-}
+func (p *pdsProvider) Authorize(
+	ctx context.Context,
+	id *identity.Identity,
+	loginID string,
+) (string, []byte, error) {
+	// If the member has a public ATProto DID as their loginID, resolve it and use
+	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
+	// use the identity as-is.
+	if loginID != "" {
+		publicDID, err := syntax.ParseDID(loginID)
+		if err != nil {
+			return "", nil, fmt.Errorf("parse loginID: %w", err)
+		}
+		publicID, err := p.dir.LookupDID(ctx, publicDID)
+		if err != nil {
+			return "", nil, fmt.Errorf("lookup loginID: %w", err)
+		}
+		id = publicID
+	}
 
-func (p *pdsProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate dpop key: %w", err)
@@ -59,7 +78,13 @@ func (p *pdsProvider) Authorize(_ context.Context, id *identity.Identity) (strin
 	return redirect, stateBytes, nil
 }
 
-func (p *pdsProvider) Exchange(ctx context.Context, did syntax.DID, code string, issuer string, stateBytes []byte) error {
+func (p *pdsProvider) Exchange(
+	ctx context.Context,
+	did syntax.DID,
+	code string,
+	issuer string,
+	stateBytes []byte,
+) error {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return fmt.Errorf("unmarshal pds provider state: %w", err)
