@@ -10,19 +10,19 @@ import (
 )
 
 var (
-	fDebug             = "debug"
-	fDomain            = "domain"
-	fServiceName       = "service_name"
-	fDb                = "db"
-	fPort              = "port"
-	fHttpsCerts        = "httpscerts"
-	fPgUrl             = "pgurl"
-	fPdsCredEncryptKey = "pds_cred_encrypt_key"
-	fOauthServerSecret = "oauth_server_secret"
-	fOauthClientSecret = "oauth_client_secret"
-	fFrontendDomain    = "frontend_domain"
-	fHiveDomain        = "hive_domain"
-	fGoogleClientID    = "google_client_id"
+	fDebug              = "debug"
+	fDomain             = "domain"
+	fServiceName        = "service_name"
+	fDb                 = "db"
+	fPort               = "port"
+	fHttpsCerts         = "httpscerts"
+	fPgUrl              = "pgurl"
+	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
+	fOauthServerSecret  = "oauth_server_secret"
+	fOauthClientSecret  = "oauth_client_secret"
+	fFrontendDomain     = "frontend_domain"
+	fHiveDomain         = "hive_domain"
+	fGoogleClientID     = "google_client_id"
 	fGoogleClientSecret = "google_client_secret"
 )
 var profiles []string

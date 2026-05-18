@@ -49,7 +49,11 @@ type googleCredentialStore struct {
 	encryptionKey []byte
 }
 
-func (s *googleCredentialStore) UpsertCredentials(ctx context.Context, did syntax.DID, creds *Credentials) error {
+func (s *googleCredentialStore) UpsertCredentials(
+	ctx context.Context,
+	did syntax.DID,
+	creds *Credentials,
+) error {
 	m := &googleCredentialsModel{DID: did.String()}
 	var err error
 	if m.AccessToken, err = encrypt.EncryptCBOR(creds.AccessToken, s.encryptionKey); err != nil {
@@ -69,7 +73,10 @@ func (s *googleCredentialStore) UpsertCredentials(ctx context.Context, did synta
 	return nil
 }
 
-func (s *googleCredentialStore) GetCredentials(ctx context.Context, did syntax.DID) (*Credentials, error) {
+func (s *googleCredentialStore) GetCredentials(
+	ctx context.Context,
+	did syntax.DID,
+) (*Credentials, error) {
 	var m googleCredentialsModel
 	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err != nil {
 		return nil, fmt.Errorf("google credentials not found: %w", err)
