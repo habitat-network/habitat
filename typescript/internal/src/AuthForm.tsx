@@ -18,12 +18,14 @@ interface AuthFormProps {
   authManager: AuthManager;
   redirectUrl: string;
   serverError?: string;
+  defaultHandle?: string;
 }
 
 export default function AuthForm({
   authManager,
   redirectUrl,
   serverError,
+  defaultHandle,
 }: AuthFormProps) {
   const { register, handleSubmit } = useForm<AuthFormData>();
   const {
@@ -51,6 +53,7 @@ export default function AuthForm({
             <FieldLabel>Handle</FieldLabel>
             <Input
               {...register("handle")}
+              defaultValue={defaultHandle}
               aria-invalid={isError || !!serverError || undefined}
               aria-describedby={errorId}
             />

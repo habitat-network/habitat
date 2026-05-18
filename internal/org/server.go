@@ -52,7 +52,15 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AdminHandle == "" || req.AdminPassword == "" || req.Name == "" {
+	if req.AdminHandle == "" || req.Name == "" || req.LoginMethod == "" {
+		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	if req.LoginMethod == "password" && req.AdminPassword == "" {
+		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		return
+	} else if req.LoginMethod != "password" && req.LoginId == "" {
 		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -62,6 +70,8 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		req.Name,
 		req.AdminHandle,
 		req.AdminPassword,
+		req.LoginMethod,
+		req.LoginId,
 	)
 	if errors.Is(err, identity.ErrInvalidHandle) {
 		http.Error(w, err.Error(), http.StatusBadRequest)

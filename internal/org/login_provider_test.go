@@ -32,7 +32,7 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password")
+	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "", "")
 	require.NoError(t, err)
 
 	scoped, err := s.GetOrg(context.Background(), orgId)

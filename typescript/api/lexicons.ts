@@ -1171,7 +1171,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['admin_handle', 'admin_password'],
+            required: ['admin_handle', 'login_method'],
             properties: {
               admin_handle: {
                 type: 'string',
@@ -1180,11 +1180,23 @@ export const schemaDict = {
               },
               admin_password: {
                 type: 'string',
-                description: 'Password for the bootstrap admin account.',
+                description:
+                  'Password for the bootstrap admin account (required for password login method).',
               },
               name: {
                 type: 'string',
                 description: 'A display name for this org.',
+              },
+              login_method: {
+                type: 'string',
+                default: 'password',
+                description:
+                  "Login method for the org: 'password', 'atproto', or 'google'.",
+              },
+              login_id: {
+                type: 'string',
+                description:
+                  "Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'.",
               },
             },
           },

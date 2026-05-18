@@ -37,7 +37,7 @@ func testStore(t *testing.T) org.Store {
 	require.NoError(t, err)
 	s, err := org.NewStore(db, h, identity.DefaultDirectory(), "example.com")
 	require.NoError(t, err)
-	_, _, err = s.CreateOrg(t.Context(), "org-name", "admin", "password")
+	_, _, err = s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "")
 	require.NoError(t, err)
 	return s
 }

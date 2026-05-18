@@ -29,7 +29,14 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	orgId, _, err := storeImpl.CreateOrg(t.Context(), "test-org", "admin", "password")
+	orgId, _, err := storeImpl.CreateOrg(
+		t.Context(),
+		"test-org",
+		"admin",
+		"password",
+		"password",
+		"",
+	)
 	require.NoError(t, err)
 
 	scoped, err := storeImpl.GetOrg(context.Background(), orgId)
@@ -118,6 +125,7 @@ func TestCreateOrg(t *testing.T) {
 		Name:          "My Org",
 		AdminHandle:   "admin",
 		AdminPassword: "securepassword123",
+		LoginMethod:   "password",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -160,6 +168,7 @@ func TestCreateOrg_InvalidHandle(t *testing.T) {
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
 		AdminHandle:   "invalid handle with spaces!",
 		AdminPassword: "password",
+		LoginMethod:   "password",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
