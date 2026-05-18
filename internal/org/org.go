@@ -95,7 +95,7 @@ func NewOrg(
 	db *gorm.DB,
 	signingSecret []byte,
 ) (*orgImpl, error) {
-	if err := db.AutoMigrate(&Member{}, &spentToken{}); err != nil {
+	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &orgImpl{
@@ -106,11 +106,7 @@ func NewOrg(
 	}, nil
 }
 
-<<<<<<< HEAD
-func (s *orgImpl) LoginMethod() string {
-=======
 func (s *orgImpl) LoginMethod() LoginMethod {
->>>>>>> master
 	var org organization
 	if err := s.db.First(&org, "id = ?", s.orgID).Error; err != nil {
 		return "password" // safe default
@@ -119,13 +115,8 @@ func (s *orgImpl) LoginMethod() LoginMethod {
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
-<<<<<<< HEAD
-	result := s.db.WithContext(ctx).Model(&Member{}).
-		Where("org_id = ? AND member = ?", s.orgID, admin.String()).
-=======
 	result := s.db.WithContext(ctx).Model(&member{}).
 		Where("org_id = ? AND did = ?", s.orgID, admin).
->>>>>>> master
 		Update("role", AdminRole)
 	if result.Error != nil {
 		return result.Error
@@ -149,17 +140,10 @@ func (s *orgImpl) addMemberTx(
 	return tx.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "org_id"}, {Name: "did"}},
 		DoNothing: true,
-<<<<<<< HEAD
-	}).Create(&Member{
-		OrgID:     s.orgID,
-		Member:    did.String(),
-		Role:      string(MemberRole),
-=======
 	}).Create(&member{
 		OrgID:     s.orgID,
 		Did:       did,
 		Role:      MemberRole,
->>>>>>> master
 		LoginID:   loginID,
 		CreatedAt: time.Now(),
 	}).Error
@@ -173,7 +157,7 @@ func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admi
 */
 
 func (s *orgImpl) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
-	var rows []Member
+	var rows []member
 	if err := s.db.WithContext(ctx).
 		Where("org_id = ? AND role = ?", s.orgID, AdminRole).
 		Find(&rows).
@@ -188,7 +172,7 @@ func (s *orgImpl) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 }
 
 func (s *orgImpl) GetMembers(ctx context.Context) ([]syntax.DID, error) {
-	var rows []Member
+	var rows []member
 	if err := s.db.WithContext(ctx).Where("org_id = ?", s.orgID).Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -202,11 +186,7 @@ func (s *orgImpl) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).
-<<<<<<< HEAD
-		Model(&Member{}).
-=======
 		Model(&member{}).
->>>>>>> master
 		Where("org_id = ? AND role = ?", s.orgID, AdminRole).
 		Count(&adminCount).
 		Error; err != nil {
@@ -216,13 +196,8 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 		return ErrLastAdmin
 	}
 	return s.db.WithContext(ctx).
-<<<<<<< HEAD
-		Model(&Member{}).
-		Where("org_id = ? AND member = ? AND role = ?", s.orgID, admin.String(), AdminRole).
-=======
 		Model(&member{}).
 		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
->>>>>>> master
 		Update("role", MemberRole).
 		Error
 }
@@ -230,11 +205,7 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).
-<<<<<<< HEAD
-		Model(&Member{}).
-=======
 		Model(&member{}).
->>>>>>> master
 		Where("org_id = ? AND role = ?", s.orgID, AdminRole).
 		Count(&adminCount).
 		Error; err != nil {
@@ -244,36 +215,22 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 		return ErrLastAdmin
 	}
 	return s.db.WithContext(ctx).
-<<<<<<< HEAD
-		Where("org_id = ? AND member = ? AND role = ?", s.orgID, admin.String(), AdminRole).
-		Delete(&Member{}).
-=======
 		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
 		Delete(&member{}).
->>>>>>> master
 		Error
 }
 
 func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error {
 	return s.db.WithContext(ctx).
-<<<<<<< HEAD
-		Where("org_id = ? AND member IN ? AND role = ?", s.orgID, dids, MemberRole).
-		Delete(&Member{}).
-=======
 		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, members, MemberRole).
 		Delete(&member{}).
->>>>>>> master
 		Error
 }
 
 func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
-	var row Member
+	var row member
 	err := s.db.WithContext(ctx).
-<<<<<<< HEAD
-		Where("org_id = ? AND member = ? AND role = ?", s.orgID, did.String(), AdminRole).
-=======
 		Where("org_id = ? AND did = ? AND role = ?", s.orgID, did, AdminRole).
->>>>>>> master
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -283,7 +240,7 @@ func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 }
 
 func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
-	var row Member
+	var row member
 	err := s.db.WithContext(ctx).
 		Where("org_id = ? AND did = ?", s.orgID, did).
 		First(&row).
@@ -402,7 +359,7 @@ func (s *orgImpl) AuthenticateMember(
 		return false, nil
 	}
 
-	var row Member
+	var row member
 	err = s.db.WithContext(ctx).
 		Where("org_id = ? AND did = ?", s.orgID, id.DID).
 		First(&row).
