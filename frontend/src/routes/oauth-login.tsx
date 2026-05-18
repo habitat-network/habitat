@@ -1,15 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { AuthForm } from "internal";
 
+const loginSearchSchema = z.object({
+  handle: z.string().optional(),
+})
+
 export const Route = createFileRoute("/oauth-login")({
-  validateSearch: (search) => {
-    return {
-      handle: search.handle as string,
-    } satisfies {
-      handle?: string;
-    };
-  },
+  validateSearch: loginSearchSchema,
   component() {
     const { handle } = Route.useSearch();
     const { authManager } = Route.useRouteContext();
