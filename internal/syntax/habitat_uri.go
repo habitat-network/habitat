@@ -21,7 +21,9 @@ const (
 	habitatScheme = "habitat://"
 )
 
-var HabitatURIRegex = regexp.MustCompile(`^habitat:\/\/(?P<authority>[a-zA-Z0-9._:%-]+)(\/(?P<collection>[a-zA-Z0-9-.]+)(\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512}))?)?$`)
+var HabitatURIRegex = regexp.MustCompile(
+	`^habitat:\/\/(?P<authority>[a-zA-Z0-9._:%-]+)(\/(?P<collection>[a-zA-Z0-9-.]+)(\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512}))?)?$`,
+)
 
 // String type which represents a syntaxtually valid AT URI, as would pass Lexicon syntax validation for the 'at-uri' field (no query or fragment parts)
 //
@@ -143,7 +145,13 @@ func (n HabitatURI) Normalize() HabitatURI {
 	if rkey == syntax.RecordKey("") {
 		return HabitatURI(habitatScheme + auth.Normalize().String() + "/" + coll.String())
 	}
-	return HabitatURI(habitatScheme + auth.Normalize().String() + "/" + coll.Normalize().String() + "/" + rkey.String())
+	return HabitatURI(
+		habitatScheme + auth.Normalize().
+			String() +
+			"/" + coll.Normalize().
+			String() +
+			"/" + rkey.String(),
+	)
 }
 
 func (n HabitatURI) String() string {

@@ -29,7 +29,16 @@ func TestHasPermission(t *testing.T) {
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
+	_, err = p.PutRecord(
+		t.Context(),
+		ownerDID,
+		ownerDID,
+		coll,
+		map[string]any{"data": "value"},
+		rkey,
+		&validate,
+		[]permissions.Grantee{permissions.DIDGrantee(granteeDID)},
+	)
 	require.NoError(t, err)
 
 	t.Run("owner can check if owner has permission", func(t *testing.T) {
@@ -44,11 +53,14 @@ func TestHasPermission(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("owner can check if non-grantee has permission, gets false with no error", func(t *testing.T) {
-		ok, err := p.HasPermission(t.Context(), ownerDID, nonGranteeDID, ownerDID, coll, rkey)
-		require.NoError(t, err)
-		require.False(t, ok)
-	})
+	t.Run(
+		"owner can check if non-grantee has permission, gets false with no error",
+		func(t *testing.T) {
+			ok, err := p.HasPermission(t.Context(), ownerDID, nonGranteeDID, ownerDID, coll, rkey)
+			require.NoError(t, err)
+			require.False(t, ok)
+		},
+	)
 
 	t.Run("grantee can check their own permission", func(t *testing.T) {
 		ok, err := p.HasPermission(t.Context(), granteeDID, granteeDID, ownerDID, coll, rkey)
@@ -56,11 +68,14 @@ func TestHasPermission(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("grantee can check if non-grantee has permission, gets false with no error", func(t *testing.T) {
-		ok, err := p.HasPermission(t.Context(), granteeDID, nonGranteeDID, ownerDID, coll, rkey)
-		require.NoError(t, err)
-		require.False(t, ok)
-	})
+	t.Run(
+		"grantee can check if non-grantee has permission, gets false with no error",
+		func(t *testing.T) {
+			ok, err := p.HasPermission(t.Context(), granteeDID, nonGranteeDID, ownerDID, coll, rkey)
+			require.NoError(t, err)
+			require.False(t, ok)
+		},
+	)
 
 	t.Run("non-grantee caller is unauthorized to check any permissions", func(t *testing.T) {
 		ok, _ := p.HasPermission(t.Context(), nonGranteeDID, granteeDID, ownerDID, coll, rkey)
@@ -90,11 +105,27 @@ func TestAddPermissions(t *testing.T) {
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		ownerDID,
+		ownerDID,
+		coll,
+		map[string]any{"data": "value"},
+		rkey,
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
 
 	t.Run("non-owner cannot add permissions", func(t *testing.T) {
-		err := p.AddPermissions(t.Context(), nonOwnerDID, []permissions.Grantee{permissions.DIDGrantee(nonOwnerDID)}, ownerDID, coll, rkey)
+		err := p.AddPermissions(
+			t.Context(),
+			nonOwnerDID,
+			[]permissions.Grantee{permissions.DIDGrantee(nonOwnerDID)},
+			ownerDID,
+			coll,
+			rkey,
+		)
 		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
 		// The non-owner did not gain access as a result of the failed call
@@ -104,7 +135,14 @@ func TestAddPermissions(t *testing.T) {
 	})
 
 	t.Run("owner can add permissions for a grantee", func(t *testing.T) {
-		err := p.AddPermissions(t.Context(), ownerDID, []permissions.Grantee{permissions.DIDGrantee(granteeDID)}, ownerDID, coll, rkey)
+		err := p.AddPermissions(
+			t.Context(),
+			ownerDID,
+			[]permissions.Grantee{permissions.DIDGrantee(granteeDID)},
+			ownerDID,
+			coll,
+			rkey,
+		)
 		require.NoError(t, err)
 
 		// Grantee can now access the record
@@ -116,7 +154,16 @@ func TestAddPermissions(t *testing.T) {
 	t.Run("owner can add permissions for multiple grantees at once", func(t *testing.T) {
 		coll2 := syntax.NSID("my.second.collection")
 		rkey2 := syntax.RecordKey("rkey2")
-		_, err := p.PutRecord(t.Context(), ownerDID, ownerDID, coll2, map[string]any{"k": "v"}, rkey2, &validate, []permissions.Grantee{})
+		_, err := p.PutRecord(
+			t.Context(),
+			ownerDID,
+			ownerDID,
+			coll2,
+			map[string]any{"k": "v"},
+			rkey2,
+			&validate,
+			[]permissions.Grantee{},
+		)
 		require.NoError(t, err)
 
 		err = p.AddPermissions(t.Context(), ownerDID, []permissions.Grantee{
@@ -149,11 +196,27 @@ func TestRemovePermissions(t *testing.T) {
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
+	_, err = p.PutRecord(
+		t.Context(),
+		ownerDID,
+		ownerDID,
+		coll,
+		map[string]any{"data": "value"},
+		rkey,
+		&validate,
+		[]permissions.Grantee{permissions.DIDGrantee(granteeDID)},
+	)
 	require.NoError(t, err)
 
 	t.Run("non-owner cannot remove permissions", func(t *testing.T) {
-		err := p.RemovePermissions(t.Context(), nonOwnerDID, []permissions.Grantee{permissions.DIDGrantee(granteeDID)}, ownerDID, coll, rkey)
+		err := p.RemovePermissions(
+			t.Context(),
+			nonOwnerDID,
+			[]permissions.Grantee{permissions.DIDGrantee(granteeDID)},
+			ownerDID,
+			coll,
+			rkey,
+		)
 		require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 
 		// Grantee's access is unaffected after the failed remove
@@ -163,7 +226,14 @@ func TestRemovePermissions(t *testing.T) {
 	})
 
 	t.Run("owner can remove permissions, revoking grantee access", func(t *testing.T) {
-		err := p.RemovePermissions(t.Context(), ownerDID, []permissions.Grantee{permissions.DIDGrantee(granteeDID)}, ownerDID, coll, rkey)
+		err := p.RemovePermissions(
+			t.Context(),
+			ownerDID,
+			[]permissions.Grantee{permissions.DIDGrantee(granteeDID)},
+			ownerDID,
+			coll,
+			rkey,
+		)
 		require.NoError(t, err)
 
 		// Grantee no longer has access
@@ -189,7 +259,16 @@ func TestListPermissionGrants(t *testing.T) {
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, map[string]any{"data": "value"}, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(granteeDID)})
+	_, err = p.PutRecord(
+		t.Context(),
+		ownerDID,
+		ownerDID,
+		coll,
+		map[string]any{"data": "value"},
+		rkey,
+		&validate,
+		[]permissions.Grantee{permissions.DIDGrantee(granteeDID)},
+	)
 	require.NoError(t, err)
 
 	t.Run("caller that is not the granter gets habitat_err.ErrUnauthorized", func(t *testing.T) {

@@ -71,7 +71,12 @@ func (p *PDSForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		atid, err := syntax.ParseAtIdentifier(target)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "[pds forwarding]: invalid target identifier", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				w,
+				err,
+				"[pds forwarding]: invalid target identifier",
+				http.StatusBadRequest,
+			)
 			return
 		}
 
@@ -81,11 +86,20 @@ func (p *PDSForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.serveCallerPDS(w, r)
 }
 
-func (p *PDSForwarding) serveTargetPDS(w http.ResponseWriter, r *http.Request, caller syntax.AtIdentifier) {
+func (p *PDSForwarding) serveTargetPDS(
+	w http.ResponseWriter,
+	r *http.Request,
+	caller syntax.AtIdentifier,
+) {
 	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
 	id, err := p.dir.Lookup(context.Background(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to lookup target identity", http.StatusBadGateway)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to lookup target identity",
+			http.StatusBadGateway,
+		)
 		return
 	}
 
@@ -101,13 +115,23 @@ func (p *PDSForwarding) serveTargetPDS(w http.ResponseWriter, r *http.Request, c
 
 	pdsURL, err := url.Parse(pdsEndpoint.URL)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to parse target PDS URL", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to parse target PDS URL",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	requestURI, err := url.Parse(r.URL.RequestURI())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to parse request URI", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to parse request URI",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	targetURL := pdsURL.ResolveReference(requestURI)
@@ -119,7 +143,12 @@ func (p *PDSForwarding) serveTargetPDS(w http.ResponseWriter, r *http.Request, c
 
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL.String(), body)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to create forwarding request", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to create forwarding request",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -139,7 +168,12 @@ func (p *PDSForwarding) serveTargetPDS(w http.ResponseWriter, r *http.Request, c
 
 	resp, err := p.plainHTTPClient.Do(req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request to target PDS", http.StatusBadGateway)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to forward request to target PDS",
+			http.StatusBadGateway,
+		)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -170,7 +204,12 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to create forwarding request", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to create forwarding request",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	// Copy headers from original request, stripping hop-by-hop headers that
@@ -187,7 +226,12 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 
 	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to create dpop client", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to create dpop client",
+			http.StatusInternalServerError,
+		)
 
 		return
 	}
@@ -198,7 +242,12 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 		// dpopClient.Do only returns an error for transport-level failures (network
 		// errors, signing errors, etc.) — never for PDS auth failures, which come
 		// back as valid HTTP responses. So always return 502 here.
-		utils.LogAndHTTPError(w, err, "[pds forwarding]: failed to forward request", http.StatusBadGateway)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"[pds forwarding]: failed to forward request",
+			http.StatusBadGateway,
+		)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
