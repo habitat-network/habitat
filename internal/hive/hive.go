@@ -145,11 +145,11 @@ func (h *hive) MintIdentity(
 	handlePrefix string,
 	subdomain string,
 ) (*identity.Identity, func(*gorm.DB) error, error) {
-	fullHandle := handlePrefix + "." + subdomain
 	// Ensure handle passes regex
-	if !handlePattern.MatchString(fullHandle) {
+	if !handlePattern.MatchString(handlePrefix) {
 		return nil, nil, identity.ErrInvalidHandle
 	}
+	fullHandle := handlePrefix + "." + subdomain
 	row, id, err := h.store.prepareIdentity(fullHandle)
 	if err != nil {
 		return nil, nil, err
