@@ -29,7 +29,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
-	"github.com/habitat-network/habitat/internal/atprotoauth"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -312,32 +311,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
 
-	// =====================================================================
-	// OAuth — LEGACY (fosite-backed, internal/oauthserver). Habitat acts as
-	// an OAuth client to the user's PDS via these routes. Kept while we
-	// build the atproto-spec server below.
-	// =====================================================================
 	// TODO: who is allowed to call the oauth handlers in an org?
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", orgLoginProvider.HandlePasswordLogin)
-
-	// =====================================================================
-	// OAuth — NEW atproto-spec server (internal/atprotoauth). Mounted at
-	// /atproto-oauth/* so it can coexist with the legacy /oauth/* routes
-	// during migration. The well-known discovery docs point at this server,
-	// since atproto-aware clients will only follow a spec-compliant flow.
-	// Endpoints land here incrementally: discovery → JWKS → PAR → authorize
-	// → token. Anything not yet implemented 404s by design.
-	// =====================================================================
-	// AS and resource server are colocated on this host; if/when split, the
-	// second arg to ServeProtectedResourceMetadata should point at the AS URL.
-	issuerURL := "https://" + domain
-	_ = atprotoauth.NewServer(issuerURL) // wired in once it owns handlers
-	mux.HandleFunc("/.well-known/oauth-authorization-server", atprotoauth.ServeAuthorizationServerMetadata(issuerURL))
-	mux.HandleFunc("/.well-known/oauth-protected-resource", atprotoauth.ServeProtectedResourceMetadata(issuerURL, issuerURL))
 
 	// pear routes
 	// repo
