@@ -5,7 +5,7 @@ import { AuthForm } from "internal";
 
 const loginSearchSchema = z.object({
   handle: z.string().optional(),
-})
+});
 
 export const Route = createFileRoute("/oauth-login")({
   validateSearch: loginSearchSchema,
