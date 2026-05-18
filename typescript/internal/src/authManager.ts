@@ -15,7 +15,9 @@ interface AuthInfo {
 
 export class AuthManager {
   private serverDomain: string;
-  private store: StoreApi<{ authInfo: AuthInfo | undefined }> & { persist: { rehydrate: () => void | Promise<void> } };
+  private store: StoreApi<{ authInfo: AuthInfo | undefined }> & {
+    persist: { rehydrate: () => void | Promise<void> };
+  };
   private config: client.Configuration;
   private onUnauthenticated: () => void;
   private refreshPromise: Promise<void> | undefined;
