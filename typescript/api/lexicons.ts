@@ -1171,7 +1171,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['admin_handle', 'login_method'],
+            required: ['admin_handle', 'admin_password', 'handle_subdomain'],
             properties: {
               admin_handle: {
                 type: 'string',
@@ -1182,6 +1182,11 @@ export const schemaDict = {
                 type: 'string',
                 description:
                   'Password for the bootstrap admin account (required for password login method).',
+              },
+              handle_subdomain: {
+                type: 'string',
+                description:
+                  "Subdomain for all org member handles (e.g. 'acmecorp').",
               },
               name: {
                 type: 'string',

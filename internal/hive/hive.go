@@ -20,7 +20,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error)
+	MintIdentity(handle string, subdomain string) (*identity.Identity, func(*gorm.DB) error, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -141,12 +141,16 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 }
 
 // MintIdentity implements Hive.
-func (h *hive) MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error) {
+func (h *hive) MintIdentity(
+	handlePrefix string,
+	subdomain string,
+) (*identity.Identity, func(*gorm.DB) error, error) {
+	fullHandle := handlePrefix + "." + subdomain
 	// Ensure handle passes regex
-	if !handlePattern.MatchString(handle) {
+	if !handlePattern.MatchString(fullHandle) {
 		return nil, nil, identity.ErrInvalidHandle
 	}
-	row, id, err := h.store.prepareIdentity(handle)
+	row, id, err := h.store.prepareIdentity(fullHandle)
 	if err != nil {
 		return nil, nil, err
 	}

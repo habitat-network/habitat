@@ -33,6 +33,7 @@ type Store interface {
 		adminPassword string,
 		loginMethod string,
 		loginID string,
+		handleSubdomain string,
 	) (orgID string, id *identity.Identity, err error)
 
 	GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error)
@@ -74,10 +75,11 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		return nil, err
 	}
 	return &orgImpl{
-		orgID:         org.ID,
-		hive:          s.hive,
-		db:            s.db,
-		signingSecret: signingSecret,
+		orgID:           org.ID,
+		hive:            s.hive,
+		db:              s.db,
+		signingSecret:   signingSecret,
+		handleSubdomain: org.HandleSubdomain,
 	}, nil
 }
 
@@ -120,6 +122,7 @@ func (s *storeImpl) CreateOrg(
 	adminPassword string,
 	loginMethod string,
 	loginID string,
+	handleSubdomain string,
 ) (string, *identity.Identity, error) {
 	orgBytes := make([]byte, 16)
 	if _, err := rand.Read(orgBytes); err != nil {
@@ -147,7 +150,7 @@ func (s *storeImpl) CreateOrg(
 	}
 
 	// Mint identity for the admin
-	id, persistIdent, err := s.hive.MintIdentity(adminHandle)
+	id, persistIdent, err := s.hive.MintIdentity(adminHandle, handleSubdomain)
 	if err != nil {
 		return "", nil, err
 	}
