@@ -42,10 +42,10 @@ const (
 // This data is temporarily stored during the OAuth authorization flow to preserve
 // request context across redirects.
 type authRequestFlash struct {
-	Form          url.Values         // Original authorization request form data
-	ProviderType  login.ProviderType // Which login provider initiated this flow
-	ProviderState []byte             // Opaque provider-specific state
-	Did           syntax.DID         // DID of the user
+	Form          url.Values      // Original authorization request form data
+	LoginMethod   org.LoginMethod // Which login method initiated this flow
+	ProviderState []byte          // Opaque provider-specific state
+	Did           syntax.DID      // DID of the user
 }
 
 type metrics struct {
@@ -172,7 +172,7 @@ type OAuthServer struct {
 
 	provider    fosite.OAuth2Provider
 	credStore   pdscred.PDSCredentialStore // Database storage for OAuth sessions
-	loginRouter *login.Router              // Routes login flows by DID service endpoint
+	loginRouter *login.Router              // Routes login flows by org login method
 	directory   identity.Directory         // AT Protocol identity directory for handle resolution
 	storage     *store
 
@@ -304,13 +304,31 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	provider, err := o.loginRouter.For(id)
+	// Look up org to determine the login method
+	org, err := o.orgStore.GetOrgForDID(ctx, id.DID)
 	if err != nil {
-		o.metrics.authorizeErr(err, "no_provider")
-		utils.LogAndHTTPError(w, err, "no login provider for identity", http.StatusBadRequest)
+		o.metrics.authorizeErr(err, "no_org")
+		utils.LogAndHTTPError(w, err, "no org found for identity", http.StatusBadRequest)
 		return
 	}
-	redirect, providerState, err := provider.Authorize(ctx, id)
+
+	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod())
+	if err != nil {
+		o.metrics.authorizeErr(err, "no_provider")
+		utils.LogAndHTTPError(w, err, "no login provider for org", http.StatusBadRequest)
+		return
+	}
+
+	// Look up the member's login ID (provider-specific identifier) from the store.
+	// If the DID isn't a member (e.g. everyone org), loginID stays empty.
+	member, err := o.orgStore.GetMember(ctx, id.DID)
+	if err != nil {
+		o.metrics.authorizeErr(err, "get_member")
+		utils.LogAndHTTPError(w, err, "no member found for identity", http.StatusBadRequest)
+		return
+	}
+
+	redirect, providerState, err := provider.Authorize(ctx, id, member.LoginID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "begin_login")
 		utils.LogAndHTTPError(
@@ -339,7 +357,7 @@ func (o *OAuthServer) HandleAuthorize(
 	o.flashMu.Lock()
 	o.flashStore[flashID] = &authRequestFlash{
 		Form:          requester.GetRequestForm(),
-		ProviderType:  provider.Type(),
+		LoginMethod:   provider.LoginMethod(),
 		ProviderState: providerState,
 		Did:           id.DID,
 	}
@@ -424,7 +442,7 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-	provider, err := o.loginRouter.ByType(arf.ProviderType)
+	provider, err := o.loginRouter.ByLoginMethod(arf.LoginMethod)
 	if err != nil {
 		o.metrics.callbackErr(err, "no_provider")
 		utils.LogAndHTTPError(w, err, "no login provider for session", http.StatusBadRequest)

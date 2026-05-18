@@ -2,6 +2,8 @@ package org
 
 import (
 	// Use this argon2id wrapper rather than rolling our own auth
+	"errors"
+
 	"github.com/alexedwards/argon2id"
 )
 
@@ -14,5 +16,9 @@ func hashPassword(password string) (string, error) {
 // VerifyPassword checks a plaintext password against an encoded argon2id hash.
 // Returns false, nil on mismatch; error only if the hash is malformed.
 func verifyPassword(password, encodedHash string) (bool, error) {
-	return argon2id.ComparePasswordAndHash(password, encodedHash)
+	ok, err := argon2id.ComparePasswordAndHash(password, encodedHash)
+	if errors.Is(err, argon2id.ErrInvalidHash) {
+		return false, nil
+	}
+	return ok, err
 }

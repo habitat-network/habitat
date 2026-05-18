@@ -17,6 +17,10 @@ var (
 	ErrNotSupportedPublic = errors.New("method not supported on public org")
 )
 
+func (e *everyoneOrg) LoginMethod() LoginMethod {
+	return LoginMethodAtproto
+}
+
 // GetMetadata implements Org.
 func (e *everyoneOrg) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -99,60 +100,13 @@ func idWithPDSOnly() *identity.Identity {
 	}
 }
 
-func idWithHabitatOnly() *identity.Identity {
-	return &identity.Identity{
-		DID: "did:web:habitat.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://habitat.example.com"},
-		},
-	}
-}
-
-func idWithBothServices() *identity.Identity {
-	return &identity.Identity{
-		DID: "did:web:both.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {URL: "https://pds.example.com"},
-			"habitat":     {URL: "https://habitat.example.com"},
-		},
-	}
-}
-
-func idWithNoServices() *identity.Identity {
-	return &identity.Identity{
-		DID:      "did:web:nobody.example.com",
-		Services: map[string]identity.ServiceEndpoint{},
-	}
-}
-
 // --- pdsProvider ---
-
-func TestPDSProvider_CanHandle(t *testing.T) {
-	p := NewPDSProvider(&stubOAuthClient{}, newStubCredStore())
-
-	require.True(t, p.CanHandle(idWithPDSOnly()), "pds-only identity should be handled")
-	require.False(
-		t,
-		p.CanHandle(idWithHabitatOnly()),
-		"habitat-only identity should not be handled",
-	)
-	require.False(
-		t,
-		p.CanHandle(idWithBothServices()),
-		"identity with both services should not be handled",
-	)
-	require.False(
-		t,
-		p.CanHandle(idWithNoServices()),
-		"identity with no services should not be handled",
-	)
-}
 
 func TestPDSProvider_Authorize(t *testing.T) {
 	client := &stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}
-	p := NewPDSProvider(client, newStubCredStore())
+	p := NewPDSProvider(client, newStubCredStore(), nil)
 
-	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly())
+	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
 	require.NoError(t, err)
 	require.Equal(t, "https://pds.example.com/authorize", redirect)
 	require.NotEmpty(t, state)
@@ -169,11 +123,12 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	p := NewPDSProvider(
 		&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"},
 		credStore,
+		nil,
 	)
 	did := syntax.DID("did:web:pds.example.com")
 
 	// Obtain valid state from Authorize.
-	_, state, err := p.Authorize(context.Background(), idWithPDSOnly())
+	_, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
 	require.NoError(t, err)
 
 	err = p.Exchange(context.Background(), did, "code", "https://pds.example.com", state)
@@ -191,13 +146,13 @@ type dummyProvider struct{}
 
 func NewDummyProvider() Provider { return &dummyProvider{} }
 
-func (d *dummyProvider) Type() ProviderType { return ProviderTypeHabitat }
-func (d *dummyProvider) CanHandle(id *identity.Identity) bool {
-	_, hasHabitat := id.Services["habitat"]
-	_, hasPDS := id.Services["atproto_pds"]
-	return hasHabitat && !hasPDS
-}
-func (d *dummyProvider) Authorize(_ context.Context, _ *identity.Identity) (string, []byte, error) {
+func (d *dummyProvider) LoginMethod() org.LoginMethod { return org.LoginMethodPassword }
+
+func (d *dummyProvider) Authorize(
+	_ context.Context,
+	_ *identity.Identity,
+	_ string,
+) (string, []byte, error) {
 	return "https://dummy.example.com/login", nil, nil
 }
 func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
@@ -208,42 +163,41 @@ func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _
 
 func newTestRouter() *Router {
 	return NewRouter(
-		NewPDSProvider(&stubOAuthClient{}, newStubCredStore()),
+		NewPDSProvider(&stubOAuthClient{}, newStubCredStore(), nil),
 		NewDummyProvider(),
 	)
 }
 
-func TestRouter_For(t *testing.T) {
+func TestRouter_ByLoginMethod(t *testing.T) {
 	r := newTestRouter()
 
-	p, err := r.For(idWithPDSOnly())
+	p, err := r.ByLoginMethod(org.LoginMethodAtproto)
 	require.NoError(t, err)
-	require.Equal(t, ProviderTypePDS, p.Type())
+	require.Equal(t, org.LoginMethodAtproto, p.LoginMethod())
 
-	p, err = r.For(idWithHabitatOnly())
+	p, err = r.ByLoginMethod(org.LoginMethodPassword)
 	require.NoError(t, err)
-	require.Equal(t, ProviderTypeHabitat, p.Type())
+	require.Equal(t, org.LoginMethodPassword, p.LoginMethod())
 
-	_, err = r.For(idWithBothServices())
-	require.Error(t, err, "identity with both services should have no provider")
-
-	_, err = r.For(idWithNoServices())
-	require.Error(t, err, "identity with no services should have no provider")
+	_, err = r.ByLoginMethod("unknown")
+	require.Error(t, err)
 }
 
-func TestRouter_ByType(t *testing.T) {
-	r := newTestRouter()
+func TestPDSProvider_AuthorizeWithLoginID(t *testing.T) {
+	client := &stubOAuthClient{redirectURL: "https://public-pds.example.com/authorize"}
+	dir := pdsclient.NewDummyDirectory("https://public-pds.example.com")
+	p := NewPDSProvider(client, newStubCredStore(), dir)
 
-	p, err := r.ByType(ProviderTypePDS)
+	orgID := &identity.Identity{
+		DID: "did:web:internal.org.example.com",
+		Services: map[string]identity.ServiceEndpoint{
+			"habitat": {URL: "https://habitat.example.com"},
+		},
+	}
+	redirect, state, err := p.Authorize(context.Background(), orgID, "did:plc:mapped-public")
 	require.NoError(t, err)
-	require.Equal(t, ProviderTypePDS, p.Type())
-
-	p, err = r.ByType(ProviderTypeHabitat)
-	require.NoError(t, err)
-	require.Equal(t, ProviderTypeHabitat, p.Type())
-
-	_, err = r.ByType("unknown")
-	require.Error(t, err)
+	require.Equal(t, "https://public-pds.example.com/authorize", redirect)
+	require.NotEmpty(t, state)
 }
 
 // unmarshalProviderState is a test helper to inspect the opaque pds state bytes.
