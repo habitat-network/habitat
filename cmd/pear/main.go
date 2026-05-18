@@ -188,10 +188,27 @@ func run(_ context.Context, cmd *cli.Command) error {
 		dir,
 	)
 
-	loginRouter := login.NewRouter(
+	providers := []login.Provider{
 		login.NewPDSProvider(oauthClient, pdsCredStore, dir),
 		orgLoginProvider,
-	)
+	}
+	googleClientID := cmd.String(fGoogleClientID)
+	googleClientSecret := cmd.String(fGoogleClientSecret)
+	if googleClientID != "" && googleClientSecret != "" {
+		googleProvider, err := login.NewGoogleProvider(
+			googleClientID,
+			googleClientSecret,
+			"https://"+domain+"/oauth-callback",
+			db,
+			credKey,
+		)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup google login provider")
+		}
+		providers = append(providers, googleProvider)
+		log.Info().Msg("google login provider enabled")
+	}
+	loginRouter := login.NewRouter(providers...)
 
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
