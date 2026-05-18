@@ -275,10 +275,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// hive server routes
-	mux.Host("{opaqueID:.+}." + domain).
+	mux.Host("{opaqueID:.+}." + hiveDomain).
 		Path("/.well-known/did.json").
 		HandlerFunc(hiveServer.ServeDIDDoc)
-	mux.Host("{handle:.+}." + domain).
+	mux.Host("{handle:.+}." + hiveDomain).
 		Path("/.well-known/atproto-did").
 		HandlerFunc(hiveServer.ServeHandle)
 
