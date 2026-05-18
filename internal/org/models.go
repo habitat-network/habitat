@@ -1,6 +1,10 @@
 package org
 
-import "time"
+import (
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+)
 
 type LoginMethod string
 
@@ -24,8 +28,8 @@ type organization struct {
 type member struct {
 	OrgID        string       `gorm:"primaryKey"`
 	Organization organization `gorm:"foreignKey:OrgID"`
-	Did          string       `gorm:"primaryKey"`
-	Role         string       `gorm:"not null"`
+	Did          syntax.DID   `gorm:"primaryKey"`
+	Role         Role         `gorm:"not null"`
 	LoginID      string       `gorm:"not null"` // provider-specific identifier (password hash, public ATProto DID, google email, etc.)
 
 	// Automatically populated by gorm

@@ -116,7 +116,7 @@ func (s *orgImpl) LoginMethod() LoginMethod {
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	result := s.db.WithContext(ctx).Model(&member{}).
-		Where("org_id = ? AND did = ?", s.orgID, admin.String()).
+		Where("org_id = ? AND did = ?", s.orgID, admin).
 		Update("role", AdminRole)
 	if result.Error != nil {
 		return result.Error
@@ -142,8 +142,8 @@ func (s *orgImpl) addMemberTx(
 		DoNothing: true,
 	}).Create(&member{
 		OrgID:     s.orgID,
-		Did:       did.String(),
-		Role:      string(MemberRole),
+		Did:       did,
+		Role:      MemberRole,
 		LoginID:   loginID,
 		CreatedAt: time.Now(),
 	}).Error
@@ -166,11 +166,7 @@ func (s *orgImpl) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		did, err := syntax.ParseDID(r.Did)
-		if err != nil {
-			return nil, err
-		}
-		dids = append(dids, did)
+		dids = append(dids, r.Did)
 	}
 	return dids, nil
 }
@@ -182,11 +178,7 @@ func (s *orgImpl) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		did, err := syntax.ParseDID(r.Did)
-		if err != nil {
-			return nil, err
-		}
-		dids = append(dids, did)
+		dids = append(dids, r.Did)
 	}
 	return dids, nil
 }
@@ -205,7 +197,7 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	}
 	return s.db.WithContext(ctx).
 		Model(&member{}).
-		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin.String(), AdminRole).
+		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
 		Update("role", MemberRole).
 		Error
 }
@@ -223,18 +215,14 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 		return ErrLastAdmin
 	}
 	return s.db.WithContext(ctx).
-		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin.String(), AdminRole).
+		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
 		Delete(&member{}).
 		Error
 }
 
 func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error {
-	dids := make([]string, 0, len(members))
-	for _, did := range members {
-		dids = append(dids, did.String())
-	}
 	return s.db.WithContext(ctx).
-		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, dids, MemberRole).
+		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, members, MemberRole).
 		Delete(&member{}).
 		Error
 }
@@ -242,7 +230,7 @@ func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error
 func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).
-		Where("org_id = ? AND did = ? AND role = ?", s.orgID, did.String(), AdminRole).
+		Where("org_id = ? AND did = ? AND role = ?", s.orgID, did, AdminRole).
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -254,7 +242,7 @@ func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).
-		Where("org_id = ? AND did = ?", s.orgID, did.String()).
+		Where("org_id = ? AND did = ?", s.orgID, did).
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -373,7 +361,7 @@ func (s *orgImpl) AuthenticateMember(
 
 	var row member
 	err = s.db.WithContext(ctx).
-		Where("org_id = ? AND did = ?", s.orgID, id.DID.String()).
+		Where("org_id = ? AND did = ?", s.orgID, id.DID).
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {

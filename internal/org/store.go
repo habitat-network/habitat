@@ -93,7 +93,7 @@ func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
 // it's managed by our hive. Otherwise returns the everyone org for external DIDs.
 func (s *storeImpl) GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error) {
 	var m member
-	if err := s.db.WithContext(ctx).Where("did = ?", did.String()).First(&m).Error; err == nil {
+	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err == nil {
 		return s.GetOrg(ctx, m.OrgID)
 	}
 
@@ -162,8 +162,8 @@ func (s *storeImpl) CreateOrg(
 		}
 		return tx.Create(&member{
 			OrgID:     orgID,
-			Did:       id.DID.String(),
-			Role:      string(AdminRole),
+			Did:       id.DID,
+			Role:      AdminRole,
 			LoginID:   passwordHash,
 			CreatedAt: time.Now(),
 		}).Error
@@ -177,7 +177,7 @@ func (s *storeImpl) CreateOrg(
 
 func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {
 	var m member
-	if err := s.db.WithContext(ctx).Where("did = ?", did.String()).First(&m).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &OrgMember{
 				Org:     s.everyone,
@@ -194,8 +194,8 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 	}
 	return &OrgMember{
 		Org:     org,
-		DID:     syntax.DID(m.Did),
-		Role:    Role(m.Role),
+		DID:     m.Did,
+		Role:    m.Role,
 		LoginID: m.LoginID,
 	}, nil
 }
