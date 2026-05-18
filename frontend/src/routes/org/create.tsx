@@ -10,6 +10,7 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { procedure } from "internal";
+import { NetworkHabitatOrgCreate } from "api";
 
 export const Route = createFileRoute("/org/create")({
   component: CreateOrgPage,
@@ -46,7 +47,7 @@ function CreateOrgPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      const body: Record<string, string | undefined> = {
+      let body: NetworkHabitatOrgCreate.InputSchema = {
         admin_handle: values.admin_handle,
         name: values.name || undefined,
         login_method: values.login_method,
