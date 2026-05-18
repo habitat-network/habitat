@@ -42,7 +42,11 @@ func getSheetsService(ctx context.Context, credsJSON string) (*sheets.Service, e
 	return svc, nil
 }
 
-func NewWaitlistService(ctx context.Context, sheetID string, credsJSON string) (*waitlistService, error) {
+func NewWaitlistService(
+	ctx context.Context,
+	sheetID string,
+	credsJSON string,
+) (*waitlistService, error) {
 	svc, err := getSheetsService(ctx, credsJSON)
 	if err != nil {
 		return nil, err

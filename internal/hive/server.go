@@ -42,7 +42,11 @@ type didDocWithContext struct {
 }
 
 var (
-	didCtx = []string{"https://www.w3.org/ns/did/v1", "https://w3id.org/security/multikey/v1", "https://w3id.org/security/suites/secp256k1-2019/v1"}
+	didCtx = []string{
+		"https://www.w3.org/ns/did/v1",
+		"https://w3id.org/security/multikey/v1",
+		"https://w3id.org/security/suites/secp256k1-2019/v1",
+	}
 )
 
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )

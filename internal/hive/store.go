@@ -90,7 +90,10 @@ func persistIdentity(tx *gorm.DB, row *ident) error {
 }
 
 // getMemberByHandle fetches the member via handle (with member namespace stripped already) from the store
-func (s *store) getIdentityByHandle(ctx context.Context, internalHandle string) (*identity.Identity, error) {
+func (s *store) getIdentityByHandle(
+	ctx context.Context,
+	internalHandle string,
+) (*identity.Identity, error) {
 	var id ident
 	result := s.db.WithContext(ctx).Where("handle = ?", internalHandle).First(&id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {

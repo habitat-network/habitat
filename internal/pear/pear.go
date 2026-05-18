@@ -32,24 +32,109 @@ import (
 // This is the core of the habitat server.
 type Pear interface {
 	// Permissions-related methods
-	HasPermission(ctx context.Context, caller syntax.DID, requester syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) (bool, error)
-	AddPermissions(ctx context.Context, caller syntax.DID, grantees []permissions.Grantee, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
-	RemovePermissions(ctx context.Context, caller syntax.DID, grantee []permissions.Grantee, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
-	ListPermissionGrants(ctx context.Context, caller syntax.DID, granter syntax.DID) ([]permissions.Permission, error)
-	ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]permissions.Grantee, error)
+	HasPermission(
+		ctx context.Context,
+		caller syntax.DID,
+		requester syntax.DID,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) (bool, error)
+	AddPermissions(
+		ctx context.Context,
+		caller syntax.DID,
+		grantees []permissions.Grantee,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) error
+	RemovePermissions(
+		ctx context.Context,
+		caller syntax.DID,
+		grantee []permissions.Grantee,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) error
+	ListPermissionGrants(
+		ctx context.Context,
+		caller syntax.DID,
+		granter syntax.DID,
+	) ([]permissions.Permission, error)
+	ListAllowGrantsForRecord(
+		ctx context.Context,
+		caller syntax.DID,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) ([]permissions.Grantee, error)
 
 	// Repository methods; roughly analagous to com.atproto.repo methods
-	PutRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
-	CreateRecord(ctx context.Context, caller, target syntax.DID, collection syntax.NSID, record map[string]any, rkey syntax.RecordKey, validate *bool, grantees []permissions.Grantee) (habitat_syntax.HabitatURI, error)
-	GetRecord(ctx context.Context, collection syntax.NSID, rkey syntax.RecordKey, target syntax.DID, caller syntax.DID) (*repo.Record, error)
-	DeleteRecord(ctx context.Context, caller syntax.DID, target syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error
-	ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error)
-	GetBlob(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error)
-	UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error)
-	DescribeRepo(ctx context.Context, caller syntax.DID, subject syntax.DID) (*RepoDescription, error)
+	PutRecord(
+		ctx context.Context,
+		caller, target syntax.DID,
+		collection syntax.NSID,
+		record map[string]any,
+		rkey syntax.RecordKey,
+		validate *bool,
+		grantees []permissions.Grantee,
+	) (habitat_syntax.HabitatURI, error)
+	CreateRecord(
+		ctx context.Context,
+		caller, target syntax.DID,
+		collection syntax.NSID,
+		record map[string]any,
+		rkey syntax.RecordKey,
+		validate *bool,
+		grantees []permissions.Grantee,
+	) (habitat_syntax.HabitatURI, error)
+	GetRecord(
+		ctx context.Context,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+		target syntax.DID,
+		caller syntax.DID,
+	) (*repo.Record, error)
+	DeleteRecord(
+		ctx context.Context,
+		caller syntax.DID,
+		target syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+	) error
+	ListRecords(
+		ctx context.Context,
+		caller syntax.DID,
+		collection syntax.NSID,
+		subjects []syntax.DID,
+	) ([]repo.Record, error)
+	GetBlob(
+		ctx context.Context,
+		caller syntax.DID,
+		target syntax.DID,
+		cid syntax.CID,
+	) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error)
+	UploadBlob(
+		ctx context.Context,
+		caller syntax.DID,
+		target syntax.DID,
+		data []byte,
+		mimeType string,
+	) (*repo.BlobRef, error)
+	DescribeRepo(
+		ctx context.Context,
+		caller syntax.DID,
+		subject syntax.DID,
+	) (*RepoDescription, error)
 
 	// Inbox / Node-to-node communication related methods
-	NotifyOfUpdate(ctx context.Context, sender syntax.DID, recipient syntax.DID, collection string, rkey string) error
+	NotifyOfUpdate(
+		ctx context.Context,
+		sender syntax.DID,
+		recipient syntax.DID,
+		collection string,
+		rkey string,
+	) error
 }
 
 // pear stands for Permission Enforcing ATProto Repo.
@@ -129,7 +214,11 @@ func (p *pear) HasPermission(
 }
 
 // ListPermissionGrants implements Pear.
-func (p *pear) ListPermissionGrants(ctx context.Context, caller syntax.DID, granter syntax.DID) ([]permissions.Permission, error) {
+func (p *pear) ListPermissionGrants(
+	ctx context.Context,
+	caller syntax.DID,
+	granter syntax.DID,
+) ([]permissions.Permission, error) {
 	// Authz: only the granter can see this
 	if caller != granter {
 		return nil, habitat_err.ErrUnauthorized
@@ -138,7 +227,13 @@ func (p *pear) ListPermissionGrants(ctx context.Context, caller syntax.DID, gran
 }
 
 // ListPermissions implements Pear.
-func (p *pear) ListAllowGrantsForRecord(ctx context.Context, caller syntax.DID, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]permissions.Grantee, error) {
+func (p *pear) ListAllowGrantsForRecord(
+	ctx context.Context,
+	caller syntax.DID,
+	owner syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+) ([]permissions.Grantee, error) {
 	// Authz: if the caller has permission, the caller can see who else has permission
 	callerOk, err := p.permissions.HasPermission(ctx, caller, owner, collection, rkey)
 	if err != nil {
@@ -384,7 +479,13 @@ func (p *pear) GetRecord(
 }
 
 // DeleteRecord implements Pear.
-func (p *pear) DeleteRecord(ctx context.Context, caller syntax.DID, target syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) error {
+func (p *pear) DeleteRecord(
+	ctx context.Context,
+	caller syntax.DID,
+	target syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+) error {
 	if caller != target {
 		return habitat_err.ErrUnauthorized
 	}
@@ -459,7 +560,12 @@ func (p *pear) listRecordsRemote(ctx context.Context, caller syntax.DID, collect
 */
 
 // This needs to be renamed
-func (p *pear) ListRecords(ctx context.Context, caller syntax.DID, collection syntax.NSID, subjects []syntax.DID) ([]repo.Record, error) {
+func (p *pear) ListRecords(
+	ctx context.Context,
+	caller syntax.DID,
+	collection syntax.NSID,
+	subjects []syntax.DID,
+) ([]repo.Record, error) {
 	// Get records owned by this repo
 	localRecords, err := p.listRecordsLocal(ctx, collection, caller, subjects)
 	if err != nil {
@@ -491,7 +597,11 @@ type RepoDescription struct {
 	Collections     []CollectionMetadata
 }
 
-func (p *pear) DescribeRepo(ctx context.Context, caller syntax.DID, subject syntax.DID) (*RepoDescription, error) {
+func (p *pear) DescribeRepo(
+	ctx context.Context,
+	caller syntax.DID,
+	subject syntax.DID,
+) (*RepoDescription, error) {
 	if caller != subject {
 		return nil, habitat_err.ErrUnauthorized
 	}
@@ -532,7 +642,12 @@ func (p *pear) DescribeRepo(ctx context.Context, caller syntax.DID, subject synt
 	}, nil
 }
 
-func (p *pear) getBlobRemote(ctx context.Context, caller syntax.DID, target syntax.DID, cid syntax.CID) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
+func (p *pear) getBlobRemote(
+	ctx context.Context,
+	caller syntax.DID,
+	target syntax.DID,
+	cid syntax.CID,
+) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
 	// Otherwise, forward this request to the right repo (the clique member)
 	reqURL, err := url.Parse("/xrpc/network.habitat.repo.getBlob")
 	if err != nil {
@@ -598,7 +713,14 @@ func (p *pear) GetBlob(
 
 		// TODO: could be done in parallel
 		for _, uri := range links {
-			ok, err := p.HasPermission(ctx, caller, caller, uri.Authority().DID(), uri.Collection(), uri.RecordKey())
+			ok, err := p.HasPermission(
+				ctx,
+				caller,
+				caller,
+				uri.Authority().DID(),
+				uri.Collection(),
+				uri.RecordKey(),
+			)
 			if err != nil {
 				return "", "", nil, err
 			}
@@ -622,7 +744,13 @@ func (p *pear) GetBlob(
 	return mimeType, fmt.Sprint(len(blob)), io.NopCloser(bytes.NewReader(blob)), nil
 }
 
-func (p *pear) UploadBlob(ctx context.Context, caller syntax.DID, target syntax.DID, data []byte, mimeType string) (*repo.BlobRef, error) {
+func (p *pear) UploadBlob(
+	ctx context.Context,
+	caller syntax.DID,
+	target syntax.DID,
+	data []byte,
+	mimeType string,
+) (*repo.BlobRef, error) {
 	// You can only upload blobs to your own repo
 	if caller != target {
 		return nil, habitat_err.ErrUnauthorized

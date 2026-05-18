@@ -27,7 +27,12 @@ type mockXrpcChannel struct {
 	actions []*http.Response
 }
 
-func (m *mockXrpcChannel) SendXRPC(_ context.Context, _ syntax.DID, _ syntax.DID, r *http.Request) (*http.Response, error) {
+func (m *mockXrpcChannel) SendXRPC(
+	_ context.Context,
+	_ syntax.DID,
+	_ syntax.DID,
+	r *http.Request,
+) (*http.Response, error) {
 	next := m.actions[0]
 	m.actions = m.actions[1:]
 	return next, nil
@@ -122,31 +127,80 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
-	uri, err := p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll, val, rkey, &validate, []permissions.Grantee{})
+	uri, err := p.PutRecord(
+		t.Context(),
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:myid"),
+		coll,
+		val,
+		rkey,
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
-	require.Equal(t, habitat_syntax.ConstructHabitatUri("did:example:myid", coll.String(), rkey.String()), uri)
+	require.Equal(
+		t,
+		habitat_syntax.ConstructHabitatUri("did:example:myid", coll.String(), rkey.String()),
+		uri,
+	)
 
 	// Owner can always access their own records
-	got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:myid"))
+	got, err := p.GetRecord(
+		t.Context(),
+		coll,
+		rkey,
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:myid"),
+	)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
 	require.Equal(t, val, got.Value)
 
 	// Non-owner without permission gets unauthorized
-	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
+	got, err = p.GetRecord(
+		t.Context(),
+		coll,
+		rkey,
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:anotherid"),
+	)
 	require.Nil(t, got)
 	require.ErrorIs(t, habitat_err.ErrUnauthorized, err)
 
 	// Grant permission
-	require.NoError(t, p.permissions.AddPermissions(t.Context(), []permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")}, syntax.DID("did:example:myid"), coll, rkey))
+	require.NoError(
+		t,
+		p.permissions.AddPermissions(
+			t.Context(),
+			[]permissions.Grantee{permissions.DIDGrantee("did:example:anotherid")},
+			syntax.DID("did:example:myid"),
+			coll,
+			rkey,
+		),
+	)
 
 	// Now non-owner can access
-	got, err = p.GetRecord(t.Context(), coll, rkey, syntax.DID("did:example:myid"), syntax.DID("did:example:anotherid"))
+	got, err = p.GetRecord(
+		t.Context(),
+		coll,
+		rkey,
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:anotherid"),
+	)
 	require.NoError(t, err)
 	require.Equal(t, val, got.Value)
 
-	_, err = p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll, val, rkey, &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:myid"),
+		coll,
+		val,
+		rkey,
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
 }
 
@@ -163,9 +217,22 @@ func TestListOwnRecords(t *testing.T) {
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
-	uri, err := p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll, val, rkey, &validate, []permissions.Grantee{})
+	uri, err := p.PutRecord(
+		t.Context(),
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:myid"),
+		coll,
+		val,
+		rkey,
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
-	require.Equal(t, habitat_syntax.ConstructHabitatUri("did:example:myid", coll.String(), rkey.String()), uri)
+	require.Equal(
+		t,
+		habitat_syntax.ConstructHabitatUri("did:example:myid", coll.String(), rkey.String()),
+		uri,
+	)
 
 	records, err := p.ListRecords(
 		t.Context(),
@@ -178,7 +245,14 @@ func TestListOwnRecords(t *testing.T) {
 }
 
 func TestListRecords(t *testing.T) {
-	dir := mockIdentities([]syntax.DID{"did:example:myid", "did:example:otherid", "did:example:readerid", "did:example:specificreader"})
+	dir := mockIdentities(
+		[]syntax.DID{
+			"did:example:myid",
+			"did:example:otherid",
+			"did:example:readerid",
+			"did:example:specificreader",
+		},
+	)
 	db, err := gorm.Open(sqlite.Open(":memory:"))
 	require.NoError(t, err)
 	p := newPearForTest(t, db, dir)
@@ -190,11 +264,38 @@ func TestListRecords(t *testing.T) {
 	coll1 := syntax.NSID("my.fake.collection1")
 	coll2 := syntax.NSID("my.fake.collection2")
 
-	_, err = p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll1, val, "rkey1", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:myid"),
+		coll1,
+		val,
+		"rkey1",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll1, val, "rkey2", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:myid"),
+		coll1,
+		val,
+		"rkey2",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), syntax.DID("did:example:myid"), syntax.DID("did:example:myid"), coll2, val, "rkey3", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID("did:example:myid"),
+		syntax.DID("did:example:myid"),
+		coll2,
+		val,
+		"rkey3",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
 
 	t.Run("returns empty without permissions", func(t *testing.T) {
@@ -264,9 +365,25 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	validate := true
 
 	// Put the record and grant access to grantee1 and grantee2 at the same time.
-	uri, err := p.PutRecord(t.Context(), syntax.DID(ownerDID), syntax.DID(ownerDID), coll, val, rkey, &validate, []permissions.Grantee{permissions.DIDGrantee(syntax.DID(grantee1DID)), permissions.DIDGrantee(syntax.DID(grantee2DID))})
+	uri, err := p.PutRecord(
+		t.Context(),
+		syntax.DID(ownerDID),
+		syntax.DID(ownerDID),
+		coll,
+		val,
+		rkey,
+		&validate,
+		[]permissions.Grantee{
+			permissions.DIDGrantee(syntax.DID(grantee1DID)),
+			permissions.DIDGrantee(syntax.DID(grantee2DID)),
+		},
+	)
 	require.NoError(t, err)
-	require.Equal(t, habitat_syntax.ConstructHabitatUri(ownerDID.String(), coll.String(), rkey.String()), uri)
+	require.Equal(
+		t,
+		habitat_syntax.ConstructHabitatUri(ownerDID.String(), coll.String(), rkey.String()),
+		uri,
+	)
 
 	// Grantees can read the record.
 	for _, grantee := range []string{grantee1DID.String(), grantee2DID.String()} {
@@ -277,7 +394,13 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	}
 
 	// A non-grantee cannot read the record.
-	got, err := p.GetRecord(t.Context(), coll, rkey, syntax.DID(ownerDID), syntax.DID(nonGranteeDID))
+	got, err := p.GetRecord(
+		t.Context(),
+		coll,
+		rkey,
+		syntax.DID(ownerDID),
+		syntax.DID(nonGranteeDID),
+	)
 	require.Nil(t, got)
 	require.ErrorIs(t, err, habitat_err.ErrUnauthorized)
 }
@@ -296,7 +419,16 @@ func TestPutRecordCrossUserUnauthorized(t *testing.T) {
 	val := map[string]any{"data": "value"}
 	validate := true
 
-	_, err = p.PutRecord(t.Context(), syntax.DID(callerDID), syntax.DID(targetDID), "my.fake.collection", val, "some-rkey", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(callerDID),
+		syntax.DID(targetDID),
+		"my.fake.collection",
+		val,
+		"some-rkey",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.Error(t, err)
 }
 
@@ -333,11 +465,29 @@ func TestCliqueFlow(t *testing.T) {
 	require.True(t, isMember)
 
 	// A creates a record and grants access to the clique
-	_, err = p.PutRecord(t.Context(), syntax.DID(aDID), syntax.DID(aDID), coll, val, aRkey, &validate, []permissions.Grantee{clique})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(aDID),
+		syntax.DID(aDID),
+		coll,
+		val,
+		aRkey,
+		&validate,
+		[]permissions.Grantee{clique},
+	)
 	require.NoError(t, err)
 
 	// B creates a record and grants access to the same clique
-	_, err = p.PutRecord(t.Context(), syntax.DID(bDID), syntax.DID(bDID), coll, val, bRkey, &validate, []permissions.Grantee{clique})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(bDID),
+		syntax.DID(bDID),
+		coll,
+		val,
+		bRkey,
+		&validate,
+		[]permissions.Grantee{clique},
+	)
 	require.NoError(t, err)
 
 	// Both A and B can see both records
@@ -524,7 +674,16 @@ func TestDeleteRecord(t *testing.T) {
 	validate := true
 	val := map[string]any{"key": "val"}
 
-	_, err = p.PutRecord(t.Context(), ownerDID, ownerDID, coll, val, rkey, &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		ownerDID,
+		ownerDID,
+		coll,
+		val,
+		rkey,
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
 
 	t.Run("non-owner cannot delete", func(t *testing.T) {
@@ -607,25 +766,88 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	coll := syntax.NSID("my.fake.collection")
 
 	// Alice creates her own records
-	_, err = p.PutRecord(t.Context(), syntax.DID(aliceDID), syntax.DID(aliceDID), coll, val, "alice-rkey1", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(aliceDID),
+		syntax.DID(aliceDID),
+		coll,
+		val,
+		"alice-rkey1",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), syntax.DID(aliceDID), syntax.DID(aliceDID), coll, val, "alice-rkey2", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(aliceDID),
+		syntax.DID(aliceDID),
+		coll,
+		val,
+		"alice-rkey2",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
 
 	// Bob creates records
-	_, err = p.PutRecord(t.Context(), syntax.DID(bobDID), syntax.DID(bobDID), coll, val, "bob-rkey1", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(bobDID),
+		syntax.DID(bobDID),
+		coll,
+		val,
+		"bob-rkey1",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
-	_, err = p.PutRecord(t.Context(), syntax.DID(bobDID), syntax.DID(bobDID), coll, val, "bob-rkey2", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(bobDID),
+		syntax.DID(bobDID),
+		coll,
+		val,
+		"bob-rkey2",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
 
 	// Carol creates records
-	_, err = p.PutRecord(t.Context(), syntax.DID(carolDID), syntax.DID(carolDID), coll, val, "carol-rkey1", &validate, []permissions.Grantee{})
+	_, err = p.PutRecord(
+		t.Context(),
+		syntax.DID(carolDID),
+		syntax.DID(carolDID),
+		coll,
+		val,
+		"carol-rkey1",
+		&validate,
+		[]permissions.Grantee{},
+	)
 	require.NoError(t, err)
 
 	t.Run("includes records from other users when user has permission", func(t *testing.T) {
 		// Grant Alice permission to read Bob's records
-		require.NoError(t, perms.AddPermissions(t.Context(), []permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey1"))
-		require.NoError(t, perms.AddPermissions(t.Context(), []permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), coll, "bob-rkey2"))
+		require.NoError(
+			t,
+			perms.AddPermissions(
+				t.Context(),
+				[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))},
+				syntax.DID(bobDID),
+				coll,
+				"bob-rkey1",
+			),
+		)
+		require.NoError(
+			t,
+			perms.AddPermissions(
+				t.Context(),
+				[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))},
+				syntax.DID(bobDID),
+				coll,
+				"bob-rkey2",
+			),
+		)
 
 		records, err := p.ListRecords(
 			t.Context(),
@@ -678,9 +900,27 @@ func TestListRecordsWithPermissions(t *testing.T) {
 
 	t.Run("filters by collection", func(t *testing.T) {
 		otherColl := syntax.NSID("other.collection")
-		_, err := p.PutRecord(t.Context(), syntax.DID(bobDID), syntax.DID(bobDID), otherColl, val, "bob-other-rkey", &validate, []permissions.Grantee{})
+		_, err := p.PutRecord(
+			t.Context(),
+			syntax.DID(bobDID),
+			syntax.DID(bobDID),
+			otherColl,
+			val,
+			"bob-other-rkey",
+			&validate,
+			[]permissions.Grantee{},
+		)
 		require.NoError(t, err)
-		require.NoError(t, perms.AddPermissions(t.Context(), []permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))}, syntax.DID(bobDID), otherColl, "bob-other-rkey"))
+		require.NoError(
+			t,
+			perms.AddPermissions(
+				t.Context(),
+				[]permissions.Grantee{permissions.DIDGrantee(syntax.DID(aliceDID))},
+				syntax.DID(bobDID),
+				otherColl,
+				"bob-other-rkey",
+			),
+		)
 
 		// Query for original collection
 		records, err := p.ListRecords(
@@ -753,7 +993,16 @@ func TestGetBlobPermissionsViaRecord(t *testing.T) {
 	}
 
 	v := true
-	_, err = p.PutRecord(t.Context(), aliceDID, aliceDID, coll, record, rkey, &v, []permissions.Grantee{permissions.DIDGrantee(bobDID)})
+	_, err = p.PutRecord(
+		t.Context(),
+		aliceDID,
+		aliceDID,
+		coll,
+		record,
+		rkey,
+		&v,
+		[]permissions.Grantee{permissions.DIDGrantee(bobDID)},
+	)
 	require.NoError(t, err)
 
 	// Alice (owner of the referencing record) can access the blob.

@@ -43,7 +43,10 @@ func ParseGranteeFromString(grantee string) (Grantee, error) {
 		return clique, nil
 	}
 
-	return nil, fmt.Errorf("unable to parse given string as a valid permission grantee type: %s", grantee)
+	return nil, fmt.Errorf(
+		"unable to parse given string as a valid permission grantee type: %s",
+		grantee,
+	)
 }
 
 // Parse the grantees input which is typed as an interface

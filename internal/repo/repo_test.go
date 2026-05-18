@@ -308,33 +308,67 @@ func TestPutRecordOnConflict(t *testing.T) {
 
 	t.Run("record OnConflict UpdateAll: second put overwrites value", func(t *testing.T) {
 		first := map[string]any{"msg": "hello"}
-		_, err := repo.PutRecord(ctx, Record{Did: did, Collection: collection, Rkey: rkey, Value: first}, nil)
+		_, err := repo.PutRecord(
+			ctx,
+			Record{Did: did, Collection: collection, Rkey: rkey, Value: first},
+			nil,
+		)
 		require.NoError(t, err)
 
 		second := map[string]any{"msg": "world"}
-		_, err = repo.PutRecord(ctx, Record{Did: did, Collection: collection, Rkey: rkey, Value: second}, nil)
+		_, err = repo.PutRecord(
+			ctx,
+			Record{Did: did, Collection: collection, Rkey: rkey, Value: second},
+			nil,
+		)
 		require.NoError(t, err)
 
 		got, err := repo.GetRecord(ctx, did, collection, rkey)
 		require.NoError(t, err)
-		require.Equal(t, "world", got.Value["msg"], "value should have been updated by OnConflict UpdateAll")
+		require.Equal(
+			t,
+			"world",
+			got.Value["msg"],
+			"value should have been updated by OnConflict UpdateAll",
+		)
 	})
 
-	t.Run("link OnConflict DoNothing: duplicate blob ref does not error or duplicate", func(t *testing.T) {
-		// First put — inserts the record row and the link row.
-		_, err := repo.PutRecord(ctx, Record{Did: did, Collection: collection, Rkey: rkey + "-blob", Value: recordWithBlob}, nil)
-		require.NoError(t, err)
+	t.Run(
+		"link OnConflict DoNothing: duplicate blob ref does not error or duplicate",
+		func(t *testing.T) {
+			// First put — inserts the record row and the link row.
+			_, err := repo.PutRecord(
+				ctx,
+				Record{
+					Did:        did,
+					Collection: collection,
+					Rkey:       rkey + "-blob",
+					Value:      recordWithBlob,
+				},
+				nil,
+			)
+			require.NoError(t, err)
 
-		// Second put — record row conflicts (UpdateAll), link row conflicts (DoNothing).
-		// Neither should return an error.
-		_, err = repo.PutRecord(ctx, Record{Did: did, Collection: collection, Rkey: rkey + "-blob", Value: recordWithBlob}, nil)
-		require.NoError(t, err)
+			// Second put — record row conflicts (UpdateAll), link row conflicts (DoNothing).
+			// Neither should return an error.
+			_, err = repo.PutRecord(
+				ctx,
+				Record{
+					Did:        did,
+					Collection: collection,
+					Rkey:       rkey + "-blob",
+					Value:      recordWithBlob,
+				},
+				nil,
+			)
+			require.NoError(t, err)
 
-		// Confirm exactly one link row exists for the blob CID.
-		links, err := repo.GetBlobLinks(ctx, syntax.CID(blobCID), syntax.DID(did))
-		require.NoError(t, err)
-		require.Len(t, links, 1, "DoNothing should prevent duplicate link rows")
-	})
+			// Confirm exactly one link row exists for the blob CID.
+			links, err := repo.GetBlobLinks(ctx, syntax.CID(blobCID), syntax.DID(did))
+			require.NoError(t, err)
+			require.Len(t, links, 1, "DoNothing should prevent duplicate link rows")
+		},
+	)
 }
 
 func TestCreateRecord(t *testing.T) {
@@ -350,7 +384,11 @@ func TestCreateRecord(t *testing.T) {
 	val := map[string]any{"msg": "hello"}
 
 	t.Run("creates a new record and returns the correct URI", func(t *testing.T) {
-		uri, err := repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-1", Value: val}, nil)
+		uri, err := repo.CreateRecord(
+			ctx,
+			Record{Did: did, Collection: collection, Rkey: "rkey-1", Value: val},
+			nil,
+		)
 		require.NoError(t, err)
 		require.NotEmpty(t, uri)
 
@@ -360,18 +398,44 @@ func TestCreateRecord(t *testing.T) {
 	})
 
 	t.Run("errors when record already exists", func(t *testing.T) {
-		_, err := repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val}, nil)
+		_, err := repo.CreateRecord(
+			ctx,
+			Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val},
+			nil,
+		)
 		require.NoError(t, err)
 
-		_, err = repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val}, nil)
+		_, err = repo.CreateRecord(
+			ctx,
+			Record{Did: did, Collection: collection, Rkey: "rkey-2", Value: val},
+			nil,
+		)
 		require.ErrorIs(t, err, ErrRecordAlreadyCreated)
 	})
 
 	t.Run("different rkeys in same collection are independent", func(t *testing.T) {
-		_, err := repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-a", Value: map[string]any{"n": "a"}}, nil)
+		_, err := repo.CreateRecord(
+			ctx,
+			Record{
+				Did:        did,
+				Collection: collection,
+				Rkey:       "rkey-a",
+				Value:      map[string]any{"n": "a"},
+			},
+			nil,
+		)
 		require.NoError(t, err)
 
-		_, err = repo.CreateRecord(ctx, Record{Did: did, Collection: collection, Rkey: "rkey-b", Value: map[string]any{"n": "b"}}, nil)
+		_, err = repo.CreateRecord(
+			ctx,
+			Record{
+				Did:        did,
+				Collection: collection,
+				Rkey:       "rkey-b",
+				Value:      map[string]any{"n": "b"},
+			},
+			nil,
+		)
 		require.NoError(t, err)
 	})
 }

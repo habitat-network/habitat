@@ -58,7 +58,11 @@ func TestMintThenLookup(t *testing.T) {
 
 	// Admin issues an invite token via org server
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{})
-	issueReq := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.issueInviteToken", bytes.NewReader(issueBody))
+	issueReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.issueInviteToken",
+		bytes.NewReader(issueBody),
+	)
 	issueReq.Header.Set("Content-Type", "application/json")
 	issueW := httptest.NewRecorder()
 	orgServer.IssueInviteToken(issueW, issueReq)
@@ -74,7 +78,11 @@ func TestMintThenLookup(t *testing.T) {
 		Token:  issueOut.Token,
 		Handle: "alice",
 	})
-	mintReq := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.mintMemberIdentity", bytes.NewReader(mintBody))
+	mintReq := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.mintMemberIdentity",
+		bytes.NewReader(mintBody),
+	)
 	mintReq.Header.Set("Content-Type", "application/json")
 	mintW := httptest.NewRecorder()
 	orgServer.MintMemberIdentity(mintW, mintReq)
