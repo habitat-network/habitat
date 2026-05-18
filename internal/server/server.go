@@ -119,7 +119,16 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	uri, err := s.pear.PutRecord(r.Context(), callerDID, target.DID(), syntax.NSID(req.Collection), record, syntax.RecordKey(rkey), &v, parsed)
+	uri, err := s.pear.PutRecord(
+		r.Context(),
+		callerDID,
+		target.DID(),
+		syntax.NSID(req.Collection),
+		record,
+		syntax.RecordKey(rkey),
+		&v,
+		parsed,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -188,7 +197,16 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	v := true
-	uri, err := s.pear.CreateRecord(r.Context(), callerDID, target.DID(), syntax.NSID(req.Collection), record, syntax.RecordKey(rkey), &v, parsed)
+	uri, err := s.pear.CreateRecord(
+		r.Context(),
+		callerDID,
+		target.DID(),
+		syntax.NSID(req.Collection),
+		record,
+		syntax.RecordKey(rkey),
+		&v,
+		parsed,
+	)
 	if errors.Is(err, repo.ErrRecordAlreadyCreated) {
 		utils.LogAndHTTPError(
 			w,
@@ -273,9 +291,20 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	// Lookup relevant permissions, if requested
 	if params.IncludePermissions {
-		grantees, err := s.pear.ListAllowGrantsForRecord(r.Context(), callerDID, syntax.DID(record.Did), syntax.NSID(record.Collection), syntax.RecordKey(record.Rkey))
+		grantees, err := s.pear.ListAllowGrantsForRecord(
+			r.Context(),
+			callerDID,
+			syntax.DID(record.Did),
+			syntax.NSID(record.Collection),
+			syntax.RecordKey(record.Rkey),
+		)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "listing permissions on fetched records", http.StatusInternalServerError)
+			utils.LogAndHTTPError(
+				w,
+				err,
+				"listing permissions on fetched records",
+				http.StatusInternalServerError,
+			)
 			return
 		}
 		output.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
@@ -355,7 +384,13 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.pear.DeleteRecord(r.Context(), callerDID, repo.DID(), syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
+	err = s.pear.DeleteRecord(
+		r.Context(),
+		callerDID,
+		repo.DID(),
+		syntax.NSID(req.Collection),
+		syntax.RecordKey(req.Rkey),
+	)
 	if err != nil {
 		if errors.Is(err, habitat_err.ErrUnauthorized) {
 			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusForbidden)
@@ -368,7 +403,11 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.oauth /* TODO: add service auth here when we support fwding blob reqs */)
+	callerDID, ok := authn.Validate(
+		w,
+		r,
+		s.authMethods.oauth, /* TODO: add service auth here when we support fwding blob reqs */
+	)
 	if !ok {
 		return
 	}
@@ -435,7 +474,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		// TODO: support handles
 		atid, err := syntax.ParseAtIdentifier(subject)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, fmt.Sprintf("parsing subject as did or handle: %s", subject), http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				w,
+				err,
+				fmt.Sprintf("parsing subject as did or handle: %s", subject),
+				http.StatusBadRequest,
+			)
 			return
 		}
 
@@ -480,12 +524,24 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 		// Lookup relevant permissions, if requested
 		if params.IncludePermissions {
-			grantees, err := s.pear.ListAllowGrantsForRecord(r.Context(), callerDID, syntax.DID(record.Did), syntax.NSID(record.Collection), syntax.RecordKey(record.Rkey))
+			grantees, err := s.pear.ListAllowGrantsForRecord(
+				r.Context(),
+				callerDID,
+				syntax.DID(record.Did),
+				syntax.NSID(record.Collection),
+				syntax.RecordKey(record.Rkey),
+			)
 			if err != nil {
 				if errors.Is(err, habitat_err.ErrUnauthorized) {
-					log.Err(fmt.Errorf("list records returned a record but user does not have permission to it")).Msgf("[pear] list records inconsistent state for caller %s on %s", callerDID, habitat_syntax.ConstructHabitatUri(record.Did, record.Collection, record.Rkey))
+					log.Err(fmt.Errorf("list records returned a record but user does not have permission to it")).
+						Msgf("[pear] list records inconsistent state for caller %s on %s", callerDID, habitat_syntax.ConstructHabitatUri(record.Did, record.Collection, record.Rkey))
 				}
-				utils.LogAndHTTPError(w, err, "listing permissions on fetched records", http.StatusInternalServerError)
+				utils.LogAndHTTPError(
+					w,
+					err,
+					"listing permissions on fetched records",
+					http.StatusInternalServerError,
+				)
 				return
 			}
 			next.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
@@ -517,7 +573,10 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 		Handle:          description.Handle,
 		DidDoc:          description.DIDDoc,
 		HandleIsCorrect: description.HandleIsCorrect,
-		Collections:     make([]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata, len(description.Collections)),
+		Collections: make(
+			[]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata,
+			len(description.Collections),
+		),
 	}
 
 	for i, c := range description.Collections {
@@ -556,11 +615,14 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	output.Permissions = []habitat.NetworkHabitatPermissionsListPermissionsPermission{}
 	for _, p := range perms {
 		// Only display allows
-		output.Permissions = append(output.Permissions, habitat.NetworkHabitatPermissionsListPermissionsPermission{
-			Collection: p.Collection.String(),
-			Grantee:    p.Grantee.String(),
-			Rkey:       p.Rkey.String(),
-		})
+		output.Permissions = append(
+			output.Permissions,
+			habitat.NetworkHabitatPermissionsListPermissionsPermission{
+				Collection: p.Collection.String(),
+				Grantee:    p.Grantee.String(),
+				Rkey:       p.Rkey.String(),
+			},
+		)
 	}
 
 	err = json.NewEncoder(w).Encode(output)
@@ -624,7 +686,14 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	err = s.pear.RemovePermissions(r.Context(), callerDID, grantees, callerDID, syntax.NSID(req.Collection), syntax.RecordKey(req.Rkey))
+	err = s.pear.RemovePermissions(
+		r.Context(),
+		callerDID,
+		grantees,
+		callerDID,
+		syntax.NSID(req.Collection),
+		syntax.RecordKey(req.Rkey),
+	)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
 		return

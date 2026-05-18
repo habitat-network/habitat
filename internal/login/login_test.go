@@ -22,7 +22,10 @@ type stubOAuthClient struct {
 
 func (s *stubOAuthClient) ClientMetadata() *pdsclient.ClientMetadata { return nil }
 
-func (s *stubOAuthClient) Authorize(_ *pdsclient.DpopHttpClient, _ *identity.Identity) (string, *pdsclient.AuthorizeState, error) {
+func (s *stubOAuthClient) Authorize(
+	_ *pdsclient.DpopHttpClient,
+	_ *identity.Identity,
+) (string, *pdsclient.AuthorizeState, error) {
 	if s.authorizeErr != nil {
 		return "", nil, s.authorizeErr
 	}
@@ -33,7 +36,11 @@ func (s *stubOAuthClient) Authorize(_ *pdsclient.DpopHttpClient, _ *identity.Ide
 	}, nil
 }
 
-func (s *stubOAuthClient) ExchangeCode(_ *pdsclient.DpopHttpClient, _, _ string, _ *pdsclient.AuthorizeState) (*pdsclient.TokenResponse, error) {
+func (s *stubOAuthClient) ExchangeCode(
+	_ *pdsclient.DpopHttpClient,
+	_, _ string,
+	_ *pdsclient.AuthorizeState,
+) (*pdsclient.TokenResponse, error) {
 	if s.exchangeCodeErr != nil {
 		return nil, s.exchangeCodeErr
 	}
@@ -43,7 +50,12 @@ func (s *stubOAuthClient) ExchangeCode(_ *pdsclient.DpopHttpClient, _, _ string,
 	}, nil
 }
 
-func (s *stubOAuthClient) RefreshToken(_ *pdsclient.DpopHttpClient, _ *identity.Identity, _ string, _ string) (*pdsclient.TokenResponse, error) {
+func (s *stubOAuthClient) RefreshToken(
+	_ *pdsclient.DpopHttpClient,
+	_ *identity.Identity,
+	_ string,
+	_ string,
+) (*pdsclient.TokenResponse, error) {
 	return nil, errors.New("not used in these tests")
 }
 
@@ -57,7 +69,11 @@ func newStubCredStore() *stubCredStore {
 	return &stubCredStore{upserted: make(map[syntax.DID]*pdscred.Credentials)}
 }
 
-func (s *stubCredStore) UpsertCredentials(_ context.Context, did syntax.DID, creds *pdscred.Credentials) error {
+func (s *stubCredStore) UpsertCredentials(
+	_ context.Context,
+	did syntax.DID,
+	creds *pdscred.Credentials,
+) error {
 	if s.upsertErr != nil {
 		return s.upsertErr
 	}
@@ -65,7 +81,10 @@ func (s *stubCredStore) UpsertCredentials(_ context.Context, did syntax.DID, cre
 	return nil
 }
 
-func (s *stubCredStore) GetCredentials(_ context.Context, did syntax.DID) (*pdscred.Credentials, error) {
+func (s *stubCredStore) GetCredentials(
+	_ context.Context,
+	did syntax.DID,
+) (*pdscred.Credentials, error) {
 	return nil, errors.New("not used in these tests")
 }
 
@@ -112,9 +131,21 @@ func TestPDSProvider_CanHandle(t *testing.T) {
 	p := NewPDSProvider(&stubOAuthClient{}, newStubCredStore())
 
 	require.True(t, p.CanHandle(idWithPDSOnly()), "pds-only identity should be handled")
-	require.False(t, p.CanHandle(idWithHabitatOnly()), "habitat-only identity should not be handled")
-	require.False(t, p.CanHandle(idWithBothServices()), "identity with both services should not be handled")
-	require.False(t, p.CanHandle(idWithNoServices()), "identity with no services should not be handled")
+	require.False(
+		t,
+		p.CanHandle(idWithHabitatOnly()),
+		"habitat-only identity should not be handled",
+	)
+	require.False(
+		t,
+		p.CanHandle(idWithBothServices()),
+		"identity with both services should not be handled",
+	)
+	require.False(
+		t,
+		p.CanHandle(idWithNoServices()),
+		"identity with no services should not be handled",
+	)
 }
 
 func TestPDSProvider_Authorize(t *testing.T) {
@@ -135,7 +166,10 @@ func TestPDSProvider_Authorize(t *testing.T) {
 
 func TestPDSProvider_Exchange(t *testing.T) {
 	credStore := newStubCredStore()
-	p := NewPDSProvider(&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}, credStore)
+	p := NewPDSProvider(
+		&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"},
+		credStore,
+	)
 	did := syntax.DID("did:web:pds.example.com")
 
 	// Obtain valid state from Authorize.

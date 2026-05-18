@@ -153,7 +153,11 @@ func TestPutNotificationSameKeyUpdatesUpdatedAt(t *testing.T) {
 	result = db.First(&n2)
 	require.NoError(t, result.Error)
 
-	require.True(t, n2.UpdatedAt.After(firstUpdatedAt),
+	require.True(
+		t,
+		n2.UpdatedAt.After(firstUpdatedAt),
 		"UpdatedAt should be updated when putting notification with same key. Original: %v, New: %v",
-		firstUpdatedAt, n2.UpdatedAt)
+		firstUpdatedAt,
+		n2.UpdatedAt,
+	)
 }

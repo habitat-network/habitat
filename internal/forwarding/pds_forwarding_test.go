@@ -49,7 +49,11 @@ func TestServeHTTP_InvalidAtIdentifier(t *testing.T) {
 	fakePDS, _ := fakePDSServer(t)
 	p := newTestForwarding(t, fakePDS)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord?repo=not-a-valid-did-or-handle!!!", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.repo.getRecord?repo=not-a-valid-did-or-handle!!!",
+		nil,
+	)
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
 
@@ -60,7 +64,11 @@ func TestServeHTTP_ForwardsToTargetPDS(t *testing.T) {
 	fakePDS, lastPath := fakePDSServer(t)
 	p := newTestForwarding(t, fakePDS)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord?repo=did:plc:abc123&collection=app.bsky.feed.post&rkey=abc", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/com.atproto.repo.getRecord?repo=did:plc:abc123&collection=app.bsky.feed.post&rkey=abc",
+		nil,
+	)
 	// Strip Authorization to confirm it isn't forwarded (security check)
 	req.Header.Set("Authorization", "Bearer secret-token")
 	w := httptest.NewRecorder()

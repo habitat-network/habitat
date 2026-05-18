@@ -27,7 +27,10 @@ type Provider interface {
 
 	// Authorize starts the auth flow and returns the redirect URL plus opaque
 	// provider-specific state to be stored in the session flash.
-	Authorize(ctx context.Context, id *identity.Identity) (redirectUri string, state []byte, err error)
+	Authorize(
+		ctx context.Context,
+		id *identity.Identity,
+	) (redirectUri string, state []byte, err error)
 
 	// Exchange exchanges the callback code for credentials and should persist
 	// whatever credentials the provider acquires.

@@ -26,7 +26,10 @@ type pdsProviderState struct {
 	AuthorizeState pdsclient.AuthorizeState `json:"authorize_state"`
 }
 
-func NewPDSProvider(oauthClient pdsclient.PdsOAuthClient, credStore pdscred.PDSCredentialStore) Provider {
+func NewPDSProvider(
+	oauthClient pdsclient.PdsOAuthClient,
+	credStore pdscred.PDSCredentialStore,
+) Provider {
 	return &pdsProvider{oauthClient: oauthClient, credStore: credStore}
 }
 
@@ -59,7 +62,13 @@ func (p *pdsProvider) Authorize(_ context.Context, id *identity.Identity) (strin
 	return redirect, stateBytes, nil
 }
 
-func (p *pdsProvider) Exchange(ctx context.Context, did syntax.DID, code string, issuer string, stateBytes []byte) error {
+func (p *pdsProvider) Exchange(
+	ctx context.Context,
+	did syntax.DID,
+	code string,
+	issuer string,
+	stateBytes []byte,
+) error {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return fmt.Errorf("unmarshal pds provider state: %w", err)

@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupServerTest(t *testing.T) (*stream.PipeSender[models.Event], *Server, *httptest.Server, func()) {
+func setupServerTest(
+	t *testing.T,
+) (*stream.PipeSender[models.Event], *Server, *httptest.Server, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sender, receiver := stream.Pipe[models.Event](1)
 	srv := NewServer(ctx, receiver)
