@@ -595,8 +595,6 @@ func (o *OAuthServer) ValidateRaw(
 		scopes...,
 	)
 	if err != nil {
-		fmt.Println("Here unable to validate", token, fositeErrReason(err))
-
 		return "", false, fmt.Errorf("invalid or expired token: %w", err)
 	}
 	// Get the DID from the session subject (stored in JWT)

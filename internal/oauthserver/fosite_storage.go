@@ -202,8 +202,6 @@ func (s *store) CreateRefreshTokenSession(
 	request fosite.Requester,
 ) error {
 	session := request.GetSession().(*oauth2.JWTSession)
-
-	fmt.Println("creating signature", signature)
 	oauthSession := &OAuthSession{
 		Signature: signature,
 		ClientID:  request.GetClient().GetID(),
@@ -235,7 +233,6 @@ func (s *store) GetRefreshTokenSession(
 	session fosite.Session,
 ) (fosite.Requester, error) {
 	var oauthSession OAuthSession
-	fmt.Println("getting signature", signature)
 
 	err := s.db.WithContext(ctx).First(&oauthSession, "signature = ?", signature).Error
 	if err != nil {

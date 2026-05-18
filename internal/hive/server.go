@@ -81,7 +81,6 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("hive getserviceauth called", callerDID)
 	aud := r.URL.Query().Get("aud")
 	if aud == "" {
 		utils.WriteHTTPError(w, errors.New("missing required parameter: aud"), http.StatusBadRequest)
