@@ -42,10 +42,10 @@ const (
 // This data is temporarily stored during the OAuth authorization flow to preserve
 // request context across redirects.
 type authRequestFlash struct {
-	Form          url.Values // Original authorization request form data
-	LoginMethod   string     // Which login method initiated this flow
-	ProviderState []byte     // Opaque provider-specific state
-	Did           syntax.DID // DID of the user
+	Form          url.Values      // Original authorization request form data
+	LoginMethod   org.LoginMethod // Which login method initiated this flow
+	ProviderState []byte          // Opaque provider-specific state
+	Did           syntax.DID      // DID of the user
 }
 
 type metrics struct {
@@ -62,27 +62,47 @@ type metrics struct {
 }
 
 func newMetrics(meter metric.Meter) (*metrics, error) {
-	authorizeErrCtr, err := meter.Int64Counter("oauth.authorize.err", metric.WithUnit("Item"), metric.WithDescription("counts errors in OAuth /authorize implementation"))
+	authorizeErrCtr, err := meter.Int64Counter(
+		"oauth.authorize.err",
+		metric.WithUnit("Item"),
+		metric.WithDescription("counts errors in OAuth /authorize implementation"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	authorizeSuccessCtr, err := meter.Int64Counter("oauth.authorize.success", metric.WithUnit("Item"), metric.WithDescription("counts successes in OAuth /authorize implementation"))
+	authorizeSuccessCtr, err := meter.Int64Counter(
+		"oauth.authorize.success",
+		metric.WithUnit("Item"),
+		metric.WithDescription("counts successes in OAuth /authorize implementation"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	callbackErrCtr, err := meter.Int64Counter("oauth.callback.err", metric.WithUnit("Item"), metric.WithDescription("counts errors in OAuth /callback implementation"))
+	callbackErrCtr, err := meter.Int64Counter(
+		"oauth.callback.err",
+		metric.WithUnit("Item"),
+		metric.WithDescription("counts errors in OAuth /callback implementation"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	callbackSuccessCtr, err := meter.Int64Counter("oauth.callback.success", metric.WithUnit("Item"), metric.WithDescription("counts successes in OAuth /callback implementation"))
+	callbackSuccessCtr, err := meter.Int64Counter(
+		"oauth.callback.success",
+		metric.WithUnit("Item"),
+		metric.WithDescription("counts successes in OAuth /callback implementation"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshTokenRequestCtr, err := meter.Int64Counter("oauth.refresh_token.request", metric.WithUnit("Item"), metric.WithDescription("counts request to refresh an OAuth token with habitat"))
+	refreshTokenRequestCtr, err := meter.Int64Counter(
+		"oauth.refresh_token.request",
+		metric.WithUnit("Item"),
+		metric.WithDescription("counts request to refresh an OAuth token with habitat"),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -301,15 +321,22 @@ func (o *OAuthServer) HandleAuthorize(
 
 	// Look up the member's login ID (provider-specific identifier) from the store.
 	// If the DID isn't a member (e.g. everyone org), loginID stays empty.
-	loginID := ""
-	if member, err := o.orgStore.GetMember(ctx, id.DID); err == nil {
-		loginID = member.LoginID
+	member, err := o.orgStore.GetMember(ctx, id.DID)
+	if err != nil {
+		o.metrics.authorizeErr(err, "get_member")
+		utils.LogAndHTTPError(w, err, "no member found for identity", http.StatusBadRequest)
+		return
 	}
 
-	redirect, providerState, err := provider.Authorize(ctx, id, loginID)
+	redirect, providerState, err := provider.Authorize(ctx, id, member.LoginID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "begin_login")
-		utils.LogAndHTTPError(w, err, "failed to initiate authorization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"failed to initiate authorization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -317,7 +344,12 @@ func (o *OAuthServer) HandleAuthorize(
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		o.metrics.authorizeErr(err, "gen_flash_id")
-		utils.LogAndHTTPError(w, err, "failed to generate session id", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			"failed to generate session id",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	flashID := hex.EncodeToString(b)
@@ -401,8 +433,13 @@ func (o *OAuthServer) HandleCallback(
 	_, err = o.orgStore.GetOrgForDID(r.Context(), arf.Did)
 	if err != nil {
 		o.metrics.callbackErr(err, "allowlist_dids")
-		o.provider.WriteAuthorizeError(ctx, w, authRequest,
-			fosite.ErrAccessDenied.WithDescription("You are not a member of this habitat organization.").WithHint(""))
+		o.provider.WriteAuthorizeError(
+			ctx,
+			w,
+			authRequest,
+			fosite.ErrAccessDenied.WithDescription("You are not a member of this habitat organization.").
+				WithHint(""),
+		)
 		return
 	}
 	provider, err := o.loginRouter.ByLoginMethod(arf.LoginMethod)
@@ -506,13 +543,21 @@ func (o *OAuthServer) Validate(
 	if err != nil || !ok {
 		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
-		utils.WriteHTTPError(w, fmt.Errorf("unable to validate oauth token: %w", err), http.StatusUnauthorized)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("unable to validate oauth token: %w", err),
+			http.StatusUnauthorized,
+		)
 		return "", false
 	}
 
 	_, err = o.orgStore.GetOrgForDID(r.Context(), did)
 	if err != nil {
-		utils.WriteHTTPError(w, fmt.Errorf("not a member of this organization"), http.StatusUnauthorized)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("not a member of this organization"),
+			http.StatusUnauthorized,
+		)
 		return "", false
 	}
 

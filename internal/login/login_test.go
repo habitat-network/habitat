@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/googlecred"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -154,7 +155,7 @@ type dummyProvider struct{}
 
 func NewDummyProvider() Provider { return &dummyProvider{} }
 
-func (d *dummyProvider) LoginMethod() string { return "password" }
+func (d *dummyProvider) LoginMethod() org.LoginMethod { return org.LoginMethodPassword }
 
 func (d *dummyProvider) Authorize(
 	_ context.Context,
@@ -179,13 +180,13 @@ func newTestRouter() *Router {
 func TestRouter_ByLoginMethod(t *testing.T) {
 	r := newTestRouter()
 
-	p, err := r.ByLoginMethod("atproto")
+	p, err := r.ByLoginMethod(org.LoginMethodAtproto)
 	require.NoError(t, err)
-	require.Equal(t, "atproto", p.LoginMethod())
+	require.Equal(t, org.LoginMethodAtproto, p.LoginMethod())
 
-	p, err = r.ByLoginMethod("password")
+	p, err = r.ByLoginMethod(org.LoginMethodPassword)
 	require.NoError(t, err)
-	require.Equal(t, "password", p.LoginMethod())
+	require.Equal(t, org.LoginMethodPassword, p.LoginMethod())
 
 	_, err = r.ByLoginMethod("unknown")
 	require.Error(t, err)

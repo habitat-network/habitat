@@ -13,13 +13,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/googlecred"
+	"github.com/habitat-network/habitat/internal/org"
 	"golang.org/x/oauth2"
 )
 
 type googleProvider struct {
-	loginMethod string
-	oauthCfg    *oauth2.Config
-	credStore   googlecred.GoogleCredentialStore
+	oauthCfg  *oauth2.Config
+	credStore googlecred.GoogleCredentialStore
 }
 
 type googleProviderState struct {
@@ -27,9 +27,11 @@ type googleProviderState struct {
 	State    string `json:"state"`
 }
 
-func NewGoogleProvider(clientID, clientSecret, redirectURL string, credStore googlecred.GoogleCredentialStore) Provider {
+func NewGoogleProvider(
+	clientID, clientSecret, redirectURL string,
+	credStore googlecred.GoogleCredentialStore,
+) Provider {
 	return &googleProvider{
-		loginMethod: "google",
 		oauthCfg: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -44,9 +46,13 @@ func NewGoogleProvider(clientID, clientSecret, redirectURL string, credStore goo
 	}
 }
 
-func (p *googleProvider) LoginMethod() string { return p.loginMethod }
+func (p *googleProvider) LoginMethod() org.LoginMethod { return org.LoginMethodGoogle }
 
-func (p *googleProvider) Authorize(ctx context.Context, id *identity.Identity, loginID string) (string, []byte, error) {
+func (p *googleProvider) Authorize(
+	ctx context.Context,
+	id *identity.Identity,
+	loginID string,
+) (string, []byte, error) {
 	if loginID == "" {
 		return "", nil, fmt.Errorf("no google email configured for org %s", id.DID)
 	}
@@ -74,7 +80,13 @@ func (p *googleProvider) Authorize(ctx context.Context, id *identity.Identity, l
 	return authURL, stateBytes, nil
 }
 
-func (p *googleProvider) Exchange(ctx context.Context, did syntax.DID, code string, _ string, stateBytes []byte) error {
+func (p *googleProvider) Exchange(
+	ctx context.Context,
+	did syntax.DID,
+	code string,
+	_ string,
+	stateBytes []byte,
+) error {
 	var s googleProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return fmt.Errorf("unmarshal google state: %w", err)
@@ -140,7 +152,11 @@ func verifyGoogleIDToken(idToken, clientID string) (string, error) {
 		return "", fmt.Errorf("unexpected id token issuer: %s", claims.Iss)
 	}
 	if claims.Aud != clientID {
-		return "", fmt.Errorf("id token audience mismatch: got %s, expected %s", claims.Aud, clientID)
+		return "", fmt.Errorf(
+			"id token audience mismatch: got %s, expected %s",
+			claims.Aud,
+			clientID,
+		)
 	}
 	if claims.Exp > 0 && time.Now().Unix() > claims.Exp {
 		return "", fmt.Errorf("id token expired")
