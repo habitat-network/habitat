@@ -15,7 +15,7 @@ import (
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
-func newTestStore(t *testing.T) *orgImpl {
+func newTestOrg(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -24,7 +24,7 @@ func newTestStore(t *testing.T) *orgImpl {
 	return s
 }
 
-func newTestStoreWithHive(t *testing.T) *orgImpl {
+func newTestOrgWithHive(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
@@ -44,13 +44,13 @@ const testPasswordHash = "testhash"
 const testPassword = "test-password-123"
 
 func TestLoginMethod_Default(t *testing.T) {
-	s := newTestStore(t)
-	require.Equal(t, "password", s.LoginMethod())
+	s := newTestOrg(t)
+	require.Equal(t, LoginMethodPassword, s.LoginMethod())
 }
 
 func TestIsMember(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
+	s := newTestOrg(t)
 
 	ok, err := s.IsMember(ctx, did1)
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestIsMember(t *testing.T) {
 
 func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
+	s := newTestOrg(t)
 
 	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
@@ -78,7 +78,7 @@ func TestAddAdmin_GetAdmins(t *testing.T) {
 
 func TestAddAdmin_NotMember(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
+	s := newTestOrg(t)
 
 	err := s.AddAdmin(ctx, did1)
 	require.ErrorIs(t, err, ErrNotMember)
@@ -86,7 +86,7 @@ func TestAddAdmin_NotMember(t *testing.T) {
 
 func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
+	s := newTestOrg(t)
 
 	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
 	require.NoError(t, s.AddAdmin(ctx, did1))
@@ -97,7 +97,7 @@ func TestRemoveAdmin_LastAdmin(t *testing.T) {
 
 func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
+	s := newTestOrg(t)
 
 	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
 	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
@@ -113,7 +113,7 @@ func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 
 func TestGetMembers(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
+	s := newTestOrg(t)
 
 	members, err := s.GetMembers(ctx)
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestGetMembers(t *testing.T) {
 
 func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStore(t)
+	s := newTestOrg(t)
 
 	require.NoError(t, s.addMember(ctx, did1, testPasswordHash))
 	require.NoError(t, s.addMember(ctx, did2, testPasswordHash))
@@ -146,7 +146,7 @@ func TestRemoveMembers(t *testing.T) {
 
 func TestGenerateAndUseIdentityToken(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStoreWithHive(t)
+	s := newTestOrgWithHive(t)
 
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestGenerateAndUseIdentityToken(t *testing.T) {
 
 func TestIdentityToken_CannotReuse(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStoreWithHive(t)
+	s := newTestOrgWithHive(t)
 
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestIdentityToken_CannotReuse(t *testing.T) {
 
 func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStoreWithHive(t)
+	s := newTestOrgWithHive(t)
 
 	token1, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestMintIdentity_DuplicateHandle(t *testing.T) {
 
 func TestIdentityToken_Reusable(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStoreWithHive(t)
+	s := newTestOrgWithHive(t)
 
 	token, err := s.IssueIdentityToken(ctx, did1, true, time.Now().Add(time.Hour))
 	require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestIdentityToken_Reusable(t *testing.T) {
 
 func TestCreateNewMemberIdentity_AuthenticateMember(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStoreWithHive(t)
+	s := newTestOrgWithHive(t)
 
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
@@ -228,7 +228,7 @@ func TestCreateNewMemberIdentity_AuthenticateMember(t *testing.T) {
 
 func TestIssueIdentityToken_ExpiryTooLate(t *testing.T) {
 	ctx := context.Background()
-	s := newTestStoreWithHive(t)
+	s := newTestOrgWithHive(t)
 
 	_, err := s.IssueIdentityToken(ctx, did1, false, time.Now().AddDate(0, 1, 1))
 	require.ErrorIs(t, err, ErrInvalidTokenExpiry)

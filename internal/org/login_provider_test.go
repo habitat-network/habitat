@@ -49,7 +49,7 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 
 func TestLoginProvider_LoginMethod(t *testing.T) {
 	p, _ := newTestLoginProvider(t)
-	require.Equal(t, "password", p.LoginMethod())
+	require.Equal(t, LoginMethodPassword, p.LoginMethod())
 }
 
 func TestLoginProvider_Authorize(t *testing.T) {

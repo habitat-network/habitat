@@ -47,7 +47,7 @@ func NewLoginProvider(
 	}
 }
 
-func (p *LoginProvider) LoginMethod() string { return "password" }
+func (p *LoginProvider) LoginMethod() LoginMethod { return LoginMethodPassword }
 
 func (p *LoginProvider) Authorize(
 	_ context.Context,

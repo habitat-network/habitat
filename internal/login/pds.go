@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/rs/zerolog/log"
@@ -35,7 +36,7 @@ func NewPDSProvider(
 	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir}
 }
 
-func (p *pdsProvider) LoginMethod() string { return "atproto" }
+func (p *pdsProvider) LoginMethod() org.LoginMethod { return org.LoginMethodAtproto }
 
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
@@ -45,7 +46,7 @@ func (p *pdsProvider) Authorize(
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
-	if loginID != "" && p.dir != nil {
+	if loginID != "" {
 		publicDID, err := syntax.ParseDID(loginID)
 		if err != nil {
 			return "", nil, fmt.Errorf("parse loginID: %w", err)
