@@ -62,6 +62,7 @@ function CreateOrgPage() {
       }
       const { admin_handle } = await procedure(
         "network.habitat.org.create",
+        body,
         { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
       );
       await navigate({

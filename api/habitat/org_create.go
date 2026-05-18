@@ -5,8 +5,8 @@ package habitat
 // NetworkHabitatOrgCreateInput represents the input for network.habitat.org.create
 type NetworkHabitatOrgCreateInput struct {
 	AdminHandle     string `json:"admin_handle"`
-	AdminPassword   string `json:"admin_password"`
-	HandleSubdomain string `json:"handle_subdomain"`
+	AdminPassword   string `json:"admin_password,omitempty"`
+	HandleSubdomain string `json:"handle_subdomain,omitempty"`
 	LoginId         string `json:"login_id,omitempty"`
 	LoginMethod     string `json:"login_method,omitempty"`
 	Name            string `json:"name,omitempty"`

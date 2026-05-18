@@ -958,9 +958,7 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "admin_handle",
-                  "admin_password",
-                  "handle_subdomain"
+                  "admin_handle"
                 ],
                 "properties": {
                   "admin_handle": {

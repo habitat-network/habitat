@@ -1171,7 +1171,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['admin_handle', 'admin_password', 'handle_subdomain'],
+            required: ['admin_handle'],
             properties: {
               admin_handle: {
                 type: 'string',
