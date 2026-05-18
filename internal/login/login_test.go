@@ -239,7 +239,7 @@ func TestGoogleProvider_LoginMethod(t *testing.T) {
 		"https://example.com/callback",
 		newGoogleCredStore(t),
 	)
-	require.Equal(t, "google", p.LoginMethod())
+	require.Equal(t, org.LoginMethodGoogle, p.LoginMethod())
 }
 
 func TestGoogleProvider_Authorize(t *testing.T) {
