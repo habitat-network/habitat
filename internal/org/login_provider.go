@@ -76,14 +76,14 @@ func (p *LoginProvider) issueToken() (string, error) {
 func (p *LoginProvider) verifyToken(token string) error {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
-		return errInvalidLoginToken
+		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
 	var claims loginTokenClaims
 	if err := parsed.Claims(p.signingSecret, &claims); err != nil {
-		return errInvalidLoginToken
+		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
 	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
-		return errInvalidLoginToken
+		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
 	return nil
 }

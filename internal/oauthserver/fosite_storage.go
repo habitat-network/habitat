@@ -17,6 +17,7 @@ import (
 	"github.com/ory/fosite/handler/pkce"
 	"github.com/ory/fosite/storage"
 	"github.com/ory/fosite/token/jwt"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -202,6 +203,7 @@ func (s *store) CreateRefreshTokenSession(
 ) error {
 	session := request.GetSession().(*oauth2.JWTSession)
 
+	fmt.Println("creating signature", signature)
 	oauthSession := &OAuthSession{
 		Signature: signature,
 		ClientID:  request.GetClient().GetID(),
@@ -233,14 +235,19 @@ func (s *store) GetRefreshTokenSession(
 	session fosite.Session,
 ) (fosite.Requester, error) {
 	var oauthSession OAuthSession
+	fmt.Println("getting signature", signature)
+
 	err := s.db.WithContext(ctx).First(&oauthSession, "signature = ?", signature).Error
 	if err != nil {
+		log.Warn().Err(err).Str("signature", signature).Msg("refresh token session not found in database")
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
+	log.Debug().Str("signature", signature).Str("client_id", oauthSession.ClientID).Msg("refresh token session found")
 
 	client, err := s.GetClient(ctx, oauthSession.ClientID)
 	if err != nil {
-		return nil, errors.Join(fosite.ErrNotFound, err)
+		log.Error().Err(err).Str("client_id", oauthSession.ClientID).Msg("failed to fetch client metadata during refresh token lookup")
+		return nil, err
 	}
 
 	scopes := fosite.Arguments{}

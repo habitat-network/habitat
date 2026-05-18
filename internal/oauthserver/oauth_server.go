@@ -214,6 +214,7 @@ func NewOAuthServer(
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
+		AccessTokenLifespan:        10 * time.Second,
 	}
 
 	strategy, err := newStrategy(secret, config)
@@ -512,6 +513,7 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := o.provider.NewAccessRequest(ctx, r, &oauth2.JWTSession{})
 	if err != nil {
+		logError("token access request failed", err)
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
@@ -520,10 +522,25 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := o.provider.NewAccessResponse(ctx, req)
 	if err != nil {
+		logError("token access response failed", err)
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
+}
+
+func logError(msg string, err error) {
+	var rfcErr *fosite.RFC6749Error
+	if errors.As(err, &rfcErr) {
+		log.Error().
+			Err(err).
+			Str("error_field", rfcErr.ErrorField).
+			Str("hint", rfcErr.HintField).
+			Str("debug", rfcErr.DebugField).
+			Msg(msg)
+	} else {
+		log.Error().Err(err).Msg(msg)
+	}
 }
 
 var _ authn.Method = (*OAuthServer)(nil)
@@ -578,6 +595,8 @@ func (o *OAuthServer) ValidateRaw(
 		scopes...,
 	)
 	if err != nil {
+		fmt.Println("Here unable to validate", token, fositeErrReason(err))
+
 		return "", false, fmt.Errorf("invalid or expired token: %w", err)
 	}
 	// Get the DID from the session subject (stored in JWT)

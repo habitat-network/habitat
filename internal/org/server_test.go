@@ -45,7 +45,7 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	require.NoError(t, st.addMember(context.Background(), adminDID, testPasswordHash))
 	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
 
-	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID))
+	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID), nil)
 	require.NoError(t, err)
 	return srv, orgId
 }
@@ -113,7 +113,7 @@ func newCreateTestServer(t *testing.T) *Server {
 	require.NoError(t, err)
 	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
-	srv, err := NewServer(storeImpl, nil)
+	srv, err := NewServer(storeImpl, nil, nil)
 	require.NoError(t, err)
 	return srv
 }
