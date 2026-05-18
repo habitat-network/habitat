@@ -12,14 +12,24 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/googlecred"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/org"
 	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
 
+type Credentials struct {
+	AccessToken  string
+	RefreshToken string
+	Expiry       time.Time
+	IDToken      string
+	Email        string
+}
+
 type googleProvider struct {
-	oauthCfg  *oauth2.Config
-	credStore googlecred.GoogleCredentialStore
+	oauthCfg      *oauth2.Config
+	db            *gorm.DB
+	encryptionKey []byte
 }
 
 type googleProviderState struct {
@@ -29,8 +39,15 @@ type googleProviderState struct {
 
 func NewGoogleProvider(
 	clientID, clientSecret, redirectURL string,
-	credStore googlecred.GoogleCredentialStore,
-) Provider {
+	db *gorm.DB,
+	encryptionKey []byte,
+) (Provider, error) {
+	if encryptionKey == nil {
+		return nil, fmt.Errorf("encryption key is required")
+	}
+	if err := db.AutoMigrate(&googleCredentialsModel{}); err != nil {
+		return nil, fmt.Errorf("migrate google credentials table: %w", err)
+	}
 	return &googleProvider{
 		oauthCfg: &oauth2.Config{
 			ClientID:     clientID,
@@ -42,8 +59,9 @@ func NewGoogleProvider(
 				TokenURL: "https://oauth2.googleapis.com/token",
 			},
 		},
-		credStore: credStore,
-	}
+		db:            db,
+		encryptionKey: encryptionKey,
+	}, nil
 }
 
 func (p *googleProvider) LoginMethod() org.LoginMethod { return org.LoginMethodGoogle }
@@ -107,7 +125,7 @@ func (p *googleProvider) Exchange(
 		return fmt.Errorf("verify google id token: %w", err)
 	}
 
-	if err := p.credStore.UpsertCredentials(ctx, did, &googlecred.Credentials{
+	if err := p.upsertCredentials(ctx, did, &Credentials{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		Expiry:       token.Expiry,
@@ -118,6 +136,68 @@ func (p *googleProvider) Exchange(
 	}
 
 	return nil
+}
+
+type googleCredentialsModel struct {
+	DID          string `gorm:"column:did;primarykey"`
+	AccessToken  string // encrypted
+	RefreshToken string // encrypted
+	Expiry       time.Time
+	IDToken      string // encrypted
+	Email        string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+func (p *googleProvider) upsertCredentials(
+	ctx context.Context,
+	did syntax.DID,
+	creds *Credentials,
+) error {
+	m := &googleCredentialsModel{DID: did.String()}
+	var err error
+	if m.AccessToken, err = encrypt.EncryptCBOR(creds.AccessToken, p.encryptionKey); err != nil {
+		return fmt.Errorf("encrypt access token: %w", err)
+	}
+	if m.RefreshToken, err = encrypt.EncryptCBOR(creds.RefreshToken, p.encryptionKey); err != nil {
+		return fmt.Errorf("encrypt refresh token: %w", err)
+	}
+	if m.IDToken, err = encrypt.EncryptCBOR(creds.IDToken, p.encryptionKey); err != nil {
+		return fmt.Errorf("encrypt id token: %w", err)
+	}
+	m.Expiry = creds.Expiry
+	m.Email = creds.Email
+	if err := p.db.WithContext(ctx).Save(m).Error; err != nil {
+		return fmt.Errorf("save google credentials: %w", err)
+	}
+	return nil
+}
+
+func (p *googleProvider) GetCredentials(
+	ctx context.Context,
+	did syntax.DID,
+) (*Credentials, error) {
+	var m googleCredentialsModel
+	if err := p.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err != nil {
+		return nil, fmt.Errorf("google credentials not found: %w", err)
+	}
+	var accessToken, refreshToken, idToken string
+	if err := encrypt.DecryptCBOR(m.AccessToken, p.encryptionKey, &accessToken); err != nil {
+		return nil, fmt.Errorf("decrypt access token: %w", err)
+	}
+	if err := encrypt.DecryptCBOR(m.RefreshToken, p.encryptionKey, &refreshToken); err != nil {
+		return nil, fmt.Errorf("decrypt refresh token: %w", err)
+	}
+	if err := encrypt.DecryptCBOR(m.IDToken, p.encryptionKey, &idToken); err != nil {
+		return nil, fmt.Errorf("decrypt id token: %w", err)
+	}
+	return &Credentials{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Expiry:       m.Expiry,
+		IDToken:      idToken,
+		Email:        m.Email,
+	}, nil
 }
 
 type googleIDTokenClaims struct {

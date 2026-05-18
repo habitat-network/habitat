@@ -33,7 +33,6 @@ import (
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/forwarding"
-	"github.com/habitat-network/habitat/internal/googlecred"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/login"
@@ -196,16 +195,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
 	if googleClientID != "" && googleClientSecret != "" {
-		googleCredStore, err := googlecred.NewGoogleCredentialStore(db, credKey)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup google credential store")
-		}
-		providers = append(providers, login.NewGoogleProvider(
+		googleProvider, err := login.NewGoogleProvider(
 			googleClientID,
 			googleClientSecret,
 			"https://"+domain+"/oauth-callback",
-			googleCredStore,
-		))
+			db,
+			credKey,
+		)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup google login provider")
+		}
+		providers = append(providers, googleProvider)
 		log.Info().Msg("google login provider enabled")
 	}
 	loginRouter := login.NewRouter(providers...)
