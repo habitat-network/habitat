@@ -156,7 +156,7 @@ func (s *storeImpl) CreateOrg(
 		if err := tx.Create(&organization{
 			ID:            orgID,
 			Name:          name,
-			LoginMethod:   loginMethod,
+			LoginMethod:   LoginMethod(loginMethod),
 			SigningSecret: signingSecret,
 			CreatedAt:     time.Now(),
 		}).Error; err != nil {
