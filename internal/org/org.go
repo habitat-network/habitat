@@ -58,7 +58,7 @@ type Org interface {
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
 	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
-	LoginMethod() string
+	LoginMethod() LoginMethod
 
 	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(
@@ -106,7 +106,7 @@ func NewOrg(
 	}, nil
 }
 
-func (s *orgImpl) LoginMethod() string {
+func (s *orgImpl) LoginMethod() LoginMethod {
 	var org organization
 	if err := s.db.First(&org, "id = ?", s.orgID).Error; err != nil {
 		return "password" // safe default

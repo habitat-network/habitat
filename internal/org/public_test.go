@@ -17,7 +17,7 @@ func TestEveryoneOrg_IsMember(t *testing.T) {
 
 func TestEveryoneOrg_LoginMethod(t *testing.T) {
 	o := NewEveryoneOrg()
-	require.Equal(t, "atproto", o.LoginMethod())
+	require.Equal(t, LoginMethodAtproto, o.LoginMethod())
 }
 
 func TestEveryoneOrg_ErrorMethods(t *testing.T) {

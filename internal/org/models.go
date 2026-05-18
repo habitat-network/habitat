@@ -2,12 +2,20 @@ package org
 
 import "time"
 
+type LoginMethod string
+
+const (
+	LoginMethodAtproto  LoginMethod = "atproto"
+	LoginMethodGoogle   LoginMethod = "google"
+	LoginMethodPassword LoginMethod = "password"
+)
+
 // organization represents a managed org on a pear instance.
 type organization struct {
-	ID            string `gorm:"primaryKey"`
-	Name          string // optional display name
-	LoginMethod   string // "atproto", "google", "password"
-	SigningSecret string // base64-encoded HMAC-SHA256 key for invite tokens
+	ID            string      `gorm:"primaryKey"`
+	Name          string      // optional display name
+	LoginMethod   LoginMethod // "atproto", "google", "password"
+	SigningSecret string      // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt     time.Time
 }
 

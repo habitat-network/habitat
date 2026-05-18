@@ -17,8 +17,8 @@ var (
 	ErrNotSupportedPublic = errors.New("method not supported on public org")
 )
 
-func (e *everyoneOrg) LoginMethod() string {
-	return "atproto"
+func (e *everyoneOrg) LoginMethod() LoginMethod {
+	return LoginMethodAtproto
 }
 
 // GetMetadata implements Org.
@@ -73,17 +73,31 @@ func (e *everyoneOrg) IsMember(ctx context.Context, member syntax.DID) (bool, er
 }
 
 // IssueIdentityToken implements Org.
-func (e *everyoneOrg) IssueIdentityToken(ctx context.Context, caller syntax.DID, reusable bool, expiresAt time.Time) (token string, err error) {
+func (e *everyoneOrg) IssueIdentityToken(
+	ctx context.Context,
+	caller syntax.DID,
+	reusable bool,
+	expiresAt time.Time,
+) (token string, err error) {
 	return "", ErrNotSupportedPublic
 }
 
 // CreateNewMemberIdentity implements Org.
-func (e *everyoneOrg) CreateNewMemberIdentity(ctx context.Context, token string, internalHandle string, password string) (*identity.Identity, error) {
+func (e *everyoneOrg) CreateNewMemberIdentity(
+	ctx context.Context,
+	token string,
+	internalHandle string,
+	password string,
+) (*identity.Identity, error) {
 	return nil, ErrNotSupportedPublic
 }
 
 // AuthenticateMember implements Org.
-func (e *everyoneOrg) AuthenticateMember(ctx context.Context, handle string, password string) (bool, error) {
+func (e *everyoneOrg) AuthenticateMember(
+	ctx context.Context,
+	handle string,
+	password string,
+) (bool, error) {
 	return false, ErrNotSupportedPublic
 }
 
