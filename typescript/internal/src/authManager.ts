@@ -15,7 +15,7 @@ interface AuthInfo {
 
 export class AuthManager {
   private serverDomain: string;
-  private store: StoreApi<{ authInfo: AuthInfo | undefined }>;
+  private store: StoreApi<{ authInfo: AuthInfo | undefined }> & { persist: { rehydrate: () => Promise<void> } };
   private config: client.Configuration;
   private onUnauthenticated: () => void;
   private refreshPromise: Promise<void> | undefined;
@@ -129,6 +129,7 @@ export class AuthManager {
           .request("habitat-token-refresh", async () => {
             // Re-read after acquiring the lock — another tab may have already
             // refreshed while we were waiting.
+            await this.store.persist.rehydrate();
             const currentInfo = this.store.getState().authInfo;
             if (
               !currentInfo?.refreshToken ||
@@ -153,12 +154,7 @@ export class AuthManager {
       try {
         await this.refreshPromise;
       } catch {
-        // Safety net: if the refresh still failed (e.g. lock unavailable),
-        // check whether another tab wrote a valid token before giving up.
-        const freshInfo = this.store.getState().authInfo;
-        if (!freshInfo || freshInfo.expiresAt <= Date.now() / 1000) {
-          return this.handleUnauthenticated();
-        }
+        return this.handleUnauthenticated();
       }
       // get the refreshed authInfo
       authInfo = this.store.getState().authInfo;
