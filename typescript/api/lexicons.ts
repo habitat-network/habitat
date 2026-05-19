@@ -179,6 +179,69 @@ export const schemaDict = {
       },
     },
   },
+  ComAtprotoRepoDescribeRepo: {
+    lexicon: 1,
+    id: 'com.atproto.repo.describeRepo',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get information about an account and repository, including the list of collections. Does not require auth.',
+        parameters: {
+          type: 'params',
+          required: ['repo'],
+          properties: {
+            repo: {
+              type: 'string',
+              format: 'at-identifier',
+              description: 'The handle or DID of the repo.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: [
+              'handle',
+              'did',
+              'didDoc',
+              'collections',
+              'handleIsCorrect',
+            ],
+            properties: {
+              handle: {
+                type: 'string',
+                format: 'handle',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+              },
+              didDoc: {
+                type: 'unknown',
+                description: 'The complete DID document for this account.',
+              },
+              collections: {
+                type: 'array',
+                description:
+                  'List of all the collections (NSIDs) for which this repo contains at least one record.',
+                items: {
+                  type: 'string',
+                  format: 'nsid',
+                },
+              },
+              handleIsCorrect: {
+                type: 'boolean',
+                description:
+                  'Indicates if handle is currently valid (resolves bi-directionally)',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   ComAtprotoRepoGetRecord: {
     lexicon: 1,
     id: 'com.atproto.repo.getRecord',
@@ -2367,6 +2430,7 @@ export const ids = {
   ComAtprotoRepoCreateRecord: 'com.atproto.repo.createRecord',
   ComAtprotoRepoDefs: 'com.atproto.repo.defs',
   ComAtprotoRepoDeleteRecord: 'com.atproto.repo.deleteRecord',
+  ComAtprotoRepoDescribeRepo: 'com.atproto.repo.describeRepo',
   ComAtprotoRepoGetRecord: 'com.atproto.repo.getRecord',
   ComAtprotoRepoListRecords: 'com.atproto.repo.listRecords',
   ComAtprotoRepoPutRecord: 'com.atproto.repo.putRecord',
