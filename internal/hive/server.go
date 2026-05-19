@@ -8,6 +8,17 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+const habitatHostHeader = "Habitat-Host"
+
+// effectiveHost returns the Habitat-Host header value if present,
+// otherwise falls back to the request's Host field.
+func effectiveHost(r *http.Request) string {
+	if h := r.Header.Get(habitatHostHeader); h != "" {
+		return h
+	}
+	return r.Host
+}
+
 // Serve DID docs and handle --> did mappings.
 // Does not serve the MintIdentity endpoint.
 type Server struct {
@@ -20,7 +31,7 @@ func NewServer(hive Hive) (*Server, error) {
 
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
 func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
-	handle, err := syntax.ParseHandle(r.Host)
+	handle, err := syntax.ParseHandle(effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -51,7 +62,7 @@ var (
 
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
-	did, err := syntax.ParseDID("did:web:" + r.Host)
+	did, err := syntax.ParseDID("did:web:" + effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
