@@ -149,7 +149,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	hiveDomain := cmd.String(fHiveDomain)
 	if hiveDomain == "" {
-		hiveDomain = "id." + domain
+		hiveDomain = domain
 	}
 
 	// hive is the identity minting service for orgs.
@@ -279,6 +279,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 		Path("/.well-known/did.json").
 		HandlerFunc(hiveServer.ServeDIDDoc)
 	mux.Host("{handle:.+}." + hiveDomain).
+		Path("/.well-known/atproto-did").
+		HandlerFunc(hiveServer.ServeHandle)
+	mux.Headers(hive.HabitatHostHeader, "").
+		Path("/.well-known/did.json").
+		HandlerFunc(hiveServer.ServeDIDDoc)
+	mux.Headers(hive.HabitatHostHeader, "").
 		Path("/.well-known/atproto-did").
 		HandlerFunc(hiveServer.ServeHandle)
 

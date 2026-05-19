@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"strconv"
 	"time"
 
@@ -12,14 +13,15 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/rs/zerolog/log"
 )
 
-const habitatHostHeader = "Habitat-Host"
+const HabitatHostHeader = "Habitat-Host"
 
 // effectiveHost returns the Habitat-Host header value if present,
 // otherwise falls back to the request's Host field.
 func effectiveHost(r *http.Request) string {
-	if h := r.Header.Get(habitatHostHeader); h != "" {
+	if h := r.Header.Get(HabitatHostHeader); h != "" {
 		return h
 	}
 	return r.Host

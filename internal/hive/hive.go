@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -116,15 +117,10 @@ func (h *hive) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.
 
 // LookupDID implements identity.Directory
 func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
-	// Validate DID
-	// DID format: did:web:<opaqueID>.<baseDomain>
 	content := strings.TrimPrefix(did.String(), "did:web:")
-	opaqueID, after, ok := strings.Cut(content, ".")
-	if after != h.memberDomain {
-		return nil, identity.ErrDIDNotFound
-	}
-	if !ok {
-		return nil, identity.ErrDIDNotFound
+	opaqueID, found := strings.CutSuffix(content, "."+h.memberDomain)
+	if !found {
+		return nil, identity.ErrHandleNotFound
 	}
 
 	return h.store.getIdentityByID(ctx, opaqueID)
@@ -132,18 +128,13 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 
 // LookupHandle implements identity.Directory
 // It strips the internal handle prefix from the given handle which has format
-// <internal-handle>.membersNamespace.domain or <internal-handle>.domain if membersNamespace == ""
+// <internal-handle>.domain
 // and looks up the handle against the store.
 func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
-	// Validate handle
-	internalHandle, after, ok := strings.Cut(handle.String(), ".")
-	if after != h.memberDomain {
+	internalHandle, found := strings.CutSuffix(handle.String(), "."+h.memberDomain)
+	if !found {
 		return nil, identity.ErrHandleNotFound
 	}
-	if !ok {
-		return nil, identity.ErrInvalidHandle
-	}
-
 	return h.store.getIdentityByHandle(ctx, internalHandle)
 }
 
