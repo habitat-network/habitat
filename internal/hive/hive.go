@@ -113,20 +113,17 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 	if !ok {
 		return nil, identity.ErrDIDNotFound
 	}
-
 	return h.store.getIdentityByID(ctx, opaqueID)
 }
 
 // LookupHandle implements identity.Directory
-// It strips the member domain suffix from the given handle. Handle format is
-// <internal-handle>.<memberDomain> where <internal-handle> may contain dots
+// It strips the member domain suffix from the given handle. Handle format is <internal-handle>.<memberDomain>
 // (e.g. "admin.acmecorp2" for org subdomain handles).
 func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
 	internalHandle, found := strings.CutSuffix(handle.String(), "."+h.memberDomain)
 	if !found {
 		return nil, identity.ErrHandleNotFound
 	}
-
 	return h.store.getIdentityByHandle(ctx, internalHandle)
 }
 
