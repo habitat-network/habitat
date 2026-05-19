@@ -599,7 +599,12 @@ func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
 	repo := r.URL.Query().Get("repo")
 	id, err := s.dir.Lookup(r.Context(), syntax.AtIdentifier(repo))
 	if err != nil {
-		utils.LogAndHTTPError(w, err, fmt.Sprintf("looking up did from repo param: %s", repo), http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("looking up did from repo param: %s", repo),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -614,7 +619,10 @@ func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
 		Handle:          description.Handle,
 		DidDoc:          description.DIDDoc,
 		HandleIsCorrect: description.HandleIsCorrect,
-		Collections:     make([]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata, len(description.Collections)),
+		Collections: make(
+			[]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata,
+			len(description.Collections),
+		),
 	}
 
 	for i, c := range description.Collections {

@@ -27,7 +27,13 @@ type Hive interface {
 	// identity's signing key (the same key registered in its did:web doc). It is
 	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
 	// since habitat owns the signing key, it must be the issuer of these tokens.
-	SignServiceAuth(ctx context.Context, iss syntax.DID, aud string, ttl time.Duration, lxm *syntax.NSID) (string, error)
+	SignServiceAuth(
+		ctx context.Context,
+		iss syntax.DID,
+		aud string,
+		ttl time.Duration,
+		lxm *syntax.NSID,
+	) (string, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -148,7 +154,13 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 }
 
 // SignServiceAuth implements Hive.
-func (h *hive) SignServiceAuth(ctx context.Context, iss syntax.DID, aud string, ttl time.Duration, lxm *syntax.NSID) (string, error) {
+func (h *hive) SignServiceAuth(
+	ctx context.Context,
+	iss syntax.DID,
+	aud string,
+	ttl time.Duration,
+	lxm *syntax.NSID,
+) (string, error) {
 	// Validate the DID belongs to this hive and extract the opaque ID.
 	content := strings.TrimPrefix(iss.String(), "did:web:")
 	opaqueID, after, ok := strings.Cut(content, ".")

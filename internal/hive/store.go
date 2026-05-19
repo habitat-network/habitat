@@ -109,7 +109,10 @@ func (s *store) getIdentityByHandle(
 // getSigningPrivateKeyByID fetches and parses the signing private key for the identity
 // with the given opaqueID. The private key is the atproto signing key registered in the
 // identity's did:web doc, so it can be used to mint atproto-compatible service auth JWTs.
-func (s *store) getSigningPrivateKeyByID(ctx context.Context, opaqueID string) (atcrypto.PrivateKey, error) {
+func (s *store) getSigningPrivateKeyByID(
+	ctx context.Context,
+	opaqueID string,
+) (atcrypto.PrivateKey, error) {
 	var id ident
 	result := s.db.WithContext(ctx).Where("opaque_id = ?", opaqueID).First(&id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {

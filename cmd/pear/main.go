@@ -356,30 +356,38 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// users whose doc only has #habitat, habitat itself holds the signing key
 	// and mints the JWT locally via hiveServer. Prefer atproto_pds when both
 	// services are present.
-	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", func(w http.ResponseWriter, r *http.Request) {
-		callerDID, ok := oauthServer.Validate(w, r)
-		if !ok {
-			return
-		}
-		id, err := dir.LookupDID(r.Context(), callerDID)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "[getServiceAuth dispatch]: looking up caller DID", http.StatusBadGateway)
-			return
-		}
-		if _, ok := id.Services["atproto_pds"]; ok {
-			pdsForwarding.ServeHTTP(w, r)
-			return
-		}
-		if _, ok := id.Services["habitat"]; ok {
-			hiveServer.GetServiceAuth(w, r)
-			return
-		}
-		utils.LogAndHTTPError(w,
-			fmt.Errorf("no atproto_pds or habitat service in DID doc for %s", id.DID),
-			"[getServiceAuth dispatch]: no usable service in DID doc",
-			http.StatusBadGateway,
-		)
-	})
+	mux.HandleFunc(
+		"/xrpc/com.atproto.server.getServiceAuth",
+		func(w http.ResponseWriter, r *http.Request) {
+			callerDID, ok := oauthServer.Validate(w, r)
+			if !ok {
+				return
+			}
+			id, err := dir.LookupDID(r.Context(), callerDID)
+			if err != nil {
+				utils.LogAndHTTPError(
+					w,
+					err,
+					"[getServiceAuth dispatch]: looking up caller DID",
+					http.StatusBadGateway,
+				)
+				return
+			}
+			if _, ok := id.Services["atproto_pds"]; ok {
+				pdsForwarding.ServeHTTP(w, r)
+				return
+			}
+			if _, ok := id.Services["habitat"]; ok {
+				hiveServer.GetServiceAuth(w, r)
+				return
+			}
+			utils.LogAndHTTPError(w,
+				fmt.Errorf("no atproto_pds or habitat service in DID doc for %s", id.DID),
+				"[getServiceAuth dispatch]: no usable service in DID doc",
+				http.StatusBadGateway,
+			)
+		},
+	)
 
 	postHogUrl, err := url.Parse("https://us.i.posthog.com")
 	if err != nil {

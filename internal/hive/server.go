@@ -83,7 +83,11 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 
 	aud := r.URL.Query().Get("aud")
 	if aud == "" {
-		utils.WriteHTTPError(w, errors.New("missing required parameter: aud"), http.StatusBadRequest)
+		utils.WriteHTTPError(
+			w,
+			errors.New("missing required parameter: aud"),
+			http.StatusBadRequest,
+		)
 		return
 	}
 

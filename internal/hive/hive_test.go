@@ -4,9 +4,11 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -96,5 +98,65 @@ func TestLookupDID_NotFound(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.LookupDID(context.Background(), syntax.DID("did:web:xxxxxx.example.com"))
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+}
+
+func TestSignServiceAuth(t *testing.T) {
+	h, db := newTestHive(t, "example.com", "pear.example.com")
+
+	mintAndPersist(t, h, db, "alice")
+
+	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
+	require.NoError(t, err)
+
+	lxm := syntax.NSID("com.atproto.repo.createRecord")
+	token, err := h.SignServiceAuth(context.Background(), ident.DID, "did:web:pear.example.com", time.Hour, &lxm)
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	p := jwt.NewParser(jwt.WithoutClaimsValidation())
+	claims := &jwt.MapClaims{}
+	_, _, err = p.ParseUnverified(token, claims)
+	require.NoError(t, err)
+
+	iss, err := claims.GetIssuer()
+	require.NoError(t, err)
+	require.Equal(t, ident.DID.String(), iss)
+
+	aud, err := claims.GetAudience()
+	require.NoError(t, err)
+	require.Len(t, aud, 1)
+	require.Equal(t, "did:web:pear.example.com", aud[0])
+
+	require.Equal(t, "com.atproto.repo.createRecord", (*claims)["lxm"])
+
+	exp, err := claims.GetExpirationTime()
+	require.NoError(t, err)
+	require.NotZero(t, exp.Time)
+	require.WithinRange(t, exp.Time, time.Now().Add(59*time.Minute), time.Now().Add(61*time.Minute))
+
+	iat, err := claims.GetIssuedAt()
+	require.NoError(t, err)
+	require.NotZero(t, iat.Time)
+	require.WithinRange(t, iat.Time, time.Now().Add(-time.Minute), time.Now().Add(time.Minute))
+
+	jti, ok := (*claims)["jti"]
+	require.True(t, ok)
+	jtiStr, ok := jti.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, jtiStr)
+}
+
+func TestSignServiceAuth_DIDNotFound(t *testing.T) {
+	h, _ := newTestHive(t, "example.com", "pear.example.com")
+
+	_, err := h.SignServiceAuth(context.Background(), syntax.DID("did:web:nonexist.example.com"), "did:web:pear.example.com", time.Hour, nil)
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+}
+
+func TestSignServiceAuth_WrongDomain(t *testing.T) {
+	h, _ := newTestHive(t, "example.com", "pear.example.com")
+
+	_, err := h.SignServiceAuth(context.Background(), syntax.DID("did:web:nonexist.other.com"), "did:web:pear.example.com", time.Hour, nil)
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }

@@ -406,7 +406,16 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 			"did":    id.DID.String(),
 			"handle": id.Handle.String(),
 		}
-		_, err = s.pear.PutRecord(r.Context(), id.DID, id.DID, syntax.NSID("app.bsky.actor.profile"), profile, syntax.RecordKey("self"), nil, []permissions.Grantee{})
+		_, err = s.pear.PutRecord(
+			r.Context(),
+			id.DID,
+			id.DID,
+			syntax.NSID("app.bsky.actor.profile"),
+			profile,
+			syntax.RecordKey("self"),
+			nil,
+			[]permissions.Grantee{},
+		)
 		if err != nil {
 			log.Err(err).Msgf("failed to create profile record for new member %s", id.Handle)
 		}
