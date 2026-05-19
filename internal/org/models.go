@@ -16,11 +16,12 @@ const (
 
 // organization represents a managed org on a pear instance.
 type organization struct {
-	ID            string      `gorm:"primaryKey"`
-	Name          string      // optional display name
-	LoginMethod   LoginMethod // "atproto", "google", "password"
-	SigningSecret string      // base64-encoded HMAC-SHA256 key for invite tokens
-	CreatedAt     time.Time
+	ID              string      `gorm:"primaryKey"`
+	Name            string      // optional display name
+	LoginMethod     LoginMethod // "atproto", "google", "password"
+	SigningSecret   string      // base64-encoded HMAC-SHA256 key for invite tokens
+	CreatedAt       time.Time
+	HandleSubdomain string `gorm:"unique"`
 }
 
 // Keep track of members in the org.

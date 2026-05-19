@@ -22,7 +22,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error)
+	MintIdentity(handle string, subdomain string) (*identity.Identity, func(*gorm.DB) error, error)
 	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
 	// identity's signing key (the same key registered in its did:web doc). It is
 	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
@@ -116,34 +116,22 @@ func (h *hive) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.
 
 // LookupDID implements identity.Directory
 func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
-	// Validate DID
-	// DID format: did:web:<opaqueID>.<baseDomain>
 	content := strings.TrimPrefix(did.String(), "did:web:")
-	opaqueID, after, ok := strings.Cut(content, ".")
-	if after != h.memberDomain {
-		return nil, identity.ErrDIDNotFound
+	opaqueID, found := strings.CutSuffix(content, "."+h.memberDomain)
+	if !found {
+		return nil, identity.ErrHandleNotFound
 	}
-	if !ok {
-		return nil, identity.ErrDIDNotFound
-	}
-
 	return h.store.getIdentityByID(ctx, opaqueID)
 }
 
 // LookupHandle implements identity.Directory
-// It strips the internal handle prefix from the given handle which has format
-// <internal-handle>.membersNamespace.domain or <internal-handle>.domain if membersNamespace == ""
-// and looks up the handle against the store.
+// It strips the member domain suffix from the given handle. Handle format is <internal-handle>.<memberDomain>
+// (e.g. "admin.acmecorp2" for org subdomain handles).
 func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
-	// Validate handle
-	internalHandle, after, ok := strings.Cut(handle.String(), ".")
-	if after != h.memberDomain {
+	internalHandle, found := strings.CutSuffix(handle.String(), "."+h.memberDomain)
+	if !found {
 		return nil, identity.ErrHandleNotFound
 	}
-	if !ok {
-		return nil, identity.ErrInvalidHandle
-	}
-
 	return h.store.getIdentityByHandle(ctx, internalHandle)
 }
 
@@ -175,12 +163,16 @@ func (h *hive) SignServiceAuth(
 }
 
 // MintIdentity implements Hive.
-func (h *hive) MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error) {
+func (h *hive) MintIdentity(
+	handlePrefix string,
+	subdomain string,
+) (*identity.Identity, func(*gorm.DB) error, error) {
 	// Ensure handle passes regex
-	if !handlePattern.MatchString(handle) {
+	if !handlePattern.MatchString(handlePrefix) {
 		return nil, nil, identity.ErrInvalidHandle
 	}
-	row, id, err := h.store.prepareIdentity(handle)
+	fullHandle := handlePrefix + "." + subdomain
+	row, id, err := h.store.prepareIdentity(fullHandle)
 	if err != nil {
 		return nil, nil, err
 	}

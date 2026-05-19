@@ -958,8 +958,7 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "admin_handle",
-                  "login_method"
+                  "admin_handle"
                 ],
                 "properties": {
                   "admin_handle": {
@@ -969,6 +968,10 @@
                   "admin_password": {
                     "type": "string",
                     "description": "Password for the bootstrap admin account (required for password login method)."
+                  },
+                  "handle_subdomain": {
+                    "type": "string",
+                    "description": "Subdomain for all org member handles (e.g. 'acmecorp')."
                   },
                   "name": {
                     "type": "string",

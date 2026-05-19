@@ -32,6 +32,7 @@ func newTestOrgWithHive(t *testing.T) *orgImpl {
 	require.NoError(t, err)
 	s, err := NewOrg("test-org", h, db, testSigningSecret)
 	require.NoError(t, err)
+	s.handleSubdomain = "testorg"
 	return s
 }
 
@@ -213,15 +214,15 @@ func TestCreateNewMemberIdentity_AuthenticateMember(t *testing.T) {
 	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPassword)
 	require.NoError(t, err)
 
-	ok, err := s.AuthenticateMember(ctx, "alice.example.com", testPassword)
+	ok, err := s.AuthenticateMember(ctx, "alice.testorg.example.com", testPassword)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	ok, err = s.AuthenticateMember(ctx, "alice.example.com", "wrong-password")
+	ok, err = s.AuthenticateMember(ctx, "alice.testorg.example.com", "wrong-password")
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	ok, err = s.AuthenticateMember(ctx, "nobody.example.com", testPassword)
+	ok, err = s.AuthenticateMember(ctx, "nobody.testorg.example.com", testPassword)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
