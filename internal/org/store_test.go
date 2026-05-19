@@ -109,9 +109,25 @@ func TestStore_GetMember_NotFound(t *testing.T) {
 
 func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	s := newTestStore(t)
-	orgID1, id1, err := s.CreateOrg(t.Context(), "org1", "admin1", "password1", "password", "", "org1")
+	orgID1, id1, err := s.CreateOrg(
+		t.Context(),
+		"org1",
+		"admin1",
+		"password1",
+		"password",
+		"",
+		"org1",
+	)
 	require.NoError(t, err)
-	orgID2, id2, err := s.CreateOrg(t.Context(), "org2", "admin2", "password2", "password", "", "org2")
+	orgID2, id2, err := s.CreateOrg(
+		t.Context(),
+		"org2",
+		"admin2",
+		"password2",
+		"password",
+		"",
+		"org2",
+	)
 	require.NoError(t, err)
 
 	org, err := s.GetOrgForDID(t.Context(), id1.DID)
