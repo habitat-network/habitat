@@ -11,7 +11,12 @@ import (
 type dummy struct{}
 
 // SendXRPC implements Node.
-func (d *dummy) SendXRPC(ctx context.Context, sender syntax.DID, receiver syntax.DID, req *http.Request) (*http.Response, error) {
+func (d *dummy) SendXRPC(
+	ctx context.Context,
+	sender syntax.DID,
+	receiver syntax.DID,
+	req *http.Request,
+) (*http.Response, error) {
 	panic("unimplemented")
 }
 

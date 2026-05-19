@@ -4,7 +4,9 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
@@ -21,6 +23,17 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 type Hive interface {
 	// Minting new identities for members
 	MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error)
+	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
+	// identity's signing key (the same key registered in its did:web doc). It is
+	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
+	// since habitat owns the signing key, it must be the issuer of these tokens.
+	SignServiceAuth(
+		ctx context.Context,
+		iss syntax.DID,
+		aud string,
+		ttl time.Duration,
+		lxm *syntax.NSID,
+	) (string, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -103,15 +116,10 @@ func (h *hive) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.
 
 // LookupDID implements identity.Directory
 func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
-	// Validate DID
-	// DID format: did:web:<opaqueID>.<baseDomain>
 	content := strings.TrimPrefix(did.String(), "did:web:")
-	opaqueID, after, ok := strings.Cut(content, ".")
-	if after != h.memberDomain {
-		return nil, identity.ErrDIDNotFound
-	}
-	if !ok {
-		return nil, identity.ErrDIDNotFound
+	opaqueID, found := strings.CutSuffix(content, "."+h.memberDomain)
+	if !found {
+		return nil, identity.ErrHandleNotFound
 	}
 
 	return h.store.getIdentityByID(ctx, opaqueID)
@@ -119,18 +127,13 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 
 // LookupHandle implements identity.Directory
 // It strips the internal handle prefix from the given handle which has format
-// <internal-handle>.membersNamespace.domain or <internal-handle>.domain if membersNamespace == ""
+// <internal-handle>.domain
 // and looks up the handle against the store.
 func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
-	// Validate handle
-	internalHandle, after, ok := strings.Cut(handle.String(), ".")
-	if after != h.memberDomain {
+	internalHandle, found := strings.CutSuffix(handle.String(), "."+h.memberDomain)
+	if !found {
 		return nil, identity.ErrHandleNotFound
 	}
-	if !ok {
-		return nil, identity.ErrInvalidHandle
-	}
-
 	return h.store.getIdentityByHandle(ctx, internalHandle)
 }
 
@@ -138,6 +141,27 @@ func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identit
 func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	// Empty because we're not caching anything
 	return nil
+}
+
+// SignServiceAuth implements Hive.
+func (h *hive) SignServiceAuth(
+	ctx context.Context,
+	iss syntax.DID,
+	aud string,
+	ttl time.Duration,
+	lxm *syntax.NSID,
+) (string, error) {
+	// Validate the DID belongs to this hive and extract the opaque ID.
+	content := strings.TrimPrefix(iss.String(), "did:web:")
+	opaqueID, after, ok := strings.Cut(content, ".")
+	if !ok || after != h.memberDomain {
+		return "", identity.ErrDIDNotFound
+	}
+	priv, err := h.store.getSigningPrivateKeyByID(ctx, opaqueID)
+	if err != nil {
+		return "", err
+	}
+	return auth.SignServiceAuth(iss, aud, ttl, lxm, priv)
 }
 
 // MintIdentity implements Hive.

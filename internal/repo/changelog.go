@@ -26,7 +26,12 @@ type Changelog struct {
 }
 
 type EventEmitter interface {
-	EmitChangeEvent(did, collection, rkey string, op operation, ts time.Time, record json.RawMessage)
+	EmitChangeEvent(
+		did, collection, rkey string,
+		op operation,
+		ts time.Time,
+		record json.RawMessage,
+	)
 }
 
 // Consumers can subscribe to the EventProvider
@@ -74,7 +79,12 @@ const (
 // EmitChangeEvent emits a jetstream event based on the given change data
 // Right now the change emitter relies on some caller to explicitly write out every change. In the future it could tail
 // a database WAL or something else similar.
-func (c *Changelog) EmitChangeEvent(did, collection, rkey string, op operation, ts time.Time, record json.RawMessage) {
+func (c *Changelog) EmitChangeEvent(
+	did, collection, rkey string,
+	op operation,
+	ts time.Time,
+	record json.RawMessage,
+) {
 	if !c.consumed.Load() {
 		return
 	}

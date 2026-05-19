@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -31,51 +32,24 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password")
+	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "", "")
 	require.NoError(t, err)
 
 	scoped, err := s.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 
-	return NewLoginProvider(s, "frontend.example.com", testSigningSecret), scoped.(*orgImpl)
+	return NewLoginProvider(
+		s,
+		"pear.example.com",
+		"frontend.example.com",
+		testSigningSecret,
+		h,
+	), scoped.(*orgImpl)
 }
 
-func TestLoginProvider_Type(t *testing.T) {
+func TestLoginProvider_LoginMethod(t *testing.T) {
 	p, _ := newTestLoginProvider(t)
-	require.Equal(t, "habitat", p.Type())
-}
-
-func TestLoginProvider_CanHandle(t *testing.T) {
-	p, _ := newTestLoginProvider(t)
-
-	habitatOnly := &identity.Identity{
-		DID: "did:web:habitat.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://habitat.example.com"},
-		},
-	}
-	pdsOnly := &identity.Identity{
-		DID: "did:web:pds.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {URL: "https://pds.example.com"},
-		},
-	}
-	both := &identity.Identity{
-		DID: "did:web:both.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {URL: "https://pds.example.com"},
-			"habitat":     {URL: "https://habitat.example.com"},
-		},
-	}
-	none := &identity.Identity{
-		DID:      "did:web:nobody.example.com",
-		Services: map[string]identity.ServiceEndpoint{},
-	}
-
-	require.True(t, p.CanHandle(habitatOnly))
-	require.False(t, p.CanHandle(pdsOnly))
-	require.False(t, p.CanHandle(both))
-	require.False(t, p.CanHandle(none))
+	require.Equal(t, LoginMethodPassword, p.LoginMethod())
 }
 
 func TestLoginProvider_Authorize(t *testing.T) {
@@ -83,7 +57,7 @@ func TestLoginProvider_Authorize(t *testing.T) {
 	id := &identity.Identity{
 		Handle: "alice.example.com",
 	}
-	redirect, state, err := p.Authorize(context.Background(), id)
+	redirect, state, err := p.Authorize(context.Background(), id, "")
 	require.NoError(t, err)
 	require.Nil(t, state)
 	require.Equal(
@@ -98,7 +72,7 @@ func TestLoginProvider_Authorize_HandleEscaping(t *testing.T) {
 	id := &identity.Identity{
 		Handle: "alice bob",
 	}
-	redirect, _, err := p.Authorize(context.Background(), id)
+	redirect, _, err := p.Authorize(context.Background(), id, "")
 	require.NoError(t, err)
 	require.Contains(t, redirect, "handle=alice+bob")
 }
@@ -175,9 +149,15 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 
 	var out habitat.NetworkHabitatOrgLoginMemberOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Contains(t, out.CallbackURL, "/oauth-callback?code=")
 
-	code := out.CallbackURL[len("/oauth-callback?code="):]
+	callbackUrl, err := url.Parse(out.CallbackURL)
+	require.NoError(t, err, "failed to parse callback URL")
+
+	require.Equal(t, callbackUrl.Scheme, "https")
+	require.Equal(t, callbackUrl.Host, "pear.example.com")
+	require.Equal(t, callbackUrl.Path, "/oauth-callback")
+
+	code := callbackUrl.Query().Get("code")
 	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), code, "", nil))
 }
 

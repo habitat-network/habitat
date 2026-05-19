@@ -12,7 +12,10 @@ import (
 	"github.com/bradenaw/juniper/xslices"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/pear"
+	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/rs/zerolog/log"
 )
 
 // Serve org-specific APIs
@@ -20,12 +23,14 @@ import (
 type Server struct {
 	store Store
 	auth  authn.Method
+	pear  pear.Pear
 }
 
-func NewServer(store Store, auth authn.Method) (*Server, error) {
+func NewServer(store Store, auth authn.Method, p pear.Pear) (*Server, error) {
 	return &Server{
 		store: store,
 		auth:  auth,
+		pear:  p,
 	}, nil
 }
 
@@ -52,7 +57,15 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AdminHandle == "" || req.AdminPassword == "" || req.Name == "" {
+	if req.AdminHandle == "" || req.Name == "" || req.LoginMethod == "" {
+		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	if req.LoginMethod == "password" && req.AdminPassword == "" {
+		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		return
+	} else if req.LoginMethod != "password" && req.LoginId == "" {
 		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -62,6 +75,8 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		req.Name,
 		req.AdminHandle,
 		req.AdminPassword,
+		req.LoginMethod,
+		req.LoginId,
 	)
 	if errors.Is(err, identity.ErrInvalidHandle) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -382,6 +397,28 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		utils.LogAndHTTPError(w, err, "minting member identity", http.StatusInternalServerError)
 		return
+	}
+
+	// Create a minimal app.bsky.actor.profile record so the identity is usable by atproto apps
+	if s.pear != nil {
+		profile := map[string]any{
+			"$type":  "app.bsky.actor.profile",
+			"did":    id.DID.String(),
+			"handle": id.Handle.String(),
+		}
+		_, err = s.pear.PutRecord(
+			r.Context(),
+			id.DID,
+			id.DID,
+			syntax.NSID("app.bsky.actor.profile"),
+			profile,
+			syntax.RecordKey("self"),
+			nil,
+			[]permissions.Grantee{},
+		)
+		if err != nil {
+			log.Err(err).Msgf("failed to create profile record for new member %s", id.Handle)
+		}
 	}
 
 	output := habitat.NetworkHabitatOrgMintMemberIdentityOutput{

@@ -102,12 +102,20 @@ func NewPdsOAuthClient(
 		return nil, err
 	}
 
-	refreshTokenErrCtr, err := meter.Int64Counter("oauth_client.refresh.err", metric.WithDescription("errors on PDS Oauth Client refresh"), metric.WithUnit("item"))
+	refreshTokenErrCtr, err := meter.Int64Counter(
+		"oauth_client.refresh.err",
+		metric.WithDescription("errors on PDS Oauth Client refresh"),
+		metric.WithUnit("item"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshTokenSuccessCtr, err := meter.Int64Counter("oauth_client.refresh.success", metric.WithDescription("successes on PDS Oauth Client refresh"), metric.WithUnit("item"))
+	refreshTokenSuccessCtr, err := meter.Int64Counter(
+		"oauth_client.refresh.success",
+		metric.WithDescription("successes on PDS Oauth Client refresh"),
+		metric.WithUnit("item"),
+	)
 	if err != nil {
 		return nil, err
 	}

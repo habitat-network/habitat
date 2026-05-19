@@ -26,28 +26,38 @@ type loginTokenClaims struct {
 // LoginProvider wraps Store and implements login.Provider for habitat-hosted member identities.
 type LoginProvider struct {
 	store          Store
+	pearDomain     string
 	frontendDomain string
 	signingSecret  []byte
+	dir            identity.Directory
 }
 
-func NewLoginProvider(store Store, frontendDomain string, signingSecret []byte) *LoginProvider {
+func NewLoginProvider(
+	store Store,
+	pearDomain string,
+	frontendDomain string,
+	signingSecret []byte,
+	dir identity.Directory,
+) *LoginProvider {
 	return &LoginProvider{
 		store:          store,
+		pearDomain:     pearDomain,
 		frontendDomain: frontendDomain,
 		signingSecret:  signingSecret,
+		dir:            dir,
 	}
 }
 
-func (p *LoginProvider) Type() string { return "habitat" }
+func (p *LoginProvider) LoginMethod() LoginMethod { return LoginMethodPassword }
 
-func (p *LoginProvider) CanHandle(id *identity.Identity) bool {
-	_, hasHabitat := id.Services["habitat"]
-	_, hasPDS := id.Services["atproto_pds"]
-	return hasHabitat && !hasPDS
-}
-
-func (p *LoginProvider) Authorize(_ context.Context, id *identity.Identity) (string, []byte, error) {
-	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(string(id.Handle))
+func (p *LoginProvider) Authorize(
+	_ context.Context,
+	id *identity.Identity,
+	_ string,
+) (string, []byte, error) {
+	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
+		string(id.Handle),
+	)
 	return redirect, nil, nil
 }
 
@@ -67,14 +77,14 @@ func (p *LoginProvider) issueToken() (string, error) {
 func (p *LoginProvider) verifyToken(token string) error {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
-		return errInvalidLoginToken
+		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
 	var claims loginTokenClaims
 	if err := parsed.Claims(p.signingSecret, &claims); err != nil {
-		return errInvalidLoginToken
+		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
 	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
-		return errInvalidLoginToken
+		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
 	return nil
 }
@@ -90,9 +100,26 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	ok, err := p.store.AuthenticateMember(r.Context(), req.Handle, req.Password)
+	atid, err := syntax.ParseAtIdentifier(req.Handle)
 	if err != nil {
-		utils.LogAndHTTPError(w, fmt.Errorf("error while authenticating"), err.Error(), http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		return
+	}
+
+	id, err := p.dir.Lookup(r.Context(), atid)
+	if err != nil {
+		http.Error(w, "invalid handle", http.StatusUnauthorized)
+		return
+	}
+
+	member, err := p.store.GetMember(r.Context(), id.DID)
+	if err != nil {
+		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		return
+	}
+	ok, err := verifyPassword(req.Password, member.LoginID)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "error while authenticating", http.StatusInternalServerError)
 		return
 	}
 	if !ok {
@@ -108,7 +135,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(habitat.NetworkHabitatOrgLoginMemberOutput{
-		CallbackURL: "/oauth-callback?code=" + token,
+		CallbackURL: "https://" + p.pearDomain + "/oauth-callback?code=" + token,
 	})
 	if err != nil {
 		http.Error(w, "encoding response", http.StatusInternalServerError)
