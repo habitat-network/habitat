@@ -22,3 +22,7 @@ tasks:
     options:
       internal: false
       runInCI: true
+  migration-create:
+    command: goose create
+    env:
+      GOOSE_MIGRATION_DIR: migrations

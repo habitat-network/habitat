@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/pressly/goose/v3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/bridges/otelzerolog"
@@ -50,6 +51,8 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/urfave/cli/v3"
+
+	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
 
 func main() {
@@ -498,11 +501,22 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 		}
 		log.Info().Str("path", dbPath).Msg("connected to sqlite database")
 	}
-
 	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
 		log.Fatal().Err(err).Msg("unable to setup database otel tracing and metrics plugin")
 	}
-
+	sqlDb, err := db.DB()
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
+	}
+	if postgresUrl != "" {
+		goose.SetDialect("postgres")
+	} else {
+		goose.SetDialect("sqlite")
+	}
+	err = goose.Up(sqlDb, "migrations")
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to run migrations")
+	}
 	return db
 }
 
