@@ -26,3 +26,4 @@ tasks:
     command: goose create
     env:
       GOOSE_MIGRATION_DIR: migrations
+    preset: utility
