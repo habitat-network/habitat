@@ -104,9 +104,9 @@ func TestLookupDID_NotFound(t *testing.T) {
 func TestSignServiceAuth(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
+	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
 	require.NoError(t, err)
 
 	lxm := syntax.NSID("com.atproto.repo.createRecord")
