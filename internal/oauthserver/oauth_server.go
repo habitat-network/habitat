@@ -214,7 +214,6 @@ func NewOAuthServer(
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
-		AccessTokenLifespan:        10 * time.Second,
 	}
 
 	strategy, err := newStrategy(secret, config)

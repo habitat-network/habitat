@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/rs/zerolog/log"
 )
 
 // Serve org-specific APIs
@@ -408,7 +408,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err = s.pear.PutRecord(r.Context(), id.DID, id.DID, syntax.NSID("app.bsky.actor.profile"), profile, syntax.RecordKey("self"), nil, []permissions.Grantee{})
 		if err != nil {
-			slog.Warn("failed to create profile record for new member", "did", id.DID.String(), "handle", id.Handle.String(), "error", err)
+			log.Err(err).Msgf("failed to create profile record for new member %s", id.Handle)
 		}
 	}
 
