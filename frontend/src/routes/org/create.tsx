@@ -22,6 +22,7 @@ interface FormValues {
   admin_password: string;
   login_method: "password" | "atproto" | "google";
   login_id: string;
+  handle_subdomain: string;
 }
 
 function CreateOrgPage() {
@@ -37,6 +38,7 @@ function CreateOrgPage() {
     defaultValues: {
       admin_handle: "admin",
       admin_password: "12345",
+      handle_subdomain: "acmecorp",
       name: "My Organization",
       login_method: "password",
       login_id: "",
@@ -51,6 +53,7 @@ function CreateOrgPage() {
         admin_handle: values.admin_handle,
         name: values.name || undefined,
         login_method: values.login_method,
+        handle_subdomain: values.handle_subdomain,
       };
       if (values.login_method === "password") {
         body.admin_password = values.admin_password;
@@ -82,6 +85,14 @@ function CreateOrgPage() {
             <FieldLabel>Organization Name</FieldLabel>
             <Input placeholder="My Organization" {...register("name")} />
             <FieldError errors={[errors.name]} />
+          </Field>
+          <Field>
+            <FieldLabel>Handle Subdomain</FieldLabel>
+            <Input
+              placeholder="acmecorp"
+              {...register("handle_subdomain", { required: true })}
+            />
+            <FieldError errors={[errors.handle_subdomain]} />
           </Field>
           <Field>
             <FieldLabel>Admin Handle</FieldLabel>
