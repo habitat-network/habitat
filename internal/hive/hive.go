@@ -9,7 +9,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 

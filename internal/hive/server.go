@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"strconv"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/rs/zerolog/log"
 )
 
 const HabitatHostHeader = "Habitat-Host"
