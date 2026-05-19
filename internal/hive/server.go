@@ -14,12 +14,12 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-const habitatHostHeader = "Habitat-Host"
+const HabitatHostHeader = "Habitat-Host"
 
 // effectiveHost returns the Habitat-Host header value if present,
 // otherwise falls back to the request's Host field.
 func effectiveHost(r *http.Request) string {
-	if h := r.Header.Get(habitatHostHeader); h != "" {
+	if h := r.Header.Get(HabitatHostHeader); h != "" {
 		return h
 	}
 	return r.Host
