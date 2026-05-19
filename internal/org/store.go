@@ -157,11 +157,12 @@ func (s *storeImpl) CreateOrg(
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&organization{
-			ID:            orgID,
-			Name:          name,
-			LoginMethod:   LoginMethod(loginMethod),
-			SigningSecret: signingSecret,
-			CreatedAt:     time.Now(),
+			ID:              orgID,
+			Name:            name,
+			LoginMethod:     LoginMethod(loginMethod),
+			SigningSecret:   signingSecret,
+			CreatedAt:       time.Now(),
+			HandleSubdomain: handleSubdomain,
 		}).Error; err != nil {
 			if isDuplicateError(err) {
 				return ErrOrgAlreadyExists

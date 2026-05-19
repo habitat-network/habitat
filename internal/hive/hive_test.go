@@ -23,30 +23,30 @@ func newTestHive(t *testing.T, memberDomain, pearDomain string) (Hive, *gorm.DB)
 }
 
 // mintAndPersist is a test helper that mints an identity and persists it atomically.
-func mintAndPersist(t *testing.T, h Hive, db *gorm.DB, handle string) {
+func mintAndPersist(t *testing.T, h Hive, db *gorm.DB, handle, subdomain string) {
 	t.Helper()
-	_, persist, err := h.MintIdentity(handle)
+	_, persist, err := h.MintIdentity(handle, subdomain)
 	require.NoError(t, err)
 	require.NoError(t, persist(db))
 }
 
 func TestMintIdentity(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 }
 
 func TestMintIdentity_InvalidHandle(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
-	_, _, err := h.MintIdentity("alice!invalid")
+	_, _, err := h.MintIdentity("alice!invalid", "org")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
 func TestMintIdentity_Duplicate(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	_, persist, err := h.MintIdentity("alice")
+	_, persist, err := h.MintIdentity("alice", "org")
 	require.NoError(t, err)
 	require.ErrorIs(t, persist(db), ErrNotCreated)
 }
@@ -54,36 +54,36 @@ func TestMintIdentity_Duplicate(t *testing.T) {
 func TestLookupHandle(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
+	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
 	require.NoError(t, err)
-	require.Equal(t, syntax.Handle("alice.example.com"), ident.Handle)
+	require.Equal(t, syntax.Handle("alice.org.example.com"), ident.Handle)
 	require.True(t, strings.HasPrefix(ident.DID.String(), "did:web:"))
 }
 
 func TestLookupHandle_NotFound(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.LookupHandle(context.Background(), syntax.Handle("nobody.example.com"))
+	_, err := h.LookupHandle(context.Background(), syntax.Handle("nobody.org.example.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupHandle_WrongDomain(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	_, err := h.LookupHandle(context.Background(), syntax.Handle("alice.other.com"))
+	_, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.other.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupDID(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
+	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
 	require.NoError(t, err)
 
 	ident2, err := h.LookupDID(context.Background(), ident.DID)

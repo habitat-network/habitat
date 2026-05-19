@@ -118,17 +118,13 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 }
 
 // LookupHandle implements identity.Directory
-// It strips the internal handle prefix from the given handle which has format
-// <internal-handle>.membersNamespace.domain or <internal-handle>.domain if membersNamespace == ""
-// and looks up the handle against the store.
+// It strips the member domain suffix from the given handle. Handle format is
+// <internal-handle>.<memberDomain> where <internal-handle> may contain dots
+// (e.g. "admin.acmecorp2" for org subdomain handles).
 func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
-	// Validate handle
-	internalHandle, after, ok := strings.Cut(handle.String(), ".")
-	if after != h.memberDomain {
+	internalHandle, found := strings.CutSuffix(handle.String(), "."+h.memberDomain)
+	if !found {
 		return nil, identity.ErrHandleNotFound
-	}
-	if !ok {
-		return nil, identity.ErrInvalidHandle
 	}
 
 	return h.store.getIdentityByHandle(ctx, internalHandle)

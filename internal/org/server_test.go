@@ -36,6 +36,7 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 		"password",
 		"password",
 		"",
+		"",
 	)
 	require.NoError(t, err)
 
@@ -122,10 +123,11 @@ func TestCreateOrg(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		Name:          "My Org",
-		AdminHandle:   "admin",
-		AdminPassword: "securepassword123",
-		LoginMethod:   "password",
+		Name:            "My Org",
+		AdminHandle:     "admin",
+		AdminPassword:   "securepassword123",
+		LoginMethod:     "password",
+		HandleSubdomain: "org",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -166,9 +168,10 @@ func TestCreateOrg_InvalidHandle(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		AdminHandle:   "invalid handle with spaces!",
-		AdminPassword: "password",
-		LoginMethod:   "password",
+		AdminHandle:     "invalid handle with spaces!",
+		AdminPassword:   "password",
+		LoginMethod:     "password",
+		HandleSubdomain: "org",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -185,7 +188,8 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
-		AdminHandle: "admin",
+		AdminHandle:     "admin",
+		HandleSubdomain: "org",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,

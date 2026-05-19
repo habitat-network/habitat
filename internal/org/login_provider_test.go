@@ -32,7 +32,7 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
 
-	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "", "")
+	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "", "", "testorg")
 	require.NoError(t, err)
 
 	scoped, err := s.GetOrg(context.Background(), orgId)
@@ -138,7 +138,7 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	mintMember(t, s)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgLoginMemberInput{
-		Handle:   "alice.example.com",
+		Handle:   "alice.testorg.example.com",
 		Password: testPassword,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))
@@ -174,7 +174,7 @@ func TestLoginProvider_HandlePasswordLogin_WrongPassword(t *testing.T) {
 	mintMember(t, s)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgLoginMemberInput{
-		Handle:   "alice.example.com",
+		Handle:   "alice.testorg.example.com",
 		Password: "wrong-password",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))

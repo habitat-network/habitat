@@ -149,7 +149,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	hiveDomain := cmd.String(fHiveDomain)
 	if hiveDomain == "" {
-		hiveDomain = "id." + domain
+		hiveDomain = domain
 	}
 
 	// hive is the identity minting service for orgs.
