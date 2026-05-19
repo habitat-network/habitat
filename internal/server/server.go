@@ -595,6 +595,52 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
+	repo := r.URL.Query().Get("repo")
+	id, err := s.dir.Lookup(r.Context(), syntax.AtIdentifier(repo))
+	if err != nil {
+		utils.LogAndHTTPError(
+			w,
+			err,
+			fmt.Sprintf("looking up did from repo param: %s", repo),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	description, err := s.pear.DescribeRepo(r.Context(), id.DID, id.DID)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "describing repo", http.StatusInternalServerError)
+		return
+	}
+
+	output := habitat.NetworkHabitatRepoDescribeRepoOutput{
+		Did:             description.DID.String(),
+		Handle:          description.Handle,
+		DidDoc:          description.DIDDoc,
+		HandleIsCorrect: description.HandleIsCorrect,
+		Collections: make(
+			[]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata,
+			len(description.Collections),
+		),
+	}
+
+	for i, c := range description.Collections {
+		grantees := permissions.ConstructInterfaceFromGrantees(c.Grantees)
+		output.Collections[i] = habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata{
+			Grantees:    grantees,
+			LastTouched: c.LastTouched.Format(time.RFC3339Nano),
+			Nsid:        c.Name,
+			RecordCount: int64(c.RecordCount),
+		}
+	}
+
+	if err = json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // TODO: this is a confusing name, because our ListPermissions internally takes in a generic query of grantee + owner + collection + rkey
 // and returns the permissions that exist on that combination.
 //

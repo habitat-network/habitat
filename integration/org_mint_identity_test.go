@@ -50,7 +50,7 @@ func TestMintThenLookup(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, testOrg.AddAdmin(ctx, adminDID))
 
-	orgServer, err := org.NewServer(orgStore, authn.NewStubAuthnForTest(adminDID))
+	orgServer, err := org.NewServer(orgStore, authn.NewStubAuthnForTest(adminDID), nil)
 	require.NoError(t, err)
 
 	hiveServer, err := hive.NewServer(h)
