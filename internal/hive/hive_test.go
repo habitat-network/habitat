@@ -110,7 +110,13 @@ func TestSignServiceAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	lxm := syntax.NSID("com.atproto.repo.createRecord")
-	token, err := h.SignServiceAuth(context.Background(), ident.DID, "did:web:pear.example.com", time.Hour, &lxm)
+	token, err := h.SignServiceAuth(
+		context.Background(),
+		ident.DID,
+		"did:web:pear.example.com",
+		time.Hour,
+		&lxm,
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
@@ -150,13 +156,25 @@ func TestSignServiceAuth(t *testing.T) {
 func TestSignServiceAuth_DIDNotFound(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.SignServiceAuth(context.Background(), syntax.DID("did:web:nonexist.example.com"), "did:web:pear.example.com", time.Hour, nil)
+	_, err := h.SignServiceAuth(
+		context.Background(),
+		syntax.DID("did:web:nonexist.example.com"),
+		"did:web:pear.example.com",
+		time.Hour,
+		nil,
+	)
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
 func TestSignServiceAuth_WrongDomain(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.SignServiceAuth(context.Background(), syntax.DID("did:web:nonexist.other.com"), "did:web:pear.example.com", time.Hour, nil)
+	_, err := h.SignServiceAuth(
+		context.Background(),
+		syntax.DID("did:web:nonexist.other.com"),
+		"did:web:pear.example.com",
+		time.Hour,
+		nil,
+	)
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
