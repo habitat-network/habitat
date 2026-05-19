@@ -116,15 +116,10 @@ func (h *hive) Lookup(ctx context.Context, atid syntax.AtIdentifier) (*identity.
 
 // LookupDID implements identity.Directory
 func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
-	// Validate DID
-	// DID format: did:web:<opaqueID>.<baseDomain>
 	content := strings.TrimPrefix(did.String(), "did:web:")
-	opaqueID, after, ok := strings.Cut(content, ".")
-	if after != h.memberDomain {
-		return nil, identity.ErrDIDNotFound
-	}
-	if !ok {
-		return nil, identity.ErrDIDNotFound
+	opaqueID, found := strings.CutSuffix(content, "."+h.memberDomain)
+	if !found {
+		return nil, identity.ErrHandleNotFound
 	}
 	return h.store.getIdentityByID(ctx, opaqueID)
 }

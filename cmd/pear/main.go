@@ -281,6 +281,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Host("{handle:.+}." + hiveDomain).
 		Path("/.well-known/atproto-did").
 		HandlerFunc(hiveServer.ServeHandle)
+	mux.Headers(hive.HabitatHostHeader, "").
+		Path("/.well-known/did.json").
+		HandlerFunc(hiveServer.ServeDIDDoc)
+	mux.Headers(hive.HabitatHostHeader, "").
+		Path("/.well-known/atproto-did").
+		HandlerFunc(hiveServer.ServeHandle)
 
 	// handle waitlist signups
 	// TODO: this should be moved to a separate server; no need to run it for orgs
