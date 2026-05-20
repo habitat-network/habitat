@@ -1,6 +1,6 @@
 go = "1.26"
 golangci-lint = "2.11.0"
-moon = "2.0.0"
+moon = "2.0.0-rc.1"
 node = "24.4.1"
 pnpm = "10.21.0"
 caddy = "2.11.3"
