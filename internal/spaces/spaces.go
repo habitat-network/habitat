@@ -135,7 +135,12 @@ type Store interface {
 		spaceType syntax.NSID,
 		skey string,
 	) (SpaceURI, error)
-	ListSpaces(ctx context.Context, actor syntax.DID, filterType *syntax.NSID, filterOwner *syntax.DID) ([]SpaceView, error)
+	ListSpaces(
+		ctx context.Context,
+		actor syntax.DID,
+		filterType *syntax.NSID,
+		filterOwner *syntax.DID,
+	) ([]SpaceView, error)
 
 	// Member operations
 	// TODO: AddMember and RemoveMember will be added when the permission store is built.
@@ -289,6 +294,17 @@ func (s *store) PutRecord(
 ) error {
 	owner := uri.SpaceDID().String()
 	skey := uri.Skey()
+
+	// Verify space exists
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", owner, skey).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrSpaceNotFound
+	} else if err != nil {
+		return err
+	}
 
 	bytes, err := json.Marshal(value)
 	if err != nil {
