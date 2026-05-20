@@ -234,15 +234,44 @@ func (s *store) ListSpaces(
 	return views, nil
 }
 
+func (s *store) GetMembers(
+	ctx context.Context,
+	uri SpaceURI,
+) ([]MemberInfo, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceDID().String(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrSpaceNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	return []MemberInfo{
+		{Did: uri.SpaceDID(), AddedAt: sp.CreatedAt},
+	}, nil
+}
+
+func (s *store) IsMember(
+	ctx context.Context,
+	uri SpaceURI,
+	did syntax.DID,
+) (bool, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceDID().String(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	return did == uri.SpaceDID(), nil
+}
+
 // ---- Stub implementations for unimplemented Store methods ----
-
-func (s *store) GetMembers(ctx context.Context, space SpaceURI) ([]MemberInfo, error) {
-	return nil, ErrSpaceNotFound
-}
-
-func (s *store) IsMember(ctx context.Context, space SpaceURI, did syntax.DID) (bool, error) {
-	return false, ErrSpaceNotFound
-}
 
 func (s *store) PutRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string, value map[string]any) error {
 	return ErrSpaceNotFound
