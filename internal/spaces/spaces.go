@@ -180,17 +180,22 @@ func (s *store) CreateSpace(
 		skey = uuid.New().String()
 	}
 
+	var existing space
+	err := s.db.WithContext(ctx).Where("owner = ? AND skey = ?", owner.String(), skey).First(&existing).Error
+	if err == nil {
+		return "", ErrSpaceAlreadyExists
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", err
+	}
+
 	sp := space{
 		Owner: owner.String(),
 		Skey:  skey,
 		Type:  spaceType.String(),
 	}
 
-	err := s.db.WithContext(ctx).Create(&sp).Error
+	err = s.db.WithContext(ctx).Create(&sp).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return "", ErrSpaceAlreadyExists
-		}
 		return "", err
 	}
 
