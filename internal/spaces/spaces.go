@@ -148,9 +148,24 @@ type Store interface {
 	IsMember(ctx context.Context, space SpaceURI, did syntax.DID) (bool, error)
 
 	// Record operations
-	PutRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string, value map[string]any) error
-	GetRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) (*RecordInSpace, error)
-	ListRecords(ctx context.Context, space SpaceURI, collection *syntax.NSID) ([]RecordInSpace, error)
+	PutRecord(
+		ctx context.Context,
+		space SpaceURI,
+		collection syntax.NSID,
+		rkey string,
+		value map[string]any,
+	) error
+	GetRecord(
+		ctx context.Context,
+		space SpaceURI,
+		collection syntax.NSID,
+		rkey string,
+	) (*RecordInSpace, error)
+	ListRecords(
+		ctx context.Context,
+		space SpaceURI,
+		collection *syntax.NSID,
+	) ([]RecordInSpace, error)
 	DeleteRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) error
 }
 
@@ -186,7 +201,10 @@ func (s *store) CreateSpace(
 	}
 
 	var existing space
-	err := s.db.WithContext(ctx).Where("owner = ? AND skey = ?", owner.String(), skey).First(&existing).Error
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", owner.String(), skey).
+		First(&existing).
+		Error
 	if err == nil {
 		return "", ErrSpaceAlreadyExists
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
