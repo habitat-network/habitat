@@ -82,13 +82,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by zerolog.
-	otelClose, err := telemetry.SetupOpenTelemetry(ctx)
+	otelClose, ok, err := telemetry.SetupOpenTelemetry(ctx)
+	// Handle shutdown properly so nothing leaks.
+	defer otelClose(context.Background())
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed setting up open telemetry for metric/trace/log collection")
 	}
-	log.Info().Msg("successfully set up open telemetry")
-	// Handle shutdown properly so nothing leaks.
-	defer otelClose(context.Background())
+	if ok {
+		log.Info().Msg("successfully set up open telemetry")
+	}
 
 	env := utils.GetEnvString("env", "local")
 	// Metric that records a single running process (for testing)
