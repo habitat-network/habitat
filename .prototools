@@ -4,6 +4,7 @@ moon = "2.0.0-rc.1"
 node = "24.4.1"
 pnpm = "10.21.0"
 caddy = "2.11.3"
+proto="0.57.2"
 
 [plugins.tools]
 golangci-lint = "https://raw.githubusercontent.com/b4nst/proto-plugins/refs/heads/main/toml/golangci-lint.toml"

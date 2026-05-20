@@ -1,3 +1,5 @@
+proto:
+  version: null
 go:
   version: null
   tidyOnChange: true
