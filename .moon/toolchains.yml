@@ -1,5 +1,5 @@
 proto:
-  version: null
+  version: 0.57.2
 go:
   version: null
   tidyOnChange: true
