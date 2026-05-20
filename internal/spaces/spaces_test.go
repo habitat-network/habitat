@@ -21,7 +21,6 @@ func newTestStore(t *testing.T) Store {
 var (
 	owner     = syntax.DID("did:plc:owner")
 	alice     = syntax.DID("did:plc:alice")
-	bob       = syntax.DID("did:plc:bob")
 	groupType = syntax.NSID("network.habitat.group")
 )
 
