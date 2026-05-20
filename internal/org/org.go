@@ -81,10 +81,11 @@ type inviteTokenClaims struct {
 }
 
 type orgImpl struct {
-	orgID         string
-	hive          hive.Hive
-	db            *gorm.DB
-	signingSecret []byte
+	orgID           string
+	hive            hive.Hive
+	db              *gorm.DB
+	signingSecret   []byte
+	handleSubdomain string
 }
 
 var _ Org = &orgImpl{}
@@ -331,7 +332,7 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	}
 
 	// If token is valid, call into hive to mint the new identity and serve it
-	id, persistIdent, err := s.hive.MintIdentity(internalHandle)
+	id, persistIdent, err := s.hive.MintIdentity(internalHandle, s.handleSubdomain)
 	if err != nil {
 		return nil, err
 	}

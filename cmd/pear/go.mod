@@ -7,6 +7,7 @@ replace github.com/habitat-network/habitat => ../..
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
 	github.com/habitat-network/habitat v0.0.2-testing-9
+	github.com/pressly/goose/v3 v3.27.1
 	github.com/rs/zerolog v1.34.0
 	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli/v3 v3.7.0
@@ -29,9 +30,9 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	filippo.io/keygen v0.0.0-20260114151900-8e2790ea4c5b // indirect
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
-	github.com/ClickHouse/clickhouse-go/v2 v2.43.0 // indirect
+	github.com/ClickHouse/clickhouse-go/v2 v2.45.0 // indirect
 	github.com/alexedwards/argon2id v1.0.0 // indirect
-	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/bluesky-social/jetstream v0.0.0-20260415170838-8a65de4eda28 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
@@ -41,7 +42,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.19.0 // indirect
@@ -50,11 +51,13 @@ require (
 	github.com/ipfs/boxo v0.37.0 // indirect
 	github.com/jaegertracing/jaeger-idl v0.6.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
+	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/ory/pop/v6 v6.4.1 // indirect
-	github.com/paulmach/orb v0.12.0 // indirect
+	github.com/paulmach/orb v0.13.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pion/transport/v4 v4.0.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
+	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.opentelemetry.io/otel/log/logtest v0.18.0 // indirect

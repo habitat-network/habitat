@@ -77,6 +77,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		req.AdminPassword,
 		req.LoginMethod,
 		req.LoginId,
+		req.HandleSubdomain,
 	)
 	if errors.Is(err, identity.ErrInvalidHandle) {
 		http.Error(w, err.Error(), http.StatusBadRequest)

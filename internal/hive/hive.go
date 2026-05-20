@@ -22,7 +22,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error)
+	MintIdentity(handle string, subdomain string) (*identity.Identity, func(*gorm.DB) error, error)
 	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
 	// identity's signing key (the same key registered in its did:web doc). It is
 	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
@@ -121,14 +121,12 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 	if !found {
 		return nil, identity.ErrHandleNotFound
 	}
-
 	return h.store.getIdentityByID(ctx, opaqueID)
 }
 
 // LookupHandle implements identity.Directory
-// It strips the internal handle prefix from the given handle which has format
-// <internal-handle>.domain
-// and looks up the handle against the store.
+// It strips the member domain suffix from the given handle. Handle format is <internal-handle>.<memberDomain>
+// (e.g. "admin.acmecorp2" for org subdomain handles).
 func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
 	internalHandle, found := strings.CutSuffix(handle.String(), "."+h.memberDomain)
 	if !found {
@@ -165,12 +163,16 @@ func (h *hive) SignServiceAuth(
 }
 
 // MintIdentity implements Hive.
-func (h *hive) MintIdentity(handle string) (*identity.Identity, func(*gorm.DB) error, error) {
+func (h *hive) MintIdentity(
+	handlePrefix string,
+	subdomain string,
+) (*identity.Identity, func(*gorm.DB) error, error) {
 	// Ensure handle passes regex
-	if !handlePattern.MatchString(handle) {
+	if !handlePattern.MatchString(handlePrefix) {
 		return nil, nil, identity.ErrInvalidHandle
 	}
-	row, id, err := h.store.prepareIdentity(handle)
+	fullHandle := handlePrefix + "." + subdomain
+	row, id, err := h.store.prepareIdentity(fullHandle)
 	if err != nil {
 		return nil, nil, err
 	}
