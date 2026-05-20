@@ -4,34 +4,27 @@ package habitat
 
 // NetworkHabitatAuthzenEvaluateAction represents a action object
 type NetworkHabitatAuthzenEvaluateAction struct {
-	Name       string                 `json:"name"`
-	Properties map[string]interface{} `json:"properties,omitempty"`
+	Name       string      `json:"name"`
+	Properties interface{} `json:"properties,omitempty"`
+}
+
+// NetworkHabitatAuthzenEvaluateEntity represents a entity object
+type NetworkHabitatAuthzenEvaluateEntity struct {
+	Id         string      `json:"id"`
+	Properties interface{} `json:"properties,omitempty"`
+	Type       string      `json:"type"`
 }
 
 // NetworkHabitatAuthzenEvaluateInput represents the input for network.habitat.authzen.evaluate
 type NetworkHabitatAuthzenEvaluateInput struct {
-	Action   NetworkHabitatAuthzenEvaluateAction   `json:"action"`
-	Context  map[string]interface{}                `json:"context,omitempty"`
-	Resource NetworkHabitatAuthzenEvaluateResource `json:"resource"`
-	Subject  NetworkHabitatAuthzenEvaluateSubject  `json:"subject"`
+	Action   NetworkHabitatAuthzenEvaluateAction `json:"action"`
+	Context  interface{}                         `json:"context,omitempty"`
+	Resource NetworkHabitatAuthzenEvaluateEntity `json:"resource"`
+	Subject  NetworkHabitatAuthzenEvaluateEntity `json:"subject"`
 }
 
 // NetworkHabitatAuthzenEvaluateOutput represents the output for network.habitat.authzen.evaluate
 type NetworkHabitatAuthzenEvaluateOutput struct {
-	Context  map[string]interface{} `json:"context,omitempty"`
-	Decision bool                   `json:"decision"`
-}
-
-// NetworkHabitatAuthzenEvaluateResource represents a resource object
-type NetworkHabitatAuthzenEvaluateResource struct {
-	Id         string                 `json:"id"`
-	Properties map[string]interface{} `json:"properties,omitempty"`
-	Type       string                 `json:"type"`
-}
-
-// NetworkHabitatAuthzenEvaluateSubject represents a subject object
-type NetworkHabitatAuthzenEvaluateSubject struct {
-	Id         string                 `json:"id"`
-	Properties map[string]interface{} `json:"properties,omitempty"`
-	Type       string                 `json:"type"`
+	Context  interface{} `json:"context,omitempty"`
+	Decision bool        `json:"decision"`
 }

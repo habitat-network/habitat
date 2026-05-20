@@ -2,33 +2,21 @@
   "lexicon": 1,
   "id": "network.habitat.authzen.evaluate",
   "defs": {
-    "subject": {
+    "entity": {
       "type": "object",
       "required": ["type", "id"],
       "properties": {
         "type": {
-          "type": "string"
+          "type": "string",
+          "description": "A string value that specifies the type of the entity."
         },
         "id": {
-          "type": "string"
+          "type": "string",
+          "description": "A string value containing the unique identifier of the entity, scoped to the type."
         },
         "properties": {
-          "type": "object"
-        }
-      }
-    },
-    "resource": {
-      "type": "object",
-      "required": ["type", "id"],
-      "properties": {
-        "type": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "properties": {
-          "type": "object"
+          "type": "unknown",
+          "description": "Additional attributes of the entity."
         }
       }
     },
@@ -37,10 +25,12 @@
       "required": ["name"],
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "A string value containing the name of the Action."
         },
         "properties": {
-          "type": "object"
+          "type": "unknown",
+          "description": "Additional attributes of the Action."
         }
       }
     },
@@ -55,18 +45,21 @@
           "properties": {
             "subject": {
               "type": "ref",
-              "ref": "#subject"
+              "ref": "#entity",
+              "description": "The subject (or principal) of the access evaluation request."
             },
             "resource": {
               "type": "ref",
-              "ref": "#resource"
+              "ref": "#entity",
+              "description": "The resource being accessed."
             },
             "action": {
               "type": "ref",
               "ref": "#action"
             },
             "context": {
-              "type": "object"
+              "type": "unknown",
+              "description": "The context represents the environment of the access evaluation request."
             }
           }
         }
@@ -78,10 +71,12 @@
           "required": ["decision"],
           "properties": {
             "decision": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "A boolean value that specifies whether the Decision is to allow or deny the operation."
             },
             "context": {
-              "type": "object"
+              "type": "unknown",
+              "description": "Additional information that can be used by the PEP as part of the decision enforcement process."
             }
           }
         }
