@@ -2,6 +2,7 @@ package spaces
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SpaceURI identifies a space.
@@ -271,20 +273,123 @@ func (s *store) IsMember(
 	return did == uri.SpaceDID(), nil
 }
 
-// ---- Stub implementations for unimplemented Store methods ----
+// ---- Record operations ----
 
-func (s *store) PutRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string, value map[string]any) error {
-	return ErrSpaceNotFound
+func (s *store) PutRecord(
+	ctx context.Context,
+	uri SpaceURI,
+	collection syntax.NSID,
+	rkey string,
+	value map[string]any,
+) error {
+	owner := uri.SpaceDID().String()
+	skey := uri.Skey()
+
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	rec := spaceRecord{
+		Owner:      owner,
+		Skey:       skey,
+		Collection: collection.String(),
+		Rkey:       rkey,
+		Value:      bytes,
+	}
+
+	return s.db.WithContext(ctx).
+		Clauses(clause.OnConflict{UpdateAll: true}).
+		Create(&rec).Error
 }
 
-func (s *store) GetRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) (*RecordInSpace, error) {
-	return nil, ErrRecordNotFound
+func (s *store) GetRecord(
+	ctx context.Context,
+	uri SpaceURI,
+	collection syntax.NSID,
+	rkey string,
+) (*RecordInSpace, error) {
+	owner := uri.SpaceDID().String()
+	skey := uri.Skey()
+
+	var row spaceRecord
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ? AND collection = ? AND rkey = ?",
+			owner, skey, collection.String(), rkey).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrRecordNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	var value map[string]any
+	if err := json.Unmarshal(row.Value, &value); err != nil {
+		return nil, err
+	}
+
+	return &RecordInSpace{
+		Collection: collection,
+		Rkey:       row.Rkey,
+		Value:      value,
+		UpdatedAt:  row.UpdatedAt,
+	}, nil
 }
 
-func (s *store) ListRecords(ctx context.Context, space SpaceURI, collection *syntax.NSID) ([]RecordInSpace, error) {
-	return nil, ErrSpaceNotFound
+func (s *store) ListRecords(
+	ctx context.Context,
+	uri SpaceURI,
+	collection *syntax.NSID,
+) ([]RecordInSpace, error) {
+	owner := uri.SpaceDID().String()
+	skey := uri.Skey()
+
+	query := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", owner, skey)
+
+	if collection != nil {
+		query = query.Where("collection = ?", collection.String())
+	}
+
+	var rows []spaceRecord
+	if err := query.Order("rkey ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	records := make([]RecordInSpace, len(rows))
+	for i, row := range rows {
+		var value map[string]any
+		if err := json.Unmarshal(row.Value, &value); err != nil {
+			return nil, err
+		}
+		nsid, _ := syntax.ParseNSID(row.Collection)
+		records[i] = RecordInSpace{
+			Collection: nsid,
+			Rkey:       row.Rkey,
+			Value:      value,
+			UpdatedAt:  row.UpdatedAt,
+		}
+	}
+
+	return records, nil
 }
 
-func (s *store) DeleteRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) error {
-	return ErrSpaceNotFound
+func (s *store) DeleteRecord(
+	ctx context.Context,
+	uri SpaceURI,
+	collection syntax.NSID,
+	rkey string,
+) error {
+	owner := uri.SpaceDID().String()
+	skey := uri.Skey()
+
+	result := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ? AND collection = ? AND rkey = ?",
+			owner, skey, collection.String(), rkey).
+		Delete(&spaceRecord{})
+
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
 }
