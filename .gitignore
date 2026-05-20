@@ -45,4 +45,7 @@ cmd/pear/repo.db
 .claude/worktrees
 .claude/settings.local.json
 
+# Ignore git worktrees
+.worktrees/
+
 **/*.db
