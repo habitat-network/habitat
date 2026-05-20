@@ -20,10 +20,16 @@ export type QueryParams = {}
 export interface InputSchema {
   /** Internal handle for the bootstrap admin (alphanumeric, 1-50 chars). */
   admin_handle: string
-  /** Password for the bootstrap admin account. */
-  admin_password: string
+  /** Password for the bootstrap admin account (required for password login method). */
+  admin_password?: string
+  /** Subdomain for all org member handles (e.g. 'acmecorp'). */
+  handle_subdomain?: string
   /** A display name for this org. */
   name?: string
+  /** Login method for the org: 'password', 'atproto', or 'google'. */
+  login_method?: string
+  /** Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'. */
+  login_id?: string
 }
 
 export interface OutputSchema {

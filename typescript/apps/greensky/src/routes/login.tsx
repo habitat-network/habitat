@@ -6,13 +6,15 @@ export const Route = createFileRoute("/login")({
     const { authManager } = Route.useRouteContext();
     return (
       <>
-        <h2>Welcome to greensky! Please login with your ATProtocol account (e.g. me.bsky.social) </h2>
+        <h2>
+          Welcome to greensky! Please login with your ATProtocol account (e.g.
+          me.bsky.social){" "}
+        </h2>
         <AuthForm
           authManager={authManager}
           redirectUrl={`https://${__DOMAIN__}`}
         />
       </>
-
     );
   },
 });

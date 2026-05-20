@@ -3,9 +3,11 @@ golangci-lint = "2.11.0"
 moon = "2.0.0"
 node = "24.4.1"
 pnpm = "10.21.0"
+caddy = "2.11.3"
 
 [plugins.tools]
 golangci-lint = "https://raw.githubusercontent.com/b4nst/proto-plugins/refs/heads/main/toml/golangci-lint.toml"
+caddy = "https://raw.githubusercontent.com/Phault/proto-toml-plugins/main/caddy/plugin.toml"
 
 [settings]
 auto-install = true

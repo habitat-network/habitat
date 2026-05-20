@@ -18,9 +18,15 @@ interface AuthFormProps {
   authManager: AuthManager;
   redirectUrl: string;
   serverError?: string;
+  defaultHandle?: string;
 }
 
-export default function AuthForm({ authManager, redirectUrl, serverError }: AuthFormProps) {
+export default function AuthForm({
+  authManager,
+  redirectUrl,
+  serverError,
+  defaultHandle,
+}: AuthFormProps) {
   const { register, handleSubmit } = useForm<AuthFormData>();
   const {
     mutate: login,
@@ -47,12 +53,19 @@ export default function AuthForm({ authManager, redirectUrl, serverError }: Auth
             <FieldLabel>Handle</FieldLabel>
             <Input
               {...register("handle")}
+              defaultValue={defaultHandle}
               aria-invalid={isError || !!serverError || undefined}
               aria-describedby={errorId}
             />
           </Field>
-          {serverError && <small id={errorId} className="text-red-600">{serverError}</small>}
-          {!serverError && error?.message && <small id={errorId}>{error.message}</small>}
+          {serverError && (
+            <small id={errorId} className="text-red-600">
+              {serverError}
+            </small>
+          )}
+          {!serverError && error?.message && (
+            <small id={errorId}>{error.message}</small>
+          )}
           <Button aria-busy={isPending} type="submit">
             Login
           </Button>

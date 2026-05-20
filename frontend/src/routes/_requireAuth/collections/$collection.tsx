@@ -1,8 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  GranteeAvatars,
-  listPrivateRecords,
-  } from "internal";
+import { GranteeAvatars, listPrivateRecords } from "internal";
 import {
   Table,
   TableBody,
@@ -56,8 +53,14 @@ function CollectionRecords() {
             <TableRow key={record.uri}>
               <TableCell>
                 <div className="flex flex-col gap-2">
-                  <span className="text-xs text-muted-foreground">{record.uri.split("/")[4]}</span>
-                  <RecordRenderer record={record.value} lexicon={collection} uri={record.uri} />
+                  <span className="text-xs text-muted-foreground">
+                    {record.uri.split("/")[4]}
+                  </span>
+                  <RecordRenderer
+                    record={record.value}
+                    lexicon={collection}
+                    uri={record.uri}
+                  />
                 </div>
               </TableCell>
               <TableCell className="flex justify-start">

@@ -1,7 +1,4 @@
-import {
-  createCollection,
-  parseWhereExpression,
-} from "@tanstack/react-db";
+import { createCollection, parseWhereExpression } from "@tanstack/react-db";
 import { queryCollectionOptions } from "@tanstack/query-db-collection";
 import { AuthManager, listPrivateRecords, TypedRecord } from "internal";
 import { CommunityLexiconCalendarEvent } from "api";

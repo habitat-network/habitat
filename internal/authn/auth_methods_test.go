@@ -70,7 +70,11 @@ func (t *testAuthMethod) Validate(
 }
 
 // ValidateRaw implements [Method].
-func (t *testAuthMethod) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
+func (t *testAuthMethod) ValidateRaw(
+	ctx context.Context,
+	token string,
+	scopes ...string,
+) (syntax.DID, bool, error) {
 	if token != t.expectedHeader {
 		return "", false, fmt.Errorf("unexpected token")
 	}

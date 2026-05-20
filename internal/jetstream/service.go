@@ -33,7 +33,10 @@ const (
 	subscriberBufferSize = 500
 )
 
-func (us *updateService) subscribe(ctx context.Context, collections, dids []string) (chan *models.Event, func()) {
+func (us *updateService) subscribe(
+	ctx context.Context,
+	collections, dids []string,
+) (chan *models.Event, func()) {
 	sub := &subscriber{
 		ctx:         ctx,
 		ch:          make(chan *models.Event, subscriberBufferSize),
@@ -82,7 +85,9 @@ func (us *updateService) listenForUpdates(ctx context.Context, in stream.Stream[
 		if len(toClose) > 0 {
 			us.mu.Lock()
 			for sub := range toClose {
-				close(sub.ch) // Signals to the server that this subscriber needs to go away and come back
+				close(
+					sub.ch,
+				) // Signals to the server that this subscriber needs to go away and come back
 				us.subscribers.Remove(sub)
 			}
 			us.mu.Unlock()

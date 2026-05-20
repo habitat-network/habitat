@@ -10,17 +10,20 @@ import (
 )
 
 var (
-	fDebug             = "debug"
-	fDomain            = "domain"
-	fServiceName       = "service_name"
-	fDb                = "db"
-	fPort              = "port"
-	fHttpsCerts        = "httpscerts"
-	fPgUrl             = "pgurl"
-	fPdsCredEncryptKey = "pds_cred_encrypt_key"
-	fOauthServerSecret = "oauth_server_secret"
-	fOauthClientSecret = "oauth_client_secret"
-	fFrontendDomain    = "frontend_domain"
+	fDebug              = "debug"
+	fDomain             = "domain"
+	fServiceName        = "service_name"
+	fDb                 = "db"
+	fPort               = "port"
+	fHttpsCerts         = "httpscerts"
+	fPgUrl              = "pgurl"
+	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
+	fOauthServerSecret  = "oauth_server_secret"
+	fOauthClientSecret  = "oauth_client_secret"
+	fFrontendDomain     = "frontend_domain"
+	fHiveDomain         = "hive_domain"
+	fGoogleClientID     = "google_client_id"
+	fGoogleClientSecret = "google_client_secret"
 )
 var profiles []string
 
@@ -83,6 +86,21 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Usage:    "The publicly available domain at which the habitat frontend can be found",
 				Required: true,
 				Sources:  getSources(fFrontendDomain),
+			},
+			&cli.StringFlag{
+				Name:    fHiveDomain,
+				Usage:   "The domain at which the hive hosts identities",
+				Sources: getSources(fHiveDomain),
+			},
+			&cli.StringFlag{
+				Name:    fGoogleClientID,
+				Usage:   "Google OAuth client ID for Google Sign-In login method",
+				Sources: getSources(fGoogleClientID),
+			},
+			&cli.StringFlag{
+				Name:    fGoogleClientSecret,
+				Usage:   "Google OAuth client secret for Google Sign-In login method",
+				Sources: getSources(fGoogleClientSecret),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{

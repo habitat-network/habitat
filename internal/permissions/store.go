@@ -130,7 +130,8 @@ func (s *store) HasPermission(
 
 	var permissions []permission
 	err := s.db.WithContext(ctx).
-		Where("grantee = ? OR grantee LIKE ?", requester.String(), "clique:%"). // check for the habitat uri prefix for cliques
+		Where("grantee = ? OR grantee LIKE ?", requester.String(), "clique:%").
+		// check for the habitat uri prefix for cliques
 		Where("owner = ?", owner).
 		Where("collection = ?", collection).
 		Where("rkey = ?", rkey).
@@ -257,7 +258,12 @@ func (s *store) RemovePermissions(
 }
 
 // Returns all permissions which have the given grantee for records part of collection and owned by owners
-func (s *store) ListGranteePermissions(ctx context.Context, grantee syntax.DID, collection syntax.NSID, owners []syntax.DID) ([]Permission, error) {
+func (s *store) ListGranteePermissions(
+	ctx context.Context,
+	grantee syntax.DID,
+	collection syntax.NSID,
+	owners []syntax.DID,
+) ([]Permission, error) {
 	// Direct permission grants
 	direct, err := s.listPermissions(ctx, []Grantee{DIDGrantee(grantee)}, owners, collection, "")
 	if err != nil {
@@ -287,17 +293,42 @@ func (s *store) ListGranteePermissions(ctx context.Context, grantee syntax.DID, 
 }
 
 // ListPermissionGrants implements Store.
-func (s *store) ListPermissionGrants(ctx context.Context, granter syntax.DID, collection syntax.NSID) ([]Permission, error) {
-	return s.listPermissions(ctx, []Grantee{ /* match any */ }, []syntax.DID{granter}, collection, "")
+func (s *store) ListPermissionGrants(
+	ctx context.Context,
+	granter syntax.DID,
+	collection syntax.NSID,
+) ([]Permission, error) {
+	return s.listPermissions(
+		ctx,
+		[]Grantee{ /* match any */ },
+		[]syntax.DID{granter},
+		collection,
+		"",
+	)
 }
 
 // ListPermissionsForRecord implements Store.
-func (s *store) ListAllowedGranteesForRecord(ctx context.Context, owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey) ([]Grantee, error) {
+func (s *store) ListAllowedGranteesForRecord(
+	ctx context.Context,
+	owner syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+) ([]Grantee, error) {
 	if rkey.String() == "" || collection.String() == "" {
-		return nil, fmt.Errorf("this function expects to be called on a particular collection + record key; got collection %s, record %s", collection, rkey)
+		return nil, fmt.Errorf(
+			"this function expects to be called on a particular collection + record key; got collection %s, record %s",
+			collection,
+			rkey,
+		)
 	}
 
-	permissions, err := s.listPermissions(ctx, []Grantee{ /* match any */ }, []syntax.DID{owner}, collection, rkey)
+	permissions, err := s.listPermissions(
+		ctx,
+		[]Grantee{ /* match any */ },
+		[]syntax.DID{owner},
+		collection,
+		rkey,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +356,10 @@ func (s *store) listPermissions(
 	}
 	if len(grantees) > 0 {
 		// The grantee field could also be a clique that includes this direct DID. so ifnore it
-		query = query.Where("grantee IN ?", grantees) // check for the habitat uri prefix for cliques
+		query = query.Where(
+			"grantee IN ?",
+			grantees,
+		) // check for the habitat uri prefix for cliques
 	}
 	if collection != "" {
 		query = query.Where("collection = ?", collection)

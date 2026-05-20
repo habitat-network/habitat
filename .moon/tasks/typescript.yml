@@ -8,7 +8,6 @@ tasks:
       - '@in(0)'
       - --ignore-path
       - '@in(1)'
-      - --write
     inputs:
     - /.prettierignore
     - .gitignore
@@ -39,6 +38,8 @@ tasks:
     command: pnpm install
     preset: utility
   build:
+    deps:
+      - ^:build
     command: pnpm 
     args: build
     outputs:

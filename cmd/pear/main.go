@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/pressly/goose/v3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/bridges/otelzerolog"
@@ -50,6 +51,8 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/urfave/cli/v3"
+
+	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
 
 func main() {
@@ -79,13 +82,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by zerolog.
-	otelClose, err := telemetry.SetupOpenTelemetry(ctx)
+	otelClose, ok, err := telemetry.SetupOpenTelemetry(ctx)
+	// Handle shutdown properly so nothing leaks.
+	defer otelClose(context.Background())
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed setting up open telemetry for metric/trace/log collection")
 	}
-	log.Info().Msg("successfully set up open telemetry")
-	// Handle shutdown properly so nothing leaks.
-	defer otelClose(context.Background())
+	if ok {
+		log.Info().Msg("successfully set up open telemetry")
+	}
 
 	env := utils.GetEnvString("env", "local")
 	// Metric that records a single running process (for testing)
@@ -147,12 +152,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.Use(otelmux.Middleware("habitat-server"))
 	mux.Use(corsMiddleware)
 
+	hiveDomain := cmd.String(fHiveDomain)
+	if hiveDomain == "" {
+		hiveDomain = domain
+	}
+
 	// hive is the identity minting service for orgs.
-	orgHive, err := hive.NewHive(domain, domain, db)
+	orgHive, err := hive.NewHive(hiveDomain, domain, db)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
 	}
-	dir := hive.NewWrappedDirectory(orgHive, identity.DefaultDirectory())
+	dir := identity.DefaultDirectory()
 
 	// orgStore manages all orgs on this instance (managed orgs + everyone org for external DIDs)
 	orgStore, err := org.NewStore(db, orgHive, dir, domain)
@@ -175,12 +185,35 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to parse oauth server secret for login provider")
 	}
-	orgLoginProvider := org.NewLoginProvider(orgStore, cmd.String(fFrontendDomain), oauthSecret)
-
-	loginRouter := login.NewRouter(
-		login.NewPDSProvider(oauthClient, pdsCredStore),
-		orgLoginProvider,
+	orgLoginProvider := org.NewLoginProvider(
+		orgStore,
+		cmd.String(fDomain),
+		cmd.String(fFrontendDomain),
+		oauthSecret,
+		dir,
 	)
+
+	providers := []login.Provider{
+		login.NewPDSProvider(oauthClient, pdsCredStore, dir),
+		orgLoginProvider,
+	}
+	googleClientID := cmd.String(fGoogleClientID)
+	googleClientSecret := cmd.String(fGoogleClientSecret)
+	if googleClientID != "" && googleClientSecret != "" {
+		googleProvider, err := login.NewGoogleProvider(
+			googleClientID,
+			googleClientSecret,
+			"https://"+domain+"/oauth-callback",
+			db,
+			credKey,
+		)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup google login provider")
+		}
+		providers = append(providers, googleProvider)
+		log.Info().Msg("google login provider enabled")
+	}
+	loginRouter := login.NewRouter(providers...)
 
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
@@ -213,7 +246,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Server for org management routes
-	orgServer, err := org.NewServer(orgStore, oauthServer)
+	orgServer, err := org.NewServer(orgStore, oauthServer, pear)
 	if err != nil {
 		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
 	}
@@ -241,16 +274,22 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
 
-	hiveServer, err := hive.NewServer(orgHive)
+	hiveServer, err := hive.NewServer(orgHive, oauthServer)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup hive server")
 	}
 
 	// hive server routes
-	mux.Host("{opaqueID:.+}." + domain).
+	mux.Host("{opaqueID:.+}." + hiveDomain).
 		Path("/.well-known/did.json").
 		HandlerFunc(hiveServer.ServeDIDDoc)
-	mux.Host("{handle:.+}." + domain).
+	mux.Host("{handle:.+}." + hiveDomain).
+		Path("/.well-known/atproto-did").
+		HandlerFunc(hiveServer.ServeHandle)
+	mux.Headers(hive.HabitatHostHeader, "").
+		Path("/.well-known/did.json").
+		HandlerFunc(hiveServer.ServeDIDDoc)
+	mux.Headers(hive.HabitatHostHeader, "").
 		Path("/.well-known/atproto-did").
 		HandlerFunc(hiveServer.ServeHandle)
 
@@ -283,7 +322,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
 
-	// auth routes
 	// TODO: who is allowed to call the oauth handlers in an org?
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
@@ -297,6 +335,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
+	mux.HandleFunc("/xrpc/com.atproto.repo.describeRepo", pearServer.DescribeRepoPublic)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
@@ -321,7 +360,45 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Only forward specific routes that we know we handle correctly; for now.
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
-	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", pdsForwarding.ServeHTTP)
+
+	// getServiceAuth needs to be dispatched per-caller: bridged users whose
+	// DID doc lists an #atproto_pds service must still have their request
+	// forwarded to that PDS (which holds their signing key). For habitat-native
+	// users whose doc only has #habitat, habitat itself holds the signing key
+	// and mints the JWT locally via hiveServer. Prefer atproto_pds when both
+	// services are present.
+	mux.HandleFunc(
+		"/xrpc/com.atproto.server.getServiceAuth",
+		func(w http.ResponseWriter, r *http.Request) {
+			callerDID, ok := oauthServer.Validate(w, r)
+			if !ok {
+				return
+			}
+			id, err := dir.LookupDID(r.Context(), callerDID)
+			if err != nil {
+				utils.LogAndHTTPError(
+					w,
+					err,
+					"[getServiceAuth dispatch]: looking up caller DID",
+					http.StatusBadGateway,
+				)
+				return
+			}
+			if _, ok := id.Services["atproto_pds"]; ok {
+				pdsForwarding.ServeHTTP(w, r)
+				return
+			}
+			if _, ok := id.Services["habitat"]; ok {
+				hiveServer.GetServiceAuth(w, r)
+				return
+			}
+			utils.LogAndHTTPError(w,
+				fmt.Errorf("no atproto_pds or habitat service in DID doc for %s", id.DID),
+				"[getServiceAuth dispatch]: no usable service in DID doc",
+				http.StatusBadGateway,
+			)
+		},
+	)
 
 	postHogUrl, err := url.Parse("https://us.i.posthog.com")
 	if err != nil {
@@ -432,11 +509,22 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 		}
 		log.Info().Str("path", dbPath).Msg("connected to sqlite database")
 	}
-
 	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
 		log.Fatal().Err(err).Msg("unable to setup database otel tracing and metrics plugin")
 	}
-
+	sqlDb, err := db.DB()
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
+	}
+	if postgresUrl != "" {
+		goose.SetDialect("postgres")
+	} else {
+		goose.SetDialect("sqlite")
+	}
+	err = goose.Up(sqlDb, "migrations")
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to run migrations")
+	}
 	return db
 }
 

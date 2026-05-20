@@ -1,4 +1,10 @@
-import { Button, Field, FieldError, FieldLabel, Input } from "internal/components/ui";
+import {
+  Button,
+  Field,
+  FieldError,
+  FieldLabel,
+  Input,
+} from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { procedure } from "internal";
@@ -24,13 +30,12 @@ function HabitatLoginPage() {
 
   const onSubmit = async ({ password }: FormValues) => {
     try {
-      const domain = handle.substring(handle.indexOf(".") + 1);
       const { callbackURL } = await procedure(
         "network.habitat.org.loginMember",
         { handle, password },
-        { unauthenticated: true, domain },
+        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
       );
-      window.location.href = `https://${domain}${callbackURL}`;
+      window.location.href = callbackURL;
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",
