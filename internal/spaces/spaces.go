@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // SpaceURI identifies a space.
@@ -150,3 +152,110 @@ var (
 	ErrSpaceAlreadyExists = errors.New("space already exists")
 	ErrRecordNotFound     = errors.New("record not found")
 )
+
+// ---- Store implementation ----
+
+type store struct {
+	db *gorm.DB
+}
+
+var _ Store = &store{}
+
+func NewStore(db *gorm.DB) (*store, error) {
+	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
+		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
+	}
+	return &store{db: db}, nil
+}
+
+func (s *store) CreateSpace(
+	ctx context.Context,
+	owner syntax.DID,
+	spaceType syntax.NSID,
+	skey string,
+) (SpaceURI, error) {
+	if skey == "" {
+		skey = uuid.New().String()
+	}
+
+	sp := space{
+		Owner: owner.String(),
+		Skey:  skey,
+		Type:  spaceType.String(),
+	}
+
+	err := s.db.WithContext(ctx).Create(&sp).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return "", ErrSpaceAlreadyExists
+		}
+		return "", err
+	}
+
+	return ConstructSpaceURI(owner, spaceType, skey), nil
+}
+
+func (s *store) ListSpaces(
+	ctx context.Context,
+	actor syntax.DID,
+	filterType *syntax.NSID,
+	filterOwner *syntax.DID,
+) ([]SpaceView, error) {
+	query := s.db.WithContext(ctx).Model(&space{})
+
+	// TODO: When the permission store is built, this will query across
+	// memberships. For now only the owner sees their own spaces.
+	if filterOwner != nil {
+		query = query.Where("owner = ?", filterOwner.String())
+	} else {
+		query = query.Where("owner = ?", actor.String())
+	}
+
+	if filterType != nil {
+		query = query.Where("type = ?", filterType.String())
+	}
+
+	var rows []space
+	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	views := make([]SpaceView, len(rows))
+	for i, row := range rows {
+		nsid, _ := syntax.ParseNSID(row.Type)
+		views[i] = SpaceView{
+			URI:         ConstructSpaceURI(syntax.DID(row.Owner), nsid, row.Skey),
+			Type:        nsid,
+			Skey:        row.Skey,
+			MemberCount: 1, // only the owner for now
+		}
+	}
+
+	return views, nil
+}
+
+// ---- Stub implementations for unimplemented Store methods ----
+
+func (s *store) GetMembers(ctx context.Context, space SpaceURI) ([]MemberInfo, error) {
+	return nil, ErrSpaceNotFound
+}
+
+func (s *store) IsMember(ctx context.Context, space SpaceURI, did syntax.DID) (bool, error) {
+	return false, ErrSpaceNotFound
+}
+
+func (s *store) PutRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string, value map[string]any) error {
+	return ErrSpaceNotFound
+}
+
+func (s *store) GetRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) (*RecordInSpace, error) {
+	return nil, ErrRecordNotFound
+}
+
+func (s *store) ListRecords(ctx context.Context, space SpaceURI, collection *syntax.NSID) ([]RecordInSpace, error) {
+	return nil, ErrSpaceNotFound
+}
+
+func (s *store) DeleteRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) error {
+	return ErrSpaceNotFound
+}
