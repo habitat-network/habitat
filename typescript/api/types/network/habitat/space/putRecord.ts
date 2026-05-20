@@ -1,0 +1,51 @@
+/**
+ * GENERATED CODE - DO NOT MODIFY
+ */
+import { HeadersMap, XRPCError } from '@atproto/xrpc'
+import { type ValidationResult, BlobRef } from '@atproto/lexicon'
+import { CID } from 'multiformats/cid'
+import { validate as _validate } from '../../../../lexicons.js'
+import {
+  type $Typed,
+  is$typed as _is$typed,
+  type OmitKey,
+} from '../../../../util.js'
+
+const is$typed = _is$typed,
+  validate = _validate
+const id = 'network.habitat.space.putRecord'
+
+export type QueryParams = {}
+
+export interface InputSchema {
+  /** Reference to the space. */
+  space?: string
+  /** The NSID of the record collection. */
+  collection: string
+  /** The Record Key. */
+  rkey: string
+  /** The record to write. */
+  record: { [_ in string]: unknown }
+}
+
+export interface OutputSchema {
+  /** URI of the written record. */
+  uri: string
+}
+
+export interface CallOptions {
+  signal?: AbortSignal
+  headers?: HeadersMap
+  qp?: QueryParams
+  encoding?: 'application/json'
+}
+
+export interface Response {
+  success: boolean
+  headers: HeadersMap
+  data: OutputSchema
+}
+
+export function toKnownErr(e: any) {
+  return e
+}

@@ -1,0 +1,57 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.space.createSpace",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Create a new space. The authenticated user becomes the space owner. Requires auth, implemented by PDS.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "type"
+                    ],
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "format": "nsid",
+                            "description": "The NSID of the space type, describing the modality of the space (e.g. network.habitat.group, network.habidata.personal)."
+                        },
+                        "skey": {
+                            "type": "string",
+                            "maxLength": 512,
+                            "description": "The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of the created space."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "SpaceAlreadyExists",
+                    "description": "A space with this owner, type, and skey already exists."
+                },
+                {
+                    "name": "InvalidType",
+                    "description": "The provided space type NSID is not a recognized or valid space type."
+                }
+            ]
+        }
+    }
+}

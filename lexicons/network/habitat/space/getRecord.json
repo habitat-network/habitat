@@ -1,0 +1,74 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.space.getRecord",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Get a single record from a permissioned space.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "space",
+                    "collection",
+                    "rkey"
+                ],
+                "properties": {
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Reference to the space."
+                    },
+                    "repo": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user."
+                    },
+                    "collection": {
+                        "type": "string",
+                        "format": "nsid",
+                        "description": "The NSID of the record collection."
+                    },
+                    "rkey": {
+                        "type": "string",
+                        "format": "record-key",
+                        "description": "The Record Key."
+                    },
+                    "cid": {
+                        "type": "string",
+                        "format": "cid",
+                        "description": "The CID of the version of the record. If not specified, return the most recent version."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri",
+                        "cid",
+                        "value"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the record."
+                        },
+                        "cid": {
+                            "type": "string",
+                            "format": "cid"
+                        },
+                        "value": {
+                            "type": "unknown"
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "RecordNotFound"
+                }
+            ]
+        }
+    }
+}

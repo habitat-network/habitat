@@ -17,6 +17,7 @@ import * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
 import * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords.js'
 import * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 import * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
+import * as ComAtprotoServerGetServiceAuth from './types/com/atproto/server/getServiceAuth.js'
 import * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 import * as CommunityLexiconCalendarInvite from './types/community/lexicon/calendar/invite.js'
 import * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
@@ -59,6 +60,15 @@ import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRe
 import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
+import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
+import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
+import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
+import * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
+import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+import * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
+import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
+import * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
 export * as ComAtprotoRepoDefs from './types/com/atproto/repo/defs.js'
@@ -68,6 +78,7 @@ export * as ComAtprotoRepoGetRecord from './types/com/atproto/repo/getRecord.js'
 export * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords.js'
 export * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 export * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
+export * as ComAtprotoServerGetServiceAuth from './types/com/atproto/server/getServiceAuth.js'
 export * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 export * as CommunityLexiconCalendarInvite from './types/community/lexicon/calendar/invite.js'
 export * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
@@ -110,6 +121,15 @@ export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRe
 export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
+export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
+export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
+export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
+export * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
+export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+export * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
+export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
+export * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export const COMMUNITY_LEXICON_CALENDAR = {
   EventVirtual: 'community.lexicon.calendar.event#virtual',
@@ -166,10 +186,12 @@ export class ComNS {
 export class ComAtprotoNS {
   _client: XrpcClient
   repo: ComAtprotoRepoNS
+  server: ComAtprotoServerNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.repo = new ComAtprotoRepoNS(client)
+    this.server = new ComAtprotoServerNS(client)
   }
 }
 
@@ -245,6 +267,25 @@ export class ComAtprotoRepoNS {
       .call('com.atproto.repo.putRecord', opts?.qp, data, opts)
       .catch((e) => {
         throw ComAtprotoRepoPutRecord.toKnownErr(e)
+      })
+  }
+}
+
+export class ComAtprotoServerNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  getServiceAuth(
+    params?: ComAtprotoServerGetServiceAuth.QueryParams,
+    opts?: ComAtprotoServerGetServiceAuth.CallOptions,
+  ): Promise<ComAtprotoServerGetServiceAuth.Response> {
+    return this._client
+      .call('com.atproto.server.getServiceAuth', params, undefined, opts)
+      .catch((e) => {
+        throw ComAtprotoServerGetServiceAuth.toKnownErr(e)
       })
   }
 }
@@ -562,6 +603,7 @@ export class NetworkHabitatNS {
   permissions: NetworkHabitatPermissionsNS
   render: NetworkHabitatRenderNS
   repo: NetworkHabitatRepoNS
+  space: NetworkHabitatSpaceNS
 
   constructor(client: XrpcClient) {
     this._client = client
@@ -571,6 +613,7 @@ export class NetworkHabitatNS {
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.render = new NetworkHabitatRenderNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
+    this.space = new NetworkHabitatSpaceNS(client)
     this.docs = new NetworkHabitatDocsRecord(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
   }
@@ -1059,6 +1102,116 @@ export class NetworkHabitatRepoNS {
       data,
       opts,
     )
+  }
+}
+
+export class NetworkHabitatSpaceNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addMember(
+    data?: NetworkHabitatSpaceAddMember.InputSchema,
+    opts?: NetworkHabitatSpaceAddMember.CallOptions,
+  ): Promise<NetworkHabitatSpaceAddMember.Response> {
+    return this._client
+      .call('network.habitat.space.addMember', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceAddMember.toKnownErr(e)
+      })
+  }
+
+  createSpace(
+    data?: NetworkHabitatSpaceCreateSpace.InputSchema,
+    opts?: NetworkHabitatSpaceCreateSpace.CallOptions,
+  ): Promise<NetworkHabitatSpaceCreateSpace.Response> {
+    return this._client
+      .call('network.habitat.space.createSpace', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceCreateSpace.toKnownErr(e)
+      })
+  }
+
+  deleteRecord(
+    data?: NetworkHabitatSpaceDeleteRecord.InputSchema,
+    opts?: NetworkHabitatSpaceDeleteRecord.CallOptions,
+  ): Promise<NetworkHabitatSpaceDeleteRecord.Response> {
+    return this._client
+      .call('network.habitat.space.deleteRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceDeleteRecord.toKnownErr(e)
+      })
+  }
+
+  getMembers(
+    params?: NetworkHabitatSpaceGetMembers.QueryParams,
+    opts?: NetworkHabitatSpaceGetMembers.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetMembers.Response> {
+    return this._client
+      .call('network.habitat.space.getMembers', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceGetMembers.toKnownErr(e)
+      })
+  }
+
+  getRecord(
+    params?: NetworkHabitatSpaceGetRecord.QueryParams,
+    opts?: NetworkHabitatSpaceGetRecord.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetRecord.Response> {
+    return this._client
+      .call('network.habitat.space.getRecord', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceGetRecord.toKnownErr(e)
+      })
+  }
+
+  listRecords(
+    params?: NetworkHabitatSpaceListRecords.QueryParams,
+    opts?: NetworkHabitatSpaceListRecords.CallOptions,
+  ): Promise<NetworkHabitatSpaceListRecords.Response> {
+    return this._client.call(
+      'network.habitat.space.listRecords',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  listSpaces(
+    params?: NetworkHabitatSpaceListSpaces.QueryParams,
+    opts?: NetworkHabitatSpaceListSpaces.CallOptions,
+  ): Promise<NetworkHabitatSpaceListSpaces.Response> {
+    return this._client.call(
+      'network.habitat.space.listSpaces',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  putRecord(
+    data?: NetworkHabitatSpacePutRecord.InputSchema,
+    opts?: NetworkHabitatSpacePutRecord.CallOptions,
+  ): Promise<NetworkHabitatSpacePutRecord.Response> {
+    return this._client.call(
+      'network.habitat.space.putRecord',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  removeMember(
+    data?: NetworkHabitatSpaceRemoveMember.InputSchema,
+    opts?: NetworkHabitatSpaceRemoveMember.CallOptions,
+  ): Promise<NetworkHabitatSpaceRemoveMember.Response> {
+    return this._client
+      .call('network.habitat.space.removeMember', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceRemoveMember.toKnownErr(e)
+      })
   }
 }
 

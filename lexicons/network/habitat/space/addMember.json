@@ -1,0 +1,42 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.space.addMember",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Add a member to a space. Caller must have can_manage_members or be an org admin.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "space",
+                        "did"
+                    ],
+                    "properties": {
+                        "space": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "Reference to the space."
+                        },
+                        "did": {
+                            "type": "string",
+                            "format": "did",
+                            "description": "The DID of the user to add."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "SpaceNotFound",
+                    "description": "The specified space does not exist."
+                },
+                {
+                    "name": "UserAlreadyMember",
+                    "description": "The user is already a member of the space."
+                }
+            ]
+        }
+    }
+}
