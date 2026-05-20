@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	_ "github.com/google/uuid"
-	_ "gorm.io/gorm"
-	_ "gorm.io/gorm/clause"
 )
 
 // SpaceURI identifies a space.
@@ -128,7 +125,12 @@ type RecordInSpace struct {
 // Store defines the persistence interface for spaces
 type Store interface {
 	// Space operations
-	CreateSpace(ctx context.Context, owner syntax.DID, spaceType syntax.NSID, skey string) (SpaceURI, error)
+	CreateSpace(
+		ctx context.Context,
+		owner syntax.DID,
+		spaceType syntax.NSID,
+		skey string,
+	) (SpaceURI, error)
 	ListSpaces(ctx context.Context, actor syntax.DID, filterType *syntax.NSID, filterOwner *syntax.DID) ([]SpaceView, error)
 
 	// Member operations
