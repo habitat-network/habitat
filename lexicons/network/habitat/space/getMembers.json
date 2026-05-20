@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "query",
-            "description": "Get the list of members in a space. Callable by any member of the space.",
+            "description": "Get the list of members in a space. Caller must have can_manage_members or be an org admin.",
             "parameters": {
                 "type": "params",
                 "required": [

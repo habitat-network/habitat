@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Remove a member from a space. Caller must have can_manage_members.",
+            "description": "Remove a member from a space. Caller must have can_manage_members or be an org admin.",
             "input": {
                 "encoding": "application/json",
                 "schema": {
