@@ -12,11 +12,21 @@ func authModel() *openfgav1.AuthorizationModel {
 			{
 				Type: "organization",
 				Relations: map[string]*openfgav1.Userset{
-					"admin":  {Userset: &openfgav1.Userset_This{}},
-					"member": {Userset: &openfgav1.Userset_Union{Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-						{Userset: &openfgav1.Userset_This{}},
-						{Userset: &openfgav1.Userset_ComputedUserset{ComputedUserset: &openfgav1.ObjectRelation{Relation: "admin"}}},
-					}}}},
+					"admin": {Userset: &openfgav1.Userset_This{}},
+					"member": {
+						Userset: &openfgav1.Userset_Union{
+							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
+								{Userset: &openfgav1.Userset_This{}},
+								{
+									Userset: &openfgav1.Userset_ComputedUserset{
+										ComputedUserset: &openfgav1.ObjectRelation{
+											Relation: "admin",
+										},
+									},
+								},
+							}},
+						},
+					},
 				},
 				Metadata: &openfgav1.Metadata{
 					Relations: map[string]*openfgav1.RelationMetadata{
@@ -36,42 +46,107 @@ func authModel() *openfgav1.AuthorizationModel {
 			{
 				Type: "space",
 				Relations: map[string]*openfgav1.Userset{
-					"owner":             {Userset: &openfgav1.Userset_This{}},
-					"member":            {Userset: &openfgav1.Userset_This{}},
-					"editor":            {Userset: &openfgav1.Userset_Union{Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-						{Userset: &openfgav1.Userset_This{}},
-						{Userset: &openfgav1.Userset_ComputedUserset{ComputedUserset: &openfgav1.ObjectRelation{Relation: "owner"}}},
-					}}}},
-					"can_read":          {Userset: &openfgav1.Userset_Union{Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-						{Userset: &openfgav1.Userset_This{}},
-						{Userset: &openfgav1.Userset_ComputedUserset{ComputedUserset: &openfgav1.ObjectRelation{Relation: "member"}}},
-					}}}},
-					"can_write":         {Userset: &openfgav1.Userset_Union{Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-						{Userset: &openfgav1.Userset_This{}},
-						{Userset: &openfgav1.Userset_ComputedUserset{ComputedUserset: &openfgav1.ObjectRelation{Relation: "editor"}}},
-					}}}},
-					"can_delete":        {Userset: &openfgav1.Userset_Union{Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-						{Userset: &openfgav1.Userset_This{}},
-						{Userset: &openfgav1.Userset_ComputedUserset{ComputedUserset: &openfgav1.ObjectRelation{Relation: "owner"}}},
-					}}}},
-					"can_manage_members": {Userset: &openfgav1.Userset_Union{Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-						{Userset: &openfgav1.Userset_This{}},
-						{Userset: &openfgav1.Userset_ComputedUserset{ComputedUserset: &openfgav1.ObjectRelation{Relation: "owner"}}},
-					}}}},
+					"owner":  {Userset: &openfgav1.Userset_This{}},
+					"member": {Userset: &openfgav1.Userset_This{}},
+					"editor": {
+						Userset: &openfgav1.Userset_Union{
+							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
+								{Userset: &openfgav1.Userset_This{}},
+								{
+									Userset: &openfgav1.Userset_ComputedUserset{
+										ComputedUserset: &openfgav1.ObjectRelation{
+											Relation: "owner",
+										},
+									},
+								},
+							}},
+						},
+					},
+					"can_read": {
+						Userset: &openfgav1.Userset_Union{
+							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
+								{Userset: &openfgav1.Userset_This{}},
+								{
+									Userset: &openfgav1.Userset_ComputedUserset{
+										ComputedUserset: &openfgav1.ObjectRelation{
+											Relation: "member",
+										},
+									},
+								},
+							}},
+						},
+					},
+					"can_write": {
+						Userset: &openfgav1.Userset_Union{
+							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
+								{Userset: &openfgav1.Userset_This{}},
+								{
+									Userset: &openfgav1.Userset_ComputedUserset{
+										ComputedUserset: &openfgav1.ObjectRelation{
+											Relation: "editor",
+										},
+									},
+								},
+							}},
+						},
+					},
+					"can_delete": {
+						Userset: &openfgav1.Userset_Union{
+							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
+								{Userset: &openfgav1.Userset_This{}},
+								{
+									Userset: &openfgav1.Userset_ComputedUserset{
+										ComputedUserset: &openfgav1.ObjectRelation{
+											Relation: "owner",
+										},
+									},
+								},
+							}},
+						},
+					},
+					"can_manage_members": {
+						Userset: &openfgav1.Userset_Union{
+							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
+								{Userset: &openfgav1.Userset_This{}},
+								{
+									Userset: &openfgav1.Userset_ComputedUserset{
+										ComputedUserset: &openfgav1.ObjectRelation{
+											Relation: "owner",
+										},
+									},
+								},
+							}},
+						},
+					},
 				},
 				Metadata: &openfgav1.Metadata{
 					Relations: map[string]*openfgav1.RelationMetadata{
 						"owner": {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
 								{Type: "user"},
-								{Type: "organization", RelationOrWildcard: &openfgav1.RelationReference_Relation{Relation: "admin"}},
+								{
+									Type: "organization",
+									RelationOrWildcard: &openfgav1.RelationReference_Relation{
+										Relation: "admin",
+									},
+								},
 							},
 						},
 						"member": {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
 								{Type: "user"},
-								{Type: "organization", RelationOrWildcard: &openfgav1.RelationReference_Relation{Relation: "member"}},
-								{Type: "organization", RelationOrWildcard: &openfgav1.RelationReference_Relation{Relation: "admin"}},
+								{
+									Type: "organization",
+									RelationOrWildcard: &openfgav1.RelationReference_Relation{
+										Relation: "member",
+									},
+								},
+								{
+									Type: "organization",
+									RelationOrWildcard: &openfgav1.RelationReference_Relation{
+										Relation: "admin",
+									},
+								},
 							},
 						},
 						"editor": {

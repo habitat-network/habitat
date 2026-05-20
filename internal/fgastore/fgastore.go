@@ -81,7 +81,10 @@ func (f *FGA) Check(ctx context.Context, user, relation, object string) (bool, e
 	return resp.GetAllowed(), nil
 }
 
-func (f *FGA) ListObjects(ctx context.Context, user, relation, objectType string) ([]string, error) {
+func (f *FGA) ListObjects(
+	ctx context.Context,
+	user, relation, objectType string,
+) ([]string, error) {
 	resp, err := f.svr.ListObjects(ctx, &openfgav1.ListObjectsRequest{
 		StoreId:  f.storeID,
 		User:     user,

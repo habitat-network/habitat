@@ -135,13 +135,30 @@ func TestListObjects_ReturnsMemberSpaces(t *testing.T) {
 	require.NoError(t, err, "NewInMemory should succeed")
 	defer func() { _ = f.Close() }()
 
-	require.NoError(t, f.Write(ctx, "user:alice", "member", "space:org/a"), "Write space:org/a should succeed")
-	require.NoError(t, f.Write(ctx, "user:alice", "member", "space:org/b"), "Write space:org/b should succeed")
-	require.NoError(t, f.Write(ctx, "user:bob", "member", "space:org/c"), "Write space:org/c should succeed")
+	require.NoError(
+		t,
+		f.Write(ctx, "user:alice", "member", "space:org/a"),
+		"Write space:org/a should succeed",
+	)
+	require.NoError(
+		t,
+		f.Write(ctx, "user:alice", "member", "space:org/b"),
+		"Write space:org/b should succeed",
+	)
+	require.NoError(
+		t,
+		f.Write(ctx, "user:bob", "member", "space:org/c"),
+		"Write space:org/c should succeed",
+	)
 
 	objects, err := f.ListObjects(ctx, "user:alice", "member", "space")
 	require.NoError(t, err, "ListObjects should not error")
-	require.ElementsMatch(t, []string{"space:org/a", "space:org/b"}, objects, "alice should see spaces a and b, not c")
+	require.ElementsMatch(
+		t,
+		[]string{"space:org/a", "space:org/b"},
+		objects,
+		"alice should see spaces a and b, not c",
+	)
 }
 
 func TestListObjects_ReturnsEmptyForNoMembership(t *testing.T) {
@@ -161,12 +178,25 @@ func TestListUsers_ReturnsMembersOfSpace(t *testing.T) {
 	require.NoError(t, err, "NewInMemory should succeed")
 	defer func() { _ = f.Close() }()
 
-	require.NoError(t, f.Write(ctx, "user:alice", "member", "space:org/myspace"), "Write alice as member should succeed")
-	require.NoError(t, f.Write(ctx, "user:bob", "member", "space:org/myspace"), "Write bob as member should succeed")
+	require.NoError(
+		t,
+		f.Write(ctx, "user:alice", "member", "space:org/myspace"),
+		"Write alice as member should succeed",
+	)
+	require.NoError(
+		t,
+		f.Write(ctx, "user:bob", "member", "space:org/myspace"),
+		"Write bob as member should succeed",
+	)
 
 	users, err := f.ListUsers(ctx, "space:org/myspace", "member")
 	require.NoError(t, err, "ListUsers should not error")
-	require.ElementsMatch(t, []string{"user:alice", "user:bob"}, users, "both alice and bob should be listed as members")
+	require.ElementsMatch(
+		t,
+		[]string{"user:alice", "user:bob"},
+		users,
+		"both alice and bob should be listed as members",
+	)
 }
 
 func TestListUsers_ReturnsEmptyForNoMembers(t *testing.T) {
