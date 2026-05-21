@@ -24,7 +24,11 @@ func (t *testAuth) CanHandle(r *http.Request) bool {
 	return r.Header.Get("X-Test-DID") != ""
 }
 
-func (t *testAuth) Validate(w http.ResponseWriter, r *http.Request, scopes ...string) (syntax.DID, bool) {
+func (t *testAuth) Validate(
+	w http.ResponseWriter,
+	r *http.Request,
+	scopes ...string,
+) (syntax.DID, bool) {
 	did := syntax.DID(r.Header.Get("X-Test-DID"))
 	if did == "" {
 		return "", false
@@ -32,7 +36,11 @@ func (t *testAuth) Validate(w http.ResponseWriter, r *http.Request, scopes ...st
 	return did, true
 }
 
-func (t *testAuth) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
+func (t *testAuth) ValidateRaw(
+	ctx context.Context,
+	token string,
+	scopes ...string,
+) (syntax.DID, bool, error) {
 	did := syntax.DID(token)
 	return did, did != "", nil
 }
@@ -58,7 +66,11 @@ func TestServer_CreateSpace(t *testing.T) {
 	s := newTestServer(t)
 
 	body := `{"type": "network.habitat.group"}`
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.createSpace", strings.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.createSpace",
+		strings.NewReader(body),
+	)
 	req = authReq(req, owner)
 	w := httptest.NewRecorder()
 	s.CreateSpace(w, req)
@@ -98,13 +110,21 @@ func TestServer_AddMemberAndGetMembers(t *testing.T) {
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.addMember", strings.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.addMember",
+		strings.NewReader(body),
+	)
 	req = authReq(req, owner)
 	w := httptest.NewRecorder()
 	s.AddMember(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	req = httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.getMembers?space="+uri.String(), nil)
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getMembers?space="+uri.String(),
+		nil,
+	)
 	req = authReq(req, owner)
 	w = httptest.NewRecorder()
 	s.GetMembers(w, req)
@@ -130,7 +150,11 @@ func TestServer_RemoveMember(t *testing.T) {
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.removeMember", strings.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.removeMember",
+		strings.NewReader(body),
+	)
 	req = authReq(req, owner)
 	w := httptest.NewRecorder()
 	s.RemoveMember(w, req)
@@ -148,7 +172,11 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.putRecord", strings.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.putRecord",
+		strings.NewReader(body),
+	)
 	req = authReq(req, owner)
 	w := httptest.NewRecorder()
 	s.PutRecord(w, req)
@@ -159,9 +187,11 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, putOutput.Uri, "/network.habitat.note/my-note")
 
-	getReq := httptest.NewRequest(http.MethodGet,
+	getReq := httptest.NewRequest(
+		http.MethodGet,
 		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=my-note",
-		nil)
+		nil,
+	)
 	getReq = authReq(getReq, owner)
 	getW := httptest.NewRecorder()
 	s.GetRecord(getW, getReq)
@@ -182,17 +212,34 @@ func TestServer_DeleteRecord(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.store.PutRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "del-me", map[string]any{"x": 1})
+	err = s.store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"del-me",
+		map[string]any{"x": 1},
+	)
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "del-me"}`
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.deleteRecord", strings.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteRecord",
+		strings.NewReader(body),
+	)
 	req = authReq(req, owner)
 	w := httptest.NewRecorder()
 	s.DeleteRecord(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	_, err = s.store.GetRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "del-me")
+	_, err = s.store.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"del-me",
+	)
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }
 
@@ -208,9 +255,11 @@ func TestServer_ListRecords(t *testing.T) {
 	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet,
+	req := httptest.NewRequest(
+		http.MethodGet,
 		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note",
-		nil)
+		nil,
+	)
 	req = authReq(req, owner)
 	w := httptest.NewRecorder()
 	s.ListRecords(w, req)
@@ -228,7 +277,11 @@ func TestServer_Unauthorized(t *testing.T) {
 	s := newTestServer(t)
 
 	body := `{"type": "network.habitat.group"}`
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.createSpace", strings.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.createSpace",
+		strings.NewReader(body),
+	)
 	w := httptest.NewRecorder()
 	s.CreateSpace(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
