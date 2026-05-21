@@ -150,7 +150,7 @@ func (f *FGA) Check(
 	user, relation, object string,
 	contextualTuples ...Tuple,
 ) (bool, error) {
-	req := &openfgav1.CheckRequest{
+	resp, err := f.svr.Check(ctx, &openfgav1.CheckRequest{
 		StoreId: f.storeID,
 		TupleKey: &openfgav1.CheckRequestTupleKey{
 			User:     user,
@@ -160,8 +160,7 @@ func (f *FGA) Check(
 		ContextualTuples: &openfgav1.ContextualTupleKeys{
 			TupleKeys: toTupleKeys(contextualTuples),
 		},
-	}
-	resp, err := f.svr.Check(ctx, req)
+	})
 	if err != nil {
 		return false, fmt.Errorf("check: %w", err)
 	}
@@ -173,7 +172,7 @@ func (f *FGA) ListObjects(
 	user, relation, objectType string,
 	contextualTuples ...Tuple,
 ) ([]string, error) {
-	req := &openfgav1.ListObjectsRequest{
+	resp, err := f.svr.ListObjects(ctx, &openfgav1.ListObjectsRequest{
 		StoreId:  f.storeID,
 		User:     user,
 		Relation: relation,
@@ -181,8 +180,7 @@ func (f *FGA) ListObjects(
 		ContextualTuples: &openfgav1.ContextualTupleKeys{
 			TupleKeys: toTupleKeys(contextualTuples),
 		},
-	}
-	resp, err := f.svr.ListObjects(ctx, req)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list objects: %w", err)
 	}
@@ -198,7 +196,7 @@ func (f *FGA) ListUsers(
 	if !ok {
 		return nil, fmt.Errorf("invalid object format %q: expected type:id", object)
 	}
-	req := &openfgav1.ListUsersRequest{
+	resp, err := f.svr.ListUsers(ctx, &openfgav1.ListUsersRequest{
 		StoreId:  f.storeID,
 		Object:   &openfgav1.Object{Type: objType, Id: objID},
 		Relation: relation,
@@ -206,8 +204,7 @@ func (f *FGA) ListUsers(
 			{Type: "user"},
 		},
 		ContextualTuples: toTupleKeys(contextualTuples),
-	}
-	resp, err := f.svr.ListUsers(ctx, req)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}
@@ -221,23 +218,22 @@ func (f *FGA) ListUsers(
 }
 
 func (f *FGA) Write(ctx context.Context, user, relation, object string) error {
-	tk := tuple.NewTupleKey(object, relation, user)
 	_, err := f.svr.Write(ctx, &openfgav1.WriteRequest{
 		StoreId: f.storeID,
 		Writes: &openfgav1.WriteRequestWrites{
-			TupleKeys: []*openfgav1.TupleKey{tk},
+			TupleKeys: []*openfgav1.TupleKey{tuple.NewTupleKey(object, relation, user)},
 		},
 	})
 	return err
 }
 
 func (f *FGA) Delete(ctx context.Context, user, relation, object string) error {
-	tk := tuple.NewTupleKey(object, relation, user)
-	tkWithoutCond := tuple.TupleKeyToTupleKeyWithoutCondition(tk)
 	_, err := f.svr.Write(ctx, &openfgav1.WriteRequest{
 		StoreId: f.storeID,
 		Deletes: &openfgav1.WriteRequestDeletes{
-			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{tkWithoutCond},
+			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(object, relation, user)),
+			},
 		},
 	})
 	return err

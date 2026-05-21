@@ -74,9 +74,14 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var skey habitat_syntax.Skey
+	var skey habitat_syntax.SpaceKey
 	if input.Skey != "" {
-		skey = habitat_syntax.Skey(input.Skey)
+		parsedKey, err := habitat_syntax.ParseSkey(input.Skey)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parse space key", http.StatusBadRequest)
+			return
+		}
+		skey = parsedKey
 	}
 
 	uri, err := s.store.CreateSpace(r.Context(), callerDID, spaceType, skey)
@@ -108,6 +113,17 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
+	var owner syntax.DID
+	if params.Did != "" {
+		ownerDid, err := syntax.ParseDID(params.Did)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parse did", http.StatusBadRequest)
+			return
+		}
+		owner = ownerDid
+	} else {
+		owner = callerDID
+	}
 
 	var filterType *syntax.NSID
 	if params.Type != "" {
@@ -119,17 +135,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		filterType = &t
 	}
 
-	var filterOwner *syntax.DID
-	if params.Did != "" {
-		d, err := syntax.ParseDID(params.Did)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse did filter", http.StatusBadRequest)
-			return
-		}
-		filterOwner = &d
-	}
-
-	spaces, err := s.store.ListSpaces(r.Context(), callerDID, filterType, filterOwner)
+	spaces, err := s.store.ListSpaces(r.Context(), owner, filterType)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list spaces", http.StatusInternalServerError)
 		return
@@ -352,13 +358,19 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rkey, err := syntax.ParseRecordKey(input.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
+		return
+	}
+
 	value, ok := input.Record.(map[string]any)
 	if !ok {
 		http.Error(w, "record must be a JSON object", http.StatusBadRequest)
 		return
 	}
 
-	err = s.store.PutRecord(r.Context(), spaceURI, callerDID, collection, input.Rkey, value)
+	err = s.store.PutRecord(r.Context(), spaceURI, callerDID, collection, rkey, value)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -412,6 +424,12 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rkey, err := syntax.ParseRecordKey(params.Rkey)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
+		return
+	}
+
 	owner := callerDID
 	if params.Repo != "" {
 		owner, err = syntax.ParseDID(params.Repo)
@@ -421,7 +439,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rec, err := s.store.GetRecord(r.Context(), spaceURI, owner, collection, params.Rkey)
+	rec, err := s.store.GetRecord(r.Context(), spaceURI, owner, collection, rkey)
 	if errors.Is(err, ErrRecordNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -430,7 +448,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri := spaceURI.String() + "/" + collection.String() + "/" + rec.Rkey
+	uri := spaceURI.String() + "/" + collection.String() + "/" + rec.Rkey.String()
 	output := habitat.NetworkHabitatSpaceGetRecordOutput{
 		Uri:   uri,
 		Cid:   "",
@@ -490,7 +508,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	for i, rec := range records {
 		recViews[i] = habitat.NetworkHabitatSpaceListRecordsRecord{
 			Collection: rec.Collection.String(),
-			Rkey:       rec.Rkey,
+			Rkey:       rec.Rkey.String(),
 			Cid:        "",
 			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
 		}
