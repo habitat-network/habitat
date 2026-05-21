@@ -64,7 +64,10 @@ type Credentials struct {
 	DpopKey      *ecdsa.PrivateKey
 }
 
-func (p *pdsCredentialStore) GetCredentials(ctx context.Context, did syntax.DID) (*Credentials, error) {
+func (p *pdsCredentialStore) GetCredentials(
+	ctx context.Context,
+	did syntax.DID,
+) (*Credentials, error) {
 	var creds pdsCredentialsModel
 	err := p.db.WithContext(ctx).Where("did = ?", did).First(&creds).Error
 	if err != nil {
@@ -72,13 +75,21 @@ func (p *pdsCredentialStore) GetCredentials(ctx context.Context, did syntax.DID)
 	}
 	// Decrypt the access token
 	var decryptedAccessToken string
-	if err := encrypt.DecryptCBOR(creds.AccessToken, p.encryptionKey, &decryptedAccessToken); err != nil {
+	if err := encrypt.DecryptCBOR(
+		creds.AccessToken,
+		p.encryptionKey,
+		&decryptedAccessToken,
+	); err != nil {
 		return nil, fmt.Errorf("failed to decrypt access token: %w", err)
 	}
 
 	// Decrypt the refresh token
 	var decryptedRefreshToken string
-	if err := encrypt.DecryptCBOR(creds.RefreshToken, p.encryptionKey, &decryptedRefreshToken); err != nil {
+	if err := encrypt.DecryptCBOR(
+		creds.RefreshToken,
+		p.encryptionKey,
+		&decryptedRefreshToken,
+	); err != nil {
 		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
 	}
 
@@ -105,10 +116,16 @@ func (p *pdsCredentialStore) UpsertCredentials(
 	}
 	// Encrypt tokens before storing
 	var err error
-	if userCreds.AccessToken, err = encrypt.EncryptCBOR(tokenInfo.AccessToken, p.encryptionKey); err != nil {
+	if userCreds.AccessToken, err = encrypt.EncryptCBOR(
+		tokenInfo.AccessToken,
+		p.encryptionKey,
+	); err != nil {
 		return fmt.Errorf("failed to encrypt access token: %w", err)
 	}
-	if userCreds.RefreshToken, err = encrypt.EncryptCBOR(tokenInfo.RefreshToken, p.encryptionKey); err != nil {
+	if userCreds.RefreshToken, err = encrypt.EncryptCBOR(
+		tokenInfo.RefreshToken,
+		p.encryptionKey,
+	); err != nil {
 		return fmt.Errorf("failed to encrypt refresh token: %w", err)
 	}
 	if userCreds.DpopKey, err = tokenInfo.DpopKey.Bytes(); err != nil {

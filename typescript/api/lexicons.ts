@@ -179,6 +179,69 @@ export const schemaDict = {
       },
     },
   },
+  ComAtprotoRepoDescribeRepo: {
+    lexicon: 1,
+    id: 'com.atproto.repo.describeRepo',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get information about an account and repository, including the list of collections. Does not require auth.',
+        parameters: {
+          type: 'params',
+          required: ['repo'],
+          properties: {
+            repo: {
+              type: 'string',
+              format: 'at-identifier',
+              description: 'The handle or DID of the repo.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: [
+              'handle',
+              'did',
+              'didDoc',
+              'collections',
+              'handleIsCorrect',
+            ],
+            properties: {
+              handle: {
+                type: 'string',
+                format: 'handle',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+              },
+              didDoc: {
+                type: 'unknown',
+                description: 'The complete DID document for this account.',
+              },
+              collections: {
+                type: 'array',
+                description:
+                  'List of all the collections (NSIDs) for which this repo contains at least one record.',
+                items: {
+                  type: 'string',
+                  format: 'nsid',
+                },
+              },
+              handleIsCorrect: {
+                type: 'boolean',
+                description:
+                  'Indicates if handle is currently valid (resolves bi-directionally)',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   ComAtprotoRepoGetRecord: {
     lexicon: 1,
     id: 'com.atproto.repo.getRecord',
@@ -1171,7 +1234,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['admin_handle', 'admin_password'],
+            required: ['admin_handle'],
             properties: {
               admin_handle: {
                 type: 'string',
@@ -1180,11 +1243,28 @@ export const schemaDict = {
               },
               admin_password: {
                 type: 'string',
-                description: 'Password for the bootstrap admin account.',
+                description:
+                  'Password for the bootstrap admin account (required for password login method).',
+              },
+              handle_subdomain: {
+                type: 'string',
+                description:
+                  "Subdomain for all org member handles (e.g. 'acmecorp').",
               },
               name: {
                 type: 'string',
                 description: 'A display name for this org.',
+              },
+              login_method: {
+                type: 'string',
+                default: 'password',
+                description:
+                  "Login method for the org: 'password', 'atproto', or 'google'.",
+              },
+              login_id: {
+                type: 'string',
+                description:
+                  "Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'.",
               },
             },
           },
@@ -2350,6 +2430,7 @@ export const ids = {
   ComAtprotoRepoCreateRecord: 'com.atproto.repo.createRecord',
   ComAtprotoRepoDefs: 'com.atproto.repo.defs',
   ComAtprotoRepoDeleteRecord: 'com.atproto.repo.deleteRecord',
+  ComAtprotoRepoDescribeRepo: 'com.atproto.repo.describeRepo',
   ComAtprotoRepoGetRecord: 'com.atproto.repo.getRecord',
   ComAtprotoRepoListRecords: 'com.atproto.repo.listRecords',
   ComAtprotoRepoPutRecord: 'com.atproto.repo.putRecord',

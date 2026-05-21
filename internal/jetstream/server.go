@@ -50,7 +50,12 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	// Ensure the response writer supports flushing
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		utils.LogAndHTTPError(w, fmt.Errorf("streaming unsupported on client"), "jetstream: connection open", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			w,
+			fmt.Errorf("streaming unsupported on client"),
+			"jetstream: connection open",
+			http.StatusBadRequest,
+		)
 		return
 	}
 

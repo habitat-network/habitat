@@ -37,7 +37,7 @@ func testStore(t *testing.T) org.Store {
 	require.NoError(t, err)
 	s, err := org.NewStore(db, h, identity.DefaultDirectory(), "example.com")
 	require.NoError(t, err)
-	_, _, err = s.CreateOrg(t.Context(), "org-name", "admin", "password")
+	_, _, err = s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "")
 	require.NoError(t, err)
 	return s
 }
@@ -65,7 +65,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
 		secret,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -162,7 +162,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -278,7 +278,7 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -526,7 +526,7 @@ func TestValidate(t *testing.T) {
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
-			login.NewRouter(login.NewPDSProvider(oauthClient, credStore)),
+			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
 			credStore,

@@ -4,9 +4,11 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -23,30 +25,30 @@ func newTestHive(t *testing.T, memberDomain, pearDomain string) (Hive, *gorm.DB)
 }
 
 // mintAndPersist is a test helper that mints an identity and persists it atomically.
-func mintAndPersist(t *testing.T, h Hive, db *gorm.DB, handle string) {
+func mintAndPersist(t *testing.T, h Hive, db *gorm.DB, handle, subdomain string) {
 	t.Helper()
-	_, persist, err := h.MintIdentity(handle)
+	_, persist, err := h.MintIdentity(handle, subdomain)
 	require.NoError(t, err)
 	require.NoError(t, persist(db))
 }
 
 func TestMintIdentity(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 }
 
 func TestMintIdentity_InvalidHandle(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
-	_, _, err := h.MintIdentity("alice!invalid")
+	_, _, err := h.MintIdentity("alice!invalid", "org")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
 func TestMintIdentity_Duplicate(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	_, persist, err := h.MintIdentity("alice")
+	_, persist, err := h.MintIdentity("alice", "org")
 	require.NoError(t, err)
 	require.ErrorIs(t, persist(db), ErrNotCreated)
 }
@@ -54,36 +56,36 @@ func TestMintIdentity_Duplicate(t *testing.T) {
 func TestLookupHandle(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
+	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
 	require.NoError(t, err)
-	require.Equal(t, syntax.Handle("alice.example.com"), ident.Handle)
+	require.Equal(t, syntax.Handle("alice.org.example.com"), ident.Handle)
 	require.True(t, strings.HasPrefix(ident.DID.String(), "did:web:"))
 }
 
 func TestLookupHandle_NotFound(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.LookupHandle(context.Background(), syntax.Handle("nobody.example.com"))
+	_, err := h.LookupHandle(context.Background(), syntax.Handle("nobody.org.example.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupHandle_WrongDomain(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	_, err := h.LookupHandle(context.Background(), syntax.Handle("alice.other.com"))
+	_, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.other.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupDID(t *testing.T) {
 	h, db := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice")
+	mintAndPersist(t, h, db, "alice", "org")
 
-	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.example.com"))
+	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
 	require.NoError(t, err)
 
 	ident2, err := h.LookupDID(context.Background(), ident.DID)
@@ -96,5 +98,83 @@ func TestLookupDID_NotFound(t *testing.T) {
 	h, _ := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.LookupDID(context.Background(), syntax.DID("did:web:xxxxxx.example.com"))
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+}
+
+func TestSignServiceAuth(t *testing.T) {
+	h, db := newTestHive(t, "example.com", "pear.example.com")
+
+	mintAndPersist(t, h, db, "alice", "org")
+
+	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
+	require.NoError(t, err)
+
+	lxm := syntax.NSID("com.atproto.repo.createRecord")
+	token, err := h.SignServiceAuth(
+		context.Background(),
+		ident.DID,
+		"did:web:pear.example.com",
+		time.Hour,
+		&lxm,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	p := jwt.NewParser(jwt.WithoutClaimsValidation())
+	claims := &jwt.MapClaims{}
+	_, _, err = p.ParseUnverified(token, claims)
+	require.NoError(t, err)
+
+	iss, err := claims.GetIssuer()
+	require.NoError(t, err)
+	require.Equal(t, ident.DID.String(), iss)
+
+	aud, err := claims.GetAudience()
+	require.NoError(t, err)
+	require.Len(t, aud, 1)
+	require.Equal(t, "did:web:pear.example.com", aud[0])
+
+	require.Equal(t, "com.atproto.repo.createRecord", (*claims)["lxm"])
+
+	exp, err := claims.GetExpirationTime()
+	require.NoError(t, err)
+	require.NotZero(t, exp.Time)
+	require.WithinRange(t, exp.Time, time.Now().Add(59*time.Minute), time.Now().Add(61*time.Minute))
+
+	iat, err := claims.GetIssuedAt()
+	require.NoError(t, err)
+	require.NotZero(t, iat.Time)
+	require.WithinRange(t, iat.Time, time.Now().Add(-time.Minute), time.Now().Add(time.Minute))
+
+	jti, ok := (*claims)["jti"]
+	require.True(t, ok)
+	jtiStr, ok := jti.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, jtiStr)
+}
+
+func TestSignServiceAuth_DIDNotFound(t *testing.T) {
+	h, _ := newTestHive(t, "example.com", "pear.example.com")
+
+	_, err := h.SignServiceAuth(
+		context.Background(),
+		syntax.DID("did:web:nonexist.example.com"),
+		"did:web:pear.example.com",
+		time.Hour,
+		nil,
+	)
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+}
+
+func TestSignServiceAuth_WrongDomain(t *testing.T) {
+	h, _ := newTestHive(t, "example.com", "pear.example.com")
+
+	_, err := h.SignServiceAuth(
+		context.Background(),
+		syntax.DID("did:web:nonexist.other.com"),
+		"did:web:pear.example.com",
+		time.Hour,
+		nil,
+	)
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }

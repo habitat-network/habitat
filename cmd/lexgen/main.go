@@ -219,7 +219,12 @@ func generateCode(lex *lex.Schema, config lex.Package) (GeneratedFile, error) {
 	}, nil
 }
 
-func generateQueryCode(id string, defName string, defData *lex.TypeSchema, schema *lex.Schema) (string, error) {
+func generateQueryCode(
+	id string,
+	defName string,
+	defData *lex.TypeSchema,
+	schema *lex.Schema,
+) (string, error) {
 	var builder strings.Builder
 
 	typeName := toTypeName(id)
@@ -298,7 +303,12 @@ func generateQueryCode(id string, defName string, defData *lex.TypeSchema, schem
 	return builder.String(), nil
 }
 
-func generateProcedureCode(id string, defName string, defData *lex.TypeSchema, schema *lex.Schema) (string, error) {
+func generateProcedureCode(
+	id string,
+	defName string,
+	defData *lex.TypeSchema,
+	schema *lex.Schema,
+) (string, error) {
 	var builder strings.Builder
 
 	typeName := toTypeName(id)

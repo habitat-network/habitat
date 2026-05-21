@@ -1077,8 +1077,7 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "admin_handle",
-                  "admin_password"
+                  "admin_handle"
                 ],
                 "properties": {
                   "admin_handle": {
@@ -1087,11 +1086,24 @@
                   },
                   "admin_password": {
                     "type": "string",
-                    "description": "Password for the bootstrap admin account."
+                    "description": "Password for the bootstrap admin account (required for password login method)."
+                  },
+                  "handle_subdomain": {
+                    "type": "string",
+                    "description": "Subdomain for all org member handles (e.g. 'acmecorp')."
                   },
                   "name": {
                     "type": "string",
                     "description": "A display name for this org."
+                  },
+                  "login_method": {
+                    "type": "string",
+                    "description": "Login method for the org: 'password', 'atproto', or 'google'.",
+                    "default": "password"
+                  },
+                  "login_id": {
+                    "type": "string",
+                    "description": "Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'."
                   }
                 }
               }

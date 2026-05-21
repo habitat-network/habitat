@@ -4,6 +4,7 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/habitat-network/habitat/internal/utils"
@@ -41,7 +42,10 @@ func habitatResourceDefinition() (*resource.Resource, error) {
 	return resource, nil
 }
 
-func setupTraceProvider(ctx context.Context, resource *resource.Resource) (*trace.TracerProvider, error) {
+func setupTraceProvider(
+	ctx context.Context,
+	resource *resource.Resource,
+) (*trace.TracerProvider, error) {
 	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient())
 	if err != nil {
 		return nil, err
@@ -55,17 +59,26 @@ func setupTraceProvider(ctx context.Context, resource *resource.Resource) (*trac
 	return provider, nil
 }
 
-func setupMetricsProvider(ctx context.Context, resource *resource.Resource) (*metric.MeterProvider, error) {
+func setupMetricsProvider(
+	ctx context.Context,
+	resource *resource.Resource,
+) (*metric.MeterProvider, error) {
 	exporter, err := otlpmetrichttp.New(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	provider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(exporter)), metric.WithResource(resource))
+	provider := metric.NewMeterProvider(
+		metric.WithReader(metric.NewPeriodicReader(exporter)),
+		metric.WithResource(resource),
+	)
 	return provider, nil
 }
 
-func setupLoggingProvider(ctx context.Context, resource *resource.Resource) (*otellog.LoggerProvider, error) {
+func setupLoggingProvider(
+	ctx context.Context,
+	resource *resource.Resource,
+) (*otellog.LoggerProvider, error) {
 	exporter, err := otlploghttp.New(ctx,
 		otlploghttp.WithCompression(otlploghttp.GzipCompression),
 	)
@@ -81,13 +94,36 @@ func setupLoggingProvider(ctx context.Context, resource *resource.Resource) (*ot
 	return provider, nil
 }
 
+func otlpEndpointConfigured() bool {
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" {
+		return true
+	}
+	if os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") != "" {
+		return true
+	}
+	if os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
+		return true
+	}
+	if os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") != "" {
+		return true
+	}
+	return false
+}
+
 // SetupOpenTelemetry bootstraps the OpenTelemetry pipeline for metrics, tracing, and logginc.
+// If no OTLP endpoint is configured (via OTEL_EXPORTER_OTLP_ENDPOINT or per-signal env vars),
+// it returns a no-op shutdown function with no error, avoiding background connection errors
+// when no OTel collector is running.
 // If it does not return an error, make sure to call shutdown for proper cleanup at process exit.
 // The logging provider needs to be hooked into the logger of your choice (e.g. zerolog) for logs to show
 // in OTel / Grafana.
 //
 // This code was more or less copied from the golang OpenTelemetry tutorial.
-func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error) {
+func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, bool, error) {
+	if !otlpEndpointConfigured() {
+		return func(context.Context) error { return nil }, false, nil
+	}
+
 	var shutdownFuncs []func(context.Context) error
 	// shutdown calls cleanup functions registered via shutdownFuncs.
 	// The errors from the calls are joined.
@@ -110,7 +146,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 	resource, err := habitatResourceDefinition()
 	if err != nil {
 		handleErr(err)
-		return shutdown, err
+		return shutdown, true, err
 	}
 
 	prop := propagation.NewCompositeTextMapPropagator(
@@ -122,7 +158,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 	traceProvider, err := setupTraceProvider(ctx, resource)
 	if err != nil {
 		handleErr(err)
-		return shutdown, err
+		return shutdown, true, err
 	}
 
 	shutdownFuncs = append(shutdownFuncs, traceProvider.Shutdown)
@@ -131,7 +167,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 	meterProvider, err := setupMetricsProvider(ctx, resource)
 	if err != nil {
 		handleErr(err)
-		return shutdown, err
+		return shutdown, true, err
 	}
 	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
 	otel.SetMeterProvider(meterProvider)
@@ -139,7 +175,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 	loggerProvider, err := setupLoggingProvider(ctx, resource)
 	if err != nil {
 		handleErr(err)
-		return shutdown, err
+		return shutdown, true, err
 	}
 	shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
 
@@ -151,5 +187,5 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 	if err != nil {
 		handleErr(err)
 	}
-	return shutdown, err
+	return shutdown, true, err
 }

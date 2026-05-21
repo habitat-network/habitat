@@ -75,7 +75,11 @@ func (p *pdsServiceAuthMethod) Validate(
 	return did, ok
 }
 
-func (p *pdsServiceAuthMethod) ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error) {
+func (p *pdsServiceAuthMethod) ValidateRaw(
+	ctx context.Context,
+	token string,
+	scopes ...string,
+) (syntax.DID, bool, error) {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
 		return "", false, err

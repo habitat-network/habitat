@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -21,8 +20,8 @@ import (
 type Role string
 
 const (
-	Admin  Role = "admin"
-	Member Role = "member"
+	AdminRole  Role = "admin"
+	MemberRole Role = "member"
 )
 
 var (
@@ -58,6 +57,9 @@ type Org interface {
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
+	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
+	LoginMethod() LoginMethod
+
 	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(
 		ctx context.Context,
@@ -71,21 +73,6 @@ type Org interface {
 		internalHandle string,
 		password string,
 	) (*identity.Identity, error)
-	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
-}
-
-// Store is the registry of all orgs on a pear instance.
-// It routes DIDs to their org and provides cross-org membership checks.
-type Store interface {
-	GetOrg(ctx context.Context, orgID string) (Org, error)
-	GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error)
-	AuthenticateMember(ctx context.Context, handle string, password string) (bool, error)
-	CreateOrg(
-		ctx context.Context,
-		name string,
-		adminHandle string,
-		adminPassword string,
-	) (orgID string, id *identity.Identity, err error)
 }
 
 type inviteTokenClaims struct {
@@ -94,10 +81,11 @@ type inviteTokenClaims struct {
 }
 
 type orgImpl struct {
-	orgID         string
-	hive          hive.Hive
-	db            *gorm.DB
-	signingSecret []byte
+	orgID           string
+	hive            hive.Hive
+	db              *gorm.DB
+	signingSecret   []byte
+	handleSubdomain string
 }
 
 var _ Org = &orgImpl{}
@@ -119,10 +107,18 @@ func NewOrg(
 	}, nil
 }
 
+func (s *orgImpl) LoginMethod() LoginMethod {
+	var org organization
+	if err := s.db.First(&org, "id = ?", s.orgID).Error; err != nil {
+		return "password" // safe default
+	}
+	return org.LoginMethod
+}
+
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	result := s.db.WithContext(ctx).Model(&member{}).
-		Where("org_id = ? AND member = ?", s.orgID, admin.String()).
-		Update("role", Admin)
+		Where("org_id = ? AND did = ?", s.orgID, admin).
+		Update("role", AdminRole)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -132,25 +128,25 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return nil
 }
 
-func (s *orgImpl) addMember(ctx context.Context, did syntax.DID, passwordHash string) error {
-	return s.addMemberTx(ctx, s.db, did, passwordHash)
+func (s *orgImpl) addMember(ctx context.Context, did syntax.DID, loginID string) error {
+	return s.addMemberTx(ctx, s.db, did, loginID)
 }
 
 func (s *orgImpl) addMemberTx(
 	ctx context.Context,
 	tx *gorm.DB,
 	did syntax.DID,
-	passwordHash string,
+	loginID string,
 ) error {
 	return tx.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "org_id"}, {Name: "member"}},
+		Columns:   []clause.Column{{Name: "org_id"}, {Name: "did"}},
 		DoNothing: true,
 	}).Create(&member{
-		OrgID:        s.orgID,
-		Member:       did.String(),
-		Role:         string(Member),
-		PasswordHash: passwordHash,
-		CreatedAt:    time.Now(),
+		OrgID:     s.orgID,
+		Did:       did,
+		Role:      MemberRole,
+		LoginID:   loginID,
+		CreatedAt: time.Now(),
 	}).Error
 }
 
@@ -164,18 +160,14 @@ func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admi
 func (s *orgImpl) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 	var rows []member
 	if err := s.db.WithContext(ctx).
-		Where("org_id = ? AND role = ?", s.orgID, Admin).
+		Where("org_id = ? AND role = ?", s.orgID, AdminRole).
 		Find(&rows).
 		Error; err != nil {
 		return nil, err
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		did, err := syntax.ParseDID(r.Member)
-		if err != nil {
-			return nil, err
-		}
-		dids = append(dids, did)
+		dids = append(dids, r.Did)
 	}
 	return dids, nil
 }
@@ -187,11 +179,7 @@ func (s *orgImpl) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	}
 	dids := make([]syntax.DID, 0, len(rows))
 	for _, r := range rows {
-		did, err := syntax.ParseDID(r.Member)
-		if err != nil {
-			return nil, err
-		}
-		dids = append(dids, did)
+		dids = append(dids, r.Did)
 	}
 	return dids, nil
 }
@@ -200,7 +188,7 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).
 		Model(&member{}).
-		Where("org_id = ? AND role = ?", s.orgID, Admin).
+		Where("org_id = ? AND role = ?", s.orgID, AdminRole).
 		Count(&adminCount).
 		Error; err != nil {
 		return err
@@ -210,8 +198,8 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	}
 	return s.db.WithContext(ctx).
 		Model(&member{}).
-		Where("org_id = ? AND member = ? AND role = ?", s.orgID, admin.String(), Admin).
-		Update("role", Member).
+		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
+		Update("role", MemberRole).
 		Error
 }
 
@@ -219,7 +207,7 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	var adminCount int64
 	if err := s.db.WithContext(ctx).
 		Model(&member{}).
-		Where("org_id = ? AND role = ?", s.orgID, Admin).
+		Where("org_id = ? AND role = ?", s.orgID, AdminRole).
 		Count(&adminCount).
 		Error; err != nil {
 		return err
@@ -228,18 +216,14 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 		return ErrLastAdmin
 	}
 	return s.db.WithContext(ctx).
-		Where("org_id = ? AND member = ? AND role = ?", s.orgID, admin.String(), Admin).
+		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
 		Delete(&member{}).
 		Error
 }
 
 func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error {
-	dids := make([]string, 0, len(members))
-	for _, did := range members {
-		dids = append(dids, did.String())
-	}
 	return s.db.WithContext(ctx).
-		Where("org_id = ? AND member IN ? AND role = ?", s.orgID, dids, Member).
+		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, members, MemberRole).
 		Delete(&member{}).
 		Error
 }
@@ -247,7 +231,7 @@ func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error
 func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).
-		Where("org_id = ? AND member = ? AND role = ?", s.orgID, did.String(), Admin).
+		Where("org_id = ? AND did = ? AND role = ?", s.orgID, did, AdminRole).
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -259,7 +243,7 @@ func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
 func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var row member
 	err := s.db.WithContext(ctx).
-		Where("org_id = ? AND member = ?", s.orgID, did.String()).
+		Where("org_id = ? AND did = ?", s.orgID, did).
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -348,7 +332,7 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	}
 
 	// If token is valid, call into hive to mint the new identity and serve it
-	id, persistIdent, err := s.hive.MintIdentity(internalHandle)
+	id, persistIdent, err := s.hive.MintIdentity(internalHandle, s.handleSubdomain)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +362,7 @@ func (s *orgImpl) AuthenticateMember(
 
 	var row member
 	err = s.db.WithContext(ctx).
-		Where("org_id = ? AND member = ?", s.orgID, id.DID.String()).
+		Where("org_id = ? AND did = ?", s.orgID, id.DID).
 		First(&row).
 		Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -388,167 +372,10 @@ func (s *orgImpl) AuthenticateMember(
 		return false, err
 	}
 
-	ok, err := verifyPassword(password, row.PasswordHash)
+	ok, err := verifyPassword(password, row.LoginID)
 	if errors.Is(err, argon2id.ErrInvalidHash) {
 		// Members created before passwords were required have no usable hash.
 		return false, nil
 	}
 	return ok, err
-}
-
-// storeImpl is the Store implementation backed by gorm and the identity directory.
-type storeImpl struct {
-	db         *gorm.DB
-	hive       hive.Hive
-	dir        identity.Directory
-	pearDomain string
-	everyone   Org
-}
-
-var _ Store = &storeImpl{}
-
-// NewStore creates a Store that manages multiple orgs on a pear instance.
-func NewStore(
-	db *gorm.DB,
-	hve hive.Hive,
-	dir identity.Directory,
-	pearDomain string,
-) (Store, error) {
-	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
-		return nil, err
-	}
-	return &storeImpl{
-		db:         db,
-		hive:       hve,
-		dir:        dir,
-		pearDomain: pearDomain,
-		everyone:   NewEveryoneOrg(),
-	}, nil
-}
-
-func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
-	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
-	if err != nil {
-		return nil, err
-	}
-	return &orgImpl{
-		orgID:         org.ID,
-		hive:          s.hive,
-		db:            s.db,
-		signingSecret: signingSecret,
-	}, nil
-}
-
-// GetOrg returns the org with the given ID.
-func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
-	var org organization
-	if err := s.db.WithContext(ctx).Where("id = ?", orgID).First(&org).Error; err != nil {
-		return nil, ErrOrgNotFound
-	}
-	return s.orgFromModel(&org)
-}
-
-// GetOrgForDID returns the org the given DID belongs to.
-// First checks the member table. If the DID isn't in any org, checks if
-// it's managed by our hive. Otherwise returns the everyone org for external DIDs.
-func (s *storeImpl) GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error) {
-	var m member
-	if err := s.db.WithContext(ctx).Where("member = ?", did.String()).First(&m).Error; err == nil {
-		return s.GetOrg(ctx, m.OrgID)
-	}
-
-	id, err := s.dir.LookupDID(ctx, did)
-	if err != nil {
-		return s.everyone, nil
-	}
-
-	svc, hasHabitat := id.Services["habitat"]
-	if hasHabitat && svc.URL == "https://"+s.pearDomain {
-		return nil, ErrMemberNotFound
-	}
-
-	return s.everyone, nil
-}
-
-// AuthenticateMember authenticates a member by handle across all orgs.
-func (s *storeImpl) AuthenticateMember(
-	ctx context.Context,
-	handle string,
-	password string,
-) (bool, error) {
-	id, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
-	if err != nil {
-		return false, nil
-	}
-
-	org, err := s.GetOrgForDID(ctx, id.DID)
-	if err != nil {
-		return false, nil
-	}
-
-	return org.AuthenticateMember(ctx, handle, password)
-}
-
-// CreateOrg creates a new org with a bootstrap admin member and returns the generated org ID and the admin identity.
-func (s *storeImpl) CreateOrg(
-	ctx context.Context,
-	name string,
-	adminHandle string,
-	adminPassword string,
-) (string, *identity.Identity, error) {
-	// Generate a random org ID
-	orgBytes := make([]byte, 16)
-	if _, err := rand.Read(orgBytes); err != nil {
-		return "", nil, err
-	}
-	orgID := fmt.Sprintf("%x", orgBytes)
-
-	// Generate signing secret
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return "", nil, err
-	}
-	signingSecret := base64.StdEncoding.EncodeToString(secret)
-
-	// Hash the admin password
-	passwordHash, err := hashPassword(adminPassword)
-	if err != nil {
-		return "", nil, err
-	}
-
-	// Mint identity for the admin
-	id, persistIdent, err := s.hive.MintIdentity(adminHandle)
-	if err != nil {
-		return "", nil, err
-	}
-
-	// Persist org, identity, and admin member in a single transaction
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&organization{
-			ID:            orgID,
-			Name:          name,
-			SigningSecret: signingSecret,
-			CreatedAt:     time.Now(),
-		}).Error; err != nil {
-			if isDuplicateError(err) {
-				return ErrOrgAlreadyExists
-			}
-			return err
-		}
-		if err := persistIdent(tx); err != nil {
-			return err
-		}
-		return tx.Create(&member{
-			OrgID:        orgID,
-			Member:       id.DID.String(),
-			Role:         string(Admin),
-			PasswordHash: passwordHash,
-			CreatedAt:    time.Now(),
-		}).Error
-	})
-	if err != nil {
-		return "", nil, err
-	}
-
-	return orgID, id, nil
 }

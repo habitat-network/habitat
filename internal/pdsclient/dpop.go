@@ -90,7 +90,9 @@ func newAuthedDpopHttpClient(
 	}
 }
 
-func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscred.Credentials, error) {
+func (c *authedDpopHttpClient) getAccessTokenToUse(
+	ctx context.Context,
+) (*pdscred.Credentials, error) {
 	getOrRefreshToken := func() (interface{}, error) {
 		cred, err := c.credStore.GetCredentials(ctx, c.id.DID)
 		if err != nil {
@@ -129,7 +131,10 @@ func (c *authedDpopHttpClient) getAccessTokenToUse(ctx context.Context) (*pdscre
 		return cred, nil
 	}
 
-	res, err, _ := c.credsG.Do(c.id.DID.String() /* meaningless key since this only has one thing */, getOrRefreshToken)
+	res, err, _ := c.credsG.Do(
+		c.id.DID.String(), /* meaningless key since this only has one thing */
+		getOrRefreshToken,
+	)
 	if err != nil {
 		return nil, err
 	}

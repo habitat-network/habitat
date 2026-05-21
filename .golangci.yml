@@ -3,3 +3,5 @@ linters:
   default: standard
   enable:
     - bodyclose
+formatters:
+  enable: golines
