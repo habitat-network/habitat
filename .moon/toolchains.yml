@@ -4,6 +4,8 @@ go:
   version: null
   tidyOnChange: true
   bins:
+  # for some reason multiple bins in ci for >moon@v2.0.0 
+  # keep getting stuck during installation. 
   - github.com/vladopajic/go-test-coverage/v2@v2.18.3
   - bin: github.com/air-verse/air@v1.65.1
     local: true
