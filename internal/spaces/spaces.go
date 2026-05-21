@@ -14,17 +14,23 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+type Skey string
+
+func NewSkey() Skey {
+	return Skey(uuid.New().String())
+}
+
 // SpaceURI identifies a space.
-// Format: "habitat://spaceDID/spaceType/skey"
+// Format: "ats://spaceDID/spaceType/skey"
 // See https://dholms.leaflet.pub/3mlegohgtps2k
 type SpaceURI string
 
 var spaceURIRegex = regexp.MustCompile(
-	`^habitat:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
+	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
 )
 
-func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey string) SpaceURI {
-	return SpaceURI(fmt.Sprintf("habitat://%s/%s/%s", spaceDID, spaceType, skey))
+func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey Skey) SpaceURI {
+	return SpaceURI(fmt.Sprintf("ats://%s/%s/%s", spaceDID, spaceType, skey))
 }
 
 func ParseSpaceURI(raw string) (SpaceURI, error) {
@@ -70,12 +76,12 @@ func (s SpaceURI) SpaceType() syntax.NSID {
 	return nsid
 }
 
-func (s SpaceURI) Skey() string {
+func (s SpaceURI) Skey() Skey {
 	parts := spaceURIRegex.FindStringSubmatch(string(s))
 	if len(parts) < 4 {
 		return ""
 	}
-	return parts[3]
+	return Skey(parts[3])
 }
 
 func (s SpaceURI) String() string {
@@ -85,9 +91,9 @@ func (s SpaceURI) String() string {
 // GORM models
 
 type space struct {
-	Owner     string `gorm:"primaryKey"`
-	Skey      string `gorm:"primaryKey"`
-	Type      string `gorm:"index"`
+	Owner     syntax.DID `gorm:"primaryKey"`
+	Skey      Skey       `gorm:"primaryKey"`
+	Type      syntax.NSID
 	CreatedAt time.Time
 }
 
@@ -95,10 +101,10 @@ type space struct {
 // For now, the owner is always the sole member of a space.
 
 type spaceRecord struct {
-	Owner      string `gorm:"primaryKey"`
-	Skey       string `gorm:"primaryKey"`
-	Collection string `gorm:"primaryKey"`
-	Rkey       string `gorm:"primaryKey"`
+	Space      SpaceURI    `gorm:"primaryKey"`
+	Owner      syntax.DID  `gorm:"primaryKey"`
+	Collection syntax.NSID `gorm:"primaryKey"`
+	Rkey       string      `gorm:"primaryKey"`
 	Value      []byte
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -108,7 +114,7 @@ type spaceRecord struct {
 type SpaceView struct {
 	URI         SpaceURI
 	Type        syntax.NSID
-	Skey        string
+	Skey        Skey
 	MemberCount int
 }
 
@@ -118,8 +124,8 @@ type MemberInfo struct {
 	AddedAt time.Time
 }
 
-// RecordInSpace is a single record within a space
-type RecordInSpace struct {
+// Record is a single record within a space
+type Record struct {
 	Collection syntax.NSID
 	Rkey       string
 	Value      map[string]any
@@ -133,7 +139,7 @@ type Store interface {
 		ctx context.Context,
 		owner syntax.DID,
 		spaceType syntax.NSID,
-		skey string,
+		skey Skey,
 	) (SpaceURI, error)
 	ListSpaces(
 		ctx context.Context,
@@ -151,6 +157,7 @@ type Store interface {
 	PutRecord(
 		ctx context.Context,
 		space SpaceURI,
+		owner syntax.DID,
 		collection syntax.NSID,
 		rkey string,
 		value map[string]any,
@@ -158,14 +165,15 @@ type Store interface {
 	GetRecord(
 		ctx context.Context,
 		space SpaceURI,
+		owner syntax.DID,
 		collection syntax.NSID,
 		rkey string,
-	) (*RecordInSpace, error)
+	) (*Record, error)
 	ListRecords(
 		ctx context.Context,
 		space SpaceURI,
 		collection *syntax.NSID,
-	) ([]RecordInSpace, error)
+	) ([]Record, error)
 	DeleteRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) error
 }
 
@@ -194,10 +202,10 @@ func (s *store) CreateSpace(
 	ctx context.Context,
 	owner syntax.DID,
 	spaceType syntax.NSID,
-	skey string,
+	skey Skey,
 ) (SpaceURI, error) {
 	if skey == "" {
-		skey = uuid.New().String()
+		skey = NewSkey()
 	}
 
 	var existing space
@@ -212,9 +220,9 @@ func (s *store) CreateSpace(
 	}
 
 	sp := space{
-		Owner: owner.String(),
+		Owner: owner,
 		Skey:  skey,
-		Type:  spaceType.String(),
+		Type:  spaceType,
 	}
 
 	err = s.db.WithContext(ctx).Create(&sp).Error
@@ -252,10 +260,9 @@ func (s *store) ListSpaces(
 
 	views := make([]SpaceView, len(rows))
 	for i, row := range rows {
-		nsid, _ := syntax.ParseNSID(row.Type)
 		views[i] = SpaceView{
-			URI:         ConstructSpaceURI(syntax.DID(row.Owner), nsid, row.Skey),
-			Type:        nsid,
+			URI:         ConstructSpaceURI(syntax.DID(row.Owner), row.Type, row.Skey),
+			Type:        row.Type,
 			Skey:        row.Skey,
 			MemberCount: 1, // only the owner for now
 		}
@@ -306,17 +313,16 @@ func (s *store) IsMember(
 func (s *store) PutRecord(
 	ctx context.Context,
 	uri SpaceURI,
+	owner syntax.DID,
 	collection syntax.NSID,
 	rkey string,
 	value map[string]any,
 ) error {
-	owner := uri.SpaceDID().String()
-	skey := uri.Skey()
 
 	// Verify space exists
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", owner, skey).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrSpaceNotFound
@@ -331,8 +337,8 @@ func (s *store) PutRecord(
 
 	rec := spaceRecord{
 		Owner:      owner,
-		Skey:       skey,
-		Collection: collection.String(),
+		Space:      uri,
+		Collection: collection,
 		Rkey:       rkey,
 		Value:      bytes,
 	}
@@ -345,16 +351,14 @@ func (s *store) PutRecord(
 func (s *store) GetRecord(
 	ctx context.Context,
 	uri SpaceURI,
+	owner syntax.DID,
 	collection syntax.NSID,
 	rkey string,
-) (*RecordInSpace, error) {
-	owner := uri.SpaceDID().String()
-	skey := uri.Skey()
-
+) (*Record, error) {
 	var row spaceRecord
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ? AND collection = ? AND rkey = ?",
-			owner, skey, collection.String(), rkey).
+		Where("space = ? AND owner = ? AND collection = ? AND rkey = ?",
+			uri.String(), owner, collection.String(), rkey).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
@@ -367,7 +371,7 @@ func (s *store) GetRecord(
 		return nil, err
 	}
 
-	return &RecordInSpace{
+	return &Record{
 		Collection: collection,
 		Rkey:       row.Rkey,
 		Value:      value,
@@ -379,12 +383,9 @@ func (s *store) ListRecords(
 	ctx context.Context,
 	uri SpaceURI,
 	collection *syntax.NSID,
-) ([]RecordInSpace, error) {
-	owner := uri.SpaceDID().String()
-	skey := uri.Skey()
-
+) ([]Record, error) {
 	query := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", owner, skey)
+		Where("space = ?", uri.String())
 
 	if collection != nil {
 		query = query.Where("collection = ?", collection.String())
@@ -395,15 +396,16 @@ func (s *store) ListRecords(
 		return nil, err
 	}
 
-	records := make([]RecordInSpace, len(rows))
+	// TODO : pagination
+
+	records := make([]Record, len(rows))
 	for i, row := range rows {
 		var value map[string]any
 		if err := json.Unmarshal(row.Value, &value); err != nil {
 			return nil, err
 		}
-		nsid, _ := syntax.ParseNSID(row.Collection)
-		records[i] = RecordInSpace{
-			Collection: nsid,
+		records[i] = Record{
+			Collection: row.Collection,
 			Rkey:       row.Rkey,
 			Value:      value,
 			UpdatedAt:  row.UpdatedAt,
@@ -419,12 +421,9 @@ func (s *store) DeleteRecord(
 	collection syntax.NSID,
 	rkey string,
 ) error {
-	owner := uri.SpaceDID().String()
-	skey := uri.Skey()
-
 	result := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ? AND collection = ? AND rkey = ?",
-			owner, skey, collection.String(), rkey).
+		Where("space = ? AND collection = ? AND rkey = ?",
+			uri.String(), collection.String(), rkey).
 		Delete(&spaceRecord{})
 
 	if result.Error != nil {

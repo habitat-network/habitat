@@ -29,7 +29,7 @@ func TestCreateSpace(t *testing.T) {
 
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "my-group")
 	require.NoError(t, err)
-	require.Equal(t, "habitat://did:plc:owner/network.habitat.group/my-group", uri.String())
+	require.Equal(t, "ats://did:plc:owner/network.habitat.group/my-group", uri.String())
 }
 
 func TestCreateSpace_AutoSkey(t *testing.T) {
@@ -120,7 +120,7 @@ func TestListSpaces_FilterByOwner(t *testing.T) {
 	spaces, err := s.ListSpaces(t.Context(), owner, nil, &owner)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
-	require.Equal(t, "habitat://did:plc:owner/network.habitat.group/a", spaces[0].URI.String())
+	require.Equal(t, "ats://did:plc:owner/network.habitat.group/a", spaces[0].URI.String())
 }
 
 func TestGetMembers(t *testing.T) {
@@ -183,10 +183,10 @@ func TestPutAndGetRecord(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 	val := map[string]any{"text": "hello world"}
 
-	err = s.PutRecord(t.Context(), uri, coll, "my-rkey", val)
+	err = s.PutRecord(t.Context(), uri, owner, coll, "my-rkey", val)
 	require.NoError(t, err)
 
-	rec, err := s.GetRecord(t.Context(), uri, coll, "my-rkey")
+	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "my-rkey")
 	require.NoError(t, err)
 	require.Equal(t, val, rec.Value)
 	require.Equal(t, "my-rkey", rec.Rkey)
@@ -200,13 +200,13 @@ func TestPutRecord_UpdateExisting(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.PutRecord(t.Context(), uri, coll, "rkey", map[string]any{"v": 1})
+	err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 1})
 	require.NoError(t, err)
 
-	err = s.PutRecord(t.Context(), uri, coll, "rkey", map[string]any{"v": 2})
+	err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 2})
 	require.NoError(t, err)
 
-	rec, err := s.GetRecord(t.Context(), uri, coll, "rkey")
+	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "rkey")
 	require.NoError(t, err)
 	require.Equal(t, float64(2), rec.Value["v"])
 }
@@ -217,7 +217,7 @@ func TestGetRecord_NotFound(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	_, err = s.GetRecord(t.Context(), uri, syntax.NSID("network.habitat.note"), "nonexistent")
+	_, err = s.GetRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "nonexistent")
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }
 
@@ -230,9 +230,9 @@ func TestListRecords(t *testing.T) {
 	collA := syntax.NSID("network.habitat.alpha")
 	collB := syntax.NSID("network.habitat.beta")
 
-	require.NoError(t, s.PutRecord(t.Context(), uri, collA, "k1", map[string]any{"x": 1}))
-	require.NoError(t, s.PutRecord(t.Context(), uri, collA, "k2", map[string]any{"x": 2}))
-	require.NoError(t, s.PutRecord(t.Context(), uri, collB, "k1", map[string]any{"x": 3}))
+	require.NoError(t, s.PutRecord(t.Context(), uri, owner, collA, "k1", map[string]any{"x": 1}))
+	require.NoError(t, s.PutRecord(t.Context(), uri, owner, collA, "k2", map[string]any{"x": 2}))
+	require.NoError(t, s.PutRecord(t.Context(), uri, owner, collB, "k1", map[string]any{"x": 3}))
 
 	// All records
 	records, err := s.ListRecords(t.Context(), uri, nil)
@@ -255,13 +255,13 @@ func TestDeleteRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	err = s.PutRecord(t.Context(), uri, coll, "rkey", map[string]any{"x": 1})
+	err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
 	require.NoError(t, err)
 
 	err = s.DeleteRecord(t.Context(), uri, coll, "rkey")
 	require.NoError(t, err)
 
-	_, err = s.GetRecord(t.Context(), uri, coll, "rkey")
+	_, err = s.GetRecord(t.Context(), uri, owner, coll, "rkey")
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }
 
@@ -278,12 +278,12 @@ func TestDeleteRecord_Nonexistent(t *testing.T) {
 
 func TestSpaceURI(t *testing.T) {
 	uri := ConstructSpaceURI(owner, groupType, "my-key")
-	require.Equal(t, "habitat://did:plc:owner/network.habitat.group/my-key", uri.String())
+	require.Equal(t, "ats://did:plc:owner/network.habitat.group/my-key", uri.String())
 	require.Equal(t, owner, uri.SpaceDID())
 	require.Equal(t, groupType, uri.SpaceType())
-	require.Equal(t, "my-key", uri.Skey())
+	require.Equal(t, Skey("my-key"), uri.Skey())
 
-	parsed, err := ParseSpaceURI("habitat://did:plc:owner/network.habitat.group/my-key")
+	parsed, err := ParseSpaceURI("ats://did:plc:owner/network.habitat.group/my-key")
 	require.NoError(t, err)
 	require.Equal(t, uri, parsed)
 }
@@ -294,10 +294,10 @@ func TestParseSpaceURI_Invalid(t *testing.T) {
 		name  string
 	}{
 		{"", "empty"},
-		{"habitat://notadid/network.habitat.group/key", "invalid did"},
+		{"ats://notadid/network.habitat.group/key", "invalid did"},
 		{"notaspace", "no scheme"},
-		{"habitat://did:plc:abc", "missing type and key"},
-		{"habitat://did:plc:abc/notansid/key", "invalid type"},
+		{"ats://did:plc:abc", "missing type and key"},
+		{"ats://did:plc:abc/notansid/key", "invalid type"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
