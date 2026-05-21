@@ -97,14 +97,9 @@ func (f *FGA) Check(
 			Relation: relation,
 			Object:   object,
 		},
-	}
-	if len(contextualTuples) > 0 {
-		req.ContextualTuples = &openfgav1.ContextualTupleKeys{
-			TupleKeys: make([]*openfgav1.TupleKey, len(contextualTuples)),
-		}
-		for i, ct := range contextualTuples {
-			req.ContextualTuples.TupleKeys[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
-		}
+		ContextualTuples: &openfgav1.ContextualTupleKeys{
+			TupleKeys: toTupleKeys(contextualTuples),
+		},
 	}
 	resp, err := f.svr.Check(ctx, req)
 	if err != nil {
@@ -123,14 +118,9 @@ func (f *FGA) ListObjects(
 		User:     user,
 		Relation: relation,
 		Type:     objectType,
-	}
-	if len(contextualTuples) > 0 {
-		req.ContextualTuples = &openfgav1.ContextualTupleKeys{
-			TupleKeys: make([]*openfgav1.TupleKey, len(contextualTuples)),
-		}
-		for i, ct := range contextualTuples {
-			req.ContextualTuples.TupleKeys[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
-		}
+		ContextualTuples: &openfgav1.ContextualTupleKeys{
+			TupleKeys: toTupleKeys(contextualTuples),
+		},
 	}
 	resp, err := f.svr.ListObjects(ctx, req)
 	if err != nil {
@@ -155,12 +145,7 @@ func (f *FGA) ListUsers(
 		UserFilters: []*openfgav1.UserTypeFilter{
 			{Type: "user"},
 		},
-	}
-	if len(contextualTuples) > 0 {
-		req.ContextualTuples = make([]*openfgav1.TupleKey, len(contextualTuples))
-		for i, ct := range contextualTuples {
-			req.ContextualTuples[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
-		}
+		ContextualTuples: toTupleKeys(contextualTuples),
 	}
 	resp, err := f.svr.ListUsers(ctx, req)
 	if err != nil {
@@ -202,4 +187,16 @@ func (f *FGA) Close() error {
 	f.svr.Close()
 	f.ds.Close()
 	return nil
+}
+
+// toTupleKeys converts domain Tuples to OpenFGA TupleKey pointers.
+func toTupleKeys(tuples []Tuple) []*openfgav1.TupleKey {
+	if len(tuples) == 0 {
+		return nil
+	}
+	keys := make([]*openfgav1.TupleKey, len(tuples))
+	for i, ct := range tuples {
+		keys[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
+	}
+	return keys
 }
