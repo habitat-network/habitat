@@ -453,6 +453,7 @@ func (o *OAuthServer) HandleCallback(
 		arf.Did,
 		r.URL.Query().Get("code"),
 		r.URL.Query().Get("iss"),
+		r.URL.Query().Get("state"),
 		arf.ProviderState,
 	); err != nil {
 		o.metrics.callbackErr(err, "complete_login")
@@ -634,12 +635,24 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		}
 
 		c := fositeClient.(*client)
+		name := ""
+		if c.ClientName != nil {
+			name = *c.ClientName
+		}
+		clientURI := ""
+		if c.ClientURI != nil {
+			clientURI = *c.ClientURI
+		}
+		logoURI := ""
+		if c.LogoURI != nil {
+			logoURI = *c.LogoURI
+		}
 		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: c.ClientUri,
+			ClientUri: clientURI,
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      c.ClientName,
-			LogoUri:   c.LogoUri,
+			Name:      name,
+			LogoUri:   logoURI,
 		}
 	}
 	err = json.NewEncoder(w).Encode(output)

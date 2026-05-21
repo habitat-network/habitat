@@ -101,6 +101,7 @@ func TestOAuthStore_GetMissingSession(t *testing.T) {
 	store := newTestStore(t)
 	_, err := store.GetSession(ctx, syntax.DID("did:plc:nonexistent"), "default")
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
 func TestOAuthStore_EncryptionRoundTrip(t *testing.T) {

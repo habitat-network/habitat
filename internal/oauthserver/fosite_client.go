@@ -3,19 +3,18 @@ package oauthserver
 import (
 	"strings"
 
-	"github.com/habitat-network/habitat/internal/pdsclient"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/ory/fosite"
 )
 
 type client struct {
-	pdsclient.ClientMetadata
+	oauth.ClientMetadata
 }
 
 var _ fosite.Client = (*client)(nil)
 
 // GetAudience implements fosite.Client.
 func (c *client) GetAudience() fosite.Arguments {
-	// For public clients, audience is typically empty or matches the client URI
 	return fosite.Arguments{}
 }
 
@@ -26,18 +25,17 @@ func (c *client) GetGrantTypes() fosite.Arguments {
 
 // GetHashedSecret implements fosite.Client.
 func (c *client) GetHashedSecret() []byte {
-	// Public clients don't have secrets
 	return nil
 }
 
 // GetID implements fosite.Client.
 func (c *client) GetID() string {
-	return c.ClientId
+	return c.ClientID
 }
 
 // GetRedirectURIs implements fosite.Client.
 func (c *client) GetRedirectURIs() []string {
-	return c.RedirectUris
+	return c.RedirectURIs
 }
 
 // GetResponseTypes implements fosite.Client.
@@ -47,7 +45,6 @@ func (c *client) GetResponseTypes() fosite.Arguments {
 
 // GetScopes implements fosite.Client.
 func (c *client) GetScopes() fosite.Arguments {
-	// Split the scope string by spaces to handle multiple scopes
 	return strings.Split(c.Scope, " ")
 }
 

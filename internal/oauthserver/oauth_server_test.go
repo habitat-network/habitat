@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -56,16 +57,15 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	fakeProvider := newFakePDSProvider(t)
+	defer fakeProvider.Close()
 	secretStr, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	secret, err := encrypt.ParseKey(secretStr)
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
 		secret,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		login.NewRouter(fakeProvider),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -90,6 +90,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		}
 	}))
 	defer server.Close()
+	fakeProvider.SetRedirectURI(server.URL + "/oauth-callback")
 
 	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -152,9 +153,8 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	require.NoError(t, err)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	fakeProvider := newFakePDSProvider(t)
+	defer fakeProvider.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
@@ -162,7 +162,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		login.NewRouter(fakeProvider),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -170,7 +170,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		noop.Meter{},
 		testStore(t),
 	)
-	require.NoError(t, err)
 
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -185,11 +184,11 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		}
 	}))
 	defer server.Close()
+	fakeProvider.SetRedirectURI(server.URL + "/oauth-callback")
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	server.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
 
 	verifier := oauth2.GenerateVerifier()
 	config := &oauth2.Config{
@@ -204,9 +203,9 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				}))
@@ -265,9 +264,9 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.NoError(t, err, "failed to setup pds credential store")
 
 	// setup oauth server
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	clientMetadata := &oauth.ClientMetadata{}
+	fakeProvider := newFakePDSProvider(t)
+	defer fakeProvider.Close()
 
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
@@ -278,7 +277,7 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		login.NewRouter(fakeProvider),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -310,11 +309,12 @@ func TestOAuthServerE2E(t *testing.T) {
 		}
 	}))
 	defer server.Close()
+	fakeProvider.SetRedirectURI(server.URL + "/oauth-callback")
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err, "failed to create cookie jar")
 	server.Client().Jar = jar
 	// set the server's oauthClient redirectUri now that we know the url
-	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+	clientMetadata.RedirectURIs = []string{server.URL + "/oauth-callback"}
 
 	// setup client app that oauth server can make requests to
 	verifier := oauth2.GenerateVerifier()
@@ -329,9 +329,9 @@ func TestOAuthServerE2E(t *testing.T) {
 			switch r.URL.Path {
 			case "/client-metadata.json":
 				w.Header().Set("Content-Type", "application/json")
-				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-					ClientId:      "http://" + r.Host + "/client-metadata.json",
-					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+				err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+					ClientID:      "http://" + r.Host + "/client-metadata.json",
+					RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
 				})
@@ -428,7 +428,8 @@ func (s *testIsMemberStore) GetOrgForDID(ctx context.Context, did syntax.DID) (o
 func acquireAccessToken(
 	t *testing.T,
 	srv *OAuthServer,
-	clientMetadata *pdsclient.ClientMetadata,
+	clientMetadata *oauth.ClientMetadata,
+	provider *fakePDSProvider,
 ) string {
 	t.Helper()
 	flowServer := httptest.NewTLSServer(
@@ -446,11 +447,12 @@ func acquireAccessToken(
 		}),
 	)
 	t.Cleanup(flowServer.Close)
+	provider.SetRedirectURI(flowServer.URL + "/oauth-callback")
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 	flowServer.Client().Jar = jar
-	clientMetadata.RedirectUris = []string{flowServer.URL + "/oauth-callback"}
+	clientMetadata.RedirectURIs = []string{flowServer.URL + "/oauth-callback"}
 
 	verifier := oauth2.GenerateVerifier()
 	oauthCfg := &oauth2.Config{
@@ -465,9 +467,9 @@ func acquireAccessToken(
 		switch r.URL.Path {
 		case "/client-metadata.json":
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
-				ClientId:      "http://" + r.Host + "/client-metadata.json",
-				RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+			require.NoError(t, json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
 				ResponseTypes: []string{"code"},
 				GrantTypes:    []string{"authorization_code", "refresh_token"},
 			}))
@@ -511,9 +513,9 @@ func TestValidate(t *testing.T) {
 	require.NoError(t, err)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
-	defer oauthClient.Close()
+	clientMetadata := &oauth.ClientMetadata{}
+	fakeProvider := newFakePDSProvider(t)
+	defer fakeProvider.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	require.NoError(t, err)
@@ -526,7 +528,7 @@ func TestValidate(t *testing.T) {
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
-			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+			login.NewRouter(fakeProvider),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
 			credStore,
@@ -539,7 +541,7 @@ func TestValidate(t *testing.T) {
 	}
 
 	// Issue a real JWT via the complete OAuth flow.
-	validToken := acquireAccessToken(t, newSrv(testStore(t)), clientMetadata)
+	validToken := acquireAccessToken(t, newSrv(testStore(t)), clientMetadata, fakeProvider)
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
 	// and returns the HTTP status code together with Validate's return values.

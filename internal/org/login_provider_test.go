@@ -83,19 +83,18 @@ func TestLoginProvider_ExchangeRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), token, "", nil))
+	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), token, "", "", nil))
 }
 
 func TestLoginProvider_Exchange_InvalidToken(t *testing.T) {
 	p, _ := newTestLoginProvider(t)
-	err := p.Exchange(context.Background(), syntax.DID(""), "not-a-jwt", "", nil)
+	err := p.Exchange(context.Background(), syntax.DID(""), "not-a-jwt", "", "", nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
 func TestLoginProvider_Exchange_WrongSigningSecret(t *testing.T) {
 	p, _ := newTestLoginProvider(t)
 
-	// Token signed with a different secret should fail verification.
 	other := []byte("a-different-secret-for-this-test")
 	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: other}, nil)
 	require.NoError(t, err)
@@ -105,7 +104,7 @@ func TestLoginProvider_Exchange_WrongSigningSecret(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	err = p.Exchange(context.Background(), syntax.DID(""), tok, "", nil)
+	err = p.Exchange(context.Background(), syntax.DID(""), tok, "", "", nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -120,7 +119,7 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	err = p.Exchange(context.Background(), syntax.DID(""), tok, "", nil)
+	err = p.Exchange(context.Background(), syntax.DID(""), tok, "", "", nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -158,7 +157,7 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	require.Equal(t, callbackUrl.Path, "/oauth-callback")
 
 	code := callbackUrl.Query().Get("code")
-	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), code, "", nil))
+	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), code, "", "", nil))
 }
 
 func TestLoginProvider_HandlePasswordLogin_BadRequestBody(t *testing.T) {

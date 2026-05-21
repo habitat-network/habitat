@@ -103,6 +103,7 @@ func (p *googleProvider) Exchange(
 	did syntax.DID,
 	code string,
 	_ string,
+	_ string,
 	stateBytes []byte,
 ) error {
 	var s googleProviderState

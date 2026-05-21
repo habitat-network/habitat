@@ -28,6 +28,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/plugin/opentelemetry/tracing"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -121,26 +123,47 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Setup components
 	db := setupDB(cmd)
 
-	// Load encryption key for PDS credentials
+	// Load encryption key for credential storage
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to load PDS encryption key")
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
+
+	// OAuth store for persisting client sessions
+	oauthStore, err := pdsclient.NewOAuthStore(db, credKey)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pds cred store")
+		log.Fatal().Err(err).Msg("unable to setup oauth store")
+	}
+
+	// OAuth client secret as P-256 key for confidential client auth
+	clientSecret, err := encrypt.ParseKey(cmd.String(fOauthClientSecret))
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to load OAuth client secret")
+	}
+	clientKey, err := atcrypto.ParsePrivateBytesP256(clientSecret)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to parse OAuth client key")
 	}
 
 	domain := cmd.String(fDomain)
-	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		"https://"+domain+"/client-metadata.json", /*clientId*/
-		"https://"+domain,                         /*clientUri*/
-		"https://"+domain+"/oauth-callback",       /*redirectUri*/
-		cmd.String(fOauthClientSecret),
-		meter,
-	)
+	clientID := "https://" + domain + "/client-metadata.json"
+	oauthApp, err := pdsclient.NewClientApp(pdsclient.ClientAppConfig{
+		ClientID:    clientID,
+		CallbackURL: "https://" + domain + "/oauth-callback",
+		UserAgent:   "habitat/1.0",
+		Scopes:      []string{"atproto"},
+		PrivateKey:  clientKey,
+		KeyID:       clientID + "#oauth-key",
+		Store:       oauthStore,
+	})
 	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup oauth client")
+		log.Fatal().Err(err).Msg("unable to setup oauth client")
+	}
+
+	// pdscred still needed by oauthserver (will be removed in follow-up)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup pds cred store")
 	}
 
 	// Create error group for managing goroutines
@@ -170,16 +193,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup org store")
 	}
 
-	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
-		pdsCredStore,
-		oauthClient,
-		dir,
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup PDS client factory")
-	}
-
-	node := setupNode(cmd, pdsClientFactory, dir)
+	node := setupNode(cmd, oauthApp, dir)
 
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
 	if err != nil {
@@ -194,7 +208,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	providers := []login.Provider{
-		login.NewPDSProvider(oauthClient, pdsCredStore, dir),
+		login.NewPDSProvider(oauthApp),
 		orgLoginProvider,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
@@ -320,7 +334,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
-	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
+	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthApp))
 
 	// TODO: who is allowed to call the oauth handlers in an org?
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
@@ -356,7 +370,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
+	pdsForwarding := forwarding.NewPDSForwarding(oauthServer, oauthApp, dir)
 	// Only forward specific routes that we know we handle correctly; for now.
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
@@ -480,8 +494,8 @@ func serveDid(domain string) http.HandlerFunc {
 	}
 }
 
-func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc {
-	metadata := oauthClient.ClientMetadata()
+func serveClientMetadata(app *oauth.ClientApp) http.HandlerFunc {
+	metadata := app.Config.ClientMetadata()
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(metadata); err != nil {
@@ -530,13 +544,13 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 func setupNode(
 	cmd *cli.Command,
-	clientFactory pdsclient.HttpClientFactory,
+	app *oauth.ClientApp,
 	dir identity.Directory,
 ) node.Node {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
 	serviceEndpoint := "https://" + domain
-	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
+	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, app, dir)
 	return node.New(
 		serviceName,
 		serviceEndpoint,

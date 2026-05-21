@@ -29,7 +29,8 @@ type Provider interface {
 
 	// Exchange exchanges the callback code for credentials and should persist
 	// whatever credentials the provider acquires.
-	Exchange(ctx context.Context, did syntax.DID, code string, issuer string, state []byte) error
+	// oauthState is the OAuth state parameter from the callback URL.
+	Exchange(ctx context.Context, did syntax.DID, code string, issuer string, oauthState string, state []byte) error
 }
 
 // Router selects the correct Provider for a given login method.

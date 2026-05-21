@@ -2,7 +2,7 @@ package pdsclient
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +11,8 @@ import (
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"gorm.io/gorm"
 )
+
+const defaultAuthRequestTTL = 10 * time.Minute
 
 type oauthSessionModel struct {
 	DID       string `gorm:"column:did;primaryKey"`
@@ -27,6 +29,7 @@ type oauthAuthRequestModel struct {
 	Data      string    `gorm:"column:data;type:text"`
 	ExpiresAt time.Time `gorm:"column:expires_at;index"`
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (oauthAuthRequestModel) TableName() string { return "oauth_auth_requests" }
@@ -39,6 +42,9 @@ type OAuthStore struct {
 var _ oauth.ClientAuthStore = (*OAuthStore)(nil)
 
 func NewOAuthStore(db *gorm.DB, encryptionKey []byte) (*OAuthStore, error) {
+	if encryptionKey == nil {
+		return nil, fmt.Errorf("encryption key is required")
+	}
 	if err := db.AutoMigrate(&oauthSessionModel{}, &oauthAuthRequestModel{}); err != nil {
 		return nil, fmt.Errorf("migrate oauth store: %w", err)
 	}
@@ -46,11 +52,7 @@ func NewOAuthStore(db *gorm.DB, encryptionKey []byte) (*OAuthStore, error) {
 }
 
 func (s *OAuthStore) SaveSession(ctx context.Context, sess oauth.ClientSessionData) error {
-	data, err := json.Marshal(sess)
-	if err != nil {
-		return fmt.Errorf("marshal session: %w", err)
-	}
-	encrypted, err := encrypt.EncryptCBOR(string(data), s.encryptionKey)
+	encrypted, err := encrypt.EncryptCBOR(sess, s.encryptionKey)
 	if err != nil {
 		return fmt.Errorf("encrypt session: %w", err)
 	}
@@ -72,16 +74,14 @@ func (s *OAuthStore) GetSession(
 		Where("did = ? AND session_id = ?", did.String(), sessionID).
 		First(&m).
 		Error
-	if err != nil {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("session not found: %w", err)
-	}
-	var decrypted string
-	if err := encrypt.DecryptCBOR(m.Data, s.encryptionKey, &decrypted); err != nil {
-		return nil, fmt.Errorf("decrypt session: %w", err)
+	} else if err != nil {
+		return nil, fmt.Errorf("get session: %w", err)
 	}
 	var sess oauth.ClientSessionData
-	if err := json.Unmarshal([]byte(decrypted), &sess); err != nil {
-		return nil, fmt.Errorf("unmarshal session: %w", err)
+	if err := encrypt.DecryptCBOR(m.Data, s.encryptionKey, &sess); err != nil {
+		return nil, fmt.Errorf("decrypt session: %w", err)
 	}
 	return &sess, nil
 }
@@ -94,18 +94,14 @@ func (s *OAuthStore) DeleteSession(ctx context.Context, did syntax.DID, sessionI
 }
 
 func (s *OAuthStore) SaveAuthRequestInfo(ctx context.Context, info oauth.AuthRequestData) error {
-	data, err := json.Marshal(info)
-	if err != nil {
-		return fmt.Errorf("marshal auth request: %w", err)
-	}
-	encrypted, err := encrypt.EncryptCBOR(string(data), s.encryptionKey)
+	encrypted, err := encrypt.EncryptCBOR(info, s.encryptionKey)
 	if err != nil {
 		return fmt.Errorf("encrypt auth request: %w", err)
 	}
 	m := oauthAuthRequestModel{
 		State:     info.State,
 		Data:      encrypted,
-		ExpiresAt: time.Now().Add(10 * time.Minute),
+		ExpiresAt: time.Now().Add(defaultAuthRequestTTL),
 	}
 	return s.db.WithContext(ctx).Create(&m).Error
 }
@@ -119,17 +115,24 @@ func (s *OAuthStore) GetAuthRequestInfo(
 	if err != nil {
 		return nil, fmt.Errorf("auth request not found: %w", err)
 	}
-	var decrypted string
-	if err := encrypt.DecryptCBOR(m.Data, s.encryptionKey, &decrypted); err != nil {
+	var info oauth.AuthRequestData
+	if err := encrypt.DecryptCBOR(m.Data, s.encryptionKey, &info); err != nil {
 		return nil, fmt.Errorf("decrypt auth request: %w", err)
 	}
-	var info oauth.AuthRequestData
-	if err := json.Unmarshal([]byte(decrypted), &info); err != nil {
-		return nil, fmt.Errorf("unmarshal auth request: %w", err)
+	if m.ExpiresAt.Before(time.Now()) {
+		_ = s.db.WithContext(ctx).Delete(&m).Error // best-effort cleanup
+		return nil, fmt.Errorf("auth request not found: %w", gorm.ErrRecordNotFound)
 	}
 	return &info, nil
 }
 
 func (s *OAuthStore) DeleteAuthRequestInfo(ctx context.Context, state string) error {
 	return s.db.WithContext(ctx).Where("state = ?", state).Delete(&oauthAuthRequestModel{}).Error
+}
+
+func (s *OAuthStore) DeleteExpiredAuthRequests(ctx context.Context) error {
+	return s.db.WithContext(ctx).
+		Where("expires_at < ?", time.Now()).
+		Delete(&oauthAuthRequestModel{}).
+		Error
 }

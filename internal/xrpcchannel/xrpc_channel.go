@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 )
 
 type XrpcChannel interface {
@@ -21,45 +22,49 @@ type XrpcChannel interface {
 }
 
 type serviceProxyXrpcChannel struct {
-	serviceName   string
-	directory     identity.Directory
-	clientFactory pdsclient.HttpClientFactory
+	serviceName string
+	directory   identity.Directory
+	clientApp   *oauth.ClientApp
 }
 
 func NewServiceProxyXrpcChannel(
 	serviceName string,
-	clientFactory pdsclient.HttpClientFactory,
+	clientApp *oauth.ClientApp,
 	directory identity.Directory,
 ) XrpcChannel {
 	return &serviceProxyXrpcChannel{
-		serviceName:   serviceName,
-		clientFactory: clientFactory,
-		directory:     directory,
+		serviceName: serviceName,
+		clientApp:   clientApp,
+		directory:   directory,
 	}
 }
 
-// SendXRPC implements [XrpcChannel].
 func (m *serviceProxyXrpcChannel) SendXRPC(
 	ctx context.Context,
 	sender syntax.DID,
 	receiver syntax.DID,
 	req *http.Request,
 ) (*http.Response, error) {
-	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
 	atid, err := m.directory.LookupDID(context.Background(), receiver)
 	if err != nil {
 		return nil, fmt.Errorf("[xrpc channel]: failed to lookup identity: %w", err)
 	}
 	pearServiceEndpoint := atid.GetServiceEndpoint(m.serviceName)
-	url, err := url.Parse(pearServiceEndpoint)
+	u, err := url.Parse(pearServiceEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
-	pearServiceDid := fmt.Sprintf("did:web:%s#habitat", url.Hostname())
-	client, err := m.clientFactory.NewClient(req.Context(), sender)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %w", err)
-	}
+	pearServiceDid := fmt.Sprintf("did:web:%s#habitat", u.Hostname())
 	req.Header.Set("atproto-proxy", pearServiceDid)
-	return client.Do(req)
+
+	sess, err := m.clientApp.ResumeSession(ctx, sender, "default")
+	if err != nil {
+		return nil, fmt.Errorf("failed to resume session: %w", err)
+	}
+	nsidStr := strings.TrimPrefix(req.URL.Path, "/xrpc/")
+	nsid, err := syntax.ParseNSID(nsidStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse nsid: %w", err)
+	}
+	return sess.DoWithAuth(http.DefaultClient, req, nsid)
 }
