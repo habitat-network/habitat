@@ -1,0 +1,60 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.space.putRecord",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Write a record in a permissioned space, creating or updating it as needed. Requires auth, implemented by PDS.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "collection",
+                        "rkey",
+                        "record"
+                    ],
+                    "properties": {
+                        "space": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "Reference to the space."
+                        },
+                        "collection": {
+                            "type": "string",
+                            "format": "nsid",
+                            "description": "The NSID of the record collection."
+                        },
+                        "rkey": {
+                            "type": "string",
+                            "format": "record-key",
+                            "maxLength": 512,
+                            "description": "The Record Key."
+                        },
+                        "record": {
+                            "type": "unknown",
+                            "description": "The record to write."
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the written record."
+                        }
+                    }
+                }
+            },
+            "errors": [
+            ]
+        }
+    }
+}

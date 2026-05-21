@@ -1,0 +1,81 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.space.listSpaces",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the spaces that the authenticated user participates in, optionally filtered by type and/or owner DID. Requires auth.",
+            "parameters": {
+                "type": "params",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "format": "nsid",
+                        "description": "Filter to spaces of this type."
+                    },
+                    "did": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "Filter to spaces owned by this DID."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50
+                    },
+                    "cursor": {
+                        "type": "string"
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "spaces"
+                    ],
+                    "properties": {
+                        "cursor": {
+                            "type": "string"
+                        },
+                        "spaces": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "#spaceView"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "spaceView": {
+            "type": "object",
+            "required": [
+                "uri",
+                "type"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "URI of the space."
+                },
+                "type": {
+                    "type": "string",
+                    "format": "nsid",
+                    "description": "The NSID of the space type."
+                },
+                "skey": {
+                    "type": "string",
+                    "description": "The space key."
+                },
+                "memberCount": {
+                    "type": "integer",
+                    "description": "Number of members in the space."
+                }
+            }
+        }
+    }
+}

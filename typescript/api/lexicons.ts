@@ -492,6 +492,59 @@ export const schemaDict = {
       },
     },
   },
+  ComAtprotoServerGetServiceAuth: {
+    lexicon: 1,
+    id: 'com.atproto.server.getServiceAuth',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get a signed token on behalf of the requesting DID for the requested service.',
+        parameters: {
+          type: 'params',
+          required: ['aud'],
+          properties: {
+            aud: {
+              type: 'string',
+              format: 'did',
+              description:
+                'The DID of the service that the token will be used to authenticate with',
+            },
+            exp: {
+              type: 'integer',
+              description:
+                'The time in Unix Epoch seconds that the JWT expires. Defaults to 60 seconds in the future. The service may enforce certain time bounds on tokens depending on the requested scope.',
+            },
+            lxm: {
+              type: 'string',
+              format: 'nsid',
+              description:
+                'Lexicon (XRPC) method to bind the requested token to',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'BadExpiration',
+            description:
+              'Indicates that the requested expiration date is not a valid. May be in the past or may be reliant on the requested scopes.',
+          },
+        ],
+      },
+    },
+  },
   CommunityLexiconCalendarEvent: {
     lexicon: 1,
     id: 'community.lexicon.calendar.event',
@@ -2394,6 +2447,548 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceAddMember: {
+    lexicon: 1,
+    id: 'network.habitat.space.addMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Add a member to a space. Caller must have can_manage_members or be an org admin.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'did'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'Reference to the space.',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the user to add.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The specified space does not exist.',
+          },
+          {
+            name: 'UserAlreadyMember',
+            description: 'The user is already a member of the space.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceCreateSpace: {
+    lexicon: 1,
+    id: 'network.habitat.space.createSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a new space. The authenticated user becomes the space owner. Requires auth, implemented by PDS.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['type'],
+            properties: {
+              type: {
+                type: 'string',
+                format: 'nsid',
+                description:
+                  'The NSID of the space type, describing the modality of the space (e.g. network.habitat.group, network.habidata.personal).',
+              },
+              skey: {
+                type: 'string',
+                maxLength: 512,
+                description:
+                  'The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the created space.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceAlreadyExists',
+            description:
+              'A space with this owner, type, and skey already exists.',
+          },
+          {
+            name: 'InvalidType',
+            description:
+              'The provided space type NSID is not a recognized or valid space type.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceDeleteRecord: {
+    lexicon: 1,
+    id: 'network.habitat.space.deleteRecord',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Delete a record in a space, or ensure it doesn't exist. Caller must have can_delete on the space.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'collection', 'rkey'],
+            nullable: ['swapRecord', 'swapCommit'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'Reference to the space.',
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'The NSID of the record collection.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                description: 'The Record Key.',
+              },
+              swapRecord: {
+                type: 'string',
+                format: 'cid',
+                description:
+                  'Compare and swap with the previous record by CID.',
+              },
+              swapCommit: {
+                type: 'string',
+                format: 'cid',
+                description:
+                  'Compare and swap with the previous commit by CID.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        errors: [
+          {
+            name: 'InvalidSwap',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceGetMembers: {
+    lexicon: 1,
+    id: 'network.habitat.space.getMembers',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get the list of members in a space. Caller must have can_manage_members or be an org admin.',
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'Reference to the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['members'],
+            properties: {
+              members: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.getMembers#member',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The specified space does not exist.',
+          },
+        ],
+      },
+      member: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          addedAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceGetRecord: {
+    lexicon: 1,
+    id: 'network.habitat.space.getRecord',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Get a single record from a permissioned space.',
+        parameters: {
+          type: 'params',
+          required: ['space', 'collection', 'rkey'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description:
+                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+            },
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record collection.',
+            },
+            rkey: {
+              type: 'string',
+              format: 'record-key',
+              description: 'The Record Key.',
+            },
+            cid: {
+              type: 'string',
+              format: 'cid',
+              description:
+                'The CID of the version of the record. If not specified, return the most recent version.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri', 'cid', 'value'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the record.',
+              },
+              cid: {
+                type: 'string',
+                format: 'cid',
+              },
+              value: {
+                type: 'unknown',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'RecordNotFound',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceListRecords: {
+    lexicon: 1,
+    id: 'network.habitat.space.listRecords',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List records in a permissioned space, matching a specific collection.',
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description:
+                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+            },
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record type.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+            },
+            cursor: {
+              type: 'string',
+            },
+            reverse: {
+              type: 'boolean',
+              description: 'Flag to reverse the order of the returned records.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listRecords#record',
+                },
+              },
+            },
+          },
+        },
+      },
+      record: {
+        type: 'object',
+        required: ['collection', 'rkey', 'cid'],
+        properties: {
+          collection: {
+            type: 'string',
+            format: 'nsid',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceListSpaces: {
+    lexicon: 1,
+    id: 'network.habitat.space.listSpaces',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the spaces that the authenticated user participates in, optionally filtered by type and/or owner DID. Requires auth.',
+        parameters: {
+          type: 'params',
+          properties: {
+            type: {
+              type: 'string',
+              format: 'nsid',
+              description: 'Filter to spaces of this type.',
+            },
+            did: {
+              type: 'string',
+              format: 'did',
+              description: 'Filter to spaces owned by this DID.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['spaces'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              spaces: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listSpaces#spaceView',
+                },
+              },
+            },
+          },
+        },
+      },
+      spaceView: {
+        type: 'object',
+        required: ['uri', 'type'],
+        properties: {
+          uri: {
+            type: 'string',
+            description: 'URI of the space.',
+          },
+          type: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the space type.',
+          },
+          skey: {
+            type: 'string',
+            description: 'The space key.',
+          },
+          memberCount: {
+            type: 'integer',
+            description: 'Number of members in the space.',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpacePutRecord: {
+    lexicon: 1,
+    id: 'network.habitat.space.putRecord',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Write a record in a permissioned space, creating or updating it as needed. Requires auth, implemented by PDS.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collection', 'rkey', 'record'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'Reference to the space.',
+              },
+              collection: {
+                type: 'string',
+                format: 'nsid',
+                description: 'The NSID of the record collection.',
+              },
+              rkey: {
+                type: 'string',
+                format: 'record-key',
+                maxLength: 512,
+                description: 'The Record Key.',
+              },
+              record: {
+                type: 'unknown',
+                description: 'The record to write.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the written record.',
+              },
+            },
+          },
+        },
+        errors: [],
+      },
+    },
+  },
+  NetworkHabitatSpaceRemoveMember: {
+    lexicon: 1,
+    id: 'network.habitat.space.removeMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove a member from a space. Caller must have can_manage_members or be an org admin.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'did'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'Reference to the space.',
+              },
+              did: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the user to remove.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The specified space does not exist.',
+          },
+          {
+            name: 'NotAMember',
+            description: 'The specified user is not a member of the space.',
+          },
+        ],
+      },
+    },
+  },
 } as const satisfies Record<string, LexiconDoc>
 export const schemas = Object.values(schemaDict) satisfies LexiconDoc[]
 export const lexicons: Lexicons = new Lexicons(schemas)
@@ -2435,6 +3030,7 @@ export const ids = {
   ComAtprotoRepoListRecords: 'com.atproto.repo.listRecords',
   ComAtprotoRepoPutRecord: 'com.atproto.repo.putRecord',
   ComAtprotoRepoStrongRef: 'com.atproto.repo.strongRef',
+  ComAtprotoServerGetServiceAuth: 'com.atproto.server.getServiceAuth',
   CommunityLexiconCalendarEvent: 'community.lexicon.calendar.event',
   CommunityLexiconCalendarInvite: 'community.lexicon.calendar.invite',
   CommunityLexiconCalendarRsvp: 'community.lexicon.calendar.rsvp',
@@ -2481,4 +3077,13 @@ export const ids = {
   NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
+  NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
+  NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
+  NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
+  NetworkHabitatSpaceGetMembers: 'network.habitat.space.getMembers',
+  NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
+  NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
+  NetworkHabitatSpaceListSpaces: 'network.habitat.space.listSpaces',
+  NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
+  NetworkHabitatSpaceRemoveMember: 'network.habitat.space.removeMember',
 } as const
