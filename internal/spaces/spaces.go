@@ -67,9 +67,8 @@ type Store interface {
 	) (habitat_syntax.SpaceURI, error)
 	ListSpaces(
 		ctx context.Context,
-		actor syntax.DID,
+		owner syntax.DID,
 		filterType *syntax.NSID,
-		filterOwner *syntax.DID,
 	) ([]SpaceView, error)
 
 	// Member operations
@@ -180,74 +179,19 @@ func (s *store) CreateSpace(
 
 func (s *store) ListSpaces(
 	ctx context.Context,
-	actor syntax.DID,
+	owner syntax.DID,
 	filterType *syntax.NSID,
-	filterOwner *syntax.DID,
 ) ([]SpaceView, error) {
 	var rows []space
-
-	if filterOwner != nil {
-		if err := s.db.WithContext(ctx).Model(&space{}).
-			Where("owner = ?", filterOwner).
-			Order("created_at DESC").
-			Find(&rows).Error; err != nil {
-			return nil, err
-		}
-	} else {
-		if err := s.db.WithContext(ctx).Model(&space{}).
-			Where("owner = ?", actor).
-			Order("created_at DESC").
-			Find(&rows).Error; err != nil {
-			return nil, err
-		}
-
-		fgaObjects, err := s.fga.ListObjects(
-			ctx,
-			fgastore.MemberUserString(actor),
-			"member",
-			"space",
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list fga member spaces: %w", err)
-		}
-
-		for _, obj := range fgaObjects {
-			uri, err := fgastore.ParseSpaceObjectKey(obj)
-			if err != nil {
-				continue
-			}
-
-			alreadyOwned := false
-			for _, row := range rows {
-				if row.Owner == uri.SpaceDID() && row.Skey == uri.Skey() {
-					alreadyOwned = true
-					break
-				}
-			}
-			if alreadyOwned {
-				continue
-			}
-
-			var memberSpace space
-			if err := s.db.WithContext(ctx).
-				Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-				First(&memberSpace).Error; err != nil {
-				continue
-			}
-			rows = append(rows, memberSpace)
-		}
-	}
-
+	query := s.db.WithContext(ctx).Model(&space{}).
+		Where("owner = ?", owner)
 	if filterType != nil {
-		var filtered []space
-		for _, row := range rows {
-			if row.Type == *filterType {
-				filtered = append(filtered, row)
-			}
-		}
-		rows = filtered
+		query = query.Where("type = ?", filterType)
 	}
-
+	if err := query.Order("created_at DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
 	views := make([]SpaceView, len(rows))
 	for i, row := range rows {
 		views[i] = SpaceView{
@@ -256,7 +200,6 @@ func (s *store) ListSpaces(
 			Skey: row.Skey,
 		}
 	}
-
 	return views, nil
 }
 
