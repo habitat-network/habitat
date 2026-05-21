@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "procedure",
-            "description": "Add a member to a space. Caller must have can_manage_members or be an org admin.",
+            "description": "Add a member to a space. Caller must have can_manage_members.",
             "input": {
                 "encoding": "application/json",
                 "schema": {

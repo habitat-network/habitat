@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "query",
-            "description": "Get a single record from a permissioned space.",
+            "description": "Get a single record from a permissioned space. Callable by any space member.",
             "parameters": {
                 "type": "params",
                 "required": [
