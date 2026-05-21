@@ -16,7 +16,7 @@ func newTestStore(t *testing.T) Store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	fga, err := fgastore.NewSQLite(t.Context(), ":memory:")
+	fga, err := fgastore.NewInMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	s, err := NewStore(db, fga)
@@ -78,7 +78,7 @@ func TestListSpaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Owner should see both
-	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 2)
 
@@ -90,7 +90,7 @@ func TestListSpaces(t *testing.T) {
 	require.Contains(t, uris, uri1)
 
 	// Alice should see none (not a member of any space)
-	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
+	spaces, err = s.ListSpaces(t.Context(), alice, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 0)
 }
@@ -106,7 +106,7 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	_, err = s.CreateSpace(t.Context(), owner, personal, "personal1")
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), owner, &groupType, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, &groupType)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 	require.Equal(t, groupType, spaces[0].Type)
@@ -296,7 +296,7 @@ func TestPutAndGetRecord(t *testing.T) {
 	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "my-rkey")
 	require.NoError(t, err)
 	require.Equal(t, val, rec.Value)
-	require.Equal(t, "my-rkey", rec.Rkey)
+	require.Equal(t, syntax.RecordKey("my-rkey"), rec.Rkey)
 }
 
 func TestPutRecord_UpdateExisting(t *testing.T) {
