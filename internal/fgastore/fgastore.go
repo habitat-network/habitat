@@ -16,12 +16,31 @@ import (
 
 var _ Store = (*FGA)(nil)
 
+// Tuple represents a relationship tuple (used as contextual tuples in requests).
+type Tuple struct {
+	User     string
+	Relation string
+	Object   string
+}
+
 type Store interface {
-	Check(ctx context.Context, user, relation, object string) (bool, error)
+	Check(
+		ctx context.Context,
+		user, relation, object string,
+		contextualTuples ...Tuple,
+	) (bool, error)
 	Write(ctx context.Context, user, relation, object string) error
 	Delete(ctx context.Context, user, relation, object string) error
-	ListObjects(ctx context.Context, user, relation, objectType string) ([]string, error)
-	ListUsers(ctx context.Context, object, relation string) ([]string, error)
+	ListObjects(
+		ctx context.Context,
+		user, relation, objectType string,
+		contextualTuples ...Tuple,
+	) ([]string, error)
+	ListUsers(
+		ctx context.Context,
+		object, relation string,
+		contextualTuples ...Tuple,
+	) ([]string, error)
 	Close() error
 }
 
@@ -66,13 +85,20 @@ func newFromDS(ctx context.Context, ds storage.OpenFGADatastore) (*FGA, error) {
 	return &FGA{ds: ds, svr: svr, storeID: createResp.GetId()}, nil
 }
 
-func (f *FGA) Check(ctx context.Context, user, relation, object string) (bool, error) {
+func (f *FGA) Check(
+	ctx context.Context,
+	user, relation, object string,
+	contextualTuples ...Tuple,
+) (bool, error) {
 	resp, err := f.svr.Check(ctx, &openfgav1.CheckRequest{
 		StoreId: f.storeID,
 		TupleKey: &openfgav1.CheckRequestTupleKey{
 			User:     user,
 			Relation: relation,
 			Object:   object,
+		},
+		ContextualTuples: &openfgav1.ContextualTupleKeys{
+			TupleKeys: toTupleKeys(contextualTuples),
 		},
 	})
 	if err != nil {
@@ -84,12 +110,16 @@ func (f *FGA) Check(ctx context.Context, user, relation, object string) (bool, e
 func (f *FGA) ListObjects(
 	ctx context.Context,
 	user, relation, objectType string,
+	contextualTuples ...Tuple,
 ) ([]string, error) {
 	resp, err := f.svr.ListObjects(ctx, &openfgav1.ListObjectsRequest{
 		StoreId:  f.storeID,
 		User:     user,
 		Relation: relation,
 		Type:     objectType,
+		ContextualTuples: &openfgav1.ContextualTupleKeys{
+			TupleKeys: toTupleKeys(contextualTuples),
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list objects: %w", err)
@@ -97,7 +127,11 @@ func (f *FGA) ListObjects(
 	return resp.GetObjects(), nil
 }
 
-func (f *FGA) ListUsers(ctx context.Context, object, relation string) ([]string, error) {
+func (f *FGA) ListUsers(
+	ctx context.Context,
+	object, relation string,
+	contextualTuples ...Tuple,
+) ([]string, error) {
 	objType, objID, ok := strings.Cut(object, ":")
 	if !ok {
 		return nil, fmt.Errorf("invalid object format %q: expected type:id", object)
@@ -109,6 +143,7 @@ func (f *FGA) ListUsers(ctx context.Context, object, relation string) ([]string,
 		UserFilters: []*openfgav1.UserTypeFilter{
 			{Type: "user"},
 		},
+		ContextualTuples: toTupleKeys(contextualTuples),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
@@ -123,23 +158,22 @@ func (f *FGA) ListUsers(ctx context.Context, object, relation string) ([]string,
 }
 
 func (f *FGA) Write(ctx context.Context, user, relation, object string) error {
-	tk := tuple.NewTupleKey(object, relation, user)
 	_, err := f.svr.Write(ctx, &openfgav1.WriteRequest{
 		StoreId: f.storeID,
 		Writes: &openfgav1.WriteRequestWrites{
-			TupleKeys: []*openfgav1.TupleKey{tk},
+			TupleKeys: []*openfgav1.TupleKey{tuple.NewTupleKey(object, relation, user)},
 		},
 	})
 	return err
 }
 
 func (f *FGA) Delete(ctx context.Context, user, relation, object string) error {
-	tk := tuple.NewTupleKey(object, relation, user)
-	tkWithoutCond := tuple.TupleKeyToTupleKeyWithoutCondition(tk)
 	_, err := f.svr.Write(ctx, &openfgav1.WriteRequest{
 		StoreId: f.storeID,
 		Deletes: &openfgav1.WriteRequestDeletes{
-			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{tkWithoutCond},
+			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(object, relation, user)),
+			},
 		},
 	})
 	return err
@@ -149,4 +183,16 @@ func (f *FGA) Close() error {
 	f.svr.Close()
 	f.ds.Close()
 	return nil
+}
+
+// toTupleKeys converts domain Tuples to OpenFGA TupleKey pointers.
+func toTupleKeys(tuples []Tuple) []*openfgav1.TupleKey {
+	if len(tuples) == 0 {
+		return nil
+	}
+	keys := make([]*openfgav1.TupleKey, len(tuples))
+	for i, ct := range tuples {
+		keys[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
+	}
+	return keys
 }
