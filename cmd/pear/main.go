@@ -123,21 +123,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Setup components
 	db := setupDB(cmd)
 
-	var fgaStore fgastore.Store
-	postgresUrl := cmd.String(fPgUrl)
-	if postgresUrl != "" {
-		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup fga store with postgres")
-		}
-		fgaStore = fga
-	} else {
-		fga, err := fgastore.NewInMemory(ctx)
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup in-memory fga store")
-		}
-		fgaStore = fga
-	}
+	fgaStore := setupFGA(ctx, cmd)
 
 	// Load encryption key for PDS credentials
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
@@ -561,6 +547,22 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 		log.Fatal().Err(err).Msg("unable to run migrations")
 	}
 	return db
+}
+
+func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
+	postgresUrl := cmd.String(fPgUrl)
+	if postgresUrl != "" {
+		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup fga store with postgres")
+		}
+		return fga
+	}
+	fga, err := fgastore.NewInMemory(ctx)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup in-memory fga store")
+	}
+	return fga
 }
 
 func setupNode(
