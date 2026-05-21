@@ -18,8 +18,8 @@ import (
 // GORM models
 
 type space struct {
-	Owner     syntax.DID          `gorm:"primaryKey"`
-	Skey      habitat_syntax.Skey `gorm:"primaryKey"`
+	Owner     syntax.DID              `gorm:"primaryKey"`
+	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
 	Type      syntax.NSID
 	CreatedAt time.Time
 }
@@ -28,7 +28,7 @@ type spaceRecord struct {
 	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Owner      syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
-	Rkey       string                  `gorm:"primaryKey"`
+	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -38,7 +38,7 @@ type spaceRecord struct {
 type SpaceView struct {
 	URI         habitat_syntax.SpaceURI
 	Type        syntax.NSID
-	Skey        habitat_syntax.Skey
+	Skey        habitat_syntax.SpaceKey
 	MemberCount int
 }
 
@@ -51,7 +51,7 @@ type MemberInfo struct {
 // Record is a single record within a space
 type Record struct {
 	Collection syntax.NSID
-	Rkey       string
+	Rkey       syntax.RecordKey
 	Value      map[string]any
 	UpdatedAt  time.Time
 }
@@ -63,13 +63,12 @@ type Store interface {
 		ctx context.Context,
 		owner syntax.DID,
 		spaceType syntax.NSID,
-		skey habitat_syntax.Skey,
+		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
 	ListSpaces(
 		ctx context.Context,
-		actor syntax.DID,
+		owner syntax.DID,
 		filterType *syntax.NSID,
-		filterOwner *syntax.DID,
 	) ([]SpaceView, error)
 
 	// Member operations
@@ -84,7 +83,7 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
-		rkey string,
+		rkey syntax.RecordKey,
 		value map[string]any,
 	) error
 	GetRecord(
@@ -92,7 +91,7 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
-		rkey string,
+		rkey syntax.RecordKey,
 	) (*Record, error)
 	ListRecords(
 		ctx context.Context,
@@ -147,7 +146,7 @@ func (s *store) CreateSpace(
 	ctx context.Context,
 	owner syntax.DID,
 	spaceType syntax.NSID,
-	skey habitat_syntax.Skey,
+	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
 	if skey == "" {
 		skey = habitat_syntax.NewSkey()
@@ -180,74 +179,19 @@ func (s *store) CreateSpace(
 
 func (s *store) ListSpaces(
 	ctx context.Context,
-	actor syntax.DID,
+	owner syntax.DID,
 	filterType *syntax.NSID,
-	filterOwner *syntax.DID,
 ) ([]SpaceView, error) {
 	var rows []space
-
-	if filterOwner != nil {
-		if err := s.db.WithContext(ctx).Model(&space{}).
-			Where("owner = ?", filterOwner).
-			Order("created_at DESC").
-			Find(&rows).Error; err != nil {
-			return nil, err
-		}
-	} else {
-		if err := s.db.WithContext(ctx).Model(&space{}).
-			Where("owner = ?", actor).
-			Order("created_at DESC").
-			Find(&rows).Error; err != nil {
-			return nil, err
-		}
-
-		fgaObjects, err := s.fga.ListObjects(
-			ctx,
-			fgastore.MemberUserString(actor),
-			"member",
-			"space",
-		)
-		if err != nil {
-			return nil, fmt.Errorf("list fga member spaces: %w", err)
-		}
-
-		for _, obj := range fgaObjects {
-			uri, err := fgastore.ParseSpaceObjectKey(obj)
-			if err != nil {
-				continue
-			}
-
-			alreadyOwned := false
-			for _, row := range rows {
-				if row.Owner == uri.SpaceDID() && row.Skey == uri.Skey() {
-					alreadyOwned = true
-					break
-				}
-			}
-			if alreadyOwned {
-				continue
-			}
-
-			var memberSpace space
-			if err := s.db.WithContext(ctx).
-				Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-				First(&memberSpace).Error; err != nil {
-				continue
-			}
-			rows = append(rows, memberSpace)
-		}
-	}
-
+	query := s.db.WithContext(ctx).Model(&space{}).
+		Where("owner = ?", owner)
 	if filterType != nil {
-		var filtered []space
-		for _, row := range rows {
-			if row.Type == *filterType {
-				filtered = append(filtered, row)
-			}
-		}
-		rows = filtered
+		query = query.Where("type = ?", filterType)
 	}
-
+	if err := query.Order("created_at DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
 	views := make([]SpaceView, len(rows))
 	for i, row := range rows {
 		views[i] = SpaceView{
@@ -256,7 +200,6 @@ func (s *store) ListSpaces(
 			Skey: row.Skey,
 		}
 	}
-
 	return views, nil
 }
 
@@ -395,7 +338,7 @@ func (s *store) PutRecord(
 	uri habitat_syntax.SpaceURI,
 	owner syntax.DID,
 	collection syntax.NSID,
-	rkey string,
+	rkey syntax.RecordKey,
 	value map[string]any,
 ) error {
 
@@ -432,7 +375,7 @@ func (s *store) GetRecord(
 	uri habitat_syntax.SpaceURI,
 	owner syntax.DID,
 	collection syntax.NSID,
-	rkey string,
+	rkey syntax.RecordKey,
 ) (*Record, error) {
 	var row spaceRecord
 	err := s.db.WithContext(ctx).

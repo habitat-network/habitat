@@ -2,6 +2,7 @@ package fgastore
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -10,28 +11,18 @@ import (
 )
 
 // OpenFGA uses ":" as a delimiter in user and object references,
-// but DIDs contain ":" (e.g. "did:plc:alice").  We use "_" as a
-// stand-in for ":" when encoding DIDs into FGA tuple strings, and
-// reverse the substitution when parsing them back.
-
-func fgaEncodeDID(did syntax.DID) string {
-	return strings.ReplaceAll(did.String(), ":", "_")
-}
-
-func fgaDecodeDID(s string) (syntax.DID, error) {
-	return syntax.ParseDID(strings.ReplaceAll(s, "_", ":"))
-}
+// but DIDs and SpaceURIs contain ":" (e.g. "did:plc:alice").  We use
+// URL encoding (%3A for ":") to safely encode them into FGA tuple strings.
 
 // SpaceObjectKey returns the FGA object key for a space.
-// The key is the full SpaceURI with colons replaced by underscores
-// so OpenFGA can parse it as a typed object.
+// The key is the full SpaceURI URL-encoded so OpenFGA can parse it as a typed object.
 func SpaceObjectKey(uri habitat_syntax.SpaceURI) string {
-	return "space:" + strings.ReplaceAll(uri.String(), ":", "_")
+	return "space:" + url.QueryEscape(uri.String())
 }
 
 // MemberUserString returns the FGA user string for a DID member.
 func MemberUserString(did syntax.DID) string {
-	return "user:" + fgaEncodeDID(did)
+	return "user:" + url.QueryEscape(did.String())
 }
 
 // MemberUserToDID extracts a DID from an FGA user string.
@@ -39,7 +30,11 @@ func MemberUserToDID(user string) (syntax.DID, error) {
 	if !strings.HasPrefix(user, "user:") {
 		return "", fmt.Errorf("invalid fga user format: %s", user)
 	}
-	return fgaDecodeDID(strings.TrimPrefix(user, "user:"))
+	raw, err := url.QueryUnescape(strings.TrimPrefix(user, "user:"))
+	if err != nil {
+		return "", fmt.Errorf("member user to did: %w", err)
+	}
+	return syntax.ParseDID(raw)
 }
 
 // ParseSpaceObjectKey parses an FGA space object key back into a SpaceURI.
@@ -47,6 +42,9 @@ func ParseSpaceObjectKey(key string) (habitat_syntax.SpaceURI, error) {
 	if !strings.HasPrefix(key, "space:") {
 		return "", fmt.Errorf("invalid space object key: %s", key)
 	}
-	raw := strings.ReplaceAll(strings.TrimPrefix(key, "space:"), "_", ":")
+	raw, err := url.QueryUnescape(strings.TrimPrefix(key, "space:"))
+	if err != nil {
+		return "", fmt.Errorf("parse space object key: %w", err)
+	}
 	return habitat_syntax.ParseSpaceURI(raw)
 }

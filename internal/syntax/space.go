@@ -9,10 +9,22 @@ import (
 	"github.com/google/uuid"
 )
 
-type Skey string
+type SpaceKey string
 
-func NewSkey() Skey {
-	return Skey(uuid.New().String())
+func NewSkey() SpaceKey {
+	return SpaceKey(uuid.New().String())
+}
+
+func (s SpaceKey) String() string {
+	return string(s)
+}
+
+func ParseSkey(s string) (SpaceKey, error) {
+	_, err := syntax.ParseRecordKey(s)
+	if err != nil {
+		return "", err
+	}
+	return SpaceKey(s), nil
 }
 
 // SpaceURI identifies a space.
@@ -23,7 +35,7 @@ var spaceURIRegex = regexp.MustCompile(
 	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
 )
 
-func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey Skey) SpaceURI {
+func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey SpaceKey) SpaceURI {
 	return SpaceURI(fmt.Sprintf("ats://%s/%s/%s", spaceDID, spaceType, skey))
 }
 
@@ -70,12 +82,12 @@ func (s SpaceURI) SpaceType() syntax.NSID {
 	return nsid
 }
 
-func (s SpaceURI) Skey() Skey {
+func (s SpaceURI) Skey() SpaceKey {
 	parts := spaceURIRegex.FindStringSubmatch(string(s))
 	if len(parts) < 4 {
 		return ""
 	}
-	return Skey(parts[3])
+	return SpaceKey(parts[3])
 }
 
 func (s SpaceURI) String() string {
