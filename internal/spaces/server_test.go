@@ -273,6 +273,88 @@ func TestServer_ListRecords(t *testing.T) {
 	require.Equal(t, "k2", output.Records[1].Rkey)
 }
 
+func TestServer_AddMember_Unauthorized(t *testing.T) {
+	s := newTestServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "did": "did:plc:bob"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.addMember",
+		strings.NewReader(body),
+	)
+	req = authReq(req, alice)
+	w := httptest.NewRecorder()
+	s.AddMember(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestServer_RemoveMember_Unauthorized(t *testing.T) {
+	s := newTestServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "did": "did:plc:bob"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.removeMember",
+		strings.NewReader(body),
+	)
+	req = authReq(req, alice)
+	w := httptest.NewRecorder()
+	s.RemoveMember(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestServer_PutRecord_Unauthorized(t *testing.T) {
+	s := newTestServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "test", "record": {"x": 1}}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.putRecord",
+		strings.NewReader(body),
+	)
+	req = authReq(req, alice)
+	w := httptest.NewRecorder()
+	s.PutRecord(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
+	s := newTestServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	err = s.store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"test",
+		map[string]any{"x": 1},
+	)
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "test"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteRecord",
+		strings.NewReader(body),
+	)
+	req = authReq(req, alice)
+	w := httptest.NewRecorder()
+	s.DeleteRecord(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
 func TestServer_Unauthorized(t *testing.T) {
 	s := newTestServer(t)
 
