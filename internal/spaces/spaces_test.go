@@ -16,7 +16,7 @@ func newTestStore(t *testing.T) Store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	fga, err := fgastore.NewInMemory(t.Context())
+	fga, err := fgastore.NewSQLite(t.Context(), ":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	s, err := NewStore(db, fga)
@@ -78,7 +78,7 @@ func TestListSpaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Owner should see both
-	spaces, err := s.ListSpaces(t.Context(), owner, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 2)
 
@@ -90,7 +90,7 @@ func TestListSpaces(t *testing.T) {
 	require.Contains(t, uris, uri1)
 
 	// Alice should see none (not a member of any space)
-	spaces, err = s.ListSpaces(t.Context(), alice, nil)
+	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 0)
 }
@@ -106,13 +106,11 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	_, err = s.CreateSpace(t.Context(), owner, personal, "personal1")
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), owner, &groupType)
+	spaces, err := s.ListSpaces(t.Context(), owner, &groupType, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 	require.Equal(t, groupType, spaces[0].Type)
 }
-
-
 
 func TestGetMembers(t *testing.T) {
 	s := newTestStore(t)
@@ -391,7 +389,7 @@ func TestSpaceURI(t *testing.T) {
 	require.Equal(t, "ats://did:plc:owner/network.habitat.group/my-key", uri.String())
 	require.Equal(t, owner, uri.SpaceDID())
 	require.Equal(t, groupType, uri.SpaceType())
-	require.Equal(t, habitat_syntax.Skey("my-key"), uri.Skey())
+	require.Equal(t, habitat_syntax.SpaceKey("my-key"), uri.Skey())
 
 	parsed, err := habitat_syntax.ParseSpaceURI("ats://did:plc:owner/network.habitat.group/my-key")
 	require.NoError(t, err)

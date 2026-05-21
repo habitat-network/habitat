@@ -19,7 +19,7 @@ import (
 
 type space struct {
 	Owner     syntax.DID          `gorm:"primaryKey"`
-	Skey      habitat_syntax.Skey `gorm:"primaryKey"`
+	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
 	Type      syntax.NSID
 	CreatedAt time.Time
 }
@@ -28,7 +28,7 @@ type spaceRecord struct {
 	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	Owner      syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
-	Rkey       string                  `gorm:"primaryKey"`
+	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -38,7 +38,7 @@ type spaceRecord struct {
 type SpaceView struct {
 	URI         habitat_syntax.SpaceURI
 	Type        syntax.NSID
-	Skey        habitat_syntax.Skey
+	Skey        habitat_syntax.SpaceKey
 	MemberCount int
 }
 
@@ -63,7 +63,7 @@ type Store interface {
 		ctx context.Context,
 		owner syntax.DID,
 		spaceType syntax.NSID,
-		skey habitat_syntax.Skey,
+		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
 	ListSpaces(
 		ctx context.Context,
@@ -146,7 +146,7 @@ func (s *store) CreateSpace(
 	ctx context.Context,
 	owner syntax.DID,
 	spaceType syntax.NSID,
-	skey habitat_syntax.Skey,
+	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
 	if skey == "" {
 		skey = habitat_syntax.NewSkey()
