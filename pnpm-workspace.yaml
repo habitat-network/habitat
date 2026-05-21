@@ -1,3 +1,5 @@
+ignoreScripts: true
+
 packages:
   - frontend
   - camera
