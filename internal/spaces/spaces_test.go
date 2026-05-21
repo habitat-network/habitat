@@ -217,7 +217,13 @@ func TestGetRecord_NotFound(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	_, err = s.GetRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "nonexistent")
+	_, err = s.GetRecord(
+		t.Context(),
+		uri,
+		owner,
+		syntax.NSID("network.habitat.note"),
+		"nonexistent",
+	)
 	require.ErrorIs(t, err, ErrRecordNotFound)
 }
 
