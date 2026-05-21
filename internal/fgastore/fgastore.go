@@ -3,14 +3,18 @@ package fgastore
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"strings"
 
+	"github.com/pressly/goose/v3"
+
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
+	"github.com/openfga/openfga/assets"
 	"github.com/openfga/openfga/pkg/server"
 	"github.com/openfga/openfga/pkg/storage"
-	"github.com/openfga/openfga/pkg/storage/memory"
 	"github.com/openfga/openfga/pkg/storage/postgres"
 	"github.com/openfga/openfga/pkg/storage/sqlcommon"
+	"github.com/openfga/openfga/pkg/storage/sqlite"
 	"github.com/openfga/openfga/pkg/tuple"
 )
 
@@ -51,6 +55,27 @@ type FGA struct {
 }
 
 func NewPostgres(ctx context.Context, uri string) (*FGA, error) {
+	db, err := goose.OpenDBWithDriver("pgx", uri)
+	if err != nil {
+		return nil, fmt.Errorf("fgastore open db: %w", err)
+	}
+	defer db.Close()
+	pgFS, err := fs.Sub(assets.EmbedMigrations, assets.PostgresMigrationDir)
+	if err != nil {
+		return nil, fmt.Errorf("fgastore migration fs: %w", err)
+	}
+	provider, err := goose.NewProvider(
+		goose.DialectPostgres,
+		db,
+		pgFS,
+		goose.WithTableName("fga_goose_db_version"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("fgastore migration provider: %w", err)
+	}
+	if _, err := provider.Up(ctx); err != nil {
+		return nil, fmt.Errorf("fgastore postgres migrations: %w", err)
+	}
 	ds, err := postgres.New(uri, &sqlcommon.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("fgastore postgres: %w", err)
@@ -58,8 +83,40 @@ func NewPostgres(ctx context.Context, uri string) (*FGA, error) {
 	return newFromDS(ctx, ds)
 }
 
-func NewInMemory(ctx context.Context) (*FGA, error) {
-	return newFromDS(ctx, memory.New())
+func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
+	preparedURI, err := sqlite.PrepareDSN(uri)
+	if err != nil {
+		return nil, fmt.Errorf("fgastore prepare dsn: %w", err)
+	}
+	db, err := goose.OpenDBWithDriver("sqlite", preparedURI)
+	if err != nil {
+		return nil, fmt.Errorf("fgastore open db: %w", err)
+	}
+	defer db.Close()
+	sqliteFS, err := fs.Sub(assets.EmbedMigrations, assets.SqliteMigrationDir)
+	if err != nil {
+		return nil, fmt.Errorf("fgastore migration fs: %w", err)
+	}
+	provider, err := goose.NewProvider(
+		goose.DialectSQLite3,
+		db,
+		sqliteFS,
+		goose.WithTableName("fga_goose_db_version"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("fgastore migration provider: %w", err)
+	}
+	if _, err := provider.Up(ctx); err != nil {
+		return nil, fmt.Errorf("fgastore sqlite migrations: %w", err)
+	}
+	ds, err := sqlite.New(uri, &sqlcommon.Config{
+		MaxTuplesPerWriteField: 100,
+		MaxTypesPerModelField:  100,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fgastore sqlite: %w", err)
+	}
+	return newFromDS(ctx, ds)
 }
 
 func newFromDS(ctx context.Context, ds storage.OpenFGADatastore) (*FGA, error) {

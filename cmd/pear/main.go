@@ -563,9 +563,9 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 		}
 		return fga
 	}
-	fga, err := fgastore.NewInMemory(ctx)
+	fga, err := fgastore.NewSQLite(ctx, cmd.String(fDb))
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup in-memory fga store")
+		log.Fatal().Err(err).Msg("unable to setup fga sqlite store")
 	}
 	return fga
 }
