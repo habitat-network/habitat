@@ -8,7 +8,7 @@ require (
 	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
 	github.com/habitat-network/habitat v0.0.2-testing-9
 	github.com/pressly/goose/v3 v3.27.1
-	github.com/rs/zerolog v1.34.0
+	github.com/rs/zerolog v1.35.1
 	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli/v3 v3.7.0
 	go.opentelemetry.io/otel v1.43.0

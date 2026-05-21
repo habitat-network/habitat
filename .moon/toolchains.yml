@@ -1,10 +1,17 @@
+proto:
+  version: 0.57.2
 go:
   version: null
   tidyOnChange: true
+  inferRelationships: false
   bins:
+  # for some reason multiple bins in ci for >moon@v2.0.0 
+  # keep getting stuck during installation. 
   - github.com/vladopajic/go-test-coverage/v2@v2.18.3
-  - github.com/air-verse/air@v1.65.1
-  - github.com/pressly/goose/v3/cmd/goose@v3.27.1
+  - bin: github.com/air-verse/air@v1.65.1
+    local: true
+  - bin: github.com/pressly/goose/v3/cmd/goose@v3.27.1
+    local: true
 node:
   version: null
 pnpm:
