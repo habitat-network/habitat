@@ -18,7 +18,7 @@ import (
 // GORM models
 
 type space struct {
-	Owner     syntax.DID          `gorm:"primaryKey"`
+	Owner     syntax.DID              `gorm:"primaryKey"`
 	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
 	Type      syntax.NSID
 	CreatedAt time.Time
@@ -51,7 +51,7 @@ type MemberInfo struct {
 // Record is a single record within a space
 type Record struct {
 	Collection syntax.NSID
-	Rkey       string
+	Rkey       syntax.RecordKey
 	Value      map[string]any
 	UpdatedAt  time.Time
 }
@@ -83,7 +83,7 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
-		rkey string,
+		rkey syntax.RecordKey,
 		value map[string]any,
 	) error
 	GetRecord(
@@ -91,7 +91,7 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
-		rkey string,
+		rkey syntax.RecordKey,
 	) (*Record, error)
 	ListRecords(
 		ctx context.Context,
@@ -338,7 +338,7 @@ func (s *store) PutRecord(
 	uri habitat_syntax.SpaceURI,
 	owner syntax.DID,
 	collection syntax.NSID,
-	rkey string,
+	rkey syntax.RecordKey,
 	value map[string]any,
 ) error {
 
@@ -375,7 +375,7 @@ func (s *store) GetRecord(
 	uri habitat_syntax.SpaceURI,
 	owner syntax.DID,
 	collection syntax.NSID,
-	rkey string,
+	rkey syntax.RecordKey,
 ) (*Record, error) {
 	var row spaceRecord
 	err := s.db.WithContext(ctx).
