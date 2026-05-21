@@ -46,6 +46,7 @@ import {
 import { UserAvatar } from "internal";
 import { HelpDialog } from "@/components/HelpDialog";
 import { PageHeader } from "@/components/PageHeader";
+import { HabitatDoc } from "@/habitatDoc";
 import { CheckIcon } from "lucide-react";
 import { profileQueryOptions } from "@/queries/profile";
 
@@ -155,8 +156,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
     }
 
+    const spaceUri = `ats://${uri.split("/")[2]}/network.habitat.docs/${uri.split("/")[4]}`;
     const edits = await context.queryClient.fetchQuery(
-      docEditsQueryOptions(data, context.authManager),
+      docEditsQueryOptions(spaceUri, context.authManager),
     );
     for (const e of edits) {
       if (e?.value.blob) {
@@ -251,12 +253,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       ydoc,
       provider,
       node,
-      doc,
       uri,
       profile,
       dialRelayAndStartPeerDiscovery,
     } = Route.useLoaderData();
-    const [, , docDID, , rkey] = uri.split("/");
+    const [, , docDID] = uri.split("/");
+    const spaceUri = `ats://${docDID}/network.habitat.docs/${uri.split("/")[4]}`;
     const { authManager, queryClient } = Route.useRouteContext();
     const did = authManager.getAuthInfo()?.did;
 
@@ -297,27 +299,25 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     const [dirty, setDirty] = useState(false);
     const { data: editorProfiles } = useQuery(
-      editorProfilesQueryOptions(doc.value.editorClique, authManager),
+      editorProfilesQueryOptions(spaceUri, authManager),
     );
     const { mutate: save } = useMutation({
       mutationFn: async () => {
         const heading = getHeadingFromYdoc(ydoc);
         const collection =
           docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
-        const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
+        const mappedKey = docDID === did ? "doc" : `${docDID}-${uri.split("/")[6]}`;
 
         await procedure(
-          "network.habitat.repo.putRecord",
+          "network.habitat.space.putRecord",
           {
-            repo: did!,
-            collection: collection,
+            space: spaceUri,
+            collection,
             rkey: mappedKey,
             record: {
               name: heading ?? "Untitled",
               blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
-              editorClique: doc.value.editorClique,
-            },
-            grantees: doc.permissions,
+            } satisfies HabitatDoc,
           },
           { authManager },
         );
@@ -417,27 +417,26 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           </div>
           <HelpDialog />
 
-          {docDID === authManager.getAuthInfo()?.did &&
-            doc.value.editorClique && (
-              <ShareDialog
-                isAdding={isAddingPermission}
-                grantees={(editorProfiles ?? []).filter(
-                  (p) => p.did !== authManager.getAuthInfo()?.did,
-                )}
-                onAddPermission={(actors) =>
-                  addPermission({
-                    grantees: actors.map((actor) => actor.did),
-                    editorCliqueUri: doc.value.editorClique,
-                  })
-                }
-                onRemovePermission={(actor) =>
-                  removePermission({
-                    grantee: actor.did,
-                    editorCliqueUri: doc.value.editorClique,
-                  })
-                }
-              />
-            )}
+          {docDID === authManager.getAuthInfo()?.did && (
+            <ShareDialog
+              isAdding={isAddingPermission}
+              grantees={(editorProfiles ?? []).filter(
+                (p) => p.did !== authManager.getAuthInfo()?.did,
+              )}
+              onAddPermission={(actors) =>
+                addPermission({
+                  grantees: actors.map((actor) => actor.did),
+                  spaceUri,
+                })
+              }
+              onRemovePermission={(actor) =>
+                removePermission({
+                  grantee: actor.did,
+                  spaceUri,
+                })
+              }
+            />
+          )}
         </PageHeader>
       </div>
     );

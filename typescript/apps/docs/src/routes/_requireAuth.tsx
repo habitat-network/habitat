@@ -97,38 +97,24 @@ export const Route = createFileRoute("/_requireAuth")({
 
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
-        const did = authManager.getAuthInfo()?.did;
-        const { clique } = await procedure(
-          "network.habitat.clique.createClique",
-          {
-            members: [],
-          },
+        const { uri: spaceUri } = await procedure(
+          "network.habitat.space.createSpace",
+          { type: "network.habitat.docs" },
           { authManager },
         );
-        const response = await procedure(
-          "network.habitat.repo.putRecord",
+        const { uri } = await procedure(
+          "network.habitat.space.putRecord",
           {
-            repo: did ?? "",
+            space: spaceUri,
             collection: "network.habitat.docs",
-            record: {
-              name: "Untitled",
-              blob: null,
-              editorClique: clique,
-            } satisfies HabitatDoc,
-            grantees: [
-              {
-                $type: "network.habitat.grantee#clique",
-                clique: clique,
-              },
-            ],
+            rkey: "doc",
+            record: { name: "Untitled", blob: null } satisfies HabitatDoc,
           },
           { authManager },
         );
         navigate({
           to: "/$uri",
-          params: {
-            uri: response.uri,
-          },
+          params: { uri },
         });
       },
       onSuccess: () => {
