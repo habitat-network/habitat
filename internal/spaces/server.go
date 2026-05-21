@@ -108,6 +108,17 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
+	var owner syntax.DID
+	if params.Did != "" {
+		ownerDid, err := syntax.ParseDID(params.Did)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parse did", http.StatusBadRequest)
+			return
+		}
+		owner = ownerDid
+	} else {
+		owner = callerDID
+	}
 
 	var filterType *syntax.NSID
 	if params.Type != "" {
@@ -119,17 +130,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		filterType = &t
 	}
 
-	var filterOwner *syntax.DID
-	if params.Did != "" {
-		d, err := syntax.ParseDID(params.Did)
-		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse did filter", http.StatusBadRequest)
-			return
-		}
-		filterOwner = &d
-	}
-
-	spaces, err := s.store.ListSpaces(r.Context(), callerDID, filterType, filterOwner)
+	spaces, err := s.store.ListSpaces(r.Context(), owner, filterType)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list spaces", http.StatusInternalServerError)
 		return
