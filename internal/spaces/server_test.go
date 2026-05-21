@@ -18,9 +18,7 @@ import (
 )
 
 // testAuth implements authn.Method for testing.
-type testAuth struct {
-	did syntax.DID
-}
+type testAuth struct{}
 
 func (t *testAuth) CanHandle(r *http.Request) bool {
 	return r.Header.Get("X-Test-DID") != ""
@@ -48,7 +46,7 @@ func newTestServer(t *testing.T) *Server {
 	t.Cleanup(func() { _ = fga.Close() })
 	store, err := NewStore(db, fga)
 	require.NoError(t, err)
-	return NewServer(store, &testAuth{did: owner}, &testAuth{did: owner})
+	return NewServer(store, &testAuth{}, &testAuth{})
 }
 
 func authReq(r *http.Request, did syntax.DID) *http.Request {
@@ -173,6 +171,9 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	err = json.NewDecoder(getW.Body).Decode(&getOutput)
 	require.NoError(t, err)
 	require.Equal(t, putOutput.Uri, getOutput.Uri)
+	val, ok := getOutput.Value.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "hello", val["text"])
 }
 
 func TestServer_DeleteRecord(t *testing.T) {
@@ -193,6 +194,34 @@ func TestServer_DeleteRecord(t *testing.T) {
 
 	_, err = s.store.GetRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "del-me")
 	require.ErrorIs(t, err, ErrRecordNotFound)
+}
+
+func TestServer_ListRecords(t *testing.T) {
+	s := newTestServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note",
+		nil)
+	req = authReq(req, owner)
+	w := httptest.NewRecorder()
+	s.ListRecords(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var output habitat.NetworkHabitatSpaceListRecordsOutput
+	err = json.NewDecoder(w.Body).Decode(&output)
+	require.NoError(t, err)
+	require.Len(t, output.Records, 2)
+	require.Equal(t, "k1", output.Records[0].Rkey)
+	require.Equal(t, "k2", output.Records[1].Rkey)
 }
 
 func TestServer_Unauthorized(t *testing.T) {
