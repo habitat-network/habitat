@@ -5,106 +5,30 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/habitat-network/habitat/internal/fgastore"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
-
-type Skey string
-
-func NewSkey() Skey {
-	return Skey(uuid.New().String())
-}
-
-// SpaceURI identifies a space.
-// Format: "ats://spaceDID/spaceType/skey"
-// See https://dholms.leaflet.pub/3mlegohgtps2k
-type SpaceURI string
-
-var spaceURIRegex = regexp.MustCompile(
-	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})$`,
-)
-
-func ConstructSpaceURI(spaceDID syntax.DID, spaceType syntax.NSID, skey Skey) SpaceURI {
-	return SpaceURI(fmt.Sprintf("ats://%s/%s/%s", spaceDID, spaceType, skey))
-}
-
-func ParseSpaceURI(raw string) (SpaceURI, error) {
-	if len(raw) > 8192 {
-		return "", errors.New("SpaceURI is too long (8192 chars max)")
-	}
-	parts := spaceURIRegex.FindStringSubmatch(raw)
-	if len(parts) < 4 || parts[0] == "" {
-		return "", errors.New("invalid space URI format")
-	}
-	_, err := syntax.ParseDID(parts[1])
-	if err != nil {
-		return "", fmt.Errorf("space URI DID is not valid: %s", parts[1])
-	}
-	_, err = syntax.ParseNSID(parts[2])
-	if err != nil {
-		return "", fmt.Errorf("space URI type is not a valid NSID: %s", parts[2])
-	}
-	return SpaceURI(raw), nil
-}
-
-func (s SpaceURI) SpaceDID() syntax.DID {
-	parts := spaceURIRegex.FindStringSubmatch(string(s))
-	if len(parts) < 4 {
-		return ""
-	}
-	did, err := syntax.ParseDID(parts[1])
-	if err != nil {
-		return ""
-	}
-	return did
-}
-
-func (s SpaceURI) SpaceType() syntax.NSID {
-	parts := spaceURIRegex.FindStringSubmatch(string(s))
-	if len(parts) < 4 {
-		return ""
-	}
-	nsid, err := syntax.ParseNSID(parts[2])
-	if err != nil {
-		return ""
-	}
-	return nsid
-}
-
-func (s SpaceURI) Skey() Skey {
-	parts := spaceURIRegex.FindStringSubmatch(string(s))
-	if len(parts) < 4 {
-		return ""
-	}
-	return Skey(parts[3])
-}
-
-func (s SpaceURI) String() string {
-	return string(s)
-}
 
 // GORM models
 
 type space struct {
-	Owner     syntax.DID `gorm:"primaryKey"`
-	Skey      Skey       `gorm:"primaryKey"`
+	Owner     syntax.DID          `gorm:"primaryKey"`
+	Skey      habitat_syntax.Skey `gorm:"primaryKey"`
 	Type      syntax.NSID
 	CreatedAt time.Time
 }
 
-// TODO: members table will be added when the permission store is built.
-// For now, the owner is always the sole member of a space.
-
 type spaceRecord struct {
-	Space      SpaceURI    `gorm:"primaryKey"`
-	Owner      syntax.DID  `gorm:"primaryKey"`
-	Collection syntax.NSID `gorm:"primaryKey"`
-	Rkey       string      `gorm:"primaryKey"`
+	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Owner      syntax.DID              `gorm:"primaryKey"`
+	Collection syntax.NSID             `gorm:"primaryKey"`
+	Rkey       string                  `gorm:"primaryKey"`
 	Value      []byte
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -112,9 +36,9 @@ type spaceRecord struct {
 
 // SpaceView is the public representation of a space
 type SpaceView struct {
-	URI         SpaceURI
+	URI         habitat_syntax.SpaceURI
 	Type        syntax.NSID
-	Skey        Skey
+	Skey        habitat_syntax.Skey
 	MemberCount int
 }
 
@@ -139,8 +63,8 @@ type Store interface {
 		ctx context.Context,
 		owner syntax.DID,
 		spaceType syntax.NSID,
-		skey Skey,
-	) (SpaceURI, error)
+		skey habitat_syntax.Skey,
+	) (habitat_syntax.SpaceURI, error)
 	ListSpaces(
 		ctx context.Context,
 		actor syntax.DID,
@@ -149,14 +73,15 @@ type Store interface {
 	) ([]SpaceView, error)
 
 	// Member operations
-	// TODO: AddMember and RemoveMember will be added when the permission store is built.
-	GetMembers(ctx context.Context, space SpaceURI) ([]MemberInfo, error)
-	IsMember(ctx context.Context, space SpaceURI, did syntax.DID) (bool, error)
+	AddMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
+	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
+	GetMembers(ctx context.Context, space habitat_syntax.SpaceURI) ([]MemberInfo, error)
+	IsMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) (bool, error)
 
 	// Record operations
 	PutRecord(
 		ctx context.Context,
-		space SpaceURI,
+		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey string,
@@ -164,53 +89,73 @@ type Store interface {
 	) error
 	GetRecord(
 		ctx context.Context,
-		space SpaceURI,
+		space habitat_syntax.SpaceURI,
 		owner syntax.DID,
 		collection syntax.NSID,
 		rkey string,
 	) (*Record, error)
 	ListRecords(
 		ctx context.Context,
-		space SpaceURI,
+		space habitat_syntax.SpaceURI,
 		collection *syntax.NSID,
 	) ([]Record, error)
-	DeleteRecord(ctx context.Context, space SpaceURI, collection syntax.NSID, rkey string) error
+	DeleteRecord(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		collection syntax.NSID,
+		rkey string,
+	) error
 }
 
 var (
 	ErrSpaceNotFound      = errors.New("space not found")
 	ErrSpaceAlreadyExists = errors.New("space already exists")
 	ErrRecordNotFound     = errors.New("record not found")
+	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
+	ErrNotAMember         = errors.New("user is not a member of the space")
+	ErrCannotRemoveOwner  = errors.New("cannot remove the owner of a space")
 )
 
 // ---- Store implementation ----
 
 type store struct {
-	db *gorm.DB
+	db  *gorm.DB
+	fga fgastore.Store
 }
 
 var _ Store = &store{}
 
-func NewStore(db *gorm.DB) (*store, error) {
+func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
 	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
-	return &store{db: db}, nil
+	return &store{db: db, fga: fga}, nil
+}
+
+// ownerContextualTuple returns a Tuple representing the owner relationship,
+// for use as a contextual tuple in FGA queries.  This is how we make the
+// owner a recognized member of the space without storing the owner in FGA.
+func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
+	return fgastore.Tuple{
+		User:     fgastore.MemberUserString(uri.SpaceDID()),
+		Relation: "owner",
+		Object:   fgastore.SpaceObjectKey(uri),
+	}
 }
 
 func (s *store) CreateSpace(
 	ctx context.Context,
 	owner syntax.DID,
 	spaceType syntax.NSID,
-	skey Skey,
-) (SpaceURI, error) {
+	skey habitat_syntax.Skey,
+) (habitat_syntax.SpaceURI, error) {
 	if skey == "" {
-		skey = NewSkey()
+		skey = habitat_syntax.NewSkey()
 	}
 
 	var existing space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", owner.String(), skey).
+		Where("owner = ? AND skey = ?", owner, skey).
 		First(&existing).
 		Error
 	if err == nil {
@@ -230,7 +175,7 @@ func (s *store) CreateSpace(
 		return "", err
 	}
 
-	return ConstructSpaceURI(owner, spaceType, skey), nil
+	return habitat_syntax.ConstructSpaceURI(owner, spaceType, skey), nil
 }
 
 func (s *store) ListSpaces(
@@ -239,32 +184,76 @@ func (s *store) ListSpaces(
 	filterType *syntax.NSID,
 	filterOwner *syntax.DID,
 ) ([]SpaceView, error) {
-	query := s.db.WithContext(ctx).Model(&space{})
+	var rows []space
 
-	// TODO: When the permission store is built, this will query across
-	// memberships. For now only the owner sees their own spaces.
 	if filterOwner != nil {
-		query = query.Where("owner = ?", filterOwner.String())
+		if err := s.db.WithContext(ctx).Model(&space{}).
+			Where("owner = ?", filterOwner).
+			Order("created_at DESC").
+			Find(&rows).Error; err != nil {
+			return nil, err
+		}
 	} else {
-		query = query.Where("owner = ?", actor.String())
+		if err := s.db.WithContext(ctx).Model(&space{}).
+			Where("owner = ?", actor).
+			Order("created_at DESC").
+			Find(&rows).Error; err != nil {
+			return nil, err
+		}
+
+		fgaObjects, err := s.fga.ListObjects(
+			ctx,
+			fgastore.MemberUserString(actor),
+			"member",
+			"space",
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list fga member spaces: %w", err)
+		}
+
+		for _, obj := range fgaObjects {
+			uri, err := fgastore.ParseSpaceObjectKey(obj)
+			if err != nil {
+				continue
+			}
+
+			alreadyOwned := false
+			for _, row := range rows {
+				if row.Owner == uri.SpaceDID() && row.Skey == uri.Skey() {
+					alreadyOwned = true
+					break
+				}
+			}
+			if alreadyOwned {
+				continue
+			}
+
+			var memberSpace space
+			if err := s.db.WithContext(ctx).
+				Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+				First(&memberSpace).Error; err != nil {
+				continue
+			}
+			rows = append(rows, memberSpace)
+		}
 	}
 
 	if filterType != nil {
-		query = query.Where("type = ?", filterType.String())
-	}
-
-	var rows []space
-	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
-		return nil, err
+		var filtered []space
+		for _, row := range rows {
+			if row.Type == *filterType {
+				filtered = append(filtered, row)
+			}
+		}
+		rows = filtered
 	}
 
 	views := make([]SpaceView, len(rows))
 	for i, row := range rows {
 		views[i] = SpaceView{
-			URI:         ConstructSpaceURI(syntax.DID(row.Owner), row.Type, row.Skey),
-			Type:        row.Type,
-			Skey:        row.Skey,
-			MemberCount: 1, // only the owner for now
+			URI:  habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey),
+			Type: row.Type,
+			Skey: row.Skey,
 		}
 	}
 
@@ -273,11 +262,11 @@ func (s *store) ListSpaces(
 
 func (s *store) GetMembers(
 	ctx context.Context,
-	uri SpaceURI,
+	uri habitat_syntax.SpaceURI,
 ) ([]MemberInfo, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID().String(), uri.Skey()).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrSpaceNotFound
@@ -285,19 +274,36 @@ func (s *store) GetMembers(
 		return nil, err
 	}
 
-	return []MemberInfo{
-		{Did: uri.SpaceDID(), AddedAt: sp.CreatedAt},
-	}, nil
+	fgaUsers, err := s.fga.ListUsers(
+		ctx,
+		fgastore.SpaceObjectKey(uri),
+		"member",
+		ownerContextualTuple(uri),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list fga members: %w", err)
+	}
+
+	members := make([]MemberInfo, len(fgaUsers))
+	for i, u := range fgaUsers {
+		did, err := fgastore.MemberUserToDID(u)
+		if err != nil {
+			continue
+		}
+		members[i] = MemberInfo{Did: did}
+	}
+
+	return members, nil
 }
 
 func (s *store) IsMember(
 	ctx context.Context,
-	uri SpaceURI,
+	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) (bool, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID().String(), uri.Skey()).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
@@ -305,21 +311,94 @@ func (s *store) IsMember(
 		return false, err
 	}
 
-	return did == uri.SpaceDID(), nil
+	return s.fga.Check(
+		ctx,
+		fgastore.MemberUserString(did),
+		"member",
+		fgastore.SpaceObjectKey(uri),
+		ownerContextualTuple(uri),
+	)
+}
+
+func (s *store) AddMember(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	did syntax.DID,
+) error {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrSpaceNotFound
+	} else if err != nil {
+		return err
+	}
+
+	exists, err := s.fga.Check(
+		ctx,
+		fgastore.MemberUserString(did),
+		"member",
+		fgastore.SpaceObjectKey(uri),
+		ownerContextualTuple(uri),
+	)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrUserAlreadyMember
+	}
+
+	return s.fga.Write(ctx, fgastore.MemberUserString(did), "member", fgastore.SpaceObjectKey(uri))
+}
+
+func (s *store) RemoveMember(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	did syntax.DID,
+) error {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrSpaceNotFound
+	} else if err != nil {
+		return err
+	}
+
+	if did == uri.SpaceDID() {
+		return ErrCannotRemoveOwner
+	}
+
+	exists, err := s.fga.Check(
+		ctx,
+		fgastore.MemberUserString(did),
+		"member",
+		fgastore.SpaceObjectKey(uri),
+		ownerContextualTuple(uri),
+	)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotAMember
+	}
+
+	return s.fga.Delete(ctx, fgastore.MemberUserString(did), "member", fgastore.SpaceObjectKey(uri))
 }
 
 // ---- Record operations ----
 
 func (s *store) PutRecord(
 	ctx context.Context,
-	uri SpaceURI,
+	uri habitat_syntax.SpaceURI,
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey string,
 	value map[string]any,
 ) error {
 
-	// Verify space exists
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
@@ -350,7 +429,7 @@ func (s *store) PutRecord(
 
 func (s *store) GetRecord(
 	ctx context.Context,
-	uri SpaceURI,
+	uri habitat_syntax.SpaceURI,
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey string,
@@ -358,7 +437,7 @@ func (s *store) GetRecord(
 	var row spaceRecord
 	err := s.db.WithContext(ctx).
 		Where("space = ? AND owner = ? AND collection = ? AND rkey = ?",
-			uri.String(), owner, collection.String(), rkey).
+			uri, owner, collection, rkey).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
@@ -381,22 +460,20 @@ func (s *store) GetRecord(
 
 func (s *store) ListRecords(
 	ctx context.Context,
-	uri SpaceURI,
+	uri habitat_syntax.SpaceURI,
 	collection *syntax.NSID,
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
-		Where("space = ?", uri.String())
+		Where("space = ?", uri)
 
 	if collection != nil {
-		query = query.Where("collection = ?", collection.String())
+		query = query.Where("collection = ?", collection)
 	}
 
 	var rows []spaceRecord
 	if err := query.Order("rkey ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-
-	// TODO : pagination
 
 	records := make([]Record, len(rows))
 	for i, row := range rows {
@@ -417,13 +494,13 @@ func (s *store) ListRecords(
 
 func (s *store) DeleteRecord(
 	ctx context.Context,
-	uri SpaceURI,
+	uri habitat_syntax.SpaceURI,
 	collection syntax.NSID,
 	rkey string,
 ) error {
 	result := s.db.WithContext(ctx).
 		Where("space = ? AND collection = ? AND rkey = ?",
-			uri.String(), collection.String(), rkey).
+			uri, collection, rkey).
 		Delete(&spaceRecord{})
 
 	if result.Error != nil {

@@ -16,12 +16,31 @@ import (
 
 var _ Store = (*FGA)(nil)
 
+// Tuple represents a relationship tuple (used as contextual tuples in requests).
+type Tuple struct {
+	User     string
+	Relation string
+	Object   string
+}
+
 type Store interface {
-	Check(ctx context.Context, user, relation, object string) (bool, error)
+	Check(
+		ctx context.Context,
+		user, relation, object string,
+		contextualTuples ...Tuple,
+	) (bool, error)
 	Write(ctx context.Context, user, relation, object string) error
 	Delete(ctx context.Context, user, relation, object string) error
-	ListObjects(ctx context.Context, user, relation, objectType string) ([]string, error)
-	ListUsers(ctx context.Context, object, relation string) ([]string, error)
+	ListObjects(
+		ctx context.Context,
+		user, relation, objectType string,
+		contextualTuples ...Tuple,
+	) ([]string, error)
+	ListUsers(
+		ctx context.Context,
+		object, relation string,
+		contextualTuples ...Tuple,
+	) ([]string, error)
 	Close() error
 }
 
@@ -66,15 +85,28 @@ func newFromDS(ctx context.Context, ds storage.OpenFGADatastore) (*FGA, error) {
 	return &FGA{ds: ds, svr: svr, storeID: createResp.GetId()}, nil
 }
 
-func (f *FGA) Check(ctx context.Context, user, relation, object string) (bool, error) {
-	resp, err := f.svr.Check(ctx, &openfgav1.CheckRequest{
+func (f *FGA) Check(
+	ctx context.Context,
+	user, relation, object string,
+	contextualTuples ...Tuple,
+) (bool, error) {
+	req := &openfgav1.CheckRequest{
 		StoreId: f.storeID,
 		TupleKey: &openfgav1.CheckRequestTupleKey{
 			User:     user,
 			Relation: relation,
 			Object:   object,
 		},
-	})
+	}
+	if len(contextualTuples) > 0 {
+		req.ContextualTuples = &openfgav1.ContextualTupleKeys{
+			TupleKeys: make([]*openfgav1.TupleKey, len(contextualTuples)),
+		}
+		for i, ct := range contextualTuples {
+			req.ContextualTuples.TupleKeys[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
+		}
+	}
+	resp, err := f.svr.Check(ctx, req)
 	if err != nil {
 		return false, fmt.Errorf("check: %w", err)
 	}
@@ -84,32 +116,53 @@ func (f *FGA) Check(ctx context.Context, user, relation, object string) (bool, e
 func (f *FGA) ListObjects(
 	ctx context.Context,
 	user, relation, objectType string,
+	contextualTuples ...Tuple,
 ) ([]string, error) {
-	resp, err := f.svr.ListObjects(ctx, &openfgav1.ListObjectsRequest{
+	req := &openfgav1.ListObjectsRequest{
 		StoreId:  f.storeID,
 		User:     user,
 		Relation: relation,
 		Type:     objectType,
-	})
+	}
+	if len(contextualTuples) > 0 {
+		req.ContextualTuples = &openfgav1.ContextualTupleKeys{
+			TupleKeys: make([]*openfgav1.TupleKey, len(contextualTuples)),
+		}
+		for i, ct := range contextualTuples {
+			req.ContextualTuples.TupleKeys[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
+		}
+	}
+	resp, err := f.svr.ListObjects(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("list objects: %w", err)
 	}
 	return resp.GetObjects(), nil
 }
 
-func (f *FGA) ListUsers(ctx context.Context, object, relation string) ([]string, error) {
+func (f *FGA) ListUsers(
+	ctx context.Context,
+	object, relation string,
+	contextualTuples ...Tuple,
+) ([]string, error) {
 	objType, objID, ok := strings.Cut(object, ":")
 	if !ok {
 		return nil, fmt.Errorf("invalid object format %q: expected type:id", object)
 	}
-	resp, err := f.svr.ListUsers(ctx, &openfgav1.ListUsersRequest{
+	req := &openfgav1.ListUsersRequest{
 		StoreId:  f.storeID,
 		Object:   &openfgav1.Object{Type: objType, Id: objID},
 		Relation: relation,
 		UserFilters: []*openfgav1.UserTypeFilter{
 			{Type: "user"},
 		},
-	})
+	}
+	if len(contextualTuples) > 0 {
+		req.ContextualTuples = make([]*openfgav1.TupleKey, len(contextualTuples))
+		for i, ct := range contextualTuples {
+			req.ContextualTuples[i] = tuple.NewTupleKey(ct.Object, ct.Relation, ct.User)
+		}
+	}
+	resp, err := f.svr.ListUsers(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}

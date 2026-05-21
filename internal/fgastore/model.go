@@ -46,8 +46,21 @@ func authModel() *openfgav1.AuthorizationModel {
 			{
 				Type: "space",
 				Relations: map[string]*openfgav1.Userset{
-					"owner":  {Userset: &openfgav1.Userset_This{}},
-					"member": {Userset: &openfgav1.Userset_This{}},
+					"owner": {Userset: &openfgav1.Userset_This{}},
+					"member": {
+						Userset: &openfgav1.Userset_Union{
+							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
+								{Userset: &openfgav1.Userset_This{}},
+								{
+									Userset: &openfgav1.Userset_ComputedUserset{
+										ComputedUserset: &openfgav1.ObjectRelation{
+											Relation: "owner",
+										},
+									},
+								},
+							}},
+						},
+					},
 					"editor": {
 						Userset: &openfgav1.Userset_Union{
 							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
