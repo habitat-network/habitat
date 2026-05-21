@@ -3,10 +3,10 @@ proto:
 go:
   version: null
   tidyOnChange: true
-  bins:
-  - github.com/vladopajic/go-test-coverage/v2@v2.18.3
-  - github.com/air-verse/air@v1.65.1
-  - github.com/pressly/goose/v3/cmd/goose@v3.27.1
+  # bins:
+  # - github.com/vladopajic/go-test-coverage/v2@v2.18.3
+  # - github.com/air-verse/air@v1.65.1
+  # - github.com/pressly/goose/v3/cmd/goose@v3.27.1
 node:
   version: null
 pnpm:
