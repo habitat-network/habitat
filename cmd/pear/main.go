@@ -124,9 +124,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 	db := setupDB(cmd)
 
 	var fgaStore fgastore.Store
-	fgaPgUrl := cmd.String(fFgaPgUrl)
-	if fgaPgUrl != "" {
-		fga, err := fgastore.NewPostgres(ctx, fgaPgUrl)
+	postgresUrl := cmd.String(fPgUrl)
+	if postgresUrl != "" {
+		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to setup fga store with postgres")
 		}

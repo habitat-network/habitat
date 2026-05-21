@@ -24,7 +24,6 @@ var (
 	fHiveDomain         = "hive_domain"
 	fGoogleClientID     = "google_client_id"
 	fGoogleClientSecret = "google_client_secret"
-	fFgaPgUrl           = "fga_pgurl"
 )
 var profiles []string
 
@@ -102,11 +101,6 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fGoogleClientSecret,
 				Usage:   "Google OAuth client secret for Google Sign-In login method",
 				Sources: getSources(fGoogleClientSecret),
-			},
-			&cli.StringFlag{
-				Name:    fFgaPgUrl,
-				Usage:   "The postgres connection string for OpenFGA",
-				Sources: getSources(fFgaPgUrl),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
