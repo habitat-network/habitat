@@ -1,6 +1,7 @@
 package spaces
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,24 +11,39 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 type Server struct {
 	store       Store
+	fga         fgastore.Store
 	oauth       authn.Method
 	serviceAuth authn.Method
 	decoder     *schema.Decoder
 }
 
-func NewServer(store Store, oauth authn.Method, serviceAuth authn.Method) *Server {
+func NewServer(store Store, fga fgastore.Store, oauth authn.Method, serviceAuth authn.Method) *Server {
 	return &Server{
 		store:       store,
+		fga:         fga,
 		oauth:       oauth,
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
 	}
+}
+
+// authorize checks if the caller has the given relation on the space via FGA,
+// using the owner contextual tuple so space owners always pass.
+func (s *Server) authorize(ctx context.Context, callerDID syntax.DID, spaceURI habitat_syntax.SpaceURI, relation string) (bool, error) {
+	return s.fga.Check(
+		ctx,
+		fgastore.MemberUserString(callerDID),
+		relation,
+		fgastore.SpaceObjectKey(spaceURI),
+		ownerContextualTuple(spaceURI),
+	)
 }
 
 func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
@@ -151,8 +167,13 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if callerDID != spaceURI.SpaceDID() {
-		http.Error(w, "only the space owner can add members", http.StatusForbidden)
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_manage_members")
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "check manage members permission", http.StatusInternalServerError)
+		return
+	}
+	if !authorized {
+		http.Error(w, "not authorized to manage members", http.StatusForbidden)
 		return
 	}
 
@@ -195,8 +216,13 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if callerDID != spaceURI.SpaceDID() {
-		http.Error(w, "only the space owner can remove members", http.StatusForbidden)
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_manage_members")
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "check manage members permission", http.StatusInternalServerError)
+		return
+	}
+	if !authorized {
+		http.Error(w, "not authorized to manage members", http.StatusForbidden)
 		return
 	}
 
@@ -290,13 +316,13 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_write")
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "check write permission", http.StatusInternalServerError)
 		return
 	}
-	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
+	if !authorized {
+		http.Error(w, "not authorized to write records in this space", http.StatusForbidden)
 		return
 	}
 
@@ -477,13 +503,13 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_delete")
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(w, err, "check delete permission", http.StatusInternalServerError)
 		return
 	}
-	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
+	if !authorized {
+		http.Error(w, "not authorized to delete records in this space", http.StatusForbidden)
 		return
 	}
 

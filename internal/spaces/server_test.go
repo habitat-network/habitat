@@ -54,7 +54,7 @@ func newTestServer(t *testing.T) *Server {
 	t.Cleanup(func() { _ = fga.Close() })
 	store, err := NewStore(db, fga)
 	require.NoError(t, err)
-	return NewServer(store, &testAuth{}, &testAuth{})
+	return NewServer(store, fga, &testAuth{}, &testAuth{})
 }
 
 func authReq(r *http.Request, did syntax.DID) *http.Request {

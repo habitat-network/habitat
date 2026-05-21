@@ -242,7 +242,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup spaces store")
 	}
-	spacesServer := spaces.NewServer(spacesStore, oauthServer, authn.NewServiceAuthMethod(dir))
+	spacesServer := spaces.NewServer(spacesStore, fgaStore, oauthServer, authn.NewServiceAuthMethod(dir))
 
 	cdc := repo.NewChangeEmitter(ctx, repo.DefaultChangeBufferSize)
 	repo, err := repo.NewRepo(cdc, db)
