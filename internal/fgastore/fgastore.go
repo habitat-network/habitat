@@ -76,7 +76,10 @@ func NewPostgres(ctx context.Context, uri string) (*FGA, error) {
 	if _, err := provider.Up(ctx); err != nil {
 		return nil, fmt.Errorf("fgastore postgres migrations: %w", err)
 	}
-	ds, err := postgres.New(uri, &sqlcommon.Config{})
+	ds, err := postgres.New(uri, &sqlcommon.Config{
+		MaxTuplesPerWriteField: storage.DefaultMaxTuplesPerWrite,
+		MaxTypesPerModelField:  storage.DefaultMaxTypesPerAuthorizationModel,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("fgastore postgres: %w", err)
 	}
@@ -110,8 +113,8 @@ func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
 		return nil, fmt.Errorf("fgastore sqlite migrations: %w", err)
 	}
 	ds, err := sqlite.New(uri, &sqlcommon.Config{
-		MaxTuplesPerWriteField: 100,
-		MaxTypesPerModelField:  100,
+		MaxTuplesPerWriteField: storage.DefaultMaxTuplesPerWrite,
+		MaxTypesPerModelField:  storage.DefaultMaxTypesPerAuthorizationModel,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("fgastore sqlite: %w", err)
