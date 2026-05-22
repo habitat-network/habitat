@@ -108,6 +108,7 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fPrettyLogs,
 				Usage:   "Enable pretty logs",
 				Sources: getSources(fPrettyLogs),
+			},
 			&cli.StringFlag{
 				Name:    fPdsOauthClientUri,
 				Usage:   "PDS OAuth client ID for PDS login method",
