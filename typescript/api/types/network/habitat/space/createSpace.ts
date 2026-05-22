@@ -18,7 +18,7 @@ const id = 'network.habitat.space.createSpace'
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The NSID of the space type, describing the modality of the space (e.g. network.habitat.group, network.habidata.personal). */
+  /** The NSID of the space type, describing the modality of the space. */
   type: string
   /** The space key. Used to differentiate multiple spaces of the same type under the same owner. If not provided, one will be auto-generated. */
   skey?: string

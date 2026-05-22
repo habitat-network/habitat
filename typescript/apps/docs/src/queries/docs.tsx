@@ -21,17 +21,17 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
       const records = await Promise.all(
         spaces.map(async (space) => {
           try {
-            const rec = await query(
-              "network.habitat.space.getRecord",
+            const { records } = await query(
+              "network.habitat.space.listRecords",
               {
                 space: space.uri,
                 collection: "network.habitat.docs",
-                rkey: "doc",
               },
               { authManager },
             );
+            const rec = records[0]
             return {
-              uri: rec.uri,
+              uri: `${space.uri}/${rec.did}/${rec.collection}/${rec.rkey}`,
               cid: rec.cid,
               value: rec.value as HabitatDoc,
             };
@@ -51,10 +51,12 @@ export const docQueryOptions = (uri: string, authManager: AuthManager) =>
       const parts = uri.split("/");
       const spaceDID = parts[2];
       const spaceSkey = parts[4];
+      const repo = parts[5]
+      const rkey = parts[7];
       const spaceURI = `ats://${spaceDID}/network.habitat.docs/${spaceSkey}`;
       const rec = await query(
         "network.habitat.space.getRecord",
-        { space: spaceURI, collection: "network.habitat.docs", rkey: "doc" },
+        { space: spaceURI, collection: "network.habitat.docs", rkey, repo },
         { authManager },
       );
       return { uri: rec.uri, cid: rec.cid, value: rec.value as HabitatDoc, space: spaceURI } as TypedRecord<HabitatDoc> & { space: string };

@@ -20,8 +20,10 @@ type NetworkHabitatSpaceListRecordsOutput struct {
 
 // NetworkHabitatSpaceListRecordsRecord represents a record object
 type NetworkHabitatSpaceListRecordsRecord struct {
-	Cid        string `json:"cid"`
-	Collection string `json:"collection"`
-	Rkey       string `json:"rkey"`
-	UpdatedAt  string `json:"updatedAt,omitempty"`
+	Cid        string      `json:"cid"`
+	Collection string      `json:"collection"`
+	Did        string      `json:"did,omitempty"`
+	Rkey       string      `json:"rkey"`
+	UpdatedAt  string      `json:"updatedAt,omitempty"`
+	Value      interface{} `json:"value,omitempty"`
 }

@@ -55,6 +55,8 @@ export interface Record {
   rkey: string
   cid: string
   updatedAt?: string
+  did?: string
+  value?: { [_ in string]: unknown }
 }
 
 const hashRecord = 'record'
