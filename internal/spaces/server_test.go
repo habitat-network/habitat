@@ -81,7 +81,7 @@ func TestServer_ListSpaces(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, output.Spaces, 1)
 	require.Equal(t, uri.String(), output.Spaces[0].Uri)
-	require.Equal(t, output.Spaces[0].MemberCount, 1)
+	require.Equal(t, output.Spaces[0].MemberCount, int64(1))
 }
 
 func TestServer_AddMemberAndGetMembers(t *testing.T) {
