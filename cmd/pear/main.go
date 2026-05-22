@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -56,6 +57,9 @@ import (
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
+
+//go:embed migrations/*.go migrations/*.sql
+var embedMigrations embed.FS
 
 func main() {
 	flags, mutuallyExclusiveFlags := getFlags()
@@ -542,6 +546,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
 	}
+	goose.SetBaseFS(embedMigrations)
 	if postgresUrl != "" {
 		goose.SetDialect("postgres")
 	} else {
