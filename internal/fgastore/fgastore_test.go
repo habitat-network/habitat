@@ -2,25 +2,25 @@ package fgastore
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewInMemory_Smoke(t *testing.T) {
-	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+func newTestSQLite(t *testing.T) *FGA {
+	t.Helper()
+	f, err := NewSQLite(t.Context(), filepath.Join(t.TempDir(), "fga.db"))
+	require.NoError(t, err, "NewSQLite should succeed")
+	t.Cleanup(func() { _ = f.Close() })
+	return f
 }
 
 func TestCheck_ReturnsTrueForExistingTuple(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
-	err = f.Write(ctx, "user:alice", "member", "organization:myorg")
+	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
 
 	ok, err := f.Check(ctx, "user:alice", "member", "organization:myorg")
@@ -30,9 +30,7 @@ func TestCheck_ReturnsTrueForExistingTuple(t *testing.T) {
 
 func TestCheck_ReturnsFalseForNonExistentTuple(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
 	ok, err := f.Check(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Check should not error")
@@ -41,11 +39,9 @@ func TestCheck_ReturnsFalseForNonExistentTuple(t *testing.T) {
 
 func TestCheck_ReturnsFalseAfterDelete(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
-	err = f.Write(ctx, "user:alice", "member", "organization:myorg")
+	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
 
 	err = f.Delete(ctx, "user:alice", "member", "organization:myorg")
@@ -58,11 +54,9 @@ func TestCheck_ReturnsFalseAfterDelete(t *testing.T) {
 
 func TestCheck_DifferentRelation(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
-	err = f.Write(ctx, "user:alice", "member", "organization:myorg")
+	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
 
 	ok, err := f.Check(ctx, "user:alice", "admin", "organization:myorg")
@@ -72,11 +66,9 @@ func TestCheck_DifferentRelation(t *testing.T) {
 
 func TestCheck_DifferentUser(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
-	err = f.Write(ctx, "user:alice", "member", "organization:myorg")
+	err := f.Write(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Write should succeed")
 
 	ok, err := f.Check(ctx, "user:bob", "member", "organization:myorg")
@@ -86,11 +78,9 @@ func TestCheck_DifferentUser(t *testing.T) {
 
 func TestCheck_AdminInheritsMember(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
-	err = f.Write(ctx, "user:alice", "admin", "organization:myorg")
+	err := f.Write(ctx, "user:alice", "admin", "organization:myorg")
 	require.NoError(t, err, "Write admin tuple should succeed")
 
 	ok, err := f.Check(ctx, "user:alice", "member", "organization:myorg")
@@ -100,11 +90,9 @@ func TestCheck_AdminInheritsMember(t *testing.T) {
 
 func TestCheck_AdminInheritsSpaceOwner(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
-	err = f.Write(ctx, "user:alice", "admin", "organization:myorg")
+	err := f.Write(ctx, "user:alice", "admin", "organization:myorg")
 	require.NoError(t, err, "Write admin tuple should succeed")
 
 	err = f.Write(ctx, "organization:myorg#admin", "owner", "space:myorg/myspace")
@@ -117,11 +105,9 @@ func TestCheck_AdminInheritsSpaceOwner(t *testing.T) {
 
 func TestCheck_SpaceOwnerGrantsCanDelete(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
-	err = f.Write(ctx, "user:alice", "owner", "space:myorg/myspace")
+	err := f.Write(ctx, "user:alice", "owner", "space:myorg/myspace")
 	require.NoError(t, err, "Write owner tuple should succeed")
 
 	ok, err := f.Check(ctx, "user:alice", "can_delete", "space:myorg/myspace")
@@ -131,9 +117,7 @@ func TestCheck_SpaceOwnerGrantsCanDelete(t *testing.T) {
 
 func TestListObjects_ReturnsMemberSpaces(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
 	require.NoError(
 		t,
@@ -163,9 +147,7 @@ func TestListObjects_ReturnsMemberSpaces(t *testing.T) {
 
 func TestListObjects_ReturnsEmptyForNoMembership(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
 	objects, err := f.ListObjects(ctx, "user:alice", "member", "space")
 	require.NoError(t, err, "ListObjects should not error")
@@ -174,9 +156,7 @@ func TestListObjects_ReturnsEmptyForNoMembership(t *testing.T) {
 
 func TestListUsers_ReturnsMembersOfSpace(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
 	require.NoError(
 		t,
@@ -201,9 +181,7 @@ func TestListUsers_ReturnsMembersOfSpace(t *testing.T) {
 
 func TestListUsers_ReturnsEmptyForNoMembers(t *testing.T) {
 	ctx := context.Background()
-	f, err := NewInMemory(ctx)
-	require.NoError(t, err, "NewInMemory should succeed")
-	defer func() { _ = f.Close() }()
+	f := newTestSQLite(t)
 
 	users, err := f.ListUsers(ctx, "space:org/myspace", "member")
 	require.NoError(t, err, "ListUsers should not error")

@@ -1,6 +1,7 @@
 package spaces
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -16,7 +17,7 @@ func newTestStore(t *testing.T) Store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	fga, err := fgastore.NewInMemory(t.Context())
+	fga, err := fgastore.NewSQLite(t.Context(), filepath.Join(t.TempDir(), "fga.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	s, err := NewStore(db, fga)
