@@ -79,7 +79,7 @@ func TestListSpaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Owner should see both
-	spaces, err := s.ListSpaces(t.Context(), owner, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 2)
 
@@ -89,9 +89,12 @@ func TestListSpaces(t *testing.T) {
 		uris[i] = sp.URI
 	}
 	require.Contains(t, uris, uri1)
-
+	// memberCount should be populated (at least 1 — the owner)
+	for _, sp := range spaces {
+		require.Equal(t, sp.MemberCount, 1)
+	}
 	// Alice should see none (not a member of any space)
-	spaces, err = s.ListSpaces(t.Context(), alice, nil)
+	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 0)
 }
@@ -107,7 +110,7 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	_, err = s.CreateSpace(t.Context(), owner, personal, "personal1")
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), owner, &groupType)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, &groupType)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 	require.Equal(t, groupType, spaces[0].Type)
