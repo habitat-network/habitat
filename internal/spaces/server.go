@@ -498,7 +498,19 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		filterCollection = &c
 	}
 
-	records, err := s.store.ListRecords(r.Context(), spaceURI, filterCollection)
+	var repo syntax.DID
+	if params.Repo != "" {
+		r, err := syntax.ParseDID(params.Repo)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parse repo did", http.StatusBadRequest)
+			return
+		}
+		repo = r
+	} else {
+		repo = callerDID
+	}
+
+	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list records", http.StatusInternalServerError)
 		return

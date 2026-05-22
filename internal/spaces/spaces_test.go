@@ -344,12 +344,12 @@ func TestListRecords(t *testing.T) {
 	require.NoError(t, s.PutRecord(t.Context(), uri, owner, collB, "k1", map[string]any{"x": 3}))
 
 	// All records
-	records, err := s.ListRecords(t.Context(), uri, nil)
+	records, err := s.ListRecords(t.Context(), uri, owner, nil)
 	require.NoError(t, err)
 	require.Len(t, records, 3)
 
 	// Filter by collection
-	records, err = s.ListRecords(t.Context(), uri, &collA)
+	records, err = s.ListRecords(t.Context(), uri, owner, &collA)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
 	for _, r := range records {

@@ -96,6 +96,7 @@ type Store interface {
 	ListRecords(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
 		collection *syntax.NSID,
 	) ([]Record, error)
 	DeleteRecord(
@@ -384,10 +385,12 @@ func (s *store) GetRecord(
 func (s *store) ListRecords(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
 	collection *syntax.NSID,
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
-		Where("space = ?", uri)
+		Where("space = ?", uri).
+		Where("owner = ?", repo)
 
 	if collection != nil {
 		query = query.Where("collection = ?", collection)
