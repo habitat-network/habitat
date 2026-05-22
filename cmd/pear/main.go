@@ -140,10 +140,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
+	var clientUri string
+	if cmd.String(fPdsOauthClientUri) != "" {
+		clientUri = "https://" + cmd.String(fPdsOauthClientUri)
+	}
+	if clientUri == "" {
+		clientUri = "https://" + domain
+	}
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		"https://"+domain+"/client-metadata.json", /*clientId*/
-		"https://"+domain,                         /*clientUri*/
-		"https://"+domain+"/oauth-callback",       /*redirectUri*/
+		clientUri+"/client-metadata.json",   /*clientId*/
+		clientUri,                           /*clientUri*/
+		"https://"+domain+"/oauth-callback", /*redirectUri*/
 		cmd.String(fOauthClientSecret),
 		meter,
 	)
