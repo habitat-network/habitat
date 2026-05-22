@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -66,6 +66,7 @@ type Store interface {
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
+	// ListSpaces returns the spaces that `member` is a part of
 	ListSpaces(
 		ctx context.Context,
 		member syntax.DID,
@@ -185,27 +186,17 @@ func (s *store) ListSpaces(
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
 ) ([]SpaceView, error) {
-	type spaceKey struct {
-		owner string
-		skey  string
+	var allRows []space
+	ownedRowsQuery := s.db.WithContext(ctx).Model(&space{}).Where("owner = ?", member)
+	if filterOwner != nil {
+		ownedRowsQuery = ownedRowsQuery.Where("owner = ?", *filterOwner)
 	}
-	seen := make(map[spaceKey]struct{})
-	var allKeys []spaceKey
-
-	var ownedRows []space
-	if err := s.db.WithContext(ctx).Model(&space{}).
-		Where("owner = ?", member).
-		Find(&ownedRows).Error; err != nil {
-		return nil, err
+	if filterType != nil {
+		ownedRowsQuery = ownedRowsQuery.Where("type = ?", *filterType)
 	}
-	for _, row := range ownedRows {
-		key := spaceKey{owner: row.Owner.String(), skey: string(row.Skey)}
-		if _, ok := seen[key]; !ok {
-			seen[key] = struct{}{}
-			allKeys = append(allKeys, key)
-		}
+	if err := ownedRowsQuery.Find(&allRows).Error; err != nil {
+		return nil, fmt.Errorf("list owned spaces: %w", err)
 	}
-
 	fgaObjects, err := s.fga.ListObjects(
 		ctx,
 		fgastore.MemberUserString(member),
@@ -215,47 +206,36 @@ func (s *store) ListSpaces(
 	if err != nil {
 		return nil, fmt.Errorf("list fga member spaces: %w", err)
 	}
-	for _, obj := range fgaObjects {
-		uri, err := fgastore.ParseSpaceObjectKey(obj)
-		if err != nil {
-			continue
+	if len(fgaObjects) > 0 {
+		conditions := s.db
+		for _, key := range fgaObjects {
+			uri, err := fgastore.ParseSpaceObjectKey(key)
+			if err != nil {
+				return nil, fmt.Errorf("parse space object key: %w", err)
+			}
+			conditions = s.db.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
 		}
-		key := spaceKey{owner: uri.SpaceDID().String(), skey: string(uri.Skey())}
-		if _, ok := seen[key]; !ok {
-			seen[key] = struct{}{}
-			allKeys = append(allKeys, key)
+		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
+		if filterOwner != nil {
+			query = query.Where("owner = ?", *filterOwner)
 		}
+		if filterType != nil {
+			query = query.Where("type = ?", *filterType)
+		}
+
+		var otherRows []space
+		if err := query.Order("created_at DESC").Find(&otherRows).Error; err != nil {
+			return nil, err
+		}
+
+		allRows = append(allRows, otherRows...)
 	}
 
-	if len(allKeys) == 0 {
-		return nil, nil
-	}
+	log.Debug().Int("spaces", len(allRows)).Msg("list spaces")
 
-	var conditions []string
-	var args []any
-	for _, key := range allKeys {
-		conditions = append(conditions, "(owner = ? AND skey = ?)")
-		args = append(args, syntax.DID(key.owner), habitat_syntax.SpaceKey(key.skey))
-	}
-
-	query := s.db.WithContext(ctx).Model(&space{}).
-		Where(strings.Join(conditions, " OR "), args...)
-	if filterOwner != nil {
-		query = query.Where("owner = ?", *filterOwner)
-	}
-	if filterType != nil {
-		query = query.Where("type = ?", *filterType)
-	}
-
-	var rows []space
-	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	views := make([]SpaceView, len(rows))
-	for i, row := range rows {
+	views := make([]SpaceView, len(allRows))
+	for i, row := range allRows {
 		uri := habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
-
 		fgaUsers, err := s.fga.ListUsers(
 			ctx,
 			fgastore.SpaceObjectKey(uri),
@@ -266,7 +246,6 @@ func (s *store) ListSpaces(
 		if err == nil {
 			memberCount = len(fgaUsers)
 		}
-
 		views[i] = SpaceView{
 			URI:         uri,
 			Type:        row.Type,
@@ -274,7 +253,7 @@ func (s *store) ListSpaces(
 			MemberCount: memberCount,
 		}
 	}
-
+	log.Debug().Int("views", len(views)).Msg("list spaces")
 	return views, nil
 }
 
