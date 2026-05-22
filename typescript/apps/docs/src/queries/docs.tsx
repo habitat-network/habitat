@@ -1,4 +1,5 @@
 import { HabitatDoc } from "@/habitatDoc";
+import { parseSpaceRecordUri } from "@/utils";
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import {
   AuthManager,
@@ -12,7 +13,7 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
     queryKey: ["docs"],
     staleTime: 1000 * 60 * 5,
-    queryFn: async () => {
+    queryFn: async ({ client}) => {
       const { spaces } = await query(
         "network.habitat.space.listSpaces",
         { type: "network.habitat.docs" },
@@ -21,20 +22,9 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
       const records = await Promise.all(
         spaces.map(async (space) => {
           try {
-            const { records } = await query(
-              "network.habitat.space.listRecords",
-              {
-                space: space.uri,
-                collection: "network.habitat.docs",
-              },
-              { authManager },
-            );
-            const rec = records[0]
-            return {
-              uri: `${space.uri}/${rec.did}/${rec.collection}/${rec.rkey}`,
-              cid: rec.cid,
-              value: rec.value as HabitatDoc,
-            };
+            const record = await client.ensureQueryData(
+              ownerDocQueryOptions(space.uri, authManager))
+            return record;
           } catch {
             return null;
           }
@@ -44,22 +34,27 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
     },
   });
 
-export const docQueryOptions = (uri: string, authManager: AuthManager) =>
+export const ownerDocQueryOptions = (spaceUri: string, authManager: AuthManager) => 
   queryOptions({
-    queryKey: ["doc", uri],
+    queryKey: ["owner-doc", spaceUri],
     queryFn: async () => {
-      const parts = uri.split("/");
-      const spaceDID = parts[2];
-      const spaceSkey = parts[4];
-      const repo = parts[5]
-      const rkey = parts[7];
-      const spaceURI = `ats://${spaceDID}/network.habitat.docs/${spaceSkey}`;
-      const rec = await query(
-        "network.habitat.space.getRecord",
-        { space: spaceURI, collection: "network.habitat.docs", rkey, repo },
+      const { spaceOwner } = parseSpaceRecordUri(spaceUri)
+      const { records } = await query(
+        "network.habitat.space.listRecords",
+        {
+          space: spaceUri,
+          collection: "network.habitat.docs",
+          repo: spaceOwner
+        },
         { authManager },
       );
-      return { uri: rec.uri, cid: rec.cid, value: rec.value as HabitatDoc, space: spaceURI } as TypedRecord<HabitatDoc> & { space: string };
+      // each the owner should have exactly one network.habitat.docs 
+      const { rkey, value, cid } = records[0]
+      return {
+        uri: `${spaceUri}/${spaceOwner}/network.habitat.docs/${rkey}`,
+        cid: cid,
+        value: value as HabitatDoc,
+      };    
     },
   });
 

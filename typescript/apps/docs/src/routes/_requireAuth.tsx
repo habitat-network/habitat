@@ -32,6 +32,7 @@ import {
 import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { useMemo } from "react";
 import { HabitatDoc } from "@/habitatDoc";
+import { parseSpaceRecordUri } from "@/utils";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
@@ -205,11 +206,13 @@ const DocItem = ({
       ? `Untitled (${doc.uri.split("/")[4]})`
       : doc.value.name;
 
+  const { spaceOwner, spaceKey } = parseSpaceRecordUri(doc.uri)
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={isActive}
-        render={<Link to="/$uri" params={{ uri: doc.uri }} />}
+        render={<Link to="/$uri" params={{ uri: `ats://${spaceOwner}/network.habitat.docs/${spaceKey}` }} />}
       >
         {ownerProfile ? (
           <UserAvatar actor={ownerProfile} size="sm" />
