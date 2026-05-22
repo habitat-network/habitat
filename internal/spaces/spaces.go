@@ -244,16 +244,6 @@ func (s *store) IsMember(
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) (bool, error) {
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
-	} else if err != nil {
-		return false, err
-	}
-
 	return s.fga.Check(
 		ctx,
 		fgastore.MemberUserString(did),
@@ -300,16 +290,6 @@ func (s *store) RemoveMember(
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) error {
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
-	} else if err != nil {
-		return err
-	}
-
 	if did == uri.SpaceDID() {
 		return ErrCannotRemoveOwner
 	}

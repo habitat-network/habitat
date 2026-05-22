@@ -34,6 +34,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/inbox"
@@ -48,6 +49,7 @@ import (
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
+	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
@@ -124,6 +126,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Setup components
 	db := setupDB(cmd)
+
+	fgaStore := setupFGA(ctx, cmd)
 
 	// Load encryption key for PDS credentials
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
@@ -237,6 +241,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup clique store")
 	}
+
+	spacesStore, err := spaces.NewStore(db, fgaStore)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup spaces store")
+	}
+	spacesServer := spaces.NewServer(
+		spacesStore,
+		fgaStore,
+		oauthServer,
+		authn.NewServiceAuthMethod(dir),
+	)
 
 	cdc := repo.NewChangeEmitter(ctx, repo.DefaultChangeBufferSize)
 	repo, err := repo.NewRepo(cdc, db)
@@ -359,6 +374,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", cliqueServer.RemoveCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
+
+	// spaces
+	mux.HandleFunc("/xrpc/network.habitat.space.createSpace", spacesServer.CreateSpace)
+	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
+	mux.HandleFunc("/xrpc/network.habitat.space.addMember", spacesServer.AddMember)
+	mux.HandleFunc("/xrpc/network.habitat.space.removeMember", spacesServer.RemoveMember)
+	mux.HandleFunc("/xrpc/network.habitat.space.getMembers", spacesServer.GetMembers)
+	mux.HandleFunc("/xrpc/network.habitat.space.putRecord", spacesServer.PutRecord)
+	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
+	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
+	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 
 	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
 	// Only forward specific routes that we know we handle correctly; for now.
@@ -531,6 +557,22 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 		log.Fatal().Err(err).Msg("unable to run migrations")
 	}
 	return db
+}
+
+func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
+	postgresUrl := cmd.String(fPgUrl)
+	if postgresUrl != "" {
+		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
+		if err != nil {
+			log.Fatal().Err(err).Msg("unable to setup fga store with postgres")
+		}
+		return fga
+	}
+	fga, err := fgastore.NewInMemory(ctx)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to setup in-memory fga store")
+	}
+	return fga
 }
 
 func setupNode(
