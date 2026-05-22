@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -56,6 +57,9 @@ import (
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
 )
+
+//go:embed migrations/*.go migrations/*.sql
+var embedMigrations embed.FS
 
 func main() {
 	flags, mutuallyExclusiveFlags := getFlags()
@@ -136,10 +140,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
+	var clientUri string
+	if cmd.String(fPdsOauthClientUri) != "" {
+		clientUri = "https://" + cmd.String(fPdsOauthClientUri)
+	}
+	if clientUri == "" {
+		clientUri = "https://" + domain
+	}
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		"https://"+domain+"/client-metadata.json", /*clientId*/
-		"https://"+domain,                         /*clientUri*/
-		"https://"+domain+"/oauth-callback",       /*redirectUri*/
+		clientUri+"/client-metadata.json",   /*clientId*/
+		clientUri,                           /*clientUri*/
+		"https://"+domain+"/oauth-callback", /*redirectUri*/
 		cmd.String(fOauthClientSecret),
 		meter,
 	)
@@ -542,6 +553,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
 	}
+	goose.SetBaseFS(embedMigrations)
 	if postgresUrl != "" {
 		goose.SetDialect("postgres")
 	} else {
@@ -563,9 +575,9 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 		}
 		return fga
 	}
-	fga, err := fgastore.NewInMemory(ctx)
+	fga, err := fgastore.NewSQLite(ctx, cmd.String(fDb))
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup in-memory fga store")
+		log.Fatal().Err(err).Msg("unable to setup fga sqlite store")
 	}
 	return fga
 }

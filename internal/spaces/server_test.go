@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -21,7 +22,7 @@ func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	fga, err := fgastore.NewInMemory(t.Context())
+	fga, err := fgastore.NewSQLite(t.Context(), filepath.Join(t.TempDir(), "fga.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	store, err := NewStore(db, fga)
