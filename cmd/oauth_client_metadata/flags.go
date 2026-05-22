@@ -7,7 +7,6 @@ import (
 var fPearDomain = "pear_domain"
 var fSecret = "secret"
 var fMachineName = "machine_name"
-var fTailscaleDomain = "tailscale_domain"
 
 func getFlags() []cli.Flag {
 	return []cli.Flag{
@@ -27,12 +26,6 @@ func getFlags() []cli.Flag {
 			Name:  fMachineName,
 			Usage: "The machine name of the oauth client",
 			Value: "oauth-client-metadata",
-		},
-		&cli.StringFlag{
-			Name:     fTailscaleDomain,
-			Required: true,
-			Usage:    "The domain of the tailscale server",
-			Sources:  cli.EnvVars("TS_DOMAIN"),
 		},
 	}
 }
