@@ -279,7 +279,7 @@ func TestRemoveMember_SpaceNotFound(t *testing.T) {
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	err := s.RemoveMember(t.Context(), uri, alice)
-	require.ErrorIs(t, err, ErrSpaceNotFound)
+	require.ErrorIs(t, err, ErrNotAMember)
 }
 
 func TestPutAndGetRecord(t *testing.T) {
