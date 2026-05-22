@@ -74,6 +74,9 @@ func main() {
 }
 
 func run(_ context.Context, cmd *cli.Command) error {
+	if cmd.Bool(fPrettyLogs) {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	}
 	// Parse all CLI arguments and options at the beginning
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
@@ -122,7 +125,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Need to set log.Logger so globally anything initialized after here uses the global zerolog Logger
 	// which is now hooked up to open telemetry.
-	log.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger().Hook(hook)
+	log.Logger = log.Logger.Hook(hook)
 
 	// Setup components
 	db := setupDB(cmd)
@@ -140,10 +143,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
+	var clientUri string
+	if cmd.String(fPdsOauthClientUri) != "" {
+		clientUri = "https://" + cmd.String(fPdsOauthClientUri)
+	}
+	if clientUri == "" {
+		clientUri = "https://" + domain
+	}
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		"https://"+domain+"/client-metadata.json", /*clientId*/
-		"https://"+domain,                         /*clientUri*/
-		"https://"+domain+"/oauth-callback",       /*redirectUri*/
+		clientUri+"/client-metadata.json",   /*clientId*/
+		clientUri,                           /*clientUri*/
+		"https://"+domain+"/oauth-callback", /*redirectUri*/
 		cmd.String(fOauthClientSecret),
 		meter,
 	)
