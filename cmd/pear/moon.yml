@@ -10,6 +10,7 @@ tasks:
       DEBUG: 'true'
       DATABASE_URL: "postgres://habitat:habitat@localhost:5432/habitat"
       HABITAT_DOMAIN: pear.local.habitat.network
+      HABITAT_PRETTY_LOGS: 'true'
     deps:
     - postgres
     - root:caddy
