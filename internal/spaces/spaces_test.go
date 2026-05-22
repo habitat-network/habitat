@@ -78,7 +78,7 @@ func TestListSpaces(t *testing.T) {
 	require.NoError(t, err)
 
 	// Owner should see both
-	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 2)
 
@@ -90,7 +90,7 @@ func TestListSpaces(t *testing.T) {
 	require.Contains(t, uris, uri1)
 
 	// Alice should see none (not a member of any space)
-	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
+	spaces, err = s.ListSpaces(t.Context(), alice, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 0)
 }
@@ -106,65 +106,10 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	_, err = s.CreateSpace(t.Context(), owner, personal, "personal1")
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), owner, &groupType, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, &groupType)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 	require.Equal(t, groupType, spaces[0].Type)
-}
-
-func TestListSpaces_FilterByOwner(t *testing.T) {
-	s := newTestStore(t)
-	other := syntax.DID("did:plc:other")
-
-	_, err := s.CreateSpace(t.Context(), owner, groupType, "a")
-	require.NoError(t, err)
-
-	_, err = s.CreateSpace(t.Context(), other, groupType, "b")
-	require.NoError(t, err)
-
-	// Owner's spaces filtered by owner should show only their space
-	spaces, err := s.ListSpaces(t.Context(), owner, nil, &owner)
-	require.NoError(t, err)
-	require.Len(t, spaces, 1)
-	require.Equal(t, "ats://did:plc:owner/network.habitat.group/a", spaces[0].URI.String())
-}
-
-func TestListSpaces_ShowsMemberSpaces(t *testing.T) {
-	s := newTestStore(t)
-
-	uri, err := s.CreateSpace(t.Context(), owner, groupType, "shared")
-	require.NoError(t, err)
-
-	// Add alice as a member
-	err = s.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
-
-	// Alice should see the space via membership
-	spaces, err := s.ListSpaces(t.Context(), alice, nil, nil)
-	require.NoError(t, err)
-	require.Len(t, spaces, 1)
-	require.Equal(t, uri, spaces[0].URI)
-
-	// Owner should still see their own space
-	spaces, err = s.ListSpaces(t.Context(), owner, nil, nil)
-	require.NoError(t, err)
-	require.Len(t, spaces, 1)
-}
-
-func TestListSpaces_MemberSpacesDeduped(t *testing.T) {
-	s := newTestStore(t)
-
-	uri, err := s.CreateSpace(t.Context(), owner, groupType, "shared")
-	require.NoError(t, err)
-
-	// Add alice as member, then check owner's list (owner already owns it, should not dupe)
-	err = s.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
-
-	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
-	require.NoError(t, err)
-	require.Len(t, spaces, 1)
-	require.Equal(t, uri, spaces[0].URI)
 }
 
 func TestGetMembers(t *testing.T) {
@@ -333,7 +278,7 @@ func TestRemoveMember_SpaceNotFound(t *testing.T) {
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	err := s.RemoveMember(t.Context(), uri, alice)
-	require.ErrorIs(t, err, ErrSpaceNotFound)
+	require.ErrorIs(t, err, ErrNotAMember)
 }
 
 func TestPutAndGetRecord(t *testing.T) {
@@ -351,7 +296,7 @@ func TestPutAndGetRecord(t *testing.T) {
 	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "my-rkey")
 	require.NoError(t, err)
 	require.Equal(t, val, rec.Value)
-	require.Equal(t, "my-rkey", rec.Rkey)
+	require.Equal(t, syntax.RecordKey("my-rkey"), rec.Rkey)
 }
 
 func TestPutRecord_UpdateExisting(t *testing.T) {
@@ -444,7 +389,7 @@ func TestSpaceURI(t *testing.T) {
 	require.Equal(t, "ats://did:plc:owner/network.habitat.group/my-key", uri.String())
 	require.Equal(t, owner, uri.SpaceDID())
 	require.Equal(t, groupType, uri.SpaceType())
-	require.Equal(t, habitat_syntax.Skey("my-key"), uri.Skey())
+	require.Equal(t, habitat_syntax.SpaceKey("my-key"), uri.Skey())
 
 	parsed, err := habitat_syntax.ParseSpaceURI("ats://did:plc:owner/network.habitat.group/my-key")
 	require.NoError(t, err)

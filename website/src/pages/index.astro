@@ -4,8 +4,8 @@ import Header from "../components/Header.astro";
 ---
 
 <Layout
-  title="Habitat — Own your workplace data."
-  description="A unified layer for all your organizational data."
+  title="Habitat"
+  description="A unified layer for your organization's data."
 >
   <Header />
 
@@ -14,20 +14,24 @@ import Header from "../components/Header.astro";
     <section class="hero">
       <div class="hero-inner">
         <div class="hero-copy">
-          <h1 class="display reveal">Own your workplace data.</h1>
+          <h1 class="display reveal">Own your data.</h1>
           <p class="hero-sub reveal" style="--d: 120ms">
-            Habitat is building a unified data layer for your organization, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and confusing permissions across providers a thing of the past with Habitat.
+            Habitat is building a unified data layer for your organization, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and incompatible permissions across providers a thing of the past. Give your agents the context they actually need and the guardrails to ship safely.
           </p>
+<!-- Calendly link widget begin -->
+<link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
+<script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
+<div class="reveal" style="--d: 180ms; margin-bottom: 32px;">
+  <a href="" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/arushi-habitat'});return false;" style="font-size: 1.125rem;">Talk to us</a>
+</div>
+<!-- Calendly link widget end -->
 
           <form class="waitlist reveal" style="--d: 220ms" novalidate>
             <label class="visually-hidden" for="email-hero">your email</label>
             <input id="email-hero" type="text" name="email" placeholder="your email" required />
-            <button type="submit">Join waitlist <span aria-hidden="true">→</span></button>
+            <button type="submit">Or join the waitlist<span aria-hidden="true">→</span></button>
           </form>
           <p class="waitlist-status reveal" data-status="idle" aria-live="polite"></p>
-          <p class="helper reveal" style="--d: 320ms">
-            Or write to us at <a href="mailto:hello@habitat.network">hello@habitat.network</a> for an early look
-          </p>
         </div>
 
         <div class="hero-visual reveal" style="--d: 400ms" aria-hidden="true">
@@ -482,6 +486,24 @@ import Header from "../components/Header.astro";
     font-weight: 400;
   }
 
+  .talk-btn {
+    display: inline-block;
+    margin-bottom: 32px;
+    padding: 12px 28px;
+    border-radius: 999px;
+    background: var(--black);
+    color: var(--white);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 160ms ease;
+  }
+  .talk-btn:hover {
+    background: var(--green);
+    border-color: var(--green);
+  }
+
   .waitlist {
     display: flex;
     align-items: stretch;
@@ -508,7 +530,7 @@ import Header from "../components/Header.astro";
     font: inherit;
     font-weight: 500;
     font-size: 1rem;
-    padding: 14px 0 14px 16px;
+    padding: 14px 16px 14px 0;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
