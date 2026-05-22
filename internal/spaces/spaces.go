@@ -187,6 +187,7 @@ func (s *store) ListSpaces(
 	filterType *syntax.NSID,
 ) ([]SpaceView, error) {
 	var allRows []space
+	// start with owned spaces
 	ownedRowsQuery := s.db.WithContext(ctx).Model(&space{}).Where("owner = ?", member)
 	if filterOwner != nil {
 		ownedRowsQuery = ownedRowsQuery.Where("owner = ?", *filterOwner)
@@ -197,6 +198,7 @@ func (s *store) ListSpaces(
 	if err := ownedRowsQuery.Find(&allRows).Error; err != nil {
 		return nil, fmt.Errorf("list owned spaces: %w", err)
 	}
+	// then check fga store for memberships
 	fgaObjects, err := s.fga.ListObjects(
 		ctx,
 		fgastore.MemberUserString(member),
