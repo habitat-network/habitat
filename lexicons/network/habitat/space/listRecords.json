@@ -87,10 +87,6 @@
                     "type": "string",
                     "format": "datetime"
                 },
-                "did": {
-                    "type": "string",
-                    "format": "did"
-                },
                 "value": {
                     "type": "unknown"
                 }

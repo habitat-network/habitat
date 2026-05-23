@@ -22,7 +22,6 @@ type NetworkHabitatSpaceListRecordsOutput struct {
 type NetworkHabitatSpaceListRecordsRecord struct {
 	Cid        string      `json:"cid"`
 	Collection string      `json:"collection"`
-	Did        string      `json:"did,omitempty"`
 	Rkey       string      `json:"rkey"`
 	UpdatedAt  string      `json:"updatedAt,omitempty"`
 	Value      interface{} `json:"value,omitempty"`

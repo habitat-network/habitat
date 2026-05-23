@@ -2815,10 +2815,6 @@ export const schemaDict = {
             type: 'string',
             format: 'datetime',
           },
-          did: {
-            type: 'string',
-            format: 'did',
-          },
           value: {
             type: 'unknown',
           },
@@ -2915,7 +2911,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'record'],
+            required: ['collection', 'rkey', 'record'],
             properties: {
               space: {
                 type: 'string',

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -66,9 +67,11 @@ type Store interface {
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
+	// ListSpaces returns the spaces that `member` is a part of
 	ListSpaces(
 		ctx context.Context,
-		owner syntax.DID,
+		member syntax.DID,
+		filterOwner *syntax.DID,
 		filterType *syntax.NSID,
 	) ([]SpaceView, error)
 
@@ -97,6 +100,7 @@ type Store interface {
 	ListRecords(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
 		collection *syntax.NSID,
 	) ([]Record, error)
 	DeleteRecord(
@@ -180,27 +184,80 @@ func (s *store) CreateSpace(
 
 func (s *store) ListSpaces(
 	ctx context.Context,
-	owner syntax.DID,
+	member syntax.DID,
+	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
 ) ([]SpaceView, error) {
-	var rows []space
-	query := s.db.WithContext(ctx).Model(&space{}).
-		Where("owner = ?", owner)
+	var allRows []space
+	// start with owned spaces
+	ownedRowsQuery := s.db.WithContext(ctx).Model(&space{}).Where("owner = ?", member)
+	if filterOwner != nil {
+		ownedRowsQuery = ownedRowsQuery.Where("owner = ?", *filterOwner)
+	}
 	if filterType != nil {
-		query = query.Where("type = ?", filterType)
+		ownedRowsQuery = ownedRowsQuery.Where("type = ?", *filterType)
 	}
-	if err := query.Order("created_at DESC").
-		Find(&rows).Error; err != nil {
-		return nil, err
+	if err := ownedRowsQuery.Find(&allRows).Error; err != nil {
+		return nil, fmt.Errorf("list owned spaces: %w", err)
 	}
-	views := make([]SpaceView, len(rows))
-	for i, row := range rows {
+	// then check fga store for memberships
+	fgaObjects, err := s.fga.ListObjects(
+		ctx,
+		fgastore.MemberUserString(member),
+		"member",
+		"space",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list fga member spaces: %w", err)
+	}
+	if len(fgaObjects) > 0 {
+		conditions := s.db
+		for _, key := range fgaObjects {
+			uri, err := fgastore.ParseSpaceObjectKey(key)
+			if err != nil {
+				return nil, fmt.Errorf("parse space object key: %w", err)
+			}
+			conditions = s.db.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
+		}
+		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
+		if filterOwner != nil {
+			query = query.Where("owner = ?", *filterOwner)
+		}
+		if filterType != nil {
+			query = query.Where("type = ?", *filterType)
+		}
+
+		var otherRows []space
+		if err := query.Order("created_at DESC").Find(&otherRows).Error; err != nil {
+			return nil, err
+		}
+
+		allRows = append(allRows, otherRows...)
+	}
+
+	log.Debug().Int("spaces", len(allRows)).Msg("list spaces")
+
+	views := make([]SpaceView, len(allRows))
+	for i, row := range allRows {
+		uri := habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
+		fgaUsers, err := s.fga.ListUsers(
+			ctx,
+			fgastore.SpaceObjectKey(uri),
+			"member",
+			ownerContextualTuple(uri),
+		)
+		memberCount := 0
+		if err == nil {
+			memberCount = len(fgaUsers)
+		}
 		views[i] = SpaceView{
-			URI:  habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey),
-			Type: row.Type,
-			Skey: row.Skey,
+			URI:         uri,
+			Type:        row.Type,
+			Skey:        row.Skey,
+			MemberCount: memberCount,
 		}
 	}
+	log.Debug().Int("views", len(views)).Msg("list spaces")
 	return views, nil
 }
 
@@ -385,10 +442,12 @@ func (s *store) GetRecord(
 func (s *store) ListRecords(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
 	collection *syntax.NSID,
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
-		Where("space = ?", uri)
+		Where("space = ?", uri).
+		Where("owner = ?", repo)
 
 	if collection != nil {
 		query = query.Where("collection = ?", collection)

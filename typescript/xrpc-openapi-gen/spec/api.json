@@ -4344,6 +4344,7 @@
                 "type": "object",
                 "required": [
                   "collection",
+                  "rkey",
                   "record"
                 ],
                 "properties": {
@@ -4903,10 +4904,6 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
-          },
-          "did": {
-            "type": "string",
-            "format": "did"
           },
           "value": {}
         }
