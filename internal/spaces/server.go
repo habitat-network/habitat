@@ -530,7 +530,6 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			Cid:        "",
 			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
 			Value:      rec.Value,
-			Did:        rec.Owner.String(),
 		}
 	}
 
