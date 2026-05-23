@@ -81,7 +81,8 @@ func TestListSpaces(t *testing.T) {
 	spaceUri2, err := s.CreateSpace(t.Context(), alice, groupType, "space2")
 	require.NoError(t, err)
 
-	s.AddMember(t.Context(), spaceUri2, owner)
+	err = s.AddMember(t.Context(), spaceUri2, owner)
+	require.NoError(t, err)
 
 	// Owner should see both
 	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
