@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -15,7 +16,9 @@ import (
 
 func newTestStore(t *testing.T) Store {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	require.NoError(t, err)
 	fga, err := fgastore.NewSQLite(t.Context(), filepath.Join(t.TempDir(), "fga.db"))
 	require.NoError(t, err)
@@ -72,28 +75,28 @@ func TestCreateSpace_OwnerIsMember(t *testing.T) {
 func TestListSpaces(t *testing.T) {
 	s := newTestStore(t)
 
-	uri1, err := s.CreateSpace(t.Context(), owner, groupType, "space1")
+	_, err := s.CreateSpace(t.Context(), owner, groupType, "space1")
 	require.NoError(t, err)
 
-	_, err = s.CreateSpace(t.Context(), owner, groupType, "space2")
+	spaceUri2, err := s.CreateSpace(t.Context(), alice, groupType, "space2")
+	require.NoError(t, err)
+
+	err = s.AddMember(t.Context(), spaceUri2, owner)
 	require.NoError(t, err)
 
 	// Owner should see both
-	spaces, err := s.ListSpaces(t.Context(), owner, nil)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, spaces, 2)
 
-	// uri1 should appear in the results
-	uris := make([]habitat_syntax.SpaceURI, len(spaces))
-	for i, sp := range spaces {
-		uris[i] = sp.URI
+	// memberCount should be populated (at least 1 — the owner)
+	for _, sp := range spaces {
+		require.GreaterOrEqual(t, sp.MemberCount, 1)
 	}
-	require.Contains(t, uris, uri1)
-
-	// Alice should see none (not a member of any space)
-	spaces, err = s.ListSpaces(t.Context(), alice, nil)
+	// Alice should see 1
+	spaces, err = s.ListSpaces(t.Context(), alice, nil, nil)
 	require.NoError(t, err)
-	require.Len(t, spaces, 0)
+	require.Len(t, spaces, 1)
 }
 
 func TestListSpaces_FilterByType(t *testing.T) {
@@ -107,7 +110,7 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	_, err = s.CreateSpace(t.Context(), owner, personal, "personal1")
 	require.NoError(t, err)
 
-	spaces, err := s.ListSpaces(t.Context(), owner, &groupType)
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, &groupType)
 	require.NoError(t, err)
 	require.Len(t, spaces, 1)
 	require.Equal(t, groupType, spaces[0].Type)
