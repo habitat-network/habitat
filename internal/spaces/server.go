@@ -113,16 +113,14 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
-	var owner syntax.DID
+	var filterOwner *syntax.DID
 	if params.Did != "" {
 		ownerDid, err := syntax.ParseDID(params.Did)
 		if err != nil {
 			utils.LogAndHTTPError(w, err, "parse did", http.StatusBadRequest)
 			return
 		}
-		owner = ownerDid
-	} else {
-		owner = callerDID
+		filterOwner = &ownerDid
 	}
 
 	var filterType *syntax.NSID
@@ -135,7 +133,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		filterType = &t
 	}
 
-	spaces, err := s.store.ListSpaces(r.Context(), owner, filterType)
+	spaces, err := s.store.ListSpaces(r.Context(), callerDID, filterOwner, filterType)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list spaces", http.StatusInternalServerError)
 		return
@@ -144,9 +142,10 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	views := make([]habitat.NetworkHabitatSpaceListSpacesSpaceView, len(spaces))
 	for i, sp := range spaces {
 		views[i] = habitat.NetworkHabitatSpaceListSpacesSpaceView{
-			Uri:  sp.URI.String(),
-			Type: sp.Type.String(),
-			Skey: string(sp.Skey),
+			Uri:         sp.URI.String(),
+			Type:        sp.Type.String(),
+			Skey:        sp.Skey.String(),
+			MemberCount: int64(sp.MemberCount),
 		}
 	}
 
@@ -498,7 +497,19 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		filterCollection = &c
 	}
 
-	records, err := s.store.ListRecords(r.Context(), spaceURI, filterCollection)
+	var repo syntax.DID
+	if params.Repo != "" {
+		r, err := syntax.ParseDID(params.Repo)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parse repo did", http.StatusBadRequest)
+			return
+		}
+		repo = r
+	} else {
+		repo = callerDID
+	}
+
+	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "list records", http.StatusInternalServerError)
 		return
