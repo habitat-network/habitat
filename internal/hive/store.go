@@ -57,37 +57,29 @@ func newStore(db *gorm.DB, template idTemplate) (*store, error) {
 	}, nil
 }
 
-// prepareIdentity generates all keys and IDs for a new identity without writing to the DB.
-// Returns the row to persist and the public identity.
-func (s *store) prepareIdentity(handle string) (*ident, *identity.Identity, error) {
+// persistIdentity writes a prepared ident row to the given DB (or transaction).
+func (s *store) mintIdentity(handle string) (*identity.Identity, error) {
 	opaqueID, err := generateOpaqueID()
 	if err != nil {
-		return nil, nil, err
+		return nil, fmt.Errorf("generateOpaqueID: %w", err)
 	}
-
 	pubMultibase, privMultibase, err := generateSigningKeyPair()
 	if err != nil {
-		return nil, nil, err
+		return nil, fmt.Errorf("generateSigningKeyPair: %w", err)
 	}
-
 	row := &ident{
 		Handle:               handle,
 		OpaqueID:             opaqueID,
 		SigningPublicKey:     pubMultibase,
 		SigningPrivateKeyEnc: privMultibase, // TODO: encrypt before storing
 	}
-	return row, s.template(row.Handle, row.OpaqueID, row.SigningPublicKey), nil
-}
-
-// persistIdentity writes a prepared ident row to the given DB (or transaction).
-func persistIdentity(tx *gorm.DB, row *ident) error {
-	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(row)
+	result := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(row)
 	if result.Error != nil {
-		return result.Error
+		return nil, result.Error
 	} else if result.RowsAffected == 0 {
-		return ErrNotCreated
+		return nil, ErrNotCreated
 	}
-	return nil
+	return s.template(row.Handle, row.OpaqueID, row.SigningPublicKey), nil
 }
 
 // getMemberByHandle fetches the member via handle (with member namespace stripped already) from the store
