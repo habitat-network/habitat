@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db"
 	"gorm.io/gorm"
 )
 
@@ -42,6 +43,7 @@ type Hive interface {
 
 	// Implements the same interface as the PLC / any identity Directory in atproto land
 	identity.Directory
+	db.Store[Hive]
 }
 
 type hive struct {

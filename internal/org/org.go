@@ -50,7 +50,7 @@ type Org interface {
 	// This is exported because other packages may want to do membership lookup
 	AddAdmin(ctx context.Context, admin syntax.DID) error
 	// Only support adding members through CreateNewMemberIdentity for now
-	// AddMembers(ctx context.Context, members []syntax.DID) error
+	AddMember(ctx context.Context, member syntax.DID, loginID string) error
 	GetAdmins(ctx context.Context) ([]syntax.DID, error)
 	GetMembers(ctx context.Context) ([]syntax.DID, error)
 	RemoveAdmin(ctx context.Context, admin syntax.DID) error
@@ -75,6 +75,8 @@ type Org interface {
 		internalHandle string,
 		password string,
 	) (*identity.Identity, error)
+
+	db.Store[Org]
 }
 
 type inviteTokenClaims struct {
@@ -324,12 +326,12 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	var id *identity.Identity
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// If token is valid, call into hive to mint the new identity and serve it
-		newId, err := db.WithTransaction(tx, s.hive).MintIdentity(internalHandle, s.handleSubdomain)
+		newId, err := s.hive.WithTx(tx).MintIdentity(internalHandle, s.handleSubdomain)
 		if err != nil {
 			return fmt.Errorf("mint identity: %w", err)
 		}
 		id = newId
-		return db.WithTransaction(tx, s).AddMember(ctx, id.DID, passwordHash)
+		return s.WithTx(tx).AddMember(ctx, id.DID, passwordHash)
 	})
 	if err != nil {
 		return nil, err
@@ -365,4 +367,15 @@ func (s *orgImpl) AuthenticateMember(
 		return false, nil
 	}
 	return ok, err
+}
+
+// WithTx implements [Org].
+func (s *orgImpl) WithTx(tx *gorm.DB) Org {
+	return &orgImpl{
+		orgID:           s.orgID,
+		hive:            s.hive,
+		db:              tx,
+		signingSecret:   s.signingSecret,
+		handleSubdomain: s.handleSubdomain,
+	}
 }
