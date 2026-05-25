@@ -206,13 +206,20 @@ const DocItem = ({
       ? `Untitled (${doc.uri.split("/")[4]})`
       : doc.value.name;
 
-  const { spaceOwner, spaceKey } = parseSpaceRecordUri(doc.uri)
+  const { spaceOwner, spaceKey } = parseSpaceRecordUri(doc.uri);
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={isActive}
-        render={<Link to="/$uri" params={{ uri: `ats://${spaceOwner}/network.habitat.docs/${spaceKey}` }} />}
+        render={
+          <Link
+            to="/$uri"
+            params={{
+              uri: `ats://${spaceOwner}/network.habitat.docs/${spaceKey}`,
+            }}
+          />
+        }
       >
         {ownerProfile ? (
           <UserAvatar actor={ownerProfile} size="sm" />

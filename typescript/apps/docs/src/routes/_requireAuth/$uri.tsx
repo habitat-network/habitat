@@ -137,7 +137,7 @@ function getHeadingFromYdoc(ydoc: Y.Doc): string | undefined {
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
     const { uri: spaceUri } = params;
-    const authInfo = context.authManager.getAuthInfo()!
+    const authInfo = context.authManager.getAuthInfo()!;
     // Reuse an existing ydoc for this URI if available so the editor never
     // has to reinitialize from scratch (prevents visible content flash).
     const existingYdoc = ydocRegistry.get(spaceUri);
@@ -166,7 +166,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       }
     }
 
-    const myEditUri = edits.find((r) => parseSpaceRecordUri(r.uri).recordOwner ===  authInfo.did)?.uri;
+    const myEditUri = edits.find(
+      (r) => parseSpaceRecordUri(r.uri).recordOwner === authInfo.did,
+    )?.uri;
 
     // setup libp2p
     const node = await createLibp2p({
@@ -213,7 +215,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       try {
         const conn = await node.dial(relayAddr);
         const relayPeerId = conn.remotePeer;
-        void startPeerDiscovery(spaceUri, relayPeerId, node, context.authManager);
+        void startPeerDiscovery(
+          spaceUri,
+          relayPeerId,
+          node,
+          context.authManager,
+        );
       } catch {
         // Relay unreachable — document still works, real-time collaboration unavailable
         // TODO: can we signal to the user somehow that real-time collaboration is not working ?
@@ -308,10 +315,19 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { mutate: save } = useMutation({
       mutationFn: async () => {
         const heading = getHeadingFromYdoc(ydoc);
-        const { recordKey: ownerRecordKey } = parseSpaceRecordUri(ownerRecord.uri)
+        const { recordKey: ownerRecordKey } = parseSpaceRecordUri(
+          ownerRecord.uri,
+        );
         const collection =
-          spaceOwner === did ? "network.habitat.docs" : "network.habitat.docs.edit";
-        const rkey = spaceOwner === did ? ownerRecordKey : (myEditUri ? parseSpaceRecordUri(myEditUri).recordKey : undefined)
+          spaceOwner === did
+            ? "network.habitat.docs"
+            : "network.habitat.docs.edit";
+        const rkey =
+          spaceOwner === did
+            ? ownerRecordKey
+            : myEditUri
+              ? parseSpaceRecordUri(myEditUri).recordKey
+              : undefined;
 
         await procedure(
           "network.habitat.space.putRecord",
@@ -408,7 +424,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                     className="ring-2 ring-foreground"
                   />
                 )}
-                {editorProfiles.filter((p) => p.did !== spaceOwner).length > 0 && (
+                {editorProfiles.filter((p) => p.did !== spaceOwner).length >
+                  0 && (
                   <AvatarGroup>
                     {editorProfiles
                       .filter((p) => p.did !== spaceOwner)

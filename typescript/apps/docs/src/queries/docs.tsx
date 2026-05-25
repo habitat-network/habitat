@@ -13,7 +13,7 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
     queryKey: ["docs"],
     staleTime: 1000 * 60 * 5,
-    queryFn: async ({ client}) => {
+    queryFn: async ({ client }) => {
       const { spaces } = await query(
         "network.habitat.space.listSpaces",
         { type: "network.habitat.docs" },
@@ -23,7 +23,8 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
         spaces.map(async (space) => {
           try {
             const record = await client.ensureQueryData(
-              ownerDocQueryOptions(space.uri, authManager))
+              ownerDocQueryOptions(space.uri, authManager),
+            );
             return record;
           } catch {
             return null;
@@ -34,27 +35,30 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
     },
   });
 
-export const ownerDocQueryOptions = (spaceUri: string, authManager: AuthManager) => 
+export const ownerDocQueryOptions = (
+  spaceUri: string,
+  authManager: AuthManager,
+) =>
   queryOptions({
     queryKey: ["owner-doc", spaceUri],
     queryFn: async () => {
-      const { spaceOwner } = parseSpaceRecordUri(spaceUri)
+      const { spaceOwner } = parseSpaceRecordUri(spaceUri);
       const { records } = await query(
         "network.habitat.space.listRecords",
         {
           space: spaceUri,
           collection: "network.habitat.docs",
-          repo: spaceOwner
+          repo: spaceOwner,
         },
         { authManager },
       );
-      // each the owner should have exactly one network.habitat.docs 
-      const { rkey, value, cid } = records[0]
+      // each the owner should have exactly one network.habitat.docs
+      const { rkey, value, cid } = records[0];
       return {
         uri: `${spaceUri}/${spaceOwner}/network.habitat.docs/${rkey}`,
         cid: cid,
         value: value as HabitatDoc,
-      };    
+      };
     },
   });
 
@@ -136,7 +140,10 @@ export const deleteDocMutationOptions = (authManager: AuthManager) =>
 export const addPermissionMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
     mutationFn: async (
-      { grantees, spaceUri }: { grantees: string[]; spaceUri: string | undefined },
+      {
+        grantees,
+        spaceUri,
+      }: { grantees: string[]; spaceUri: string | undefined },
       { client },
     ) => {
       if (!spaceUri) return;
