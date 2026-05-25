@@ -216,7 +216,7 @@ func (s *store) ListSpaces(
 			if err != nil {
 				return nil, fmt.Errorf("parse space object key: %w", err)
 			}
-			conditions = s.db.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
+			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
 		}
 		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
 		if filterOwner != nil {
