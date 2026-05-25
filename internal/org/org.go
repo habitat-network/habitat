@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -12,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/hive"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -73,6 +75,8 @@ type Org interface {
 		internalHandle string,
 		password string,
 	) (*identity.Identity, error)
+
+	db.Store[Org]
 }
 
 type inviteTokenClaims struct {
@@ -127,26 +131,17 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	}
 	return nil
 }
-
-func (s *orgImpl) addMember(ctx context.Context, did syntax.DID, loginID string) error {
-	return s.addMemberTx(ctx, s.db, did, loginID)
-}
-
 func (s *orgImpl) addMemberTx(
 	ctx context.Context,
 	tx *gorm.DB,
 	did syntax.DID,
 	loginID string,
 ) error {
-	return tx.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "org_id"}, {Name: "did"}},
-		DoNothing: true,
-	}).Create(&member{
-		OrgID:     s.orgID,
-		Did:       did,
-		Role:      MemberRole,
-		LoginID:   loginID,
-		CreatedAt: time.Now(),
+	return tx.WithContext(ctx).Create(&member{
+		OrgID:   s.orgID,
+		Did:     did,
+		Role:    MemberRole,
+		LoginID: loginID,
 	}).Error
 }
 
@@ -331,22 +326,19 @@ func (s *orgImpl) CreateNewMemberIdentity(
 		return nil, err
 	}
 
-	// If token is valid, call into hive to mint the new identity and serve it
-	id, persistIdent, err := s.hive.MintIdentity(internalHandle, s.handleSubdomain)
-	if err != nil {
-		return nil, err
-	}
-
+	var id *identity.Identity
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := persistIdent(tx); err != nil {
-			return err
+		// If token is valid, call into hive to mint the new identity and serve it
+		newId, err := s.hive.WithTx(tx).MintIdentity(internalHandle, s.handleSubdomain)
+		if err != nil {
+			return fmt.Errorf("mint identity: %w", err)
 		}
+		id = newId
 		return s.addMemberTx(ctx, tx, id.DID, passwordHash)
 	})
 	if err != nil {
 		return nil, err
 	}
-
 	return id, nil
 }
 
@@ -378,4 +370,15 @@ func (s *orgImpl) AuthenticateMember(
 		return false, nil
 	}
 	return ok, err
+}
+
+// WithTx implements [Org].
+func (s *orgImpl) WithTx(tx *gorm.DB) Org {
+	return &orgImpl{
+		orgID:           s.orgID,
+		hive:            s.hive,
+		db:              tx,
+		signingSecret:   s.signingSecret,
+		handleSubdomain: s.handleSubdomain,
+	}
 }
