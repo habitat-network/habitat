@@ -7,9 +7,7 @@ frontend.local.habitat.network {
 *.pear.local.habitat.network, 
 pear.local.habitat.network {
 	reverse_proxy 127.0.0.1:8000
-	tls {
-        issuer internal {
-            lifetime 168h
-        }
+	tls internal {
+        on_demand
     }
 }
