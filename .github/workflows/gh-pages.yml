@@ -34,7 +34,6 @@ jobs:
         uses: moonrepo/setup-toolchain@v0.6.4
         with:
           auto-install: true
-          moon-version: 2.2.5
 
       - name: Get pnpm store directory
         id: pnpm-cache
