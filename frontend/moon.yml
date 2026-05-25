@@ -46,5 +46,4 @@ tasks:
           OUT_DIR: $projectRoot/dist/api
     options:
       runDepsInParallel: false
-      runInCI: skip
       cache: false
