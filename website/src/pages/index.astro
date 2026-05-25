@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
+import "../styles/landing.css";
 ---
 
 <Layout
@@ -16,7 +17,7 @@ import Header from "../components/Header.astro";
         <div class="hero-copy">
           <h1 class="display reveal">Own your data.</h1>
           <p class="hero-sub reveal" style="--d: 120ms">
-            Habitat is building a unified data layer for your organization, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and incompatible permissions across providers a thing of the past. Give your agents the context they actually need and the guardrails to ship safely.
+            Habitat is a unified data layer for organizations, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and incompatible permissions across providers a thing of the past. Give your agents the context they actually need and the guardrails to ship safely.
           </p>
 <!-- Calendly link widget begin -->
 <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
@@ -340,21 +341,6 @@ import Header from "../components/Header.astro";
           <li class="pillar reveal">
             <div class="pillar-num">4</div>
             <div class="pillar-body">
-              <h3>Know where all your data lives</h3>
-              <p>
-                "Where is our data, and who can read it?"
-                With Habitat, the answer is short: it's in the data layer you control, accessed
-                only by the apps you've authorized.
-              </p>
-            </div>
-            <svg class="pillar-icon" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
-              <ellipse cx="24" cy="12" rx="15" ry="3"/>
-              <path d="M 9 12 L 13 40 Q 24 42.5 35 40 L 39 12"/>
-            </svg>
-          </li>
-          <li class="pillar reveal">
-            <div class="pillar-num">5</div>
-            <div class="pillar-body">
               <h3>Lifetime identity management</h3>
               <p>
                 When someone leaves,
@@ -369,7 +355,7 @@ import Header from "../components/Header.astro";
             </svg>
           </li>
           <li class="pillar reveal">
-            <div class="pillar-num">6</div>
+            <div class="pillar-num">5</div>
             <div class="pillar-body">
               <h3>Pay for the people who actually use the product</h3>
               <p>
@@ -413,77 +399,16 @@ import Header from "../components/Header.astro";
 </Layout>
 
 <style is:global>
-  @import url('https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap');
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+  /* Shared landing base lives in src/styles/landing.css (imported above).
+     Only index-specific rules go here. */
 
-  :root {
-    --white: #ffffff;
-    --black: #000000;
-    --green: #008000;
-    --rule: rgba(0, 0, 0, 0.10);
-    --muted: rgba(0, 0, 0, 0.60);
-  }
-
-  html, body {
-    background: var(--white);
-    color: var(--black);
-  }
-
-  .landing {
-    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
-    font-feature-settings: "ss01";
-    background: var(--white);
-    color: var(--black);
-  }
-
-  .landing h1,
-  .landing h2,
-  .landing h3,
-  .landing p,
-  .landing a,
-  .landing li {
-    font-family: inherit;
-  }
-
-  .landing a { color: var(--black); text-decoration: none; border-bottom: 1px solid var(--black); transition: color 160ms ease, border-color 160ms ease; }
-  .landing a:hover { color: var(--green); border-bottom-color: var(--green); transform: none; text-decoration: none; }
-
-  .section-inner {
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 0 32px;
-  }
-  .section-inner.center { text-align: center; }
-
-  /* ---------- HERO ---------- */
-  .hero {
-    padding: 80px 0 140px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .hero-inner {
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 0 32px;
+  /* Index hero is a two-column grid (copy + visual). Override the shared
+     .landing .hero-inner padding/width with the grid layout. */
+  .landing .hero-inner {
     display: grid;
     grid-template-columns: 1.2fr 1fr;
     gap: 64px;
     align-items: center;
-  }
-  .display {
-    font-size: clamp(2.4rem, 5.6vw, 5.25rem);
-    line-height: 1.02;
-    letter-spacing: -0.025em;
-    font-weight: 500;
-    margin: 0 0 28px;
-    max-width: 14ch;
-  }
-  .hero-sub {
-    font-size: 1.125rem;
-    line-height: 1.55;
-    color: var(--black);
-    max-width: 52ch;
-    margin: 0 0 40px;
-    font-weight: 400;
   }
 
   .talk-btn {
@@ -552,15 +477,6 @@ import Header from "../components/Header.astro";
   .waitlist-status[data-status="invalid"],
   .waitlist-status[data-status="error"] { color: var(--black); }
   .section.closing .waitlist-status { text-align: center; }
-
-  .helper {
-    margin-top: 16px;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.8125rem;
-    color: var(--muted);
-  }
-  .helper a { color: var(--muted); border-bottom-color: var(--rule); }
-  .helper a:hover { color: var(--green); border-bottom-color: var(--green); }
 
   /* ---------- HERO VISUAL ---------- */
   .hero-visual { width: 100%; }
@@ -643,23 +559,8 @@ import Header from "../components/Header.astro";
     opacity: 0.35;
   }
 
-  /* ---------- GENERIC SECTION ---------- */
-  .section { padding: 120px 0; border-bottom: 1px solid var(--rule); }
-  .section h2 {
-    font-size: clamp(1.875rem, 3.2vw, 2.75rem);
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-    font-weight: 500;
-    margin: 0 0 32px;
-    max-width: 36ch;
-  }
+  /* Closing section centers its heading + lead — index-specific. */
   .section.closing h2 { max-width: none; margin-left: auto; margin-right: auto; }
-  .lead {
-    font-size: 1.125rem;
-    line-height: 1.55;
-    max-width: 60ch;
-    margin: 0 0 48px;
-  }
   .section.closing .lead { margin-left: auto; margin-right: auto; }
 
   /* ---------- WITH HABITAT DIAGRAM ---------- */
@@ -896,36 +797,16 @@ import Header from "../components/Header.astro";
   .footer a { color: var(--muted); border-bottom-color: var(--rule); }
   .footer a:hover { color: var(--green); border-bottom-color: var(--green); }
 
-  /* ---------- REVEAL ---------- */
-  .reveal {
-    opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 700ms ease-out, transform 700ms ease-out;
-    transition-delay: var(--d, 0ms);
-  }
-  .reveal.is-visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .visually-hidden {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
-  }
-
-  /* ---------- RESPONSIVE ---------- */
+  /* ---------- RESPONSIVE (index-specific) ---------- */
   @media (max-width: 880px) {
-    .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+    .landing .hero-inner { grid-template-columns: 1fr; gap: 48px; }
     .plane { max-width: 100%; margin-left: 0; }
     .diagram { grid-template-columns: 1fr; gap: 48px; }
     .pillar { grid-template-columns: 48px 1fr; gap: 20px; }
-    .section { padding: 80px 0; }
-    .hero { padding: 48px 0 96px; }
   }
 
-  /* ---------- REDUCED MOTION ---------- */
+  /* ---------- REDUCED MOTION (index-specific animations) ---------- */
   @media (prefers-reduced-motion: reduce) {
-    .reveal { opacity: 1; transform: none; transition: none; }
     .diagram-svg .orb,
     .silo-svg .orb,
     .silo-svg .orb-red,

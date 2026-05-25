@@ -1,0 +1,88 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import "../styles/landing.css";
+---
+
+<Layout
+  title="Community Platform — Habitat"
+  description="A data ownership platform for communities."
+>
+  <Header />
+
+  <main class="landing cp">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-inner">
+        <h1 class="display reveal" style="--d: 80ms">Data ownership for communities.</h1>
+        <p class="hero-sub reveal" style="--d: 160ms">
+          Habitat gives communities a portable, data home, so .
+        </p>
+      </div>
+    </section>
+
+    <!-- SECTION: backend handled -->
+    <section class="section">
+      <div class="section-inner">
+        <h2 class="reveal">Shape your community</h2>
+        <p class="lead reveal" style="--d: 100ms">
+          Habitat is an agnostic storage, identity, and permissions provider.
+        </p>
+      </div>
+    </section>
+
+    <!-- SECTION: open source -->
+    <section class="section">
+      <div class="section-inner">
+        <h2 class="reveal">Open-source, self-hostable, deployed anywhere.</h2>
+        <p class="lead reveal" style="--d: 100ms">
+          Habitat is open source. Run it on our hosted service, deploy it to your own
+          infrastructure, or move between the two whenever you want. No lock-in, no
+          proprietary export format, no vendor that can pull the rug. The community's
+          data is the community's — wherever it lives.
+        </p>
+      </div>
+    </section>
+
+    <!-- SECTION: open protocols -->
+    <section class="section">
+      <div class="section-inner">
+        <h2 class="reveal">Built on open protocols.</h2>
+        <p class="lead reveal" style="--d: 100ms">
+          Habitat is built with AT protocol.
+        </p>
+      </div>
+    </section>
+
+  </main>
+</Layout>
+
+<style is:global>
+  /* Page-specific overrides: this hero is text-only, so use tighter padding
+     and let the heading run wider than the index hero's two-column layout. */
+  .landing.cp .hero { padding: 96px 0 80px; }
+  .landing.cp .display { max-width: 18ch; }
+  .landing.cp .hero-sub { max-width: 60ch; margin-bottom: 0; }
+  .landing.cp .section h2 { max-width: 28ch; }
+  .landing.cp .lead { max-width: 64ch; margin-bottom: 0; }
+  .landing.cp .section:last-of-type { border-bottom: none; }
+
+  @media (max-width: 880px) {
+    .landing.cp .hero { padding: 56px 0 64px; }
+  }
+</style>
+
+<script>
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add('is-visible');
+          io.unobserve(e.target);
+        }
+      }
+    },
+    { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+  );
+  document.querySelectorAll('.cp .reveal').forEach((el) => io.observe(el));
+</script>
