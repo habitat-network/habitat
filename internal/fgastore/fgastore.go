@@ -141,9 +141,24 @@ func newFromDS(ctx context.Context, ds storage.OpenFGADatastore) (*FGA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new server: %w", err)
 	}
+	storeID, err := findOrCreateStore(ctx, svr)
+	if err != nil {
+		return nil, err
+	}
+	return &FGA{ds: ds, svr: svr, storeID: storeID}, nil
+}
+
+func findOrCreateStore(ctx context.Context, svr *server.Server) (string, error) {
+	listResp, err := svr.ListStores(ctx, &openfgav1.ListStoresRequest{Name: "habitat"})
+	if err != nil {
+		return "", fmt.Errorf("list stores: %w", err)
+	}
+	if stores := listResp.GetStores(); len(stores) > 0 {
+		return stores[0].GetId(), nil
+	}
 	createResp, err := svr.CreateStore(ctx, &openfgav1.CreateStoreRequest{Name: "habitat"})
 	if err != nil {
-		return nil, fmt.Errorf("create store: %w", err)
+		return "", fmt.Errorf("create store: %w", err)
 	}
 	model := authModel()
 	if _, err := svr.WriteAuthorizationModel(ctx, &openfgav1.WriteAuthorizationModelRequest{
@@ -151,9 +166,9 @@ func newFromDS(ctx context.Context, ds storage.OpenFGADatastore) (*FGA, error) {
 		SchemaVersion:   model.GetSchemaVersion(),
 		TypeDefinitions: model.GetTypeDefinitions(),
 	}); err != nil {
-		return nil, fmt.Errorf("write auth model: %w", err)
+		return "", fmt.Errorf("write auth model: %w", err)
 	}
-	return &FGA{ds: ds, svr: svr, storeID: createResp.GetId()}, nil
+	return createResp.GetId(), nil
 }
 
 func (f *FGA) Check(
