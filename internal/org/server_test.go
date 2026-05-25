@@ -43,7 +43,7 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	scoped, err := storeImpl.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	st := scoped.(*orgImpl)
-	require.NoError(t, st.addMember(context.Background(), adminDID, testPasswordHash))
+	require.NoError(t, st.addMemberTx(context.Background(), st.db, adminDID, testPasswordHash))
 	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
 
 	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID), nil)

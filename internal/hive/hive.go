@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +23,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string, subdomain string) (*identity.Identity, func(*gorm.DB) error, error)
+	MintIdentity(handle string, subdomain string) (*identity.Identity, error)
 	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
 	// identity's signing key (the same key registered in its did:web doc). It is
 	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
@@ -42,6 +43,7 @@ type Hive interface {
 
 	// Implements the same interface as the PLC / any identity Directory in atproto land
 	identity.Directory
+	db.Store[Hive]
 }
 
 type hive struct {
@@ -166,17 +168,19 @@ func (h *hive) SignServiceAuth(
 func (h *hive) MintIdentity(
 	handlePrefix string,
 	subdomain string,
-) (*identity.Identity, func(*gorm.DB) error, error) {
+) (*identity.Identity, error) {
 	// Ensure handle passes regex
 	if !handlePattern.MatchString(handlePrefix) {
-		return nil, nil, identity.ErrInvalidHandle
+		return nil, identity.ErrInvalidHandle
 	}
 	fullHandle := handlePrefix + "." + subdomain
-	row, id, err := h.store.prepareIdentity(fullHandle)
-	if err != nil {
-		return nil, nil, err
+	return h.store.mintIdentity(fullHandle)
+}
+
+func (h *hive) WithTx(tx *gorm.DB) Hive {
+	return &hive{
+		memberDomain: h.memberDomain,
+		pearDomain:   h.pearDomain,
+		store:        &store{db: tx, template: h.store.template},
 	}
-	return id, func(tx *gorm.DB) error {
-		return persistIdentity(tx, row)
-	}, nil
 }

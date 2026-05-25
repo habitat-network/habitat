@@ -2,7 +2,7 @@ package hive
 
 import (
 	"context"
-	"strings"
+	"regexp"
 	"testing"
 	"time"
 
@@ -15,75 +15,69 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func newTestHive(t *testing.T, memberDomain, pearDomain string) (Hive, *gorm.DB) {
+func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	h, err := NewHive(memberDomain, pearDomain, db)
 	require.NoError(t, err)
-	return h, db
-}
-
-// mintAndPersist is a test helper that mints an identity and persists it atomically.
-func mintAndPersist(t *testing.T, h Hive, db *gorm.DB, handle, subdomain string) {
-	t.Helper()
-	_, persist, err := h.MintIdentity(handle, subdomain)
-	require.NoError(t, err)
-	require.NoError(t, persist(db))
+	return h
 }
 
 func TestMintIdentity(t *testing.T) {
-	h, db := newTestHive(t, "example.com", "pear.example.com")
-	mintAndPersist(t, h, db, "alice", "org")
+	h := newTestHive(t, "example.com", "pear.example.com")
+	id, err := h.MintIdentity("alice", "org")
+	require.NoError(t, err)
+	require.Regexp(t, regexp.MustCompile("did:web:.*.example.com"), id.DID.String())
+	require.Equal(t, "alice.org.example.com", id.Handle.String())
 }
 
 func TestMintIdentity_InvalidHandle(t *testing.T) {
-	h, _ := newTestHive(t, "example.com", "pear.example.com")
-	_, _, err := h.MintIdentity("alice!invalid", "org")
+	h := newTestHive(t, "example.com", "pear.example.com")
+	_, err := h.MintIdentity("alice!invalid", "org")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
 func TestMintIdentity_Duplicate(t *testing.T) {
-	h, db := newTestHive(t, "example.com", "pear.example.com")
-
-	mintAndPersist(t, h, db, "alice", "org")
-
-	_, persist, err := h.MintIdentity("alice", "org")
+	h := newTestHive(t, "example.com", "pear.example.com")
+	_, err := h.MintIdentity("alice", "org")
 	require.NoError(t, err)
-	require.ErrorIs(t, persist(db), ErrNotCreated)
+	_, err = h.MintIdentity("alice", "org")
+	require.ErrorIs(t, err, ErrNotCreated)
 }
 
 func TestLookupHandle(t *testing.T) {
-	h, db := newTestHive(t, "example.com", "pear.example.com")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice", "org")
-
-	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
+	id, err := h.MintIdentity("alice", "org")
 	require.NoError(t, err)
-	require.Equal(t, syntax.Handle("alice.org.example.com"), ident.Handle)
-	require.True(t, strings.HasPrefix(ident.DID.String(), "did:web:"))
+
+	fetchedId, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
+	require.NoError(t, err)
+	require.Equal(t, syntax.Handle("alice.org.example.com"), fetchedId.Handle)
+	require.Equal(t, id.DID, fetchedId.DID)
 }
 
 func TestLookupHandle_NotFound(t *testing.T) {
-	h, _ := newTestHive(t, "example.com", "pear.example.com")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.LookupHandle(context.Background(), syntax.Handle("nobody.org.example.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupHandle_WrongDomain(t *testing.T) {
-	h, db := newTestHive(t, "example.com", "pear.example.com")
-
-	mintAndPersist(t, h, db, "alice", "org")
-
-	_, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.other.com"))
+	h := newTestHive(t, "example.com", "pear.example.com")
+	_, err := h.MintIdentity("alice", "org")
+	require.NoError(t, err)
+	_, err = h.LookupHandle(context.Background(), syntax.Handle("alice.org.other.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
 }
 
 func TestLookupDID(t *testing.T) {
-	h, db := newTestHive(t, "example.com", "pear.example.com")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice", "org")
+	_, err := h.MintIdentity("alice", "org")
+	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
 	require.NoError(t, err)
@@ -95,16 +89,17 @@ func TestLookupDID(t *testing.T) {
 }
 
 func TestLookupDID_NotFound(t *testing.T) {
-	h, _ := newTestHive(t, "example.com", "pear.example.com")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.LookupDID(context.Background(), syntax.DID("did:web:xxxxxx.example.com"))
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
 func TestSignServiceAuth(t *testing.T) {
-	h, db := newTestHive(t, "example.com", "pear.example.com")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
-	mintAndPersist(t, h, db, "alice", "org")
+	_, err := h.MintIdentity("alice", "org")
+	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
 	require.NoError(t, err)
@@ -154,7 +149,7 @@ func TestSignServiceAuth(t *testing.T) {
 }
 
 func TestSignServiceAuth_DIDNotFound(t *testing.T) {
-	h, _ := newTestHive(t, "example.com", "pear.example.com")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.SignServiceAuth(
 		context.Background(),
@@ -167,7 +162,7 @@ func TestSignServiceAuth_DIDNotFound(t *testing.T) {
 }
 
 func TestSignServiceAuth_WrongDomain(t *testing.T) {
-	h, _ := newTestHive(t, "example.com", "pear.example.com")
+	h := newTestHive(t, "example.com", "pear.example.com")
 
 	_, err := h.SignServiceAuth(
 		context.Background(),

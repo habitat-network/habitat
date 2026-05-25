@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 	"github.com/gorilla/schema"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -357,10 +358,16 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rkey, err := syntax.ParseRecordKey(input.Rkey)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
-		return
+	var rkey syntax.RecordKey
+	if input.Rkey != "" {
+		parsedRkey, err := syntax.ParseRecordKey(input.Rkey)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
+			return
+		}
+		rkey = parsedRkey
+	} else {
+		rkey = syntax.RecordKey(uuid.New().String())
 	}
 
 	value, ok := input.Record.(map[string]any)
@@ -522,6 +529,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			Rkey:       rec.Rkey.String(),
 			Cid:        "",
 			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
+			Value:      rec.Value,
 		}
 	}
 

@@ -51,6 +51,7 @@ type MemberInfo struct {
 
 // Record is a single record within a space
 type Record struct {
+	Owner      syntax.DID
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
 	Value      map[string]any
@@ -216,7 +217,7 @@ func (s *store) ListSpaces(
 			if err != nil {
 				return nil, fmt.Errorf("parse space object key: %w", err)
 			}
-			conditions = s.db.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
+			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
 		}
 		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
 		if filterOwner != nil {
@@ -464,6 +465,7 @@ func (s *store) ListRecords(
 			return nil, err
 		}
 		records[i] = Record{
+			Owner:      row.Owner,
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
 			Value:      value,
