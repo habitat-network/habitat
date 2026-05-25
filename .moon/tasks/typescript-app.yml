@@ -4,8 +4,8 @@ tasks:
       - --
       - --domain
       - $project.${TS_DOMAIN}
-    env:
-      HABITAT_DOMAIN: pear.local.habitat.network
+      - --habitatDomain
+      - pear.${TS_DOMAIN}
     deps:
       - target: "pear:dev"
       - target: "funnel:start"

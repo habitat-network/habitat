@@ -19,15 +19,6 @@ import type {
   NetworkHabitatPermissionsAddPermission,
   NetworkHabitatPermissionsListPermissions,
   NetworkHabitatPermissionsRemovePermission,
-  NetworkHabitatSpaceAddMember,
-  NetworkHabitatSpaceCreateSpace,
-  NetworkHabitatSpaceDeleteRecord,
-  NetworkHabitatSpaceGetMembers,
-  NetworkHabitatSpaceGetRecord,
-  NetworkHabitatSpaceListRecords,
-  NetworkHabitatSpaceListSpaces,
-  NetworkHabitatSpacePutRecord,
-  NetworkHabitatSpaceRemoveMember,
   NetworkHabitatCliqueAddMembers,
   NetworkHabitatCliqueGetMembers,
   NetworkHabitatCliqueRemoveMembers,
@@ -120,22 +111,6 @@ type QueryEndpoints = {
     NetworkHabitatPermissionsListPermissions.QueryParams,
     NetworkHabitatPermissionsListPermissions.OutputSchema
   >;
-  "network.habitat.space.listSpaces": Query<
-    NetworkHabitatSpaceListSpaces.QueryParams,
-    NetworkHabitatSpaceListSpaces.OutputSchema
-  >;
-  "network.habitat.space.getMembers": Query<
-    NetworkHabitatSpaceGetMembers.QueryParams,
-    NetworkHabitatSpaceGetMembers.OutputSchema
-  >;
-  "network.habitat.space.getRecord": Query<
-    NetworkHabitatSpaceGetRecord.QueryParams,
-    NetworkHabitatSpaceGetRecord.OutputSchema
-  >;
-  "network.habitat.space.listRecords": Query<
-    NetworkHabitatSpaceListRecords.QueryParams,
-    NetworkHabitatSpaceListRecords.OutputSchema
-  >;
 };
 
 type Procedure<Params, Output> = {
@@ -222,26 +197,6 @@ type ProcedureEndpoints = {
   "network.habitat.org.mintMemberIdentity": Procedure<
     NetworkHabitatOrgMintMemberIdentity.InputSchema,
     NetworkHabitatOrgMintMemberIdentity.OutputSchema
-  >;
-  "network.habitat.space.createSpace": Procedure<
-    NetworkHabitatSpaceCreateSpace.InputSchema,
-    NetworkHabitatSpaceCreateSpace.OutputSchema
-  >;
-  "network.habitat.space.addMember": Procedure<
-    NetworkHabitatSpaceAddMember.InputSchema,
-    void
-  >;
-  "network.habitat.space.removeMember": Procedure<
-    NetworkHabitatSpaceRemoveMember.InputSchema,
-    void
-  >;
-  "network.habitat.space.putRecord": Procedure<
-    NetworkHabitatSpacePutRecord.InputSchema,
-    NetworkHabitatSpacePutRecord.OutputSchema
-  >;
-  "network.habitat.space.deleteRecord": Procedure<
-    NetworkHabitatSpaceDeleteRecord.InputSchema,
-    {}
   >;
 };
 
