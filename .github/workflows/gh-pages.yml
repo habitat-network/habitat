@@ -26,30 +26,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup moon
-        uses: moonrepo/setup-toolchain@v0
+        uses: moonrepo/setup-toolchain@v0.6.4
         with:
           auto-install: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
 
-      - name: Get Node version
-        id: node-version
-        run: echo "version=$(grep '^node' .prototools | cut -d'"' -f2)" >> $GITHUB_OUTPUT
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          node-version: ${{ steps.node-version.outputs.version }}
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml', '.prototools') }}
 
       - name: Build
         run: moon r frontend:gh-pages
