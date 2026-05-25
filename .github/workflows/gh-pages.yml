@@ -52,6 +52,7 @@ jobs:
           DOMAIN: ${{ vars.DOMAIN }}
           HABITAT_DOMAIN: ${{ vars.HABITAT_DOMAIN }}
           HASH_ROUTING: true
+          MOON_LOG: trace
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
