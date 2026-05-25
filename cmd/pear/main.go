@@ -32,6 +32,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/authzen"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -298,6 +299,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(dir),
 		orgStore,
 	)
+	authzenServer := authzen.NewServer(pear, oauthServer, authn.NewServiceAuthMethod(dir))
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
@@ -377,6 +379,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 		"/xrpc/network.habitat.permissions.removePermission",
 		pearServer.RemovePermission,
 	)
+
+	// authzen
+	mux.HandleFunc("/xrpc/network.habitat.authzen.evaluate", authzenServer.EvaluateAccess)
 
 	// cliques
 	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)

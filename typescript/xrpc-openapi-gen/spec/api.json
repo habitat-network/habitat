@@ -17,6 +17,125 @@
     }
   ],
   "paths": {
+    "/network.habitat.authzen.evaluate": {
+      "post": {
+        "tags": [
+          "network.habitat.authzen"
+        ],
+        "summary": "network.habitat.authzen.evaluate",
+        "description": "AuthZEN Access Evaluation — check if a subject has access to a resource with a given action.",
+        "operationId": "network.habitat.authzen.evaluate",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "resource",
+                  "action"
+                ],
+                "properties": {
+                  "subject": {
+                    "$ref": "#/components/schemas/network.habitat.authzen.evaluate.entity"
+                  },
+                  "resource": {
+                    "$ref": "#/components/schemas/network.habitat.authzen.evaluate.entity"
+                  },
+                  "action": {
+                    "$ref": "#/components/schemas/network.habitat.authzen.evaluate.action"
+                  },
+                  "context": {}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "decision"
+                  ],
+                  "properties": {
+                    "decision": {
+                      "type": "boolean",
+                      "description": "A boolean value that specifies whether the Decision is to allow or deny the operation."
+                    },
+                    "context": {}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.clique.addMembers": {
       "post": {
         "tags": [
@@ -4558,6 +4677,37 @@
   },
   "components": {
     "schemas": {
+      "network.habitat.authzen.evaluate.entity": {
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A string value that specifies the type of the entity."
+          },
+          "id": {
+            "type": "string",
+            "description": "A string value containing the unique identifier of the entity, scoped to the type."
+          },
+          "properties": {}
+        }
+      },
+      "network.habitat.authzen.evaluate.action": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A string value containing the name of the Action."
+          },
+          "properties": {}
+        }
+      },
       "network.habitat.clique": {
         "type": "object",
         "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
@@ -4942,6 +5092,9 @@
     }
   },
   "tags": [
+    {
+      "name": "network.habitat.authzen"
+    },
     {
       "name": "network.habitat.clique"
     },

@@ -1,0 +1,86 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.authzen.evaluate",
+  "defs": {
+    "entity": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "A string value that specifies the type of the entity."
+        },
+        "id": {
+          "type": "string",
+          "description": "A string value containing the unique identifier of the entity, scoped to the type."
+        },
+        "properties": {
+          "type": "unknown",
+          "description": "Additional attributes of the entity."
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A string value containing the name of the Action."
+        },
+        "properties": {
+          "type": "unknown",
+          "description": "Additional attributes of the Action."
+        }
+      }
+    },
+    "main": {
+      "type": "procedure",
+      "description": "AuthZEN Access Evaluation — check if a subject has access to a resource with a given action.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject", "resource", "action"],
+          "properties": {
+            "subject": {
+              "type": "ref",
+              "ref": "#entity",
+              "description": "The subject (or principal) of the access evaluation request."
+            },
+            "resource": {
+              "type": "ref",
+              "ref": "#entity",
+              "description": "The resource being accessed."
+            },
+            "action": {
+              "type": "ref",
+              "ref": "#action"
+            },
+            "context": {
+              "type": "unknown",
+              "description": "The context represents the environment of the access evaluation request."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["decision"],
+          "properties": {
+            "decision": {
+              "type": "boolean",
+              "description": "A boolean value that specifies whether the Decision is to allow or deny the operation."
+            },
+            "context": {
+              "type": "unknown",
+              "description": "Additional information that can be used by the PEP as part of the decision enforcement process."
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -47,7 +47,8 @@ type LexObjectProperty =
     | LexArray
     | LexBlob
     | LexPrimitive
-    | LexToken;
+    | LexToken
+    | LexObject;
 
 export function convertProperty(
     id: string,
@@ -143,6 +144,11 @@ export function convertProperty(
             return {
                 type: "string",
                 format: "token",
+                ...(property.description && { description: property.description }),
+            };
+        case "object":
+            return {
+                type: "object",
                 ...(property.description && { description: property.description }),
             };
         case "unknown":
