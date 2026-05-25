@@ -51,6 +51,7 @@ type MemberInfo struct {
 
 // Record is a single record within a space
 type Record struct {
+	Owner      syntax.DID
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
 	Value      map[string]any
@@ -464,6 +465,7 @@ func (s *store) ListRecords(
 			return nil, err
 		}
 		records[i] = Record{
+			Owner:      row.Owner,
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
 			Value:      value,
