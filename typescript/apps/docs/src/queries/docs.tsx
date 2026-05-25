@@ -47,15 +47,15 @@ export const ownerDocQueryOptions = (
         "network.habitat.space.listRecords",
         {
           space: spaceUri,
-          collection: "network.habitat.docs",
+          collection: "network.habitat.docs.edit",
           repo: spaceOwner,
         },
         { authManager },
       );
-      // each the owner should have exactly one network.habitat.docs
+      // each the owner should have exactly one network.habitat.docs.edit
       const { rkey, value, cid } = records[0];
       return {
-        uri: `${spaceUri}/${spaceOwner}/network.habitat.docs/${rkey}`,
+        uri: `${spaceUri}/${spaceOwner}/network.habitat.docs.edit/${rkey}`,
         cid: cid,
         value: value as HabitatDoc,
       };
