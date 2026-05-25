@@ -67,6 +67,15 @@ func TestMigrateCliques(t *testing.T) {
 	require.Equal(t, "network.habitat.docs", spacesList[0].Type.String())
 	require.Equal(t, habitat_syntax.Skey(cliqueURI.Key()), spacesList[0].Skey)
 
+	// Verify records in space_records have collection network.habitat.docs.edit.
+	var recordCollection string
+	err = db.Raw(
+		`SELECT collection FROM space_records WHERE space = ?`,
+		spacesList[0].URI.String(),
+	).Scan(&recordCollection).Error
+	require.NoError(t, err)
+	require.Equal(t, "network.habitat.docs.edit", recordCollection)
+
 	// Verify members were added (owner is always a member, plus bob and carol).
 	members, err := spacesStore.GetMembers(ctx, spacesList[0].URI)
 	require.NoError(t, err)

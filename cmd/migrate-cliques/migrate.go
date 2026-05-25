@@ -33,6 +33,7 @@ type SpaceWriter interface {
 // MigrateCliques finds all cliques referenced in permissions for
 // network.habitat.docs or network.habitat.docs.edit, creates a space for
 // each, and adds the clique's members as space members.
+// Records are copied into the space with collection set to network.habitat.docs.edit.
 func MigrateCliques(
 	ctx context.Context,
 	db *gorm.DB,
@@ -150,7 +151,7 @@ func copyRecords(db *gorm.DB, grantee string, spaceURI habitat_syntax.SpaceURI) 
 	}
 	stmt := fmt.Sprintf(`
 		%s space_records (space, owner, collection, rkey, value, created_at, updated_at)
-		SELECT ? AS space, p.owner, p.collection, p.rkey, r.value,
+		SELECT ? AS space, p.owner, ? AS collection, p.rkey, r.value,
 		       COALESCE(r.created_at, CURRENT_TIMESTAMP),
 		       COALESCE(r.updated_at, CURRENT_TIMESTAMP)
 		FROM permissions p
@@ -158,7 +159,8 @@ func copyRecords(db *gorm.DB, grantee string, spaceURI habitat_syntax.SpaceURI) 
 		WHERE p.grantee = ?
 		%s
 	`, insertPrefix, suffix)
-	res := db.Exec(stmt, spaceURI.String(), grantee)
+	editCollection := "network.habitat.docs.edit"
+	res := db.Exec(stmt, spaceURI.String(), editCollection, grantee)
 	if res.Error != nil {
 		return fmt.Errorf("copy records for %q: %w", grantee, res.Error)
 	}
