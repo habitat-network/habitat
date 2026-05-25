@@ -50,7 +50,7 @@ type Org interface {
 	// This is exported because other packages may want to do membership lookup
 	AddAdmin(ctx context.Context, admin syntax.DID) error
 	// Only support adding members through CreateNewMemberIdentity for now
-	AddMember(ctx context.Context, member syntax.DID, loginID string) error
+	// AddMembers(ctx context.Context, members []syntax.DID) error
 	GetAdmins(ctx context.Context) ([]syntax.DID, error)
 	GetMembers(ctx context.Context) ([]syntax.DID, error)
 	RemoveAdmin(ctx context.Context, admin syntax.DID) error
@@ -131,14 +131,17 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	}
 	return nil
 }
-
-func (s *orgImpl) AddMember(ctx context.Context, did syntax.DID, loginID string) error {
-	return s.db.WithContext(ctx).Create(&member{
-		OrgID:     s.orgID,
-		Did:       did,
-		Role:      MemberRole,
-		LoginID:   loginID,
-		CreatedAt: time.Now(),
+func (s *orgImpl) addMemberTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	did syntax.DID,
+	loginID string,
+) error {
+	return tx.WithContext(ctx).Create(&member{
+		OrgID:   s.orgID,
+		Did:     did,
+		Role:    MemberRole,
+		LoginID: loginID,
 	}).Error
 }
 
@@ -331,7 +334,7 @@ func (s *orgImpl) CreateNewMemberIdentity(
 			return fmt.Errorf("mint identity: %w", err)
 		}
 		id = newId
-		return s.WithTx(tx).AddMember(ctx, id.DID, passwordHash)
+		return s.addMemberTx(ctx, tx, id.DID, passwordHash)
 	})
 	if err != nil {
 		return nil, err
