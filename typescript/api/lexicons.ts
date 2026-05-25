@@ -2911,7 +2911,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'rkey', 'record'],
+            required: ['collection', 'record'],
             properties: {
               space: {
                 type: 'string',

@@ -4344,7 +4344,6 @@
                 "type": "object",
                 "required": [
                   "collection",
-                  "rkey",
                   "record"
                 ],
                 "properties": {
