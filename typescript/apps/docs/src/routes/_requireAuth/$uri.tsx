@@ -146,17 +146,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       ydocRegistry.set(spaceUri, ydoc);
     }
 
-    // Always re-apply the backend state — YJS CRDT merges are idempotent,
-    // so this picks up any changes made by other users without overwriting
-    // local edits that are ahead of the last save.
-    const data = await context.queryClient.fetchQuery(
-      ownerDocQueryOptions(spaceUri, context.authManager),
-    );
-
-    if (data.value.blob) {
-      Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(data.value.blob));
-    }
-
     const edits = await context.queryClient.fetchQuery(
       docEditsQueryOptions(spaceUri, context.authManager),
     );
@@ -315,13 +304,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { mutate: save } = useMutation({
       mutationFn: async () => {
         const heading = getHeadingFromYdoc(ydoc);
-        const { recordKey: ownerRecordKey } = parseSpaceRecordUri(
-          ownerRecord.uri,
-        );
-        const collection =
-          spaceOwner === did
-            ? "network.habitat.docs"
-            : "network.habitat.docs.edit";
+        const { recordKey: ownerRecordKey } = parseSpaceRecordUri( ownerRecord.uri,);
         const rkey =
           spaceOwner === did
             ? ownerRecordKey
@@ -333,7 +316,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           "network.habitat.space.putRecord",
           {
             space: spaceUri,
-            collection,
+            collection: "network.habitat.docs.edit",
             rkey,
             record: {
               name: heading ?? "Untitled",
