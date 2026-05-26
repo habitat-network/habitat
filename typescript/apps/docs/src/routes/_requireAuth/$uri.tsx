@@ -23,9 +23,9 @@ import {
   addPermissionMutationOptions,
   removePermissionMutationOptions,
   docEditsQueryOptions,
+  docQueryOptions,
   docsListQueryOptions,
   editorProfilesQueryOptions,
-  ownerDocQueryOptions,
 } from "@/queries/docs";
 import {
   ShareDialog,
@@ -46,10 +46,8 @@ import {
 import { UserAvatar } from "internal";
 import { HelpDialog } from "@/components/HelpDialog";
 import { PageHeader } from "@/components/PageHeader";
-import { HabitatDoc } from "@/habitatDoc";
 import { CheckIcon } from "lucide-react";
 import { profileQueryOptions } from "@/queries/profile";
-import { parseSpaceRecordUri } from "@/utils";
 
 const habitatDID = "did:plc:ss2uhsajrstfhkq73fteu4zz";
 
@@ -136,21 +134,21 @@ function getHeadingFromYdoc(ydoc: Y.Doc): string | undefined {
 
 export const Route = createFileRoute("/_requireAuth/$uri")({
   async loader({ context, params }) {
-    const { uri: spaceUri } = params;
-    const authInfo = context.authManager.getAuthInfo()!;
+    const { uri } = params;
+
     // Reuse an existing ydoc for this URI if available so the editor never
     // has to reinitialize from scratch (prevents visible content flash).
-    const existingYdoc = ydocRegistry.get(spaceUri);
+    const existingYdoc = ydocRegistry.get(uri);
     const ydoc = existingYdoc ?? new Y.Doc();
     if (!existingYdoc) {
-      ydocRegistry.set(spaceUri, ydoc);
+      ydocRegistry.set(uri, ydoc);
     }
 
     // Always re-apply the backend state — YJS CRDT merges are idempotent,
     // so this picks up any changes made by other users without overwriting
     // local edits that are ahead of the last save.
     const data = await context.queryClient.fetchQuery(
-      ownerDocQueryOptions(spaceUri, context.authManager),
+      docQueryOptions(uri, context.authManager),
     );
 
     if (data.value.blob) {
@@ -158,17 +156,13 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     }
 
     const edits = await context.queryClient.fetchQuery(
-      docEditsQueryOptions(spaceUri, context.authManager),
+      docEditsQueryOptions(data, context.authManager),
     );
     for (const e of edits) {
       if (e?.value.blob) {
         Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(e.value.blob));
       }
     }
-
-    const myEditUri = edits.find(
-      (r) => parseSpaceRecordUri(r.uri).recordOwner === authInfo.did,
-    )?.uri;
 
     // setup libp2p
     const node = await createLibp2p({
@@ -215,12 +209,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       try {
         const conn = await node.dial(relayAddr);
         const relayPeerId = conn.remotePeer;
-        void startPeerDiscovery(
-          spaceUri,
-          relayPeerId,
-          node,
-          context.authManager,
-        );
+        void startPeerDiscovery(uri, relayPeerId, node, context.authManager);
       } catch {
         // Relay unreachable — document still works, real-time collaboration unavailable
         // TODO: can we signal to the user somehow that real-time collaboration is not working ?
@@ -231,7 +220,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     }
 
     await dialRelayAndStartPeerDiscovery();
-    const provider = new Libp2pConnectionProvider(node, ydoc, spaceUri);
+    const provider = new Libp2pConnectionProvider(node, ydoc, uri);
 
     const profile = await context.queryClient.fetchQuery(
       profileQueryOptions(
@@ -244,10 +233,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       provider,
       node,
       ydoc,
-      ownerRecord: data,
-      uri: spaceUri,
+      doc: data,
+      uri,
       profile,
-      myEditUri,
       dialRelayAndStartPeerDiscovery,
     };
   },
@@ -263,13 +251,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       ydoc,
       provider,
       node,
-      ownerRecord,
-      uri: spaceUri,
+      doc,
+      uri,
       profile,
       dialRelayAndStartPeerDiscovery,
-      myEditUri,
     } = Route.useLoaderData();
-    const { spaceOwner } = parseSpaceRecordUri(spaceUri);
+    const [, , docDID, , rkey] = uri.split("/");
     const { authManager, queryClient } = Route.useRouteContext();
     const did = authManager.getAuthInfo()?.did;
 
@@ -297,7 +284,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             return {
               ...old,
               records: old.records.map((r) =>
-                r.uri === spaceUri ? { ...r, value: { ...r.value, name } } : r,
+                r.uri === uri ? { ...r, value: { ...r.value, name } } : r,
               ),
             };
           },
@@ -306,39 +293,31 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       ydoc.on("update", syncHeading);
       syncHeading();
       return () => ydoc.off("update", syncHeading);
-    }, [ydoc, spaceUri, queryClient, authManager]);
+    }, [ydoc, uri, queryClient, authManager]);
 
     const [dirty, setDirty] = useState(false);
     const { data: editorProfiles } = useQuery(
-      editorProfilesQueryOptions(spaceUri, authManager),
+      editorProfilesQueryOptions(doc.value.editorClique, authManager),
     );
     const { mutate: save } = useMutation({
       mutationFn: async () => {
         const heading = getHeadingFromYdoc(ydoc);
-        const { recordKey: ownerRecordKey } = parseSpaceRecordUri(
-          ownerRecord.uri,
-        );
         const collection =
-          spaceOwner === did
-            ? "network.habitat.docs"
-            : "network.habitat.docs.edit";
-        const rkey =
-          spaceOwner === did
-            ? ownerRecordKey
-            : myEditUri
-              ? parseSpaceRecordUri(myEditUri).recordKey
-              : undefined;
+          docDID === did ? "network.habitat.docs" : "network.habitat.docs.edit";
+        const mappedKey = docDID === did ? rkey : `${docDID}-${rkey}`;
 
         await procedure(
-          "network.habitat.space.putRecord",
+          "network.habitat.repo.putRecord",
           {
-            space: spaceUri,
-            collection,
-            rkey,
+            repo: did!,
+            collection: collection,
+            rkey: mappedKey,
             record: {
               name: heading ?? "Untitled",
               blob: Y.encodeStateAsUpdateV2(ydoc).toBase64(),
-            } satisfies HabitatDoc,
+              editorClique: doc.value.editorClique,
+            },
+            grantees: doc.permissions,
           },
           { authManager },
         );
@@ -417,18 +396,17 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             </Popover>
             {editorProfiles && editorProfiles.length > 0 && (
               <div className="flex items-center gap-1">
-                {editorProfiles.find((p) => p.did === spaceOwner) && (
+                {editorProfiles.find((p) => p.did === docDID) && (
                   <UserAvatar
-                    actor={editorProfiles.find((p) => p.did === spaceOwner)!}
+                    actor={editorProfiles.find((p) => p.did === docDID)!}
                     size="sm"
                     className="ring-2 ring-foreground"
                   />
                 )}
-                {editorProfiles.filter((p) => p.did !== spaceOwner).length >
-                  0 && (
+                {editorProfiles.filter((p) => p.did !== docDID).length > 0 && (
                   <AvatarGroup>
                     {editorProfiles
-                      .filter((p) => p.did !== spaceOwner)
+                      .filter((p) => p.did !== docDID)
                       .map((p) => (
                         <UserAvatar key={p.did} actor={p} size="sm" />
                       ))}
@@ -439,26 +417,27 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           </div>
           <HelpDialog />
 
-          {spaceOwner === authManager.getAuthInfo()?.did && (
-            <ShareDialog
-              isAdding={isAddingPermission}
-              grantees={(editorProfiles ?? []).filter(
-                (p) => p.did !== authManager.getAuthInfo()?.did,
-              )}
-              onAddPermission={(actors) =>
-                addPermission({
-                  grantees: actors.map((actor) => actor.did),
-                  spaceUri: spaceUri,
-                })
-              }
-              onRemovePermission={(actor) =>
-                removePermission({
-                  grantee: actor.did,
-                  spaceUri,
-                })
-              }
-            />
-          )}
+          {docDID === authManager.getAuthInfo()?.did &&
+            doc.value.editorClique && (
+              <ShareDialog
+                isAdding={isAddingPermission}
+                grantees={(editorProfiles ?? []).filter(
+                  (p) => p.did !== authManager.getAuthInfo()?.did,
+                )}
+                onAddPermission={(actors) =>
+                  addPermission({
+                    grantees: actors.map((actor) => actor.did),
+                    editorCliqueUri: doc.value.editorClique,
+                  })
+                }
+                onRemovePermission={(actor) =>
+                  removePermission({
+                    grantee: actor.did,
+                    editorCliqueUri: doc.value.editorClique,
+                  })
+                }
+              />
+            )}
         </PageHeader>
       </div>
     );

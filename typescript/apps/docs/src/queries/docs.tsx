@@ -1,9 +1,10 @@
 import { HabitatDoc } from "@/habitatDoc";
-import { parseSpaceRecordUri } from "@/utils";
 import { mutationOptions, queryOptions } from "@tanstack/react-query";
 import {
   AuthManager,
+  getPrivateRecord,
   getProfiles,
+  listPrivateRecords,
   procedure,
   query,
   TypedRecord,
@@ -13,83 +14,55 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
     queryKey: ["docs"],
     staleTime: 1000 * 60 * 5,
-    queryFn: async ({ client }) => {
-      const { spaces } = await query(
-        "network.habitat.space.listSpaces",
-        { type: "network.habitat.docs" },
-        { authManager },
-      );
-      const records = await Promise.all(
-        spaces.map(async (space) => {
-          try {
-            const record = await client.ensureQueryData(
-              ownerDocQueryOptions(space.uri, authManager),
-            );
-            return record;
-          } catch {
-            return null;
-          }
-        }),
-      );
-      return { records: records.filter(Boolean) as TypedRecord<HabitatDoc>[] };
-    },
+    queryFn: () =>
+      listPrivateRecords<HabitatDoc>(authManager, "network.habitat.docs"),
   });
 
-export const ownerDocQueryOptions = (
-  spaceUri: string,
+export const docQueryOptions = (uri: string, authManager: AuthManager) => {
+  const [, , docDID, , rkey] = uri.split("/");
+  return queryOptions({
+    queryKey: ["doc", uri],
+    queryFn: () =>
+      getPrivateRecord<HabitatDoc>(
+        authManager,
+        "network.habitat.docs",
+        rkey,
+        docDID,
+        true,
+      ),
+  });
+};
+
+export const docEditorsQueryOptions = (
+  editorCliqueUri: string,
   authManager: AuthManager,
 ) =>
   queryOptions({
-    queryKey: ["owner-doc", spaceUri],
+    queryKey: ["editors", editorCliqueUri],
     queryFn: async () => {
-      const { spaceOwner } = parseSpaceRecordUri(spaceUri);
-      const { records } = await query(
-        "network.habitat.space.listRecords",
+      const { members } = await query(
+        "network.habitat.clique.getMembers",
         {
-          space: spaceUri,
-          collection: "network.habitat.docs",
-          repo: spaceOwner,
+          clique: editorCliqueUri,
         },
         { authManager },
       );
-      // each the owner should have exactly one network.habitat.docs
-      const { rkey, value, cid } = records[0];
-      return {
-        uri: `${spaceUri}/${spaceOwner}/network.habitat.docs/${rkey}`,
-        cid: cid,
-        value: value as HabitatDoc,
-      };
-    },
-  });
-
-export const docEditorsQueryOptions = (
-  spaceUri: string,
-  authManager: AuthManager,
-) =>
-  queryOptions({
-    queryKey: ["editors", spaceUri],
-    queryFn: async () => {
-      const { members } = await query(
-        "network.habitat.space.getMembers",
-        { space: spaceUri },
-        { authManager },
-      );
-      return (members ?? []).map((m) => m.did);
+      return members ?? [];
     },
   });
 
 export const editorProfilesQueryOptions = (
-  spaceUri: string | undefined,
+  editorCliqueUri: string | undefined,
   authManager: AuthManager,
 ) =>
   queryOptions({
-    queryKey: ["editors", spaceUri, "profiles"],
+    queryKey: ["editors", editorCliqueUri, "profiles"],
     queryFn: async ({ client }) => {
-      if (!spaceUri) {
+      if (!editorCliqueUri) {
         return [];
       }
       const dids = await client.fetchQuery(
-        docEditorsQueryOptions(spaceUri, authManager),
+        docEditorsQueryOptions(editorCliqueUri, authManager),
       );
       if (!dids.length) {
         return [];
@@ -100,38 +73,54 @@ export const editorProfilesQueryOptions = (
   });
 
 export const docEditsQueryOptions = (
-  spaceUri: string,
+  ownerRecord: TypedRecord<HabitatDoc>,
   authManager: AuthManager,
 ) =>
   queryOptions({
-    queryKey: ["edits", spaceUri],
-    queryFn: async () => {
-      try {
-        const { records } = await query(
-          "network.habitat.space.listRecords",
-          { space: spaceUri, collection: "network.habitat.docs.edit" },
-          { authManager },
-        );
-        return records.map((r) => ({
-          uri: `${spaceUri}/network.habitat.docs.edit/${r.rkey}`,
-          cid: r.cid,
-          value: r as unknown as HabitatDoc,
-        }));
-      } catch {
+    queryKey: ["edits", ownerRecord.uri],
+    queryFn: async ({ client }) => {
+      if (!ownerRecord.value.editorClique) {
         return [];
       }
+      const permissions = await client.fetchQuery(
+        docEditorsQueryOptions(ownerRecord.value.editorClique, authManager),
+      );
+      if (!permissions) {
+        return [];
+      }
+
+      const [, , ownerDID, , ownerRkey] = ownerRecord.uri.split("/");
+      // editRkey is the rkey used in network.habitat.docs.edit for this doc
+      const editRkey = `${ownerDID}-${ownerRkey}`;
+      return Promise.all(
+        permissions.map(async (did) => {
+          try {
+            const edit = await getPrivateRecord<HabitatDoc>(
+              authManager,
+              "network.habitat.docs.edit",
+              editRkey,
+              did,
+            );
+            return edit;
+          } catch {
+            /* silently skip */
+          }
+        }),
+      );
     },
   });
 
 export const deleteDocMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
     mutationFn: async ({ uri }: { uri: string }) => {
-      // uri format: ats://did:plc:owner/network.habitat.docs/skey/network.habitat.docs/doc
-      const parts = uri.split("/");
-      const spaceUri = `ats://${parts[2]}/network.habitat.docs/${parts[4]}`;
+      const [, , repo, , rkey] = uri.split("/");
       await procedure(
-        "network.habitat.space.deleteRecord",
-        { space: spaceUri, collection: "network.habitat.docs", rkey: "doc" },
+        "network.habitat.repo.deleteRecord",
+        {
+          repo,
+          collection: "network.habitat.docs",
+          rkey,
+        },
         { authManager },
       );
     },
@@ -142,22 +131,27 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
     mutationFn: async (
       {
         grantees,
-        spaceUri,
-      }: { grantees: string[]; spaceUri: string | undefined },
+        editorCliqueUri,
+      }: {
+        grantees: string[];
+        editorCliqueUri: string | undefined;
+      },
       { client },
     ) => {
-      if (!spaceUri) return;
-      await Promise.all(
-        grantees.map((did) =>
-          procedure(
-            "network.habitat.space.addMember",
-            { space: spaceUri, did },
-            { authManager },
-          ),
-        ),
+      if (!editorCliqueUri) return;
+      await procedure(
+        "network.habitat.clique.addMembers",
+        {
+          clique: {
+            $type: "network.habitat.grantee#clique",
+            clique: editorCliqueUri,
+          },
+          members: grantees,
+        },
+        { authManager },
       );
       await client.invalidateQueries(
-        docEditorsQueryOptions(spaceUri, authManager),
+        docEditorsQueryOptions(editorCliqueUri, authManager),
       );
     },
   });
@@ -165,17 +159,29 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
 export const removePermissionMutationOptions = (authManager: AuthManager) =>
   mutationOptions({
     mutationFn: async (
-      { grantee, spaceUri }: { grantee: string; spaceUri: string | undefined },
+      {
+        grantee,
+        editorCliqueUri,
+      }: {
+        grantee: string;
+        editorCliqueUri: string | undefined;
+      },
       { client },
     ) => {
-      if (!spaceUri) return;
+      if (!editorCliqueUri) return;
       await procedure(
-        "network.habitat.space.removeMember",
-        { space: spaceUri, did: grantee },
+        "network.habitat.clique.removeMembers",
+        {
+          clique: {
+            $type: "network.habitat.grantee#clique",
+            clique: editorCliqueUri,
+          },
+          members: [grantee],
+        },
         { authManager },
       );
       await client.invalidateQueries(
-        docEditorsQueryOptions(spaceUri, authManager),
+        docEditorsQueryOptions(editorCliqueUri, authManager),
       );
     },
   });

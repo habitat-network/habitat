@@ -32,7 +32,6 @@ import {
 import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { useMemo } from "react";
 import { HabitatDoc } from "@/habitatDoc";
-import { parseSpaceRecordUri } from "@/utils";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
@@ -98,24 +97,38 @@ export const Route = createFileRoute("/_requireAuth")({
 
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
-        const { uri: spaceUri } = await procedure(
-          "network.habitat.space.createSpace",
-          { type: "network.habitat.docs" },
+        const did = authManager.getAuthInfo()?.did;
+        const { clique } = await procedure(
+          "network.habitat.clique.createClique",
+          {
+            members: [],
+          },
           { authManager },
         );
-        const { uri } = await procedure(
-          "network.habitat.space.putRecord",
+        const response = await procedure(
+          "network.habitat.repo.putRecord",
           {
-            space: spaceUri,
+            repo: did ?? "",
             collection: "network.habitat.docs",
-            rkey: "doc",
-            record: { name: "Untitled", blob: null } satisfies HabitatDoc,
+            record: {
+              name: "Untitled",
+              blob: null,
+              editorClique: clique,
+            } satisfies HabitatDoc,
+            grantees: [
+              {
+                $type: "network.habitat.grantee#clique",
+                clique: clique,
+              },
+            ],
           },
           { authManager },
         );
         navigate({
           to: "/$uri",
-          params: { uri },
+          params: {
+            uri: response.uri,
+          },
         });
       },
       onSuccess: () => {
@@ -206,20 +219,11 @@ const DocItem = ({
       ? `Untitled (${doc.uri.split("/")[4]})`
       : doc.value.name;
 
-  const { spaceOwner, spaceKey } = parseSpaceRecordUri(doc.uri);
-
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={isActive}
-        render={
-          <Link
-            to="/$uri"
-            params={{
-              uri: `ats://${spaceOwner}/network.habitat.docs/${spaceKey}`,
-            }}
-          />
-        }
+        render={<Link to="/$uri" params={{ uri: doc.uri }} />}
       >
         {ownerProfile ? (
           <UserAvatar actor={ownerProfile} size="sm" />
