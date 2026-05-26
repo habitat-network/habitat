@@ -99,28 +99,53 @@ export const editorProfilesQueryOptions = (
     },
   });
 
+export const docEditQueryOptions = (
+spaceUri: string ,
+repo: string,
+  authManager: AuthManager,
+) => queryOptions({
+    queryKey: ["edit", spaceUri, repo],
+    queryFn: async () => {
+      const { records } = await query(
+        "network.habitat.space.listRecords",
+        {
+          space: spaceUri,
+          collection: "network.habitat.docs.edit",
+          repo: repo,
+        },
+        { authManager },
+      );
+      const { rkey, value, cid } = records[0];
+      return {
+        uri: `${spaceUri}/${repo}/network.habitat.docs.edit/${rkey}`,
+        cid: cid,
+        value: value as HabitatDoc,
+      };
+    },
+  });
+
 export const docEditsQueryOptions = (
   spaceUri: string,
   authManager: AuthManager,
 ) =>
   queryOptions({
     queryKey: ["edits", spaceUri],
-    queryFn: async () => {
-      try {
-        const { records } = await query(
-          "network.habitat.space.listRecords",
-          { space: spaceUri, collection: "network.habitat.docs.edit" },
-          { authManager },
+    queryFn: async ({ client}) => {
+        const dids = await client.fetchQuery(
+          docEditorsQueryOptions(spaceUri, authManager),
         );
-        return records.map((r) => ({
-          uri: `${spaceUri}/network.habitat.docs.edit/${r.rkey}`,
-          cid: r.cid,
-          value: r as unknown as HabitatDoc,
-        }));
-      } catch {
-        return [];
-      }
-    },
+        if (!dids.length) {
+          return [];
+        }
+        const records = await Promise.all(
+          dids.map((did) =>  (
+          client.fetchQuery(
+              docEditQueryOptions(spaceUri, did, authManager),
+            )
+          )
+        ))
+        return records;
+      } 
   });
 
 export const deleteDocMutationOptions = (authManager: AuthManager) =>

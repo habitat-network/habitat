@@ -25,7 +25,6 @@ import {
   docEditsQueryOptions,
   docsListQueryOptions,
   editorProfilesQueryOptions,
-  ownerDocQueryOptions,
 } from "@/queries/docs";
 import {
   ShareDialog,
@@ -150,7 +149,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       docEditsQueryOptions(spaceUri, context.authManager),
     );
     for (const e of edits) {
-      if (e?.value.blob) {
+      if (e.value.blob) {
         Y.applyUpdateV2(ydoc, Uint8Array.fromBase64(e.value.blob));
       }
     }
@@ -233,7 +232,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       provider,
       node,
       ydoc,
-      ownerRecord: data,
       uri: spaceUri,
       profile,
       myEditUri,
@@ -252,7 +250,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       ydoc,
       provider,
       node,
-      ownerRecord,
       uri: spaceUri,
       profile,
       dialRelayAndStartPeerDiscovery,
@@ -260,7 +257,6 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     } = Route.useLoaderData();
     const { spaceOwner } = parseSpaceRecordUri(spaceUri);
     const { authManager, queryClient } = Route.useRouteContext();
-    const did = authManager.getAuthInfo()?.did;
 
     useEffect(() => {
       async function handleVisibilityChange() {
@@ -304,11 +300,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { mutate: save } = useMutation({
       mutationFn: async () => {
         const heading = getHeadingFromYdoc(ydoc);
-        const { recordKey: ownerRecordKey } = parseSpaceRecordUri( ownerRecord.uri,);
-        const rkey =
-          spaceOwner === did
-            ? ownerRecordKey
-            : myEditUri
+        const rkey = myEditUri
               ? parseSpaceRecordUri(myEditUri).recordKey
               : undefined;
 
