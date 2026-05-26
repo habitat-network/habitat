@@ -1,7 +1,7 @@
 proto="0.57.2"
 go = "1.26.3"
 golangci-lint = "2.12.2"
-moon = "2.2.4"
+moon = "2.2.5"
 node = "26.1.0"
 pnpm = "11.1.1"
 caddy = "2.11.3"

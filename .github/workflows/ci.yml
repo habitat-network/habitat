@@ -1,5 +1,9 @@
 name: CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [master]
@@ -38,4 +42,4 @@ jobs:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: pnpm-store-${{ hashFiles('pnpm-lock.yaml', '.prototools') }}
 
-      - run: moon ci --color
+      - run: moon ci --color -g

@@ -23,7 +23,7 @@ export interface InputSchema {
   /** The NSID of the record collection. */
   collection: string
   /** The Record Key. */
-  rkey: string
+  rkey?: string
   /** The record to write. */
   record: { [_ in string]: unknown }
 }

@@ -3,6 +3,10 @@ tasks:
     deps:
     - root:build
   dev:
+    args:
+      - --
+      - --pds_oauth_client_uri
+      - oauth-client-metadata.${TS_DOMAIN}
     env:
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'
@@ -10,9 +14,13 @@ tasks:
       DEBUG: 'true'
       DATABASE_URL: "postgres://habitat:habitat@localhost:5432/habitat"
       HABITAT_DOMAIN: pear.local.habitat.network
+      HABITAT_PRETTY_LOGS: 'true'
     deps:
     - postgres
     - root:caddy
+    - target: oauth_client_metadata:start
+      env:
+        HABITAT_DOMAIN: pear.local.habitat.network
   postgres:
     command: docker-compose -f ../../infra/docker-compose.yml up
     preset: server

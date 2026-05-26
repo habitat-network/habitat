@@ -86,6 +86,9 @@
                 "updatedAt": {
                     "type": "string",
                     "format": "datetime"
+                },
+                "value": {
+                    "type": "unknown"
                 }
             }
         }

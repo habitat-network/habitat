@@ -6,7 +6,7 @@ package habitat
 type NetworkHabitatSpacePutRecordInput struct {
 	Collection string      `json:"collection"`
 	Record     interface{} `json:"record"`
-	Rkey       string      `json:"rkey"`
+	Rkey       string      `json:"rkey,omitempty"`
 	Space      string      `json:"space,omitempty"`
 }
 

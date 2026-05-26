@@ -3405,7 +3405,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.addMember",
-        "description": "Add a member to a space. Caller must have can_manage_members or be an org admin.",
+        "description": "Add a member to a space. Caller must have can_manage_members.",
         "operationId": "network.habitat.space.addMember",
         "security": [
           {
@@ -3531,7 +3531,7 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "description": "The NSID of the space type, describing the modality of the space (e.g. network.habitat.group, network.habidata.personal).",
+                    "description": "The NSID of the space type, describing the modality of the space.",
                     "format": "nsid"
                   },
                   "skey": {
@@ -3763,7 +3763,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getMembers",
-        "description": "Get the list of members in a space. Caller must have can_manage_members or be an org admin.",
+        "description": "Get the list of members in a space. Callable by any member of the space.",
         "operationId": "network.habitat.space.getMembers",
         "security": [
           {
@@ -3872,7 +3872,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRecord",
-        "description": "Get a single record from a permissioned space.",
+        "description": "Get a single record from a permissioned space. Callable by any space member.",
         "operationId": "network.habitat.space.getRecord",
         "security": [
           {
@@ -4030,7 +4030,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRecords",
-        "description": "List records in a permissioned space, matching a specific collection.",
+        "description": "List records in a permissioned space, matching a specific collection. Callable by any member of the space.",
         "operationId": "network.habitat.space.listRecords",
         "security": [
           {
@@ -4344,7 +4344,6 @@
                 "type": "object",
                 "required": [
                   "collection",
-                  "rkey",
                   "record"
                 ],
                 "properties": {
@@ -4454,7 +4453,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.removeMember",
-        "description": "Remove a member from a space. Caller must have can_manage_members or be an org admin.",
+        "description": "Remove a member from a space. Caller must have can_manage_members.",
         "operationId": "network.habitat.space.removeMember",
         "security": [
           {
@@ -4904,7 +4903,8 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
-          }
+          },
+          "value": {}
         }
       },
       "network.habitat.space.listSpaces.spaceView": {

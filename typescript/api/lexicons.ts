@@ -2454,7 +2454,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Add a member to a space. Caller must have can_manage_members or be an org admin.',
+          'Add a member to a space. Caller must have can_manage_members.',
         input: {
           encoding: 'application/json',
           schema: {
@@ -2505,7 +2505,7 @@ export const schemaDict = {
                 type: 'string',
                 format: 'nsid',
                 description:
-                  'The NSID of the space type, describing the modality of the space (e.g. network.habitat.group, network.habidata.personal).',
+                  'The NSID of the space type, describing the modality of the space.',
               },
               skey: {
                 type: 'string',
@@ -2612,7 +2612,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'Get the list of members in a space. Caller must have can_manage_members or be an org admin.',
+          'Get the list of members in a space. Callable by any member of the space.',
         parameters: {
           type: 'params',
           required: ['space'],
@@ -2669,7 +2669,8 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'query',
-        description: 'Get a single record from a permissioned space.',
+        description:
+          'Get a single record from a permissioned space. Callable by any space member.',
         parameters: {
           type: 'params',
           required: ['space', 'collection', 'rkey'],
@@ -2738,7 +2739,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List records in a permissioned space, matching a specific collection.',
+          'List records in a permissioned space, matching a specific collection. Callable by any member of the space.',
         parameters: {
           type: 'params',
           required: ['space'],
@@ -2813,6 +2814,9 @@ export const schemaDict = {
           updatedAt: {
             type: 'string',
             format: 'datetime',
+          },
+          value: {
+            type: 'unknown',
           },
         },
       },
@@ -2907,7 +2911,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'rkey', 'record'],
+            required: ['collection', 'record'],
             properties: {
               space: {
                 type: 'string',
@@ -2956,7 +2960,7 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          'Remove a member from a space. Caller must have can_manage_members or be an org admin.',
+          'Remove a member from a space. Caller must have can_manage_members.',
         input: {
           encoding: 'application/json',
           schema: {

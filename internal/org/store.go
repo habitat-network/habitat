@@ -149,13 +149,8 @@ func (s *storeImpl) CreateOrg(
 		memberLoginID = loginID
 	}
 
-	// Mint identity for the admin
-	id, persistIdent, err := s.hive.MintIdentity(adminHandle, handleSubdomain)
-	if err != nil {
-		return "", nil, err
-	}
-
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var id *identity.Identity
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&organization{
 			ID:              orgID,
 			Name:            name,
@@ -169,9 +164,12 @@ func (s *storeImpl) CreateOrg(
 			}
 			return err
 		}
-		if err := persistIdent(tx); err != nil {
+		// Mint identity for the admin
+		mintedId, err := s.hive.WithTx(tx).MintIdentity(adminHandle, handleSubdomain)
+		if err != nil {
 			return err
 		}
+		id = mintedId
 		return tx.Create(&member{
 			OrgID:     orgID,
 			Did:       id.DID,
