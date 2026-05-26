@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "query",
-            "description": "List records in a permissioned space, matching a specific collection.",
+            "description": "List records in a permissioned space, matching a specific collection. Callable by any member of the space.",
             "parameters": {
                 "type": "params",
                 "required": [

@@ -16,7 +16,7 @@
                         "type": {
                             "type": "string",
                             "format": "nsid",
-                            "description": "The NSID of the space type, describing the modality of the space (e.g. network.habitat.group, network.habidata.personal)."
+                            "description": "The NSID of the space type, describing the modality of the space."
                         },
                         "skey": {
                             "type": "string",
