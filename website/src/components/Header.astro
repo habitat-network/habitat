@@ -4,27 +4,29 @@ import Icon from "./Icon.astro";
 ---
 
 <header class="flex justify-between px-6 py-4 items-center sticky top-0 z-10 bg-white">
-  <div class="flex-1">
+  <div class="flex items-center gap-6">
     <a href="/"><img src="/habitat-wordmark.svg" class="w-32" /></a>
-  </div>
-
-  <div class="hidden md:flex flex-1 justify-end gap-6 items-center">
-    <div class="products-menu">
-      <button type="button" class="products-trigger" aria-haspopup="true" aria-expanded="false">
-        Products
-        <svg class="products-caret" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-          <path d="M2 4 L5 7 L8 4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-      <div class="products-panel" role="menu">
-        <a href="/community-platform" class="products-item" role="menuitem">
-          <span class="products-item-label">Community Platform</span>
-        </a>
-        <span class="products-item is-disabled" role="menuitem" aria-disabled="true">
-          <span class="products-item-label">Shared Context MCP</span>
-        </span>
+    <div class="hidden md:block">
+      <div class="products-menu">
+        <button type="button" class="products-trigger" aria-haspopup="true" aria-expanded="false">
+          Products
+          <svg class="products-caret" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2 4 L5 7 L8 4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="products-panel" role="menu">
+          <a href="/community-platform" class="products-item" role="menuitem">
+            <span class="products-item-label">Community Platform</span>
+          </a>
+          <span class="products-item is-disabled" role="menuitem" aria-disabled="true">
+            <span class="products-item-label">Shared Context MCP</span>
+          </span>
+        </div>
       </div>
     </div>
+  </div>
+
+  <div class="hidden md:flex items-center gap-6">
     <a href="https://github.com/habitat-network/habitat" aria-label="GitHub">
       <Icon name="github" class="w-6 h-6" />
     </a>
@@ -79,7 +81,7 @@ import Icon from "./Icon.astro";
     margin: 0;
     color: #000;
     font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
-    font-size: 1rem;
+    font-size: 1.25rem;
     font-weight: 400;
     cursor: pointer;
     letter-spacing: -0.005em;
