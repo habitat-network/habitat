@@ -2471,6 +2471,13 @@ export const schemaDict = {
                 format: 'did',
                 description: 'The DID of the user to add.',
               },
+              access: {
+                type: 'string',
+                enum: ['read', 'write'],
+                default: 'read',
+                description:
+                  'The access level to give the user. Defaults to read.',
+              },
             },
           },
         },
@@ -2654,6 +2661,10 @@ export const schemaDict = {
           did: {
             type: 'string',
             format: 'did',
+          },
+          access: {
+            type: 'string',
+            enum: ['read', 'write'],
           },
           addedAt: {
             type: 'string',

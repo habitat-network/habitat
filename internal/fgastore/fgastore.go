@@ -13,6 +13,7 @@ import (
 	"github.com/openfga/openfga/assets"
 	"github.com/openfga/openfga/pkg/server"
 	"github.com/openfga/openfga/pkg/storage"
+	"github.com/openfga/openfga/pkg/storage/memory"
 	"github.com/openfga/openfga/pkg/storage/postgres"
 	"github.com/openfga/openfga/pkg/storage/sqlcommon"
 	"github.com/openfga/openfga/pkg/storage/sqlite"
@@ -47,6 +48,11 @@ type Store interface {
 		contextualTuples ...Tuple,
 	) ([]string, error)
 	Close() error
+	WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error
+	ListUsersRaw(
+		ctx context.Context,
+		req *openfgav1.ListUsersRequest,
+	) (*openfgav1.ListUsersResponse, error)
 }
 
 type FGA struct {
@@ -130,6 +136,11 @@ func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fgastore sqlite: %w", err)
 	}
+	return newFromDS(ctx, ds)
+}
+
+func NewMemory(ctx context.Context) (*FGA, error) {
+	ds := memory.New()
 	return newFromDS(ctx, ds)
 }
 
@@ -269,6 +280,21 @@ func (f *FGA) Close() error {
 	f.svr.Close()
 	f.ds.Close()
 	return nil
+}
+
+// WriteRaw implements [Store].
+func (f *FGA) WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error {
+	req.StoreId = f.storeID
+	_, err := f.svr.Write(ctx, req)
+	return err
+}
+
+func (f *FGA) ListUsersRaw(
+	ctx context.Context,
+	req *openfgav1.ListUsersRequest,
+) (*openfgav1.ListUsersResponse, error) {
+	req.StoreId = f.storeID
+	return f.svr.ListUsers(ctx, req)
 }
 
 // toTupleKeys converts domain Tuples to OpenFGA TupleKey pointers.

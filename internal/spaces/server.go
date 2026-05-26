@@ -198,7 +198,13 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.AddMember(r.Context(), spaceURI, memberDID)
+	access, err := ParseSpaceAccess(input.Access)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse access", http.StatusBadRequest)
+		return
+	}
+
+	err = s.store.AddMember(r.Context(), spaceURI, memberDID, access)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -560,7 +566,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_delete")
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "owner")
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "check delete permission", http.StatusInternalServerError)
 		return
