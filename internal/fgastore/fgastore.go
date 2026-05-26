@@ -49,10 +49,6 @@ type Store interface {
 	) ([]string, error)
 	Close() error
 	WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error
-	ListUsersRaw(
-		ctx context.Context,
-		req *openfgav1.ListUsersRequest,
-	) (*openfgav1.ListUsersResponse, error)
 }
 
 type FGA struct {
@@ -287,14 +283,6 @@ func (f *FGA) WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error {
 	req.StoreId = f.storeID
 	_, err := f.svr.Write(ctx, req)
 	return err
-}
-
-func (f *FGA) ListUsersRaw(
-	ctx context.Context,
-	req *openfgav1.ListUsersRequest,
-) (*openfgav1.ListUsersResponse, error) {
-	req.StoreId = f.storeID
-	return f.svr.ListUsers(ctx, req)
 }
 
 // toTupleKeys converts domain Tuples to OpenFGA TupleKey pointers.
