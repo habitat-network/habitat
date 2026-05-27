@@ -312,6 +312,28 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
+	// Enforce that only org admins can grant org-level permissions
+	for _, s := range requester.GetRequestedScopes() {
+		p, parseErr := PermissionFromScope(s)
+		if parseErr != nil {
+			continue
+		}
+		if p.Resource != "org" {
+			continue
+		}
+		isAdmin, adminErr := org.IsAdmin(ctx, id.DID)
+		if adminErr != nil || !isAdmin {
+			o.metrics.authorizeErr(adminErr, "not_admin")
+			o.provider.WriteAuthorizeError(
+				ctx, w, requester,
+				fosite.ErrAccessDenied.
+					WithDescription("Only org admins can authorize org-level permissions.").
+					WithHint(""),
+			)
+			return
+		}
+	}
+
 	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod())
 	if err != nil {
 		o.metrics.authorizeErr(err, "no_provider")
@@ -430,7 +452,7 @@ func (o *OAuthServer) HandleCallback(
 
 	// Check the DID allowlist after reconstructing authRequest so we can redirect
 	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	_, err = o.orgStore.GetOrgForDID(r.Context(), arf.Did)
+	org, err := o.orgStore.GetOrgForDID(r.Context(), arf.Did)
 	if err != nil {
 		o.metrics.callbackErr(err, "allowlist_dids")
 		o.provider.WriteAuthorizeError(
@@ -442,6 +464,29 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
+
+	// Re-check admin status for org-level scopes
+	for _, s := range authRequest.GetRequestedScopes() {
+		p, parseErr := PermissionFromScope(s)
+		if parseErr != nil {
+			continue
+		}
+		if p.Resource != "org" {
+			continue
+		}
+		isAdmin, adminErr := org.IsAdmin(ctx, arf.Did)
+		if adminErr != nil || !isAdmin {
+			o.metrics.callbackErr(adminErr, "not_admin")
+			o.provider.WriteAuthorizeError(
+				ctx, w, authRequest,
+				fosite.ErrAccessDenied.
+					WithDescription("Only org admins can authorize org-level permissions.").
+					WithHint(""),
+			)
+			return
+		}
+	}
+
 	provider, err := o.loginRouter.ByLoginMethod(arf.LoginMethod)
 	if err != nil {
 		o.metrics.callbackErr(err, "no_provider")
@@ -591,7 +636,6 @@ func (o *OAuthServer) ValidateRaw(
 		token,
 		fosite.AccessToken,
 		&oauth2.JWTSession{},
-		scopes...,
 	)
 	if err != nil {
 		return "", false, fmt.Errorf("invalid or expired token: %w", err)
@@ -600,6 +644,10 @@ func (o *OAuthServer) ValidateRaw(
 	session := ar.GetSession().(*oauth2.JWTSession)
 	if session.JWTClaims == nil {
 		return "", false, fmt.Errorf("JWT claims not found")
+	}
+
+	if !ScopesSatisfy(session.JWTClaims.Scope, scopes) {
+		return "", false, fmt.Errorf("token missing required scope")
 	}
 
 	did := session.JWTClaims.Subject

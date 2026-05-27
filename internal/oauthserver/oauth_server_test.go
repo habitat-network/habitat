@@ -612,3 +612,55 @@ func TestValidate(t *testing.T) {
 		require.Equal(t, syntax.DID("did:web:test"), did)
 	})
 }
+
+func TestValidateWithScopeChecking(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	newSrv := func(st org.Store) *OAuthServer {
+		s, srvErr := NewOAuthServer(
+			bytes,
+			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+			node.NewDummy(),
+			pdsclient.NewDummyDirectory("http://pds.url"),
+			credStore,
+			db,
+			noop.Meter{},
+			st,
+		)
+		require.NoError(t, srvErr)
+		return s
+	}
+
+	t.Run("token without org scope fails org scope requirement", func(t *testing.T) {
+		srv := newSrv(testStore(t))
+		token := acquireAccessToken(t, srv, clientMetadata)
+		_, _, err := srv.ValidateRaw(t.Context(), token, "org:*")
+		require.Error(t, err)
+	})
+
+	t.Run("token passes with no scope requirement", func(t *testing.T) {
+		srv := newSrv(testStore(t))
+		token := acquireAccessToken(t, srv, clientMetadata)
+		_, _, err := srv.ValidateRaw(t.Context(), token)
+		require.NoError(t, err)
+	})
+
+	t.Run("valid token returns DID and ok", func(t *testing.T) {
+		srv := newSrv(testStore(t))
+		token := acquireAccessToken(t, srv, clientMetadata)
+		did, ok, err := srv.ValidateRaw(t.Context(), token)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, syntax.DID("did:web:test"), did)
+	})
+}
