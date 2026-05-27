@@ -313,32 +313,6 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	for _, s := range requester.GetRequestedScopes() {
-		if !strings.HasPrefix(s, "org:") {
-			continue
-		}
-		_, parseErr := PermissionFromScope(s)
-		if parseErr != nil {
-			o.metrics.authorizeErr(parseErr, "bad_org_scope")
-			o.provider.WriteAuthorizeError(
-				ctx, w, requester,
-				fosite.ErrInvalidScope.WithDescription("Invalid org scope: "+s).WithHint(""),
-			)
-			return
-		}
-		isAdmin, adminErr := org.IsAdmin(ctx, id.DID)
-		if adminErr != nil || !isAdmin {
-			o.metrics.authorizeErr(adminErr, "not_admin")
-			o.provider.WriteAuthorizeError(
-				ctx, w, requester,
-				fosite.ErrAccessDenied.
-					WithDescription("Only org admins can authorize org-level permissions.").
-					WithHint(""),
-			)
-			return
-		}
-	}
-
 	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod())
 	if err != nil {
 		o.metrics.authorizeErr(err, "no_provider")
