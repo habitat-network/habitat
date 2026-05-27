@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -312,14 +313,18 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	// Enforce that only org admins can grant org-level permissions
 	for _, s := range requester.GetRequestedScopes() {
-		p, parseErr := PermissionFromScope(s)
-		if parseErr != nil {
+		if !strings.HasPrefix(s, "org:") {
 			continue
 		}
-		if p.Resource != "org" {
-			continue
+		_, parseErr := PermissionFromScope(s)
+		if parseErr != nil {
+			o.metrics.authorizeErr(parseErr, "bad_org_scope")
+			o.provider.WriteAuthorizeError(
+				ctx, w, requester,
+				fosite.ErrInvalidScope.WithDescription("Invalid org scope: "+s).WithHint(""),
+			)
+			return
 		}
 		isAdmin, adminErr := org.IsAdmin(ctx, id.DID)
 		if adminErr != nil || !isAdmin {
@@ -467,12 +472,14 @@ func (o *OAuthServer) HandleCallback(
 
 	// Re-check admin status for org-level scopes
 	for _, s := range authRequest.GetRequestedScopes() {
-		p, parseErr := PermissionFromScope(s)
+		_, parseErr := PermissionFromScope(s)
 		if parseErr != nil {
-			continue
-		}
-		if p.Resource != "org" {
-			continue
+			o.metrics.authorizeErr(parseErr, "bad_org_scope")
+			o.provider.WriteAuthorizeError(
+				ctx, w, authRequest,
+				fosite.ErrInvalidScope.WithDescription("Invalid org scope: "+s).WithHint(""),
+			)
+			return
 		}
 		isAdmin, adminErr := org.IsAdmin(ctx, arf.Did)
 		if adminErr != nil || !isAdmin {

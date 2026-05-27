@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -272,7 +273,6 @@ func TestOAuthServerE2E(t *testing.T) {
 	// Generate RSA key for JWT signing
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err, "failed to generate secret")
-	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
@@ -503,6 +503,76 @@ func acquireAccessToken(
 	require.NoError(t, err)
 	require.NotEmpty(t, capturedToken, "no access token captured during OAuth flow")
 	return capturedToken
+}
+
+// adminControlledOrg wraps org.Org to control IsAdmin for testing.
+type adminControlledOrg struct {
+	org.Org
+	admin bool
+}
+
+func (o *adminControlledOrg) IsAdmin(_ context.Context, _ syntax.DID) (bool, error) {
+	return o.admin, nil
+}
+
+func (o *adminControlledOrg) LoginMethod() org.LoginMethod {
+	return org.LoginMethodAtproto
+}
+
+func TestHandleAuthorizeAdminGate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	t.Run("non-admin requesting org scope is rejected", func(t *testing.T) {
+		nonAdminOrg := &adminControlledOrg{admin: false}
+		st := &testIsMemberStore{
+			Store: testStore(t),
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
+				return nonAdminOrg, nil
+			},
+		}
+		srv, srvErr := NewOAuthServer(
+			bytes,
+			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+			node.NewDummy(),
+			pdsclient.NewDummyDirectory("http://pds.url"),
+			credStore,
+			db,
+			noop.Meter{},
+			st,
+		)
+		require.NoError(t, srvErr)
+
+		handler := http.HandlerFunc(srv.HandleAuthorize)
+		ts := httptest.NewServer(handler)
+		defer ts.Close()
+
+		// Request with scope=org:* — should be rejected since IsAdmin=false
+		req, reqErr := http.NewRequest(http.MethodGet, ts.URL+"?"+url.Values{
+			"response_type": []string{"code"},
+			"client_id":     []string{"http://example.com/client-metadata.json"},
+			"redirect_uri":  []string{"http://example.com/callback"},
+			"scope":         []string{"org:*"},
+			"state":         []string{"test-state"},
+			"handle":        []string{"did:web:test"},
+		}.Encode(), nil)
+		require.NoError(t, reqErr)
+
+		resp, doErr := ts.Client().Do(req)
+		require.NoError(t, doErr)
+		defer resp.Body.Close()
+		// Non-admin with org:* scope should be rejected
+		require.NotEqual(t, http.StatusOK, resp.StatusCode)
+	})
 }
 
 // TestValidate tests every error and success pathway of OAuthServer.Validate.
