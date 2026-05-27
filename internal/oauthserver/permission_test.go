@@ -60,66 +60,62 @@ func TestPermissionFromScope(t *testing.T) {
 func TestScopeMatch(t *testing.T) {
 	tests := []struct {
 		name     string
-		granted  string
-		required string
+		granted  Permission
+		required Permission
 		want     bool
 	}{
 		{
 			name:     "wildcard matches any collection",
-			granted:  "org:*",
-			required: "org:com.example.post",
+			granted:  Permission{Resource: "org", Collection: "*"},
+			required: Permission{Resource: "org", Collection: "com.example.post"},
 			want:     true,
 		},
 		{
 			name:     "exact match",
-			granted:  "org:com.example.post",
-			required: "org:com.example.post",
+			granted:  Permission{Resource: "org", Collection: "com.example.post"},
+			required: Permission{Resource: "org", Collection: "com.example.post"},
 			want:     true,
 		},
 		{
 			name:     "different collection no match",
-			granted:  "org:com.example.post",
-			required: "org:com.example.like",
+			granted:  Permission{Resource: "org", Collection: "com.example.post"},
+			required: Permission{Resource: "org", Collection: "com.example.like"},
 			want:     false,
 		},
 		{
 			name:     "wildcard matches with action constraint",
-			granted:  "org:*",
-			required: "org:com.example.post?action=create",
+			granted:  Permission{Resource: "org", Collection: "*"},
+			required: Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
 			want:     true,
 		},
 		{
 			name:     "granted nil actions satisfies any action requirement",
-			granted:  "org:com.example.post",
-			required: "org:com.example.post?action=create",
+			granted:  Permission{Resource: "org", Collection: "com.example.post"},
+			required: Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
 			want:     true,
 		},
 		{
 			name:     "granted specific action satisfies actionless required",
-			granted:  "org:com.example.post?action=create",
-			required: "org:com.example.post",
+			granted:  Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
+			required: Permission{Resource: "org", Collection: "com.example.post"},
 			want:     true,
 		},
 		{
 			name:     "missing action in granted fails",
-			granted:  "org:com.example.post?action=create",
-			required: "org:com.example.post?action=delete",
+			granted:  Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
+			required: Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"delete"}},
 			want:     false,
 		},
 		{
 			name:     "different resource no match",
-			granted:  "repo:com.example.post",
-			required: "org:com.example.post",
+			granted:  Permission{Resource: "repo", Collection: "com.example.post"},
+			required: Permission{Resource: "org", Collection: "com.example.post"},
 			want:     false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			grantedP, err := PermissionFromScope(tt.granted)
-			require.NoError(t, err)
-			requiredP, err := PermissionFromScope(tt.required)
-			require.NoError(t, err)
-			got := ScopeMatch(grantedP, requiredP)
+			got := ScopeMatch(tt.granted, tt.required)
 			require.Equal(t, tt.want, got)
 		})
 	}

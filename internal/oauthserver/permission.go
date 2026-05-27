@@ -7,8 +7,7 @@ import (
 )
 
 var validResources = map[string]bool{
-	"org":  true,
-	"repo": true,
+	"org": true,
 }
 
 type Permission struct {
