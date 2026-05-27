@@ -558,7 +558,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 		}
 		log.Info().Str("path", dbPath).Msg("connected to sqlite database")
 	}
-	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables(), tracing.WithTracerProvider())); err != nil {
+	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
 		log.Fatal().Err(err).Msg("unable to setup database otel tracing and metrics plugin")
 	}
 	sqlDb, err := db.DB()
