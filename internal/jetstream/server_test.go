@@ -21,7 +21,7 @@ func setupServerTest(
 ) (*stream.PipeSender[models.Event], *Server, *httptest.Server, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sender, receiver := stream.Pipe[models.Event](1)
-	srv := NewServer(ctx, receiver)
+	srv := NewServer(ctx, receiver, nil)
 	ts := httptest.NewServer(http.HandlerFunc(srv.HandleSubscribe))
 	return sender, srv, ts, func() {
 		ts.Close()
