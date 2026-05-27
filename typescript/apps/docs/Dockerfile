@@ -3,7 +3,13 @@ WORKDIR /app
 
 RUN npm install -g pnpm@10.21.0
 
-COPY . .
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY tsconfig.json tsconfig.options.json ./
+COPY typescript/globals.d.ts ./typescript/globals.d.ts
+COPY typescript/api ./typescript/api
+COPY typescript/internal ./typescript/internal
+COPY typescript/apps/docs ./typescript/apps/docs
+
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter docs run build
 
