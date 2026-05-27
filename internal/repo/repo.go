@@ -448,7 +448,7 @@ func (r *repo) ListRecordsFromPermissions(
 
 	// Start with base query filtering by did and collection
 	// TODO: simplify this to make it readable
-	query := r.db
+	query := r.db.WithContext(ctx)
 
 	allowQuery := query
 	for _, perm := range perms {

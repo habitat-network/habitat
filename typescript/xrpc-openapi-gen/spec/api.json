@@ -3432,6 +3432,11 @@
                     "type": "string",
                     "description": "The DID of the user to add.",
                     "format": "did"
+                  },
+                  "access": {
+                    "type": "string",
+                    "description": "The access level to give the user. Defaults to read.",
+                    "default": "read"
                   }
                 }
               }
@@ -4873,6 +4878,9 @@
           "did": {
             "type": "string",
             "format": "did"
+          },
+          "access": {
+            "type": "string"
           },
           "addedAt": {
             "type": "string",

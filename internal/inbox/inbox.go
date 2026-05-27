@@ -89,7 +89,7 @@ func (i *inbox) GetCollectionUpdatesByRecipient(
 ) ([]Notification, error) {
 	var notifs []Notification
 
-	err := i.db.Where("recipient = ?", recipient).
+	err := i.db.WithContext(ctx).Where("recipient = ?", recipient).
 		Where("collection = ?", collection).
 		Find(&notifs).
 		Error

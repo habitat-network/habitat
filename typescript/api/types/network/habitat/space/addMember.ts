@@ -22,6 +22,8 @@ export interface InputSchema {
   space: string
   /** The DID of the user to add. */
   did: string
+  /** The access level to give the user. Defaults to read. */
+  access?: 'read' | 'write'
 }
 
 export interface CallOptions {

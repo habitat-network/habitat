@@ -1,6 +1,7 @@
 package org
 
 import (
+	"context"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -33,7 +34,7 @@ func TestStore_CreateOrg(t *testing.T) {
 
 	org, err := s.GetOrg(t.Context(), orgID)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodPassword, org.LoginMethod())
+	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
 	members, err := org.GetMembers(t.Context())
 	require.NoError(t, err)
@@ -59,7 +60,7 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 
 	org, err := s.GetOrgForDID(t.Context(), id.DID)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodPassword, org.LoginMethod())
+	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
 	gotOrgID := ""
 	switch o := org.(type) {
@@ -74,7 +75,7 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	unknown := syntax.DID("did:plc:unknown")
 	org, err := s.GetOrgForDID(t.Context(), unknown)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodAtproto, org.LoginMethod())
+	require.Equal(t, LoginMethodAtproto, org.LoginMethod(context.Background()))
 
 	ok, err := org.IsMember(t.Context(), unknown)
 	require.NoError(t, err)

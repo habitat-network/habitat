@@ -46,7 +46,7 @@ const testPassword = "test-password-123"
 
 func TestLoginMethod_Default(t *testing.T) {
 	s := newTestOrg(t)
-	require.Equal(t, LoginMethodPassword, s.LoginMethod())
+	require.Equal(t, LoginMethodPassword, s.LoginMethod(context.Background()))
 }
 
 func TestIsMember(t *testing.T) {
