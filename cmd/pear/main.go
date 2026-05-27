@@ -168,6 +168,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Order of middlewares = order of "Use" called
 	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
 	mux.Use(otelmux.Middleware("habitat-server"))
+	mux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, span := otel.Tracer("diagnostic").Start(r.Context(), "diagnostic-span")
+			log.Info().Bool("is_recording", span.IsRecording()).Msg("diagnostic span check")
+			span.End()
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	mux.Use(corsMiddleware)
 
 	hiveDomain := cmd.String(fHiveDomain)
@@ -549,7 +558,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 		}
 		log.Info().Str("path", dbPath).Msg("connected to sqlite database")
 	}
-	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
+	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables(), tracing.WithTracerProvider())); err != nil {
 		log.Fatal().Err(err).Msg("unable to setup database otel tracing and metrics plugin")
 	}
 	sqlDb, err := db.DB()

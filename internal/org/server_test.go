@@ -161,7 +161,7 @@ func TestCreateOrg(t *testing.T) {
 	require.Len(t, admins, 1)
 	require.Equal(t, adminDID, admins[0])
 
-	require.Equal(t, LoginMethodPassword, org.LoginMethod())
+	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 }
 
 func TestCreateOrg_InvalidHandle(t *testing.T) {
