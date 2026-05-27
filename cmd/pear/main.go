@@ -167,15 +167,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Order of middlewares = order of "Use" called
 	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
-	mux.Use(otelmux.Middleware("habitat-server"))
-	mux.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, span := otel.Tracer("diagnostic").Start(r.Context(), "diagnostic-span")
-			log.Info().Bool("is_recording", span.IsRecording()).Msg("diagnostic span check")
-			span.End()
-			next.ServeHTTP(w, r)
-		})
-	})
+	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
 
 	mux.Use(corsMiddleware)
 
