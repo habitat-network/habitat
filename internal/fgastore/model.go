@@ -47,34 +47,6 @@ func authModel() *openfgav1.AuthorizationModel {
 				Type: "space",
 				Relations: map[string]*openfgav1.Userset{
 					"owner": {Userset: &openfgav1.Userset_This{}},
-					"member": {
-						Userset: &openfgav1.Userset_Union{
-							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-								{Userset: &openfgav1.Userset_This{}},
-								{
-									Userset: &openfgav1.Userset_ComputedUserset{
-										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "owner",
-										},
-									},
-								},
-							}},
-						},
-					},
-					"editor": {
-						Userset: &openfgav1.Userset_Union{
-							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-								{Userset: &openfgav1.Userset_This{}},
-								{
-									Userset: &openfgav1.Userset_ComputedUserset{
-										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "owner",
-										},
-									},
-								},
-							}},
-						},
-					},
 					"can_read": {
 						Userset: &openfgav1.Userset_Union{
 							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
@@ -82,7 +54,7 @@ func authModel() *openfgav1.AuthorizationModel {
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "member",
+											Relation: "can_write",
 										},
 									},
 								},
@@ -96,21 +68,14 @@ func authModel() *openfgav1.AuthorizationModel {
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "editor",
+											Relation: "owner",
 										},
 									},
 								},
-							}},
-						},
-					},
-					"can_delete": {
-						Userset: &openfgav1.Userset_Union{
-							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
-								{Userset: &openfgav1.Userset_This{}},
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "owner",
+											Relation: "can_manage_members",
 										},
 									},
 								},
@@ -145,39 +110,12 @@ func authModel() *openfgav1.AuthorizationModel {
 								},
 							},
 						},
-						"member": {
-							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
-								{
-									Type: "organization",
-									RelationOrWildcard: &openfgav1.RelationReference_Relation{
-										Relation: "member",
-									},
-								},
-								{
-									Type: "organization",
-									RelationOrWildcard: &openfgav1.RelationReference_Relation{
-										Relation: "admin",
-									},
-								},
-							},
-						},
-						"editor": {
-							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
-							},
-						},
 						"can_read": {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
 								{Type: "user"},
 							},
 						},
 						"can_write": {
-							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
-							},
-						},
-						"can_delete": {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
 								{Type: "user"},
 							},

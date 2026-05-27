@@ -1,7 +1,6 @@
 package spaces
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -20,7 +19,7 @@ func newTestStore(t *testing.T) Store {
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	require.NoError(t, err)
-	fga, err := fgastore.NewSQLite(t.Context(), filepath.Join(t.TempDir(), "fga.db"))
+	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	s, err := NewStore(db, fga)
@@ -81,7 +80,7 @@ func TestListSpaces(t *testing.T) {
 	spaceUri2, err := s.CreateSpace(t.Context(), alice, groupType, "space2")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), spaceUri2, owner)
+	err = s.AddMember(t.Context(), spaceUri2, owner, SpaceAccessRead)
 	require.NoError(t, err)
 
 	// Owner should see both
@@ -134,16 +133,41 @@ func TestGetMembers_WithAddedMembers(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice)
+	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	members, err := s.GetMembers(t.Context(), uri)
 	require.NoError(t, err)
 	require.Len(t, members, 2)
 
-	dids := []syntax.DID{members[0].Did, members[1].Did}
-	require.Contains(t, dids, owner)
-	require.Contains(t, dids, alice)
+	require.ElementsMatch(
+		t,
+		[]MemberInfo{{Did: owner, Access: SpaceAccessWrite}, {Did: alice, Access: SpaceAccessRead}},
+		members,
+	)
+}
+
+func TestGetMembers_WithCanWrite(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	err = s.AddMember(t.Context(), uri, alice, SpaceAccessWrite)
+	require.NoError(t, err)
+
+	members, err := s.GetMembers(t.Context(), uri)
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+
+	require.ElementsMatch(
+		t,
+		[]MemberInfo{
+			{Did: owner, Access: SpaceAccessWrite},
+			{Did: alice, Access: SpaceAccessWrite},
+		},
+		members,
+	)
 }
 
 func TestGetMembers_SpaceNotFound(t *testing.T) {
@@ -191,7 +215,7 @@ func TestIsMember_FGAMember(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice)
+	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	isMember, err := s.IsMember(t.Context(), uri, alice)
@@ -199,27 +223,17 @@ func TestIsMember_FGAMember(t *testing.T) {
 	require.True(t, isMember)
 }
 
-func TestAddMember(t *testing.T) {
+func TestAddMember_DuplicateIsIdempotent(t *testing.T) {
 	s := newTestStore(t)
 
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice)
-	require.NoError(t, err)
-}
-
-func TestAddMember_AlreadyMember(t *testing.T) {
-	s := newTestStore(t)
-
-	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice)
+	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
-
-	err = s.AddMember(t.Context(), uri, alice)
-	require.ErrorIs(t, err, ErrUserAlreadyMember)
 }
 
 func TestAddMember_OwnerIsAlwaysMember(t *testing.T) {
@@ -228,15 +242,15 @@ func TestAddMember_OwnerIsAlwaysMember(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, owner)
-	require.ErrorIs(t, err, ErrUserAlreadyMember)
+	err = s.AddMember(t.Context(), uri, owner, SpaceAccessRead)
+	require.NoError(t, err)
 }
 
 func TestAddMember_SpaceNotFound(t *testing.T) {
 	s := newTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	err := s.AddMember(t.Context(), uri, alice)
+	err := s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
 
@@ -246,7 +260,7 @@ func TestRemoveMember(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice)
+	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, alice)
@@ -264,7 +278,7 @@ func TestRemoveMember_NotAMember(t *testing.T) {
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, alice)
-	require.ErrorIs(t, err, ErrNotAMember)
+	require.NoError(t, err)
 }
 
 func TestRemoveMember_CannotRemoveOwner(t *testing.T) {
@@ -277,12 +291,12 @@ func TestRemoveMember_CannotRemoveOwner(t *testing.T) {
 	require.ErrorIs(t, err, ErrCannotRemoveOwner)
 }
 
-func TestRemoveMember_SpaceNotFound(t *testing.T) {
+func TestRemoveMember_NonExistentSpace(t *testing.T) {
 	s := newTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
 	err := s.RemoveMember(t.Context(), uri, alice)
-	require.ErrorIs(t, err, ErrNotAMember)
+	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
 
 func TestPutAndGetRecord(t *testing.T) {

@@ -90,7 +90,7 @@ func TestServer_AddMemberAndGetMembers(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "shared")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
+	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice", "access": "read"}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.addMember",
@@ -125,7 +125,7 @@ func TestServer_RemoveMember(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "shared")
 	require.NoError(t, err)
 
-	err = s.store.AddMember(t.Context(), uri, alice)
+	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
