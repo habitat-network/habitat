@@ -215,7 +215,7 @@ func NewOAuthServer(
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
-		ScopeStrategy: scopeStrategy,
+		ScopeStrategy:              scopeStrategy,
 	}
 
 	strategy, err := newStrategy(secret, config)
@@ -447,21 +447,30 @@ func (o *OAuthServer) HandleCallback(
 
 	// Re-check admin status for org-level scopes
 	for _, s := range authRequest.GetRequestedScopes() {
-		if !strings.HasPrefix(s, "org:") {
-			continue
-		}
-		_, parseErr := permissionFromScope(s)
-		if parseErr != nil {
-			o.metrics.authorizeErr(parseErr, "bad_org_scope")
+		permission, err := permissionFromScope(s)
+		if err != nil {
+			o.metrics.authorizeErr(err, "bad_scope")
 			o.provider.WriteAuthorizeError(
 				ctx, w, authRequest,
-				fosite.ErrInvalidScope.WithDescription("Invalid org scope: "+s).WithHint(""),
+				fosite.ErrInvalidScope.WithDescription("Invalid scope: "+s),
 			)
 			return
 		}
-		isAdmin, adminErr := org.IsAdmin(ctx, arf.Did)
-		if adminErr != nil || !isAdmin {
-			o.metrics.callbackErr(adminErr, "not_admin")
+		if permission.Resource != "org" {
+			// don't need admin for non org scopes
+			continue
+		}
+		isAdmin, err := org.IsAdmin(ctx, arf.Did)
+		if err != nil {
+			o.metrics.callbackErr(err, "is_admin")
+			o.provider.WriteAuthorizeError(
+				ctx, w, authRequest,
+				fosite.ErrServerError,
+			)
+			return
+		}
+		if !isAdmin {
+			o.metrics.callbackErr(err, "not_admin")
 			o.provider.WriteAuthorizeError(
 				ctx, w, authRequest,
 				fosite.ErrAccessDenied.
