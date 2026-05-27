@@ -215,6 +215,7 @@ func NewOAuthServer(
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
+		ScopeStrategy: scopeStrategy,
 	}
 
 	strategy, err := newStrategy(secret, config)
@@ -449,7 +450,7 @@ func (o *OAuthServer) HandleCallback(
 		if !strings.HasPrefix(s, "org:") {
 			continue
 		}
-		_, parseErr := PermissionFromScope(s)
+		_, parseErr := permissionFromScope(s)
 		if parseErr != nil {
 			o.metrics.authorizeErr(parseErr, "bad_org_scope")
 			o.provider.WriteAuthorizeError(
@@ -620,6 +621,7 @@ func (o *OAuthServer) ValidateRaw(
 		token,
 		fosite.AccessToken,
 		&oauth2.JWTSession{},
+		scopes...,
 	)
 	if err != nil {
 		return "", false, fmt.Errorf("invalid or expired token: %w", err)
@@ -628,10 +630,6 @@ func (o *OAuthServer) ValidateRaw(
 	session := ar.GetSession().(*oauth2.JWTSession)
 	if session.JWTClaims == nil {
 		return "", false, fmt.Errorf("JWT claims not found")
-	}
-
-	if !ScopesSatisfy(session.JWTClaims.Scope, scopes) {
-		return "", false, fmt.Errorf("token missing required scope")
 	}
 
 	did := session.JWTClaims.Subject

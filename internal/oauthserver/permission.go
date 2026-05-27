@@ -10,15 +10,15 @@ var validResources = map[string]bool{
 	"org": true,
 }
 
-type Permission struct {
+type permission struct {
 	Resource   string
 	Collection string
 	Actions    []string
 }
 
-func PermissionFromScope(scope string) (Permission, error) {
+func permissionFromScope(scope string) (permission, error) {
 	if scope == "" {
-		return Permission{}, fmt.Errorf("empty scope")
+		return permission{}, fmt.Errorf("empty scope")
 	}
 
 	var positional string
@@ -32,36 +32,36 @@ func PermissionFromScope(scope string) (Permission, error) {
 
 	colonIdx := strings.IndexByte(positional, ':')
 	if colonIdx == -1 {
-		return Permission{}, fmt.Errorf("scope missing colon: %q", scope)
+		return permission{}, fmt.Errorf("scope missing colon: %q", scope)
 	}
 
 	resource := positional[:colonIdx]
 	if !validResources[resource] {
-		return Permission{}, fmt.Errorf("unknown resource: %q", resource)
+		return permission{}, fmt.Errorf("unknown resource: %q", resource)
 	}
 
 	collection := positional[colonIdx+1:]
 	if collection == "" {
-		return Permission{}, fmt.Errorf("scope missing collection: %q", scope)
+		return permission{}, fmt.Errorf("scope missing collection: %q", scope)
 	}
 
 	var actions []string
 	if rawQuery != "" {
 		vals, err := url.ParseQuery(rawQuery)
 		if err != nil {
-			return Permission{}, fmt.Errorf("invalid query in scope %q: %w", scope, err)
+			return permission{}, fmt.Errorf("invalid query in scope %q: %w", scope, err)
 		}
 		actions = vals["action"]
 	}
 
-	return Permission{
+	return permission{
 		Resource:   resource,
 		Collection: collection,
 		Actions:    actions,
 	}, nil
 }
 
-func ScopeMatch(granted, required Permission) bool {
+func scopeMatch(granted, required permission) bool {
 	if granted.Resource != required.Resource {
 		return false
 	}
@@ -84,26 +84,26 @@ func ScopeMatch(granted, required Permission) bool {
 	return len(requiredSet) == 0
 }
 
-func ScopesSatisfy(grantedScopes, requiredScopes []string) bool {
+func scopesSatisfy(grantedScopes, requiredScopes []string) bool {
 	if len(requiredScopes) == 0 {
 		return true
 	}
-	granted := make([]Permission, 0, len(grantedScopes))
+	granted := make([]permission, 0, len(grantedScopes))
 	for _, s := range grantedScopes {
-		p, err := PermissionFromScope(s)
+		p, err := permissionFromScope(s)
 		if err != nil {
 			continue
 		}
 		granted = append(granted, p)
 	}
 	for _, req := range requiredScopes {
-		requiredP, err := PermissionFromScope(req)
+		requiredP, err := permissionFromScope(req)
 		if err != nil {
 			return false
 		}
 		matched := false
 		for _, g := range granted {
-			if ScopeMatch(g, requiredP) {
+			if scopeMatch(g, requiredP) {
 				matched = true
 				break
 			}
@@ -113,4 +113,21 @@ func ScopesSatisfy(grantedScopes, requiredScopes []string) bool {
 		}
 	}
 	return true
+}
+
+func scopeStrategy(haystack []string, needle string) bool {
+	requiredP, err := permissionFromScope(needle)
+	if err != nil {
+		return false
+	}
+	for _, granted := range haystack {
+		grantedP, err := permissionFromScope(granted)
+		if err != nil {
+			continue
+		}
+		if scopeMatch(grantedP, requiredP) {
+			return true
+		}
+	}
+	return false
 }
