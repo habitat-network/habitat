@@ -412,6 +412,110 @@ func TestOAuthServerE2E(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
 }
 
+func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		node.NewDummy(),
+		pdsclient.NewDummyDirectory("http://pds.url"),
+		credStore,
+		db,
+		noop.Meter{},
+		testStore(t),
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+		case "/token":
+			oauthServer.HandleToken(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/authorize",
+			TokenURL: server.URL + "/token",
+		},
+	}
+
+	clientApp := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/client-metadata.json":
+				w.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+					ClientId:      "http://" + r.Host + "/client-metadata.json",
+					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+					ResponseTypes: []string{"code"},
+					GrantTypes:    []string{"authorization_code", "refresh_token"},
+					Scope:         "org:*",
+				}))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}),
+	)
+	defer clientApp.Close()
+
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
+
+	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
+		"test-state",
+		oauth2.S256ChallengeOption(verifier),
+	)+"&handle=did:web:test&scope=org:*", nil)
+	require.NoError(t, err)
+
+	server.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	httpClient := server.Client()
+	resp, err := httpClient.Do(authRequest)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+
+	for resp.StatusCode == http.StatusSeeOther {
+		loc := resp.Header.Get("Location")
+		nextReq, reqErr := http.NewRequest(http.MethodGet, loc, nil)
+		require.NoError(t, reqErr)
+		resp, err = httpClient.Do(nextReq)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		if nextReq.URL.Path == "/oauth-callback" {
+			break
+		}
+	}
+
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+}
+
 // testIsMemberStore wraps an org.Store and overrides GetOrgByDID.
 type testIsMemberStore struct {
 	org.Store
