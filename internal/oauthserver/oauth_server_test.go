@@ -569,7 +569,7 @@ func TestHandleAuthorizeAdminGate(t *testing.T) {
 
 		resp, doErr := ts.Client().Do(req)
 		require.NoError(t, doErr)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		// Non-admin with org:* scope should be rejected
 		require.NotEqual(t, http.StatusOK, resp.StatusCode)
 	})

@@ -26,7 +26,11 @@ func TestPermissionFromScope(t *testing.T) {
 		{
 			name:  "single collection with actions",
 			scope: "org:com.example.post?action=create&action=update",
-			want:  Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create", "update"}},
+			want: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+				Actions:    []string{"create", "update"},
+			},
 		},
 		{
 			name:    "unknown resource",
@@ -83,28 +87,54 @@ func TestScopeMatch(t *testing.T) {
 			want:     false,
 		},
 		{
-			name:     "wildcard matches with action constraint",
-			granted:  Permission{Resource: "org", Collection: "*"},
-			required: Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
-			want:     true,
+			name:    "wildcard matches with action constraint",
+			granted: Permission{Resource: "org", Collection: "*"},
+			required: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+				Actions:    []string{"create"},
+			},
+			want: true,
 		},
 		{
-			name:     "granted nil actions satisfies any action requirement",
-			granted:  Permission{Resource: "org", Collection: "com.example.post"},
-			required: Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
-			want:     true,
+			name: "granted nil actions satisfies any action requirement",
+			granted: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+			},
+			required: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+				Actions:    []string{"create"},
+			},
+			want: true,
 		},
 		{
-			name:     "granted specific action satisfies actionless required",
-			granted:  Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
-			required: Permission{Resource: "org", Collection: "com.example.post"},
-			want:     true,
+			name: "granted specific action satisfies actionless required",
+			granted: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+				Actions:    []string{"create"},
+			},
+			required: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+			},
+			want: true,
 		},
 		{
-			name:     "missing action in granted fails",
-			granted:  Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"create"}},
-			required: Permission{Resource: "org", Collection: "com.example.post", Actions: []string{"delete"}},
-			want:     false,
+			name: "missing action in granted fails",
+			granted: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+				Actions:    []string{"create"},
+			},
+			required: Permission{
+				Resource:   "org",
+				Collection: "com.example.post",
+				Actions:    []string{"delete"},
+			},
+			want: false,
 		},
 		{
 			name:     "different resource no match",
