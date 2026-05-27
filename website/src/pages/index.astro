@@ -817,19 +817,23 @@ import "../styles/landing.css";
 </style>
 
 <script>
-  const io = new IntersectionObserver(
-    (entries) => {
-      for (const e of entries) {
-        if (e.isIntersecting) {
-          e.target.classList.add('is-visible');
-          io.unobserve(e.target);
+  function setupReveal() {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add('is-visible');
+            io.unobserve(e.target);
+          }
         }
-      }
-    },
-    { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
-  );
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+    );
+    document.querySelectorAll('.reveal:not(.is-visible)').forEach((el) => io.observe(el));
+  }
 
-  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+  // Fires on initial page load AND after every view transition
+  document.addEventListener('astro:page-load', setupReveal);
 </script>
 
 <script>
