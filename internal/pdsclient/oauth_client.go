@@ -1,32 +1,107 @@
 package pdsclient
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/encrypt"
+	"gorm.io/gorm"
 )
 
-type ClientAppConfig struct {
-	ClientID    string
-	CallbackURL string
-	UserAgent   string
-	Scopes      []string
-	PrivateKey  atcrypto.PrivateKey
-	KeyID       string
-	Store       oauth.ClientAuthStore
+type PdsOAuthClient interface {
+	ClientMetadata() *oauth.ClientMetadata
+	Authorize(ctx context.Context, identifier string) (redirectUri string, err error)
+	ExchangeCode(ctx context.Context, code, issuer, state string) error
+	Do(ctx context.Context, did syntax.DID, req *http.Request) (*http.Response, error)
 }
 
-func NewClientApp(cfg ClientAppConfig) (*oauth.ClientApp, error) {
-	config := oauth.NewPublicConfig(cfg.ClientID, cfg.CallbackURL, cfg.Scopes)
-	config.UserAgent = cfg.UserAgent
+type pdsClientImpl struct {
+	app *oauth.ClientApp
+}
 
-	if cfg.PrivateKey != nil && cfg.KeyID != "" {
-		if err := config.SetClientSecret(cfg.PrivateKey, cfg.KeyID); err != nil {
-			return nil, fmt.Errorf("set client secret: %w", err)
-		}
+func NewClient(
+	db *gorm.DB,
+	clientId string,
+	clientUri string,
+	redirectUri string,
+	secret string,
+) (PdsOAuthClient, error) {
+	config := oauth.NewPublicConfig(
+		clientId,
+		redirectUri,
+		[]string{"atproto", "transition:generic"},
+	)
+	clientSecret, err := encrypt.ParseKey(secret)
+	if err != nil {
+		return nil, err
+	}
+	clientKey, err := atcrypto.ParsePrivateBytesP256(clientSecret)
+	if err != nil {
+		return nil, err
+	}
+	if err := config.SetClientSecret(clientKey, "habitat"); err != nil {
+		return nil, fmt.Errorf("set client secret: %w", err)
 	}
 
-	app := oauth.NewClientApp(&config, cfg.Store)
-	return app, nil
+	store, err := NewOAuthStore(db, clientSecret)
+	if err != nil {
+		return nil, fmt.Errorf("new oauth store: %w", err)
+	}
+
+	app := oauth.NewClientApp(&config, store)
+
+	return &pdsClientImpl{app: app}, nil
+}
+
+// Authorize implements [PdsOAuthClient].
+func (p *pdsClientImpl) Authorize(ctx context.Context, identifier string) (redirectUri string, err error) {
+	return p.app.StartAuthFlow(ctx, identifier)
+}
+
+// ClientMetadata implements [PdsOAuthClient].
+func (p *pdsClientImpl) ClientMetadata() *oauth.ClientMetadata {
+	metadata := p.app.Config.ClientMetadata()
+	metadata.ClientName = new("Habitat")
+	return &metadata
+}
+
+// Do implements [PdsOAuthClient].
+func (p *pdsClientImpl) Do(ctx context.Context, did syntax.DID, req *http.Request) (*http.Response, error) {
+	session, err := p.app.ResumeSession(ctx, did, "default")
+	if err != nil {
+		return nil, fmt.Errorf("resume session: %w", err)
+	}
+	if req.URL.Host == "" {
+		hostURL, err := url.Parse(session.Data.HostURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse host url: %w", err)
+		}
+		req.URL = hostURL.ResolveReference(req.URL)
+	}
+	nsidStr := strings.TrimPrefix(req.URL.Path, "/xrpc/")
+	nsid, err := syntax.ParseNSID(nsidStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse nsid: %w", err)
+	}
+	return session.DoWithAuth(http.DefaultClient, req, nsid)
+}
+
+// ExchangeCode implements [PdsOAuthClient].
+func (p *pdsClientImpl) ExchangeCode(ctx context.Context, code string, issuer string, state string) error {
+	params := url.Values{
+		"code":  {code},
+		"iss":   {issuer},
+		"state": {state},
+	}
+	_, err := p.app.ProcessCallback(ctx, params)
+	if err != nil {
+		return fmt.Errorf("process callback: %w", err)
+	}
+	return nil
 }

@@ -32,6 +32,16 @@ func newTestForwarding(t *testing.T, fakePDS *httptest.Server) *PDSForwarding {
 	}
 }
 
+func newTestForwardingWithClient(t *testing.T, fakePDS *httptest.Server, client pdsclient.PdsOAuthClient) *PDSForwarding {
+	t.Helper()
+	dir := pdsclient.NewDummyDirectory(fakePDS.URL)
+	return &PDSForwarding{
+		client:          client,
+		dir:             dir,
+		plainHTTPClient: fakePDS.Client(),
+	}
+}
+
 func TestServeHTTP_MissingTargetParam(t *testing.T) {
 	fakePDS, _ := fakePDSServer(t)
 	p := newTestForwarding(t, fakePDS)

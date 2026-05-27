@@ -5,13 +5,46 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
+
+// testOAuthClient wraps *oauth.ClientApp to implement pdsclient.PdsOAuthClient.
+type testOAuthClient struct {
+	app *oauth.ClientApp
+}
+
+func (t *testOAuthClient) ClientMetadata() *oauth.ClientMetadata {
+	meta := t.app.Config.ClientMetadata()
+	return &meta
+}
+
+func (t *testOAuthClient) Authorize(ctx context.Context, identifier string) (string, error) {
+	return t.app.StartAuthFlow(ctx, identifier)
+}
+
+func (t *testOAuthClient) ExchangeCode(ctx context.Context, code, issuer, state string) error {
+	panic("unimplemented")
+}
+
+func (t *testOAuthClient) Do(ctx context.Context, did syntax.DID, req *http.Request) (*http.Response, error) {
+	sess, err := t.app.ResumeSession(ctx, did, "default")
+	if err != nil {
+		return nil, err
+	}
+	nsidStr := strings.TrimPrefix(req.URL.Path, "/xrpc/")
+	nsid, err := syntax.ParseNSID(nsidStr)
+	if err != nil {
+		return nil, err
+	}
+	return sess.DoWithAuth(http.DefaultClient, req, nsid)
+}
 
 func TestServiceProxyXrpcChannel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +82,10 @@ func TestServiceProxyXrpcChannel(t *testing.T) {
 	app := oauth.NewClientApp(&config, store)
 	app.Dir = pdsclient.NewDummyDirectory(server.URL, pdsclient.WithHabitatService())
 
-	channel := NewServiceProxyXrpcChannel("habitat", app, app.Dir)
+	client := &testOAuthClient{app: app}
+	dir := app.Dir
+
+	channel := NewServiceProxyXrpcChannel("habitat", client, dir)
 	req, err := http.NewRequest("GET", server.URL+"/xrpc/network.habitat.repo.getRecord", nil)
 	require.NoError(t, err)
 	resp, err := channel.SendXRPC(

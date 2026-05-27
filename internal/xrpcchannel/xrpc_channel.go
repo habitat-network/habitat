@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 )
 
 type XrpcChannel interface {
@@ -24,17 +23,17 @@ type XrpcChannel interface {
 type serviceProxyXrpcChannel struct {
 	serviceName string
 	directory   identity.Directory
-	clientApp   *oauth.ClientApp
+	client      pdsclient.PdsOAuthClient
 }
 
 func NewServiceProxyXrpcChannel(
 	serviceName string,
-	clientApp *oauth.ClientApp,
+	client pdsclient.PdsOAuthClient,
 	directory identity.Directory,
 ) XrpcChannel {
 	return &serviceProxyXrpcChannel{
 		serviceName: serviceName,
-		clientApp:   clientApp,
+		client:      client,
 		directory:   directory,
 	}
 }
@@ -57,14 +56,5 @@ func (m *serviceProxyXrpcChannel) SendXRPC(
 	pearServiceDid := fmt.Sprintf("did:web:%s#habitat", u.Hostname())
 	req.Header.Set("atproto-proxy", pearServiceDid)
 
-	sess, err := m.clientApp.ResumeSession(ctx, sender, "default")
-	if err != nil {
-		return nil, fmt.Errorf("failed to resume session: %w", err)
-	}
-	nsidStr := strings.TrimPrefix(req.URL.Path, "/xrpc/")
-	nsid, err := syntax.ParseNSID(nsidStr)
-	if err != nil {
-		return nil, fmt.Errorf("parse nsid: %w", err)
-	}
-	return sess.DoWithAuth(http.DefaultClient, req, nsid)
+	return m.client.Do(ctx, sender, req)
 }

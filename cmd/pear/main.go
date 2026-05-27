@@ -29,8 +29,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/plugin/opentelemetry/tracing"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -140,22 +138,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to load PDS encryption key")
 	}
 
-	// OAuth store for persisting client sessions
-	oauthStore, err := pdsclient.NewOAuthStore(db, credKey)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup oauth store")
-	}
-
-	// OAuth client secret as P-256 key for confidential client auth
-	clientSecret, err := encrypt.ParseKey(cmd.String(fOauthClientSecret))
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to load OAuth client secret")
-	}
-	clientKey, err := atcrypto.ParsePrivateBytesP256(clientSecret)
-	if err != nil {
-		log.Fatal().Err(err).Msg("unable to parse OAuth client key")
-	}
-
 	domain := cmd.String(fDomain)
 	var clientUri string
 	if cmd.String(fPdsOauthClientUri) != "" {
@@ -163,16 +145,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	} else {
 		clientUri = "https://" + domain
 	}
-	clientID := "https://" + domain + "/client-metadata.json"
-	oauthApp, err := pdsclient.NewClientApp(pdsclient.ClientAppConfig{
-		ClientID:    clientID + "/client-metadata.json",
-		CallbackURL: "https://" + domain + "/oauth-callback",
-		UserAgent:   "habitat/1.0",
-		Scopes:      []string{"atproto"},
-		PrivateKey:  clientKey,
-		KeyID:       clientID + "#oauth-key",
-		Store:       oauthStore,
-	})
+	oauthClient, err := pdsclient.NewClient(
+		db,
+		clientUri+"/client-metadata.json",
+		clientUri,
+		"https://"+domain+"/oauth-callback",
+		cmd.String(fOauthClientSecret),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup oauth client")
 	}
@@ -210,7 +189,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		log.Fatal().Err(err).Msg("unable to setup org store")
 	}
 
-	node := setupNode(cmd, oauthApp, dir)
+	node := setupNode(cmd, oauthClient, dir)
 
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
 	if err != nil {
@@ -225,7 +204,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	providers := []login.Provider{
-		login.NewPDSProvider(oauthApp),
+		login.NewPDSProvider(oauthClient, dir),
 		orgLoginProvider,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
@@ -362,7 +341,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
-	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthApp))
+	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
 
 	// TODO: who is allowed to call the oauth handlers in an org?
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
@@ -409,7 +388,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 
-	pdsForwarding := forwarding.NewPDSForwarding(oauthServer, oauthApp, dir)
+	pdsForwarding := forwarding.NewPDSForwarding(oauthServer, oauthClient, dir)
 	// Only forward specific routes that we know we handle correctly; for now.
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
@@ -533,8 +512,8 @@ func serveDid(domain string) http.HandlerFunc {
 	}
 }
 
-func serveClientMetadata(app *oauth.ClientApp) http.HandlerFunc {
-	metadata := app.Config.ClientMetadata()
+func serveClientMetadata(client pdsclient.PdsOAuthClient) http.HandlerFunc {
+	metadata := client.ClientMetadata()
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(metadata); err != nil {
@@ -600,13 +579,13 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 
 func setupNode(
 	cmd *cli.Command,
-	app *oauth.ClientApp,
+	client pdsclient.PdsOAuthClient,
 	dir identity.Directory,
 ) node.Node {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
 	serviceEndpoint := "https://" + domain
-	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, app, dir)
+	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, client, dir)
 	return node.New(
 		serviceName,
 		serviceEndpoint,

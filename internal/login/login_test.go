@@ -23,19 +23,19 @@ func idWithPDSOnly() *identity.Identity {
 }
 
 func TestPDSProvider_LoginMethod(t *testing.T) {
-	p := NewPDSProvider(nil)
+	p := NewPDSProvider(nil, nil)
 	require.Equal(t, org.LoginMethodAtproto, p.LoginMethod())
 }
 
 func TestPDSProvider_Authorize_Error(t *testing.T) {
-	p := NewPDSProvider(nil)
+	p := NewPDSProvider(nil, nil)
 	_, _, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "oauth client app not configured")
+	require.Contains(t, err.Error(), "oauth client not configured")
 }
 
 func TestPDSProvider_Exchange_Error(t *testing.T) {
-	p := NewPDSProvider(nil)
+	p := NewPDSProvider(nil, nil)
 	err := p.Exchange(context.Background(), "did:web:test.com", "code", "iss", "state", []byte("{}"))
 	require.Error(t, err)
 }
@@ -62,7 +62,7 @@ func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _
 
 func TestRouter_ByLoginMethod(t *testing.T) {
 	r := NewRouter(
-		NewPDSProvider(nil),
+		NewPDSProvider(nil, nil),
 		NewDummyProvider(),
 	)
 

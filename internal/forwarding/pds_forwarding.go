@@ -8,10 +8,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/rs/zerolog/log"
 )
@@ -33,7 +33,7 @@ var targetRoutedMethods = map[string]string{
 
 type PDSForwarding struct {
 	oauth           authn.Method
-	clientApp       *oauth.ClientApp
+	client          pdsclient.PdsOAuthClient
 	dir             identity.Directory
 	plainHTTPClient *http.Client
 }
@@ -42,12 +42,12 @@ var _ http.Handler = (*PDSForwarding)(nil)
 
 func NewPDSForwarding(
 	oauthServer authn.Method,
-	clientApp *oauth.ClientApp,
+	client pdsclient.PdsOAuthClient,
 	dir identity.Directory,
 ) *PDSForwarding {
 	return &PDSForwarding{
 		oauth:           oauthServer,
-		clientApp:       clientApp,
+		client:          client,
 		dir:             dir,
 		plainHTTPClient: &http.Client{},
 	}
@@ -205,8 +205,7 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	pdsEndpoint, ok := id.Services["atproto_pds"]
-	if !ok {
+	if _, ok := id.Services["atproto_pds"]; !ok {
 		utils.LogAndHTTPError(w,
 			fmt.Errorf("no atproto_pds service for %s", id.DID),
 			"[pds forwarding]: caller has no PDS service",
@@ -214,34 +213,13 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	pdsURL, err := url.Parse(pdsEndpoint.URL)
-	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"[pds forwarding]: failed to parse PDS URL",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	requestURI, err := url.Parse(r.URL.RequestURI())
-	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"[pds forwarding]: failed to parse request URI",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	targetURL := pdsURL.ResolveReference(requestURI)
 
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
 
-	fwdReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL.String(), body)
+	fwdReq, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -260,34 +238,10 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	fwdReq.Header.Del("Keep-Alive")
 	fwdReq.Header.Del("Transfer-Encoding")
 	fwdReq.Header.Del("Te")
-	// Strip client auth headers — DoWithAuth adds its own DPoP auth
 	fwdReq.Header.Del("Authorization")
 	fwdReq.Header.Del("DPoP")
 
-	sess, err := p.clientApp.ResumeSession(r.Context(), did, "default")
-	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"[pds forwarding]: failed to resume session",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	nsidStr := strings.TrimPrefix(r.URL.Path, "/xrpc/")
-	nsid, err := syntax.ParseNSID(nsidStr)
-	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"[pds forwarding]: invalid NSID",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	resp, err := sess.DoWithAuth(http.DefaultClient, fwdReq, nsid)
+	resp, err := p.client.Do(r.Context(), did, fwdReq)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
