@@ -194,26 +194,6 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	id, err := p.dir.LookupDID(r.Context(), did)
-	if err != nil {
-		utils.LogAndHTTPError(
-			w,
-			err,
-			"[pds forwarding]: failed to lookup caller identity",
-			http.StatusBadGateway,
-		)
-		return
-	}
-	if _, ok := id.Services["atproto_pds"]; !ok {
-		utils.LogAndHTTPError(w,
-			fmt.Errorf("no atproto_pds service for %s", id.DID),
-			"[pds forwarding]: caller has no PDS service",
-			http.StatusBadGateway,
-		)
-		return
-	}
-
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
