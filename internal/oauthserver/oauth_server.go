@@ -472,6 +472,9 @@ func (o *OAuthServer) HandleCallback(
 
 	// Re-check admin status for org-level scopes
 	for _, s := range authRequest.GetRequestedScopes() {
+		if !strings.HasPrefix(s, "org:") {
+			continue
+		}
 		_, parseErr := PermissionFromScope(s)
 		if parseErr != nil {
 			o.metrics.authorizeErr(parseErr, "bad_org_scope")

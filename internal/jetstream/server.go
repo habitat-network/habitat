@@ -6,43 +6,65 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/bradenaw/juniper/stream"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-// This package provides a service that fulfills a jetstream-like API for a habitat organization.
-// Products that integrate with habitat need a method to receive real-time changes that are relevant
-// to their application and index / aggregate them however they want.
-//
-// This has no authorization primitives attached; it sends all updates flowing through the repo.
-// This will be added as a follow up.
-
-// The Server handles listening for updates from an ingestion stream and fanning them out to many upstream
-// jetstream subscribers over HTTP SSE. We don't use Websocket because it's more expensive and complex operationally,
-// and this usecase doesn't support the client sending messages.
-//
-// The official jetstream API uses bi-directionality so that the client can update
-// what collections / repos / etc. it is subscribed to. This is a simple enough usecase
-// that the client can close the connection and re-open it with the new parameters and the
-// timestamp cursor from where it left off.
-
-type Server struct {
-	ctx context.Context
-	us  *updateService
+type TokenValidator interface {
+	ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error)
 }
 
-func NewServer(ctx context.Context, in stream.Stream[models.Event]) *Server {
+type Server struct {
+	ctx  context.Context
+	us   *updateService
+	auth TokenValidator
+}
+
+func NewServer(ctx context.Context, in stream.Stream[models.Event], auth TokenValidator) *Server {
 	return &Server{
-		ctx: ctx,
-		us:  NewUpdateService(ctx, in),
+		ctx:  ctx,
+		us:   NewUpdateService(ctx, in),
+		auth: auth,
 	}
 }
 
 func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
-	// TODO: authz that the caller is authorized by the org
+	if s.auth != nil {
+		token := extractBearerToken(r)
+		if token == "" {
+			utils.LogAndHTTPError(
+				w,
+				fmt.Errorf("missing authorization header"),
+				"jetstream: authorization required",
+				http.StatusUnauthorized,
+			)
+			return
+		}
 
-	// Set required SSE headers
+		wantedCollections := r.URL.Query()["wantedCollections"]
+		var requiredScopes []string
+		if len(wantedCollections) > 0 {
+			for _, c := range wantedCollections {
+				requiredScopes = append(requiredScopes, "org:"+c)
+			}
+		} else {
+			requiredScopes = append(requiredScopes, "org:*")
+		}
+
+		_, _, err := s.auth.ValidateRaw(r.Context(), token, requiredScopes...)
+		if err != nil {
+			utils.LogAndHTTPError(
+				w,
+				fmt.Errorf("unauthorized: %w", err),
+				"jetstream: authorization failed",
+				http.StatusUnauthorized,
+			)
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -101,4 +123,12 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 			// case <- t.C send pings to client
 		}
 	}
+}
+
+func extractBearerToken(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if len(h) < 7 || h[:7] != "Bearer " {
+		return ""
+	}
+	return h[7:]
 }
