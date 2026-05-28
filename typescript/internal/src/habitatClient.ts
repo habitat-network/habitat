@@ -9,6 +9,7 @@ import type {
   ComAtprotoServerGetServiceAuth,
 } from "@atproto/api";
 import type {
+  ComAtprotoRepoDescribeRepo,
   NetworkHabitatCliqueCreateClique,
   NetworkHabitatListConnectedApps,
   NetworkHabitatRepoDeleteRecord,
@@ -62,6 +63,10 @@ type QueryEndpoints = {
   "com.atproto.repo.getRecord": Query<
     ComAtprotoRepoGetRecord.QueryParams,
     ComAtprotoRepoGetRecord.OutputSchema
+  >;
+  "com.atproto.repo.describeRepo": Query<
+    ComAtprotoRepoDescribeRepo.QueryParams,
+    ComAtprotoRepoDescribeRepo.OutputSchema
   >;
   "com.atproto.server.getServiceAuth": Query<
     ComAtprotoServerGetServiceAuth.QueryParams,
