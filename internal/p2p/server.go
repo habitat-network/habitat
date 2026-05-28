@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/pear"
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -30,17 +30,17 @@ type peerRegistry struct {
 	mu sync.RWMutex
 
 	// Map of record (gossipsub topics) --> peerID currently subscribed --> channel on which to notify peer of new peers
-	peersByTopic map[habitat_syntax.HabitatURI]map[peer.ID]chan peer.ID
+	peersByTopic map[habitat_syntax.SpaceURI]map[peer.ID]chan peer.ID
 }
 
 func newPeerRegistry() *peerRegistry {
 	return &peerRegistry{
 		mu:           sync.RWMutex{},
-		peersByTopic: make(map[habitat_syntax.HabitatURI]map[peer.ID]chan peer.ID),
+		peersByTopic: make(map[habitat_syntax.SpaceURI]map[peer.ID]chan peer.ID),
 	}
 }
 
-func (pr *peerRegistry) register(topic habitat_syntax.HabitatURI, peerID peer.ID) chan peer.ID {
+func (pr *peerRegistry) register(topic habitat_syntax.SpaceURI, peerID peer.ID) chan peer.ID {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 	if _, ok := pr.peersByTopic[topic]; !ok {
@@ -71,7 +71,7 @@ func (pr *peerRegistry) deregister(peerID peer.ID) {
 	}
 }
 
-func (pr *peerRegistry) peers(topic habitat_syntax.HabitatURI) []string {
+func (pr *peerRegistry) peers(topic habitat_syntax.SpaceURI) []string {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
 	result := make([]string, 0, len(pr.peersByTopic[topic]))
@@ -88,7 +88,7 @@ func (pr *peerRegistry) Listen(network.Network, ma.Multiaddr)      {}
 func (pr *peerRegistry) ListenClose(network.Network, ma.Multiaddr) {}
 func (pr *peerRegistry) Connected(network.Network, network.Conn)   {}
 
-func (pr *peerRegistry) notifySubscribedPeers(topic habitat_syntax.HabitatURI, peerID peer.ID) {
+func (pr *peerRegistry) notifySubscribedPeers(topic habitat_syntax.SpaceURI, peerID peer.ID) {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
 	for other, ch := range pr.peersByTopic[topic] {
@@ -109,7 +109,7 @@ type Server struct {
 
 	// For authn/authz
 	serviceAuth authn.Method
-	pear        pear.Pear
+	spaceStore  spaces.Store
 
 	// Count the open conns on this server
 	conns      atomic.Int64
@@ -118,7 +118,11 @@ type Server struct {
 
 var _ io.Closer = (*Server)(nil)
 
-func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*Server, error) {
+func NewServer(
+	serviceAuth authn.Method,
+	spaceStore spaces.Store,
+	meter metric.Meter,
+) (*Server, error) {
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
@@ -154,7 +158,7 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 		proxy:       httputil.NewSingleHostReverseProxy(url),
 		registry:    registry,
 		serviceAuth: serviceAuth,
-		pear:        pear,
+		spaceStore:  spaceStore,
 		connsGauge:  gauge,
 	}
 
@@ -183,7 +187,7 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 		}
 
 		// TODO: validate req.Credential and check topic permissions
-		topic, err := habitat_syntax.ParseHabitatURI(req.Topic)
+		topic, err := habitat_syntax.ParseSpaceURI(req.Topic)
 		if err != nil {
 			return
 		}
@@ -195,14 +199,7 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 			return
 		}
 
-		authz, err := s.pear.HasPermission(
-			ctx,
-			did,
-			did,
-			topic.Authority().DID(),
-			topic.Collection(),
-			topic.RecordKey(),
-		)
+		authz, err := s.spaceStore.IsMember(ctx, topic, did)
 		if err != nil || !authz {
 			// Ignore this peer -- don't let it know about others and don't let others discover it
 			return

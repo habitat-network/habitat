@@ -49,3 +49,4 @@ cmd/pear/repo.db
 .worktrees/
 
 **/*.db
+.vercel

@@ -70,7 +70,7 @@ const (
 
 func ParseSpaceAccess(access string) (SpaceAccess, error) {
 	switch access {
-	case "read":
+	case "read", "":
 		return SpaceAccessRead, nil
 	case "write":
 		return SpaceAccessWrite, nil

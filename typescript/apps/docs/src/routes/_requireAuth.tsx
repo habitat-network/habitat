@@ -32,6 +32,7 @@ import {
 import { FileTextIcon, PlusIcon, XIcon } from "lucide-react";
 import { useMemo } from "react";
 import { HabitatDoc } from "@/habitatDoc";
+import { parseSpaceRecordUri } from "@/utils";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
@@ -97,38 +98,23 @@ export const Route = createFileRoute("/_requireAuth")({
 
     const { mutate: create, isPending } = useMutation({
       mutationFn: async () => {
-        const did = authManager.getAuthInfo()?.did;
-        const { clique } = await procedure(
-          "network.habitat.clique.createClique",
-          {
-            members: [],
-          },
+        const { uri: spaceUri } = await procedure(
+          "network.habitat.space.createSpace",
+          { type: "network.habitat.docs" },
           { authManager },
         );
-        const response = await procedure(
-          "network.habitat.repo.putRecord",
+        await procedure(
+          "network.habitat.space.putRecord",
           {
-            repo: did ?? "",
-            collection: "network.habitat.docs",
-            record: {
-              name: "Untitled",
-              blob: null,
-              editorClique: clique,
-            } satisfies HabitatDoc,
-            grantees: [
-              {
-                $type: "network.habitat.grantee#clique",
-                clique: clique,
-              },
-            ],
+            space: spaceUri,
+            collection: "network.habitat.docs.edit",
+            record: { name: "Untitled", blob: null } satisfies HabitatDoc,
           },
           { authManager },
         );
         navigate({
           to: "/$uri",
-          params: {
-            uri: response.uri,
-          },
+          params: { uri: spaceUri },
         });
       },
       onSuccess: () => {
@@ -183,8 +169,6 @@ export const Route = createFileRoute("/_requireAuth")({
                         key={doc.uri}
                         doc={doc}
                         isActive={currentUri === doc.uri}
-                        onDelete={(uri) => deleteDoc({ uri })}
-                        isDeleting={isDeleting}
                         ownerProfile={ownerProfileMap[doc.uri.split("/")[2]]}
                       />
                     ))}
@@ -210,8 +194,8 @@ const DocItem = ({
 }: {
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
-  onDelete: (uri: string) => void;
-  isDeleting: boolean;
+  onDelete?: (uri: string) => void;
+  isDeleting?: boolean;
   ownerProfile?: Actor;
 }) => {
   const docName =
@@ -219,11 +203,20 @@ const DocItem = ({
       ? `Untitled (${doc.uri.split("/")[4]})`
       : doc.value.name;
 
+  const { spaceOwner, spaceKey } = parseSpaceRecordUri(doc.uri);
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={isActive}
-        render={<Link to="/$uri" params={{ uri: doc.uri }} />}
+        render={
+          <Link
+            to="/$uri"
+            params={{
+              uri: `ats://${spaceOwner}/network.habitat.docs/${spaceKey}`,
+            }}
+          />
+        }
       >
         {ownerProfile ? (
           <UserAvatar actor={ownerProfile} size="sm" />
@@ -232,33 +225,35 @@ const DocItem = ({
         )}
         <span>{docName}</span>
       </SidebarMenuButton>
-      <Dialog>
-        <DialogTrigger
-          render={
-            <SidebarMenuAction showOnHover aria-label={`Delete ${docName}`} />
-          }
-        >
-          <XIcon />
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete document?</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete &quot;{docName}&quot;? This action
-              is irreversible.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter showCloseButton>
-            <Button
-              variant="destructive"
-              disabled={isDeleting}
-              onClick={() => onDelete(doc.uri)}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {onDelete && (
+        <Dialog>
+          <DialogTrigger
+            render={
+              <SidebarMenuAction showOnHover aria-label={`Delete ${docName}`} />
+            }
+          >
+            <XIcon />
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete document?</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete &quot;{docName}&quot;? This
+                action is irreversible.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter showCloseButton>
+              <Button
+                variant="destructive"
+                disabled={isDeleting}
+                onClick={() => onDelete(doc.uri)}
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </SidebarMenuItem>
   );
 };
