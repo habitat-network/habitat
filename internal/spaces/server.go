@@ -555,6 +555,74 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	if !ok {
+		return
+	}
+
+	var params habitat.NetworkHabitatSpaceGetRepoOplogParams
+	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
+		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		return
+	}
+
+	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		return
+	}
+
+	repoDID, err := syntax.ParseDID(params.Repo)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse repo did", http.StatusBadRequest)
+		return
+	}
+
+	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "check membership", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "not a member of this space", http.StatusForbidden)
+		return
+	}
+
+	limit := int(params.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+
+	records, err := s.store.GetRepoOplog(r.Context(), spaceURI, repoDID, params.Since, limit)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "get repo oplog", http.StatusInternalServerError)
+		return
+	}
+
+	recViews := make([]habitat.NetworkHabitatSpaceGetRepoOplogRecord, len(records))
+	for i, rec := range records {
+		recViews[i] = habitat.NetworkHabitatSpaceGetRepoOplogRecord{
+			Rev:        rec.Rev,
+			Collection: rec.Collection.String(),
+			Rkey:       rec.Rkey.String(),
+			Value:      rec.Value,
+		}
+	}
+
+	output := habitat.NetworkHabitatSpaceGetRepoOplogOutput{
+		Records: recViews,
+	}
+	if len(records) > 0 {
+		output.Cursor = records[len(records)-1].Rev
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+	}
+}
+
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
 	if !ok {
