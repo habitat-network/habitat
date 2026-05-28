@@ -4,11 +4,29 @@ import Icon from "./Icon.astro";
 ---
 
 <header class="flex justify-between px-6 py-4 items-center sticky top-0 z-10 bg-white">
-  <div class="flex-1">
+  <div class="flex items-center gap-6">
     <a href="/"><img src="/habitat-wordmark.svg" class="w-32" /></a>
+    <div class="hidden md:block">
+      <div class="products-menu">
+        <button type="button" class="products-trigger" aria-haspopup="true" aria-expanded="false">
+          Products
+          <svg class="products-caret" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2 4 L5 7 L8 4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="products-panel" role="menu">
+          <a href="/community-platform" class="products-item" role="menuitem">
+            <span class="products-item-label">Community Platform</span>
+          </a>
+          <span class="products-item is-disabled" role="menuitem" aria-disabled="true">
+            <span class="products-item-label">Shared Context MCP</span>
+          </span>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="hidden md:flex flex-1 justify-end gap-4 items-center">
+  <div class="hidden md:flex items-center gap-6">
     <a href="https://github.com/habitat-network/habitat" aria-label="GitHub">
       <Icon name="github" class="w-6 h-6" />
     </a>
@@ -27,8 +45,13 @@ import Icon from "./Icon.astro";
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
       </svg>
     </summary>
-    <div class="absolute right-0 top-full mt-2 bg-white border border-gray-300 rounded-lg p-4 flex flex-col gap-4 min-w-48 shadow-lg z-20">
-      <div class="flex gap-4">
+    <div class="absolute right-0 top-full mt-2 bg-white border border-gray-300 rounded-lg p-4 flex flex-col gap-4 min-w-56 shadow-lg z-20">
+      <div class="flex flex-col gap-2 text-sm">
+        <div class="text-xs uppercase tracking-wider text-gray-500">Products</div>
+        <a href="/community-platform" class="text-black no-underline">Community Platform</a>
+        <span class="text-gray-400 cursor-not-allowed select-none">(Soon) Shared Context Layer</span>
+      </div>
+      <div class="border-t border-gray-200 pt-3 flex gap-4">
         <a href="https://github.com/habitat-network/habitat" aria-label="GitHub">
           <Icon name="github" class="w-6 h-6" />
         </a>
@@ -42,3 +65,129 @@ import Icon from "./Icon.astro";
     </div>
   </details>
 </header>
+
+<style>
+  .products-menu {
+    position: relative;
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  .products-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    padding: 6px 2px;
+    margin: 0;
+    color: #000;
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    cursor: pointer;
+    letter-spacing: -0.005em;
+    transition: color 160ms ease;
+  }
+  .products-trigger:hover,
+  .products-menu:hover .products-trigger,
+  .products-menu:focus-within .products-trigger {
+    color: #008000;
+  }
+  .products-caret {
+    transition: transform 200ms ease;
+  }
+  .products-menu:hover .products-caret,
+  .products-menu:focus-within .products-caret {
+    transform: rotate(180deg);
+  }
+
+  .products-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    padding: 6px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 180ms ease, transform 180ms ease, visibility 180ms;
+    z-index: 30;
+    box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.18);
+  }
+  /* Invisible bridge so cursor can travel from trigger to panel without losing hover */
+  .products-panel::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 0;
+    right: 0;
+    height: 10px;
+  }
+  .products-menu:hover .products-panel,
+  .products-menu:focus-within .products-panel {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  .products-item {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    border: none !important;
+    color: #000;
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+    transition: background 140ms ease, color 140ms ease;
+  }
+  a.products-item:hover {
+    color: #008000;
+    transform: none;
+  }
+  .products-item-label {
+    font-size: 0.9375rem;
+    font-weight: 400;
+    letter-spacing: -0.005em;
+  }
+  .products-item-desc {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: rgba(0, 0, 0, 0.55);
+  }
+  a.products-item:hover .products-item-desc {
+    color: rgba(0, 128, 0, 0.75);
+  }
+  .products-item-tag {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+  .products-item.is-disabled {
+    color: rgba(0, 0, 0, 0.35);
+    cursor: not-allowed;
+    user-select: none;
+  }
+  .products-item.is-disabled .products-item-desc {
+    color: rgba(0, 0, 0, 0.30);
+  }
+</style>
+
+<script>
+  // Toggle aria-expanded on hover/focus for accessibility signals.
+  document.querySelectorAll<HTMLElement>('.products-menu').forEach((menu) => {
+    const trigger = menu.querySelector<HTMLButtonElement>('.products-trigger');
+    if (!trigger) return;
+    const set = (v: boolean) => trigger.setAttribute('aria-expanded', String(v));
+    menu.addEventListener('mouseenter', () => set(true));
+    menu.addEventListener('mouseleave', () => set(false));
+    menu.addEventListener('focusin', () => set(true));
+    menu.addEventListener('focusout', (e) => {
+      if (!menu.contains(e.relatedTarget as Node)) set(false);
+    });
+  });
+</script>

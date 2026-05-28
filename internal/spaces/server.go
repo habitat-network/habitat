@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 	"github.com/gorilla/schema"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -182,7 +183,12 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_manage_members")
+	authorized, err := s.authorize(
+		r.Context(),
+		callerDID,
+		spaceURI,
+		fgastore.RelationSpaceMemberManager,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -197,7 +203,13 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.AddMember(r.Context(), spaceURI, memberDID)
+	access, err := ParseSpaceAccess(input.Access)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse access", http.StatusBadRequest)
+		return
+	}
+
+	err = s.store.AddMember(r.Context(), spaceURI, memberDID, access)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -236,7 +248,12 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_manage_members")
+	authorized, err := s.authorize(
+		r.Context(),
+		callerDID,
+		spaceURI,
+		fgastore.RelationSpaceMemberManager,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -341,7 +358,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_write")
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceWriter)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "check write permission", http.StatusInternalServerError)
 		return
@@ -357,10 +374,16 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rkey, err := syntax.ParseRecordKey(input.Rkey)
-	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
-		return
+	var rkey syntax.RecordKey
+	if input.Rkey != "" {
+		parsedRkey, err := syntax.ParseRecordKey(input.Rkey)
+		if err != nil {
+			utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
+			return
+		}
+		rkey = parsedRkey
+	} else {
+		rkey = syntax.RecordKey(uuid.New().String())
 	}
 
 	value, ok := input.Record.(map[string]any)
@@ -522,6 +545,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			Rkey:       rec.Rkey.String(),
 			Cid:        "",
 			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
+			Value:      rec.Value,
 		}
 	}
 
@@ -552,7 +576,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_delete")
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "check delete permission", http.StatusInternalServerError)
 		return
@@ -575,6 +599,50 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	if !ok {
+		return
+	}
+
+	var input habitat.NetworkHabitatSpaceDeleteSpaceInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		return
+	}
+
+	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		return
+	}
+
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "check owner permission", http.StatusInternalServerError)
+		return
+	}
+	if !authorized {
+		http.Error(w, "not authorized to delete this space", http.StatusForbidden)
+		return
+	}
+
+	err = s.store.DeleteSpace(r.Context(), spaceURI)
+	if errors.Is(err, ErrSpaceNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		utils.LogAndHTTPError(w, err, "delete space", http.StatusInternalServerError)
+		return
+	}
+
+	output := habitat.NetworkHabitatSpaceDeleteSpaceOutput{}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
 		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)

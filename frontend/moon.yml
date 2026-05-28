@@ -44,6 +44,6 @@ tasks:
         env:
           BASE_URL: /habitat/api/
           OUT_DIR: $projectRoot/dist/api
-    preset: utility
     options:
       runDepsInParallel: false
+      cache: false

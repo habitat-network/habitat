@@ -53,6 +53,7 @@ export function toKnownErr(e: any) {
 export interface Member {
   $type?: 'network.habitat.space.getMembers#member'
   did: string
+  access?: 'read' | 'write'
   addedAt?: string
 }
 

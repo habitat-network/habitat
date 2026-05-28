@@ -4,10 +4,12 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/rs/zerolog/log"
 
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
@@ -160,6 +162,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, bool,
 		handleErr(err)
 		return shutdown, true, err
 	}
+	log.Info().Str("provider_type", fmt.Sprintf("%T", traceProvider)).Msg("trace provider type")
 
 	shutdownFuncs = append(shutdownFuncs, traceProvider.Shutdown)
 	otel.SetTracerProvider(traceProvider)

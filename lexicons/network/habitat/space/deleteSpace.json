@@ -1,0 +1,32 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.space.deleteSpace",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "space"
+                    ],
+                    "properties": {
+                        "space": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URI of the space to delete."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "SpaceNotFound",
+                    "description": "The specified space does not exist."
+                }
+            ]
+        }
+    }
+}

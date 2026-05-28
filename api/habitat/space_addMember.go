@@ -4,6 +4,7 @@ package habitat
 
 // NetworkHabitatSpaceAddMemberInput represents the input for network.habitat.space.addMember
 type NetworkHabitatSpaceAddMemberInput struct {
-	Did   string `json:"did"`
-	Space string `json:"space"`
+	Access string `json:"access,omitempty"`
+	Did    string `json:"did"`
+	Space  string `json:"space"`
 }

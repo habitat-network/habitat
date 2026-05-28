@@ -8,6 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"gorm.io/gorm"
 )
 
 // Create an org that has everyone for instances that don't belong to an org, they just host pear servers for people.
@@ -17,7 +18,7 @@ var (
 	ErrNotSupportedPublic = errors.New("method not supported on public org")
 )
 
-func (e *everyoneOrg) LoginMethod() LoginMethod {
+func (e *everyoneOrg) LoginMethod(_ context.Context) LoginMethod {
 	return LoginMethodAtproto
 }
 
@@ -99,6 +100,11 @@ func (e *everyoneOrg) AuthenticateMember(
 	password string,
 ) (bool, error) {
 	return false, ErrNotSupportedPublic
+}
+
+// WithTx implements [Org].
+func (e *everyoneOrg) WithTx(tx *gorm.DB) Org {
+	return e
 }
 
 var _ Org = &everyoneOrg{}

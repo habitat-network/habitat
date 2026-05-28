@@ -43,7 +43,7 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	scoped, err := storeImpl.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	st := scoped.(*orgImpl)
-	require.NoError(t, st.addMember(context.Background(), adminDID, testPasswordHash))
+	require.NoError(t, st.addMemberTx(context.Background(), st.db, adminDID, testPasswordHash))
 	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
 
 	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID), nil)
@@ -161,7 +161,7 @@ func TestCreateOrg(t *testing.T) {
 	require.Len(t, admins, 1)
 	require.Equal(t, adminDID, admins[0])
 
-	require.Equal(t, LoginMethodPassword, org.LoginMethod())
+	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 }
 
 func TestCreateOrg_InvalidHandle(t *testing.T) {
