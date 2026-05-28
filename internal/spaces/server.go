@@ -594,3 +594,47 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
 	}
 }
+
+func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
+	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	if !ok {
+		return
+	}
+
+	var input habitat.NetworkHabitatSpaceDeleteSpaceInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		return
+	}
+
+	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		return
+	}
+
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "owner")
+	if err != nil {
+		utils.LogAndHTTPError(w, err, "check owner permission", http.StatusInternalServerError)
+		return
+	}
+	if !authorized {
+		http.Error(w, "not authorized to delete this space", http.StatusForbidden)
+		return
+	}
+
+	err = s.store.DeleteSpace(r.Context(), spaceURI)
+	if errors.Is(err, ErrSpaceNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		utils.LogAndHTTPError(w, err, "delete space", http.StatusInternalServerError)
+		return
+	}
+
+	output := habitat.NetworkHabitatSpaceDeleteSpaceOutput{}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+	}
+}
