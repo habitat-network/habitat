@@ -47,6 +47,7 @@ type Store interface {
 		object, relation string,
 		contextualTuples ...Tuple,
 	) ([]string, error)
+	Read(ctx context.Context, filter Tuple) ([]Tuple, error)
 	Close() error
 	WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error
 }
@@ -276,6 +277,36 @@ func (f *FGA) Close() error {
 	f.svr.Close()
 	f.ds.Close()
 	return nil
+}
+
+// Read returns all stored tuples matching the given filter (empty fields are wildcards).
+func (f *FGA) Read(ctx context.Context, filter Tuple) ([]Tuple, error) {
+	var tupleKey *openfgav1.ReadRequestTupleKey
+	if filter.User != "" || filter.Relation != "" || filter.Object != "" {
+		tupleKey = &openfgav1.ReadRequestTupleKey{
+			User:     filter.User,
+			Relation: filter.Relation,
+			Object:   filter.Object,
+		}
+	}
+	resp, err := f.svr.Read(ctx, &openfgav1.ReadRequest{
+		StoreId:  f.storeID,
+		TupleKey: tupleKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read: %w", err)
+	}
+	tuples := make([]Tuple, 0, len(resp.GetTuples()))
+	for _, t := range resp.GetTuples() {
+		if k := t.GetKey(); k != nil {
+			tuples = append(tuples, Tuple{
+				User:     k.GetUser(),
+				Relation: k.GetRelation(),
+				Object:   k.GetObject(),
+			})
+		}
+	}
+	return tuples, nil
 }
 
 // WriteRaw implements [Store].

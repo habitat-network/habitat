@@ -569,6 +569,7 @@ func (s *store) ListRecords(
 }
 
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
+	// verify space exists before starting the transaction
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
@@ -579,45 +580,44 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		return err
 	}
 
-	err = s.db.WithContext(ctx).
-		Where("space = ?", uri).
-		Delete(&spaceRecord{}).Error
+	// read the stored FGA tuples for this space before deleting anything,
+	// so we know exactly what tuples to delete
+	tuples, err := s.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
 	if err != nil {
 		return err
 	}
 
-	err = s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-		Delete(&space{}).Error
-	if err != nil {
-		return err
-	}
+	// everything after this point is idempotent — use a transaction
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&spaceRecord{}).Error; err != nil {
+			return err
+		}
 
-	readerStrs, err := s.fga.ListUsers(ctx, fgastore.SpaceObjectKey(uri), "can_read")
-	if err != nil {
-		return err
-	}
+		if err := tx.
+			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+			Delete(&space{}).Error; err != nil {
+			return err
+		}
 
-	var deletes []*openfgav1.TupleKeyWithoutCondition
-	for _, userStr := range readerStrs {
-		deletes = append(deletes,
-			tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-				fgastore.SpaceObjectKey(uri), "can_read", userStr,
-			)),
-			tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-				fgastore.SpaceObjectKey(uri), "can_write", userStr,
-			)),
-		)
-	}
-	if len(deletes) > 0 {
-		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-			Deletes: &openfgav1.WriteRequestDeletes{
-				TupleKeys:  deletes,
-				OnMissing: "ignore",
-			},
-		})
-	}
-	return nil
+		// delete all stored FGA tuples for this space
+		var deletes []*openfgav1.TupleKeyWithoutCondition
+		for _, t := range tuples {
+			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
+				tuple.NewTupleKey(t.Object, t.Relation, t.User),
+			))
+		}
+		if len(deletes) > 0 {
+			return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+				Deletes: &openfgav1.WriteRequestDeletes{
+					TupleKeys:  deletes,
+					OnMissing: "ignore",
+				},
+			})
+		}
+		return nil
+	})
 }
 
 func (s *store) DeleteRecord(
