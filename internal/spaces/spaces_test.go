@@ -463,3 +463,65 @@ func TestDeleteSpace_NonExistent(t *testing.T) {
 	err := s.DeleteSpace(t.Context(), uri)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
+
+func TestGetRepoOplog(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	err = s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	require.Equal(t, "k1", string(records[0].Rkey))
+	require.Equal(t, "k2", string(records[1].Rkey))
+	require.NotEmpty(t, records[0].Rev)
+	require.NotEmpty(t, records[1].Rev)
+	require.Equal(t, float64(1), records[0].Value["x"])
+	require.Equal(t, float64(2), records[1].Value["x"])
+
+	records, err = s.GetRepoOplog(t.Context(), uri, owner, records[0].Rev, 100)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, "k2", string(records[0].Rkey))
+
+	records, err = s.GetRepoOplog(t.Context(), uri, owner, "", 1)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+}
+
+func TestGetRepoOplog_Empty(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, records, 0)
+}
+
+func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	require.NoError(t, err)
+
+	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, "hello", records[0].Value["text"])
+	require.NotEmpty(t, records[0].Rev)
+}
