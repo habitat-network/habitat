@@ -135,6 +135,7 @@ type Store interface {
 		collection syntax.NSID,
 		rkey string,
 	) error
+	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
 }
 
 var (
@@ -565,6 +566,58 @@ func (s *store) ListRecords(
 	}
 
 	return records, nil
+}
+
+func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrSpaceNotFound
+	} else if err != nil {
+		return err
+	}
+
+	err = s.db.WithContext(ctx).
+		Where("space = ?", uri).
+		Delete(&spaceRecord{}).Error
+	if err != nil {
+		return err
+	}
+
+	err = s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Delete(&space{}).Error
+	if err != nil {
+		return err
+	}
+
+	readerStrs, err := s.fga.ListUsers(ctx, fgastore.SpaceObjectKey(uri), "can_read")
+	if err != nil {
+		return err
+	}
+
+	var deletes []*openfgav1.TupleKeyWithoutCondition
+	for _, userStr := range readerStrs {
+		deletes = append(deletes,
+			tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+				fgastore.SpaceObjectKey(uri), "can_read", userStr,
+			)),
+			tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+				fgastore.SpaceObjectKey(uri), "can_write", userStr,
+			)),
+		)
+	}
+	if len(deletes) > 0 {
+		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys:  deletes,
+				OnMissing: "ignore",
+			},
+		})
+	}
+	return nil
 }
 
 func (s *store) DeleteRecord(
