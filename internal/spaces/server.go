@@ -642,9 +642,8 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output := habitat.NetworkHabitatSpaceDeleteSpaceOutput{}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
+	if err := json.NewEncoder(w).Encode(struct{}{}); err != nil {
 		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
 	}
 }
