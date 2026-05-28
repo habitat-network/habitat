@@ -169,8 +169,6 @@ export const Route = createFileRoute("/_requireAuth")({
                         key={doc.uri}
                         doc={doc}
                         isActive={currentUri === doc.uri}
-                        onDelete={(uri) => deleteDoc({ uri })}
-                        isDeleting={isDeleting}
                         ownerProfile={ownerProfileMap[doc.uri.split("/")[2]]}
                       />
                     ))}
@@ -196,8 +194,8 @@ const DocItem = ({
 }: {
   doc: TypedRecord<HabitatDoc>;
   isActive: boolean;
-  onDelete: (uri: string) => void;
-  isDeleting: boolean;
+  onDelete?: (uri: string) => void;
+  isDeleting?: boolean;
   ownerProfile?: Actor;
 }) => {
   const docName =
@@ -227,33 +225,35 @@ const DocItem = ({
         )}
         <span>{docName}</span>
       </SidebarMenuButton>
-      <Dialog>
-        <DialogTrigger
-          render={
-            <SidebarMenuAction showOnHover aria-label={`Delete ${docName}`} />
-          }
-        >
-          <XIcon />
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete document?</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete &quot;{docName}&quot;? This action
-              is irreversible.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter showCloseButton>
-            <Button
-              variant="destructive"
-              disabled={isDeleting}
-              onClick={() => onDelete(doc.uri)}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {onDelete && (
+        <Dialog>
+          <DialogTrigger
+            render={
+              <SidebarMenuAction showOnHover aria-label={`Delete ${docName}`} />
+            }
+          >
+            <XIcon />
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete document?</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete &quot;{docName}&quot;? This action
+                is irreversible.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter showCloseButton>
+              <Button
+                variant="destructive"
+                disabled={isDeleting}
+                onClick={() => onDelete(doc.uri)}
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </SidebarMenuItem>
   );
 };

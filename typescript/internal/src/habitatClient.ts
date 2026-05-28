@@ -22,6 +22,7 @@ import type {
   NetworkHabitatSpaceAddMember,
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpaceDeleteRecord,
+  NetworkHabitatSpaceDeleteSpace,
   NetworkHabitatSpaceGetMembers,
   NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
@@ -241,6 +242,10 @@ type ProcedureEndpoints = {
   >;
   "network.habitat.space.deleteRecord": Procedure<
     NetworkHabitatSpaceDeleteRecord.InputSchema,
+    {}
+  >;
+  "network.habitat.space.deleteSpace": Procedure<
+    NetworkHabitatSpaceDeleteSpace.InputSchema,
     {}
   >;
 };

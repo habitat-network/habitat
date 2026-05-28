@@ -158,8 +158,8 @@ export const deleteDocMutationOptions = (authManager: AuthManager) =>
       const parts = uri.split("/");
       const spaceUri = `ats://${parts[2]}/network.habitat.docs/${parts[4]}`;
       await procedure(
-        "network.habitat.space.deleteRecord",
-        { space: spaceUri, collection: "network.habitat.docs", rkey: "doc" },
+        "network.habitat.space.deleteSpace",
+        { space: spaceUri },
         { authManager },
       );
     },

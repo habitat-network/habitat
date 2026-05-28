@@ -2612,6 +2612,37 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceDeleteSpace: {
+    lexicon: 1,
+    id: 'network.habitat.space.deleteSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the space to delete.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The specified space does not exist.',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceGetMembers: {
     lexicon: 1,
     id: 'network.habitat.space.getMembers',
@@ -3095,6 +3126,7 @@ export const ids = {
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
+  NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
   NetworkHabitatSpaceGetMembers: 'network.habitat.space.getMembers',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
