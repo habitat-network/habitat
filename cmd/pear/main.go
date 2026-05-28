@@ -299,7 +299,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(dir),
 		orgStore,
 	)
-	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
+	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), spacesStore, meter)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to setup p2p server")
 	}
