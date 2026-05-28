@@ -183,7 +183,12 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_manage_members")
+	authorized, err := s.authorize(
+		r.Context(),
+		callerDID,
+		spaceURI,
+		fgastore.RelationSpaceMemberManager,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -243,7 +248,12 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_manage_members")
+	authorized, err := s.authorize(
+		r.Context(),
+		callerDID,
+		spaceURI,
+		fgastore.RelationSpaceMemberManager,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			w,
@@ -348,7 +358,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "can_write")
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceWriter)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "check write permission", http.StatusInternalServerError)
 		return
@@ -566,7 +576,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "owner")
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "check delete permission", http.StatusInternalServerError)
 		return
@@ -613,7 +623,7 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, "owner")
+	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "check owner permission", http.StatusInternalServerError)
 		return

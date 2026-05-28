@@ -169,7 +169,7 @@ func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
 func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
 	return fgastore.Tuple{
 		User:     fgastore.MemberUserString(uri.SpaceDID()),
-		Relation: "owner",
+		Relation: fgastore.RelationSpaceOwner,
 		Object:   fgastore.SpaceObjectKey(uri),
 	}
 }

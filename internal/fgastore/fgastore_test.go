@@ -94,7 +94,7 @@ func TestCheck_SpaceOwnerGrantsCanWrite(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	err := f.Write(ctx, "user:alice", "owner", "space:myorg/myspace")
+	err := f.Write(ctx, "user:alice", RelationSpaceOwner, "space:myorg/myspace")
 	require.NoError(t, err, "Write owner tuple should succeed")
 
 	ok, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:myorg/myspace")
