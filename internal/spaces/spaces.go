@@ -569,17 +569,6 @@ func (s *store) ListRecords(
 }
 
 func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
-	// verify space exists before starting the transaction
-	var sp space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-		First(&sp).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
-	} else if err != nil {
-		return err
-	}
-
 	// read the stored FGA tuples for this space before deleting anything,
 	// so we know exactly what tuples to delete
 	tuples, err := s.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
@@ -589,15 +578,19 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 
 	// everything after this point is idempotent — use a transaction
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.
-			Where("space = ?", uri).
-			Delete(&spaceRecord{}).Error; err != nil {
+		deleteSpace := tx.
+			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+			Delete(&space{})
+		if deleteSpace.Error != nil {
 			return err
+		}
+		if deleteSpace.RowsAffected == 0 {
+			return ErrSpaceNotFound
 		}
 
 		if err := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-			Delete(&space{}).Error; err != nil {
+			Where("space = ?", uri).
+			Delete(&spaceRecord{}).Error; err != nil {
 			return err
 		}
 
@@ -611,7 +604,7 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		if len(deletes) > 0 {
 			return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 				Deletes: &openfgav1.WriteRequestDeletes{
-					TupleKeys:  deletes,
+					TupleKeys: deletes,
 					OnMissing: "ignore",
 				},
 			})
