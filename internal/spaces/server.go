@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 	"github.com/gorilla/schema"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -382,8 +381,6 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rkey = parsedRkey
-	} else {
-		rkey = syntax.RecordKey(uuid.New().String())
 	}
 
 	value, ok := input.Record.(map[string]any)
