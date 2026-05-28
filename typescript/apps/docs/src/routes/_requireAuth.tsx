@@ -238,8 +238,8 @@ const DocItem = ({
             <DialogHeader>
               <DialogTitle>Delete document?</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete &quot;{docName}&quot;? This action
-                is irreversible.
+                Are you sure you want to delete &quot;{docName}&quot;? This
+                action is irreversible.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter showCloseButton>

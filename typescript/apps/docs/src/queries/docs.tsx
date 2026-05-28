@@ -103,10 +103,11 @@ export const editorProfilesQueryOptions = (
   });
 
 export const docEditQueryOptions = (
-spaceUri: string ,
-repo: string,
+  spaceUri: string,
+  repo: string,
   authManager: AuthManager,
-) => queryOptions({
+) =>
+  queryOptions({
     queryKey: ["edit", spaceUri, repo],
     queryFn: async () => {
       const { records } = await query(
@@ -133,22 +134,20 @@ export const docEditsQueryOptions = (
 ) =>
   queryOptions({
     queryKey: ["edits", spaceUri],
-    queryFn: async ({ client}) => {
-        const dids = await client.fetchQuery(
-          docEditorsQueryOptions(spaceUri, authManager),
-        );
-        if (!dids.length) {
-          return [];
-        }
-        const records = await Promise.all(
-          dids.map((did) =>  (
-          client.fetchQuery(
-              docEditQueryOptions(spaceUri, did, authManager),
-            )
-          )
-        ))
-        return records;
-      } 
+    queryFn: async ({ client }) => {
+      const dids = await client.fetchQuery(
+        docEditorsQueryOptions(spaceUri, authManager),
+      );
+      if (!dids.length) {
+        return [];
+      }
+      const records = await Promise.all(
+        dids.map((did) =>
+          client.fetchQuery(docEditQueryOptions(spaceUri, did, authManager)),
+        ),
+      );
+      return records;
+    },
   });
 
 export const deleteDocMutationOptions = (authManager: AuthManager) =>

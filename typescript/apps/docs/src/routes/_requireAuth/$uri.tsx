@@ -301,8 +301,8 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       mutationFn: async () => {
         const heading = getHeadingFromYdoc(ydoc);
         const rkey = myEditUri
-              ? parseSpaceRecordUri(myEditUri).recordKey
-              : undefined;
+          ? parseSpaceRecordUri(myEditUri).recordKey
+          : undefined;
 
         await procedure(
           "network.habitat.space.putRecord",
