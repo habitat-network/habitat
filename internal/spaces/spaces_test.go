@@ -432,3 +432,34 @@ func TestParseSpaceURI_Invalid(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteSpace(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "to-delete")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	require.NoError(t, s.PutRecord(t.Context(), uri, owner, coll, "r1", map[string]any{"x": 1}))
+	require.NoError(t, s.PutRecord(t.Context(), uri, owner, coll, "r2", map[string]any{"x": 2}))
+	require.NoError(t, s.AddMember(t.Context(), uri, alice, SpaceAccessRead))
+
+	err = s.DeleteSpace(t.Context(), uri)
+	require.NoError(t, err)
+
+	// space should be gone
+	_, err = s.GetMembers(t.Context(), uri)
+	require.ErrorIs(t, err, ErrSpaceNotFound)
+
+	// records should be gone
+	records, err := s.ListRecords(t.Context(), uri, owner, nil)
+	require.NoError(t, err)
+	require.Len(t, records, 0)
+}
+
+func TestDeleteSpace_NonExistent(t *testing.T) {
+	s := newTestStore(t)
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	err := s.DeleteSpace(t.Context(), uri)
+	require.ErrorIs(t, err, ErrSpaceNotFound)
+}

@@ -135,6 +135,7 @@ type Store interface {
 		collection syntax.NSID,
 		rkey string,
 	) error
+	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
 }
 
 var (
@@ -168,7 +169,7 @@ func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
 func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
 	return fgastore.Tuple{
 		User:     fgastore.MemberUserString(uri.SpaceDID()),
-		Relation: "owner",
+		Relation: fgastore.RelationSpaceOwner,
 		Object:   fgastore.SpaceObjectKey(uri),
 	}
 }
@@ -349,7 +350,7 @@ func (s *store) IsMember(
 	return s.fga.Check(
 		ctx,
 		fgastore.MemberUserString(did),
-		"can_read",
+		fgastore.RelationSpaceReader,
 		fgastore.SpaceObjectKey(uri),
 		ownerContextualTuple(uri),
 	)
@@ -379,7 +380,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKey{
 					tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_read",
+						fgastore.RelationSpaceReader,
 						fgastore.MemberUserString(did),
 					),
 				},
@@ -389,7 +390,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_write",
+						fgastore.RelationSpaceWriter,
 						fgastore.MemberUserString(did),
 					)),
 				},
@@ -402,7 +403,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKey{
 					tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_write",
+						fgastore.RelationSpaceWriter,
 						fgastore.MemberUserString(did),
 					),
 				},
@@ -412,7 +413,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_read",
+						fgastore.RelationSpaceReader,
 						fgastore.MemberUserString(did),
 					)),
 				},
@@ -446,12 +447,12 @@ func (s *store) RemoveMember(
 			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 					fgastore.SpaceObjectKey(uri),
-					"can_read",
+					fgastore.RelationSpaceReader,
 					fgastore.MemberUserString(did),
 				)),
 				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 					fgastore.SpaceObjectKey(uri),
-					"can_write",
+					fgastore.RelationSpaceWriter,
 					fgastore.MemberUserString(did),
 				)),
 			},
@@ -565,6 +566,51 @@ func (s *store) ListRecords(
 	}
 
 	return records, nil
+}
+
+func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
+	// read the stored FGA tuples for this space before deleting anything,
+	// so we know exactly what tuples to delete
+	tuples, err := s.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
+	if err != nil {
+		return err
+	}
+
+	// everything after this point is idempotent — use a transaction
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		deleteSpace := tx.
+			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+			Delete(&space{})
+		if deleteSpace.Error != nil {
+			return err
+		}
+		if deleteSpace.RowsAffected == 0 {
+			return ErrSpaceNotFound
+		}
+
+		if err := tx.
+			Where("space = ?", uri).
+			Delete(&spaceRecord{}).Error; err != nil {
+			return err
+		}
+
+		// delete all stored FGA tuples for this space
+		var deletes []*openfgav1.TupleKeyWithoutCondition
+		for _, t := range tuples {
+			deletes = append(deletes, tuple.TupleKeyToTupleKeyWithoutCondition(
+				tuple.NewTupleKey(t.Object, t.Relation, t.User),
+			))
+		}
+		if len(deletes) > 0 {
+			return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+				Deletes: &openfgav1.WriteRequestDeletes{
+					TupleKeys: deletes,
+					OnMissing: "ignore",
+				},
+			})
+		}
+		return nil
+	})
 }
 
 func (s *store) DeleteRecord(

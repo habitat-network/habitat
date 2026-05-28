@@ -4,23 +4,35 @@ import (
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 )
 
+const (
+	TypeOrganization           = "organization"
+	TypeUser                   = "user"
+	TypeSpace                  = "space"
+	RelationAdmin              = "admin"
+	RelationMember             = "member"
+	RelationSpaceOwner         = "owner"
+	RelationSpaceReader        = "can_read"
+	RelationSpaceWriter        = "can_write"
+	RelationSpaceMemberManager = "can_manage_members"
+)
+
 func authModel() *openfgav1.AuthorizationModel {
 	return &openfgav1.AuthorizationModel{
 		SchemaVersion: "1.1",
 		TypeDefinitions: []*openfgav1.TypeDefinition{
-			{Type: "user"},
+			{Type: TypeUser},
 			{
-				Type: "organization",
+				Type: TypeOrganization,
 				Relations: map[string]*openfgav1.Userset{
-					"admin": {Userset: &openfgav1.Userset_This{}},
-					"member": {
+					RelationAdmin: {Userset: &openfgav1.Userset_This{}},
+					RelationMember: {
 						Userset: &openfgav1.Userset_Union{
 							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
 								{Userset: &openfgav1.Userset_This{}},
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "admin",
+											Relation: RelationAdmin,
 										},
 									},
 								},
@@ -30,66 +42,66 @@ func authModel() *openfgav1.AuthorizationModel {
 				},
 				Metadata: &openfgav1.Metadata{
 					Relations: map[string]*openfgav1.RelationMetadata{
-						"admin": {
+						RelationAdmin: {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
+								{Type: TypeUser},
 							},
 						},
-						"member": {
+						RelationMember: {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
+								{Type: TypeUser},
 							},
 						},
 					},
 				},
 			},
 			{
-				Type: "space",
+				Type: TypeSpace,
 				Relations: map[string]*openfgav1.Userset{
-					"owner": {Userset: &openfgav1.Userset_This{}},
-					"can_read": {
+					RelationSpaceOwner: {Userset: &openfgav1.Userset_This{}},
+					RelationSpaceReader: {
 						Userset: &openfgav1.Userset_Union{
 							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
 								{Userset: &openfgav1.Userset_This{}},
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "can_write",
+											Relation: RelationSpaceWriter,
 										},
 									},
 								},
 							}},
 						},
 					},
-					"can_write": {
+					RelationSpaceWriter: {
 						Userset: &openfgav1.Userset_Union{
 							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
 								{Userset: &openfgav1.Userset_This{}},
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "owner",
+											Relation: RelationSpaceOwner,
 										},
 									},
 								},
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "can_manage_members",
+											Relation: RelationSpaceMemberManager,
 										},
 									},
 								},
 							}},
 						},
 					},
-					"can_manage_members": {
+					RelationSpaceMemberManager: {
 						Userset: &openfgav1.Userset_Union{
 							Union: &openfgav1.Usersets{Child: []*openfgav1.Userset{
 								{Userset: &openfgav1.Userset_This{}},
 								{
 									Userset: &openfgav1.Userset_ComputedUserset{
 										ComputedUserset: &openfgav1.ObjectRelation{
-											Relation: "owner",
+											Relation: RelationSpaceOwner,
 										},
 									},
 								},
@@ -99,30 +111,24 @@ func authModel() *openfgav1.AuthorizationModel {
 				},
 				Metadata: &openfgav1.Metadata{
 					Relations: map[string]*openfgav1.RelationMetadata{
-						"owner": {
+						RelationSpaceOwner: {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
-								{
-									Type: "organization",
-									RelationOrWildcard: &openfgav1.RelationReference_Relation{
-										Relation: "admin",
-									},
-								},
+								{Type: TypeUser},
 							},
 						},
-						"can_read": {
+						RelationSpaceReader: {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
+								{Type: TypeUser},
 							},
 						},
-						"can_write": {
+						RelationSpaceWriter: {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
+								{Type: TypeUser},
 							},
 						},
-						"can_manage_members": {
+						RelationSpaceMemberManager: {
 							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: "user"},
+								{Type: TypeUser},
 							},
 						},
 					},

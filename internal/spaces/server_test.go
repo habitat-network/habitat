@@ -341,3 +341,44 @@ func TestServer_Unauthorized(t *testing.T) {
 	s.CreateSpace(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
+
+func TestServer_DeleteSpace(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "to-delete")
+	require.NoError(t, err)
+
+	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteSpace",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.DeleteSpace(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// space should be unreachable
+	_, err = s.store.GetMembers(t.Context(), uri)
+	require.ErrorIs(t, err, ErrSpaceNotFound)
+}
+
+func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
+	s := newAliceServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteSpace",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.DeleteSpace(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
