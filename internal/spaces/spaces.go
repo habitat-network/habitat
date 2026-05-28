@@ -22,9 +22,10 @@ import (
 
 type space struct {
 	Owner     syntax.DID              `gorm:"primaryKey"`
+	Type      syntax.NSID             `gorm:"primaryKey"`
 	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
-	Type      syntax.NSID
 	CreatedAt time.Time
+	Rev       syntax.TID `gorm:"uniqueIndex"`
 }
 
 type spaceRecord struct {
@@ -33,6 +34,7 @@ type spaceRecord struct {
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
+	Rev        syntax.TID `gorm:"uniqueIndex"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -58,6 +60,7 @@ type Record struct {
 	Collection syntax.NSID
 	Rkey       syntax.RecordKey
 	Value      map[string]any
+	Rev        string
 	UpdatedAt  time.Time
 }
 
@@ -136,6 +139,15 @@ type Store interface {
 		rkey string,
 	) error
 	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
+
+	// Oplog operations
+	GetRepoOplog(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		since string,
+		limit int,
+	) ([]Record, error)
 }
 
 var (
@@ -150,8 +162,9 @@ var (
 // ---- Store implementation ----
 
 type store struct {
-	db  *gorm.DB
-	fga fgastore.Store
+	db    *gorm.DB
+	fga   fgastore.Store
+	clock *syntax.TIDClock
 }
 
 var _ Store = &store{}
@@ -160,7 +173,7 @@ func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
 	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
-	return &store{db: db, fga: fga}, nil
+	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0)}, nil
 }
 
 // ownerContextualTuple returns a Tuple representing the owner relationship,
@@ -471,7 +484,6 @@ func (s *store) PutRecord(
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) error {
-
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
@@ -487,17 +499,32 @@ func (s *store) PutRecord(
 		return err
 	}
 
-	rec := spaceRecord{
-		Owner:      owner,
-		Space:      uri,
-		Collection: collection,
-		Rkey:       rkey,
-		Value:      bytes,
+	tid := s.clock.Next()
+	if rkey == "" {
+		rkey = syntax.RecordKey(tid)
 	}
 
-	return s.db.WithContext(ctx).
-		Clauses(clause.OnConflict{UpdateAll: true}).
-		Create(&rec).Error
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		rec := spaceRecord{
+			Owner:      owner,
+			Space:      uri,
+			Collection: collection,
+			Rkey:       rkey,
+			Value:      bytes,
+			Rev:        tid,
+		}
+
+		if err := tx.
+			Clauses(clause.OnConflict{UpdateAll: true}).
+			Create(&rec).Error; err != nil {
+			return err
+		}
+
+		return tx.
+			Model(&space{}).
+			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+			Update("rev", tid).Error
+	})
 }
 
 func (s *store) GetRecord(
@@ -527,6 +554,7 @@ func (s *store) GetRecord(
 		Collection: collection,
 		Rkey:       row.Rkey,
 		Value:      value,
+		Rev:        string(row.Rev),
 		UpdatedAt:  row.UpdatedAt,
 	}, nil
 }
@@ -561,6 +589,7 @@ func (s *store) ListRecords(
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
 			Value:      value,
+			Rev:        string(row.Rev),
 			UpdatedAt:  row.UpdatedAt,
 		}
 	}
@@ -611,6 +640,48 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		}
 		return nil
 	})
+}
+
+func (s *store) GetRepoOplog(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	owner syntax.DID,
+	since string,
+	limit int,
+) ([]Record, error) {
+	query := s.db.WithContext(ctx).
+		Model(&spaceRecord{}).
+		Where("space = ? AND owner = ?", uri, owner)
+
+	if since != "" {
+		query = query.Where("rev > ?", since)
+	}
+
+	if limit <= 0 {
+		limit = 100
+	}
+
+	var rows []spaceRecord
+	if err := query.Order("rev ASC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("get repo oplog: %w", err)
+	}
+
+	records := make([]Record, len(rows))
+	for i, row := range rows {
+		var value map[string]any
+		if err := json.Unmarshal(row.Value, &value); err != nil {
+			return nil, err
+		}
+		records[i] = Record{
+			Owner:      row.Owner,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+			Value:      value,
+			Rev:        string(row.Rev),
+			UpdatedAt:  row.UpdatedAt,
+		}
+	}
+	return records, nil
 }
 
 func (s *store) DeleteRecord(
