@@ -22,11 +22,13 @@ import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/_forwarding-test'
+import { Route as RequireAuthSpacesIndexRouteImport } from './routes/_requireAuth/spaces/index'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthPearTestIndexRouteImport } from './routes/_requireAuth/pear-test/index'
 import { Route as RequireAuthOrgIndexRouteImport } from './routes/_requireAuth/org/index'
 import { Route as RequireAuthCollectionsIndexRouteImport } from './routes/_requireAuth/collections/index'
 import { Route as RequireAuthBlobTestIndexRouteImport } from './routes/_requireAuth/blob-test/index'
+import { Route as RequireAuthSpacesSpaceRouteImport } from './routes/_requireAuth/spaces/$space'
 import { Route as RequireAuthPermissionsPeopleRouteImport } from './routes/_requireAuth/permissions/people'
 import { Route as RequireAuthPermissionsLexiconsRouteImport } from './routes/_requireAuth/permissions/lexicons'
 import { Route as RequireAuthPearTestViewRouteImport } from './routes/_requireAuth/pear-test/view'
@@ -99,6 +101,11 @@ const RequireAuthForwardingTestRoute =
     id: '/_forwarding-test',
     getParentRoute: () => RequireAuthRoute,
   } as any)
+const RequireAuthSpacesIndexRoute = RequireAuthSpacesIndexRouteImport.update({
+  id: '/spaces/',
+  path: '/spaces/',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 const RequireAuthPermissionsIndexRoute =
   RequireAuthPermissionsIndexRouteImport.update({
     id: '/',
@@ -128,6 +135,11 @@ const RequireAuthBlobTestIndexRoute =
     path: '/blob-test/',
     getParentRoute: () => RequireAuthRoute,
   } as any)
+const RequireAuthSpacesSpaceRoute = RequireAuthSpacesSpaceRouteImport.update({
+  id: '/spaces/$space',
+  path: '/spaces/$space',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
 const RequireAuthPermissionsPeopleRoute =
   RequireAuthPermissionsPeopleRouteImport.update({
     id: '/people',
@@ -186,11 +198,13 @@ export interface FileRoutesByFullPath {
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
+  '/spaces/$space': typeof RequireAuthSpacesSpaceRoute
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/collections': typeof RequireAuthCollectionsIndexRoute
   '/org': typeof RequireAuthOrgIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
+  '/spaces': typeof RequireAuthSpacesIndexRoute
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
@@ -209,11 +223,13 @@ export interface FileRoutesByTo {
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
+  '/spaces/$space': typeof RequireAuthSpacesSpaceRoute
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/collections': typeof RequireAuthCollectionsIndexRoute
   '/org': typeof RequireAuthOrgIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
+  '/spaces': typeof RequireAuthSpacesIndexRoute
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
@@ -237,11 +253,13 @@ export interface FileRoutesById {
   '/_requireAuth/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/_requireAuth/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
+  '/_requireAuth/spaces/$space': typeof RequireAuthSpacesSpaceRoute
   '/_requireAuth/blob-test/': typeof RequireAuthBlobTestIndexRoute
   '/_requireAuth/collections/': typeof RequireAuthCollectionsIndexRoute
   '/_requireAuth/org/': typeof RequireAuthOrgIndexRoute
   '/_requireAuth/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/_requireAuth/permissions/': typeof RequireAuthPermissionsIndexRoute
+  '/_requireAuth/spaces/': typeof RequireAuthSpacesIndexRoute
   '/_requireAuth/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/_requireAuth/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/_requireAuth/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
@@ -264,11 +282,13 @@ export interface FileRouteTypes {
     | '/pear-test/view'
     | '/permissions/lexicons'
     | '/permissions/people'
+    | '/spaces/$space'
     | '/blob-test'
     | '/collections'
     | '/org'
     | '/pear-test'
     | '/permissions/'
+    | '/spaces'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/permissions/lexicons/'
@@ -287,11 +307,13 @@ export interface FileRouteTypes {
     | '/collections/$collection'
     | '/pear-test/view'
     | '/permissions/people'
+    | '/spaces/$space'
     | '/blob-test'
     | '/collections'
     | '/org'
     | '/pear-test'
     | '/permissions'
+    | '/spaces'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/permissions/lexicons'
@@ -314,11 +336,13 @@ export interface FileRouteTypes {
     | '/_requireAuth/pear-test/view'
     | '/_requireAuth/permissions/lexicons'
     | '/_requireAuth/permissions/people'
+    | '/_requireAuth/spaces/$space'
     | '/_requireAuth/blob-test/'
     | '/_requireAuth/collections/'
     | '/_requireAuth/org/'
     | '/_requireAuth/pear-test/'
     | '/_requireAuth/permissions/'
+    | '/_requireAuth/spaces/'
     | '/_requireAuth/permissions/lexicons/$collection'
     | '/_requireAuth/permissions/people/$did'
     | '/_requireAuth/permissions/lexicons/'
@@ -428,6 +452,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
       parentRoute: typeof RequireAuthRoute
     }
+    '/_requireAuth/spaces/': {
+      id: '/_requireAuth/spaces/'
+      path: '/spaces'
+      fullPath: '/spaces'
+      preLoaderRoute: typeof RequireAuthSpacesIndexRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
     '/_requireAuth/permissions/': {
       id: '/_requireAuth/permissions/'
       path: '/'
@@ -461,6 +492,13 @@ declare module '@tanstack/react-router' {
       path: '/blob-test'
       fullPath: '/blob-test'
       preLoaderRoute: typeof RequireAuthBlobTestIndexRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/spaces/$space': {
+      id: '/_requireAuth/spaces/$space'
+      path: '/spaces/$space'
+      fullPath: '/spaces/$space'
+      preLoaderRoute: typeof RequireAuthSpacesSpaceRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/permissions/people': {
@@ -574,10 +612,12 @@ interface RequireAuthRouteChildren {
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
   RequireAuthPearTestViewRoute: typeof RequireAuthPearTestViewRoute
+  RequireAuthSpacesSpaceRoute: typeof RequireAuthSpacesSpaceRoute
   RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
   RequireAuthCollectionsIndexRoute: typeof RequireAuthCollectionsIndexRoute
   RequireAuthOrgIndexRoute: typeof RequireAuthOrgIndexRoute
   RequireAuthPearTestIndexRoute: typeof RequireAuthPearTestIndexRoute
+  RequireAuthSpacesIndexRoute: typeof RequireAuthSpacesIndexRoute
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
@@ -587,10 +627,12 @@ const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthIndexRoute: RequireAuthIndexRoute,
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,
   RequireAuthPearTestViewRoute: RequireAuthPearTestViewRoute,
+  RequireAuthSpacesSpaceRoute: RequireAuthSpacesSpaceRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
   RequireAuthCollectionsIndexRoute: RequireAuthCollectionsIndexRoute,
   RequireAuthOrgIndexRoute: RequireAuthOrgIndexRoute,
   RequireAuthPearTestIndexRoute: RequireAuthPearTestIndexRoute,
+  RequireAuthSpacesIndexRoute: RequireAuthSpacesIndexRoute,
 }
 
 const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
