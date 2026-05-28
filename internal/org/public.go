@@ -22,12 +22,12 @@ func (e *everyoneOrg) DID() syntax.DID {
 	return syntax.DID("did:web:public.habitat.network")
 }
 
-func (e *everyoneOrg) loginMethod() loginMethod {
+func (e *everyoneOrg) loginMethod(ctx context.Context) loginMethod {
 	return LoginMethodAtproto
 }
 
 // GetMetadata implements Org.
-func (e *everyoneOrg) GetMetadata(_ context.Context) habitat.NetworkHabitatOrgGetMetadataOutput {
+func (e *everyoneOrg) GetMetadata(_ context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{}
 }
 
@@ -93,6 +93,7 @@ func (e *everyoneOrg) CreateNewMemberIdentity(
 	token string,
 	internalHandle string,
 	password string,
+	loginID string,
 ) (*identity.Identity, error) {
 	return nil, ErrNotSupportedPublic
 }

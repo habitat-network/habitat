@@ -41,6 +41,8 @@ func newTestOrg(t *testing.T) *orgImpl {
 	}
 	require.NoError(t, err)
 	s.handleSubdomain = "testorg"
+	s.method = LoginMethodPassword
+	s.name = "Test Org"
 	return s
 }
 
@@ -158,7 +160,7 @@ func TestGenerateAndUseIdentityToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
 
 	members, err := s.GetMembers(ctx)
@@ -173,9 +175,9 @@ func TestIdentityToken_CannotReuse(t *testing.T) {
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash, "")
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
@@ -188,9 +190,9 @@ func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	token2, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token1, "alice", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token1, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token2, "alice", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token2, "alice", testPasswordHash, "")
 	require.ErrorIs(t, err, hive.ErrNotCreated)
 }
 
@@ -201,11 +203,11 @@ func TestIdentityToken_Reusable(t *testing.T) {
 	token, err := s.IssueIdentityToken(ctx, did1, true, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash)
+	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
 	require.ErrorIs(t, err, hive.ErrNotCreated)
 }
 

@@ -99,7 +99,7 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 	require.NoError(t, err)
 	token, err := o.IssueIdentityToken(t.Context(), adminId.DID, true, time.Now().Add(time.Hour))
 	require.NoError(t, err)
-	memberId, err := o.CreateNewMemberIdentity(t.Context(), token, "alice", "")
+	memberId, err := o.CreateNewMemberIdentity(t.Context(), token, "alice", "", "")
 	require.NoError(t, err)
 
 	router := LoginRouter{

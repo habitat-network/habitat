@@ -44,6 +44,7 @@ func isDuplicateError(err error) bool {
 
 // Org represents a single organization on a pear instance.
 type Org interface {
+	DID() syntax.DID
 	// Any app-level / further authz (like teams in an org) should happen using our permissions model.
 
 	AddAdmin(ctx context.Context, admin syntax.DID) error
@@ -57,7 +58,7 @@ type Org interface {
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
 	// GetMetadata returns general info about this org.
-	GetMetadata(ctx context.Context) habitat.NetworkHabitatOrgGetMetadataOutput
+	GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput
 
 	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
 	loginMethod(ctx context.Context) loginMethod
@@ -74,6 +75,7 @@ type Org interface {
 		token string,
 		internalHandle string,
 		password string,
+		loginID string,
 	) (*identity.Identity, error)
 
 	db.Store[Org]
@@ -81,11 +83,16 @@ type Org interface {
 
 type inviteTokenClaims struct {
 	jwt.Claims
-	Reusable bool `json:"reusable"`
+	Reusable        bool   `json:"reusable"`
+	LoginMethod     string `json:"loginMethod"`
+	HandleSubdomain string `json:"handleSubdomain"`
+	OrgId           string `json:"orgId"`
+	Name            string `json:"name,omitempty"`
 }
 
 type orgImpl struct {
 	orgID            syntax.DID
+	name             string
 	hive             hive.Hive
 	db               *gorm.DB
 	signingSecret    []byte
@@ -101,14 +108,13 @@ func (s *orgImpl) DID() syntax.DID {
 	return s.orgID
 }
 
-func (s *orgImpl) GetMetadata(ctx context.Context) habitat.NetworkHabitatOrgGetMetadataOutput {
-	var org organization
-	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
-		return habitat.NetworkHabitatOrgGetMetadataOutput{}
-	}
+func (s *orgImpl) GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		Domain: org.HandleSubdomain,
-		Name:   org.Name,
+		Domain:          domain,
+		LoginMethod:     string(s.loginMethod(ctx)),
+		HandleSubdomain: s.handleSubdomain,
+		OrgId:           string(s.orgID),
+		Name:            s.name,
 	}
 }
 
@@ -305,7 +311,11 @@ func (s *orgImpl) IssueIdentityToken(
 			Issuer: caller.String(),
 			Expiry: jwt.NewNumericDate(expiresAt),
 		},
-		Reusable: reusable,
+		Reusable:        reusable,
+		LoginMethod:     string(s.loginMethod(ctx)),
+		HandleSubdomain: s.handleSubdomain,
+		OrgId:           string(s.orgID),
+		Name:            s.name,
 	}
 	return jwt.Signed(sig).Claims(claims).CompactSerialize()
 }
@@ -316,8 +326,8 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	token string,
 	internalHandle string,
 	password string,
+	loginID string,
 ) (*identity.Identity, error) {
-	// Validate the token
 	if err := s.validateIdentityToken(ctx, token); err != nil {
 		return nil, err
 	}

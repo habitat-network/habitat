@@ -53,7 +53,16 @@ type Query<
 > = {
   params: Params;
   output: Output;
+  unauthenticated?: false;
 };
+
+type UnauthedQuery<Params, Output> = {
+  params: Params;
+  output: Output;
+  unauthenticated: true;
+};
+
+
 
 type QueryEndpoints = {
   "com.atproto.repo.listRecords": Query<
@@ -219,7 +228,7 @@ type ProcedureEndpoints = {
     NetworkHabitatOrgLoginMember.InputSchema,
     NetworkHabitatOrgLoginMember.OutputSchema
   >;
-  "network.habitat.org.mintMemberIdentity": Procedure<
+  "network.habitat.org.mintMemberIdentity": UnauthedProcedure<
     NetworkHabitatOrgMintMemberIdentity.InputSchema,
     NetworkHabitatOrgMintMemberIdentity.OutputSchema
   >;
@@ -263,8 +272,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-    ? UnauthedOptions
-    : AuthedOptions;
+  ? UnauthedOptions
+  : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;

@@ -15,7 +15,9 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.org.getMetadata'
 
-export type QueryParams = {}
+export type QueryParams = {
+  orgId?: string
+}
 export type InputSchema = undefined
 
 export interface OutputSchema {
@@ -25,6 +27,12 @@ export interface OutputSchema {
   name?: string
   /** A description for this organization. */
   description?: string
+  /** Login method for the org: 'password', 'atproto', or 'google'. */
+  loginMethod: string
+  /** The subdomain used for all org member handles. */
+  handleSubdomain: string
+  /** The unique ID of this organization. */
+  orgId: string
 }
 
 export interface CallOptions {

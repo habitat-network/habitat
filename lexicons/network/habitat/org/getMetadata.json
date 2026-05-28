@@ -10,7 +10,10 @@
                 "schema": {
                     "type": "object",
                     "required": [
-                        "domain"
+                        "domain",
+                        "loginMethod",
+                        "handleSubdomain",
+                        "orgId"
                     ],
                     "properties": {
                         "domain": {
@@ -24,6 +27,18 @@
                         "description": {
                             "type": "string",
                             "description": "A description for this organization."
+                        },
+                        "loginMethod": {
+                            "type": "string",
+                            "description": "Login method for the org: 'password', 'atproto', or 'google'."
+                        },
+                        "handleSubdomain": {
+                            "type": "string",
+                            "description": "The subdomain used for all org member handles."
+                        },
+                        "orgId": {
+                            "type": "string",
+                            "description": "The unique ID of this organization."
                         }
                     }
                 }

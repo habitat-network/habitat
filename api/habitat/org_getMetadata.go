@@ -4,7 +4,10 @@ package habitat
 
 // NetworkHabitatOrgGetMetadataOutput represents the output for network.habitat.org.getMetadata
 type NetworkHabitatOrgGetMetadataOutput struct {
-	Description string `json:"description,omitempty"`
-	Domain      string `json:"domain"`
-	Name        string `json:"name,omitempty"`
+	Description     string `json:"description,omitempty"`
+	Domain          string `json:"domain"`
+	HandleSubdomain string `json:"handleSubdomain"`
+	LoginMethod     string `json:"loginMethod"`
+	Name            string `json:"name,omitempty"`
+	OrgId           string `json:"orgId"`
 }

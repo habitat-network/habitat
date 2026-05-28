@@ -24,16 +24,18 @@ var errNotMemberOfOrg = errors.New("not a member of an organization")
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
-	store Store
-	auth  authn.Method
-	pear  pear.Pear
+	store  Store
+	auth   authn.Method
+	pear   pear.Pear
+	domain string
 }
 
-func NewServer(store Store, auth authn.Method, p pear.Pear) (*Server, error) {
+func NewServer(store Store, auth authn.Method, p pear.Pear, domain string) (*Server, error) {
 	return &Server{
-		store: store,
-		auth:  auth,
-		pear:  p,
+		store:  store,
+		auth:   auth,
+		pear:   p,
+		domain: domain,
 	}, nil
 }
 
@@ -54,10 +56,10 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if errors.Is(err, ErrMemberNotFound) {
-		utils.LogAndHTTPError(w, err, errNotMemberOfOrg.Error(), http.StatusNotFound)
+		utils.LogAndHTTPError(r.Context(), w, err, errNotMemberOfOrg.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "getting organization", http.StatusInternalServerError)
 		return
 	}
 
@@ -66,11 +68,11 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta := org.GetMetadata(r.Context())
+	meta := org.GetMetadata(r.Context(), s.domain)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(meta); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "encoding response", http.StatusInternalServerError)
 	}
 }
 
@@ -543,7 +545,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Token == "" || req.Handle == "" || req.Password == "" || req.OrgId == "" {
+	if req.Token == "" || req.Handle == "" || req.OrgId == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -572,7 +574,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle, req.Password)
+	id, err := org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle, req.Password, req.LoginID)
 	if errors.Is(err, ErrInvalidToken) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return

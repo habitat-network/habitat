@@ -1440,7 +1440,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['domain'],
+            required: ['domain', 'loginMethod', 'handleSubdomain', 'orgId'],
             properties: {
               domain: {
                 type: 'string',
@@ -1454,6 +1454,19 @@ export const schemaDict = {
               description: {
                 type: 'string',
                 description: 'A description for this organization.',
+              },
+              loginMethod: {
+                type: 'string',
+                description:
+                  "Login method for the org: 'password', 'atproto', or 'google'.",
+              },
+              handleSubdomain: {
+                type: 'string',
+                description: 'The subdomain used for all org member handles.',
+              },
+              orgId: {
+                type: 'string',
+                description: 'The unique ID of this organization.',
               },
             },
           },
@@ -1558,7 +1571,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['token', 'handle', 'password'],
+            required: ['token', 'handle'],
             properties: {
               orgId: {
                 type: 'string',
@@ -1572,11 +1585,17 @@ export const schemaDict = {
               token: {
                 type: 'string',
                 description:
-                  'The token that was issued by an org admin to allow members to join the organization..',
+                  'The token that was issued by an org admin to allow members to join the organization.',
               },
               password: {
                 type: 'string',
-                description: "The password for the new member's account.",
+                description:
+                  "The password for the new member's account (required for 'password' login method).",
+              },
+              loginID: {
+                type: 'string',
+                description:
+                  "Provider-specific identifier (AT Protocol handle for 'atproto', email for 'google'). Required for non-password login methods.",
               },
             },
           },

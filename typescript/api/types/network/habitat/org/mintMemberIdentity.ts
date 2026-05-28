@@ -22,10 +22,12 @@ export interface InputSchema {
   orgId?: string
   /** The internal handle (all letters + numbers, no special characters, does not include org domain) that will be used by the member. */
   handle: string
-  /** The token that was issued by an org admin to allow members to join the organization.. */
+  /** The token that was issued by an org admin to allow members to join the organization. */
   token: string
-  /** The password for the new member's account. */
-  password: string
+  /** The password for the new member's account (required for 'password' login method). */
+  password?: string
+  /** Provider-specific identifier (AT Protocol handle for 'atproto', email for 'google'). Required for non-password login methods. */
+  loginID?: string
 }
 
 export interface OutputSchema {

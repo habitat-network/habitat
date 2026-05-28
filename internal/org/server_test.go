@@ -36,7 +36,7 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, syntax.DID) {
 	require.NoError(t, st.addMemberTx(context.Background(), st.db, adminDID))
 	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
 
-	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID), nil)
+	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID), nil, "pear.example.com")
 	require.NoError(t, err)
 	return srv, orgIdIdent.DID
 }
@@ -98,7 +98,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 func newCreateTestServer(t *testing.T) *Server {
 	t.Helper()
-	srv, err := NewServer(newTestStore(t), nil, nil)
+	srv, err := NewServer(newTestStore(t), nil, nil, "domain")
 	require.NoError(t, err)
 	return srv
 }

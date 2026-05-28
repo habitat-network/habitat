@@ -300,7 +300,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	orgServer, err := org.NewServer(orgStore, oauthServer, pear)
+	// Server for org management routes
+	orgServer, err := org.NewServer(orgStore, oauthServer, pear, domain)
 	if err != nil {
 		slog.Error("unable to setup org server for domain", "err", err, "domain", domain)
 		os.Exit(1)

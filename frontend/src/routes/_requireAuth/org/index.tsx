@@ -11,6 +11,7 @@ import { query } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { Route as RootRoute } from "../../__root";
 import { useState } from "react";
 
 export const Route = createFileRoute("/_requireAuth/org/")({
@@ -47,6 +48,8 @@ function OrgPage() {
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { org } = RootRoute.useLoaderData();
+  const orgId = org?.orgId;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["org"] });
@@ -74,22 +77,24 @@ function OrgPage() {
         onPromote={(did) => addAdmin(authManager, did).then(invalidate)}
         canPromote={true}
       />
-      {isAdmin && <InviteSection authManager={authManager} />}
+      {isAdmin && <InviteSection authManager={authManager} orgId={orgId} />}
     </div>
   );
 }
 
 function InviteSection({
   authManager,
+  orgId,
 }: {
   authManager: Parameters<typeof issueInviteToken>[0];
+  orgId: string | undefined;
 }) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const { mutate: generateLink, isPending } = useMutation({
     mutationFn: () => issueInviteToken(authManager),
     onSuccess: ({ token }) => {
-      setInviteUrl(`${window.location.origin}/org/join?token=${token}`);
+      setInviteUrl(`${window.location.origin}/org/join?token=${token}&orgId=${orgId}`);
     },
   });
 
