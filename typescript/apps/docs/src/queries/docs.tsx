@@ -178,7 +178,7 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
         grantees.map((did) =>
           procedure(
             "network.habitat.space.addMember",
-            { space: spaceUri, did },
+            { space: spaceUri, did, access: "write" },
             { authManager },
           ),
         ),
