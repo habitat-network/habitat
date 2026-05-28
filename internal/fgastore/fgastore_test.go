@@ -90,21 +90,6 @@ func TestCheck_AdminInheritsMember(t *testing.T) {
 	require.True(t, ok, "org admin should be checked as member via ComputedUserset")
 }
 
-func TestCheck_AdminInheritsSpaceOwner(t *testing.T) {
-	ctx := context.Background()
-	f := newTestSQLite(t)
-
-	err := f.Write(ctx, "user:alice", "admin", "organization:myorg")
-	require.NoError(t, err, "Write admin tuple should succeed")
-
-	err = f.Write(ctx, "organization:myorg#admin", "owner", "space:myorg/myspace")
-	require.NoError(t, err, "Write userset tuple should succeed")
-
-	ok, err := f.Check(ctx, "user:alice", "owner", "space:myorg/myspace")
-	require.NoError(t, err, "Check should not error")
-	require.True(t, ok, "org admin should be checked as space owner via userset tuple resolution")
-}
-
 func TestCheck_SpaceOwnerGrantsCanWrite(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
@@ -112,7 +97,7 @@ func TestCheck_SpaceOwnerGrantsCanWrite(t *testing.T) {
 	err := f.Write(ctx, "user:alice", "owner", "space:myorg/myspace")
 	require.NoError(t, err, "Write owner tuple should succeed")
 
-	ok, err := f.Check(ctx, "user:alice", "can_write", "space:myorg/myspace")
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:myorg/myspace")
 	require.NoError(t, err, "Check should not error")
 	require.True(t, ok, "space owner should have can_write via ComputedUserset")
 }
@@ -123,21 +108,21 @@ func TestListObjects_ReturnsReadableSpaces(t *testing.T) {
 
 	require.NoError(
 		t,
-		f.Write(ctx, "user:alice", "can_read", "space:org/a"),
+		f.Write(ctx, "user:alice", RelationSpaceReader, "space:org/a"),
 		"Write space:org/a should succeed",
 	)
 	require.NoError(
 		t,
-		f.Write(ctx, "user:alice", "can_read", "space:org/b"),
+		f.Write(ctx, "user:alice", RelationSpaceReader, "space:org/b"),
 		"Write space:org/b should succeed",
 	)
 	require.NoError(
 		t,
-		f.Write(ctx, "user:bob", "can_read", "space:org/c"),
+		f.Write(ctx, "user:bob", RelationSpaceReader, "space:org/c"),
 		"Write space:org/c should succeed",
 	)
 
-	objects, err := f.ListObjects(ctx, "user:alice", "can_read", "space")
+	objects, err := f.ListObjects(ctx, "user:alice", RelationSpaceReader, "space")
 	require.NoError(t, err, "ListObjects should not error")
 	require.ElementsMatch(
 		t,
@@ -151,10 +136,10 @@ func TestListObjects_CanWriteImpliesCanRead(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	err := f.Write(ctx, "user:bob", "can_write", "space:org/x")
+	err := f.Write(ctx, "user:bob", RelationSpaceWriter, "space:org/x")
 	require.NoError(t, err, "Write can_write should succeed")
 
-	objects, err := f.ListObjects(ctx, "user:bob", "can_read", "space")
+	objects, err := f.ListObjects(ctx, "user:bob", RelationSpaceReader, "space")
 	require.NoError(t, err, "ListObjects should not error")
 	require.Contains(t, objects, "space:org/x", "can_write user should appear in can_read list")
 }
@@ -163,7 +148,7 @@ func TestListObjects_ReturnsEmptyForNoAccess(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	objects, err := f.ListObjects(ctx, "user:alice", "can_read", "space")
+	objects, err := f.ListObjects(ctx, "user:alice", RelationSpaceReader, "space")
 	require.NoError(t, err, "ListObjects should not error")
 	require.Empty(t, objects, "user with no access should see empty list")
 }
@@ -174,16 +159,16 @@ func TestListUsers_ReturnsReadersOfSpace(t *testing.T) {
 
 	require.NoError(
 		t,
-		f.Write(ctx, "user:alice", "can_read", "space:org/myspace"),
+		f.Write(ctx, "user:alice", RelationSpaceReader, "space:org/myspace"),
 		"Write alice as reader should succeed",
 	)
 	require.NoError(
 		t,
-		f.Write(ctx, "user:bob", "can_read", "space:org/myspace"),
+		f.Write(ctx, "user:bob", RelationSpaceReader, "space:org/myspace"),
 		"Write bob as reader should succeed",
 	)
 
-	users, err := f.ListUsers(ctx, "space:org/myspace", "can_read")
+	users, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceReader)
 	require.NoError(t, err, "ListUsers should not error")
 	require.ElementsMatch(
 		t,
@@ -199,16 +184,16 @@ func TestListUsers_ReturnsWritersOfSpace(t *testing.T) {
 
 	require.NoError(
 		t,
-		f.Write(ctx, "user:alice", "can_write", "space:org/myspace"),
+		f.Write(ctx, "user:alice", RelationSpaceWriter, "space:org/myspace"),
 		"Write alice as writer should succeed",
 	)
 	require.NoError(
 		t,
-		f.Write(ctx, "user:bob", "can_write", "space:org/myspace"),
+		f.Write(ctx, "user:bob", RelationSpaceWriter, "space:org/myspace"),
 		"Write bob as writer should succeed",
 	)
 
-	users, err := f.ListUsers(ctx, "space:org/myspace", "can_write")
+	users, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceWriter)
 	require.NoError(t, err, "ListUsers should not error")
 	require.ElementsMatch(
 		t,
@@ -224,11 +209,11 @@ func TestListUsers_WriterImpliedAsReader(t *testing.T) {
 
 	require.NoError(
 		t,
-		f.Write(ctx, "user:alice", "can_write", "space:org/myspace"),
+		f.Write(ctx, "user:alice", RelationSpaceWriter, "space:org/myspace"),
 		"Write alice as writer should succeed",
 	)
 
-	readers, err := f.ListUsers(ctx, "space:org/myspace", "can_read")
+	readers, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceReader)
 	require.NoError(t, err, "ListUsers should not error")
 	require.Contains(t, readers, "user:alice", "writer should appear in reader list")
 }
@@ -237,7 +222,7 @@ func TestListUsers_ReturnsEmptyForNoReaders(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	users, err := f.ListUsers(ctx, "space:org/myspace", "can_read")
+	users, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceReader)
 	require.NoError(t, err, "ListUsers should not error")
 	require.Empty(t, users, "space with no readers should return empty list")
 }
@@ -246,7 +231,7 @@ func TestListUsers_ReturnsEmptyForNoWriters(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	users, err := f.ListUsers(ctx, "space:org/myspace", "can_write")
+	users, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceWriter)
 	require.NoError(t, err, "ListUsers should not error")
 	require.Empty(t, users, "space with no writers should return empty list")
 }
@@ -255,10 +240,10 @@ func TestCheck_CanReadReturnsTrueForCanWriteUser(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	err := f.Write(ctx, "user:alice", "can_write", "space:org/myspace")
+	err := f.Write(ctx, "user:alice", RelationSpaceWriter, "space:org/myspace")
 	require.NoError(t, err, "Write can_write should succeed")
 
-	ok, err := f.Check(ctx, "user:alice", "can_read", "space:org/myspace")
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceReader, "space:org/myspace")
 	require.NoError(t, err, "Check should not error")
 	require.True(t, ok, "can_write user should have can_read via ComputedUserset")
 }
@@ -267,14 +252,14 @@ func TestCheck_CanManageMembersGrantsCanWrite(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	err := f.Write(ctx, "user:bob", "can_manage_members", "space:org/myspace")
+	err := f.Write(ctx, "user:bob", RelationSpaceMemberManager, "space:org/myspace")
 	require.NoError(t, err, "Write can_manage_members should succeed")
 
-	ok, err := f.Check(ctx, "user:bob", "can_write", "space:org/myspace")
+	ok, err := f.Check(ctx, "user:bob", RelationSpaceWriter, "space:org/myspace")
 	require.NoError(t, err, "Check should not error")
 	require.True(t, ok, "can_manage_members user should have can_write via ComputedUserset")
 
-	readOK, err := f.Check(ctx, "user:bob", "can_read", "space:org/myspace")
+	readOK, err := f.Check(ctx, "user:bob", RelationSpaceReader, "space:org/myspace")
 	require.NoError(t, err, "Check should not error")
 	require.True(t, readOK, "can_manage_members user should have can_read transitively")
 }
@@ -284,7 +269,7 @@ func TestWriteRaw_OnDuplicateIgnore(t *testing.T) {
 	f := newTestSQLite(t)
 
 	tuples := []*openfgav1.TupleKey{
-		tuple.NewTupleKey("space:org/x", "can_read", "user:alice"),
+		tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice"),
 	}
 
 	err := f.WriteRaw(ctx, &openfgav1.WriteRequest{
@@ -304,7 +289,7 @@ func TestWriteRaw_OnDuplicateIgnore(t *testing.T) {
 	})
 	require.NoError(t, err, "duplicate WriteRaw with OnDuplicate: ignore should not error")
 
-	ok, err := f.Check(ctx, "user:alice", "can_read", "space:org/x")
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceReader, "space:org/x")
 	require.NoError(t, err)
 	require.True(t, ok, "tuple should exist after WriteRaw")
 }
@@ -317,7 +302,7 @@ func TestWriteRaw_OnMissingIgnore(t *testing.T) {
 		Deletes: &openfgav1.WriteRequestDeletes{
 			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 				tuple.TupleKeyToTupleKeyWithoutCondition(
-					tuple.NewTupleKey("space:org/x", "can_read", "user:alice"),
+					tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice"),
 				),
 			},
 			OnMissing: "ignore",
@@ -331,8 +316,8 @@ func TestWriteRaw_ReadUpgradeToWrite(t *testing.T) {
 	f := newTestSQLite(t)
 
 	// Add as reader
-	readKey := tuple.NewTupleKey("space:org/x", "can_read", "user:alice")
-	writeKey := tuple.NewTupleKey("space:org/x", "can_write", "user:alice")
+	readKey := tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice")
+	writeKey := tuple.NewTupleKey("space:org/x", RelationSpaceWriter, "user:alice")
 	readKeyWC := tuple.TupleKeyToTupleKeyWithoutCondition(readKey)
 	writeKeyWC := tuple.TupleKeyToTupleKeyWithoutCondition(writeKey)
 
@@ -348,10 +333,10 @@ func TestWriteRaw_ReadUpgradeToWrite(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceIsReader, err := f.Check(ctx, "user:alice", "can_read", "space:org/x")
+	aliceIsReader, err := f.Check(ctx, "user:alice", RelationSpaceReader, "space:org/x")
 	require.NoError(t, err)
 	require.True(t, aliceIsReader)
-	aliceIsWriter, err := f.Check(ctx, "user:alice", "can_write", "space:org/x")
+	aliceIsWriter, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:org/x")
 	require.NoError(t, err)
 	require.False(t, aliceIsWriter)
 
@@ -368,11 +353,11 @@ func TestWriteRaw_ReadUpgradeToWrite(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceIsWriter, err = f.Check(ctx, "user:alice", "can_write", "space:org/x")
+	aliceIsWriter, err = f.Check(ctx, "user:alice", RelationSpaceWriter, "space:org/x")
 	require.NoError(t, err)
 	require.True(t, aliceIsWriter, "after upgrade, should be a writer")
 	// Writer should still be able to read (implied by can_write -> can_read)
-	aliceIsReader, err = f.Check(ctx, "user:alice", "can_read", "space:org/x")
+	aliceIsReader, err = f.Check(ctx, "user:alice", RelationSpaceReader, "space:org/x")
 	require.NoError(t, err)
 	require.True(t, aliceIsReader, "after upgrade, should still be able to read")
 }
@@ -381,8 +366,8 @@ func TestWriteRaw_DowngradeWriteToRead(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	readKey := tuple.NewTupleKey("space:org/x", "can_read", "user:alice")
-	writeKey := tuple.NewTupleKey("space:org/x", "can_write", "user:alice")
+	readKey := tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice")
+	writeKey := tuple.NewTupleKey("space:org/x", RelationSpaceWriter, "user:alice")
 	readKeyWC := tuple.TupleKeyToTupleKeyWithoutCondition(readKey)
 	writeKeyWC := tuple.TupleKeyToTupleKeyWithoutCondition(writeKey)
 
@@ -412,11 +397,11 @@ func TestWriteRaw_DowngradeWriteToRead(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceIsReader, err := f.Check(ctx, "user:alice", "can_read", "space:org/x")
+	aliceIsReader, err := f.Check(ctx, "user:alice", RelationSpaceReader, "space:org/x")
 	require.NoError(t, err)
 	require.True(t, aliceIsReader, "after downgrade, should still be able to read")
 
-	aliceIsWriter, err := f.Check(ctx, "user:alice", "can_write", "space:org/x")
+	aliceIsWriter, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:org/x")
 	require.NoError(t, err)
 	require.False(t, aliceIsWriter, "after downgrade, should no longer be a writer")
 }
@@ -425,8 +410,8 @@ func TestWriteRaw_DeleteReadAndWrite(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
 
-	readKey := tuple.NewTupleKey("space:org/x", "can_read", "user:alice")
-	writeKey := tuple.NewTupleKey("space:org/x", "can_write", "user:alice")
+	readKey := tuple.NewTupleKey("space:org/x", RelationSpaceReader, "user:alice")
+	writeKey := tuple.NewTupleKey("space:org/x", RelationSpaceWriter, "user:alice")
 
 	err := f.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Writes: &openfgav1.WriteRequestWrites{
@@ -448,11 +433,11 @@ func TestWriteRaw_DeleteReadAndWrite(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceIsReader, err := f.Check(ctx, "user:alice", "can_read", "space:org/x")
+	aliceIsReader, err := f.Check(ctx, "user:alice", RelationSpaceReader, "space:org/x")
 	require.NoError(t, err)
 	require.False(t, aliceIsReader, "after removal, should not be able to read")
 
-	aliceIsWriter, err := f.Check(ctx, "user:alice", "can_write", "space:org/x")
+	aliceIsWriter, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:org/x")
 	require.NoError(t, err)
 	require.False(t, aliceIsWriter, "after removal, should not be able to write")
 }

@@ -235,7 +235,7 @@ func (f *FGA) ListUsers(
 		Object:   &openfgav1.Object{Type: objType, Id: objID},
 		Relation: relation,
 		UserFilters: []*openfgav1.UserTypeFilter{
-			{Type: "user"},
+			{Type: TypeUser},
 		},
 		ContextualTuples: toTupleKeys(contextualTuples),
 	})

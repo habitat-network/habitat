@@ -350,7 +350,7 @@ func (s *store) IsMember(
 	return s.fga.Check(
 		ctx,
 		fgastore.MemberUserString(did),
-		"can_read",
+		fgastore.RelationSpaceReader,
 		fgastore.SpaceObjectKey(uri),
 		ownerContextualTuple(uri),
 	)
@@ -380,7 +380,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKey{
 					tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_read",
+						fgastore.RelationSpaceReader,
 						fgastore.MemberUserString(did),
 					),
 				},
@@ -390,7 +390,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_write",
+						fgastore.RelationSpaceWriter,
 						fgastore.MemberUserString(did),
 					)),
 				},
@@ -403,7 +403,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKey{
 					tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_write",
+						fgastore.RelationSpaceWriter,
 						fgastore.MemberUserString(did),
 					),
 				},
@@ -413,7 +413,7 @@ func (s *store) AddMember(
 				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 						fgastore.SpaceObjectKey(uri),
-						"can_read",
+						fgastore.RelationSpaceReader,
 						fgastore.MemberUserString(did),
 					)),
 				},
@@ -447,12 +447,12 @@ func (s *store) RemoveMember(
 			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 					fgastore.SpaceObjectKey(uri),
-					"can_read",
+					fgastore.RelationSpaceReader,
 					fgastore.MemberUserString(did),
 				)),
 				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 					fgastore.SpaceObjectKey(uri),
-					"can_write",
+					fgastore.RelationSpaceWriter,
 					fgastore.MemberUserString(did),
 				)),
 			},
