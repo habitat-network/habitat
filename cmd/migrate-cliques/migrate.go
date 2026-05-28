@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 
+	"github.com/habitat-network/habitat/internal/spaces"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -27,7 +28,12 @@ type SpaceWriter interface {
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
 	) (habitat_syntax.SpaceURI, error)
-	AddMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
+	AddMember(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		did syntax.DID,
+		access spaces.SpaceAccess,
+	) error
 }
 
 // MigrateCliques finds all cliques referenced in permissions for
@@ -90,7 +96,7 @@ func migrateOneClique(
 	ctx context.Context,
 	db *gorm.DB,
 	cliques CliqueMembersReader,
-	spaces SpaceWriter,
+	spaceStore SpaceWriter,
 	grantee string,
 ) (habitat_syntax.SpaceURI, error) {
 	clique, err := habitat_syntax.ParseClique(grantee)
@@ -113,7 +119,7 @@ func migrateOneClique(
 		return "", fmt.Errorf("get members for %q: %w", grantee, err)
 	}
 
-	spaceURI, err := spaces.CreateSpace(
+	spaceURI, err := spaceStore.CreateSpace(
 		ctx,
 		owner,
 		"network.habitat.docs",
@@ -128,7 +134,7 @@ func migrateOneClique(
 		if member == owner {
 			continue
 		}
-		if err := spaces.AddMember(ctx, spaceURI, member); err != nil {
+		if err := spaceStore.AddMember(ctx, spaceURI, member, spaces.SpaceAccessWrite); err != nil {
 			return "", fmt.Errorf("add member %s to space %s: %w", member, spaceURI, err)
 		}
 	}
