@@ -6,7 +6,3 @@ package habitat
 type NetworkHabitatSpaceDeleteSpaceInput struct {
 	Space string `json:"space"`
 }
-
-// NetworkHabitatSpaceDeleteSpaceOutput represents the output for network.habitat.space.deleteSpace
-type NetworkHabitatSpaceDeleteSpaceOutput struct {
-}
