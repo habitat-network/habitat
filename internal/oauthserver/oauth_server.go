@@ -291,7 +291,9 @@ func (o *OAuthServer) HandleAuthorize(
 		utils.LogAndHTTPError(ctx, w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
-	id, err := o.directory.Lookup(ctx, atid)
+
+	// directory caches errors, so don't pass in the real context
+	id, err := o.directory.Lookup(context.Background(), atid)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "lookup_atid")
 		utils.LogAndHTTPError(
