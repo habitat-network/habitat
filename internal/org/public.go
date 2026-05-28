@@ -27,7 +27,7 @@ func (e *everyoneOrg) loginMethod() loginMethod {
 }
 
 // GetMetadata implements Org.
-func (e *everyoneOrg) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
+func (e *everyoneOrg) GetMetadata(_ context.Context) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{}
 }
 

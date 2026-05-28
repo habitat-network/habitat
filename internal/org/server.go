@@ -19,6 +19,8 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
+var errNotMemberOfOrg = errors.New("not a member of an organization")
+
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
@@ -42,6 +44,34 @@ func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) 
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
+	caller, ok := authn.Validate(w, r, s.auth)
+	if !ok {
+		return
+	}
+
+	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	if errors.Is(err, ErrMemberNotFound) {
+		utils.LogAndHTTPError(w, err, errNotMemberOfOrg.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
+		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		return
+	}
+
+	if _, isEveryone := org.(*everyoneOrg); isEveryone {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	meta := org.GetMetadata(r.Context())
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(meta); err != nil {
+		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+	}
 }
 
 // Org APIs

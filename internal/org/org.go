@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
@@ -43,15 +44,10 @@ func isDuplicateError(err error) bool {
 
 // Org represents a single organization on a pear instance.
 type Org interface {
-	DID() syntax.DID
-	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
-	// The authz in this package is only for managing identities in the
-	// In the future, we may not want to be so prescriptive about the admin / member setup.
+	// Any app-level / further authz (like teams in an org) should happen using our permissions model.
 
-	// This is exported because other packages may want to do membership lookup
 	AddAdmin(ctx context.Context, admin syntax.DID) error
 	// Only support adding members through CreateNewMemberIdentity for now
-	// AddMembers(ctx context.Context, members []syntax.DID) error
 	GetAdmins(ctx context.Context) ([]syntax.DID, error)
 	GetMembers(ctx context.Context) ([]syntax.DID, error)
 	RemoveAdmin(ctx context.Context, admin syntax.DID) error
@@ -60,7 +56,11 @@ type Org interface {
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
-	loginMethod() loginMethod
+	// GetMetadata returns general info about this org.
+	GetMetadata(ctx context.Context) habitat.NetworkHabitatOrgGetMetadataOutput
+
+	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
+	loginMethod(ctx context.Context) loginMethod
 
 	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(
@@ -96,13 +96,28 @@ type orgImpl struct {
 
 var _ Org = &orgImpl{}
 
-func (s *orgImpl) loginMethod() loginMethod {
-	return s.method
-}
-
 // DID implements [Org].
 func (s *orgImpl) DID() syntax.DID {
 	return s.orgID
+}
+
+func (s *orgImpl) GetMetadata(ctx context.Context) habitat.NetworkHabitatOrgGetMetadataOutput {
+	var org organization
+	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
+		return habitat.NetworkHabitatOrgGetMetadataOutput{}
+	}
+	return habitat.NetworkHabitatOrgGetMetadataOutput{
+		Domain: org.HandleSubdomain,
+		Name:   org.Name,
+	}
+}
+
+func (s *orgImpl) loginMethod(ctx context.Context) loginMethod {
+	var org organization
+	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
+		return "password" // safe default
+	}
+	return org.LoginMethod
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {

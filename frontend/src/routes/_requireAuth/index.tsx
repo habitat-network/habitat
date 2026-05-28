@@ -19,7 +19,7 @@ import { CollectionMetadata } from "api/types/network/habitat/repo/describeRepo"
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
 
-import { Search } from "lucide-react";
+import { Search, Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
@@ -41,7 +41,20 @@ export const Route = createFileRoute("/_requireAuth/")({
     const apps = appData.apps.filter(
       (app) => app.clientUri !== `https://${__DOMAIN__}`,
     );
-    return { collections, apps: apps };
+
+    let orgName: string | undefined;
+    try {
+      const meta = await query(
+        "network.habitat.org.getMetadata",
+        {},
+        { authManager },
+      );
+      orgName = meta.name;
+    } catch {
+      // Not a member of an org
+    }
+
+    return { collections, apps, orgName };
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {
@@ -125,7 +138,7 @@ function ManageDataPreview({ collections }: ManageDataPreviewProps) {
 }
 
 function AuthenticatedHome() {
-  const { collections, apps } = Route.useLoaderData()!;
+  const { collections, apps, orgName } = Route.useLoaderData()!;
 
   // For now, don't require the user to be registered with a habitat service. If they do have one,
   // requests will still be routed there, but allow them to use the centralized one by default.

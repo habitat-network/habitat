@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type OrgMember struct {
+type Member struct {
 	Org     Org
 	DID     syntax.DID
 	Role    Role
@@ -190,7 +190,7 @@ func (s *storeImpl) CreateOrg(
 	return orgId, id, nil
 }
 
-func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {
+func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*Member, error) {
 	var m member
 	if err := s.db.WithContext(ctx).
 		Preload("Organization").
@@ -198,7 +198,7 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 		First(&m).
 		Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &OrgMember{
+			return &Member{
 				Org:     s.everyone,
 				DID:     did,
 				Role:    MemberRole,
@@ -211,7 +211,7 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get org from model: %w", err)
 	}
-	return &OrgMember{
+	return &Member{
 		Org:     org,
 		DID:     m.Did,
 		Role:    m.Role,
