@@ -52,6 +52,9 @@ export const ownerDocQueryOptions = (
         },
         { authManager },
       );
+      if (!records.length) {
+        return null;
+      }
       // each the owner should have exactly one network.habitat.docs.edit
       const { rkey, value, cid } = records[0];
       return {

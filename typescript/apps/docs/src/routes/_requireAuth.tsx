@@ -103,19 +103,18 @@ export const Route = createFileRoute("/_requireAuth")({
           { type: "network.habitat.docs" },
           { authManager },
         );
-        const { uri } = await procedure(
+        await procedure(
           "network.habitat.space.putRecord",
           {
             space: spaceUri,
-            collection: "network.habitat.docs",
-            rkey: "doc",
+            collection: "network.habitat.docs.edit",
             record: { name: "Untitled", blob: null } satisfies HabitatDoc,
           },
           { authManager },
         );
         navigate({
           to: "/$uri",
-          params: { uri },
+          params: { uri: spaceUri },
         });
       },
       onSuccess: () => {
