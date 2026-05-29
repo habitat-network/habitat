@@ -22,13 +22,22 @@ func (e *everyoneOrg) DID() syntax.DID {
 	return syntax.DID("did:web:public.habitat.network")
 }
 
+// ValidateAdminSignedToken implements [Org].
+func (e *everyoneOrg) ValidateAdminSignedToken(ctx context.Context, token string) error {
+	return ErrNotSupportedPublic
+}
+
 func (e *everyoneOrg) loginMethod(ctx context.Context) loginMethod {
 	return LoginMethodAtproto
 }
 
 // GetMetadata implements Org.
 func (e *everyoneOrg) GetMetadata(_ context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput {
-	return habitat.NetworkHabitatOrgGetMetadataOutput{}
+	return habitat.NetworkHabitatOrgGetMetadataOutput{
+		Description: "the default org everyone with a personal account belongs to; no-op",
+		LoginMethod: "at protocol",
+		Name:        "default organization",
+	}
 }
 
 // AddAdmin implements Org.

@@ -102,7 +102,7 @@ function DataDebugger() {
       return records;
     }
 
-    return records.filter((record: any) => {
+    return records.filter((record) => {
       for (const [key, value] of Object.entries(parsedFilters)) {
         if (key === "rkey") {
           const rkey = record.uri?.split("/").pop();
@@ -381,7 +381,7 @@ function DataDebugger() {
                   gap: "1rem",
                 }}
               >
-                {filteredRecords.map((record: any) => (
+                {filteredRecords.map((record) => (
                   <div
                     key={record.uri}
                     style={{

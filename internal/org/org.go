@@ -77,17 +77,14 @@ type Org interface {
 		password string,
 		loginID string,
 	) (*identity.Identity, error)
+	ValidateAdminSignedToken(ctx context.Context, token string) error
 
 	db.Store[Org]
 }
 
 type inviteTokenClaims struct {
 	jwt.Claims
-	Reusable        bool   `json:"reusable"`
-	LoginMethod     string `json:"loginMethod"`
-	HandleSubdomain string `json:"handleSubdomain"`
-	OrgId           string `json:"orgId"`
-	Name            string `json:"name,omitempty"`
+	Reusable bool `json:"r"` // Small keys
 }
 
 type orgImpl struct {
@@ -110,7 +107,6 @@ func (s *orgImpl) DID() syntax.DID {
 
 func (s *orgImpl) GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		Domain:          domain,
 		LoginMethod:     string(s.loginMethod(ctx)),
 		HandleSubdomain: s.handleSubdomain,
 		OrgId:           string(s.orgID),
@@ -254,7 +250,7 @@ func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	return err == nil, err
 }
 
-func (s *orgImpl) validateIdentityToken(ctx context.Context, token string) error {
+func (s *orgImpl) ValidateAdminSignedToken(ctx context.Context, token string) error {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
 		return ErrInvalidToken
@@ -311,11 +307,7 @@ func (s *orgImpl) IssueIdentityToken(
 			Issuer: caller.String(),
 			Expiry: jwt.NewNumericDate(expiresAt),
 		},
-		Reusable:        reusable,
-		LoginMethod:     string(s.loginMethod(ctx)),
-		HandleSubdomain: s.handleSubdomain,
-		OrgId:           string(s.orgID),
-		Name:            s.name,
+		Reusable: reusable,
 	}
 	return jwt.Signed(sig).Claims(claims).CompactSerialize()
 }
@@ -328,7 +320,7 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	password string,
 	loginID string,
 ) (*identity.Identity, error) {
-	if err := s.validateIdentityToken(ctx, token); err != nil {
+	if err := s.ValidateAdminSignedToken(ctx, token); err != nil {
 		return nil, err
 	}
 

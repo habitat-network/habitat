@@ -16,13 +16,12 @@ const is$typed = _is$typed,
 const id = 'network.habitat.org.getMetadata'
 
 export type QueryParams = {
+  /** The orge ID of the organization to look up. If not specified, defaults to the authenticated caller's org. */
   orgId?: string
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** The domain where habitat is hosted for this organization. */
-  domain: string
   /** The name of this organization. */
   name?: string
   /** A description for this organization. */

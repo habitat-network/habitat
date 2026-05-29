@@ -13,40 +13,33 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm, Controller } from "react-hook-form";
 import { useState, useEffect, useRef } from "react";
-import { procedure, searchActorsTypeahead, UserAvatar } from "internal";
+import { procedure, searchActorsTypeahead, UserAvatar, XRPCError } from "internal";
 import { useQuery } from "@tanstack/react-query";
 import type { Actor } from "internal";
+import { NetworkHabitatOrgGetMetadata } from "api";
 
 export const Route = createFileRoute("/org/join")({
-  validateSearch: (search: Record<string, unknown>) => {
-    const token = String(search.token ?? "");
-    let orgId = String(search.orgId ?? "");
-    if (!orgId && token) {
-      const payload = decodeJwtPayload(token);
-      orgId = payload?.orgId ?? "";
-    }
-    return { token, orgId };
-  },
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: String(search.token ?? ""),
+    orgId: String(search.orgId ?? ""),
+  }),
   component: JoinPage,
 });
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const decoded = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decoded);
-  } catch {
-    return null;
+async function fetchOrgMetadata(
+  orgId: string,
+  token: string,
+): Promise<NetworkHabitatOrgGetMetadata.OutputSchema> {
+  const url = `https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.org.getMetadata?orgId=${encodeURIComponent(orgId)}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => undefined);
+  if (!res.ok) {
+    throw new XRPCError(res.status, data);
   }
+  return data;
 }
-
-type InviteTokenPayload = {
-  loginMethod?: string;
-  handleSubdomain?: string;
-  orgId?: string;
-  name?: string;
-};
 
 type FormValues = {
   handle: string;
@@ -125,14 +118,20 @@ function HandleCombobox({
 }
 
 function JoinPage() {
-  const { token } = Route.useSearch();
+  const { token, orgId } = Route.useSearch();
   const [result, setResult] = useState<{ handle: string; did: string } | null>(null);
 
-  const payload = decodeJwtPayload(token) as InviteTokenPayload | null;
-  const loginMethod = payload?.loginMethod ?? "password";
-  const handleSubdomain = payload?.handleSubdomain ?? "";
-  const orgId = payload?.orgId ?? "";
-  const orgName = payload?.name ?? handleSubdomain;
+  const { data: metadata, isLoading: metadataLoading, error: metadataError } =
+    useQuery<NetworkHabitatOrgGetMetadata.OutputSchema>({
+      queryKey: ["orgMetadata", orgId],
+      queryFn: () => fetchOrgMetadata(orgId, token),
+      enabled: !!orgId && !!token,
+      retry: false,
+    });
+
+  const loginMethod = metadata?.loginMethod ?? "password";
+  const handleSubdomain = metadata?.handleSubdomain ?? "";
+  const orgName = metadata?.name ?? handleSubdomain;
 
   const {
     register,
@@ -176,7 +175,15 @@ function JoinPage() {
     );
   }
 
-  if (!payload) {
+  if (metadataLoading) {
+    return (
+      <div className="flex flex-col gap-4 max-w-md mx-auto mt-16">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (metadataError || !metadata) {
     return (
       <div className="flex flex-col gap-4 max-w-md mx-auto mt-16">
         <p className="text-muted-foreground">Invalid invite token.</p>

@@ -1436,17 +1436,22 @@ export const schemaDict = {
       main: {
         type: 'query',
         description: 'Get general info about this organization.',
+        parameters: {
+          type: 'params',
+          properties: {
+            orgId: {
+              type: 'string',
+              description:
+                "The orge ID of the organization to look up. If not specified, defaults to the authenticated caller's org.",
+            },
+          },
+        },
         output: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['domain', 'loginMethod', 'handleSubdomain', 'orgId'],
+            required: ['loginMethod', 'handleSubdomain', 'orgId'],
             properties: {
-              domain: {
-                type: 'string',
-                description:
-                  'The domain where habitat is hosted for this organization.',
-              },
               name: {
                 type: 'string',
                 description: 'The name of this organization.',
