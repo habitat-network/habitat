@@ -34,6 +34,12 @@ import type {
   NetworkHabitatOrgLoginMember,
   NetworkHabitatOrgCreate,
   NetworkHabitatOrgMintMemberIdentity,
+  NetworkHabitatSpaceAddMember,
+  NetworkHabitatSpaceDeleteRecord,
+  NetworkHabitatSpaceGetMembers,
+  NetworkHabitatSpaceListRecords,
+  NetworkHabitatSpaceListSpaces,
+  NetworkHabitatSpaceRemoveMember,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -110,6 +116,18 @@ type QueryEndpoints = {
   "network.habitat.permissions.listPermissions": Query<
     NetworkHabitatPermissionsListPermissions.QueryParams,
     NetworkHabitatPermissionsListPermissions.OutputSchema
+  >;
+  "network.habitat.space.getMembers": Query<
+    NetworkHabitatSpaceGetMembers.QueryParams,
+    NetworkHabitatSpaceGetMembers.OutputSchema
+  >;
+  "network.habitat.space.listRecords": Query<
+    NetworkHabitatSpaceListRecords.QueryParams,
+    NetworkHabitatSpaceListRecords.OutputSchema
+  >;
+  "network.habitat.space.listSpaces": Query<
+    NetworkHabitatSpaceListSpaces.QueryParams,
+    NetworkHabitatSpaceListSpaces.OutputSchema
   >;
 };
 
@@ -197,6 +215,18 @@ type ProcedureEndpoints = {
   "network.habitat.org.mintMemberIdentity": Procedure<
     NetworkHabitatOrgMintMemberIdentity.InputSchema,
     NetworkHabitatOrgMintMemberIdentity.OutputSchema
+  >;
+  "network.habitat.space.addMember": Procedure<
+    NetworkHabitatSpaceAddMember.InputSchema,
+    void
+  >;
+  "network.habitat.space.deleteRecord": Procedure<
+    NetworkHabitatSpaceDeleteRecord.InputSchema,
+    NetworkHabitatSpaceDeleteRecord.OutputSchema
+  >;
+  "network.habitat.space.removeMember": Procedure<
+    NetworkHabitatSpaceRemoveMember.InputSchema,
+    void
   >;
 };
 
@@ -338,7 +368,7 @@ export const getPrivateRecord = async <T = Record<string, unknown>>(
   return response as NetworkHabitatRepoGetRecord.OutputSchema & { value: T };
 };
 
-interface ListRecordsResponse<T extends Record<string, unknown>>
+export interface ListRecordsResponse<T extends Record<string, unknown>>
   extends NetworkHabitatRepoListRecords.OutputSchema {
   records: TypedRecord<T>[];
 }

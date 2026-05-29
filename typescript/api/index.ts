@@ -66,6 +66,7 @@ import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 import * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+import * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 import * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
 import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
@@ -128,6 +129,7 @@ export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 export * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+export * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 export * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
 export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
@@ -1177,6 +1179,17 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.getRecord', params, undefined, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceGetRecord.toKnownErr(e)
+      })
+  }
+
+  getRepoOplog(
+    params?: NetworkHabitatSpaceGetRepoOplog.QueryParams,
+    opts?: NetworkHabitatSpaceGetRepoOplog.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetRepoOplog.Response> {
+    return this._client
+      .call('network.habitat.space.getRepoOplog', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceGetRepoOplog.toKnownErr(e)
       })
   }
 
