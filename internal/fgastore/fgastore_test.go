@@ -5,9 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
 	"github.com/stretchr/testify/require"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 func newTestSQLite(t *testing.T) *FGA {
@@ -37,6 +40,25 @@ func TestCheck_ReturnsFalseForNonExistentTuple(t *testing.T) {
 	ok, err := f.Check(ctx, "user:alice", "member", "organization:myorg")
 	require.NoError(t, err, "Check should not error")
 	require.False(t, ok, "Check should return false for non-existent tuple")
+}
+
+func TestCheck_UsesContextualTuples(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	ok, err := f.Check(
+		ctx,
+		"user:alice",
+		RelationSpaceReader,
+		"space:org/contextual",
+		Tuple{
+			User:     "user:alice",
+			Relation: RelationSpaceWriter,
+			Object:   "space:org/contextual",
+		},
+	)
+	require.NoError(t, err, "Check should not error")
+	require.True(t, ok, "contextual writer tuple should imply reader access")
 }
 
 func TestCheck_ReturnsFalseAfterDelete(t *testing.T) {
@@ -153,6 +175,25 @@ func TestListObjects_ReturnsEmptyForNoAccess(t *testing.T) {
 	require.Empty(t, objects, "user with no access should see empty list")
 }
 
+func TestListObjects_UsesContextualTuples(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	objects, err := f.ListObjects(
+		ctx,
+		"user:alice",
+		RelationSpaceReader,
+		TypeSpace,
+		Tuple{
+			User:     "user:alice",
+			Relation: RelationSpaceWriter,
+			Object:   "space:org/contextual",
+		},
+	)
+	require.NoError(t, err, "ListObjects should not error")
+	require.Contains(t, objects, "space:org/contextual")
+}
+
 func TestListUsers_ReturnsReadersOfSpace(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)
@@ -234,6 +275,33 @@ func TestListUsers_ReturnsEmptyForNoWriters(t *testing.T) {
 	users, err := f.ListUsers(ctx, "space:org/myspace", RelationSpaceWriter)
 	require.NoError(t, err, "ListUsers should not error")
 	require.Empty(t, users, "space with no writers should return empty list")
+}
+
+func TestListUsers_ReturnsErrorForInvalidObject(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	users, err := f.ListUsers(ctx, "space-without-type-separator", RelationSpaceReader)
+	require.Error(t, err)
+	require.Nil(t, users)
+}
+
+func TestListUsers_UsesContextualTuples(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	users, err := f.ListUsers(
+		ctx,
+		"space:org/contextual",
+		RelationSpaceReader,
+		Tuple{
+			User:     "user:alice",
+			Relation: RelationSpaceWriter,
+			Object:   "space:org/contextual",
+		},
+	)
+	require.NoError(t, err, "ListUsers should not error")
+	require.Contains(t, users, "user:alice")
 }
 
 func TestCheck_CanReadReturnsTrueForCanWriteUser(t *testing.T) {
@@ -440,4 +508,79 @@ func TestWriteRaw_DeleteReadAndWrite(t *testing.T) {
 	aliceIsWriter, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:org/x")
 	require.NoError(t, err)
 	require.False(t, aliceIsWriter, "after removal, should not be able to write")
+}
+
+func TestRead_ReturnsAllAndFilteredTuples(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	require.NoError(t, f.Write(ctx, "user:alice", RelationSpaceReader, "space:org/a"))
+	require.NoError(t, f.Write(ctx, "user:bob", RelationSpaceWriter, "space:org/b"))
+
+	all, err := f.Read(ctx, Tuple{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []Tuple{
+		{User: "user:alice", Relation: RelationSpaceReader, Object: "space:org/a"},
+		{User: "user:bob", Relation: RelationSpaceWriter, Object: "space:org/b"},
+	}, all)
+
+	filtered, err := f.Read(ctx, Tuple{Object: "space:org/a"})
+	require.NoError(t, err)
+	require.Equal(t, []Tuple{
+		{User: "user:alice", Relation: RelationSpaceReader, Object: "space:org/a"},
+	}, filtered)
+}
+
+func TestNewMemory_CreatesUsableStore(t *testing.T) {
+	ctx := context.Background()
+	f, err := NewMemory(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = f.Close() })
+
+	require.NoError(t, f.Write(ctx, "user:alice", RelationMember, "organization:myorg"))
+	ok, err := f.Check(ctx, "user:alice", RelationMember, "organization:myorg")
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestEncodingHelpers_RoundTripEscapedIdentifiers(t *testing.T) {
+	did := syntax.DID("did:plc:abc123")
+	user := MemberUserString(did)
+	require.Equal(t, "user:did%3Aplc%3Aabc123", user)
+
+	parsedDID, err := MemberUserToDID(user)
+	require.NoError(t, err)
+	require.Equal(t, did, parsedDID)
+
+	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space")
+	objectKey := SpaceObjectKey(spaceURI)
+	require.Equal(
+		t,
+		"space:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space",
+		objectKey,
+	)
+
+	parsedSpaceURI, err := ParseSpaceObjectKey(objectKey)
+	require.NoError(t, err)
+	require.Equal(t, spaceURI, parsedSpaceURI)
+}
+
+func TestEncodingHelpers_ReturnErrorsForInvalidInput(t *testing.T) {
+	_, err := MemberUserToDID("group:did%3Aplc%3Aabc123")
+	require.Error(t, err)
+
+	_, err = MemberUserToDID("user:%zz")
+	require.Error(t, err)
+
+	_, err = MemberUserToDID("user:not-a-did")
+	require.Error(t, err)
+
+	_, err = ParseSpaceObjectKey("organization:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space")
+	require.Error(t, err)
+
+	_, err = ParseSpaceObjectKey("space:%zz")
+	require.Error(t, err)
+
+	_, err = ParseSpaceObjectKey("space:not-a-space-uri")
+	require.Error(t, err)
 }
