@@ -32,7 +32,10 @@ func (e *everyoneOrg) loginMethod(ctx context.Context) loginMethod {
 }
 
 // GetMetadata implements Org.
-func (e *everyoneOrg) GetMetadata(_ context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput {
+func (e *everyoneOrg) GetMetadata(
+	_ context.Context,
+	domain string,
+) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
 		Description: "the default org everyone with a personal account belongs to; no-op",
 		LoginMethod: "at protocol",

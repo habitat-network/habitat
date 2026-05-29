@@ -56,13 +56,6 @@ type Query<
   unauthenticated?: false;
 };
 
-type UnauthedQuery<Params, Output> = {
-  params: Params;
-  output: Output;
-  unauthenticated: true;
-};
-
-
 
 type QueryEndpoints = {
   "com.atproto.repo.listRecords": Query<

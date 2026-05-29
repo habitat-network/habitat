@@ -33,7 +33,13 @@ type Server struct {
 	dir     identity.Directory
 }
 
-func NewServer(store Store, auth authn.Method, p pear.Pear, domain string, dir identity.Directory) (*Server, error) {
+func NewServer(
+	store Store,
+	auth authn.Method,
+	p pear.Pear,
+	domain string,
+	dir identity.Directory,
+) (*Server, error) {
 	return &Server{
 		store:   store,
 		auth:    auth,
@@ -80,7 +86,15 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	var org Org
 	// Either orgID is supplied in query params and the signed token is passed up for authn method
 	if orgID != "" {
-		org, err = s.validateOrgToken(r.Context(), orgID, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		org, err = s.validateOrgToken(
+			r.Context(),
+			orgID,
+			strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "),
+		)
+		if err != nil {
+			utils.LogAndHTTPError(r.Context(), w, err, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 	} else {
 		// Or regular authn via authenticated caller
 		caller, ok := authn.Validate(w, r, s.auth)
@@ -631,7 +645,13 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle, req.Password, req.LoginID)
+	id, err := org.CreateNewMemberIdentity(
+		r.Context(),
+		req.Token,
+		req.Handle,
+		req.Password,
+		req.LoginID,
+	)
 	if errors.Is(err, ErrInvalidToken) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return

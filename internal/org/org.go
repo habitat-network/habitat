@@ -105,7 +105,10 @@ func (s *orgImpl) DID() syntax.DID {
 	return s.orgID
 }
 
-func (s *orgImpl) GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput {
+func (s *orgImpl) GetMetadata(
+	ctx context.Context,
+	domain string,
+) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
 		LoginMethod:     string(s.loginMethod(ctx)),
 		HandleSubdomain: s.handleSubdomain,

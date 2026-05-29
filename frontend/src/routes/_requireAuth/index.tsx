@@ -19,7 +19,7 @@ import { CollectionMetadata } from "api/types/network/habitat/repo/describeRepo"
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
 
-import { Search, Building2 } from "lucide-react";
+import { Search } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/")({
   async loader({ context }) {
@@ -138,7 +138,7 @@ function ManageDataPreview({ collections }: ManageDataPreviewProps) {
 }
 
 function AuthenticatedHome() {
-  const { collections, apps, orgName } = Route.useLoaderData()!;
+  const { collections, apps } = Route.useLoaderData()!;
 
   // For now, don't require the user to be registered with a habitat service. If they do have one,
   // requests will still be routed there, but allow them to use the centralized one by default.
