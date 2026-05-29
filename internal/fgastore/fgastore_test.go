@@ -575,7 +575,9 @@ func TestEncodingHelpers_ReturnErrorsForInvalidInput(t *testing.T) {
 	_, err = MemberUserToDID("user:not-a-did")
 	require.Error(t, err)
 
-	_, err = ParseSpaceObjectKey("organization:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space")
+	_, err = ParseSpaceObjectKey(
+		"organization:ats%3A%2F%2Fdid%3Aplc%3Aabc123%2Fnetwork.habitat.space%2Fmy-space",
+	)
 	require.Error(t, err)
 
 	_, err = ParseSpaceObjectKey("space:%zz")
