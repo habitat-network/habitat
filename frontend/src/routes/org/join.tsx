@@ -43,15 +43,20 @@ type FormValues = {
 
 function JoinPage() {
   const { token, orgId } = Route.useSearch();
-  const [result, setResult] = useState<{ handle: string; did: string } | null>(null);
+  const [result, setResult] = useState<{ handle: string; did: string } | null>(
+    null,
+  );
 
-  const { data: metadata, isLoading: metadataLoading, error: metadataError } =
-    useQuery<NetworkHabitatOrgGetMetadata.OutputSchema>({
-      queryKey: ["orgMetadata", orgId],
-      queryFn: () => fetchOrgMetadata(orgId, token),
-      enabled: !!orgId && !!token,
-      retry: false,
-    });
+  const {
+    data: metadata,
+    isLoading: metadataLoading,
+    error: metadataError,
+  } = useQuery<NetworkHabitatOrgGetMetadata.OutputSchema>({
+    queryKey: ["orgMetadata", orgId],
+    queryFn: () => fetchOrgMetadata(orgId, token),
+    enabled: !!orgId && !!token,
+    retry: false,
+  });
 
   const loginMethod = metadata?.loginMethod ?? "password";
   const handleSubdomain = metadata?.handleSubdomain ?? "";
@@ -117,9 +122,7 @@ function JoinPage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-md mx-auto mt-16">
-      <h1 className="text-2xl font-semibold">
-        Join {orgName}
-      </h1>
+      <h1 className="text-2xl font-semibold">Join {orgName}</h1>
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <Field>
           <FieldLabel>

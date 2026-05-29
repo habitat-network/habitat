@@ -80,7 +80,9 @@ function InviteSection({
   const { mutate: generateLink, isPending } = useMutation({
     mutationFn: () => issueInviteToken(authManager),
     onSuccess: ({ token }) => {
-      setInviteUrl(`${window.location.origin}/org/join?token=${token}&orgId=${orgId}`);
+      setInviteUrl(
+        `${window.location.origin}/org/join?token=${token}&orgId=${orgId}`,
+      );
     },
   });
 
