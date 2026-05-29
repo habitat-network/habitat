@@ -4,19 +4,11 @@
     "baseUrl": ".",
     "noEmit": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
-    "types": [
-      "vite/client"
-    ]
+    "types": ["vite/client"]
   },
-  "include": [
-    "src/**/*",
-    "vite.env.d.ts",
-    "../typescript/globals.d.ts"
-  ],
+  "include": ["src/**/*", "vite.env.d.ts", "../typescript/globals.d.ts"],
   "references": [
     {
       "path": "../typescript/api"

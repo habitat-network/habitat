@@ -4,18 +4,11 @@
     "baseUrl": ".",
     "noEmit": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
-    "types": [
-      "vite/client"
-    ]
+    "types": ["vite/client"]
   },
-  "include": [
-    "src/**/*",
-    "../../globals.d.ts"
-  ],
+  "include": ["src/**/*", "../../globals.d.ts"],
   "references": [
     {
       "path": "../../api"

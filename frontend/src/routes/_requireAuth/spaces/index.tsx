@@ -10,7 +10,11 @@ import {
 export const Route = createFileRoute("/_requireAuth/spaces/")({
   async loader({ context }) {
     const { authManager } = context;
-    const data = await query("network.habitat.space.listSpaces", {}, { authManager });
+    const data = await query(
+      "network.habitat.space.listSpaces",
+      {},
+      { authManager },
+    );
     return { spaces: data.spaces };
   },
   pendingComponent: () => <p>Loading spaces...</p>,
