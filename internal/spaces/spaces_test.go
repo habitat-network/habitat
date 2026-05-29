@@ -463,3 +463,64 @@ func TestDeleteSpace_NonExistent(t *testing.T) {
 	err := s.DeleteSpace(t.Context(), uri)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
+
+func TestGetRepoOplog(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+	err = s.PutRecord(t.Context(), uri, owner, coll, "k3", map[string]any{"x": 3})
+	require.NoError(t, err)
+
+	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 1)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
+
+	records, err = s.GetRepoOplog(t.Context(), uri, owner, records[0].Rev, 100)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, syntax.RecordKey("k3"), records[0].Rkey)
+
+	records, err = s.GetRepoOplog(t.Context(), uri, alice, "", 100)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
+
+}
+
+func TestGetRepoOplog_Empty(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, records, 0)
+}
+
+func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	require.NoError(t, err)
+
+	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, "hello", records[0].Value["text"])
+	require.NotEmpty(t, records[0].Rev)
+}
