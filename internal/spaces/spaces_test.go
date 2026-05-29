@@ -474,27 +474,26 @@ func TestGetRepoOplog(t *testing.T) {
 
 	err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+	err = s.PutRecord(t.Context(), uri, owner, coll, "k3", map[string]any{"x": 3})
 	require.NoError(t, err)
 
-	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 1)
 	require.NoError(t, err)
-	require.Len(t, records, 2)
-	require.Equal(t, "k1", string(records[0].Rkey))
-	require.Equal(t, "k2", string(records[1].Rkey))
-	require.NotEmpty(t, records[0].Rev)
-	require.NotEmpty(t, records[1].Rev)
-	require.Equal(t, float64(1), records[0].Value["x"])
-	require.Equal(t, float64(2), records[1].Value["x"])
+	require.Len(t, records, 1)
+	require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
 
 	records, err = s.GetRepoOplog(t.Context(), uri, owner, records[0].Rev, 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
-	require.Equal(t, "k2", string(records[0].Rkey))
+	require.Equal(t, syntax.RecordKey("k3"), records[0].Rkey)
 
-	records, err = s.GetRepoOplog(t.Context(), uri, owner, "", 1)
+	records, err = s.GetRepoOplog(t.Context(), uri, alice, "", 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
+	require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
+
 }
 
 func TestGetRepoOplog_Empty(t *testing.T) {

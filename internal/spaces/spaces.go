@@ -212,6 +212,7 @@ func (s *store) CreateSpace(
 		Owner: owner,
 		Skey:  skey,
 		Type:  spaceType,
+		Rev:   s.clock.Next(),
 	}
 
 	err = s.db.WithContext(ctx).Create(&sp).Error
