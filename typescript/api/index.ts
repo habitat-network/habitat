@@ -63,6 +63,7 @@ import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
+import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 import * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
@@ -124,6 +125,7 @@ export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
+export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 export * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
@@ -1142,6 +1144,17 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.deleteRecord', opts?.qp, data, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceDeleteRecord.toKnownErr(e)
+      })
+  }
+
+  deleteSpace(
+    data?: NetworkHabitatSpaceDeleteSpace.InputSchema,
+    opts?: NetworkHabitatSpaceDeleteSpace.CallOptions,
+  ): Promise<NetworkHabitatSpaceDeleteSpace.Response> {
+    return this._client
+      .call('network.habitat.space.deleteSpace', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceDeleteSpace.toKnownErr(e)
       })
   }
 
