@@ -6,19 +6,12 @@ import {
   Input,
   ToggleGroup,
   ToggleGroupItem,
-  Combobox,
-  ComboboxContent,
-  ComboboxList,
-  ComboboxItem,
-  ComboboxEmpty,
 } from "internal/components/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
-import { procedure, searchActorsTypeahead, UserAvatar } from "internal";
-import type { Actor } from "internal";
+import { procedure, SingleHandleCombobox } from "internal";
 import { NetworkHabitatOrgCreate } from "api";
-import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 
 export const Route = createFileRoute("/org/create")({
   component: CreateOrgPage,
@@ -31,76 +24,6 @@ interface FormValues {
   login_method: "password" | "atproto" | "google";
   login_id: string;
   handle_subdomain: string;
-}
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debouncedValue;
-}
-
-function HandleCombobox({
-  value,
-  onValueChange,
-}: {
-  value: string;
-  onValueChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState(value || "");
-  const debouncedSearchValue = useDebounce(searchValue, 250);
-  const inputRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setSearchValue(value || "");
-  }, [value]);
-
-  const { data: suggestions = [] } = useQuery<Actor[]>({
-    queryKey: ["actorSearch", debouncedSearchValue],
-    queryFn: () => searchActorsTypeahead(debouncedSearchValue),
-    enabled: !!debouncedSearchValue.trim(),
-  });
-
-  return (
-    <Combobox
-      items={suggestions}
-      open={open}
-      onOpenChange={setOpen}
-      onValueChange={(actor: Actor | null) => {
-        if (actor?.handle) {
-          onValueChange(actor.handle);
-          setSearchValue(actor.handle);
-          setOpen(false);
-        }
-      }}
-    >
-      <div ref={inputRef}>
-        <Input
-          placeholder="alice.bsky.social"
-          value={searchValue}
-          onChange={(e) => {
-            setSearchValue(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-        />
-      </div>
-      <ComboboxContent anchor={inputRef}>
-        <ComboboxEmpty>No results found.</ComboboxEmpty>
-        <ComboboxList>
-          {(item: Actor) => (
-            <ComboboxItem key={item.handle} value={item}>
-              <UserAvatar actor={item} size="sm" />
-              {item.displayName || item.handle}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
-  );
 }
 
 function PasswordInput(props: React.ComponentProps<typeof Input>) {
@@ -117,7 +40,6 @@ function PasswordInput(props: React.ComponentProps<typeof Input>) {
 
 function CreateOrgPage() {
   const navigate = useNavigate();
-  const prevLoginMethod = useRef<FormValues["login_method"]>("password");
   const {
     register,
     handleSubmit,
@@ -138,14 +60,6 @@ function CreateOrgPage() {
   });
 
   const loginMethod = watch("login_method");
-
-  useEffect(() => {
-    if (prevLoginMethod.current !== loginMethod) {
-      setValue("login_id", "");
-      setValue("admin_password", "");
-      prevLoginMethod.current = loginMethod;
-    }
-  }, [loginMethod, setValue]);
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -214,9 +128,9 @@ function CreateOrgPage() {
                     {...field}
                     value={[value]}
                     onValueChange={(newValue) => {
-                      if (newValue[0] && newValue[0] !== value) {
-                        onChange(newValue[0]);
-                      }
+                      onChange(newValue[0]);
+                      setValue("login_id", "");
+                      setValue("admin_password", "");
                     }}
                   >
                     <ToggleGroupItem value="password">Password</ToggleGroupItem>
@@ -238,26 +152,36 @@ function CreateOrgPage() {
               />
               <FieldError errors={[errors.admin_password]} />
             </Field>
-          ) : (
+          ) : loginMethod === "atproto" ? (
             <Field>
-              <FieldLabel>
-                {loginMethod === "atproto" ? "AT Protocol Handle" : "Google Email"}
-              </FieldLabel>
+              <FieldLabel>AT Protocol Handle</FieldLabel>
               <Controller
                 control={control}
                 name="login_id"
                 rules={{ required: true }}
-                render={({ field: { onChange, value } }) =>
-                  loginMethod === "atproto" ? (
-                    <HandleCombobox value={value ?? ""} onValueChange={onChange} />
-                  ) : (
-                    <Input
-                      placeholder="user@gmail.com"
-                      value={value ?? ""}
-                      onChange={(e) => onChange(e.target.value)}
-                    />
-                  )
-                }
+                render={({ field: { onChange, value } }) => (
+                  <SingleHandleCombobox
+                    value={value ?? ""}
+                    onValueChange={onChange}
+                  />
+                )}
+              />
+              <FieldError errors={[errors.login_id]} />
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel>Google Email</FieldLabel>
+              <Controller
+                control={control}
+                name="login_id"
+                rules={{ required: true }}
+                render={({ field: { onChange, value } }) => (
+                  <Input
+                    placeholder="user@gmail.com"
+                    value={value ?? ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
               />
               <FieldError errors={[errors.login_id]} />
             </Field>

@@ -7,7 +7,6 @@ import {
   issueInviteToken,
 } from "@/queries/org";
 import { Button, Input } from "internal";
-import { query } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
@@ -22,29 +21,18 @@ export const Route = createFileRoute("/_requireAuth/org/")({
       queryClient.fetchQuery(getMembersQueryOptions(authManager)),
     ]);
     const authInfo = authManager.getAuthInfo();
-    const isAdmin = adminsData.admins.includes(authInfo?.did ?? "");
-    const adminSet = new Set(adminsData.admins);
-    const members = membersData.members.filter((did) => !adminSet.has(did));
+    const callerDid = authInfo?.did ?? "";
+    const isAdmin = adminsData.admins.some((a) => a.did === callerDid);
+    const adminDids = new Set(adminsData.admins.map((a) => a.did));
+    const members = membersData.members.filter((m) => !adminDids.has(m.did));
 
-    const allDids = [...new Set([...adminsData.admins, ...members])];
-    const profiles = await Promise.all(
-      allDids.map((did) =>
-        query("com.atproto.repo.describeRepo", { repo: did }, { authManager })
-          .then((r) => ({ did, handle: r.handle }))
-          .catch(() => ({ did, handle: did })),
-      ),
-    );
-    const handleMap = Object.fromEntries(
-      profiles.map((p) => [p.did, p.handle]),
-    );
-
-    return { admins: adminsData.admins, members, isAdmin, handleMap };
+    return { admins: adminsData.admins, members, isAdmin };
   },
   component: OrgPage,
 });
 
 function OrgPage() {
-  const { admins, members, isAdmin, handleMap } = Route.useLoaderData();
+  const { admins, members, isAdmin } = Route.useLoaderData();
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -60,8 +48,7 @@ function OrgPage() {
     <div className="flex flex-col gap-8">
       <MemberSection
         title="Admins"
-        dids={admins}
-        handleMap={handleMap}
+        members={admins}
         isAdmin={isAdmin}
         onRemove={(did) => downgradeAdmin(authManager, did).then(invalidate)}
         addLabel="Add admin"
@@ -70,8 +57,7 @@ function OrgPage() {
       />
       <MemberSection
         title="Members"
-        dids={members}
-        handleMap={handleMap}
+        members={members}
         isAdmin={isAdmin}
         onRemove={(did) => removeMembers(authManager, [did]).then(invalidate)}
         onPromote={(did) => addAdmin(authManager, did).then(invalidate)}
@@ -143,8 +129,7 @@ function InviteSection({
 
 function MemberSection({
   title,
-  dids,
-  handleMap,
+  members,
   isAdmin,
   onRemove,
   onAdd,
@@ -153,8 +138,7 @@ function MemberSection({
   canPromote,
 }: {
   title: string;
-  dids: string[];
-  handleMap: Record<string, string>;
+  members: { did: string; handle: string }[];
   isAdmin: boolean;
   onRemove: (did: string) => Promise<void>;
   onAdd?: (did: string) => Promise<void>;
@@ -174,11 +158,9 @@ function MemberSection({
       <h2 className="text-lg font-semibold mb-2">{title}</h2>
       <table className="w-full text-sm">
         <tbody>
-          {dids.map((did) => (
+          {members.map(({ did, handle }) => (
             <tr key={did} className="border-b">
-              <td className="py-2 pr-4 font-mono">
-                {handleMap[did] ?? did}
-              </td>
+              <td className="py-2 pr-4 font-mono">{handle}</td>
               {isAdmin && (
                 <td className="py-2 flex gap-2 justify-end">
                   {canPromote && onPromote && (

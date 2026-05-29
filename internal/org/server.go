@@ -12,7 +12,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bradenaw/juniper/xslices"
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -31,15 +30,17 @@ type Server struct {
 	pear    pear.Pear
 	domain  string
 	decoder *schema.Decoder
+	dir     identity.Directory
 }
 
-func NewServer(store Store, auth authn.Method, p pear.Pear, domain string) (*Server, error) {
+func NewServer(store Store, auth authn.Method, p pear.Pear, domain string, dir identity.Directory) (*Server, error) {
 	return &Server{
 		store:   store,
 		auth:    auth,
 		pear:    p,
 		domain:  domain,
 		decoder: schema.NewDecoder(),
+		dir:     dir,
 	}, nil
 }
 
@@ -205,9 +206,18 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	admins := xslices.Map(dids, func(m syntax.DID) string {
-		return m.String()
-	})
+	admins := make([]habitat.NetworkHabitatOrgGetAdminsMember, len(dids))
+	for i, did := range dids {
+		id, err := s.dir.LookupDID(context.Background(), did)
+		if err != nil {
+			utils.LogAndHTTPError(r.Context(), w, err, "looking up org admins", http.StatusInternalServerError)
+			return
+		}
+		admins[i] = habitat.NetworkHabitatOrgGetAdminsMember{
+			Did:    did.String(),
+			Handle: id.Handle.String(),
+		}
+	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetAdminsOutput{
 		Admins: admins,
@@ -252,9 +262,18 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	members := xslices.Map(dids, func(m syntax.DID) string {
-		return m.String()
-	})
+	members := make([]habitat.NetworkHabitatOrgGetMembersMember, len(dids))
+	for i, did := range dids {
+		id, err := s.dir.LookupDID(context.Background(), did)
+		if err != nil {
+			utils.LogAndHTTPError(r.Context(), w, err, "looking up org admins", http.StatusInternalServerError)
+			return
+		}
+		members[i] = habitat.NetworkHabitatOrgGetMembersMember{
+			Did:    did.String(),
+			Handle: id.Handle.String(),
+		}
+	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetMembersOutput{
 		Members: members,

@@ -1392,11 +1392,24 @@ export const schemaDict = {
               admins: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'ref',
+                  ref: 'lex:network.habitat.org.getAdmins#member',
                 },
               },
             },
+          },
+        },
+      },
+      member: {
+        type: 'object',
+        required: ['did', 'handle'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          handle: {
+            type: 'string',
           },
         },
       },
@@ -1419,11 +1432,24 @@ export const schemaDict = {
               members: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'ref',
+                  ref: 'lex:network.habitat.org.getMembers#member',
                 },
               },
             },
+          },
+        },
+      },
+      member: {
+        type: 'object',
+        required: ['did', 'handle'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          handle: {
+            type: 'string',
           },
         },
       },

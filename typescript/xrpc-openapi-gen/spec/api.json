@@ -1206,8 +1206,7 @@
                     "admins": {
                       "type": "array",
                       "items": {
-                        "type": "string",
-                        "format": "did"
+                        "$ref": "#/components/schemas/network.habitat.org.getAdmins.member"
                       }
                     }
                   }
@@ -1300,8 +1299,7 @@
                     "members": {
                       "type": "array",
                       "items": {
-                        "type": "string",
-                        "format": "did"
+                        "$ref": "#/components/schemas/network.habitat.org.getMembers.member"
                       }
                     }
                   }
@@ -4905,6 +4903,38 @@
           "logoUri": {
             "type": "string",
             "description": "The logo URI of this app."
+          }
+        }
+      },
+      "network.habitat.org.getAdmins.member": {
+        "type": "object",
+        "required": [
+          "did",
+          "handle"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          },
+          "handle": {
+            "type": "string"
+          }
+        }
+      },
+      "network.habitat.org.getMembers.member": {
+        "type": "object",
+        "required": [
+          "did",
+          "handle"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          },
+          "handle": {
+            "type": "string"
           }
         }
       },

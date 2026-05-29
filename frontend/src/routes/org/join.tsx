@@ -4,18 +4,12 @@ import {
   FieldError,
   FieldLabel,
   Input,
-  Combobox,
-  ComboboxContent,
-  ComboboxList,
-  ComboboxItem,
-  ComboboxEmpty,
 } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm, Controller } from "react-hook-form";
-import { useState, useEffect, useRef } from "react";
-import { procedure, searchActorsTypeahead, UserAvatar, XRPCError } from "internal";
+import { useState } from "react";
+import { procedure, SingleHandleCombobox, XRPCError } from "internal";
 import { useQuery } from "@tanstack/react-query";
-import type { Actor } from "internal";
 import { NetworkHabitatOrgGetMetadata } from "api";
 
 export const Route = createFileRoute("/org/join")({
@@ -46,76 +40,6 @@ type FormValues = {
   password: string;
   loginID: string;
 };
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debouncedValue;
-}
-
-function HandleCombobox({
-  value,
-  onValueChange,
-}: {
-  value: string;
-  onValueChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState(value || "");
-  const debouncedSearchValue = useDebounce(searchValue, 250);
-  const inputRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setSearchValue(value || "");
-  }, [value]);
-
-  const { data: suggestions = [] } = useQuery<Actor[]>({
-    queryKey: ["actorSearch", debouncedSearchValue],
-    queryFn: () => searchActorsTypeahead(debouncedSearchValue),
-    enabled: !!debouncedSearchValue.trim(),
-  });
-
-  return (
-    <Combobox
-      items={suggestions}
-      open={open}
-      onOpenChange={setOpen}
-      onValueChange={(actor: Actor | null) => {
-        if (actor?.handle) {
-          onValueChange(actor.handle);
-          setSearchValue(actor.handle);
-          setOpen(false);
-        }
-      }}
-    >
-      <div ref={inputRef}>
-        <Input
-          placeholder="alice.bsky.social"
-          value={searchValue}
-          onChange={(e) => {
-            setSearchValue(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-        />
-      </div>
-      <ComboboxContent anchor={inputRef}>
-        <ComboboxEmpty>No results found.</ComboboxEmpty>
-        <ComboboxList>
-          {(item: Actor) => (
-            <ComboboxItem key={item.handle} value={item}>
-              <UserAvatar actor={item} size="sm" />
-              {item.displayName || item.handle}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
-  );
-}
 
 function JoinPage() {
   const { token, orgId } = Route.useSearch();
@@ -224,26 +148,36 @@ function JoinPage() {
             />
             <FieldError errors={[errors.password]} />
           </Field>
-        ) : (
+        ) : loginMethod === "atproto" ? (
           <Field>
-            <FieldLabel>
-              {loginMethod === "atproto" ? "AT Protocol Handle" : "Google Email"}
-            </FieldLabel>
+            <FieldLabel>AT Protocol Handle</FieldLabel>
             <Controller
               control={control}
               name="loginID"
               rules={{ required: true }}
-              render={({ field: { onChange, value } }) =>
-                loginMethod === "atproto" ? (
-                  <HandleCombobox value={value ?? ""} onValueChange={onChange} />
-                ) : (
-                  <Input
-                    placeholder="user@gmail.com"
-                    value={value ?? ""}
-                    onChange={(e) => onChange(e.target.value)}
-                  />
-                )
-              }
+              render={({ field: { onChange, value } }) => (
+                <SingleHandleCombobox
+                  value={value ?? ""}
+                  onValueChange={onChange}
+                />
+              )}
+            />
+            <FieldError errors={[errors.loginID]} />
+          </Field>
+        ) : (
+          <Field>
+            <FieldLabel>Google Email</FieldLabel>
+            <Controller
+              control={control}
+              name="loginID"
+              rules={{ required: true }}
+              render={({ field: { onChange, value } }) => (
+                <Input
+                  placeholder="user@gmail.com"
+                  value={value ?? ""}
+                  onChange={(e) => onChange(e.target.value)}
+                />
+              )}
             />
             <FieldError errors={[errors.loginID]} />
           </Field>
