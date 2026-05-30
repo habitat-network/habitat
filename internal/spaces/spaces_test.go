@@ -463,9 +463,8 @@ func TestDeleteSpace(t *testing.T) {
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 
 	// records should be invisible
-	records, err := s.ListRecords(t.Context(), uri, owner, nil)
-	require.NoError(t, err)
-	require.Len(t, records, 0)
+	_, err = s.ListRecords(t.Context(), uri, owner, nil)
+	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
 
 func TestDeleteSpace_NonExistent(t *testing.T) {

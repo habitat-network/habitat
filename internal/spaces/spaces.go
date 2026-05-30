@@ -761,6 +761,16 @@ func (s *store) ListRecords(
 	repo syntax.DID,
 	collection *syntax.NSID,
 ) ([]Record, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ? AND deleted = ?", uri.SpaceDID(), uri.Skey(), false).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrSpaceNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
 	query := s.db.WithContext(ctx).
 		Where("space = ?", uri).
 		Where("owner = ?", repo).

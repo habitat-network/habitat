@@ -599,7 +599,10 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
-	if err != nil {
+	if errors.Is(err, ErrSpaceNotFound) {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if err != nil {
 		utils.LogAndHTTPError(w, err, "list records", http.StatusInternalServerError)
 		return
 	}

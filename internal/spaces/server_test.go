@@ -499,3 +499,117 @@ func TestServer_GetRepoOplog_IncludesValue(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "hello", val["text"])
 }
+
+func TestServer_CreateSpace_EmptyBody(t *testing.T) {
+	s := newOwnerServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.createSpace", strings.NewReader(""))
+	w := httptest.NewRecorder()
+	s.CreateSpace(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestServer_CreateSpace_InvalidJSON(t *testing.T) {
+	s := newOwnerServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.space.createSpace", strings.NewReader("{not json}"))
+	w := httptest.NewRecorder()
+	s.CreateSpace(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestServer_GetRecord_NotFound(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=nonexistent",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRecord(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestServer_GetRecord_MissingParams(t *testing.T) {
+	s := newOwnerServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.getRecord", nil)
+	w := httptest.NewRecorder()
+	s.GetRecord(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestServer_ListRecords_DeletedSpace(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	_, err = s.store.DeleteSpace(t.Context(), uri)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRecords?space="+uri.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.ListRecords(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestServer_RemoveMember_NotAMember(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "did": "did:plc:nobody"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.removeMember",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.RemoveMember(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestServer_DeleteRecord_Nonexistent(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "nonexistent"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteRecord",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.DeleteRecord(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestServer_CreateSpace_MissingType(t *testing.T) {
+	s := newOwnerServer(t)
+
+	body := `{}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.createSpace",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.CreateSpace(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
