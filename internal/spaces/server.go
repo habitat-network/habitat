@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/schema"
+	"github.com/rs/zerolog/log"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/sync"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -22,6 +25,7 @@ type Server struct {
 	oauth       authn.Method
 	serviceAuth authn.Method
 	decoder     *schema.Decoder
+	publisher   sync.Publisher
 }
 
 func NewServer(
@@ -36,7 +40,13 @@ func NewServer(
 		oauth:       oauth,
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
+		publisher:   &sync.NopPublisher{},
 	}
+}
+
+func (s *Server) WithPublisher(p sync.Publisher) *Server {
+	s.publisher = p
+	return s
 }
 
 // authorize checks if the caller has the given relation on the space via FGA,
@@ -91,6 +101,19 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		utils.LogAndHTTPError(w, err, "create space", http.StatusInternalServerError)
 		return
+	}
+
+	rev := syntax.NewTIDNow(0)
+	ev := sync.Event{
+		Rev:       rev.String(),
+		Time:      time.Now(),
+		Type:      sync.EventSpace,
+		Space:     uri.String(),
+		SpaceType: spaceType.String(),
+		Action:    "create",
+	}
+	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
+		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", uri.String()).Msg("failed to publish event")
 	}
 
 	output := habitat.NetworkHabitatSpaceCreateSpaceOutput{
@@ -208,7 +231,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.store.AddMember(r.Context(), spaceURI, memberDID, access)
+	rev, err := s.store.AddMember(r.Context(), spaceURI, memberDID, access)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -218,6 +241,19 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		utils.LogAndHTTPError(w, err, "add member", http.StatusInternalServerError)
 		return
+	}
+
+	ev := sync.Event{
+		Rev:    rev,
+		Time:   time.Now(),
+		Type:   sync.EventSpaceMember,
+		Space:  spaceURI.String(),
+		Action: "add",
+		DID:    memberDID.String(),
+		Access: input.Access,
+	}
+	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
+		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -267,7 +303,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.store.RemoveMember(r.Context(), spaceURI, memberDID)
+	rev, err := s.store.RemoveMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -280,6 +316,18 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	} else if err != nil {
 		utils.LogAndHTTPError(w, err, "remove member", http.StatusInternalServerError)
 		return
+	}
+
+	ev := sync.Event{
+		Rev:    rev,
+		Time:   time.Now(),
+		Type:   sync.EventSpaceMember,
+		Space:  spaceURI.String(),
+		Action: "remove",
+		DID:    memberDID.String(),
+	}
+	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
+		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -389,13 +437,34 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.store.PutRecord(r.Context(), spaceURI, callerDID, collection, rkey, value)
+	tid, err := s.store.PutRecord(r.Context(), spaceURI, callerDID, collection, rkey, value)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
 		utils.LogAndHTTPError(w, err, "put record", http.StatusInternalServerError)
 		return
+	}
+
+	recBytes, _ := json.Marshal(value)
+	evRkey := input.Rkey
+	if evRkey == "" {
+		evRkey = tid.String()
+	}
+	ev := sync.Event{
+		Rev:        tid.String(),
+		Time:       time.Now(),
+		Type:       sync.EventSpaceRecord,
+		Space:      spaceURI.String(),
+		Repo:       callerDID.String(),
+		RecordRev:  tid.String(),
+		Action:     "upsert",
+		Collection: collection.String(),
+		Rkey:       evRkey,
+		Record:     recBytes,
+	}
+	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
+		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
 	}
 
 	recordURI := spaceURI.String() + "/" + collection.String() + "/" + input.Rkey
@@ -657,10 +726,23 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
+	tid, err := s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "delete record", http.StatusInternalServerError)
 		return
+	}
+
+	ev := sync.Event{
+		Rev:        tid.String(),
+		Time:       time.Now(),
+		Type:       sync.EventSpaceRecord,
+		Space:      spaceURI.String(),
+		Action:     "delete",
+		Collection: collection.String(),
+		Rkey:       input.Rkey,
+	}
+	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
+		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
 	}
 
 	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
@@ -698,13 +780,24 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = s.store.DeleteSpace(r.Context(), spaceURI)
+	tid, err := s.store.DeleteSpace(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
 		utils.LogAndHTTPError(w, err, "delete space", http.StatusInternalServerError)
 		return
+	}
+
+	ev := sync.Event{
+		Rev:    tid.String(),
+		Time:   time.Now(),
+		Type:   sync.EventSpace,
+		Space:  spaceURI.String(),
+		Action: "delete",
+	}
+	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
+		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
