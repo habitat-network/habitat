@@ -24,7 +24,9 @@ func TestFanoutPublishSubscribe(t *testing.T) {
 
 	select {
 	case received := <-ch:
-		assert.Equal(t, event, received)
+		assert.Equal(t, int64(1), received.Seq)
+		assert.Equal(t, event.Rev, received.Rev)
+		assert.Equal(t, event.Type, received.Type)
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for event")
 	}
@@ -46,7 +48,9 @@ func TestFanoutMultipleSubscribers(t *testing.T) {
 	for i, ch := range []<-chan Event{ch1, ch2} {
 		select {
 		case received := <-ch:
-			assert.Equal(t, event, received)
+			assert.Equal(t, int64(1), received.Seq)
+			assert.Equal(t, event.Rev, received.Rev)
+			assert.Equal(t, event.Type, received.Type)
 		case <-time.After(time.Second):
 			t.Fatalf("subscriber %d timeout", i)
 		}

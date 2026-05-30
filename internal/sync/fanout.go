@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/rs/zerolog/log"
 )
@@ -15,10 +16,13 @@ type subscriber struct {
 type Fanout struct {
 	mu          sync.RWMutex
 	subscribers map[*subscriber]struct{}
+	nextSeq     atomic.Int64
 }
 
 func NewFanout() *Fanout {
-	return &Fanout{subscribers: make(map[*subscriber]struct{})}
+	return &Fanout{
+		subscribers: make(map[*subscriber]struct{}),
+	}
 }
 
 func (f *Fanout) Subscribe(buffer int) (<-chan Event, chan struct{}) {
@@ -43,6 +47,7 @@ func (f *Fanout) Unsubscribe(done chan struct{}) {
 }
 
 func (f *Fanout) Publish(ctx context.Context, event Event) error {
+	event.Seq = f.nextSeq.Add(1)
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	for sub := range f.subscribers {
@@ -51,7 +56,7 @@ func (f *Fanout) Publish(ctx context.Context, event Event) error {
 		default:
 			log.Ctx(ctx).Warn().
 				Str("event_type", string(event.Type)).
-				Str("rev", string(event.Rev)).
+				Int64("seq", event.Seq).
 				Msg("dropping event for slow subscriber")
 		}
 	}
