@@ -1,0 +1,43 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.sync.listSpaces",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List spaces visible to the caller.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "spaceTypes": { "type": "array", "items": { "type": "string" }, "description": "Filter by space type NSIDs" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["spaces"],
+          "properties": {
+            "spaces": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#spaceView" }
+            }
+          }
+        }
+      },
+      "errors": [
+        { "name": "Unauthorized", "description": "Missing or invalid OAuth token" }
+      ]
+    },
+    "spaceView": {
+      "type": "object",
+      "required": ["space", "spaceType"],
+      "properties": {
+        "space": { "type": "string" },
+        "spaceType": { "type": "string" },
+        "spaceRev": { "type": "string" },
+        "memberRev": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

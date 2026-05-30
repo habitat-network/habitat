@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.sync.listRecords",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List records in a space for backfill.",
+      "parameters": {
+        "type": "params",
+        "required": ["space"],
+        "properties": {
+          "space": { "type": "string", "description": "Space URI" },
+          "repo": { "type": "string", "description": "Filter by repo DID" },
+          "collection": { "type": "string", "description": "Filter by collection NSID" },
+          "cursor": { "type": "string", "description": "Pagination cursor (record rev)" },
+          "limit": { "type": "integer", "maximum": 100, "default": 50, "description": "Max records to return" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["records"],
+          "properties": {
+            "records": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#record" }
+            },
+            "cursor": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "SpaceNotFound", "description": "Space does not exist or is not visible" },
+        { "name": "Unauthorized", "description": "Missing or invalid OAuth token" }
+      ]
+    },
+    "record": {
+      "type": "object",
+      "required": ["space", "repo", "rev", "collection", "rkey", "value"],
+      "properties": {
+        "space": { "type": "string" },
+        "repo": { "type": "string" },
+        "rev": { "type": "string" },
+        "collection": { "type": "string" },
+        "rkey": { "type": "string" },
+        "value": { "type": "unknown" }
+      }
+    }
+  }
+}

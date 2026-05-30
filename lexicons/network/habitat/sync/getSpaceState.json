@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.sync.getSpaceState",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get current sync state for a space.",
+      "parameters": {
+        "type": "params",
+        "required": ["space"],
+        "properties": {
+          "space": { "type": "string", "description": "Space URI" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["space", "spaceType", "spaceRev", "memberRev", "repos"],
+          "properties": {
+            "space": { "type": "string" },
+            "spaceType": { "type": "string" },
+            "spaceRev": { "type": "string" },
+            "memberRev": { "type": "string" },
+            "repos": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#repoState" }
+            }
+          }
+        }
+      },
+      "errors": [
+        { "name": "SpaceNotFound", "description": "Space does not exist or is not visible" },
+        { "name": "Unauthorized", "description": "Missing or invalid OAuth token" }
+      ]
+    },
+    "repoState": {
+      "type": "object",
+      "required": ["did", "rev"],
+      "properties": {
+        "did": { "type": "string" },
+        "rev": { "type": "string" }
+      }
+    }
+  }
+}

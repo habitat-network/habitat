@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.sync.getMemberOplog",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get member operation log since a cursor.",
+      "parameters": {
+        "type": "params",
+        "required": ["space"],
+        "properties": {
+          "space": { "type": "string", "description": "Space URI" },
+          "since": { "type": "string", "description": "Lowest rev to return ops after" },
+          "limit": { "type": "integer", "maximum": 100, "default": 50, "description": "Max ops to return" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ops"],
+          "properties": {
+            "ops": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#memberOp" }
+            },
+            "cursor": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "CursorTooOld", "description": "Cursor is too far in the past; caller must resync" },
+        { "name": "SpaceNotFound", "description": "Space does not exist or is not visible" },
+        { "name": "Unauthorized", "description": "Missing or invalid OAuth token" }
+      ]
+    },
+    "memberOp": {
+      "type": "object",
+      "required": ["space", "rev", "idx", "action", "did"],
+      "properties": {
+        "space": { "type": "string" },
+        "rev": { "type": "string" },
+        "idx": { "type": "integer" },
+        "action": { "type": "string" },
+        "did": { "type": "string" },
+        "access": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.sync.listRecordChanges",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List record changes since a cursor for incremental sync.",
+      "parameters": {
+        "type": "params",
+        "required": ["space"],
+        "properties": {
+          "space": { "type": "string", "description": "Space URI" },
+          "repo": { "type": "string", "description": "Filter by repo DID" },
+          "since": { "type": "string", "description": "Lowest rev to return changes after" },
+          "limit": { "type": "integer", "maximum": 100, "default": 50, "description": "Max changes to return" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["changes"],
+          "properties": {
+            "changes": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#recordChange" }
+            },
+            "cursor": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "CursorTooOld", "description": "Cursor is too far in the past; caller must resync" },
+        { "name": "SpaceNotFound", "description": "Space does not exist or is not visible" },
+        { "name": "Unauthorized", "description": "Missing or invalid OAuth token" }
+      ]
+    },
+    "recordChange": {
+      "type": "object",
+      "required": ["space", "rev", "action", "collection", "rkey"],
+      "properties": {
+        "space": { "type": "string" },
+        "rev": { "type": "string" },
+        "action": { "type": "string" },
+        "collection": { "type": "string" },
+        "rkey": { "type": "string" },
+        "value": { "type": "unknown" }
+      }
+    }
+  }
+}

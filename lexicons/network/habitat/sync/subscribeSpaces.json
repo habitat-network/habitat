@@ -1,0 +1,48 @@
+{
+  "lexicon": 1,
+  "id": "network.habitat.sync.subscribeSpaces",
+  "defs": {
+    "main": {
+      "type": "subscription",
+      "description": "Subscribe to real-time space events.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "cursor": { "type": "string", "description": "Last known event TID for catchup" },
+          "spaceTypes": { "type": "array", "items": { "type": "string" }, "description": "Filter by space type NSIDs" }
+        }
+      },
+      "message": {
+        "schema": {
+          "type": "union",
+          "refs": ["#spaceEvent"]
+        }
+      },
+      "errors": [
+        { "name": "CursorTooOld", "description": "Cursor is too far in the past; caller must resync" },
+        { "name": "Unauthorized", "description": "Missing or invalid OAuth token" }
+      ]
+    },
+    "spaceEvent": {
+      "type": "object",
+      "required": ["rev", "type"],
+      "properties": {
+        "rev": { "type": "string" },
+        "time": { "type": "string", "format": "date-time" },
+        "type": { "type": "string" },
+        "space": { "type": "string" },
+        "spaceType": { "type": "string" },
+        "repo": { "type": "string" },
+        "recordRev": { "type": "string" },
+        "action": { "type": "string" },
+        "collection": { "type": "string" },
+        "rkey": { "type": "string" },
+        "record": { "type": "unknown" },
+        "memberRev": { "type": "string" },
+        "idx": { "type": "integer" },
+        "did": { "type": "string" },
+        "access": { "type": "string" }
+      }
+    }
+  }
+}
