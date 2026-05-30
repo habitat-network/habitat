@@ -50,6 +50,7 @@ import (
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/sync"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
@@ -264,6 +265,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(dir),
 	)
 
+	syncFanout := sync.NewFanout()
+	spacesServer.WithPublisher(syncFanout)
+	syncStore := spaces.NewSyncStoreAdapter(spacesStore)
+	syncServer := sync.NewServer(syncStore, syncFanout, oauthServer)
+
 	cdc := repo.NewChangeEmitter(ctx, repo.DefaultChangeBufferSize)
 	repo, err := repo.NewRepo(cdc, db)
 	if err != nil {
@@ -398,6 +404,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
+
+	// sync routes
+	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
+	mux.HandleFunc("/xrpc/network.habitat.sync.listSpaces", syncServer.HandleListSpaces)
+	mux.HandleFunc("/xrpc/network.habitat.sync.getSpaceState", syncServer.HandleGetSpaceState)
+	mux.HandleFunc("/xrpc/network.habitat.sync.listRecords", syncServer.HandleListRecords)
+	mux.HandleFunc("/xrpc/network.habitat.sync.listRecordChanges", syncServer.HandleListRecordChanges)
+	mux.HandleFunc("/xrpc/network.habitat.sync.getMemberOplog", syncServer.HandleGetMemberOplog)
 
 	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
 	// Only forward specific routes that we know we handle correctly; for now.
