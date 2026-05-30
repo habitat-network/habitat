@@ -8,7 +8,7 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "cursor": { "type": "string", "description": "Last known event TID for catchup" },
+          "cursor": { "type": "integer", "description": "Last known event seq for catchup" },
           "spaceTypes": { "type": "array", "items": { "type": "string" }, "description": "Filter by space type NSIDs" }
         }
       },
@@ -25,9 +25,9 @@
     },
     "spaceEvent": {
       "type": "object",
-      "required": ["rev", "type"],
+      "required": ["seq", "type"],
       "properties": {
-        "rev": { "type": "string" },
+        "seq": { "type": "integer" },
         "time": { "type": "string", "format": "date-time" },
         "type": { "type": "string" },
         "space": { "type": "string" },
