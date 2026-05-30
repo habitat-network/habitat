@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v3"
 )
 
@@ -26,9 +29,69 @@ type Config struct {
 }
 
 func run(ctx context.Context, cfg *Config) error {
-	slog.Info("starting spacetap", "pear_url", cfg.PearURL, "bind", cfg.Bind)
+	log := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger()
+
+	level, err := zerolog.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		level = zerolog.InfoLevel
+	}
+	zerolog.SetGlobalLevel(level)
+
+	db, err := openDB(cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get sql db: %w", err)
+	}
+	defer sqlDB.Close()
+
+	client := NewPearClient(cfg.PearURL, cfg.AccessToken)
+
+	syncer := NewSyncer(client, db, cfg)
+
+	hub := NewWebSocketHub(log)
+
+	var deliver Deliverer
+	if cfg.WebhookURL != "" {
+		deliver = NewWebhookDeliverer(cfg.WebhookURL, log)
+	} else if cfg.DisableAcks {
+		deliver = NewFireAndForgetDeliverer(log)
+	} else {
+		deliver = NewWSDeliverer(hub, db, log)
+	}
+
+	worker := NewOutboxWorker(db, cfg, deliver, log)
+	go worker.Start(ctx)
+
+	go func() {
+		if err := syncer.Run(ctx); err != nil {
+			log.Warn().Err(err).Msg("syncer exited")
+		}
+	}()
+
+	api := NewAPIServer(db, syncer, hub, cfg, log)
+	router := mux.NewRouter()
+	api.RegisterRoutes(router)
+
+	srv := &http.Server{
+		Addr:    cfg.Bind,
+		Handler: router,
+	}
+
+	go func() {
+		log.Info().Str("bind", cfg.Bind).Msg("spacetap HTTP server starting")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Warn().Err(err).Msg("http server error")
+		}
+	}()
+
 	<-ctx.Done()
-	slog.Info("shutting down spacetap")
+	log.Info().Msg("shutting down...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	srv.Shutdown(shutdownCtx)
 	return nil
 }
 
