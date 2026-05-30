@@ -2,10 +2,13 @@ package sync
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFanoutPublishSubscribe(t *testing.T) {
@@ -110,5 +113,78 @@ func TestFanoutUnsubscribeClosesChannels(t *testing.T) {
 func TestNopPublisher(t *testing.T) {
 	p := &NopPublisher{}
 	err := p.Publish(context.Background(), Event{Rev: "test"})
+	assert.NoError(t, err)
+}
+
+func TestFanoutConcurrentPublishSubscribe(t *testing.T) {
+	f := NewFanout()
+
+	ch, done := f.Subscribe(100)
+	defer f.Unsubscribe(done)
+
+	ctx := context.Background()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			f.Publish(ctx, Event{Rev: fmt.Sprintf("rev-%d", n)})
+		}(i)
+	}
+	wg.Wait()
+
+	count := 0
+	for {
+		select {
+		case <-ch:
+			count++
+		case <-time.After(500 * time.Millisecond):
+			require.Equal(t, 50, count, "all 50 events should be received")
+			return
+		}
+	}
+}
+
+func TestFanoutUnsubscribeDuringPublish(t *testing.T) {
+	f := NewFanout()
+	ctx := context.Background()
+
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 100; i++ {
+			f.Publish(ctx, Event{Rev: fmt.Sprintf("bg-%d", i)})
+		}
+		close(done)
+	}()
+
+	for i := 0; i < 10; i++ {
+		_, d := f.Subscribe(10)
+		f.Unsubscribe(d)
+	}
+	<-done
+}
+
+func TestFanoutDoubleUnsubscribe(t *testing.T) {
+	f := NewFanout()
+	_, done := f.Subscribe(10)
+
+	f.Unsubscribe(done)
+	f.Unsubscribe(done)
+}
+
+func TestFanoutSubscribeUnbuffered(t *testing.T) {
+	f := NewFanout()
+	ch, done := f.Subscribe(0)
+	defer f.Unsubscribe(done)
+
+	ctx := context.Background()
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		<-ch
+	}()
+
+	err := f.Publish(ctx, Event{Rev: "unbuffered"})
 	assert.NoError(t, err)
 }
