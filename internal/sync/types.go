@@ -15,6 +15,7 @@ const (
 )
 
 type Event struct {
+	Seq       int64     `json:"seq"`
 	Rev       string    `json:"rev"`
 	Time      time.Time `json:"time"`
 	Type      EventType `json:"type"`
