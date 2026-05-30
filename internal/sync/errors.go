@@ -8,11 +8,31 @@ type APIError struct {
 	Status  int    `json:"-"`
 }
 
+func (e *APIError) Error() string {
+	return e.Code + ": " + e.Message
+}
+
 var (
-	ErrUnauthorized  = &APIError{Code: "Unauthorized", Message: "missing or invalid OAuth token", Status: http.StatusUnauthorized}
-	ErrForbidden     = &APIError{Code: "Forbidden", Message: "token lacks required scope", Status: http.StatusForbidden}
-	ErrSpaceNotFound = &APIError{Code: "SpaceNotFound", Message: "space does not exist or is not visible", Status: http.StatusNotFound}
-	ErrRateLimited   = &APIError{Code: "RateLimited", Message: "caller exceeded server policy", Status: http.StatusTooManyRequests}
+	ErrUnauthorized = &APIError{
+		Code:    "Unauthorized",
+		Message: "missing or invalid OAuth token",
+		Status:  http.StatusUnauthorized,
+	}
+	ErrForbidden = &APIError{
+		Code:    "Forbidden",
+		Message: "token lacks required scope",
+		Status:  http.StatusForbidden,
+	}
+	ErrSpaceNotFound = &APIError{
+		Code:    "SpaceNotFound",
+		Message: "space does not exist or is not visible",
+		Status:  http.StatusNotFound,
+	}
+	ErrRateLimited = &APIError{
+		Code:    "RateLimited",
+		Message: "caller exceeded server policy",
+		Status:  http.StatusTooManyRequests,
+	}
 )
 
 func CursorTooOld(msg string) *APIError {
