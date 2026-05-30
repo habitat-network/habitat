@@ -389,7 +389,14 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.PutRecord(r.Context(), spaceURI, callerDID, collection, rkey, value)
+	recordUri, cid, err := s.store.PutRecord(
+		r.Context(),
+		spaceURI,
+		callerDID,
+		collection,
+		rkey,
+		value,
+	)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -398,10 +405,9 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	recordURI := spaceURI.String() + "/" + collection.String() + "/" + input.Rkey
-
 	output := habitat.NetworkHabitatSpacePutRecordOutput{
-		Uri: recordURI,
+		Uri: recordUri.String(),
+		Cid: cid.String(),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
@@ -540,7 +546,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		recViews[i] = habitat.NetworkHabitatSpaceListRecordsRecord{
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
-			Cid:        "",
+			Cid:        rec.Cid.String(),
 			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
 			Value:      rec.Value,
 		}
@@ -607,6 +613,7 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
 			Value:      rec.Value,
+			Cid:        rec.Cid.String(),
 		}
 	}
 

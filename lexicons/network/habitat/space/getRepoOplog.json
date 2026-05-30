@@ -84,6 +84,10 @@
                     "type": "string",
                     "format": "record-key"
                 },
+                "cid": {
+                    "type": "string",
+                    "format": "cid"
+                },
                 "value": {
                     "type": "unknown",
                     "description": "The record value."

@@ -31,6 +31,7 @@ export interface InputSchema {
 export interface OutputSchema {
   /** URI of the written record. */
   uri: string
+  cid?: string
 }
 
 export interface CallOptions {

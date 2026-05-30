@@ -64,6 +64,7 @@ export interface Record {
   rev: string
   collection: string
   rkey: string
+  cid?: string
   /** The record value. */
   value: { [_ in string]: unknown }
 }
