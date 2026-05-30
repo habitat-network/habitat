@@ -1,6 +1,7 @@
 package spaces
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -19,6 +20,9 @@ func newTestStore(t *testing.T) Store {
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
@@ -711,4 +715,160 @@ func TestGetSpaceState(t *testing.T) {
 	state, err = s.GetSpaceState(t.Context(), nonexistent)
 	require.NoError(t, err)
 	require.Nil(t, state)
+}
+
+func TestPutRecord_ConcurrentSameKey(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer wg.Done()
+			_, putErr := s.PutRecord(t.Context(), uri, owner, coll, "same-key", map[string]any{"x": 1})
+			require.NoError(t, putErr)
+		}()
+	}
+	wg.Wait()
+
+	recs, err := s.ListRecords(t.Context(), uri, owner, nil)
+	require.NoError(t, err)
+	require.Len(t, recs, 1)
+}
+
+func TestDeleteRecord_ThenRecreate(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "cyclic", map[string]any{"v": 1})
+	require.NoError(t, err)
+
+	_, err = s.DeleteRecord(t.Context(), uri, coll, "cyclic")
+	require.NoError(t, err)
+
+	_, err = s.GetRecord(t.Context(), uri, owner, coll, "cyclic")
+	require.ErrorIs(t, err, ErrRecordNotFound)
+
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "cyclic", map[string]any{"v": 2})
+	require.NoError(t, err)
+
+	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "cyclic")
+	require.NoError(t, err)
+	require.Equal(t, float64(2), rec.Value["v"])
+}
+
+func TestListRecords_EmptySpace(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	records, err := s.ListRecords(t.Context(), uri, owner, nil)
+	require.NoError(t, err)
+	require.Len(t, records, 0)
+}
+
+func TestListSpaces_NoSpaces(t *testing.T) {
+	s := newTestStore(t)
+
+	spaces, err := s.ListSpaces(t.Context(), alice, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 0)
+
+	spaces, err = s.ListSpaces(t.Context(), alice, &owner, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 0)
+}
+
+func TestAddMember_SpaceDeleted(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	_, err = s.DeleteSpace(t.Context(), uri)
+	require.NoError(t, err)
+
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	require.ErrorIs(t, err, ErrSpaceNotFound)
+}
+
+func TestPutRecord_DeletedSpace(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	_, err = s.DeleteSpace(t.Context(), uri)
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
+	require.ErrorIs(t, err, ErrSpaceNotFound)
+}
+
+func TestListRecordChanges_Empty(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	changes, err := s.ListRecordChanges(t.Context(), uri, "", "", 100)
+	require.NoError(t, err)
+	require.Len(t, changes, 0)
+}
+
+func TestGetMemberOplog_NoChanges(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	ops, err := s.GetMemberOplog(t.Context(), uri, "", 100)
+	require.NoError(t, err)
+	require.Len(t, ops, 0)
+}
+
+func TestGetSpaceState_DeletedSpace(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	_, err = s.DeleteSpace(t.Context(), uri)
+	require.NoError(t, err)
+
+	state, err := s.GetSpaceState(t.Context(), uri)
+	require.NoError(t, err)
+	require.Nil(t, state)
+}
+
+func TestListRecordChanges_WithSince(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	highTID := syntax.NewTID(9223372036854775807, 0)
+	changes, err := s.ListRecordChanges(t.Context(), uri, "", highTID.String(), 100)
+	require.NoError(t, err)
+	require.Len(t, changes, 0)
+
+	changes, err = s.ListRecordChanges(t.Context(), uri, "", "", 100)
+	require.NoError(t, err)
+	require.Len(t, changes, 1)
 }
