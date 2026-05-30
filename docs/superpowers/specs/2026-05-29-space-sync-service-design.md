@@ -27,8 +27,8 @@ credential. There is no separate org credential format for v1.
   service for apps.
 - Keep authorization simple: OAuth org scopes gate space types; runtime
   filters only narrow the data delivered.
-- Make stream consumption recoverable with durable cursors, oplog replay,
-  and full resync fallback.
+- Make stream consumption recoverable with durable cursors, changed-row
+  replay, and full resync fallback.
 
 ## Non-goals
 
@@ -106,7 +106,7 @@ Parameters:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `cursor` | integer, optional | Last processed org stream sequence. Pear resumes after this sequence when possible. |
+| `cursor` | string, optional | Last processed sync revision. Pear resumes after this revision when possible. |
 | `spaceTypes` | string array, optional | Requested space-type filter. Every value must be covered by the OAuth token. Omitted means all granted space types. |
 | `collections` | string array, optional | Runtime record collection filter. Supports exact NSIDs in v1. |
 
@@ -124,9 +124,12 @@ Encoding:
 
 Cursor behavior:
 
-- Every live event has a monotonically increasing org-local `seq`.
-- `cursor` resumes by `seq`, not by per-space or per-repo `rev`.
-- If Pear no longer has stream history for the requested `cursor`, it closes
+- Every live event has a monotonically increasing sync `rev` generated from
+  Pear's TID clock.
+- `cursor` resumes by global sync rev. Pear catches the stream up by querying
+  changed space rows, record rows, and effective member ops newer than the
+  cursor, then switches the socket to live fanout.
+- If Pear cannot serve the requested cursor from retained rows, it closes
   with a typed error or emits an error frame requiring HTTP backfill.
 
 ### `network.habitat.sync.listSpaces`
@@ -142,7 +145,6 @@ Output includes:
 - `deleted`
 - current `spaceRev`
 - current `memberRev`
-- current config or permission revs if those are tracked separately
 
 This is the entry point for initial discovery by `cmd/spacetap`.
 
@@ -189,12 +191,15 @@ Output records include:
 - `value`
 - `updatedAt`
 
-This endpoint is used for initial sync and full resync after oplog retention
+This endpoint is used for initial sync and full resync after change retention
 misses.
 
-### `network.habitat.sync.getRecordOplog`
+### `network.habitat.sync.listRecordChanges`
 
-Incremental record replay for one space and optionally one repo.
+Incremental changed-record replay for one space and optionally one repo. This
+is a state-convergence endpoint, not a historical write log. If a record was
+updated multiple times after `since`, Pear returns only the latest row. That
+is sufficient because clients materialize current state.
 
 Parameters:
 
@@ -203,19 +208,17 @@ Parameters:
 - `since` optional TID/rev, exclusive
 - `limit` optional, capped by Pear
 
-Each op includes:
+Each changed row includes:
 
 - `space`
 - `repo`
 - `rev`
-- `idx`
-- `action`: `create`, `update`, or `delete`
+- `action`: `upsert` or `delete`
 - `collection`
 - `rkey`
-- `value` for create/update
-- `prev` optional previous content identifier if available
+- `value` for upsert; empty/null for delete tombstones
 
-If `since` is older than the retained oplog window, Pear returns a typed
+If `since` is older than the retained change window, Pear returns a typed
 `CursorTooOld` error. The client must resync the affected space or repo with
 `listRecords`.
 
@@ -241,17 +244,6 @@ Each op includes:
 This mirrors `internal/spaces` membership semantics where read/write access
 is represented in FGA but must be visible to sync consumers.
 
-### Optional state endpoints
-
-Pear may add narrower endpoints as implementation requires:
-
-- `getSpaceConfigOplog` for app config and managing-app changes.
-- `getPermissionOplog` for org-level permission changes.
-- `getIdentityState` for current member identity metadata.
-
-For v1, these can also be represented as event types on the live stream and
-folded into `getSpaceState` for backfill.
-
 ## Event Model
 
 Live events are small JSON objects. The stream is notification plus payload:
@@ -262,7 +254,7 @@ Common fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `seq` | integer | Org-local stream sequence, monotonic. |
+| `rev` | string | Global sync revision, monotonic. |
 | `time` | datetime | Pear emission time. |
 | `type` | string | Event discriminator. |
 | `space` | string, optional | Space URI when event is space-scoped. |
@@ -272,33 +264,33 @@ Common fields:
 
 ```json
 {
-  "seq": 123,
+  "rev": "3l...",
   "time": "2026-05-30T12:00:00.000Z",
   "type": "space_record",
   "space": "ats://did:plc:org/network.habitat.calendar/default",
   "spaceType": "network.habitat.calendar",
   "repo": "did:plc:alice",
-  "rev": "3l...",
-  "idx": 0,
-  "action": "create",
+  "recordRev": "3l...",
+  "action": "upsert",
   "collection": "network.habitat.calendar.event",
   "rkey": "3l...",
   "record": {}
 }
 ```
 
-Identity for dedupe: `(space, repo, rev, idx)`.
+Delete events use the same shape with `action: "delete"` and no `record`.
+Identity for dedupe: `(space, repo, collection, rkey, recordRev)`.
 
 ### `space_member`
 
 ```json
 {
-  "seq": 124,
+  "rev": "3l...",
   "time": "2026-05-30T12:00:01.000Z",
   "type": "space_member",
   "space": "ats://did:plc:org/network.habitat.calendar/default",
   "spaceType": "network.habitat.calendar",
-  "rev": "3l...",
+  "memberRev": "3l...",
   "idx": 0,
   "action": "add",
   "did": "did:plc:bob",
@@ -306,19 +298,18 @@ Identity for dedupe: `(space, repo, rev, idx)`.
 }
 ```
 
-Identity for dedupe: `(space, rev, idx)`.
+Identity for dedupe: `(space, memberRev, idx)`.
 
 ### `space`
 
-Emitted when a space is created, deleted, or its sync-visible config changes.
+Emitted when a space is created or deleted.
 
 Fields:
 
-- `action`: `create`, `delete`, or `update`
+- `action`: `create` or `delete`
 - `rev`
 - `space`
 - `spaceType`
-- optional `config`
 
 ### `identity`
 
@@ -333,39 +324,40 @@ Fields:
 - optional `active`
 - optional `status`
 
-### `permission`
-
-Emitted when org-level permissions or app authorization changes may affect
-what a syncing app can observe.
-
-For v1, permission events are advisory. If a token loses authority, the next
-API call or stream reconnect will fail authorization. `cmd/spacetap` should
-react by refreshing tokens and revalidating its configured space types.
-
 ## Server-side Storage
 
-Pear needs append-only logs in addition to live state. The existing
-`internal/spaces` implementation already has `space` and `spaceRecord`; this
-spec adds durable oplogs and stream sequence state.
+Pear needs current-state rows that can answer "what changed since rev X" plus
+a flattened effective-member log. The existing `internal/spaces`
+implementation already has `space` and `spaceRecord`; this spec changes their
+sync semantics rather than requiring a full record operation log.
 
-### `spaceRecordOp`
+### `spaceRecord`
 
 ```text
-spaceRecordOp(
+spaceRecord(
   space      SpaceURI      PK
-  rev        TID           PK
-  idx        int           PK
-  action     string
   owner      DID
   collection NSID
   rkey       RecordKey
+  rev        TID
   value      jsonb?
+  deleted    bool
   createdAt  time
+  updatedAt  time
 )
 ```
 
-Each write to `spaceRecord` also appends one or more `spaceRecordOp` rows in
-the same transaction. Batch writes share a `rev` and use `idx` for ordering.
+`spaceRecord` is the latest materialized state for each record key. A delete
+does not remove the row; it writes a new `rev`, sets `deleted = true`, and
+stores an empty/null `value`. These delete tombstones make incremental sync
+possible without a separate record-op table.
+
+Multiple updates between two client cursors collapse to the latest row. That
+is intentional. The sync contract is current-state convergence, not exact
+write-history replay.
+
+`listRecords` excludes deleted rows. `listRecordChanges(since)` includes both
+live rows and delete tombstones whose `rev > since`.
 
 ### `spaceMemberOp`
 
@@ -381,30 +373,77 @@ spaceMemberOp(
 )
 ```
 
-Each successful FGA membership/access mutation appends a row.
+Each effective membership/access change appends a row. This is the durable
+interface clients consume for permissions, even when the underlying cause is a
+future complex FGA relationship rather than direct `AddMember` or
+`RemoveMember`.
 
-### `spaceStreamEvent`
+### `spaceEffectiveMember`
 
 ```text
-spaceStreamEvent(
-  seq        integer       PK
-  space      SpaceURI?
-  spaceType  NSID?
-  type       string
-  payload    jsonb
+spaceEffectiveMember(
+  space      SpaceURI      PK
+  did        DID           PK
+  access     string
+  rev        TID
   createdAt  time
+  updatedAt  time
 )
 ```
 
-This table powers WebSocket resumption. It can be compacted independently of
-the per-space oplogs. If stream history is compacted, clients use oplog
-backfill from their per-resource cursors.
+This table is a materialized projection of flattened space access. It is not
+the source of truth for permissions. The source of truth is direct membership
+writes in v1, and future permission relationship records plus OpenFGA
+evaluation.
+
+After any permission-relevant write, Pear recomputes the affected flattened
+member set, diffs it against `spaceEffectiveMember`, updates the projection,
+and appends `spaceMemberOp` rows for the resolved `add`, `remove`, or
+`update` events. If an FGA relationship makes a user a reader through another
+space, clients still receive a normal `space_member add`. If that inherited
+access disappears, clients receive a normal `space_member remove`.
+
+The projection can be rebuilt from permission records and OpenFGA if needed.
+It exists to make sync stable and efficient, not to duplicate the permission
+model.
+
+### `space`
+
+```text
+space(
+  owner      DID           PK
+  type       NSID          PK
+  skey       SpaceKey      PK
+  rev        TID
+  deleted    bool
+  createdAt  time
+  updatedAt  time
+)
+```
+
+Space deletion should be represented as a tombstone row rather than removing
+the row immediately, so `listSpaces(since)` and stream recovery can surface
+space deletes.
+
+### Live fanout without `spaceStreamEvent`
+
+Pear does not need a separate `spaceStreamEvent` table in v1. The WebSocket
+server can:
+
+1. catch up from a cursor by querying `space`, `spaceRecord`, and
+   `spaceMemberOp` rows with `rev > cursor`;
+2. merge the result by `(rev, event-kind, stable key)`;
+3. send those events to the client; and
+4. switch to in-memory live fanout for new mutations.
+
+This avoids storing the same event twice. Durable recovery comes from the
+underlying syncable tables.
 
 ### Retention
 
-V1 can keep oplogs unbounded while the feature is young. The API still needs
-`CursorTooOld` semantics from the start so clients implement resync correctly
-before retention policies are introduced.
+V1 can keep record tombstones and member ops unbounded while the feature is
+young. The API still needs `CursorTooOld` semantics from the start so clients
+implement resync correctly before retention policies are introduced.
 
 ## `cmd/spacetap`
 
@@ -418,7 +457,7 @@ public repo firehose consumption.
 2. Discover in-scope spaces with `listSpaces`.
 3. Backfill each space with `getSpaceState`, `listRecords`, and member state.
 4. Subscribe to `subscribeSpaces` for live events.
-5. Persist stream cursor and per-space/per-repo cursors.
+5. Persist the global sync cursor and per-space/per-repo cursors.
 6. Detect gaps or stale cursors and run resync workers.
 7. Deliver normalized events to downstream app consumers.
 
@@ -429,7 +468,7 @@ Support SQLite by default and Postgres for production.
 Core tables:
 
 - `space_state`: `org`, `space`, `spaceType`, `state`, `spaceRev`,
-  `memberRev`, `lastSeq`, timestamps.
+  `memberRev`, `lastRev`, timestamps.
 - `repo_state`: `space`, `repo`, `rev`, `state`, timestamps.
 - `record_state`: `space`, `repo`, `collection`, `rkey`, `rev`, `record`.
 - `member_state`: `space`, `did`, `access`, `rev`.
@@ -467,7 +506,7 @@ Event format should stay close to Tap but include space context:
     "rev": "3l...",
     "collection": "network.habitat.calendar.event",
     "rkey": "3l...",
-    "action": "create",
+    "action": "upsert",
     "record": {}
   }
 }
@@ -478,7 +517,6 @@ Additional event payloads:
 - `member`
 - `space`
 - `identity`
-- `permission`
 
 ### Configuration
 
@@ -523,7 +561,7 @@ not need dynamic space addition because Pear is the source of truth and
 3. For each space, call `getSpaceState`.
 4. Backfill members and records.
 5. Mark each repo and space `active`.
-6. Start `subscribeSpaces` from the newest available stream cursor.
+6. Start `subscribeSpaces` from the newest available sync cursor.
 
 If live events arrive while a space is still backfilling, `spacetap` queues
 them by space and applies them after backfill reaches the relevant rev.
@@ -532,7 +570,7 @@ them by space and applies them after backfill reaches the relevant rev.
 
 For each stream event:
 
-1. Persist raw event and stream `seq`.
+1. Persist raw event and sync `rev`.
 2. Check the event is still in configured `spaceTypes` and collection filters.
 3. Apply the event idempotently to local state.
 4. Enqueue the app-facing event in the outbox.
@@ -540,14 +578,14 @@ For each stream event:
 
 ### Stream reconnect
 
-On reconnect, `spacetap` passes the last processed `seq`.
+On reconnect, `spacetap` passes the last processed sync `rev`.
 
 - If Pear resumes successfully, processing continues.
-- If Pear reports the stream cursor is too old, `spacetap` calls
-  `listSpaces` and `getSpaceState`, then replays per-space oplogs from its
-  stored revs.
-- If any per-space oplog returns `CursorTooOld`, `spacetap` full-resyncs that
-  space.
+- If Pear reports the cursor is too old, `spacetap` calls `listSpaces` and
+  `getSpaceState`, then replays per-space record changes and member ops from
+  its stored revs.
+- If any per-space change endpoint returns `CursorTooOld`, `spacetap`
+  full-resyncs that space.
 
 ### Periodic reconciliation
 
@@ -559,7 +597,7 @@ implementation bugs. A five-minute default interval is reasonable for v1.
 
 Pear guarantees:
 
-- `seq` increases for every stream event in one org.
+- sync `rev` increases for every sync-visible mutation in one org.
 - Per-resource `rev` increases for writes to the same record repo or member
   list.
 - Stream delivery is at least once across reconnects when the cursor remains
@@ -587,14 +625,14 @@ Pear errors:
 
 - `Unauthorized`: missing or invalid OAuth token.
 - `Forbidden`: token lacks required `org:<space-type>` scope.
-- `CursorTooOld`: requested stream/oplog cursor is older than retention.
+- `CursorTooOld`: requested stream/change cursor is older than retention.
 - `SpaceNotFound`: requested space does not exist or is not visible.
 - `RateLimited`: caller exceeded server policy.
 
 `spacetap` behavior:
 
 - `Unauthorized`: refresh token if possible; otherwise enter `error`.
-- `Forbidden`: stop syncing affected space types and surface config/token
+- `Forbidden`: stop syncing affected space types and surface token/scope
   error.
 - `CursorTooOld`: resync affected scope.
 - transient network errors: reconnect with exponential backoff.
@@ -603,20 +641,21 @@ Pear errors:
 
 ## Implementation Notes
 
-- Existing `internal/spaces.GetRepoOplog` currently reads from live records,
-  which cannot represent deletes. It must be retargeted to an append-only
-  oplog before it is suitable for sync.
-- Existing member state lives in FGA. Sync needs an append-only member oplog
-  because FGA alone cannot answer "what changed since rev X?"
+- Existing `internal/spaces.GetRepoOplog` should become a changed-record query
+  over `spaceRecord` rows, including delete tombstones. It should not require
+  replaying every intermediate update.
+- Existing member state lives in FGA. Sync needs a flattened member projection
+  plus member delta log because FGA alone cannot answer "what resolved access
+  changed since rev X?"
 - `PutRecord`, `DeleteRecord`, `AddMember`, `RemoveMember`, `CreateSpace`,
-  and `DeleteSpace` should write live state, oplog rows, and stream events in
-  one database transaction where possible.
-- If FGA writes cannot share the SQL transaction, append the member oplog only
-  after the FGA mutation succeeds. The implementation should make repeated
-  operations idempotent.
-- The stream event table is an implementation detail; Pear may also publish
-  directly from an in-process event manager, but durable sequence replay
-  requires persisted events or equivalent state.
+  and `DeleteSpace` should update syncable rows and notify the in-memory
+  stream fanout in one database transaction where possible.
+- If FGA writes cannot share the SQL transaction, append flattened member ops
+  only after the FGA mutation succeeds and the effective-member diff is
+  calculated. The implementation should make repeated operations idempotent.
+- Future complex permission relationships should be represented as space
+  records. The sync-facing permission surface remains flattened
+  `space_member` events.
 
 ## Testing
 
@@ -625,10 +664,14 @@ Pear tests:
 - OAuth tokens with `org:<space-type>` can subscribe only to that space type.
 - `org:*` can subscribe to multiple space types.
 - collection filters narrow records but cannot bypass space-type scope checks.
-- record create/update/delete all produce oplog rows and stream events.
-- member add/remove/access update all produce oplog rows and stream events.
-- stream resume from `cursor` returns only later events.
-- old stream/oplog cursor returns `CursorTooOld`.
+- record create/update/delete all update `spaceRecord` rows and emit stream
+  events, with deletes represented as empty-value tombstones.
+- member add/remove/access update all produce flattened member ops and stream
+  events.
+- inherited/FGA-derived permission changes produce the same flattened
+  add/remove/update member events as direct membership changes.
+- stream resume from `cursor` returns only later changed rows/member ops.
+- old stream/change cursor returns `CursorTooOld`.
 - `listRecords` full resync reconstructs current state after deletes.
 
 `spacetap` tests:
@@ -636,8 +679,8 @@ Pear tests:
 - initial backfill stores spaces, members, records, and cursors.
 - live events update local state and outbox.
 - duplicate events are idempotent.
-- stream cursor loss triggers oplog replay.
-- oplog `CursorTooOld` triggers full space resync.
+- stream cursor loss triggers changed-row/member-op replay.
+- change cursor `CursorTooOld` triggers full space resync.
 - WebSocket ack mode retries unacked events.
 - webhook mode retries non-2xx responses.
 - fire-and-forget mode does not block on acks.
@@ -646,10 +689,10 @@ Pear tests:
 
 - Lexicon naming can change during implementation, but the v1 API must keep
   the conceptual split from this spec: live stream, space discovery, state,
-  record backfill, record oplog, and member oplog.
-- `permission` events are live-stream only in v1. Pear authorization remains
-  authoritative on every request and reconnect, so a separate permission
-  backfill endpoint is not required for initial implementation.
+  record backfill, changed-record replay, and member-op replay.
+- Space config sync is out of scope for v1.
+- Permission relationship records may evolve, but clients receive only the
+  flattened `space_member` sync contract.
 - Stream encoding is JSON in v1. CBOR is explicitly deferred until measured
   event volume or frame size makes JSON a problem.
 

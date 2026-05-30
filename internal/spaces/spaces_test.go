@@ -308,7 +308,7 @@ func TestPutAndGetRecord(t *testing.T) {
 	coll := syntax.NSID("network.habitat.note")
 	val := map[string]any{"text": "hello world"}
 
-	err = s.PutRecord(t.Context(), uri, owner, coll, "my-rkey", val)
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "my-rkey", val)
 	require.NoError(t, err)
 
 	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "my-rkey")
@@ -325,10 +325,10 @@ func TestPutRecord_UpdateExisting(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 1})
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 1})
 	require.NoError(t, err)
 
-	err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 2})
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"v": 2})
 	require.NoError(t, err)
 
 	rec, err := s.GetRecord(t.Context(), uri, owner, coll, "rkey")
@@ -356,9 +356,12 @@ func TestListRecords(t *testing.T) {
 	collA := syntax.NSID("network.habitat.alpha")
 	collB := syntax.NSID("network.habitat.beta")
 
-	require.NoError(t, s.PutRecord(t.Context(), uri, owner, collA, "k1", map[string]any{"x": 1}))
-	require.NoError(t, s.PutRecord(t.Context(), uri, owner, collA, "k2", map[string]any{"x": 2}))
-	require.NoError(t, s.PutRecord(t.Context(), uri, owner, collB, "k1", map[string]any{"x": 3}))
+	_, err = s.PutRecord(t.Context(), uri, owner, collA, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, err = s.PutRecord(t.Context(), uri, owner, collA, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+	_, err = s.PutRecord(t.Context(), uri, owner, collB, "k1", map[string]any{"x": 3})
+	require.NoError(t, err)
 
 	// All records
 	records, err := s.ListRecords(t.Context(), uri, owner, nil)
@@ -381,10 +384,10 @@ func TestDeleteRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	err = s.DeleteRecord(t.Context(), uri, coll, "rkey")
+	_, err = s.DeleteRecord(t.Context(), uri, coll, "rkey")
 	require.NoError(t, err)
 
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "rkey")
@@ -398,7 +401,7 @@ func TestDeleteRecord_Nonexistent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deleting a nonexistent record should not error
-	err = s.DeleteRecord(t.Context(), uri, syntax.NSID("network.habitat.note"), "nonexistent")
+	_, err = s.DeleteRecord(t.Context(), uri, syntax.NSID("network.habitat.note"), "nonexistent")
 	require.NoError(t, err)
 }
 
@@ -440,8 +443,10 @@ func TestDeleteSpace(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	require.NoError(t, s.PutRecord(t.Context(), uri, owner, coll, "r1", map[string]any{"x": 1}))
-	require.NoError(t, s.PutRecord(t.Context(), uri, owner, coll, "r2", map[string]any{"x": 2}))
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "r1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "r2", map[string]any{"x": 2})
+	require.NoError(t, err)
 	require.NoError(t, s.AddMember(t.Context(), uri, alice, SpaceAccessRead))
 
 	err = s.DeleteSpace(t.Context(), uri)
@@ -472,11 +477,11 @@ func TestGetRepoOplog(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
+	_, err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
-	err = s.PutRecord(t.Context(), uri, owner, coll, "k3", map[string]any{"x": 3})
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "k3", map[string]any{"x": 3})
 	require.NoError(t, err)
 
 	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 1)
@@ -515,7 +520,7 @@ func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
 	require.NoError(t, err)
 
 	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)

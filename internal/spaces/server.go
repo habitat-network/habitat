@@ -389,7 +389,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.PutRecord(r.Context(), spaceURI, callerDID, collection, rkey, value)
+	_, err = s.store.PutRecord(r.Context(), spaceURI, callerDID, collection, rkey, value)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -657,7 +657,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
+	_, err = s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "delete record", http.StatusInternalServerError)
 		return

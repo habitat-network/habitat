@@ -35,6 +35,7 @@ type spaceRecord struct {
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
 	Rev        syntax.TID `gorm:"uniqueIndex"`
+	Deleted    bool       `gorm:"default:false"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -118,7 +119,7 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 		value map[string]any,
-	) error
+	) (syntax.TID, error)
 	GetRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -137,7 +138,7 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		collection syntax.NSID,
 		rkey string,
-	) error
+	) (syntax.TID, error)
 	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
 
 	// Oplog operations
@@ -484,20 +485,20 @@ func (s *store) PutRecord(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 	value map[string]any,
-) error {
+) (syntax.TID, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
+		return "", ErrSpaceNotFound
 	} else if err != nil {
-		return err
+		return "", err
 	}
 
 	bytes, err := json.Marshal(value)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	tid := s.clock.Next()
@@ -505,7 +506,7 @@ func (s *store) PutRecord(
 		rkey = syntax.RecordKey(tid)
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		rec := spaceRecord{
 			Owner:      owner,
 			Space:      uri,
@@ -513,6 +514,7 @@ func (s *store) PutRecord(
 			Rkey:       rkey,
 			Value:      bytes,
 			Rev:        tid,
+			Deleted:    false,
 		}
 
 		if err := tx.
@@ -526,6 +528,10 @@ func (s *store) PutRecord(
 			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
 			Update("rev", tid).Error
 	})
+	if err != nil {
+		return "", err
+	}
+	return tid, nil
 }
 
 func (s *store) GetRecord(
@@ -537,8 +543,8 @@ func (s *store) GetRecord(
 ) (*Record, error) {
 	var row spaceRecord
 	err := s.db.WithContext(ctx).
-		Where("space = ? AND owner = ? AND collection = ? AND rkey = ?",
-			uri, owner, collection, rkey).
+		Where("space = ? AND owner = ? AND collection = ? AND rkey = ? AND deleted = ?",
+			uri, owner, collection, rkey, false).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
@@ -568,7 +574,8 @@ func (s *store) ListRecords(
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
 		Where("space = ?", uri).
-		Where("owner = ?", repo)
+		Where("owner = ?", repo).
+		Where("deleted = ?", false)
 
 	if collection != nil {
 		query = query.Where("collection = ?", collection)
@@ -643,6 +650,9 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	})
 }
 
+// GetRepoOplog returns records ordered by rev for incremental sync.
+// It intentionally includes deleted (tombstone) rows so sync clients can
+// detect and replay deletions.
 func (s *store) GetRepoOplog(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
@@ -690,14 +700,29 @@ func (s *store) DeleteRecord(
 	uri habitat_syntax.SpaceURI,
 	collection syntax.NSID,
 	rkey string,
-) error {
-	result := s.db.WithContext(ctx).
-		Where("space = ? AND collection = ? AND rkey = ?",
-			uri, collection, rkey).
-		Delete(&spaceRecord{})
+) (syntax.TID, error) {
+	tid := s.clock.Next()
 
-	if result.Error != nil {
-		return result.Error
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.
+			Model(&spaceRecord{}).
+			Where("space = ? AND collection = ? AND rkey = ?", uri, collection, rkey).
+			Updates(map[string]any{
+				"deleted":    true,
+				"rev":        tid,
+				"value":      nil,
+				"updated_at": time.Now(),
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.
+			Model(&space{}).
+			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+			Update("rev", tid).Error
+	})
+	if err != nil {
+		return "", err
 	}
-	return nil
+	return tid, nil
 }
