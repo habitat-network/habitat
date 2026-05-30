@@ -56,6 +56,7 @@ func (f *Fanout) Publish(ctx context.Context, event Event) error {
 		default:
 			log.Ctx(ctx).Warn().
 				Str("event_type", string(event.Type)).
+				Str("rev", event.Rev).
 				Int64("seq", event.Seq).
 				Msg("dropping event for slow subscriber")
 		}
