@@ -26,6 +26,7 @@ type space struct {
 	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
 	CreatedAt time.Time
 	Rev       syntax.TID `gorm:"uniqueIndex"`
+	Deleted   bool       `gorm:"default:false"`
 }
 
 type spaceRecord struct {
@@ -40,12 +41,65 @@ type spaceRecord struct {
 	UpdatedAt  time.Time
 }
 
+type spaceMemberOp struct {
+	Space     string    `gorm:"primaryKey"`
+	Rev       string    `gorm:"primaryKey"`
+	Idx       int       `gorm:"primaryKey"`
+	Action    string    `gorm:"size:16"`
+	DID       string    `gorm:"size:256"`
+	Access    *string   `gorm:"size:16"`
+	CreatedAt time.Time
+}
+
+type spaceEffectiveMember struct {
+	Space     string `gorm:"primaryKey"`
+	DID       string `gorm:"primaryKey;size:256"`
+	Access    string `gorm:"size:16"`
+	Rev       string
+	UpdatedAt time.Time
+}
+
 // SpaceView is the public representation of a space
 type SpaceView struct {
 	URI         habitat_syntax.SpaceURI
 	Type        syntax.NSID
 	Skey        habitat_syntax.SpaceKey
 	MemberCount int
+}
+
+// MemberOp is a single member operation in the oplog
+type MemberOp struct {
+	Space  string
+	Rev    string
+	Idx    int
+	Action string
+	DID    string
+	Access *string
+}
+
+// RecordChange is a single record change for syncing
+type RecordChange struct {
+	Space      string
+	Rev        string
+	Action     string
+	Collection string
+	Rkey       string
+	Value      *map[string]any
+}
+
+// SpaceState is the current state of a space for sync
+type SpaceState struct {
+	Space     string
+	SpaceType string
+	SpaceRev  string
+	MemberRev string
+	Repos     []SpaceRepoState
+}
+
+// SpaceRepoState is the state of a single repo within a space
+type SpaceRepoState struct {
+	DID string
+	Rev string
 }
 
 // MemberInfo holds a member's DID and when they were added
@@ -106,8 +160,8 @@ type Store interface {
 		space habitat_syntax.SpaceURI,
 		did syntax.DID,
 		access SpaceAccess,
-	) error
-	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
+	) (string, error)
+	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) (string, error)
 	GetMembers(ctx context.Context, space habitat_syntax.SpaceURI) ([]MemberInfo, error)
 	IsMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) (bool, error)
 
@@ -139,7 +193,7 @@ type Store interface {
 		collection syntax.NSID,
 		rkey string,
 	) (syntax.TID, error)
-	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
+	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (syntax.TID, error)
 
 	// Oplog operations
 	GetRepoOplog(
@@ -149,6 +203,20 @@ type Store interface {
 		since string,
 		limit int,
 	) ([]Record, error)
+	ListRecordChanges(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo string,
+		since string,
+		limit int,
+	) ([]RecordChange, error)
+	GetMemberOplog(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		since string,
+		limit int,
+	) ([]MemberOp, error)
+	GetSpaceState(ctx context.Context, space habitat_syntax.SpaceURI) (*SpaceState, error)
 }
 
 var (
@@ -171,7 +239,7 @@ type store struct {
 var _ Store = &store{}
 
 func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
+	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceMemberOp{}, &spaceEffectiveMember{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0)}, nil
@@ -186,6 +254,109 @@ func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
 		Relation: fgastore.RelationSpaceOwner,
 		Object:   fgastore.SpaceObjectKey(uri),
 	}
+}
+
+func (s *store) latestMemberRev(ctx context.Context, uri habitat_syntax.SpaceURI) (string, error) {
+	var rev struct {
+		Rev string
+	}
+	err := s.db.WithContext(ctx).
+		Model(&spaceMemberOp{}).
+		Select("rev").
+		Where("space = ?", uri.String()).
+		Order("rev DESC").
+		Limit(1).
+		Scan(&rev).Error
+	if err != nil {
+		return "", err
+	}
+	return rev.Rev, nil
+}
+
+func (s *store) reconcileEffectiveMembers(ctx context.Context, uri habitat_syntax.SpaceURI, rev string) error {
+	members, err := s.GetMembers(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("get members: %w", err)
+	}
+
+	var current []spaceEffectiveMember
+	if err := s.db.WithContext(ctx).
+		Where("space = ?", uri.String()).
+		Find(&current).Error; err != nil {
+		return fmt.Errorf("read current: %w", err)
+	}
+
+	currentMap := make(map[string]string)
+	for _, m := range current {
+		currentMap[m.DID] = m.Access
+	}
+
+	newMap := make(map[string]string)
+	for _, m := range members {
+		newMap[string(m.Did)] = string(m.Access)
+	}
+
+	tx := s.db.WithContext(ctx).Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	idx := 0
+	for did, access := range newMap {
+		if currentMap[did] != access {
+			a := access
+			if err := tx.Create(&spaceMemberOp{
+				Space:  uri.String(),
+				Rev:    rev,
+				Idx:    idx,
+				Action: "add",
+				DID:    did,
+				Access: &a,
+			}).Error; err != nil {
+				tx.Rollback()
+				return fmt.Errorf("insert memberop: %w", err)
+			}
+			idx++
+		}
+	}
+
+	for did := range currentMap {
+		if _, exists := newMap[did]; !exists {
+			if err := tx.Create(&spaceMemberOp{
+				Space:  uri.String(),
+				Rev:    rev,
+				Idx:    idx,
+				Action: "remove",
+				DID:    did,
+			}).Error; err != nil {
+				tx.Rollback()
+				return fmt.Errorf("insert memberop remove: %w", err)
+			}
+			idx++
+		}
+	}
+
+	if err := tx.Where("space = ?", uri.String()).Delete(&spaceEffectiveMember{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("clear effective: %w", err)
+	}
+
+	for _, m := range members {
+		access := string(m.Access)
+		if err := tx.Create(&spaceEffectiveMember{
+			Space:  uri.String(),
+			DID:    string(m.Did),
+			Access: access,
+			Rev:    rev,
+		}).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("insert effective: %w", err)
+		}
+	}
+
+	return tx.Commit().Error
 }
 
 func (s *store) CreateSpace(
@@ -232,7 +403,7 @@ func (s *store) ListSpaces(
 ) ([]SpaceView, error) {
 	var allRows []space
 	// start with owned spaces
-	ownedRowsQuery := s.db.WithContext(ctx).Model(&space{}).Where("owner = ?", member)
+	ownedRowsQuery := s.db.WithContext(ctx).Model(&space{}).Where("owner = ? AND deleted = ?", member, false)
 	if filterOwner != nil {
 		ownedRowsQuery = ownedRowsQuery.Where("owner = ?", *filterOwner)
 	}
@@ -261,7 +432,7 @@ func (s *store) ListSpaces(
 			}
 			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
 		}
-		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
+		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions).Where("deleted = ?", false)
 		if filterOwner != nil {
 			query = query.Where("owner = ?", *filterOwner)
 		}
@@ -309,7 +480,7 @@ func (s *store) GetMembers(
 ) ([]MemberInfo, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ? AND skey = ? AND deleted = ?", uri.SpaceDID(), uri.Skey(), false).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrSpaceNotFound
@@ -376,21 +547,21 @@ func (s *store) AddMember(
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 	access SpaceAccess,
-) error {
+) (string, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ? AND skey = ? AND deleted = ?", uri.SpaceDID(), uri.Skey(), false).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
+		return "", ErrSpaceNotFound
 	} else if err != nil {
-		return err
+		return "", err
 	}
 	if did == uri.SpaceDID() {
-		return nil
+		return "", nil
 	}
 	if access == SpaceAccessRead {
-		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+		if err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 			Writes: &openfgav1.WriteRequestWrites{
 				TupleKeys: []*openfgav1.TupleKey{
 					tuple.NewTupleKey(
@@ -411,9 +582,11 @@ func (s *store) AddMember(
 				},
 				OnMissing: "ignore",
 			},
-		})
+		}); err != nil {
+			return "", err
+		}
 	} else {
-		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+		if err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 			Writes: &openfgav1.WriteRequestWrites{
 				TupleKeys: []*openfgav1.TupleKey{
 					tuple.NewTupleKey(
@@ -434,30 +607,38 @@ func (s *store) AddMember(
 				},
 				OnMissing: "ignore",
 			},
-		})
+		}); err != nil {
+			return "", err
+		}
 	}
+
+	rev := s.clock.Next().String()
+	if err := s.reconcileEffectiveMembers(ctx, uri, rev); err != nil {
+		return "", fmt.Errorf("reconcile effective members: %w", err)
+	}
+	return rev, nil
 }
 
 func (s *store) RemoveMember(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
-) error {
+) (string, error) {
 	if did == uri.SpaceDID() {
-		return ErrCannotRemoveOwner
+		return "", ErrCannotRemoveOwner
 	}
 
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ? AND skey = ? AND deleted = ?", uri.SpaceDID(), uri.Skey(), false).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
+		return "", ErrSpaceNotFound
 	} else if err != nil {
-		return err
+		return "", err
 	}
 
-	return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+	if err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
 		Deletes: &openfgav1.WriteRequestDeletes{
 			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
 				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
@@ -473,7 +654,15 @@ func (s *store) RemoveMember(
 			},
 			OnMissing: "ignore",
 		},
-	})
+	}); err != nil {
+		return "", err
+	}
+
+	rev := s.clock.Next().String()
+	if err := s.reconcileEffectiveMembers(ctx, uri, rev); err != nil {
+		return "", fmt.Errorf("reconcile effective members: %w", err)
+	}
+	return rev, nil
 }
 
 // ---- Record operations ----
@@ -488,7 +677,7 @@ func (s *store) PutRecord(
 ) (syntax.TID, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ? AND skey = ? AND deleted = ?", uri.SpaceDID(), uri.Skey(), false).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", ErrSpaceNotFound
@@ -605,29 +794,40 @@ func (s *store) ListRecords(
 	return records, nil
 }
 
-func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error {
+func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) (syntax.TID, error) {
 	// read the stored FGA tuples for this space before deleting anything,
 	// so we know exactly what tuples to delete
 	tuples, err := s.fga.Read(ctx, fgastore.Tuple{Object: fgastore.SpaceObjectKey(uri)})
 	if err != nil {
-		return err
+		return "", err
 	}
 
+	rev := s.clock.Next()
+
 	// everything after this point is idempotent — use a transaction
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		deleteSpace := tx.
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.
+			Model(&space{}).
 			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-			Delete(&space{})
-		if deleteSpace.Error != nil {
-			return err
+			Updates(map[string]any{
+				"deleted": true,
+				"rev":     rev,
+			})
+		if result.Error != nil {
+			return result.Error
 		}
-		if deleteSpace.RowsAffected == 0 {
+		if result.RowsAffected == 0 {
 			return ErrSpaceNotFound
 		}
 
 		if err := tx.
+			Model(&spaceRecord{}).
 			Where("space = ?", uri).
-			Delete(&spaceRecord{}).Error; err != nil {
+			Updates(map[string]any{
+				"deleted":    true,
+				"value":      nil,
+				"updated_at": time.Now(),
+			}).Error; err != nil {
 			return err
 		}
 
@@ -648,6 +848,10 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		}
 		return nil
 	})
+	if err != nil {
+		return "", err
+	}
+	return rev, nil
 }
 
 // GetRepoOplog returns records ordered by rev for incremental sync.
@@ -693,6 +897,146 @@ func (s *store) GetRepoOplog(
 		}
 	}
 	return records, nil
+}
+
+func (s *store) ListRecordChanges(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo string,
+	since string,
+	limit int,
+) ([]RecordChange, error) {
+	query := s.db.WithContext(ctx).
+		Model(&spaceRecord{}).
+		Where("space = ?", uri.String())
+
+	if repo != "" {
+		query = query.Where("owner = ?", repo)
+	}
+
+	if since != "" {
+		query = query.Where("rev > ?", since)
+	}
+
+	if limit <= 0 {
+		limit = 100
+	}
+
+	var rows []spaceRecord
+	if err := query.Order("rev ASC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list record changes: %w", err)
+	}
+
+	changes := make([]RecordChange, len(rows))
+	for i, row := range rows {
+		ch := RecordChange{
+			Space:      row.Space.String(),
+			Rev:        row.Rev.String(),
+			Collection: row.Collection.String(),
+			Rkey:       row.Rkey.String(),
+		}
+		if row.Deleted {
+			ch.Action = "delete"
+		} else {
+			ch.Action = "upsert"
+			var value map[string]any
+			if err := json.Unmarshal(row.Value, &value); err != nil {
+				return nil, err
+			}
+			ch.Value = &value
+		}
+		changes[i] = ch
+	}
+	return changes, nil
+}
+
+func (s *store) GetMemberOplog(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	since string,
+	limit int,
+) ([]MemberOp, error) {
+	query := s.db.WithContext(ctx).
+		Model(&spaceMemberOp{}).
+		Where("space = ?", uri.String())
+
+	if since != "" {
+		query = query.Where("rev > ?", since)
+	}
+
+	if limit <= 0 {
+		limit = 100
+	}
+
+	var rows []spaceMemberOp
+	if err := query.Order("rev ASC, idx ASC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("get member oplog: %w", err)
+	}
+
+	ops := make([]MemberOp, len(rows))
+	for i, row := range rows {
+		op := MemberOp{
+			Space:  row.Space,
+			Rev:    row.Rev,
+			Idx:    row.Idx,
+			Action: row.Action,
+			DID:    row.DID,
+		}
+		if row.Access != nil {
+			a := *row.Access
+			op.Access = &a
+		}
+		ops[i] = op
+	}
+	return ops, nil
+}
+
+func (s *store) GetSpaceState(ctx context.Context, uri habitat_syntax.SpaceURI) (*SpaceState, error) {
+	var sp space
+	err := s.db.WithContext(ctx).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		First(&sp).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	if sp.Deleted {
+		return nil, nil
+	}
+
+	memberRev, err := s.latestMemberRev(ctx, uri)
+	if err != nil {
+		return nil, err
+	}
+
+	var repoRows []SpaceRepoState
+	rows, err := s.db.WithContext(ctx).
+		Raw("SELECT owner AS did, MAX(rev) AS rev FROM space_records WHERE space = ? GROUP BY owner", uri.String()).
+		Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var did string
+		var rev string
+		if err := rows.Scan(&did, &rev); err != nil {
+			return nil, err
+		}
+		repoRows = append(repoRows, SpaceRepoState{DID: did, Rev: rev})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &SpaceState{
+		Space:     uri.String(),
+		SpaceType: sp.Type.String(),
+		SpaceRev:  sp.Rev.String(),
+		MemberRev: memberRev,
+		Repos:     repoRows,
+	}, nil
 }
 
 func (s *store) DeleteRecord(

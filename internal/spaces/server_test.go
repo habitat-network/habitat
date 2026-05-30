@@ -125,7 +125,7 @@ func TestServer_RemoveMember(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "shared")
 	require.NoError(t, err)
 
-	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
@@ -348,7 +348,7 @@ func TestServer_DeleteSpace(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "to-delete")
 	require.NoError(t, err)
 
-	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `"}`

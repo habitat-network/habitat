@@ -80,7 +80,7 @@ func TestListSpaces(t *testing.T) {
 	spaceUri2, err := s.CreateSpace(t.Context(), alice, groupType, "space2")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), spaceUri2, owner, SpaceAccessRead)
+	_, err = s.AddMember(t.Context(), spaceUri2, owner, SpaceAccessRead)
 	require.NoError(t, err)
 
 	// Owner should see both
@@ -133,7 +133,7 @@ func TestGetMembers_WithAddedMembers(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	members, err := s.GetMembers(t.Context(), uri)
@@ -153,7 +153,7 @@ func TestGetMembers_WithCanWrite(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessWrite)
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessWrite)
 	require.NoError(t, err)
 
 	members, err := s.GetMembers(t.Context(), uri)
@@ -215,7 +215,7 @@ func TestIsMember_FGAMember(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	isMember, err := s.IsMember(t.Context(), uri, alice)
@@ -229,10 +229,10 @@ func TestAddMember_DuplicateIsIdempotent(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 }
 
@@ -242,7 +242,7 @@ func TestAddMember_OwnerIsAlwaysMember(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, owner, SpaceAccessRead)
+	_, err = s.AddMember(t.Context(), uri, owner, SpaceAccessRead)
 	require.NoError(t, err)
 }
 
@@ -250,7 +250,7 @@ func TestAddMember_SpaceNotFound(t *testing.T) {
 	s := newTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	err := s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err := s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
 
@@ -260,10 +260,10 @@ func TestRemoveMember(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
-	err = s.RemoveMember(t.Context(), uri, alice)
+	_, err = s.RemoveMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 
 	isMember, err := s.IsMember(t.Context(), uri, alice)
@@ -277,7 +277,7 @@ func TestRemoveMember_NotAMember(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.RemoveMember(t.Context(), uri, alice)
+	_, err = s.RemoveMember(t.Context(), uri, alice)
 	require.NoError(t, err)
 }
 
@@ -287,7 +287,7 @@ func TestRemoveMember_CannotRemoveOwner(t *testing.T) {
 	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.RemoveMember(t.Context(), uri, owner)
+	_, err = s.RemoveMember(t.Context(), uri, owner)
 	require.ErrorIs(t, err, ErrCannotRemoveOwner)
 }
 
@@ -295,7 +295,7 @@ func TestRemoveMember_NonExistentSpace(t *testing.T) {
 	s := newTestStore(t)
 
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	err := s.RemoveMember(t.Context(), uri, alice)
+	_, err := s.RemoveMember(t.Context(), uri, alice)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
 
@@ -447,16 +447,18 @@ func TestDeleteSpace(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.PutRecord(t.Context(), uri, owner, coll, "r2", map[string]any{"x": 2})
 	require.NoError(t, err)
-	require.NoError(t, s.AddMember(t.Context(), uri, alice, SpaceAccessRead))
-
-	err = s.DeleteSpace(t.Context(), uri)
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
-	// space should be gone
+	rev, err := s.DeleteSpace(t.Context(), uri)
+	require.NoError(t, err)
+	require.NotEmpty(t, rev)
+
+	// space should be unreachable
 	_, err = s.GetMembers(t.Context(), uri)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 
-	// records should be gone
+	// records should be invisible
 	records, err := s.ListRecords(t.Context(), uri, owner, nil)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
@@ -465,8 +467,55 @@ func TestDeleteSpace(t *testing.T) {
 func TestDeleteSpace_NonExistent(t *testing.T) {
 	s := newTestStore(t)
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
-	err := s.DeleteSpace(t.Context(), uri)
+	_, err := s.DeleteSpace(t.Context(), uri)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
+}
+
+func TestDeleteSpace_SoftDelete(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "soft-del")
+	require.NoError(t, err)
+
+	prevRev := ""
+	storeImpl := s.(*store)
+	var spBefore space
+	err = storeImpl.db.Model(&space{}).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		First(&spBefore).Error
+	require.NoError(t, err)
+	prevRev = spBefore.Rev.String()
+
+	rev, err := s.DeleteSpace(t.Context(), uri)
+	require.NoError(t, err)
+	require.NotEmpty(t, rev)
+
+	// Row still exists with Deleted=true
+	var sp space
+	err = storeImpl.db.Model(&space{}).
+		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		First(&sp).Error
+	require.NoError(t, err)
+	require.True(t, sp.Deleted)
+	require.NotEqual(t, prevRev, sp.Rev.String())
+}
+
+func TestListSpaces_ExcludesDeleted(t *testing.T) {
+	s := newTestStore(t)
+
+	_, err := s.CreateSpace(t.Context(), owner, groupType, "keep")
+	require.NoError(t, err)
+
+	uri2, err := s.CreateSpace(t.Context(), owner, groupType, "remove")
+	require.NoError(t, err)
+
+	_, err = s.DeleteSpace(t.Context(), uri2)
+	require.NoError(t, err)
+
+	spaces, err := s.ListSpaces(t.Context(), owner, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 1)
+	require.Contains(t, spaces[0].Skey.String(), "keep")
 }
 
 func TestGetRepoOplog(t *testing.T) {
@@ -528,4 +577,138 @@ func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
 	require.Len(t, records, 1)
 	require.Equal(t, "hello", records[0].Value["text"])
 	require.NotEmpty(t, records[0].Rev)
+}
+
+func TestListRecordChanges(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	changes, err := s.ListRecordChanges(t.Context(), uri, "", "", 100)
+	require.NoError(t, err)
+	require.Len(t, changes, 2)
+	for _, ch := range changes {
+		require.Equal(t, "upsert", ch.Action)
+		require.NotNil(t, ch.Value)
+	}
+
+	// Test since filtering
+	since := changes[0].Rev
+	changes, err = s.ListRecordChanges(t.Context(), uri, "", since, 100)
+	require.NoError(t, err)
+	require.Len(t, changes, 1)
+
+	// Test repo filtering
+	changes, err = s.ListRecordChanges(t.Context(), uri, owner.String(), "", 100)
+	require.NoError(t, err)
+	require.Len(t, changes, 2)
+
+	// Delete a record and verify "delete" action
+	_, err = s.DeleteRecord(t.Context(), uri, coll, "k1")
+	require.NoError(t, err)
+
+	changes, err = s.ListRecordChanges(t.Context(), uri, "", since, 100)
+	require.NoError(t, err)
+	require.Len(t, changes, 2)
+	foundDelete := false
+	for _, ch := range changes {
+		if ch.Action == "delete" {
+			foundDelete = true
+			require.Equal(t, "k1", ch.Rkey)
+			require.Nil(t, ch.Value)
+		}
+	}
+	require.True(t, foundDelete)
+}
+
+func TestGetMemberOplog(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	require.NoError(t, err)
+
+	ops, err := s.GetMemberOplog(t.Context(), uri, "", 100)
+	require.NoError(t, err)
+	// reconcile records both owner (from GetMembers) and alice
+	require.Len(t, ops, 2)
+	// order is non-deterministic (map iteration), check both
+	opsByDID := make(map[string]MemberOp)
+	for _, op := range ops {
+		opsByDID[op.DID] = op
+	}
+	aliceOp, ok := opsByDID[alice.String()]
+	require.True(t, ok)
+	require.Equal(t, "add", aliceOp.Action)
+	require.NotNil(t, aliceOp.Access)
+	require.Equal(t, "read", *aliceOp.Access)
+
+	// Since filtering after first add
+	since := aliceOp.Rev
+
+	// Upgrade to write
+	_, err = s.AddMember(t.Context(), uri, alice, SpaceAccessWrite)
+	require.NoError(t, err)
+
+	ops, err = s.GetMemberOplog(t.Context(), uri, since, 100)
+	require.NoError(t, err)
+	// After upgrade: owner stays same, alice goes from read->write
+	require.Len(t, ops, 1)
+	require.Equal(t, "add", ops[0].Action)
+	require.Equal(t, alice.String(), ops[0].DID)
+
+	// Remove member
+	_, err = s.RemoveMember(t.Context(), uri, alice)
+	require.NoError(t, err)
+
+	ops, err = s.GetMemberOplog(t.Context(), uri, since, 100)
+	require.NoError(t, err)
+	require.Len(t, ops, 2)
+	require.Equal(t, "remove", ops[1].Action)
+	require.Nil(t, ops[1].Access)
+}
+
+func TestGetSpaceState(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, err = s.PutRecord(t.Context(), uri, alice, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	state, err := s.GetSpaceState(t.Context(), uri)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	require.Equal(t, uri.String(), state.Space)
+	require.Equal(t, groupType.String(), state.SpaceType)
+	require.NotEmpty(t, state.SpaceRev)
+	require.Len(t, state.Repos, 2)
+
+	// Check repos are correct
+	repoDIDs := make(map[string]string)
+	for _, r := range state.Repos {
+		repoDIDs[r.DID] = r.Rev
+	}
+	require.Contains(t, repoDIDs, owner.String())
+	require.Contains(t, repoDIDs, alice.String())
+
+	// Non-existent space returns nil
+	nonexistent := habitat_syntax.ConstructSpaceURI(owner, groupType, "nonexistent")
+	state, err = s.GetSpaceState(t.Context(), nonexistent)
+	require.NoError(t, err)
+	require.Nil(t, state)
 }

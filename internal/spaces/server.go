@@ -208,7 +208,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.AddMember(r.Context(), spaceURI, memberDID, access)
+	_, err = s.store.AddMember(r.Context(), spaceURI, memberDID, access)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -267,7 +267,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.RemoveMember(r.Context(), spaceURI, memberDID)
+	_, err = s.store.RemoveMember(r.Context(), spaceURI, memberDID)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -698,7 +698,7 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.DeleteSpace(r.Context(), spaceURI)
+	_, err = s.store.DeleteSpace(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
