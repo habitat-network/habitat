@@ -3,11 +3,11 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
 
 	"github.com/habitat-network/habitat/internal/authn"
@@ -123,42 +123,87 @@ func writeError(w http.ResponseWriter, err *APIError) {
 	writeJSON(w, err.Status, map[string]interface{}{"error": err.Code, "message": err.Message})
 }
 
-// HandleSubscribeSpaces upgrades to a WebSocket and streams space events.
+// HandleSubscribeSpaces streams space events via SSE.
 func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 	did, err := s.getAuth(r)
 	if err != nil {
 		writeError(w, ErrUnauthorized)
 		return
 	}
-	_ = did
 
-	cursor := r.URL.Query().Get("cursor")
-	spaceTypes := r.URL.Query()["spaceTypes"]
-
-	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-	conn, err := upgrader.Upgrade(w, r, nil)
+	memberDID, err := syntax.ParseDID(did)
 	if err != nil {
-		log.Ctx(r.Context()).Warn().Err(err).Msg("websocket upgrade failed")
+		writeError(w, &APIError{
+			Code:    "InvalidRequest",
+			Message: "invalid DID",
+			Status:  400,
+		})
 		return
 	}
-	defer func() {
-		if err := conn.Close(); err != nil {
-			log.Warn().Err(err).Msg("websocket close error")
+
+	accessible, err := s.store.ListSpaces(r.Context(), memberDID, nil, nil)
+	if err != nil {
+		log.Ctx(r.Context()).Warn().Err(err).Msg("listSpaces for subscription failed")
+		writeError(w, &APIError{
+			Code:    "InternalError",
+			Message: "failed to list spaces",
+			Status:  500,
+		})
+		return
+	}
+	accessibleSet := make(map[string]struct{}, len(accessible))
+	for _, sp := range accessible {
+		accessibleSet[sp.Space] = struct{}{}
+	}
+
+	var cursor int64
+	if c := r.URL.Query().Get("cursor"); c != "" {
+		cursor, err = strconv.ParseInt(c, 10, 64)
+		if err != nil {
+			log.Ctx(r.Context()).Warn().Str("cursor", c).Msg("invalid cursor")
+			writeError(w, &APIError{
+				Code:    "InvalidRequest",
+				Message: "cursor must be an integer",
+				Status:  400,
+			})
+			return
 		}
-	}()
+	}
+	spaceTypes := r.URL.Query()["spaceTypes"]
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		log.Ctx(r.Context()).Warn().Msg("response writer does not support flushing")
+		writeError(w, &APIError{
+			Code:    "InternalError",
+			Message: "streaming not supported",
+			Status:  500,
+		})
+		return
+	}
 
 	ch, done := s.fanout.Subscribe(256)
 	defer s.fanout.Unsubscribe(done)
 
-	if cursor != "" {
+	if cursor > 0 {
 		ev := Event{
-			Rev:    cursor,
+			Seq:    cursor,
 			Type:   EventSpace,
 			Action: "catchup-start",
 		}
-		if err := conn.WriteJSON(ev); err != nil {
+		data, err := json.Marshal(ev)
+		if err != nil {
+			log.Ctx(r.Context()).Warn().Err(err).Msg("marshal catchup-start failed")
 			return
 		}
+		if _, err := fmt.Fprintf(w, "event: message\ndata: %s\nid: %d\n\n", data, cursor); err != nil {
+			return
+		}
+		flusher.Flush()
 	}
 
 	for {
@@ -166,6 +211,9 @@ func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case ev := <-ch:
+			if _, ok := accessibleSet[ev.Space]; !ok {
+				continue
+			}
 			if len(spaceTypes) > 0 && ev.SpaceType != "" {
 				found := false
 				for _, t := range spaceTypes {
@@ -178,10 +226,16 @@ func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 			}
-			if err := conn.WriteJSON(ev); err != nil {
-				log.Ctx(r.Context()).Warn().Err(err).Msg("websocket write failed")
+			data, err := json.Marshal(ev)
+			if err != nil {
+				log.Ctx(r.Context()).Warn().Err(err).Msg("marshal event failed")
 				return
 			}
+			if _, err := fmt.Fprintf(w, "event: message\ndata: %s\nid: %d\n\n", data, ev.Seq); err != nil {
+				log.Ctx(r.Context()).Warn().Err(err).Msg("sse write failed")
+				return
+			}
+			flusher.Flush()
 		}
 	}
 }
@@ -254,15 +308,40 @@ func (s *Server) HandleListSpaces(w http.ResponseWriter, r *http.Request) {
 
 // HandleGetSpaceState returns the current state of a space.
 func (s *Server) HandleGetSpaceState(w http.ResponseWriter, r *http.Request) {
-	_, err := s.getAuth(r)
+	did, err := s.getAuth(r)
 	if err != nil {
 		writeError(w, ErrUnauthorized)
+		return
+	}
+
+	memberDID, err := syntax.ParseDID(did)
+	if err != nil {
+		writeError(w, &APIError{
+			Code:    "InvalidRequest",
+			Message: "invalid DID",
+			Status:  400,
+		})
 		return
 	}
 
 	space := r.URL.Query().Get("space")
 	if space == "" {
 		writeError(w, &APIError{Code: "InvalidRequest", Message: "space is required", Status: 400})
+		return
+	}
+
+	isMember, err := s.store.IsMember(r.Context(), space, memberDID.String())
+	if err != nil {
+		log.Ctx(r.Context()).Warn().Err(err).Str("space", space).Msg("membership check failed")
+		writeError(w, &APIError{
+			Code:    "InternalError",
+			Message: "failed to verify membership",
+			Status:  500,
+		})
+		return
+	}
+	if !isMember {
+		writeError(w, ErrSpaceNotFound)
 		return
 	}
 
@@ -301,15 +380,40 @@ func (s *Server) HandleGetSpaceState(w http.ResponseWriter, r *http.Request) {
 
 // HandleListRecords returns non-deleted records in a space.
 func (s *Server) HandleListRecords(w http.ResponseWriter, r *http.Request) {
-	_, err := s.getAuth(r)
+	did, err := s.getAuth(r)
 	if err != nil {
 		writeError(w, ErrUnauthorized)
+		return
+	}
+
+	memberDID, err := syntax.ParseDID(did)
+	if err != nil {
+		writeError(w, &APIError{
+			Code:    "InvalidRequest",
+			Message: "invalid DID",
+			Status:  400,
+		})
 		return
 	}
 
 	space := r.URL.Query().Get("space")
 	if space == "" {
 		writeError(w, &APIError{Code: "InvalidRequest", Message: "space is required", Status: 400})
+		return
+	}
+
+	isMember, err := s.store.IsMember(r.Context(), space, memberDID.String())
+	if err != nil {
+		log.Ctx(r.Context()).Warn().Err(err).Str("space", space).Msg("membership check failed")
+		writeError(w, &APIError{
+			Code:    "InternalError",
+			Message: "failed to verify membership",
+			Status:  500,
+		})
+		return
+	}
+	if !isMember {
+		writeError(w, ErrSpaceNotFound)
 		return
 	}
 
@@ -366,15 +470,40 @@ func (s *Server) HandleListRecords(w http.ResponseWriter, r *http.Request) {
 
 // HandleListRecordChanges returns record changes in a space with optional cursor.
 func (s *Server) HandleListRecordChanges(w http.ResponseWriter, r *http.Request) {
-	_, err := s.getAuth(r)
+	did, err := s.getAuth(r)
 	if err != nil {
 		writeError(w, ErrUnauthorized)
+		return
+	}
+
+	memberDID, err := syntax.ParseDID(did)
+	if err != nil {
+		writeError(w, &APIError{
+			Code:    "InvalidRequest",
+			Message: "invalid DID",
+			Status:  400,
+		})
 		return
 	}
 
 	space := r.URL.Query().Get("space")
 	if space == "" {
 		writeError(w, &APIError{Code: "InvalidRequest", Message: "space is required", Status: 400})
+		return
+	}
+
+	isMember, err := s.store.IsMember(r.Context(), space, memberDID.String())
+	if err != nil {
+		log.Ctx(r.Context()).Warn().Err(err).Str("space", space).Msg("membership check failed")
+		writeError(w, &APIError{
+			Code:    "InternalError",
+			Message: "failed to verify membership",
+			Status:  500,
+		})
+		return
+	}
+	if !isMember {
+		writeError(w, ErrSpaceNotFound)
 		return
 	}
 
@@ -432,15 +561,40 @@ func (s *Server) HandleListRecordChanges(w http.ResponseWriter, r *http.Request)
 
 // HandleGetMemberOplog returns the member operation log for a space.
 func (s *Server) HandleGetMemberOplog(w http.ResponseWriter, r *http.Request) {
-	_, err := s.getAuth(r)
+	did, err := s.getAuth(r)
 	if err != nil {
 		writeError(w, ErrUnauthorized)
+		return
+	}
+
+	memberDID, err := syntax.ParseDID(did)
+	if err != nil {
+		writeError(w, &APIError{
+			Code:    "InvalidRequest",
+			Message: "invalid DID",
+			Status:  400,
+		})
 		return
 	}
 
 	space := r.URL.Query().Get("space")
 	if space == "" {
 		writeError(w, &APIError{Code: "InvalidRequest", Message: "space is required", Status: 400})
+		return
+	}
+
+	isMember, err := s.store.IsMember(r.Context(), space, memberDID.String())
+	if err != nil {
+		log.Ctx(r.Context()).Warn().Err(err).Str("space", space).Msg("membership check failed")
+		writeError(w, &APIError{
+			Code:    "InternalError",
+			Message: "failed to verify membership",
+			Status:  500,
+		})
+		return
+	}
+	if !isMember {
+		writeError(w, ErrSpaceNotFound)
 		return
 	}
 
