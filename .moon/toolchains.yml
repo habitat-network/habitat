@@ -21,3 +21,5 @@ javascript:
   dedupeOnLockfileChange: false
 typescript:
   syncProjectReferences: true
+  syncProjectReferencesToRoot: true
+  syncImportAlias: true
