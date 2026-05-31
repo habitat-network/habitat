@@ -78,6 +78,7 @@ type SpaceStore interface {
 	GetMemberOplog(ctx context.Context, space string, since string, limit int) ([]MemberOp, error)
 	IsMember(ctx context.Context, space string, did string) (bool, error)
 	GetSpace(ctx context.Context, space string) (*SpaceView, error)
+	GetEvents(ctx context.Context, since int64, limit int) ([]Event, error)
 }
 
 // Server serves the sync XRPC endpoints.
@@ -186,24 +187,35 @@ func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ch, done := s.fanout.Subscribe(256)
+	ch, done := s.fanout.Subscribe(1024)
 	defer s.fanout.Unsubscribe(done)
 
 	if cursor > 0 {
-		ev := Event{
-			Seq:    cursor,
-			Type:   EventSpace,
-			Action: "catchup-start",
+		for {
+			events, err := s.store.GetEvents(r.Context(), cursor, 100)
+			if err != nil {
+				log.Ctx(r.Context()).Warn().Err(err).Msg("getEvents for catchup failed")
+				return
+			}
+			if len(events) == 0 {
+				break
+			}
+			for _, ev := range events {
+				if _, ok := accessibleSet[ev.Space]; !ok {
+					continue
+				}
+				if !filterEvent(ev, spaceTypes) {
+					continue
+				}
+				if err := writeSSE(w, flusher, ev); err != nil {
+					return
+				}
+				cursor = ev.Seq
+			}
+			if len(events) < 100 {
+				break
+			}
 		}
-		data, err := json.Marshal(ev)
-		if err != nil {
-			log.Ctx(r.Context()).Warn().Err(err).Msg("marshal catchup-start failed")
-			return
-		}
-		if _, err := fmt.Fprintf(w, "event: message\ndata: %s\nid: %d\n\n", data, cursor); err != nil {
-			return
-		}
-		flusher.Flush()
 	}
 
 	for {
@@ -211,33 +223,49 @@ func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case ev := <-ch:
+			if ev.Seq <= cursor {
+				continue
+			}
 			if _, ok := accessibleSet[ev.Space]; !ok {
 				continue
 			}
-			if len(spaceTypes) > 0 && ev.SpaceType != "" {
-				found := false
-				for _, t := range spaceTypes {
-					if t == ev.SpaceType {
-						found = true
-						break
-					}
-				}
-				if !found {
-					continue
-				}
+			if !filterEvent(ev, spaceTypes) {
+				continue
 			}
-			data, err := json.Marshal(ev)
-			if err != nil {
-				log.Ctx(r.Context()).Warn().Err(err).Msg("marshal event failed")
+			if err := writeSSE(w, flusher, ev); err != nil {
 				return
 			}
-			if _, err := fmt.Fprintf(w, "event: message\ndata: %s\nid: %d\n\n", data, ev.Seq); err != nil {
-				log.Ctx(r.Context()).Warn().Err(err).Msg("sse write failed")
-				return
-			}
-			flusher.Flush()
+			cursor = ev.Seq
 		}
 	}
+}
+
+func filterEvent(ev Event, spaceTypes []string) bool {
+	if len(spaceTypes) > 0 && ev.SpaceType != "" {
+		found := false
+		for _, t := range spaceTypes {
+			if t == ev.SpaceType {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func writeSSE(w http.ResponseWriter, flusher http.Flusher, ev Event) error {
+	data, err := json.Marshal(ev)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "event: message\ndata: %s\nid: %d\n\n", data, ev.Seq); err != nil {
+		return err
+	}
+	flusher.Flush()
+	return nil
 }
 
 // HandleListSpaces returns the spaces the caller is a member of.

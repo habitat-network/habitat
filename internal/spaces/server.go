@@ -14,8 +14,8 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
-	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/sync"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -94,7 +94,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		skey = parsedKey
 	}
 
-	uri, err := s.store.CreateSpace(r.Context(), callerDID, spaceType, skey)
+	uri, rev, err := s.store.CreateSpace(r.Context(), callerDID, spaceType, skey)
 	if errors.Is(err, ErrSpaceAlreadyExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -103,7 +103,6 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rev := syntax.NewTIDNow(0)
 	ev := sync.Event{
 		Rev:       rev.String(),
 		Time:      time.Now(),
@@ -113,7 +112,11 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		Action:    "create",
 	}
 	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
-		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", uri.String()).Msg("failed to publish event")
+		log.Ctx(r.Context()).
+			Warn().
+			Err(pubErr).
+			Str("space", uri.String()).
+			Msg("failed to publish event")
 	}
 
 	output := habitat.NetworkHabitatSpaceCreateSpaceOutput{
@@ -253,7 +256,11 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		Access: input.Access,
 	}
 	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
-		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
+		log.Ctx(r.Context()).
+			Warn().
+			Err(pubErr).
+			Str("space", spaceURI.String()).
+			Msg("failed to publish event")
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -327,7 +334,11 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		DID:    memberDID.String(),
 	}
 	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
-		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
+		log.Ctx(r.Context()).
+			Warn().
+			Err(pubErr).
+			Str("space", spaceURI.String()).
+			Msg("failed to publish event")
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -464,7 +475,11 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		Record:     recBytes,
 	}
 	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
-		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
+		log.Ctx(r.Context()).
+			Warn().
+			Err(pubErr).
+			Str("space", spaceURI.String()).
+			Msg("failed to publish event")
 	}
 
 	recordURI := spaceURI.String() + "/" + collection.String() + "/" + input.Rkey
@@ -745,7 +760,11 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		Rkey:       input.Rkey,
 	}
 	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
-		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
+		log.Ctx(r.Context()).
+			Warn().
+			Err(pubErr).
+			Str("space", spaceURI.String()).
+			Msg("failed to publish event")
 	}
 
 	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
@@ -800,7 +819,11 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		Action: "delete",
 	}
 	if pubErr := s.publisher.Publish(r.Context(), ev); pubErr != nil {
-		log.Ctx(r.Context()).Warn().Err(pubErr).Str("space", spaceURI.String()).Msg("failed to publish event")
+		log.Ctx(r.Context()).
+			Warn().
+			Err(pubErr).
+			Str("space", spaceURI.String()).
+			Msg("failed to publish event")
 	}
 
 	w.Header().Set("Content-Type", "application/json")

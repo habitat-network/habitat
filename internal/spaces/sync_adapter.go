@@ -2,6 +2,7 @@ package spaces
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -156,4 +157,21 @@ func (a *syncStoreAdapter) GetSpace(ctx context.Context, space string) (*sync.Sp
 		SpaceRev:  state.SpaceRev,
 		MemberRev: state.MemberRev,
 	}, nil
+}
+
+func (a *syncStoreAdapter) GetEvents(ctx context.Context, since int64, limit int) ([]sync.Event, error) {
+	rows, err := a.store.GetEvents(ctx, since, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]sync.Event, len(rows))
+	for i, r := range rows {
+		var ev sync.Event
+		if err := json.Unmarshal(r.EventJSON, &ev); err != nil {
+			return nil, err
+		}
+		ev.Seq = r.Seq
+		result[i] = ev
+	}
+	return result, nil
 }

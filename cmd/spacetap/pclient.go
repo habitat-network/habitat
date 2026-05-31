@@ -8,15 +8,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/gorilla/websocket"
 )
 
 type PearClient struct {
 	baseURL     string
 	accessToken string
 	httpClient  *http.Client
-	dialer      websocket.Dialer
 }
 
 func NewPearClient(baseURL, accessToken string) *PearClient {
@@ -156,28 +153,39 @@ func (c *PearClient) GetMemberOplog(ctx context.Context, space, since string, li
 	return resp.Ops, resp.Cursor, nil
 }
 
-func (c *PearClient) SubscribeSpaces(ctx context.Context, cursor string, spaceTypes []string) (*websocket.Conn, error) {
-	wsURL := strings.Replace(c.baseURL, "http://", "ws://", 1)
-	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
-
-	u, err := url.Parse(wsURL + "/xrpc/network.habitat.sync.subscribeSpaces")
+func (c *PearClient) SubscribeSpaces(ctx context.Context, cursor int64, spaceTypes []string) (*SSEStream, error) {
+	u, err := url.Parse(c.baseURL + "/xrpc/network.habitat.sync.subscribeSpaces")
 	if err != nil {
-		return nil, fmt.Errorf("parse ws url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 	q := u.Query()
-	if cursor != "" {
-		q.Set("cursor", cursor)
+	if cursor > 0 {
+		q.Set("cursor", fmt.Sprintf("%d", cursor))
 	}
 	for _, st := range spaceTypes {
 		q.Add("spaceTypes", st)
 	}
 	u.RawQuery = q.Encode()
 
-	conn, _, err := c.dialer.DialContext(ctx, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("dial ws: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
-	return conn, nil
+	if c.accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("subscribe error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	return newSSEStream(resp.Body), nil
 }
 
 func getString(m map[string]interface{}, key string) string {

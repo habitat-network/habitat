@@ -42,13 +42,19 @@ type spaceRecord struct {
 }
 
 type spaceMemberOp struct {
-	Space     string    `gorm:"primaryKey"`
-	Rev       string    `gorm:"primaryKey"`
-	Idx       int       `gorm:"primaryKey"`
-	Action    string    `gorm:"size:16"`
-	DID       string    `gorm:"size:256"`
-	Access    *string   `gorm:"size:16"`
+	Space     string  `gorm:"primaryKey"`
+	Rev       string  `gorm:"primaryKey"`
+	Idx       int     `gorm:"primaryKey"`
+	Action    string  `gorm:"size:16"`
+	DID       string  `gorm:"size:256"`
+	Access    *string `gorm:"size:16"`
 	CreatedAt time.Time
+}
+
+type spaceEvent struct {
+	Seq       int64     `gorm:"primaryKey;autoIncrement"`
+	Time      time.Time `gorm:"index"`
+	EventJSON []byte
 }
 
 type spaceEffectiveMember struct {
@@ -145,7 +151,7 @@ type Store interface {
 		owner syntax.DID,
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
-	) (habitat_syntax.SpaceURI, error)
+	) (habitat_syntax.SpaceURI, syntax.TID, error)
 	// ListSpaces returns the spaces that `member` is a part of
 	ListSpaces(
 		ctx context.Context,
@@ -164,7 +170,13 @@ type Store interface {
 	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) (string, error)
 	GetMembers(ctx context.Context, space habitat_syntax.SpaceURI) ([]MemberInfo, error)
 	IsMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) (bool, error)
-
+	// Event operations
+	AddEvent(ctx context.Context, time time.Time, eventJSON []byte) (int64, error)
+	GetEvents(ctx context.Context, since int64, limit int) ([]struct {
+		Seq       int64
+		Time      time.Time
+		EventJSON []byte
+	}, error)
 	// Record operations
 	PutRecord(
 		ctx context.Context,
@@ -239,7 +251,12 @@ type store struct {
 var _ Store = &store{}
 
 func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &spaceMemberOp{}, &spaceEffectiveMember{}); err != nil {
+	if err := db.AutoMigrate(
+		&space{},
+		&spaceRecord{},
+		&spaceMemberOp{},
+		&spaceEffectiveMember{},
+	); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0)}, nil
@@ -273,7 +290,11 @@ func (s *store) latestMemberRev(ctx context.Context, uri habitat_syntax.SpaceURI
 	return rev.Rev, nil
 }
 
-func (s *store) reconcileEffectiveMembers(ctx context.Context, uri habitat_syntax.SpaceURI, rev string) error {
+func (s *store) reconcileEffectiveMembers(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	rev string,
+) error {
 	members, err := s.GetMembers(ctx, uri)
 	if err != nil {
 		return fmt.Errorf("get members: %w", err)
@@ -338,7 +359,9 @@ func (s *store) reconcileEffectiveMembers(ctx context.Context, uri habitat_synta
 		}
 	}
 
-	if err := tx.Where("space = ?", uri.String()).Delete(&spaceEffectiveMember{}).Error; err != nil {
+	if err := tx.Where("space = ?", uri.String()).
+		Delete(&spaceEffectiveMember{}).
+		Error; err != nil {
 		tx.Rollback()
 		return fmt.Errorf("clear effective: %w", err)
 	}
@@ -364,7 +387,7 @@ func (s *store) CreateSpace(
 	owner syntax.DID,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
-) (habitat_syntax.SpaceURI, error) {
+) (habitat_syntax.SpaceURI, syntax.TID, error) {
 	if skey == "" {
 		skey = habitat_syntax.NewSkey()
 	}
@@ -375,9 +398,9 @@ func (s *store) CreateSpace(
 		First(&existing).
 		Error
 	if err == nil {
-		return "", ErrSpaceAlreadyExists
+		return "", "", ErrSpaceAlreadyExists
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", err
+		return "", "", err
 	}
 
 	sp := space{
@@ -389,10 +412,10 @@ func (s *store) CreateSpace(
 
 	err = s.db.WithContext(ctx).Create(&sp).Error
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return habitat_syntax.ConstructSpaceURI(owner, spaceType, skey), nil
+	return habitat_syntax.ConstructSpaceURI(owner, spaceType, skey), sp.Rev, nil
 }
 
 func (s *store) ListSpaces(
@@ -403,7 +426,9 @@ func (s *store) ListSpaces(
 ) ([]SpaceView, error) {
 	var allRows []space
 	// start with owned spaces
-	ownedRowsQuery := s.db.WithContext(ctx).Model(&space{}).Where("owner = ? AND deleted = ?", member, false)
+	ownedRowsQuery := s.db.WithContext(ctx).
+		Model(&space{}).
+		Where("owner = ? AND deleted = ?", member, false)
 	if filterOwner != nil {
 		ownedRowsQuery = ownedRowsQuery.Where("owner = ?", *filterOwner)
 	}
@@ -540,6 +565,49 @@ func (s *store) IsMember(
 		fgastore.SpaceObjectKey(uri),
 		ownerContextualTuple(uri),
 	)
+}
+
+func (s *store) AddEvent(ctx context.Context, t time.Time, eventJSON []byte) (int64, error) {
+	ev := spaceEvent{
+		Time:      t,
+		EventJSON: eventJSON,
+	}
+	if err := s.db.WithContext(ctx).Create(&ev).Error; err != nil {
+		return 0, err
+	}
+	return ev.Seq, nil
+}
+
+func (s *store) GetEvents(ctx context.Context, since int64, limit int) ([]struct {
+	Seq       int64
+	Time      time.Time
+	EventJSON []byte
+}, error) {
+	var events []spaceEvent
+	if err := s.db.WithContext(ctx).
+		Where("seq > ?", since).
+		Order("seq asc").
+		Limit(limit).
+		Find(&events).Error; err != nil {
+		return nil, err
+	}
+	result := make([]struct {
+		Seq       int64
+		Time      time.Time
+		EventJSON []byte
+	}, len(events))
+	for i, e := range events {
+		result[i] = struct {
+			Seq       int64
+			Time      time.Time
+			EventJSON []byte
+		}{
+			Seq:       e.Seq,
+			Time:      e.Time,
+			EventJSON: e.EventJSON,
+		}
+	}
+	return result, nil
 }
 
 func (s *store) AddMember(
@@ -1001,7 +1069,10 @@ func (s *store) GetMemberOplog(
 	return ops, nil
 }
 
-func (s *store) GetSpaceState(ctx context.Context, uri habitat_syntax.SpaceURI) (*SpaceState, error) {
+func (s *store) GetSpaceState(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+) (*SpaceState, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).

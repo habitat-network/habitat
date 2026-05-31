@@ -57,9 +57,6 @@ func (h *WebSocketHub) Remove(client *WSClient) {
 }
 
 func (h *WebSocketHub) Broadcast(event OutboxEvent) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
 	var payload map[string]interface{}
 	json.Unmarshal([]byte(event.EventJSON), &payload)
 
@@ -70,16 +67,25 @@ func (h *WebSocketHub) Broadcast(event OutboxEvent) {
 	}
 	data, _ := json.Marshal(msg)
 
+	var toRemove []*WSClient
+
+	h.mu.RLock()
 	for client := range h.clients {
 		select {
 		case <-client.done:
+			toRemove = append(toRemove, client)
 			continue
 		default:
 		}
 		if err := client.conn.WriteMessage(websocket.TextMessage, data); err != nil {
 			h.log.Warn().Err(err).Msg("broadcast write failed")
-			go h.Remove(client)
+			toRemove = append(toRemove, client)
 		}
+	}
+	h.mu.RUnlock()
+
+	for _, c := range toRemove {
+		h.Remove(c)
 	}
 }
 

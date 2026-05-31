@@ -4,28 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
+
+	"github.com/habitat-network/habitat/internal/sync"
 )
 
 type Syncer struct {
 	client *PearClient
 	db     *gorm.DB
 	cfg    *Config
+	log    zerolog.Logger
 }
 
-func NewSyncer(client *PearClient, db *gorm.DB, cfg *Config) *Syncer {
+func NewSyncer(client *PearClient, db *gorm.DB, cfg *Config, log zerolog.Logger) *Syncer {
 	return &Syncer{
 		client: client,
 		db:     db,
 		cfg:    cfg,
+		log:    log,
 	}
 }
 
 func (s *Syncer) Run(ctx context.Context) error {
-	slog.Info("starting sync")
+	s.log.Info().Msg("starting sync")
 
 	if err := s.initialSync(ctx); err != nil {
 		return fmt.Errorf("initial sync: %w", err)
@@ -34,7 +38,7 @@ func (s *Syncer) Run(ctx context.Context) error {
 	go func() {
 		for {
 			if err := s.handleLiveEvents(ctx); err != nil {
-				slog.Warn("live event handler error, reconnecting in 5s", "err", err)
+				s.log.Warn().Err(err).Msg("live event handler error, reconnecting in 5s")
 			}
 			select {
 			case <-ctx.Done():
@@ -58,19 +62,19 @@ func (s *Syncer) Run(ctx context.Context) error {
 	}()
 
 	<-ctx.Done()
-	slog.Info("sync stopped")
+	s.log.Info().Msg("sync stopped")
 	return nil
 }
 
 func (s *Syncer) initialSync(ctx context.Context) error {
-	slog.Info("initial sync started")
+	s.log.Info().Msg("initial sync started")
 
 	spaces, err := s.client.ListSpaces(ctx, s.cfg.SpaceTypes)
 	if err != nil {
 		return fmt.Errorf("list spaces: %w", err)
 	}
 
-	slog.Info("discovered spaces", "count", len(spaces))
+	s.log.Info().Int("count", len(spaces)).Msg("discovered spaces")
 
 	for _, sp := range spaces {
 		space := getString(sp, "space")
@@ -78,42 +82,47 @@ func (s *Syncer) initialSync(ctx context.Context) error {
 			continue
 		}
 
-		slog.Debug("syncing space", "space", space)
+		s.log.Debug().Str("space", space).Msg("syncing space")
 
 		state, err := s.client.GetSpaceState(ctx, space)
 		if err != nil {
-			slog.Warn("get space state failed", "err", err, "space", space)
+			s.log.Warn().Err(err).Str("space", space).Msg("get space state failed")
 			continue
 		}
 		spaceRev := getString(state, "spaceRev")
 		memberRev := getString(state, "memberRev")
 
-		if err := s.backfillRecords(ctx, space); err != nil {
-			slog.Warn("backfill records failed", "err", err, "space", space)
+		if err := s.backfillRecords(ctx, space, s.db); err != nil {
+			s.log.Warn().Err(err).Str("space", space).Msg("backfill records failed")
 		}
 
-		if err := s.backfillMembers(ctx, space); err != nil {
-			slog.Warn("backfill members failed", "err", err, "space", space)
+		if err := s.backfillMembers(ctx, space, s.db); err != nil {
+			s.log.Warn().Err(err).Str("space", space).Msg("backfill members failed")
 		}
 
 		spaceType := getString(sp, "spaceType")
 		org := extractOrg(space)
-		s.db.Where("space = ?", space).Delete(&SpaceState{})
-		s.db.Create(&SpaceState{
+		if err := s.db.Where("space = ?", space).Delete(&SpaceState{}).Error; err != nil {
+			s.log.Warn().Err(err).Str("space", space).Msg("delete space state failed")
+			continue
+		}
+		if err := s.db.Create(&SpaceState{
 			Org:       org,
 			Space:     space,
 			SpaceType: spaceType,
 			State:     "active",
 			SpaceRev:  spaceRev,
 			MemberRev: memberRev,
-		})
+		}).Error; err != nil {
+			s.log.Warn().Err(err).Str("space", space).Msg("create space state failed")
+		}
 	}
 
-	slog.Info("initial sync complete")
+	s.log.Info().Msg("initial sync complete")
 	return nil
 }
 
-func (s *Syncer) backfillRecords(ctx context.Context, space string) error {
+func (s *Syncer) backfillRecords(ctx context.Context, space string, db *gorm.DB) error {
 	var cursor string
 	for {
 		records, nextCursor, err := s.client.ListRecords(ctx, space, "", cursor, 100)
@@ -124,12 +133,12 @@ func (s *Syncer) backfillRecords(ctx context.Context, space string) error {
 			break
 		}
 		for _, rec := range records {
-			s.db.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+			db.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
 				space, getString(rec, "repo"), getString(rec, "collection"), getString(rec, "rkey")).
 				Delete(&RecordState{})
 
 			valBytes, _ := json.Marshal(rec["value"])
-			s.db.Create(&RecordState{
+			db.Create(&RecordState{
 				Space:      space,
 				Repo:       getString(rec, "repo"),
 				Collection: getString(rec, "collection"),
@@ -146,7 +155,7 @@ func (s *Syncer) backfillRecords(ctx context.Context, space string) error {
 	return nil
 }
 
-func (s *Syncer) backfillMembers(ctx context.Context, space string) error {
+func (s *Syncer) backfillMembers(ctx context.Context, space string, db *gorm.DB) error {
 	var since string
 	for {
 		ops, nextCursor, err := s.client.GetMemberOplog(ctx, space, since, 100)
@@ -162,15 +171,15 @@ func (s *Syncer) backfillMembers(ctx context.Context, space string) error {
 			access := getString(op, "access")
 
 			if action == "add" {
-				s.db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
-				s.db.Create(&MemberState{
+				db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
+				db.Create(&MemberState{
 					Space:  space,
 					DID:    did,
 					Access: access,
 					Rev:    getString(op, "rev"),
 				})
 			} else if action == "remove" {
-				s.db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
+				db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
 			}
 		}
 		if nextCursor == "" {
@@ -182,108 +191,126 @@ func (s *Syncer) backfillMembers(ctx context.Context, space string) error {
 }
 
 func (s *Syncer) handleLiveEvents(ctx context.Context) error {
-	var lastRev string
-	s.db.Raw("SELECT COALESCE(MAX(last_rev), '') FROM space_states").Scan(&lastRev)
+	var lastSeq int64
+	s.db.Raw("SELECT COALESCE(MAX(last_seq), 0) FROM space_states").Scan(&lastSeq)
 
-	conn, err := s.client.SubscribeSpaces(ctx, lastRev, s.cfg.SpaceTypes)
+	stream, err := s.client.SubscribeSpaces(ctx, lastSeq, s.cfg.SpaceTypes)
 	if err != nil {
 		return fmt.Errorf("subscribe spaces: %w", err)
 	}
-	defer conn.Close()
+	defer stream.Close()
 
-	slog.Info("connected to live event stream", "cursor", lastRev)
+	s.log.Info().Int64("cursor", lastSeq).Msg("connected to live event stream")
 
 	for {
-		_, message, err := conn.ReadMessage()
+		ev, err := stream.ReadEvent()
 		if err != nil {
-			return fmt.Errorf("read message: %w", err)
+			return fmt.Errorf("read event: %w", err)
 		}
-
-		var ev map[string]interface{}
-		if err := json.Unmarshal(message, &ev); err != nil {
-			slog.Warn("failed to unmarshal event", "err", err)
-			continue
-		}
-
 		if err := s.applyEvent(ev); err != nil {
-			slog.Warn("failed to apply event", "err", err)
+			s.log.Warn().Err(err).Msg("failed to apply event")
 		}
 	}
 }
 
-func (s *Syncer) applyEvent(ev map[string]interface{}) error {
-	eventType := getString(ev, "type")
-	space := getString(ev, "space")
-	rev := getString(ev, "rev")
+func (s *Syncer) applyEvent(ev sync.Event) (err error) {
+	tx := s.db.Begin()
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
 
-	switch eventType {
-	case "space_record":
-		action := getString(ev, "action")
-		repo := getString(ev, "repo")
-		collection := getString(ev, "collection")
-		rkey := getString(ev, "rkey")
+	space := ev.Space
 
+	switch ev.Type {
+	case sync.EventSpaceRecord:
+		action := ev.Action
 		if action == "delete" {
-			s.db.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				space, repo, collection, rkey).Delete(&RecordState{})
+			if err := tx.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				space, ev.Repo, ev.Collection, ev.Rkey).Delete(&RecordState{}).Error; err != nil {
+				return fmt.Errorf("delete record: %w", err)
+			}
 		} else {
-			recBytes, _ := json.Marshal(ev["record"])
-			s.db.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-				space, repo, collection, rkey).Delete(&RecordState{})
-			s.db.Create(&RecordState{
+			recBytes, jsonErr := json.Marshal(ev.Record)
+			if jsonErr != nil {
+				return fmt.Errorf("marshal record: %w", jsonErr)
+			}
+			if err := tx.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				space, ev.Repo, ev.Collection, ev.Rkey).Delete(&RecordState{}).Error; err != nil {
+				return fmt.Errorf("delete before upsert: %w", err)
+			}
+			if err := tx.Create(&RecordState{
 				Space:      space,
-				Repo:       repo,
-				Collection: collection,
-				Rkey:       rkey,
-				Rev:        rev,
+				Repo:       ev.Repo,
+				Collection: ev.Collection,
+				Rkey:       ev.Rkey,
+				Rev:        ev.Rev,
 				Record:     recBytes,
-			})
+			}).Error; err != nil {
+				return fmt.Errorf("upsert record: %w", err)
+			}
 		}
 
-	case "space_member":
-		action := getString(ev, "action")
-		did := getString(ev, "did")
-		access := getString(ev, "access")
-
+	case sync.EventSpaceMember:
+		action := ev.Action
 		if action == "add" {
-			s.db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
-			s.db.Create(&MemberState{Space: space, DID: did, Access: access, Rev: rev})
+			if err := tx.Where("space = ? AND did = ?", space, ev.DID).Delete(&MemberState{}).Error; err != nil {
+				return fmt.Errorf("delete member before upsert: %w", err)
+			}
+			if err := tx.Create(&MemberState{Space: space, DID: ev.DID, Access: ev.Access, Rev: ev.Rev}).Error; err != nil {
+				return fmt.Errorf("upsert member: %w", err)
+			}
 		} else {
-			s.db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
+			if err := tx.Where("space = ? AND did = ?", space, ev.DID).Delete(&MemberState{}).Error; err != nil {
+				return fmt.Errorf("delete member: %w", err)
+			}
 		}
 
-	case "space":
-		action := getString(ev, "action")
-		if action == "delete" {
-			s.db.Where("space = ?", space).Delete(&SpaceState{})
-			s.db.Where("space = ?", space).Delete(&RepoState{})
-			s.db.Where("space = ?", space).Delete(&RecordState{})
-			s.db.Where("space = ?", space).Delete(&MemberState{})
+	case sync.EventSpace:
+		if ev.Action == "delete" {
+			for _, model := range []interface{}{&SpaceState{}, &RepoState{}, &RecordState{}, &MemberState{}} {
+				if err := tx.Where("space = ?", space).Delete(model).Error; err != nil {
+					return fmt.Errorf("delete space data: %w", err)
+				}
+			}
 		}
+	case sync.EventIdentity:
+		// informational only
 	}
 
-	evJSON, _ := json.Marshal(ev)
-	s.db.Create(&OutboxEvent{
+	evJSON, jsonErr := json.Marshal(ev)
+	if jsonErr != nil {
+		return fmt.Errorf("marshal event: %w", jsonErr)
+	}
+	if err := tx.Create(&OutboxEvent{
 		EventJSON: string(evJSON),
 		Acked:     s.cfg.DisableAcks,
-	})
+	}).Error; err != nil {
+		return fmt.Errorf("create outbox event: %w", err)
+	}
 
-	s.db.Model(&SpaceState{}).Where("space = ?", space).Updates(map[string]interface{}{
-		"last_rev":   rev,
+	if err := tx.Model(&SpaceState{}).Where("space = ?", space).Updates(map[string]interface{}{
+		"last_seq":   ev.Seq,
+		"last_rev":   ev.Rev,
 		"updated_at": time.Now(),
-	})
+	}).Error; err != nil {
+		return fmt.Errorf("update space state: %w", err)
+	}
 
-	return nil
+	return tx.Commit().Error
 }
 
 func (s *Syncer) reconcile(ctx context.Context) {
-	slog.Debug("periodic reconciliation")
+	s.log.Debug().Msg("periodic reconciliation")
 
 	spaces, err := s.client.ListSpaces(ctx, s.cfg.SpaceTypes)
 	if err != nil {
-		slog.Warn("reconciliation: list spaces failed", "err", err)
+		s.log.Warn().Err(err).Msg("reconciliation: list spaces failed")
 		return
 	}
+
+	sem := make(chan struct{}, s.cfg.ResyncParallelism)
 
 	for _, sp := range spaces {
 		space := getString(sp, "space")
@@ -303,73 +330,118 @@ func (s *Syncer) reconcile(ctx context.Context) {
 		}
 
 		if local.SpaceRev != remoteRev {
-			slog.Warn("space rev mismatch, triggering resync",
-				"space", space, "local", local.SpaceRev, "remote", remoteRev)
-			go s.resyncSpace(ctx, space)
+			s.log.Warn().
+				Str("space", space).
+				Str("local", local.SpaceRev).
+				Str("remote", remoteRev).
+				Msg("space rev mismatch, triggering resync")
+			sem <- struct{}{}
+			go func(sp string) {
+				defer func() { <-sem }()
+				s.resyncSpace(ctx, sp)
+			}(space)
 		}
 	}
 }
 
 func (s *Syncer) resyncSpace(ctx context.Context, space string) {
-	s.db.Model(&SpaceState{}).Where("space = ?", space).Update("state", "resyncing")
-
-	state, err := s.client.GetSpaceState(ctx, space)
-	if err != nil {
-		slog.Warn("resync: get state failed", "err", err, "space", space)
+	if err := s.db.Model(&SpaceState{}).Where("space = ?", space).
+		Update("state", "resyncing").Error; err != nil {
+		s.log.Warn().Err(err).Str("space", space).Msg("resync: set state failed")
 		return
 	}
 
+	state, err := s.client.GetSpaceState(ctx, space)
+	if err != nil {
+		s.log.Warn().Err(err).Str("space", space).Msg("resync: get state failed")
+		return
+	}
+	remoteSpaceRev := getString(state, "spaceRev")
+	remoteMemberRev := getString(state, "memberRev")
+
 	var local SpaceState
-	s.db.Where("space = ?", space).First(&local)
+	if err := s.db.Where("space = ?", space).First(&local).Error; err != nil {
+		s.log.Warn().Err(err).Str("space", space).Msg("resync: local state not found")
+		return
+	}
 
-	if local.SpaceRev != "" {
-		changes, _, err := s.client.ListRecordChanges(ctx, space, "", local.SpaceRev, 1000)
-		if err != nil {
-			s.backfillRecords(ctx, space)
-		} else {
-			for _, ch := range changes {
-				action := getString(ch, "action")
-				repo := getString(ch, "repo")
-				collection := getString(ch, "collection")
-				rkey := getString(ch, "rkey")
-				if action == "delete" {
-					s.db.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-						space, repo, collection, rkey).Delete(&RecordState{})
-				} else {
-					valBytes, _ := json.Marshal(ch["value"])
-					s.db.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
-						space, repo, collection, rkey).Delete(&RecordState{})
-					s.db.Create(&RecordState{
-						Space: space, Repo: repo, Collection: collection, Rkey: rkey,
-						Rev: getString(ch, "rev"), Record: valBytes,
-					})
+	txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		if local.SpaceRev != "" {
+			changes, _, err := s.client.ListRecordChanges(ctx, space, "", local.SpaceRev, 1000)
+			if err != nil {
+				s.log.Warn().Err(err).Str("space", space).
+					Msg("resync: incremental records failed, full backfill")
+				if err := s.backfillRecords(ctx, space, tx); err != nil {
+					return fmt.Errorf("backfill records: %w", err)
+				}
+			} else {
+				for _, ch := range changes {
+					action := getString(ch, "action")
+					repo := getString(ch, "repo")
+					collection := getString(ch, "collection")
+					rkey := getString(ch, "rkey")
+					if action == "delete" {
+						if err := tx.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+							space, repo, collection, rkey).Delete(&RecordState{}).Error; err != nil {
+							return fmt.Errorf("delete record: %w", err)
+						}
+					} else {
+						valBytes, jsonErr := json.Marshal(ch["value"])
+						if jsonErr != nil {
+							return fmt.Errorf("marshal record value: %w", jsonErr)
+						}
+						if err := tx.Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+							space, repo, collection, rkey).Delete(&RecordState{}).Error; err != nil {
+							return fmt.Errorf("delete before upsert: %w", err)
+						}
+						if err := tx.Create(&RecordState{
+							Space: space, Repo: repo, Collection: collection, Rkey: rkey,
+							Rev: getString(ch, "rev"), Record: valBytes,
+						}).Error; err != nil {
+							return fmt.Errorf("upsert record: %w", err)
+						}
+					}
 				}
 			}
 		}
-	}
 
-	if local.MemberRev != "" {
-		ops, _, err := s.client.GetMemberOplog(ctx, space, local.MemberRev, 1000)
-		if err == nil {
-			for _, op := range ops {
-				did := getString(op, "did")
-				action := getString(op, "action")
-				if action == "add" {
-					s.db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
-					s.db.Create(&MemberState{
-						Space: space, DID: did, Access: getString(op, "access"),
-						Rev: getString(op, "rev"),
-					})
-				} else {
-					s.db.Where("space = ? AND did = ?", space, did).Delete(&MemberState{})
+		if local.MemberRev != "" {
+			ops, _, err := s.client.GetMemberOplog(ctx, space, local.MemberRev, 1000)
+			if err != nil {
+				s.log.Warn().Err(err).Str("space", space).
+					Msg("resync: get member oplog failed")
+			} else {
+				for _, op := range ops {
+					did := getString(op, "did")
+					action := getString(op, "action")
+					if action == "add" {
+						if err := tx.Where("space = ? AND did = ?", space, did).Delete(&MemberState{}).Error; err != nil {
+							return fmt.Errorf("delete member before upsert: %w", err)
+						}
+						if err := tx.Create(&MemberState{
+							Space: space, DID: did, Access: getString(op, "access"),
+							Rev: getString(op, "rev"),
+						}).Error; err != nil {
+							return fmt.Errorf("upsert member: %w", err)
+						}
+					} else {
+						if err := tx.Where("space = ? AND did = ?", space, did).Delete(&MemberState{}).Error; err != nil {
+							return fmt.Errorf("delete member: %w", err)
+						}
+					}
 				}
 			}
 		}
-	}
 
-	spaceRev := getString(state, "spaceRev")
-	memberRev := getString(state, "memberRev")
-	s.db.Model(&SpaceState{}).Where("space = ?", space).Updates(map[string]interface{}{
-		"space_rev": spaceRev, "member_rev": memberRev, "state": "active",
+		if err := tx.Model(&SpaceState{}).Where("space = ?", space).Updates(map[string]interface{}{
+			"space_rev": remoteSpaceRev, "member_rev": remoteMemberRev, "state": "active",
+		}).Error; err != nil {
+			return fmt.Errorf("update space state: %w", err)
+		}
+
+		return nil
 	})
+	if txErr != nil {
+		s.log.Warn().Err(txErr).Str("space", space).Msg("resync: transaction failed")
+	}
 }

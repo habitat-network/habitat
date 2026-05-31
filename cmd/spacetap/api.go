@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -144,7 +145,7 @@ func (a *APIServer) HandleSpaceInfo(w http.ResponseWriter, r *http.Request) {
 
 func (a *APIServer) HandleResync(w http.ResponseWriter, r *http.Request) {
 	go func() {
-		if err := a.syncer.Run(r.Context()); err != nil {
+		if err := a.syncer.Run(context.Background()); err != nil {
 			a.log.Warn().Err(err).Msg("resync failed")
 		}
 	}()

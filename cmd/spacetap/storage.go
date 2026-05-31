@@ -16,6 +16,7 @@ type SpaceState struct {
 	SpaceRev  string
 	MemberRev string
 	LastRev   string
+	LastSeq   int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

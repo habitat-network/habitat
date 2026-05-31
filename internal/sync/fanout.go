@@ -3,7 +3,6 @@ package sync
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 
 	"github.com/rs/zerolog/log"
 )
@@ -16,7 +15,6 @@ type subscriber struct {
 type Fanout struct {
 	mu          sync.RWMutex
 	subscribers map[*subscriber]struct{}
-	nextSeq     atomic.Int64
 }
 
 func NewFanout() *Fanout {
@@ -47,7 +45,6 @@ func (f *Fanout) Unsubscribe(done chan struct{}) {
 }
 
 func (f *Fanout) Publish(ctx context.Context, event Event) error {
-	event.Seq = f.nextSeq.Add(1)
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	for sub := range f.subscribers {

@@ -49,7 +49,7 @@ func run(ctx context.Context, cfg *Config) error {
 
 	client := NewPearClient(cfg.PearURL, cfg.AccessToken)
 
-	syncer := NewSyncer(client, db, cfg)
+	syncer := NewSyncer(client, db, cfg, log)
 
 	hub := NewWebSocketHub(log)
 
@@ -91,7 +91,9 @@ func run(ctx context.Context, cfg *Config) error {
 	log.Info().Msg("shutting down...")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Warn().Err(err).Msg("http server shutdown error")
+	}
 	return nil
 }
 

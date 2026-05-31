@@ -17,14 +17,14 @@ func TestFanoutPublishSubscribe(t *testing.T) {
 	defer f.Unsubscribe(done)
 
 	ctx := context.Background()
-	event := Event{Rev: "test-rev", Type: EventSpaceRecord}
+	event := Event{Seq: 2, Rev: "test-rev", Type: EventSpaceRecord}
 
 	err := f.Publish(ctx, event)
 	assert.NoError(t, err)
 
 	select {
 	case received := <-ch:
-		assert.Equal(t, int64(1), received.Seq)
+		assert.Equal(t, int64(2), received.Seq)
 		assert.Equal(t, event.Rev, received.Rev)
 		assert.Equal(t, event.Type, received.Type)
 	case <-time.After(time.Second):
@@ -40,7 +40,7 @@ func TestFanoutMultipleSubscribers(t *testing.T) {
 	defer f.Unsubscribe(done2)
 
 	ctx := context.Background()
-	event := Event{Rev: "multi-rev", Type: EventSpaceMember}
+	event := Event{Seq: 2, Rev: "multi-rev", Type: EventSpaceMember}
 
 	err := f.Publish(ctx, event)
 	assert.NoError(t, err)
@@ -48,7 +48,7 @@ func TestFanoutMultipleSubscribers(t *testing.T) {
 	for i, ch := range []<-chan Event{ch1, ch2} {
 		select {
 		case received := <-ch:
-			assert.Equal(t, int64(1), received.Seq)
+			assert.Equal(t, int64(2), received.Seq)
 			assert.Equal(t, event.Rev, received.Rev)
 			assert.Equal(t, event.Type, received.Type)
 		case <-time.After(time.Second):

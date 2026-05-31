@@ -266,8 +266,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	syncFanout := sync.NewFanout()
-	spacesServer.WithPublisher(syncFanout)
 	syncStore := spaces.NewSyncStoreAdapter(spacesStore)
+	sequencer := sync.NewSequencer(spacesStore, syncFanout)
+	spacesServer.WithPublisher(sequencer)
 	syncServer := sync.NewServer(syncStore, syncFanout, oauthServer)
 
 	cdc := repo.NewChangeEmitter(ctx, repo.DefaultChangeBufferSize)

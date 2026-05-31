@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,7 @@ type mockStore struct {
 	getMemberOplogFn    func(ctx context.Context, space string, since string, limit int) ([]MemberOp, error)
 	isMemberFn          func(ctx context.Context, space string, did string) (bool, error)
 	getSpaceFn          func(ctx context.Context, space string) (*SpaceView, error)
+	getEventsFn         func(ctx context.Context, since int64, limit int) ([]Event, error)
 }
 
 func (m *mockStore) ListSpaces(ctx context.Context, member syntax.DID, filterOwner *syntax.DID, filterType *syntax.NSID) ([]SpaceView, error) {
@@ -42,6 +44,12 @@ func (m *mockStore) IsMember(ctx context.Context, space string, did string) (boo
 }
 func (m *mockStore) GetSpace(ctx context.Context, space string) (*SpaceView, error) {
 	return m.getSpaceFn(ctx, space)
+}
+func (m *mockStore) GetEvents(ctx context.Context, since int64, limit int) ([]Event, error) {
+	if m.getEventsFn == nil {
+		return nil, nil
+	}
+	return m.getEventsFn(ctx, since, limit)
 }
 
 func authOK() authn.Method {
@@ -195,6 +203,9 @@ func TestHandleListSpaces_StoreError(t *testing.T) {
 
 func TestHandleGetSpaceState_StoreError(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		getSpaceStateFn: func(ctx context.Context, space string) (*SpaceState, error) {
 			return nil, fmt.Errorf("store error")
 		},
@@ -210,6 +221,9 @@ func TestHandleGetSpaceState_StoreError(t *testing.T) {
 
 func TestHandleGetSpaceState_NotFound(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		getSpaceStateFn: func(ctx context.Context, space string) (*SpaceState, error) {
 			return nil, nil
 		},
@@ -225,6 +239,9 @@ func TestHandleGetSpaceState_NotFound(t *testing.T) {
 
 func TestHandleListRecords_StoreError(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			return nil, fmt.Errorf("store error")
 		},
@@ -240,6 +257,9 @@ func TestHandleListRecords_StoreError(t *testing.T) {
 
 func TestHandleListRecordChanges_StoreError(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			return nil, fmt.Errorf("store error")
 		},
@@ -255,6 +275,9 @@ func TestHandleListRecordChanges_StoreError(t *testing.T) {
 
 func TestHandleGetMemberOplog_StoreError(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		getMemberOplogFn: func(ctx context.Context, space string, since string, limit int) ([]MemberOp, error) {
 			return nil, fmt.Errorf("store error")
 		},
@@ -274,6 +297,9 @@ func TestHandleListRecords_InvalidLimit(t *testing.T) {
 	// invalid string -> defaults to 50
 	invalidCalled := false
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			invalidCalled = true
 			assert.Equal(t, 50, limit)
@@ -291,6 +317,9 @@ func TestHandleListRecords_InvalidLimit(t *testing.T) {
 	// negative -> defaults to 50
 	negCalled := false
 	mock2 := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			negCalled = true
 			assert.Equal(t, 50, limit)
@@ -308,6 +337,9 @@ func TestHandleListRecords_InvalidLimit(t *testing.T) {
 	// over max -> defaults to 50 (code only accepts 1-100)
 	capCalled := false
 	mock3 := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			capCalled = true
 			assert.Equal(t, 50, limit)
@@ -353,6 +385,9 @@ func TestHandleListSpaces_Success(t *testing.T) {
 
 func TestHandleGetSpaceState_Success(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		getSpaceStateFn: func(ctx context.Context, space string) (*SpaceState, error) {
 			return &SpaceState{
 				Space:     space,
@@ -385,6 +420,9 @@ func TestHandleGetSpaceState_Success(t *testing.T) {
 
 func TestHandleListRecords_Success(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			val := map[string]any{"text": "hello"}
 			return []RecordChange{
@@ -411,6 +449,9 @@ func TestHandleListRecords_Success(t *testing.T) {
 
 func TestHandleListRecords_ExcludesDeletes(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			val := map[string]any{"text": "hello"}
 			return []RecordChange{
@@ -437,6 +478,9 @@ func TestHandleListRecords_ExcludesDeletes(t *testing.T) {
 
 func TestHandleListRecordChanges_Success(t *testing.T) {
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		listRecordChangesFn: func(ctx context.Context, space string, repo string, since string, limit int) ([]RecordChange, error) {
 			val := map[string]any{"x": 1}
 			return []RecordChange{
@@ -461,9 +505,89 @@ func TestHandleListRecordChanges_Success(t *testing.T) {
 	require.NotEmpty(t, body["cursor"])
 }
 
+// Authorization tests
+
+func TestHandleGetSpaceState_Forbidden(t *testing.T) {
+	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return false, nil
+		},
+	}
+	s := newTestSyncServer(mock, authOK())
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.sync.getSpaceState?space=ats://did:plc:test/net.example.app/space1", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+	s.HandleGetSpaceState(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandleListRecords_Forbidden(t *testing.T) {
+	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return false, nil
+		},
+	}
+	s := newTestSyncServer(mock, authOK())
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.sync.listRecords?space=ats://did:plc:test/net.example.app/space1", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+	s.HandleListRecords(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandleListRecordChanges_Forbidden(t *testing.T) {
+	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return false, nil
+		},
+	}
+	s := newTestSyncServer(mock, authOK())
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.sync.listRecordChanges?space=ats://did:plc:test/net.example.app/space1", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+	s.HandleListRecordChanges(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandleGetMemberOplog_Forbidden(t *testing.T) {
+	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return false, nil
+		},
+	}
+	s := newTestSyncServer(mock, authOK())
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.sync.getMemberOplog?space=ats://did:plc:test/net.example.app/space1", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+	s.HandleGetMemberOplog(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandleGetSpaceState_IsMemberError(t *testing.T) {
+	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return false, fmt.Errorf("membership check error")
+		},
+	}
+	s := newTestSyncServer(mock, authOK())
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.sync.getSpaceState?space=ats://did:plc:test/net.example.app/space1", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+	s.HandleGetSpaceState(w, req)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 func TestHandleGetMemberOplog_Success(t *testing.T) {
 	access := "read"
 	mock := &mockStore{
+		isMemberFn: func(ctx context.Context, space string, did string) (bool, error) {
+			return true, nil
+		},
 		getMemberOplogFn: func(ctx context.Context, space string, since string, limit int) ([]MemberOp, error) {
 			return []MemberOp{
 				{Space: space, Rev: "3jkl", Idx: 0, Action: "add", DID: "did:plc:alice", Access: &access},
@@ -485,4 +609,77 @@ func TestHandleGetMemberOplog_Success(t *testing.T) {
 	ops := body["ops"].([]interface{})
 	require.Len(t, ops, 1)
 	require.NotEmpty(t, body["cursor"])
+}
+
+func TestHandleSubscribeSpaces_SSE(t *testing.T) {
+	mock := &mockStore{
+		listSpacesFn: func(ctx context.Context, member syntax.DID, filterOwner *syntax.DID, filterType *syntax.NSID) ([]SpaceView, error) {
+			return []SpaceView{
+				{Space: "ats://did:plc:test/network.habitat.space/test", Type: "network.habitat.space"},
+			}, nil
+		},
+		getEventsFn: func(ctx context.Context, since int64, limit int) ([]Event, error) {
+			if since == 5 {
+				return []Event{
+					{
+						Seq:       6,
+						Rev:       "3jkm",
+						Time:      time.Now(),
+						Type:      EventSpaceRecord,
+						Space:     "ats://did:plc:test/network.habitat.space/test",
+						SpaceType: "network.habitat.space",
+						Action:    "upsert",
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+	s := newTestSyncServer(mock, authOK())
+	f := s.fanout
+	handler := s.HandleSubscribeSpaces
+
+	// Use a goroutine to handle the SSE request
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.sync.subscribeSpaces?cursor=5", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+
+	ctx, cancel := context.WithCancel(req.Context())
+	req = req.WithContext(ctx)
+
+	done := make(chan struct{})
+	go func() {
+		handler(w, req)
+		close(done)
+	}()
+
+	// Wait for catchup event to be processed
+	time.Sleep(100 * time.Millisecond)
+
+	// Publish a live event
+	ev := Event{
+		Seq:        7,
+		Rev:        "3jkl",
+		Time:       time.Now(),
+		Type:       EventSpaceRecord,
+		Space:      "ats://did:plc:test/network.habitat.space/test",
+		SpaceType:  "network.habitat.space",
+		Repo:       "did:plc:alice",
+		Action:     "upsert",
+		Collection: "net.example.note",
+		Rkey:       "r1",
+	}
+	require.NoError(t, f.Publish(context.Background(), ev))
+
+	// Wait for live event to be processed
+	time.Sleep(100 * time.Millisecond)
+
+	// Cancel the request to stop the handler
+	cancel()
+	<-done
+
+	body := w.Body.String()
+	require.Contains(t, body, "event: message")
+	require.Contains(t, body, `"seq":6`) // Catchup event
+	require.Contains(t, body, `"seq":7`) // Live event
 }
