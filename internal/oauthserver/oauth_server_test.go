@@ -608,8 +608,6 @@ func acquireAccessToken(
 	return capturedToken
 }
 
-
-
 // TestValidate tests every error and success pathway of OAuthServer.Validate.
 func TestValidate(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
