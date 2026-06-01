@@ -1,13 +1,40 @@
+{
+	log {
+		format console
+		level warn
+	}
+}
+
 frontend.local.habitat.network {
 	reverse_proxy 127.0.0.1:6000
 	tls internal
 }
 
-*.*.pear.local.habitat.network, 
-*.pear.local.habitat.network, 
+docs.local.habitat.network {
+	reverse_proxy 127.0.0.1:5175
+	tls internal
+}
+
+calendar.local.habitat.network {
+    reverse_proxy 127.0.0.1:5173
+    tls internal
+}
+
+calendar-server.local.habitat.network {
+    reverse_proxy 127.0.0.1:8801
+    tls internal
+}
+
+greensky.local.habitat.network {
+    reverse_proxy 127.0.0.1:5174
+    tls internal
+}
+
+*.*.pear.local.habitat.network,
+*.pear.local.habitat.network,
 pear.local.habitat.network {
 	reverse_proxy 127.0.0.1:8000
 	tls internal {
-        on_demand
-    }
+		on_demand
+	}
 }
