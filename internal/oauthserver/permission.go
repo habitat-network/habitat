@@ -8,18 +8,37 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+type scopeResource string
+type scopeAction string
+
 var (
-	OrgScope = "org"
+	ResourceOrg  scopeResource = "org"
+	ActionCreate scopeAction   = "create"
+	ActionUpdate scopeAction   = "update"
 )
 
-var validResources = map[string]bool{
-	OrgScope: true,
+func parseResource(scope string) (scopeResource, error) {
+	switch scopeResource(scope) {
+	case ResourceOrg:
+		return scopeResource(scope), nil
+	default:
+		return "", fmt.Errorf("unknown resource: %q", scope)
+	}
+}
+
+func parseAction(scope string) (scopeAction, error) {
+	switch scopeAction(scope) {
+	case ActionCreate, ActionUpdate:
+		return scopeAction(scope), nil
+	default:
+		return "", fmt.Errorf("unknown action: %q", scope)
+	}
 }
 
 type permission struct {
-	Resource  string
+	Resource  scopeResource
 	Namespace syntax.NSID
-	Actions   []string
+	Actions   []scopeAction
 }
 
 func permissionFromScope(scope string) (permission, error) {
@@ -41,15 +60,15 @@ func permissionFromScope(scope string) (permission, error) {
 		return permission{}, fmt.Errorf("scope missing colon: %q", scope)
 	}
 
-	resource := positional[:colonIdx]
-	if !validResources[resource] {
-		return permission{}, fmt.Errorf("unknown resource: %q", resource)
+	resource, err := parseResource(positional[:colonIdx])
+	if err != nil {
+		return permission{}, fmt.Errorf("invalid resource in scope %q: %w", scope, err)
 	}
 
 	var namespace syntax.NSID
 	if positional[colonIdx+1:] == "" {
 		return permission{}, fmt.Errorf("scope missing namespace: %q", scope)
-	} else if namespace != "*" {
+	} else if positional[colonIdx+1:] != "*" {
 		parsed, err := syntax.ParseNSID(positional[colonIdx+1:])
 		if err != nil {
 			return permission{}, fmt.Errorf("invalid namespace in scope %q: %w", scope, err)
@@ -57,13 +76,19 @@ func permissionFromScope(scope string) (permission, error) {
 		namespace = parsed
 	}
 
-	var actions []string
+	var actions []scopeAction
 	if rawQuery != "" {
 		vals, err := url.ParseQuery(rawQuery)
 		if err != nil {
 			return permission{}, fmt.Errorf("invalid query in scope %q: %w", scope, err)
 		}
-		actions = vals["action"]
+		for _, action := range vals["action"] {
+			a, err := parseAction(action)
+			if err != nil {
+				return permission{}, fmt.Errorf("invalid action in scope %q: %w", scope, err)
+			}
+			actions = append(actions, a)
+		}
 	}
 
 	return permission{
@@ -77,7 +102,7 @@ func scopeMatch(granted, required permission) bool {
 	if granted.Resource != required.Resource {
 		return false
 	}
-	if granted.Namespace != "*" && granted.Namespace != required.Namespace {
+	if granted.Namespace != "" && granted.Namespace != required.Namespace {
 		return false
 	}
 	if len(required.Actions) == 0 {
@@ -86,7 +111,7 @@ func scopeMatch(granted, required permission) bool {
 	if len(granted.Actions) == 0 {
 		return true
 	}
-	requiredSet := make(map[string]bool, len(required.Actions))
+	requiredSet := make(map[scopeAction]bool, len(required.Actions))
 	for _, a := range required.Actions {
 		requiredSet[a] = true
 	}

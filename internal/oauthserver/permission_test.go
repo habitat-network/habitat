@@ -16,12 +16,12 @@ func TestPermissionFromScope(t *testing.T) {
 		{
 			name:  "all spaces types wildcard",
 			scope: "org:*",
-			want:  permission{Resource: "org", Namespace: "*", Actions: nil},
+			want:  permission{Resource: "org"},
 		},
 		{
 			name:  "single space type",
 			scope: "org:com.example.type",
-			want:  permission{Resource: "org", Namespace: "com.example.type", Actions: nil},
+			want:  permission{Resource: "org", Namespace: "com.example.type"},
 		},
 		{
 			name:  "single space with actions",
@@ -29,7 +29,7 @@ func TestPermissionFromScope(t *testing.T) {
 			want: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []string{"create", "update"},
+				Actions:   []scopeAction{ActionCreate, ActionUpdate},
 			},
 		},
 		{
@@ -70,7 +70,7 @@ func TestScopeMatch(t *testing.T) {
 	}{
 		{
 			name:     "wildcard matches any space type",
-			granted:  permission{Resource: "org", Namespace: "*"},
+			granted:  permission{Resource: "org"},
 			required: permission{Resource: "org", Namespace: "com.example.type"},
 			want:     true,
 		},
@@ -88,11 +88,11 @@ func TestScopeMatch(t *testing.T) {
 		},
 		{
 			name:    "wildcard matches with action constraint",
-			granted: permission{Resource: "org", Namespace: "*"},
+			granted: permission{Resource: "org"},
 			required: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []string{"create"},
+				Actions:   []scopeAction{ActionCreate},
 			},
 			want: true,
 		},
@@ -105,7 +105,7 @@ func TestScopeMatch(t *testing.T) {
 			required: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []string{"create"},
+				Actions:   []scopeAction{ActionCreate},
 			},
 			want: true,
 		},
@@ -114,7 +114,7 @@ func TestScopeMatch(t *testing.T) {
 			granted: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []string{"create"},
+				Actions:   []scopeAction{ActionCreate},
 			},
 			required: permission{
 				Resource:  "org",
@@ -127,12 +127,12 @@ func TestScopeMatch(t *testing.T) {
 			granted: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []string{"create"},
+				Actions:   []scopeAction{ActionCreate},
 			},
 			required: permission{
 				Resource:  "org",
 				Namespace: "com.example.type",
-				Actions:   []string{"delete"},
+				Actions:   []scopeAction{ActionUpdate},
 			},
 			want: false,
 		},
@@ -153,7 +153,7 @@ func TestScopeMatch(t *testing.T) {
 
 func TestScopesStrategy(t *testing.T) {
 	t.Run("wildcard satisfies single", func(t *testing.T) {
-		ok := scopeStrategy([]string{"org:com.example.type"}, "org:*")
+		ok := scopeStrategy([]string{"org:*"}, "org:com.example.type")
 		require.True(t, ok)
 	})
 	t.Run("exact match", func(t *testing.T) {
@@ -164,15 +164,15 @@ func TestScopesStrategy(t *testing.T) {
 		ok := scopeStrategy([]string{"org:com.example.otherType"}, "org:com.example.type")
 		require.False(t, ok)
 	})
-	t.Run("empty required always satisfied", func(t *testing.T) {
+	t.Run("empty granted not satisfied", func(t *testing.T) {
 		ok := scopeStrategy([]string{}, "org:com.example.type")
-		require.True(t, ok)
+		require.False(t, ok)
 	})
-	t.Run("multiple required one missing", func(t *testing.T) {
+	t.Run("needle in multi-item haystack", func(t *testing.T) {
 		ok := scopeStrategy(
-			[]string{"org:com.example.type", "org:com.example.otherType"},
+			[]string{"org:com.example.otherType", "org:com.example.type"},
 			"org:com.example.type",
 		)
-		require.False(t, ok)
+		require.True(t, ok)
 	})
 }

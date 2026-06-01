@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/bradenaw/juniper/stream"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +23,7 @@ func setupServerTest(
 ) (*stream.PipeSender[models.Event], *Server, *httptest.Server, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sender, receiver := stream.Pipe[models.Event](1)
-	srv := NewServer(ctx, receiver, nil)
+	srv := NewServer(ctx, receiver, authn.NewStubAuthnForTest(syntax.DID("did:plc:admin")))
 	ts := httptest.NewServer(http.HandlerFunc(srv.HandleSubscribe))
 	return sender, srv, ts, func() {
 		ts.Close()
