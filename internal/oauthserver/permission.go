@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bradenaw/juniper/xmaps"
 )
 
 type scopeResource string
@@ -111,14 +112,11 @@ func scopeMatch(granted, required permission) bool {
 	if len(granted.Actions) == 0 {
 		return true
 	}
-	requiredSet := make(map[scopeAction]bool, len(required.Actions))
-	for _, a := range required.Actions {
-		requiredSet[a] = true
-	}
-	for _, a := range granted.Actions {
-		delete(requiredSet, a)
-	}
-	return len(requiredSet) == 0
+	return len(
+		xmaps.Difference(
+			xmaps.SetFromSlice(required.Actions),
+			xmaps.SetFromSlice(granted.Actions)),
+	) == 0
 }
 
 func scopeStrategy(haystack []string, needle string) bool {
