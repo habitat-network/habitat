@@ -90,7 +90,7 @@ func TestServer_AddMemberAndGetMembers(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "shared")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
+	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice", "access": "read"}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.addMember",
@@ -125,7 +125,7 @@ func TestServer_RemoveMember(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "shared")
 	require.NoError(t, err)
 
-	err = s.store.AddMember(t.Context(), uri, alice)
+	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice"}`
@@ -340,4 +340,162 @@ func TestServer_Unauthorized(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.CreateSpace(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestServer_DeleteSpace(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "to-delete")
+	require.NoError(t, err)
+
+	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteSpace",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.DeleteSpace(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// space should be unreachable
+	_, err = s.store.GetMembers(t.Context(), uri)
+	require.ErrorIs(t, err, ErrSpaceNotFound)
+}
+
+func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
+	s := newAliceServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	body := `{"space": "` + uri.String() + `"}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.space.deleteSpace",
+		strings.NewReader(body),
+	)
+	w := httptest.NewRecorder()
+	s.DeleteSpace(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestServer_GetRepoOplog(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepoOplog(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var output habitat.NetworkHabitatSpaceGetRepoOplogOutput
+	err = json.NewDecoder(w.Body).Decode(&output)
+	require.NoError(t, err)
+	require.Len(t, output.Records, 2)
+	require.Equal(t, "k1", output.Records[0].Rkey)
+	require.Equal(t, "k2", output.Records[1].Rkey)
+	require.Equal(t, coll.String(), output.Records[0].Collection)
+	require.NotEmpty(t, output.Records[0].Rev)
+	require.NotEmpty(t, output.Cursor)
+	require.Equal(t, output.Records[1].Rev, output.Cursor)
+}
+
+func TestServer_GetRepoOplog_Since(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepoOplog(w, req)
+	var first habitat.NetworkHabitatSpaceGetRepoOplogOutput
+	err = json.NewDecoder(w.Body).Decode(&first)
+	require.NoError(t, err)
+	require.Len(t, first.Records, 2)
+
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner&since="+first.Cursor,
+		nil,
+	)
+	w = httptest.NewRecorder()
+	s.GetRepoOplog(w, req)
+	var second habitat.NetworkHabitatSpaceGetRepoOplogOutput
+	err = json.NewDecoder(w.Body).Decode(&second)
+	require.NoError(t, err)
+	require.Len(t, second.Records, 0)
+}
+
+func TestServer_GetRepoOplog_Unauthorized(t *testing.T) {
+	s := newAliceServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepoOplog(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestServer_GetRepoOplog_IncludesValue(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+
+	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.GetRepoOplog(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var output habitat.NetworkHabitatSpaceGetRepoOplogOutput
+	err = json.NewDecoder(w.Body).Decode(&output)
+	require.NoError(t, err)
+	require.Len(t, output.Records, 1)
+	val, ok := output.Records[0].Value.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "hello", val["text"])
 }

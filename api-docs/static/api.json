@@ -3432,6 +3432,11 @@
                     "type": "string",
                     "description": "The DID of the user to add.",
                     "format": "did"
+                  },
+                  "access": {
+                    "type": "string",
+                    "description": "The access level to give the user. Defaults to read.",
+                    "default": "read"
                   }
                 }
               }
@@ -3757,6 +3762,104 @@
         }
       }
     },
+    "/network.habitat.space.deleteSpace": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.deleteSpace",
+        "description": "Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.",
+        "operationId": "network.habitat.space.deleteSpace",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "URI of the space to delete.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.getMembers": {
       "get": {
         "tags": [
@@ -3988,6 +4091,152 @@
                         },
                         {
                           "const": "RecordNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.getRepoOplog": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.getRepoOplog",
+        "description": "Get records modified since a given revision for a member in a space. Used for incremental sync. Callable by any member of the space.",
+        "operationId": "network.habitat.space.getRepoOplog",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "description": "The DID of the member whose records to track.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The DID of the member whose records to track.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Return records with revisions after this value (exclusive).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Return records with revisions after this value (exclusive)."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of records to return.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "records"
+                  ],
+                  "properties": {
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.space.getRepoOplog.record"
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "description": "The revision of the last returned record. Use as `since` in the next poll."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
                         }
                       ]
                     },
@@ -4874,10 +5123,37 @@
             "type": "string",
             "format": "did"
           },
+          "access": {
+            "type": "string"
+          },
           "addedAt": {
             "type": "string",
             "format": "date-time"
           }
+        }
+      },
+      "network.habitat.space.getRepoOplog.record": {
+        "type": "object",
+        "required": [
+          "rev",
+          "collection",
+          "rkey",
+          "value"
+        ],
+        "properties": {
+          "rev": {
+            "type": "string",
+            "description": "Revision (TID) of this record."
+          },
+          "collection": {
+            "type": "string",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "format": "record-key"
+          },
+          "value": {}
         }
       },
       "network.habitat.space.listRecords.record": {

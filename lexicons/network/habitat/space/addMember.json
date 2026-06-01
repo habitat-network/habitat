@@ -23,6 +23,15 @@
                             "type": "string",
                             "format": "did",
                             "description": "The DID of the user to add."
+                        },
+                        "access": {
+                            "type": "string",
+                            "enum": [
+                                "read",
+                                "write"
+                            ],
+                            "default": "read",
+                            "description": "The access level to give the user. Defaults to read."
                         }
                     }
                 }

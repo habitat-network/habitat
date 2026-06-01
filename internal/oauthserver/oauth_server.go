@@ -313,7 +313,7 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod())
+	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod(ctx))
 	if err != nil {
 		o.metrics.authorizeErr(err, "no_provider")
 		utils.LogAndHTTPError(w, err, "no login provider for org", http.StatusBadRequest)

@@ -13,16 +13,24 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.space.getMembers'
+const id = 'network.habitat.space.getRepoOplog'
 
 export type QueryParams = {
   /** Reference to the space. */
   space: string
+  /** The DID of the member whose records to track. */
+  repo: string
+  /** Return records with revisions after this value (exclusive). */
+  since?: string
+  /** Maximum number of records to return. */
+  limit?: number
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  members: Member[]
+  records: Record[]
+  /** The revision of the last returned record. Use as `since` in the next poll. */
+  cursor?: string
 }
 
 export interface CallOptions {
@@ -50,19 +58,22 @@ export function toKnownErr(e: any) {
   return e
 }
 
-export interface Member {
-  $type?: 'network.habitat.space.getMembers#member'
-  did: string
-  access?: 'read' | 'write'
-  addedAt?: string
+export interface Record {
+  $type?: 'network.habitat.space.getRepoOplog#record'
+  /** Revision (TID) of this record. */
+  rev: string
+  collection: string
+  rkey: string
+  /** The record value. */
+  value: { [_ in string]: unknown }
 }
 
-const hashMember = 'member'
+const hashRecord = 'record'
 
-export function isMember<V>(v: V) {
-  return is$typed(v, id, hashMember)
+export function isRecord<V>(v: V) {
+  return is$typed(v, id, hashRecord)
 }
 
-export function validateMember<V>(v: V) {
-  return validate<Member & V>(v, id, hashMember)
+export function validateRecord<V>(v: V) {
+  return validate<Record & V>(v, id, hashRecord)
 }

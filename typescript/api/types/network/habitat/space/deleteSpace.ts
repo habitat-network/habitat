@@ -13,17 +13,13 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.space.addMember'
+const id = 'network.habitat.space.deleteSpace'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** Reference to the space. */
+  /** URI of the space to delete. */
   space: string
-  /** The DID of the user to add. */
-  did: string
-  /** The access level to give the user. Defaults to read. */
-  access?: 'read' | 'write'
 }
 
 export interface CallOptions {
@@ -44,16 +40,9 @@ export class SpaceNotFoundError extends XRPCError {
   }
 }
 
-export class UserAlreadyMemberError extends XRPCError {
-  constructor(src: XRPCError) {
-    super(src.status, src.error, src.message, src.headers, { cause: src })
-  }
-}
-
 export function toKnownErr(e: any) {
   if (e instanceof XRPCError) {
     if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
-    if (e.error === 'UserAlreadyMember') return new UserAlreadyMemberError(e)
   }
 
   return e

@@ -167,7 +167,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	// Order of middlewares = order of "Use" called
 	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
-	mux.Use(otelmux.Middleware("habitat-server"))
+	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
+
 	mux.Use(corsMiddleware)
 
 	hiveDomain := cmd.String(fHiveDomain)
@@ -395,6 +396,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.getRecord", spacesServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
+	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
+	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
 
 	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
 	// Only forward specific routes that we know we handle correctly; for now.
