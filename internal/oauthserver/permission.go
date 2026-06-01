@@ -48,28 +48,28 @@ func permissionFromScope(scope string) (permission, error) {
 
 	var positional string
 	var rawQuery string
-	if idx := strings.IndexByte(scope, '?'); idx != -1 {
-		positional = scope[:idx]
-		rawQuery = scope[idx+1:]
+	if before, after, ok := strings.Cut(scope, "?"); ok {
+		positional = before
+		rawQuery = after
 	} else {
 		positional = scope
 	}
 
-	colonIdx := strings.IndexByte(positional, ':')
-	if colonIdx == -1 {
+	before, after, ok := strings.Cut(positional, ":")
+	if !ok {
 		return permission{}, fmt.Errorf("scope missing colon: %q", scope)
 	}
 
-	resource, err := parseResource(positional[:colonIdx])
+	resource, err := parseResource(before)
 	if err != nil {
 		return permission{}, fmt.Errorf("invalid resource in scope %q: %w", scope, err)
 	}
 
 	var namespace syntax.NSID
-	if positional[colonIdx+1:] == "" {
+	if after == "" {
 		return permission{}, fmt.Errorf("scope missing namespace: %q", scope)
-	} else if positional[colonIdx+1:] != "*" {
-		parsed, err := syntax.ParseNSID(positional[colonIdx+1:])
+	} else if after != "*" {
+		parsed, err := syntax.ParseNSID(after)
 		if err != nil {
 			return permission{}, fmt.Errorf("invalid namespace in scope %q: %w", scope, err)
 		}
