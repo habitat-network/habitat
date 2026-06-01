@@ -4,16 +4,22 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+)
+
+var (
+	OrgScope = "org"
 )
 
 var validResources = map[string]bool{
-	"org": true,
+	OrgScope: true,
 }
 
 type permission struct {
-	Resource   string
-	Collection string
-	Actions    []string
+	Resource  string
+	Namespace syntax.NSID
+	Actions   []string
 }
 
 func permissionFromScope(scope string) (permission, error) {
@@ -40,9 +46,15 @@ func permissionFromScope(scope string) (permission, error) {
 		return permission{}, fmt.Errorf("unknown resource: %q", resource)
 	}
 
-	collection := positional[colonIdx+1:]
-	if collection == "" {
-		return permission{}, fmt.Errorf("scope missing collection: %q", scope)
+	var namespace syntax.NSID
+	if positional[colonIdx+1:] == "" {
+		return permission{}, fmt.Errorf("scope missing namespace: %q", scope)
+	} else if namespace != "*" {
+		parsed, err := syntax.ParseNSID(positional[colonIdx+1:])
+		if err != nil {
+			return permission{}, fmt.Errorf("invalid namespace in scope %q: %w", scope, err)
+		}
+		namespace = parsed
 	}
 
 	var actions []string
@@ -55,9 +67,9 @@ func permissionFromScope(scope string) (permission, error) {
 	}
 
 	return permission{
-		Resource:   resource,
-		Collection: collection,
-		Actions:    actions,
+		Resource:  resource,
+		Namespace: namespace,
+		Actions:   actions,
 	}, nil
 }
 
@@ -65,7 +77,7 @@ func scopeMatch(granted, required permission) bool {
 	if granted.Resource != required.Resource {
 		return false
 	}
-	if granted.Collection != "*" && granted.Collection != required.Collection {
+	if granted.Namespace != "*" && granted.Namespace != required.Namespace {
 		return false
 	}
 	if len(required.Actions) == 0 {
@@ -82,37 +94,6 @@ func scopeMatch(granted, required permission) bool {
 		delete(requiredSet, a)
 	}
 	return len(requiredSet) == 0
-}
-
-func scopesSatisfy(grantedScopes, requiredScopes []string) bool {
-	if len(requiredScopes) == 0 {
-		return true
-	}
-	granted := make([]permission, 0, len(grantedScopes))
-	for _, s := range grantedScopes {
-		p, err := permissionFromScope(s)
-		if err != nil {
-			continue
-		}
-		granted = append(granted, p)
-	}
-	for _, req := range requiredScopes {
-		requiredP, err := permissionFromScope(req)
-		if err != nil {
-			return false
-		}
-		matched := false
-		for _, g := range granted {
-			if scopeMatch(g, requiredP) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	return true
 }
 
 func scopeStrategy(haystack []string, needle string) bool {

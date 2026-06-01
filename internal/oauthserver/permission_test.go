@@ -14,22 +14,22 @@ func TestPermissionFromScope(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:  "all collections wildcard",
+			name:  "all spaces types wildcard",
 			scope: "org:*",
-			want:  permission{Resource: "org", Collection: "*", Actions: nil},
+			want:  permission{Resource: "org", Namespace: "*", Actions: nil},
 		},
 		{
-			name:  "single collection",
-			scope: "org:com.example.post",
-			want:  permission{Resource: "org", Collection: "com.example.post", Actions: nil},
+			name:  "single space type",
+			scope: "org:com.example.type",
+			want:  permission{Resource: "org", Namespace: "com.example.type", Actions: nil},
 		},
 		{
-			name:  "single collection with actions",
-			scope: "org:com.example.post?action=create&action=update",
+			name:  "single space with actions",
+			scope: "org:com.example.type?action=create&action=update",
 			want: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
-				Actions:    []string{"create", "update"},
+				Resource:  "org",
+				Namespace: "com.example.type",
+				Actions:   []string{"create", "update"},
 			},
 		},
 		{
@@ -69,77 +69,77 @@ func TestScopeMatch(t *testing.T) {
 		want     bool
 	}{
 		{
-			name:     "wildcard matches any collection",
-			granted:  permission{Resource: "org", Collection: "*"},
-			required: permission{Resource: "org", Collection: "com.example.post"},
+			name:     "wildcard matches any space type",
+			granted:  permission{Resource: "org", Namespace: "*"},
+			required: permission{Resource: "org", Namespace: "com.example.type"},
 			want:     true,
 		},
 		{
 			name:     "exact match",
-			granted:  permission{Resource: "org", Collection: "com.example.post"},
-			required: permission{Resource: "org", Collection: "com.example.post"},
+			granted:  permission{Resource: "org", Namespace: "com.example.type"},
+			required: permission{Resource: "org", Namespace: "com.example.type"},
 			want:     true,
 		},
 		{
 			name:     "different collection no match",
-			granted:  permission{Resource: "org", Collection: "com.example.post"},
-			required: permission{Resource: "org", Collection: "com.example.like"},
+			granted:  permission{Resource: "org", Namespace: "com.example.type"},
+			required: permission{Resource: "org", Namespace: "com.example.like"},
 			want:     false,
 		},
 		{
 			name:    "wildcard matches with action constraint",
-			granted: permission{Resource: "org", Collection: "*"},
+			granted: permission{Resource: "org", Namespace: "*"},
 			required: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
-				Actions:    []string{"create"},
+				Resource:  "org",
+				Namespace: "com.example.type",
+				Actions:   []string{"create"},
 			},
 			want: true,
 		},
 		{
 			name: "granted nil actions satisfies any action requirement",
 			granted: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
+				Resource:  "org",
+				Namespace: "com.example.type",
 			},
 			required: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
-				Actions:    []string{"create"},
+				Resource:  "org",
+				Namespace: "com.example.type",
+				Actions:   []string{"create"},
 			},
 			want: true,
 		},
 		{
 			name: "granted specific action satisfies actionless required",
 			granted: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
-				Actions:    []string{"create"},
+				Resource:  "org",
+				Namespace: "com.example.type",
+				Actions:   []string{"create"},
 			},
 			required: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
+				Resource:  "org",
+				Namespace: "com.example.type",
 			},
 			want: true,
 		},
 		{
 			name: "missing action in granted fails",
 			granted: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
-				Actions:    []string{"create"},
+				Resource:  "org",
+				Namespace: "com.example.type",
+				Actions:   []string{"create"},
 			},
 			required: permission{
-				Resource:   "org",
-				Collection: "com.example.post",
-				Actions:    []string{"delete"},
+				Resource:  "org",
+				Namespace: "com.example.type",
+				Actions:   []string{"delete"},
 			},
 			want: false,
 		},
 		{
 			name:     "different resource no match",
-			granted:  permission{Resource: "repo", Collection: "com.example.post"},
-			required: permission{Resource: "org", Collection: "com.example.post"},
+			granted:  permission{Resource: "repo", Namespace: "com.example.type"},
+			required: permission{Resource: "org", Namespace: "com.example.type"},
 			want:     false,
 		},
 	}
@@ -151,27 +151,27 @@ func TestScopeMatch(t *testing.T) {
 	}
 }
 
-func TestScopesSatisfy(t *testing.T) {
+func TestScopesStrategy(t *testing.T) {
 	t.Run("wildcard satisfies single", func(t *testing.T) {
-		ok := scopesSatisfy([]string{"org:*"}, []string{"org:com.example.post"})
+		ok := scopeStrategy([]string{"org:com.example.type"}, "org:*")
 		require.True(t, ok)
 	})
 	t.Run("exact match", func(t *testing.T) {
-		ok := scopesSatisfy([]string{"org:com.example.post"}, []string{"org:com.example.post"})
+		ok := scopeStrategy([]string{"org:com.example.type"}, "org:com.example.type")
 		require.True(t, ok)
 	})
 	t.Run("missing scope", func(t *testing.T) {
-		ok := scopesSatisfy([]string{"org:com.example.post"}, []string{"org:com.example.like"})
+		ok := scopeStrategy([]string{"org:com.example.otherType"}, "org:com.example.type")
 		require.False(t, ok)
 	})
 	t.Run("empty required always satisfied", func(t *testing.T) {
-		ok := scopesSatisfy([]string{"org:com.example.post"}, nil)
+		ok := scopeStrategy([]string{}, "org:com.example.type")
 		require.True(t, ok)
 	})
 	t.Run("multiple required one missing", func(t *testing.T) {
-		ok := scopesSatisfy(
-			[]string{"org:com.example.post"},
-			[]string{"org:com.example.post", "org:com.example.like"},
+		ok := scopeStrategy(
+			[]string{"org:com.example.type", "org:com.example.otherType"},
+			"org:com.example.type",
 		)
 		require.False(t, ok)
 	})
