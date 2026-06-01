@@ -473,10 +473,10 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri := spaceURI.String() + "/" + collection.String() + "/" + rec.Rkey.String()
+	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, owner, collection, rec.Rkey)
 	output := habitat.NetworkHabitatSpaceGetRecordOutput{
-		Uri:   uri,
-		Cid:   "",
+		Uri:   uri.String(),
+		Cid:   rec.Cid.String(),
 		Value: rec.Value,
 	}
 	w.Header().Set("Content-Type", "application/json")

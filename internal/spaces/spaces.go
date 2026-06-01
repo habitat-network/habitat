@@ -2,7 +2,6 @@ package spaces
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -560,8 +559,8 @@ func (s *store) GetRecord(
 		return nil, err
 	}
 
-	var value map[string]any
-	if err := json.Unmarshal(row.Value, &value); err != nil {
+	value, err := atdata.UnmarshalCBOR(row.Value)
+	if err != nil {
 		return nil, err
 	}
 
@@ -596,8 +595,8 @@ func (s *store) ListRecords(
 
 	records := make([]Record, len(rows))
 	for i, row := range rows {
-		var value map[string]any
-		if err := json.Unmarshal(row.Value, &value); err != nil {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
 			return nil, err
 		}
 		records[i] = Record{
@@ -685,8 +684,8 @@ func (s *store) GetRepoOplog(
 
 	records := make([]Record, len(rows))
 	for i, row := range rows {
-		var value map[string]any
-		if err := json.Unmarshal(row.Value, &value); err != nil {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
 			return nil, err
 		}
 		records[i] = Record{
