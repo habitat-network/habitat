@@ -7,7 +7,7 @@ projects:
     integration: integration
     typescript/api: typescript/api
     go/api: api
-    xrpc:openapi-gen: typescript/xrpc-openapi-gen
+    xrpc-openapi-gen: typescript/xrpc-openapi-gen
     api-docs: api-docs
   globs:
   - cmd/*
