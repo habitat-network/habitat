@@ -12,5 +12,6 @@ type NetworkHabitatSpacePutRecordInput struct {
 
 // NetworkHabitatSpacePutRecordOutput represents the output for network.habitat.space.putRecord
 type NetworkHabitatSpacePutRecordOutput struct {
+	Cid string `json:"cid,omitempty"`
 	Uri string `json:"uri"`
 }

@@ -2738,12 +2738,6 @@ export const schemaDict = {
               format: 'record-key',
               description: 'The Record Key.',
             },
-            cid: {
-              type: 'string',
-              format: 'cid',
-              description:
-                'The CID of the version of the record. If not specified, return the most recent version.',
-            },
           },
         },
         output: {
@@ -2852,6 +2846,10 @@ export const schemaDict = {
           rkey: {
             type: 'string',
             format: 'record-key',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
           },
           value: {
             type: 'unknown',
@@ -3074,6 +3072,10 @@ export const schemaDict = {
               uri: {
                 type: 'string',
                 description: 'URI of the written record.',
+              },
+              cid: {
+                type: 'string',
+                format: 'cid',
               },
             },
           },

@@ -93,3 +93,18 @@ func (s SpaceURI) Skey() SpaceKey {
 func (s SpaceURI) String() string {
 	return string(s)
 }
+
+type SpaceRecordURI string
+
+func ConstructSpaceRecordURI(
+	spaceUri SpaceURI,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+) SpaceRecordURI {
+	return SpaceRecordURI(fmt.Sprintf("%s/%s/%s/%s", spaceUri, repo, collection, rkey))
+}
+
+func (s SpaceRecordURI) String() string {
+	return string(s)
+}
