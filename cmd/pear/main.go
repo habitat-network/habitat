@@ -344,7 +344,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to setup change emitter consumer for jetstream service")
 		}
-		jss := jetstream.NewServer(egCtx, consumer)
+		jss := jetstream.NewServer(egCtx, consumer, nil)
 		mux.HandleFunc("/jetstream", jss.HandleSubscribe)
 	*/
 
