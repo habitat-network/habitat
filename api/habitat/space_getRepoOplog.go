@@ -18,6 +18,7 @@ type NetworkHabitatSpaceGetRepoOplogOutput struct {
 
 // NetworkHabitatSpaceGetRepoOplogRecord represents a record object
 type NetworkHabitatSpaceGetRepoOplogRecord struct {
+	Cid        string      `json:"cid,omitempty"`
 	Collection string      `json:"collection"`
 	Rev        string      `json:"rev"`
 	Rkey       string      `json:"rkey"`

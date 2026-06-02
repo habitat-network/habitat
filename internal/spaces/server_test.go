@@ -188,7 +188,7 @@ func TestServer_DeleteRecord(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.store.PutRecord(
+	_, _, err = s.store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -225,9 +225,9 @@ func TestServer_ListRecords(t *testing.T) {
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -304,7 +304,7 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.store.PutRecord(
+	_, _, err = s.store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -391,9 +391,9 @@ func TestServer_GetRepoOplog(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -425,9 +425,9 @@ func TestServer_GetRepoOplog_Since(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -479,7 +479,14 @@ func TestServer_GetRepoOplog_IncludesValue(t *testing.T) {
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	_, _, err = s.store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"text": "hello"},
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(

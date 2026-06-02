@@ -24,8 +24,6 @@ export type QueryParams = {
   collection: string
   /** The Record Key. */
   rkey: string
-  /** The CID of the version of the record. If not specified, return the most recent version. */
-  cid?: string
 }
 export type InputSchema = undefined
 
