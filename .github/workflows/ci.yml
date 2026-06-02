@@ -34,12 +34,16 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-mod-${{ hashFiles('**/go.sum', '.prototools', '.moon/toolchains.yml') }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('**/go.sum', '.prototools', '.moon/toolchains.yml') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-
 
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml', '.prototools') }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', '.prototools') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
 
       - run: moon ci --color -g
