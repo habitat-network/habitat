@@ -1,4 +1,4 @@
-import type { AuthManager } from "internal";
+import { type AuthManager, UnauthenticatedError } from "internal";
 import { getConfigQueryOptions } from "@/queries/org";
 import Header from "@/components/header";
 import { type QueryClient } from "@tanstack/react-query";
@@ -30,6 +30,17 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         actor: authInfo.did,
       }),
     ]);
+
+    // If the authenticated request failed because the token can't be used
+    // (failed refresh or a 401), treat the user as logged out so the header
+    // shows "Login" rather than a stale profile + "Logout". A non-auth failure
+    // (e.g. a network blip) leaves the session intact.
+    if (
+      config.status === "rejected" &&
+      config.reason instanceof UnauthenticatedError
+    ) {
+      return { profile: undefined, org: undefined };
+    }
 
     const profile =
       profileResult.status === "fulfilled"
