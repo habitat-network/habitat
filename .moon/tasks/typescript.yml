@@ -42,8 +42,6 @@ tasks:
       - ^:build
     command: pnpm 
     args: build
-    outputs:
-    - dist/
   start:
     command: pnpm serve
   dev:
