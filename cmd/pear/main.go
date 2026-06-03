@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/pressly/goose/v3"
@@ -74,15 +73,10 @@ func main() {
 }
 
 func run(_ context.Context, cmd *cli.Command) error {
-	if cmd.Bool(fPrettyLogs) {
-		handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
-		slog.SetDefault(slog.New(handler))
-	}
-
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
-	slog.Info("running with flags", "flags", strings.Join(cmd.FlagNames(), ", "))
+	slog.Info("running with flags", "flags", cmd.FlagNames())
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -90,15 +84,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by slog.
-	otelClose, ok, err := telemetry.SetupOpenTelemetry(ctx)
+	otelClose, err := telemetry.SetupOpenTelemetry(ctx)
 	defer otelClose(context.Background())
 	if err != nil {
 		slog.Error("failed setting up open telemetry for metric/trace/log collection", "err", err)
 		os.Exit(1)
 	}
-	if ok {
-		slog.Info("successfully set up open telemetry")
-	}
+	slog.Info("successfully set up open telemetry")
 
 	env := utils.GetEnvString("env", "local")
 	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
@@ -419,7 +411,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 				hiveServer.GetServiceAuth(w, r)
 				return
 			}
-			utils.LogAndHTTPError(w,
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
 				fmt.Errorf("no atproto_pds or habitat service in DID doc for %s", id.DID),
 				"[getServiceAuth dispatch]: no usable service in DID doc",
 				http.StatusBadGateway,
