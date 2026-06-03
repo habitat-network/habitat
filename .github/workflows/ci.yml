@@ -46,4 +46,4 @@ jobs:
           restore-keys: |
             pnpm-store-${{ runner.os }}-
 
-      - run: moon ci --color -g --summary detailed --log verbose --cache off --dependents deep
+      - run: moon ci --color -g --summary detailed --cache off --dependents deep
