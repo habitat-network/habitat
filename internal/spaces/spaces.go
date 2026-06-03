@@ -10,7 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -276,7 +276,7 @@ func (s *store) ListSpaces(
 		allRows = append(allRows, otherRows...)
 	}
 
-	log.Debug().Int("spaces", len(allRows)).Msg("list spaces")
+	slog.Debug("list spaces", "spaces", len(allRows))
 
 	views := make([]SpaceView, len(allRows))
 	for i, row := range allRows {
@@ -298,7 +298,7 @@ func (s *store) ListSpaces(
 			MemberCount: memberCount,
 		}
 	}
-	log.Debug().Int("views", len(views)).Msg("list spaces")
+	slog.Debug("list spaces", "views", len(views))
 	return views, nil
 }
 

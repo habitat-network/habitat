@@ -13,7 +13,7 @@ import (
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 type pdsProvider struct {
@@ -104,7 +104,7 @@ func (p *pdsProvider) Exchange(
 		DpopKey:      dpopKey,
 	}); err != nil {
 		// Log and move on since an error upserting doesn't mean the login failed
-		log.Err(err).Msgf("error upserting PDS credentials")
+		slog.Warn("error upserting PDS credentials", "err", err)
 	}
 	return nil
 }

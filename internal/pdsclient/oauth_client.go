@@ -20,7 +20,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/oauth2"
 )
@@ -486,13 +486,14 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	log.Debug().
-		Str("client assertion", clientAssertion).
-		Str("issuer", as.Issuer).
-		Str("par url", parUrl).
-		Str("state", state).
-		Str("verifier", verifier).
-		Str("redirect uri", o.redirectUri)
+	slog.Debug("pushed authorization request",
+		"client_assertion", clientAssertion,
+		"issuer", as.Issuer,
+		"par_url", parUrl,
+		"state", state,
+		"verifier", verifier,
+		"redirect_uri", o.redirectUri,
+	)
 
 	resp, err := dpopClient.Do(req)
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/bradenaw/juniper/stream"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 type Changelog struct {
@@ -105,6 +105,6 @@ func (c *Changelog) EmitChangeEvent(
 	// TODO handle error
 	// For now long the error and move on
 	if err != nil {
-		log.Err(err).Msg("error emitting change event")
+		slog.Error("error emitting change event", "err", err)
 	}
 }

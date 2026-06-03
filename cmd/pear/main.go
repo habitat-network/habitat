@@ -15,9 +15,7 @@ import (
 	"syscall"
 
 	"github.com/pressly/goose/v3"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"go.opentelemetry.io/contrib/bridges/otelzerolog"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,6 +26,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/plugin/opentelemetry/tracing"
+	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/mux"
@@ -69,40 +68,39 @@ func main() {
 		Action:                 run,
 	}
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		log.Fatal().Err(err).Msg("error running command")
+		slog.Error("error running command", "err", err)
+		os.Exit(1)
 	}
 }
 
 func run(_ context.Context, cmd *cli.Command) error {
 	if cmd.Bool(fPrettyLogs) {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
+		slog.SetDefault(slog.New(handler))
 	}
-	// Parse all CLI arguments and options at the beginning
+
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
-	// Log the parsed flag names (values may be sensitive).
-	log.Info().Msgf("running with flags: %s", strings.Join(cmd.FlagNames(), ", "))
+	slog.Info("running with flags", "flags", strings.Join(cmd.FlagNames(), ", "))
 
-	// Setup context with signal handling for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
-	// by zerolog.
+	// by slog.
 	otelClose, ok, err := telemetry.SetupOpenTelemetry(ctx)
-	// Handle shutdown properly so nothing leaks.
 	defer otelClose(context.Background())
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed setting up open telemetry for metric/trace/log collection")
+		slog.Error("failed setting up open telemetry for metric/trace/log collection", "err", err)
+		os.Exit(1)
 	}
 	if ok {
-		log.Info().Msg("successfully set up open telemetry")
+		slog.Info("successfully set up open telemetry")
 	}
 
 	env := utils.GetEnvString("env", "local")
-	// Metric that records a single running process (for testing)
 	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
 		Key:   "env",
 		Value: attribute.StringValue(env),
@@ -110,36 +108,30 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
 	if err != nil {
-		log.Err(err)
+		slog.Error("failed to create gauge", "err", err)
 	} else {
 		gauge.Record(ctx, 1)
-		// Set to zero when the task goes away
 		defer gauge.Record(context.Background(), 0)
 	}
 
-	// Setup the zerolog logger
-	hook := otelzerolog.NewHook(
-		"habitat", /* otel service name */
-		otelzerolog.WithLoggerProvider(global.GetLoggerProvider()),
+	otelHandler := otelslog.NewHandler(
+		"habitat",
+		otelslog.WithLoggerProvider(global.GetLoggerProvider()),
 	)
+	slog.SetDefault(slog.New(slog.NewMultiHandler(slog.Default().Handler(), otelHandler)))
 
-	// Need to set log.Logger so globally anything initialized after here uses the global zerolog Logger
-	// which is now hooked up to open telemetry.
-	log.Logger = log.Logger.Hook(hook)
-
-	// Setup components
 	db := setupDB(cmd)
-
 	fgaStore := setupFGA(ctx, cmd)
 
-	// Load encryption key for PDS credentials
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to load PDS encryption key")
+		slog.Error("unable to load PDS encryption key", "err", err)
+		os.Exit(1)
 	}
 	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pds cred store")
+		slog.Error("unable to setup pds cred store", "err", err)
+		os.Exit(1)
 	}
 
 	domain := cmd.String(fDomain)
@@ -151,24 +143,21 @@ func run(_ context.Context, cmd *cli.Command) error {
 		clientUri = "https://" + domain
 	}
 	oauthClient, err := pdsclient.NewPdsOAuthClient(
-		clientUri+"/client-metadata.json",   /*clientId*/
-		clientUri,                           /*clientUri*/
-		"https://"+domain+"/oauth-callback", /*redirectUri*/
+		clientUri+"/client-metadata.json",
+		clientUri,
+		"https://"+domain+"/oauth-callback",
 		cmd.String(fOauthClientSecret),
 		meter,
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup oauth client")
+		slog.Error("unable to setup oauth client", "err", err)
+		os.Exit(1)
 	}
 
-	// Create error group for managing goroutines
 	eg, egCtx := errgroup.WithContext(ctx)
 	mux := mux.NewRouter()
 
-	// Order of middlewares = order of "Use" called
-	// https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
-
 	mux.Use(corsMiddleware)
 
 	hiveDomain := cmd.String(fHiveDomain)
@@ -176,17 +165,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	// hive is the identity minting service for orgs.
 	orgHive, err := hive.NewHive(hiveDomain, domain, db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup hive (identity service for org)")
+		slog.Error("unable to setup hive (identity service for org)", "err", err)
+		os.Exit(1)
 	}
 	dir := identity.DefaultDirectory()
 
-	// orgStore manages all orgs on this instance (managed orgs + everyone org for external DIDs)
 	orgStore, err := org.NewStore(db, orgHive, dir, domain)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup org store")
+		slog.Error("unable to setup org store", "err", err)
+		os.Exit(1)
 	}
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
@@ -195,14 +184,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 		dir,
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup PDS client factory")
+		slog.Error("unable to setup PDS client factory", "err", err)
+		os.Exit(1)
 	}
 
 	node := setupNode(cmd, pdsClientFactory, dir)
 
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to parse oauth server secret for login provider")
+		slog.Error("unable to parse oauth server secret for login provider", "err", err)
+		os.Exit(1)
 	}
 	orgLoginProvider := org.NewLoginProvider(
 		orgStore,
@@ -227,10 +218,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 			credKey,
 		)
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup google login provider")
+			slog.Error("unable to setup google login provider", "err", err)
+			os.Exit(1)
 		}
 		providers = append(providers, googleProvider)
-		log.Info().Msg("google login provider enabled")
+		slog.Info("google login provider enabled")
 	}
 	loginRouter := login.NewRouter(providers...)
 
@@ -245,17 +237,20 @@ func run(_ context.Context, cmd *cli.Command) error {
 		orgStore,
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup oauth server")
+		slog.Error("unable to setup oauth server", "err", err)
+		os.Exit(1)
 	}
 
 	cliqueStore, err := clique.NewStore(db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup clique store")
+		slog.Error("unable to setup clique store", "err", err)
+		os.Exit(1)
 	}
 
 	spacesStore, err := spaces.NewStore(db, fgaStore)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup spaces store")
+		slog.Error("unable to setup spaces store", "err", err)
+		os.Exit(1)
 	}
 	spacesServer := spaces.NewServer(
 		spacesStore,
@@ -267,19 +262,22 @@ func run(_ context.Context, cmd *cli.Command) error {
 	cdc := repo.NewChangeEmitter(ctx, repo.DefaultChangeBufferSize)
 	repo, err := repo.NewRepo(cdc, db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup repo")
+		slog.Error("unable to setup repo", "err", err)
+		os.Exit(1)
 	}
 
 	pear, err := setupPear(ctx, cmd, dir, repo, node, cliqueStore, db)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup pear")
+		slog.Error("unable to setup pear", "err", err)
+		os.Exit(1)
 	}
 
-	// Server for org management routes
 	orgServer, err := org.NewServer(orgStore, oauthServer, pear)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("unable to setup org server for domain: %s", domain)
+		slog.Error("unable to setup org server for domain", "err", err, "domain", domain)
+		os.Exit(1)
 	}
+
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
 	mux.HandleFunc("/xrpc/network.habitat.org.getMembers", orgServer.GetMembers)
 	mux.HandleFunc("/xrpc/network.habitat.org.addAdmin", orgServer.AddAdmin)
@@ -301,15 +299,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup p2p server")
+		slog.Error("unable to setup p2p server", "err", err)
+		os.Exit(1)
 	}
 
 	hiveServer, err := hive.NewServer(orgHive, oauthServer)
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup hive server")
+		slog.Error("unable to setup hive server", "err", err)
+		os.Exit(1)
 	}
 
-	// hive server routes
 	mux.Host("{opaqueID:.+}." + hiveDomain).
 		Path("/.well-known/did.json").
 		HandlerFunc(hiveServer.ServeDIDDoc)
@@ -323,44 +322,27 @@ func run(_ context.Context, cmd *cli.Command) error {
 		Path("/.well-known/atproto-did").
 		HandlerFunc(hiveServer.ServeHandle)
 
-	// handle waitlist signups
-	// TODO: this should be moved to a separate server; no need to run it for orgs
 	waitlistSvc, err := NewWaitlistService(
 		egCtx,
 		os.Getenv("WAITLIST_SHEET_ID"),
 		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
 	)
 	if err == nil {
-		log.Info().Msgf("successfully set up waitlist service")
+		slog.Info("successfully set up waitlist service")
 		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
 	} else {
-		// Not a fatal error: log and move on
-		log.Err(err).Msgf("unable to set up waitlist service")
+		slog.Error("unable to set up waitlist service", "err", err)
 	}
 
-	// TODO: enable this when jetstream has auth on it
-	/*
-		consumer, err := changeEmitter.Consume()
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup change emitter consumer for jetstream service")
-		}
-		jss := jetstream.NewServer(egCtx, consumer)
-		mux.HandleFunc("/jetstream", jss.HandleSubscribe)
-	*/
-
-	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
 
-	// TODO: who is allowed to call the oauth handlers in an org?
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", orgLoginProvider.HandlePasswordLogin)
 
-	// pear routes
-	// repo
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
@@ -371,7 +353,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getBlob", pearServer.GetBlob)
 
-	// permissions
 	mux.HandleFunc("/xrpc/network.habitat.permissions.listPermissions", pearServer.ListPermissions)
 	mux.HandleFunc("/xrpc/network.habitat.permissions.addPermission", pearServer.AddPermission)
 	mux.HandleFunc(
@@ -379,14 +360,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 		pearServer.RemovePermission,
 	)
 
-	// cliques
 	mux.HandleFunc("/xrpc/network.habitat.clique.createClique", cliqueServer.CreateClique)
 	mux.HandleFunc("/xrpc/network.habitat.clique.addMembers", cliqueServer.AddCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.removeMembers", cliqueServer.RemoveCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.getMembers", cliqueServer.GetCliqueMembers)
 	mux.HandleFunc("/xrpc/network.habitat.clique.isMember", cliqueServer.IsCliqueMember)
 
-	// spaces
 	mux.HandleFunc("/xrpc/network.habitat.space.createSpace", spacesServer.CreateSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
 	mux.HandleFunc("/xrpc/network.habitat.space.addMember", spacesServer.AddMember)
@@ -400,16 +379,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
 
 	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
-	// Only forward specific routes that we know we handle correctly; for now.
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
-	// getServiceAuth needs to be dispatched per-caller: bridged users whose
-	// DID doc lists an #atproto_pds service must still have their request
-	// forwarded to that PDS (which holds their signing key). For habitat-native
-	// users whose doc only has #habitat, habitat itself holds the signing key
-	// and mints the JWT locally via hiveServer. Prefer atproto_pds when both
-	// services are present.
 	mux.HandleFunc(
 		"/xrpc/com.atproto.server.getServiceAuth",
 		func(w http.ResponseWriter, r *http.Request) {
@@ -445,7 +417,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	postHogUrl, err := url.Parse("https://us.i.posthog.com")
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to parse posthog url")
+		slog.Error("failed to parse posthog url", "err", err)
+		os.Exit(1)
 	}
 	postHogProxy := httputil.NewSingleHostReverseProxy(postHogUrl)
 	defaultDirector := postHogProxy.Director
@@ -456,7 +429,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.PathPrefix("/posthog").
 		Handler(http.StripPrefix("/posthog", postHogProxy))
 
-	// TODO: should we put this behind /p2p instead of / ?
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
 	s := &http.Server{
@@ -464,9 +436,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
-	// Start the HTTP server in a goroutine
 	eg.Go(func() error {
-		log.Info().Msgf("starting server on port :%s", port)
+		slog.Info("starting server", "port", port)
 		if httpsCerts == "" {
 			return s.ListenAndServe()
 		}
@@ -476,24 +447,22 @@ func run(_ context.Context, cmd *cli.Command) error {
 		)
 	})
 
-	// Gracefully shutdown server when context is cancelled
 	eg.Go(func() error {
 		<-egCtx.Done()
-		log.Info().Msg("shutting down p2p server")
+		slog.Info("shutting down p2p server")
 		if err := p2pServer.Close(); err != nil {
-			log.Error().Err(err).Msg("error closing p2p host")
+			slog.Error("error closing p2p host", "err", err)
 		}
-		log.Info().Msg("shutting down server")
+		slog.Info("shutting down server")
 		if err := s.Shutdown(context.Background()); err != nil {
-			log.Error().Err(err).Msg("error shutting down http server")
+			slog.Error("error shutting down http server", "err", err)
 		}
 		return nil
 	})
 
-	// Wait for all goroutines to finish
 	err = eg.Wait()
 	if err != nil {
-		log.Err(err).Msgf("server shut down returned an error")
+		slog.Error("server shut down returned an error", "err", err)
 	}
 	return err
 }
@@ -541,23 +510,23 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	if postgresUrl != "" {
 		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
+			slog.Error("unable to open postgres db backing pear server")
 		}
-		log.Info().Msg("connected to postgres database")
+		slog.Info("connected to postgres database")
 	} else {
 		dbPath := cmd.String(fDb)
 		db, err = gorm.Open(sqlite.Open(dbPath))
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to open sqlite file backing pear server")
+			slog.Error("unable to open sqlite file backing pear server")
 		}
-		log.Info().Str("path", dbPath).Msg("connected to sqlite database")
+		slog.Info("connected to sqlite database", "path", dbPath)
 	}
 	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
-		log.Fatal().Err(err).Msg("unable to setup database otel tracing and metrics plugin")
+		slog.Error("unable to setup database otel tracing and metrics plugin")
 	}
 	sqlDb, err := db.DB()
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to open postgres db backing pear server")
+		slog.Error("unable to open postgres db backing pear server")
 	}
 	goose.SetBaseFS(embedMigrations)
 	if postgresUrl != "" {
@@ -567,7 +536,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 	}
 	err = goose.Up(sqlDb, "migrations")
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to run migrations")
+		slog.Error("unable to run migrations")
 	}
 	return db
 }
@@ -577,13 +546,13 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 	if postgresUrl != "" {
 		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup fga store with postgres")
+			slog.Error("unable to setup fga store with postgres")
 		}
 		return fga
 	}
 	fga, err := fgastore.NewSQLite(ctx, cmd.String(fDb))
 	if err != nil {
-		log.Fatal().Err(err).Msg("unable to setup fga sqlite store")
+		slog.Error("unable to setup fga sqlite store")
 	}
 	return fga
 }

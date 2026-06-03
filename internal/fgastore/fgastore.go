@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/pressly/goose/v3"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/assets"
@@ -66,7 +66,7 @@ func NewPostgres(ctx context.Context, uri string) (*FGA, error) {
 	// postgres.New below will open its own connection
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Warn().Err(err).Msg("fgastore close db")
+			slog.Warn("fgastore close db", "err", err)
 		}
 	}()
 	pgFS, err := fs.Sub(assets.EmbedMigrations, assets.PostgresMigrationDir)
@@ -107,7 +107,7 @@ func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
 	// sqlite.New below will open its own connection
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Warn().Err(err).Msg("fgastore close db")
+			slog.Warn("fgastore close db", "err", err)
 		}
 	}()
 	sqliteFS, err := fs.Sub(assets.EmbedMigrations, assets.SqliteMigrationDir)

@@ -12,7 +12,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/sessions"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 const (
@@ -119,11 +119,11 @@ func getCookieSession(r *http.Request, sessionStore sessions.Store) (*cookieSess
 func (s *cookieSession) Save(r *http.Request, w http.ResponseWriter) {
 	err := s.session.Save(r, w)
 	if err != nil {
-		log.Error().Err(err).Msg("error saving session")
+		slog.Error("error saving session", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err := w.Write([]byte(err.Error()))
 		if err != nil {
-			log.Error().Err(err).Msg("error writing error to response")
+			slog.Error("error writing error to response", "err", err)
 		}
 	}
 }
