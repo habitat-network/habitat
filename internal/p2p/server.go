@@ -118,7 +118,12 @@ type Server struct {
 
 var _ io.Closer = (*Server)(nil)
 
-func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*Server, error) {
+func NewServer(
+	ctx context.Context,
+	serviceAuth authn.Method,
+	pear pear.Pear,
+	meter metric.Meter,
+) (*Server, error) {
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
@@ -128,7 +133,7 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
-	slog.Info("p2p server started", "peer_id", host.ID())
+	slog.InfoContext(ctx, "p2p server started", "peer_id", host.ID())
 
 	addr, err := manet.ToNetAddr(host.Addrs()[0])
 	if err != nil {
@@ -175,7 +180,7 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 
 		var req discoveryRequest
 		if err := json.NewDecoder(stream).Decode(&req); err != nil {
-			slog.Error(
+			slog.ErrorContext(ctx,
 				"peer-discovery: failed to decode request",
 				"err",
 				err,

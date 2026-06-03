@@ -297,7 +297,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(dir),
 		orgStore,
 	)
-	p2pServer, err := p2p.NewServer(authn.NewServiceAuthMethod(dir), pear, meter)
+	p2pServer, err := p2p.NewServer(ctx, authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		slog.Error("unable to setup p2p server", "err", err)
 		os.Exit(1)
@@ -403,6 +403,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 			id, err := dir.LookupDID(r.Context(), callerDID)
 			if err != nil {
 				utils.LogAndHTTPError(
+					r.Context(),
 					w,
 					err,
 					"[getServiceAuth dispatch]: looking up caller DID",

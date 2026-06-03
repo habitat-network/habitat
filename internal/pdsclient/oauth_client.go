@@ -44,6 +44,7 @@ type ClientMetadata struct {
 type PdsOAuthClient interface {
 	ClientMetadata() *ClientMetadata
 	Authorize(
+		ctx context.Context,
 		dpopClient *DpopHttpClient,
 		i *identity.Identity,
 	) (redirectUri string, state *AuthorizeState, err error)
@@ -164,6 +165,7 @@ type AuthorizeState struct {
 
 // Authorize implements OAuthClient.
 func (o *oauthClientImpl) Authorize(
+	ctx context.Context,
 	dpopClient *DpopHttpClient,
 	i *identity.Identity,
 ) (string, *AuthorizeState, error) {
@@ -187,6 +189,7 @@ func (o *oauthClientImpl) Authorize(
 	state := base64.URLEncoding.EncodeToString(stateBytes)
 
 	requestUri, err := o.makePushedAuthorizationRequest(
+		ctx,
 		dpopClient,
 		i,
 		serverMetadata,
@@ -446,6 +449,7 @@ func (o *oauthClientImpl) getClientAssertion(audience string) (string, error) {
 }
 
 func (o *oauthClientImpl) makePushedAuthorizationRequest(
+	ctx context.Context,
 	dpopClient *DpopHttpClient,
 	id *identity.Identity,
 	as *oauthAuthorizationServer,
@@ -486,7 +490,7 @@ func (o *oauthClientImpl) makePushedAuthorizationRequest(
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	slog.Debug("pushed authorization request",
+	slog.DebugContext(ctx, "pushed authorization request",
 		"client_assertion", clientAssertion,
 		"issuer", as.Issuer,
 		"par_url", parUrl,

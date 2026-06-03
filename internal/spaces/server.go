@@ -64,13 +64,13 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 
 	var input habitat.NetworkHabitatSpaceCreateSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
 	spaceType, err := syntax.ParseNSID(input.Type)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space type", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space type", http.StatusBadRequest)
 		return
 	}
 
@@ -78,7 +78,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	if input.Skey != "" {
 		parsedKey, err := habitat_syntax.ParseSkey(input.Skey)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse space key", http.StatusBadRequest)
+			utils.LogAndHTTPError(r.Context(), w, err, "parse space key", http.StatusBadRequest)
 			return
 		}
 		skey = parsedKey
@@ -89,7 +89,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "create space", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "create space", http.StatusInternalServerError)
 		return
 	}
 
@@ -98,7 +98,13 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -110,14 +116,14 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 
 	var params habitat.NetworkHabitatSpaceListSpacesParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 	var filterOwner *syntax.DID
 	if params.Did != "" {
 		ownerDid, err := syntax.ParseDID(params.Did)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse did", http.StatusBadRequest)
+			utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
 			return
 		}
 		filterOwner = &ownerDid
@@ -127,7 +133,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	if params.Type != "" {
 		t, err := syntax.ParseNSID(params.Type)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse type filter", http.StatusBadRequest)
+			utils.LogAndHTTPError(r.Context(), w, err, "parse type filter", http.StatusBadRequest)
 			return
 		}
 		filterType = &t
@@ -135,7 +141,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 
 	spaces, err := s.store.ListSpaces(r.Context(), callerDID, filterOwner, filterType)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "list spaces", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "list spaces", http.StatusInternalServerError)
 		return
 	}
 
@@ -154,7 +160,13 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -166,19 +178,19 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 
 	var input habitat.NetworkHabitatSpaceAddMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	memberDID, err := syntax.ParseDID(input.Did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse member did", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
 		return
 	}
 
@@ -190,6 +202,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"check manage members permission",
@@ -204,7 +217,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 
 	access, err := ParseSpaceAccess(input.Access)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse access", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse access", http.StatusBadRequest)
 		return
 	}
 
@@ -216,7 +229,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "add member", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "add member", http.StatusInternalServerError)
 		return
 	}
 
@@ -231,19 +244,19 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	var input habitat.NetworkHabitatSpaceRemoveMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	memberDID, err := syntax.ParseDID(input.Did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse member did", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
 		return
 	}
 
@@ -255,6 +268,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"check manage members permission",
@@ -278,7 +292,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "remove member", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "remove member", http.StatusInternalServerError)
 		return
 	}
 
@@ -293,19 +307,25 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 
 	var params habitat.NetworkHabitatSpaceGetMembersParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"check membership",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !isMember {
@@ -318,7 +338,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "get members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "get members", http.StatusInternalServerError)
 		return
 	}
 
@@ -335,7 +355,13 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -347,19 +373,25 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 
 	var input habitat.NetworkHabitatSpacePutRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceWriter)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check write permission", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"check write permission",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !authorized {
@@ -369,7 +401,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 
 	collection, err := syntax.ParseNSID(input.Collection)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse collection", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
 		return
 	}
 
@@ -377,7 +409,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	if input.Rkey != "" {
 		parsedRkey, err := syntax.ParseRecordKey(input.Rkey)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
+			utils.LogAndHTTPError(r.Context(), w, err, "parse rkey", http.StatusBadRequest)
 			return
 		}
 		rkey = parsedRkey
@@ -401,7 +433,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "put record", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "put record", http.StatusInternalServerError)
 		return
 	}
 
@@ -411,7 +443,13 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -423,19 +461,25 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	var params habitat.NetworkHabitatSpaceGetRecordParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"check membership",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !isMember {
@@ -445,13 +489,13 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	collection, err := syntax.ParseNSID(params.Collection)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse collection", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
 		return
 	}
 
 	rkey, err := syntax.ParseRecordKey(params.Rkey)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse rkey", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse rkey", http.StatusBadRequest)
 		return
 	}
 
@@ -459,7 +503,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	if params.Repo != "" {
 		owner, err = syntax.ParseDID(params.Repo)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse repo did", http.StatusBadRequest)
+			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
 			return
 		}
 	}
@@ -469,7 +513,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "get record", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "get record", http.StatusInternalServerError)
 		return
 	}
 
@@ -481,7 +525,13 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -493,19 +543,25 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 	var params habitat.NetworkHabitatSpaceListRecordsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"check membership",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !isMember {
@@ -517,7 +573,13 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	if params.Collection != "" {
 		c, err := syntax.ParseNSID(params.Collection)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse collection filter", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"parse collection filter",
+				http.StatusBadRequest,
+			)
 			return
 		}
 		filterCollection = &c
@@ -525,19 +587,19 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 	var repo syntax.DID
 	if params.Repo != "" {
-		r, err := syntax.ParseDID(params.Repo)
+		parsedRepo, err := syntax.ParseDID(params.Repo)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parse repo did", http.StatusBadRequest)
+			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
 			return
 		}
-		repo = r
+		repo = parsedRepo
 	} else {
 		repo = callerDID
 	}
 
 	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "list records", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "list records", http.StatusInternalServerError)
 		return
 	}
 
@@ -557,7 +619,13 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -569,25 +637,31 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 
 	var params habitat.NetworkHabitatSpaceGetRepoOplogParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	repoDID, err := syntax.ParseDID(params.Repo)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse repo did", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
 		return
 	}
 
 	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"check membership",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !isMember {
@@ -602,7 +676,7 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 
 	records, err := s.store.GetRepoOplog(r.Context(), spaceURI, repoDID, params.Since, limit)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "get repo oplog", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "get repo oplog", http.StatusInternalServerError)
 		return
 	}
 
@@ -626,7 +700,13 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -638,19 +718,25 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 
 	var input habitat.NetworkHabitatSpaceDeleteRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check delete permission", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"check delete permission",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !authorized {
@@ -660,20 +746,26 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 
 	collection, err := syntax.ParseNSID(input.Collection)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse collection", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
 		return
 	}
 
 	err = s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "delete record", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "delete record", http.StatusInternalServerError)
 		return
 	}
 
 	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encode response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encode response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -685,19 +777,25 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 
 	var input habitat.NetworkHabitatSpaceDeleteSpaceInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
 	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse space uri", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
 
 	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "check owner permission", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"check owner permission",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !authorized {
@@ -710,7 +808,7 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "delete space", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "delete space", http.StatusInternalServerError)
 		return
 	}
 

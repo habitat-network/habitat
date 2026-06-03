@@ -124,14 +124,26 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 
 	token, err := s.hive.SignServiceAuth(r.Context(), callerDID, aud, ttl, lxm)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "signing service auth", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"signing service auth",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	if err := json.NewEncoder(w).Encode(struct {
 		Token string `json:"token"`
 	}{Token: token}); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }

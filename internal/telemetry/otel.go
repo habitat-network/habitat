@@ -162,7 +162,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, bool,
 		handleErr(err)
 		return shutdown, true, err
 	}
-	slog.Info("trace provider type", "provider_type", fmt.Sprintf("%T", traceProvider))
+	slog.InfoContext(ctx, "trace provider type", "provider_type", fmt.Sprintf("%T", traceProvider))
 
 	shutdownFuncs = append(shutdownFuncs, traceProvider.Shutdown)
 	otel.SetTracerProvider(traceProvider)

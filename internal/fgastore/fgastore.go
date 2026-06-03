@@ -66,7 +66,7 @@ func NewPostgres(ctx context.Context, uri string) (*FGA, error) {
 	// postgres.New below will open its own connection
 	defer func() {
 		if err := db.Close(); err != nil {
-			slog.Warn("fgastore close db", "err", err)
+			slog.WarnContext(ctx, "fgastore close db", "err", err)
 		}
 	}()
 	pgFS, err := fs.Sub(assets.EmbedMigrations, assets.PostgresMigrationDir)
@@ -107,7 +107,7 @@ func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
 	// sqlite.New below will open its own connection
 	defer func() {
 		if err := db.Close(); err != nil {
-			slog.Warn("fgastore close db", "err", err)
+			slog.WarnContext(ctx, "fgastore close db", "err", err)
 		}
 	}()
 	sqliteFS, err := fs.Sub(assets.EmbedMigrations, assets.SqliteMigrationDir)
