@@ -6,11 +6,8 @@ import (
 	"os"
 
 	"errors"
-	"fmt"
 
 	"time"
-
-	"log/slog"
 
 	"github.com/habitat-network/habitat/internal/utils"
 
