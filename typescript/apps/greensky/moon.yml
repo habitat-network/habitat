@@ -6,7 +6,3 @@ tasks:
       SERVER_PORT: "5174"
     deps:
       - target: "pear:dev"
-      - target: "funnel:start"
-        args: ["5174", "$project"]
-    options:
-      mergeDeps: replace
