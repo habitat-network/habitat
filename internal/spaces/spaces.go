@@ -2,12 +2,13 @@ package spaces
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/ipfs/go-cid"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
 	"log/slog"
@@ -35,6 +36,7 @@ type spaceRecord struct {
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
 	Rev        syntax.TID `gorm:"uniqueIndex"`
+	Cid        string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -61,6 +63,7 @@ type Record struct {
 	Rkey       syntax.RecordKey
 	Value      map[string]any
 	Rev        string
+	Cid        cid.Cid
 	UpdatedAt  time.Time
 }
 
@@ -118,7 +121,7 @@ type Store interface {
 		collection syntax.NSID,
 		rkey syntax.RecordKey,
 		value map[string]any,
-	) error
+	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
 	GetRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -484,20 +487,25 @@ func (s *store) PutRecord(
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 	value map[string]any,
-) error {
+) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrSpaceNotFound
+		return "", nil, ErrSpaceNotFound
 	} else if err != nil {
-		return err
+		return "", nil, err
 	}
 
-	bytes, err := json.Marshal(value)
+	bytes, err := atdata.MarshalCBOR(value)
 	if err != nil {
-		return err
+		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
+	}
+
+	cid, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
 
 	tid := s.clock.Next()
@@ -505,7 +513,7 @@ func (s *store) PutRecord(
 		rkey = syntax.RecordKey(tid)
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		rec := spaceRecord{
 			Owner:      owner,
 			Space:      uri,
@@ -513,6 +521,7 @@ func (s *store) PutRecord(
 			Rkey:       rkey,
 			Value:      bytes,
 			Rev:        tid,
+			Cid:        cid.String(),
 		}
 
 		if err := tx.
@@ -526,6 +535,10 @@ func (s *store) PutRecord(
 			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
 			Update("rev", tid).Error
 	})
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create record: %w", err)
+	}
+	return habitat_syntax.ConstructSpaceRecordURI(uri, owner, collection, rkey), &cid, nil
 }
 
 func (s *store) GetRecord(
@@ -546,8 +559,8 @@ func (s *store) GetRecord(
 		return nil, err
 	}
 
-	var value map[string]any
-	if err := json.Unmarshal(row.Value, &value); err != nil {
+	value, err := atdata.UnmarshalCBOR(row.Value)
+	if err != nil {
 		return nil, err
 	}
 
@@ -557,6 +570,7 @@ func (s *store) GetRecord(
 		Value:      value,
 		Rev:        string(row.Rev),
 		UpdatedAt:  row.UpdatedAt,
+		Cid:        cid.MustParse(row.Cid),
 	}, nil
 }
 
@@ -581,8 +595,8 @@ func (s *store) ListRecords(
 
 	records := make([]Record, len(rows))
 	for i, row := range rows {
-		var value map[string]any
-		if err := json.Unmarshal(row.Value, &value); err != nil {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
 			return nil, err
 		}
 		records[i] = Record{
@@ -592,6 +606,7 @@ func (s *store) ListRecords(
 			Value:      value,
 			Rev:        string(row.Rev),
 			UpdatedAt:  row.UpdatedAt,
+			Cid:        cid.MustParse(row.Cid),
 		}
 	}
 
@@ -669,8 +684,8 @@ func (s *store) GetRepoOplog(
 
 	records := make([]Record, len(rows))
 	for i, row := range rows {
-		var value map[string]any
-		if err := json.Unmarshal(row.Value, &value); err != nil {
+		value, err := atdata.UnmarshalCBOR(row.Value)
+		if err != nil {
 			return nil, err
 		}
 		records[i] = Record{
@@ -680,6 +695,7 @@ func (s *store) GetRepoOplog(
 			Value:      value,
 			Rev:        string(row.Rev),
 			UpdatedAt:  row.UpdatedAt,
+			Cid:        cid.MustParse(row.Cid),
 		}
 	}
 	return records, nil

@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/bradenaw/juniper/stream"
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -28,21 +29,37 @@ import (
 // timestamp cursor from where it left off.
 
 type Server struct {
-	ctx context.Context
-	us  *updateService
+	ctx         context.Context
+	us          *updateService
+	oauthMethod authn.Method
 }
 
-func NewServer(ctx context.Context, in stream.Stream[models.Event]) *Server {
+func NewServer(
+	ctx context.Context,
+	in stream.Stream[models.Event],
+	oauthMethod authn.Method,
+) *Server {
 	return &Server{
-		ctx: ctx,
-		us:  NewUpdateService(ctx, in),
+		ctx:         ctx,
+		us:          NewUpdateService(ctx, in),
+		oauthMethod: oauthMethod,
 	}
 }
 
 func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
-	// TODO: authz that the caller is authorized by the org
+	wantedCollections := r.URL.Query()["wantedCollections"]
+	var requiredScopes []string
+	if len(wantedCollections) > 0 {
+		for _, c := range wantedCollections {
+			requiredScopes = append(requiredScopes, "org:"+c)
+		}
+	} else {
+		requiredScopes = append(requiredScopes, "org:*")
+	}
+	if _, ok := s.oauthMethod.Validate(w, r, requiredScopes...); !ok {
+		return
+	}
 
-	// Set required SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -68,7 +85,6 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	wantedCollections := r.URL.Query()["wantedCollections"]
 	wantedDIDs := r.URL.Query()["wantedDids"]
 
 	// TODO: support maxMessageSize and compression

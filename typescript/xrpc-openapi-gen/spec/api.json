@@ -4026,17 +4026,6 @@
               "description": "The Record Key.",
               "format": "record-key"
             }
-          },
-          {
-            "name": "cid",
-            "in": "query",
-            "description": "The CID of the version of the record. If not specified, return the most recent version.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "The CID of the version of the record. If not specified, return the most recent version.",
-              "format": "cid"
-            }
           }
         ],
         "responses": {
@@ -4632,6 +4621,10 @@
                     "uri": {
                       "type": "string",
                       "description": "URI of the written record."
+                    },
+                    "cid": {
+                      "type": "string",
+                      "format": "cid"
                     }
                   }
                 }
@@ -5152,6 +5145,10 @@
           "rkey": {
             "type": "string",
             "format": "record-key"
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid"
           },
           "value": {}
         }
