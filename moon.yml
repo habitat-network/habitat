@@ -21,3 +21,4 @@ tasks:
     - '@in(0)'
     inputs:
     - Caddyfile
+    preset: server
