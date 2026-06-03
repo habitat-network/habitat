@@ -26,10 +26,10 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
-	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
+	"log/slog"
 )
 
 const (
@@ -569,14 +569,14 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 func logError(msg string, err error) {
 	var rfcErr *fosite.RFC6749Error
 	if errors.As(err, &rfcErr) {
-		log.Error().
-			Err(err).
-			Str("error_field", rfcErr.ErrorField).
-			Str("hint", rfcErr.HintField).
-			Str("debug", rfcErr.DebugField).
-			Msg(msg)
+		slog.Error(msg,
+			"err", err,
+			"error_field", rfcErr.ErrorField,
+			"hint", rfcErr.HintField,
+			"debug", rfcErr.DebugField,
+		)
 	} else {
-		log.Error().Err(err).Msg(msg)
+		slog.Error(msg, "err", err)
 	}
 }
 
@@ -667,7 +667,7 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 	for i, row := range rows {
 		fositeClient, err := o.storage.GetClient(r.Context(), row.ClientID)
 		if err != nil {
-			log.Warn().Err(err).Str("clientID", row.ClientID).Msg("failed to fetch client metadata")
+			slog.Warn("failed to fetch client metadata", "err", err, "clientID", row.ClientID)
 			continue
 		}
 

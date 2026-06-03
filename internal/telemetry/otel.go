@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
@@ -117,7 +117,7 @@ func otlpEndpointConfigured() bool {
 // it returns a no-op shutdown function with no error, avoiding background connection errors
 // when no OTel collector is running.
 // If it does not return an error, make sure to call shutdown for proper cleanup at process exit.
-// The logging provider needs to be hooked into the logger of your choice (e.g. zerolog) for logs to show
+// The logging provider needs to be hooked into the logger of your choice (e.g. slog) for logs to show
 // in OTel / Grafana.
 //
 // This code was more or less copied from the golang OpenTelemetry tutorial.
@@ -162,7 +162,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, bool,
 		handleErr(err)
 		return shutdown, true, err
 	}
-	log.Info().Str("provider_type", fmt.Sprintf("%T", traceProvider)).Msg("trace provider type")
+	slog.Info("trace provider type", "provider_type", fmt.Sprintf("%T", traceProvider))
 
 	shutdownFuncs = append(shutdownFuncs, traceProvider.Shutdown)
 	otel.SetTracerProvider(traceProvider)

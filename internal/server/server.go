@@ -11,7 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -533,8 +533,21 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			)
 			if err != nil {
 				if errors.Is(err, habitat_err.ErrUnauthorized) {
-					log.Err(fmt.Errorf("list records returned a record but user does not have permission to it")).
-						Msgf("[pear] list records inconsistent state for caller %s on %s", callerDID, habitat_syntax.ConstructHabitatUri(record.Did, record.Collection, record.Rkey))
+					slog.Error(
+						"[pear] list records inconsistent state",
+						"caller",
+						callerDID,
+						"uri",
+						habitat_syntax.ConstructHabitatUri(
+							record.Did,
+							record.Collection,
+							record.Rkey,
+						),
+						"err",
+						fmt.Errorf(
+							"list records returned a record but user does not have permission to it",
+						),
+					)
 				}
 				utils.LogAndHTTPError(
 					w,
@@ -674,7 +687,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(output)
 	if err != nil {
 		utils.LogAndHTTPError(w, err, "json marshal response", http.StatusInternalServerError)
-		log.Err(err).Msgf("error sending response for ListPermissions request")
+		slog.Error("error sending response for ListPermissions request", "err", err)
 		return
 	}
 }

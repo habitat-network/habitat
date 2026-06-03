@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 type ErrorMessage struct {
@@ -18,9 +18,9 @@ type ErrorMessage struct {
 // It takes in both an error and a debug message for verobosity.
 func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
 	if ShouldLog(err) {
-		log.Error().Err(err).Msg(debug)
+		slog.Error(debug, "err", err)
 	} else {
-		log.Warn().Err(err).Msg(debug)
+		slog.Warn(debug, "err", err)
 	}
 	w.WriteHeader(code)
 	if err != nil {

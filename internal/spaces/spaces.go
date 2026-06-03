@@ -11,9 +11,9 @@ import (
 	"github.com/ipfs/go-cid"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
-	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"log/slog"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -279,7 +279,7 @@ func (s *store) ListSpaces(
 		allRows = append(allRows, otherRows...)
 	}
 
-	log.Debug().Int("spaces", len(allRows)).Msg("list spaces")
+	slog.Debug("list spaces", "spaces", len(allRows))
 
 	views := make([]SpaceView, len(allRows))
 	for i, row := range allRows {
@@ -301,7 +301,7 @@ func (s *store) ListSpaces(
 			MemberCount: memberCount,
 		}
 	}
-	log.Debug().Int("views", len(views)).Msg("list spaces")
+	slog.Debug("list spaces", "views", len(views))
 	return views, nil
 }
 

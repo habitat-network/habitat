@@ -15,7 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 // Serve org-specific APIs
@@ -418,7 +418,13 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 			[]permissions.Grantee{},
 		)
 		if err != nil {
-			log.Err(err).Msgf("failed to create profile record for new member %s", id.Handle)
+			slog.Error(
+				"failed to create profile record for new member",
+				"err",
+				err,
+				"handle",
+				id.Handle,
+			)
 		}
 	}
 

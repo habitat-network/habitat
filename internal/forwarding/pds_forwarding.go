@@ -14,7 +14,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 // targetRoutedMethods maps XRPC method names that should be forwarded to the
@@ -186,7 +186,7 @@ func (p *PDSForwarding) serveTargetPDS(
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		if utils.ShouldLog(err) {
-			log.Error().Err(err).Msg("[pds forwarding]: failed to copy response body")
+			slog.Error("[pds forwarding]: failed to copy response body", "err", err)
 		}
 	}
 }
@@ -263,7 +263,7 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		// Log error but can't change status code at this point
 		if utils.ShouldLog(err) {
-			log.Error().Err(err).Msg("[pds forwarding]: failed to copy response body")
+			slog.Error("[pds forwarding]: failed to copy response body", "err", err)
 		}
 		return
 	}
