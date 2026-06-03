@@ -6,7 +6,9 @@ replace github.com/habitat-network/habitat => ../..
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
+	github.com/gorilla/handlers v1.5.2
 	github.com/habitat-network/habitat v0.0.2-testing-9
+	github.com/lmittmann/tint v1.1.3
 	github.com/pressly/goose/v3 v3.27.1
 	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli/v3 v3.7.0

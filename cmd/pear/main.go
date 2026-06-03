@@ -28,6 +28,7 @@ import (
 	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
@@ -40,6 +41,7 @@ import (
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
+
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -51,6 +53,7 @@ import (
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/xrpcchannel"
+	"github.com/lmittmann/tint"
 	"github.com/urfave/cli/v3"
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
@@ -75,8 +78,6 @@ func main() {
 func run(_ context.Context, cmd *cli.Command) error {
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
-
-	slog.Info("running with flags", "flags", cmd.FlagNames())
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -106,11 +107,22 @@ func run(_ context.Context, cmd *cli.Command) error {
 		defer gauge.Record(context.Background(), 0)
 	}
 
-	otelHandler := otelslog.NewHandler(
+	handlers := []slog.Handler{}
+	handlers = append(handlers, otelslog.NewHandler(
 		"habitat",
 		otelslog.WithLoggerProvider(global.GetLoggerProvider()),
-	)
-	slog.SetDefault(slog.New(slog.NewMultiHandler(slog.Default().Handler(), otelHandler)))
+	))
+	if cmd.Bool(fDebug) {
+		handlers = append(handlers,
+			tint.NewHandler(os.Stdout, &tint.Options{
+				AddSource: true,
+				Level:     slog.LevelDebug,
+			}),
+		)
+	}
+	slog.SetDefault(slog.New(slog.NewMultiHandler(handlers...)))
+
+	slog.Info("running with flags", "flags", cmd.FlagNames())
 
 	db := setupDB(cmd)
 	fgaStore := setupFGA(ctx, cmd)
@@ -151,6 +163,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
 	mux.Use(corsMiddleware)
+	if cmd.Bool(fDebug) {
+		mux.Use(func(next http.Handler) http.Handler {
+			return handlers.LoggingHandler(os.Stdout, next)
+		})
+	}
 
 	hiveDomain := cmd.String(fHiveDomain)
 	if hiveDomain == "" {
