@@ -418,7 +418,13 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 			[]permissions.Grantee{},
 		)
 		if err != nil {
-			slog.Error("failed to create profile record for new member", "err", err, "handle", id.Handle)
+			slog.Error(
+				"failed to create profile record for new member",
+				"err",
+				err,
+				"handle",
+				id.Handle,
+			)
 		}
 	}
 

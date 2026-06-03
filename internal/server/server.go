@@ -533,7 +533,21 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			)
 			if err != nil {
 				if errors.Is(err, habitat_err.ErrUnauthorized) {
-					slog.Error("[pear] list records inconsistent state", "caller", callerDID, "uri", habitat_syntax.ConstructHabitatUri(record.Did, record.Collection, record.Rkey), "err", fmt.Errorf("list records returned a record but user does not have permission to it"))
+					slog.Error(
+						"[pear] list records inconsistent state",
+						"caller",
+						callerDID,
+						"uri",
+						habitat_syntax.ConstructHabitatUri(
+							record.Did,
+							record.Collection,
+							record.Rkey,
+						),
+						"err",
+						fmt.Errorf(
+							"list records returned a record but user does not have permission to it",
+						),
+					)
 				}
 				utils.LogAndHTTPError(
 					w,

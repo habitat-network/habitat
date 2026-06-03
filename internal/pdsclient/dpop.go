@@ -19,8 +19,8 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
 	"github.com/habitat-network/habitat/internal/pdscred"
-	"log/slog"
 	"golang.org/x/sync/singleflight"
+	"log/slog"
 )
 
 // DpopNonceProvider provides access to nonce management

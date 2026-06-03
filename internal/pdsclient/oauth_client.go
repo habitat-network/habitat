@@ -20,9 +20,9 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"log/slog"
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/oauth2"
+	"log/slog"
 )
 
 type ClientMetadata struct {

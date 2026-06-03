@@ -11,9 +11,9 @@ import (
 	"github.com/ipfs/go-cid"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
-	"log/slog"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"log/slog"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"

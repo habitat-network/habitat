@@ -22,8 +22,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
-	"log/slog"
 	"go.opentelemetry.io/otel/metric"
+	"log/slog"
 )
 
 type peerRegistry struct {
@@ -175,7 +175,13 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 
 		var req discoveryRequest
 		if err := json.NewDecoder(stream).Decode(&req); err != nil {
-			slog.Error("peer-discovery: failed to decode request", "err", err, "peer", peerID.String())
+			slog.Error(
+				"peer-discovery: failed to decode request",
+				"err",
+				err,
+				"peer",
+				peerID.String(),
+			)
 			return
 		}
 
