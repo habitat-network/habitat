@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"log/slog"
+
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
@@ -25,9 +27,9 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/plugin/opentelemetry/tracing"
-	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
@@ -61,6 +63,8 @@ import (
 //go:embed migrations/*.go migrations/*.sql
 var embedMigrations embed.FS
 
+var tracer = otel.Tracer("pear/main")
+
 func main() {
 	flags, mutuallyExclusiveFlags := getFlags()
 	cmd := &cli.Command{
@@ -78,13 +82,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	notifyCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	startupCtx, startupSpan := tracer.Start(notifyCtx, "startup")
 
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by slog.
-	otelClose, err := telemetry.SetupOpenTelemetry(ctx)
+	otelClose, err := telemetry.SetupOpenTelemetry(startupCtx)
 	defer otelClose(context.Background())
 	if err != nil {
 		slog.Error("failed setting up open telemetry for metric/trace/log collection", "err", err)
@@ -102,36 +108,36 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if err != nil {
 		slog.Error("failed to create gauge", "err", err)
 	} else {
-		gauge.Record(ctx, 1)
+		gauge.Record(startupCtx, 1)
 		defer gauge.Record(context.Background(), 0)
 	}
 
-	handlers := []slog.Handler{}
-	handlers = append(handlers, otelslog.NewHandler(
+	logHandlers := []slog.Handler{}
+	logHandlers = append(logHandlers, otelslog.NewHandler(
 		"habitat",
 		otelslog.WithLoggerProvider(global.GetLoggerProvider()),
 	))
 	if cmd.Bool(fDebug) {
-		handlers = append(handlers,
+		logHandlers = append(logHandlers,
 			tint.NewHandler(os.Stdout, &tint.Options{
 				AddSource: true,
 				Level:     slog.LevelDebug,
 			}),
 		)
 	}
-	slog.SetDefault(slog.New(slog.NewMultiHandler(handlers...)))
+	slog.SetDefault(slog.New(slog.NewMultiHandler(logHandlers...)))
 
 	slog.Info("running with flags", "flags", cmd.FlagNames())
 
 	db := setupDB(cmd)
-	fgaStore := setupFGA(ctx, cmd)
+	fgaStore := setupFGA(startupCtx, cmd)
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
 		slog.Error("unable to load PDS encryption key", "err", err)
 		os.Exit(1)
 	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
+	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
 	if err != nil {
 		slog.Error("unable to setup pds cred store", "err", err)
 		os.Exit(1)
@@ -157,7 +163,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	eg, egCtx := errgroup.WithContext(ctx)
 	mux := mux.NewRouter()
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
@@ -267,14 +272,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(dir),
 	)
 
-	cdc := repo.NewChangeEmitter(ctx, repo.DefaultChangeBufferSize)
+	cdc := repo.NewChangeEmitter(startupCtx, repo.DefaultChangeBufferSize)
 	repo, err := repo.NewRepo(cdc, db)
 	if err != nil {
 		slog.Error("unable to setup repo", "err", err)
 		os.Exit(1)
 	}
 
-	pear, err := setupPear(ctx, cmd, dir, repo, node, cliqueStore, db)
+	pear, err := setupPear(startupCtx, cmd, dir, repo, node, cliqueStore, db)
 	if err != nil {
 		slog.Error("unable to setup pear", "err", err)
 		os.Exit(1)
@@ -305,7 +310,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		authn.NewServiceAuthMethod(dir),
 		orgStore,
 	)
-	p2pServer, err := p2p.NewServer(ctx, authn.NewServiceAuthMethod(dir), pear, meter)
+	p2pServer, err := p2p.NewServer(startupCtx, authn.NewServiceAuthMethod(dir), pear, meter)
 	if err != nil {
 		slog.Error("unable to setup p2p server", "err", err)
 		os.Exit(1)
@@ -331,7 +336,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		HandlerFunc(hiveServer.ServeHandle)
 
 	waitlistSvc, err := NewWaitlistService(
-		egCtx,
+		startupCtx,
 		os.Getenv("WAITLIST_SHEET_ID"),
 		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
 	)
@@ -453,11 +458,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
+	startupSpan.End()
+
 	s := &http.Server{
 		Handler: mux,
 		Addr:    fmt.Sprintf(":%s", port),
 	}
 
+	eg, egCtx := errgroup.WithContext(startupCtx)
 	eg.Go(func() error {
 		slog.Info("starting server", "port", port)
 		if httpsCerts == "" {
