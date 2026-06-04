@@ -63,8 +63,6 @@ import (
 //go:embed migrations/*.go migrations/*.sql
 var embedMigrations embed.FS
 
-var tracer = otel.Tracer("pear/main")
-
 func main() {
 	flags, mutuallyExclusiveFlags := getFlags()
 	cmd := &cli.Command{
@@ -85,18 +83,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 	notifyCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	startupCtx, startupSpan := tracer.Start(notifyCtx, "startup")
-
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by slog.
-	otelClose, err := telemetry.SetupOpenTelemetry(startupCtx)
+	otelClose, err := telemetry.SetupOpenTelemetry(notifyCtx)
 	defer otelClose(context.Background())
 	if err != nil {
 		slog.Error("failed setting up open telemetry for metric/trace/log collection", "err", err)
 		os.Exit(1)
 	}
 	slog.Info("successfully set up open telemetry")
+
+	tracer := otel.Tracer("pear/main")
+	startupCtx, startupSpan := tracer.Start(notifyCtx, "startup")
 
 	env := utils.GetEnvString("env", "local")
 	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
@@ -178,14 +177,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	orgHive, err := hive.NewHive(hiveDomain, domain, db)
+	orgHive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup hive (identity service for org)", "err", err)
 		os.Exit(1)
 	}
 	dir := identity.DefaultDirectory()
 
-	orgStore, err := org.NewStore(db, orgHive, dir, domain)
+	orgStore, err := org.NewStore(db.WithContext(startupCtx), orgHive, dir, domain)
 	if err != nil {
 		slog.Error("unable to setup org store", "err", err)
 		os.Exit(1)
@@ -227,7 +226,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 			googleClientID,
 			googleClientSecret,
 			"https://"+domain+"/oauth-callback",
-			db,
+			db.WithContext(startupCtx),
 			credKey,
 		)
 		if err != nil {
@@ -245,7 +244,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		node,
 		dir,
 		pdsCredStore,
-		db,
+		db.WithContext(startupCtx),
 		meter,
 		orgStore,
 	)
@@ -254,13 +253,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	cliqueStore, err := clique.NewStore(db)
+	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup clique store", "err", err)
 		os.Exit(1)
 	}
 
-	spacesStore, err := spaces.NewStore(db, fgaStore)
+	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore)
 	if err != nil {
 		slog.Error("unable to setup spaces store", "err", err)
 		os.Exit(1)
@@ -273,13 +272,21 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	cdc := repo.NewChangeEmitter(startupCtx, repo.DefaultChangeBufferSize)
-	repo, err := repo.NewRepo(cdc, db)
+	repo, err := repo.NewRepo(cdc, db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup repo", "err", err)
 		os.Exit(1)
 	}
 
-	pear, err := setupPear(startupCtx, cmd, dir, repo, node, cliqueStore, db)
+	pear, err := setupPear(
+		startupCtx,
+		cmd,
+		dir,
+		repo,
+		node,
+		cliqueStore,
+		db.WithContext(startupCtx),
+	)
 	if err != nil {
 		slog.Error("unable to setup pear", "err", err)
 		os.Exit(1)
