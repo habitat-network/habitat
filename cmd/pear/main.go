@@ -28,7 +28,6 @@ import (
 	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"

@@ -165,7 +165,7 @@ func (s *storeImpl) CreateOrg(
 			return err
 		}
 		// Mint identity for the admin
-		mintedId, err := s.hive.WithTx(tx).MintIdentity(adminHandle, handleSubdomain)
+		mintedId, err := s.hive.WithTx(tx).MintIdentity(ctx, adminHandle, handleSubdomain)
 		if err != nil {
 			return err
 		}

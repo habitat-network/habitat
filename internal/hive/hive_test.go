@@ -49,7 +49,7 @@ func TestMintIdentity_Duplicate(t *testing.T) {
 func TestLookupHandle(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	id, err := h.MintIdentity("alice", "org")
+	id, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 
 	fetchedId, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
@@ -76,7 +76,7 @@ func TestLookupHandle_WrongDomain(t *testing.T) {
 func TestLookupDID(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.MintIdentity("alice", "org")
+	_, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
@@ -98,7 +98,7 @@ func TestLookupDID_NotFound(t *testing.T) {
 func TestSignServiceAuth(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.MintIdentity("alice", "org")
+	_, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))

@@ -23,7 +23,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 
 type Hive interface {
 	// Minting new identities for members
-	MintIdentity(handle string, subdomain string) (*identity.Identity, error)
+	MintIdentity(ctx context.Context, handle string, subdomain string) (*identity.Identity, error)
 	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
 	// identity's signing key (the same key registered in its did:web doc). It is
 	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
@@ -166,6 +166,7 @@ func (h *hive) SignServiceAuth(
 
 // MintIdentity implements Hive.
 func (h *hive) MintIdentity(
+	ctx context.Context,
 	handlePrefix string,
 	subdomain string,
 ) (*identity.Identity, error) {
@@ -174,7 +175,7 @@ func (h *hive) MintIdentity(
 		return nil, identity.ErrInvalidHandle
 	}
 	fullHandle := handlePrefix + "." + subdomain
-	return h.store.mintIdentity(fullHandle)
+	return h.store.mintIdentity(ctx, fullHandle)
 }
 
 func (h *hive) WithTx(tx *gorm.DB) Hive {

@@ -59,7 +59,7 @@ func setupTraceProvider(
 ) (trace.TracerProvider, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" &&
 		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") == "" {
-		slog.Info("using no-op tracer provider")
+		slog.InfoContext(ctx, "using no-op tracer provider")
 		return tracenoop.NewTracerProvider(), nil
 	}
 	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient())
@@ -84,7 +84,7 @@ func setupMetricsProvider(
 ) (metric.MeterProvider, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" &&
 		os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") == "" {
-		slog.Info("using no-op meter provider")
+		slog.InfoContext(ctx, "using no-op meter provider")
 		return metricnoop.NewMeterProvider(), nil
 	}
 	exporter, err := otlpmetrichttp.New(ctx)
@@ -108,7 +108,7 @@ func setupLoggingProvider(
 ) (log.LoggerProvider, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" &&
 		os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") == "" {
-		slog.Info("using no-op logger provider")
+		slog.InfoContext(ctx, "using no-op logger provider")
 		return lognoop.NewLoggerProvider(), nil
 	}
 	exporter, err := otlploghttp.New(ctx,
