@@ -26,7 +26,7 @@ func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 
 func TestMintIdentity(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
-	id, err := h.MintIdentity("alice", "org")
+	id, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile("did:web:.*.example.com"), id.DID.String())
 	require.Equal(t, "alice.org.example.com", id.Handle.String())
@@ -34,22 +34,22 @@ func TestMintIdentity(t *testing.T) {
 
 func TestMintIdentity_InvalidHandle(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
-	_, err := h.MintIdentity("alice!invalid", "org")
+	_, err := h.MintIdentity(context.Background(), "alice!invalid", "org")
 	require.ErrorIs(t, err, identity.ErrInvalidHandle)
 }
 
 func TestMintIdentity_Duplicate(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
-	_, err := h.MintIdentity("alice", "org")
+	_, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
-	_, err = h.MintIdentity("alice", "org")
+	_, err = h.MintIdentity(context.Background(), "alice", "org")
 	require.ErrorIs(t, err, ErrNotCreated)
 }
 
 func TestLookupHandle(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	id, err := h.MintIdentity("alice", "org")
+	id, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 
 	fetchedId, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
@@ -67,7 +67,7 @@ func TestLookupHandle_NotFound(t *testing.T) {
 
 func TestLookupHandle_WrongDomain(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
-	_, err := h.MintIdentity("alice", "org")
+	_, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 	_, err = h.LookupHandle(context.Background(), syntax.Handle("alice.org.other.com"))
 	require.ErrorIs(t, err, identity.ErrHandleNotFound)
@@ -76,7 +76,7 @@ func TestLookupHandle_WrongDomain(t *testing.T) {
 func TestLookupDID(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.MintIdentity("alice", "org")
+	_, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))
@@ -98,7 +98,7 @@ func TestLookupDID_NotFound(t *testing.T) {
 func TestSignServiceAuth(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
-	_, err := h.MintIdentity("alice", "org")
+	_, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 
 	ident, err := h.LookupHandle(context.Background(), syntax.Handle("alice.org.example.com"))

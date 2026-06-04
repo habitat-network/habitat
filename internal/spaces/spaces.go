@@ -279,7 +279,7 @@ func (s *store) ListSpaces(
 		allRows = append(allRows, otherRows...)
 	}
 
-	slog.Debug("list spaces", "spaces", len(allRows))
+	slog.DebugContext(ctx, "list spaces", "spaces", len(allRows))
 
 	views := make([]SpaceView, len(allRows))
 	for i, row := range allRows {
@@ -301,7 +301,7 @@ func (s *store) ListSpaces(
 			MemberCount: memberCount,
 		}
 	}
-	slog.Debug("list spaces", "views", len(views))
+	slog.DebugContext(ctx, "list spaces", "views", len(views))
 	return views, nil
 }
 

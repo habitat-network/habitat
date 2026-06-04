@@ -1,6 +1,7 @@
 package oauthserver
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -44,6 +45,7 @@ var _ pdsclient.PdsOAuthClient = (*dummyOAuthClient)(nil)
 
 // Authorize implements OAuthClient.
 func (d *dummyOAuthClient) Authorize(
+	_ context.Context,
 	_ *pdsclient.DpopHttpClient,
 	i *identity.Identity,
 ) (string, *pdsclient.AuthorizeState, error) {

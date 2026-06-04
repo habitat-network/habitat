@@ -329,7 +329,7 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	var id *identity.Identity
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// If token is valid, call into hive to mint the new identity and serve it
-		newId, err := s.hive.WithTx(tx).MintIdentity(internalHandle, s.handleSubdomain)
+		newId, err := s.hive.WithTx(tx).MintIdentity(ctx, internalHandle, s.handleSubdomain)
 		if err != nil {
 			return fmt.Errorf("mint identity: %w", err)
 		}

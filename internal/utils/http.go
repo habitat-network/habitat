@@ -14,13 +14,19 @@ type ErrorMessage struct {
 	Error string `json:"error"`
 }
 
-// LogAndHTTPError logs the error before sending and HTTP error response to the provided writer.
+// LogAndHTTPError logs the error with the given context before sending and HTTP error response to the provided writer.
 // It takes in both an error and a debug message for verobosity.
-func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
+func LogAndHTTPError(
+	ctx context.Context,
+	w http.ResponseWriter,
+	err error,
+	debug string,
+	code int,
+) {
 	if ShouldLog(err) {
-		slog.Error(debug, "err", err)
+		slog.ErrorContext(ctx, "handler error", "err", err, "debug", debug)
 	} else {
-		slog.Warn(debug, "err", err)
+		slog.WarnContext(ctx, "handler error", "err", err, "debug", debug)
 	}
 	w.WriteHeader(code)
 	if err != nil {

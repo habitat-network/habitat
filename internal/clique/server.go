@@ -40,7 +40,7 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	var input habitat.NetworkHabitatCliqueCreateCliqueInput
 	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
@@ -48,7 +48,13 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	for i, m := range input.Members {
 		did, err := syntax.ParseDID(m)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "decode members field of input", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"decode members field of input",
+				http.StatusBadRequest,
+			)
 			return
 		}
 		dids[i] = did
@@ -56,7 +62,13 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 
 	clique, err := s.store.CreateClique(r.Context(), callerDID, dids)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "creating clique", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"creating clique",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -65,7 +77,7 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	}
 	err = json.NewEncoder(w).Encode(output)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
 		return
 	}
 }
@@ -79,7 +91,7 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 	var input habitat.NetworkHabitatCliqueAddMembersInput
 	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
@@ -87,7 +99,13 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 	for i, m := range input.Members {
 		did, err := syntax.ParseDID(m)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "decode members field of input", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"decode members field of input",
+				http.StatusBadRequest,
+			)
 			return
 		}
 		dids[i] = did
@@ -95,7 +113,7 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	clique, err := habitat_syntax.ParseClique(input.Clique.Clique)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode clique", http.StatusBadRequest)
 		return
 	}
 
@@ -106,7 +124,13 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	err = s.store.AddMembers(r.Context(), clique, dids)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "adding clique members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"adding clique members",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -120,7 +144,7 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 	var input habitat.NetworkHabitatCliqueRemoveMembersInput
 	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
@@ -128,7 +152,13 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 	for i, m := range input.Members {
 		did, err := syntax.ParseDID(m)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "decode members field of input", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"decode members field of input",
+				http.StatusBadRequest,
+			)
 			return
 		}
 		dids[i] = did
@@ -136,7 +166,7 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	clique, err := habitat_syntax.ParseClique(input.Clique.Clique)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode clique", http.StatusBadRequest)
 		return
 	}
 
@@ -147,7 +177,13 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	err = s.store.RemoveMembers(r.Context(), clique, dids)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "removing clique members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"removing clique members",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -161,19 +197,31 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 	var params habitat.NetworkHabitatCliqueGetMembersParams
 	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
 	clique, err := habitat_syntax.ParseClique(params.Clique)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique from url param", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"decode clique from url param",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	isMember, err := s.store.IsMember(r.Context(), clique, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking clique membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking clique membership",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !isMember {
@@ -183,7 +231,13 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	dids, err := s.store.GetMembers(r.Context(), clique)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting clique members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting clique members",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -196,7 +250,7 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	err = json.NewEncoder(w).Encode(output)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
 		return
 	}
 }
@@ -210,19 +264,31 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 	var params habitat.NetworkHabitatCliqueIsMemberParams
 	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
 	clique, err := habitat_syntax.ParseClique(params.Clique)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode clique from url param", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"decode clique from url param",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	isMember, err := s.store.IsMember(r.Context(), clique, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking clique membership", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking clique membership",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !isMember {
@@ -232,13 +298,25 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 
 	did, err := syntax.ParseDID(params.Did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode did from url param", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"decode did from url param",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	found, err := s.store.IsMember(r.Context(), clique, did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking if clique member", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking if clique member",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -247,7 +325,7 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 	}
 	err = json.NewEncoder(w).Encode(output)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "json encoding", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
 		return
 	}
 }

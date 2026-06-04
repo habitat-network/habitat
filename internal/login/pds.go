@@ -63,7 +63,7 @@ func (p *pdsProvider) Authorize(
 		return "", nil, fmt.Errorf("generate dpop key: %w", err)
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
-	redirect, state, err := p.oauthClient.Authorize(dpopClient, id)
+	redirect, state, err := p.oauthClient.Authorize(ctx, dpopClient, id)
 	if err != nil {
 		return "", nil, err
 	}
@@ -104,7 +104,7 @@ func (p *pdsProvider) Exchange(
 		DpopKey:      dpopKey,
 	}); err != nil {
 		// Log and move on since an error upserting doesn't mean the login failed
-		slog.Warn("error upserting PDS credentials", "err", err)
+		slog.WarnContext(ctx, "error upserting PDS credentials", "err", err)
 	}
 	return nil
 }

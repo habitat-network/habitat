@@ -11,8 +11,6 @@ tasks:
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'
       HABITAT_SERVICE_NAME: "habitat_local"
-      DEBUG: 'true'
-      DATABASE_URL: "postgres://habitat:habitat@localhost:5432/habitat"
       HABITAT_DOMAIN: pear.local.habitat.network
       HABITAT_PRETTY_LOGS: 'true'
     deps:

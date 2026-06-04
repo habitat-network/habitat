@@ -105,6 +105,6 @@ func (c *Changelog) EmitChangeEvent(
 	// TODO handle error
 	// For now long the error and move on
 	if err != nil {
-		slog.Error("error emitting change event", "err", err)
+		slog.ErrorContext(c.ctx, "error emitting change event", "err", err)
 	}
 }
