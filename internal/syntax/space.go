@@ -6,14 +6,9 @@ import (
 	"regexp"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 )
 
 type SpaceKey string
-
-func NewSkey() SpaceKey {
-	return SpaceKey(uuid.New().String())
-}
 
 func (s SpaceKey) String() string {
 	return string(s)

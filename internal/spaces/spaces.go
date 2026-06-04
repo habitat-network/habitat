@@ -12,7 +12,6 @@ import (
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"log/slog"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -26,12 +25,11 @@ type space struct {
 	Type      syntax.NSID             `gorm:"primaryKey"`
 	Skey      habitat_syntax.SpaceKey `gorm:"primaryKey"`
 	CreatedAt time.Time
-	Rev       syntax.TID `gorm:"uniqueIndex"`
 }
 
 type spaceRecord struct {
 	Space      habitat_syntax.SpaceURI `gorm:"primaryKey"`
-	Owner      syntax.DID              `gorm:"primaryKey"`
+	Repo       syntax.DID              `gorm:"primaryKey"`
 	Collection syntax.NSID             `gorm:"primaryKey"`
 	Rkey       syntax.RecordKey        `gorm:"primaryKey"`
 	Value      []byte
@@ -197,7 +195,7 @@ func (s *store) CreateSpace(
 	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
 	if skey == "" {
-		skey = habitat_syntax.NewSkey()
+		skey = habitat_syntax.SpaceKey(s.clock.Next())
 	}
 
 	var existing space
@@ -215,7 +213,6 @@ func (s *store) CreateSpace(
 		Owner: owner,
 		Skey:  skey,
 		Type:  spaceType,
-		Rev:   s.clock.Next(),
 	}
 
 	err = s.db.WithContext(ctx).Create(&sp).Error
@@ -482,7 +479,7 @@ func (s *store) RemoveMember(
 
 func (s *store) PutRecord(
 	ctx context.Context,
-	uri habitat_syntax.SpaceURI,
+	spaceUri habitat_syntax.SpaceURI,
 	owner syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
@@ -490,7 +487,9 @@ func (s *store) PutRecord(
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ?", spaceUri.SpaceDID()).
+		Where("type = ?", spaceUri.SpaceType()).
+		Where("skey = ?", spaceUri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrSpaceNotFound
@@ -508,37 +507,35 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
 
-	tid := s.clock.Next()
-	if rkey == "" {
-		rkey = syntax.RecordKey(tid)
-	}
-
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		rec := spaceRecord{
-			Owner:      owner,
-			Space:      uri,
+		// acquire lock on permissioned repo within space
+		err := tx.Exec(
+			`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
+			spaceUri,
+			owner,
+		).Error
+		if err != nil {
+			return err
+		}
+		tid := s.clock.Next()
+		if rkey == "" {
+			rkey = syntax.RecordKey(tid)
+		}
+		newRecord := spaceRecord{
+			Repo:       owner,
+			Space:      spaceUri,
 			Collection: collection,
 			Rkey:       rkey,
 			Value:      bytes,
 			Rev:        tid,
 			Cid:        cid.String(),
 		}
-
-		if err := tx.
-			Clauses(clause.OnConflict{UpdateAll: true}).
-			Create(&rec).Error; err != nil {
-			return err
-		}
-
-		return tx.
-			Model(&space{}).
-			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
-			Update("rev", tid).Error
+		return tx.Save(&newRecord).Error
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
-	return habitat_syntax.ConstructSpaceRecordURI(uri, owner, collection, rkey), &cid, nil
+	return habitat_syntax.ConstructSpaceRecordURI(spaceUri, owner, collection, rkey), &cid, nil
 }
 
 func (s *store) GetRecord(
@@ -600,7 +597,7 @@ func (s *store) ListRecords(
 			return nil, err
 		}
 		records[i] = Record{
-			Owner:      row.Owner,
+			Owner:      row.Repo,
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
 			Value:      value,
@@ -689,7 +686,7 @@ func (s *store) GetRepoOplog(
 			return nil, err
 		}
 		records[i] = Record{
-			Owner:      row.Owner,
+			Owner:      row.Repo,
 			Collection: row.Collection,
 			Rkey:       row.Rkey,
 			Value:      value,
