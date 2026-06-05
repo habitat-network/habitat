@@ -13,26 +13,34 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func newTestStore(t *testing.T) Store {
+func newTestStore(t *testing.T) *storeImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	store, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
 	require.NoError(t, err)
-	return s
+	return store.(*storeImpl)
 }
 
 func TestStore_CreateOrg(t *testing.T) {
 	s := newTestStore(t)
-	orgID, id, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "password", "", "")
+	orgIdIdent, id, err := s.CreateOrg(
+		t.Context(),
+		"test-org",
+		"admin",
+		"password",
+		"password",
+		"",
+		"",
+	)
 	require.NoError(t, err)
-	require.NotEmpty(t, orgID)
+	require.NotNil(t, orgIdIdent)
 	require.NotNil(t, id)
 	require.Contains(t, id.Handle.String(), "admin")
 
-	org, err := s.GetOrg(t.Context(), orgID)
+	org, err := s.GetOrg(t.Context(), orgIdIdent.DID)
 	require.NoError(t, err)
 	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
@@ -49,25 +57,33 @@ func TestStore_CreateOrg(t *testing.T) {
 
 func TestStore_GetOrg_NotFound(t *testing.T) {
 	s := newTestStore(t)
-	_, err := s.GetOrg(t.Context(), "nonexistent")
+	_, err := s.GetOrg(t.Context(), syntax.DID("did:web:nonexistent"))
 	require.ErrorIs(t, err, ErrOrgNotFound)
 }
 
 func TestStore_GetOrgForDID_Member(t *testing.T) {
 	s := newTestStore(t)
-	orgID, id, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "password", "", "")
+	orgIdIdent, id, err := s.CreateOrg(
+		t.Context(),
+		"test-org",
+		"admin",
+		"password",
+		"password",
+		"",
+		"",
+	)
 	require.NoError(t, err)
 
 	org, err := s.GetOrgForDID(t.Context(), id.DID)
 	require.NoError(t, err)
 	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
-	gotOrgID := ""
+	var gotOrgID syntax.DID
 	switch o := org.(type) {
 	case *orgImpl:
 		gotOrgID = o.orgID
 	}
-	require.Equal(t, orgID, gotOrgID)
+	require.Equal(t, orgIdIdent.DID, gotOrgID)
 }
 
 func TestStore_GetOrgForDID_Everyone(t *testing.T) {
@@ -110,7 +126,7 @@ func TestStore_GetMember_NotFound(t *testing.T) {
 
 func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	s := newTestStore(t)
-	orgID1, id1, err := s.CreateOrg(
+	orgIdIdent1, id1, err := s.CreateOrg(
 		t.Context(),
 		"org1",
 		"admin1",
@@ -120,7 +136,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 		"org1",
 	)
 	require.NoError(t, err)
-	orgID2, id2, err := s.CreateOrg(
+	orgIdIdent2, id2, err := s.CreateOrg(
 		t.Context(),
 		"org2",
 		"admin2",
@@ -133,19 +149,19 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 
 	org, err := s.GetOrgForDID(t.Context(), id1.DID)
 	require.NoError(t, err)
-	gotID1 := ""
+	var gotID1 syntax.DID
 	switch o := org.(type) {
 	case *orgImpl:
 		gotID1 = o.orgID
 	}
-	require.Equal(t, orgID1, gotID1)
+	require.Equal(t, orgIdIdent1.DID, gotID1)
 
 	org, err = s.GetOrgForDID(t.Context(), id2.DID)
 	require.NoError(t, err)
-	gotID2 := ""
+	var gotID2 syntax.DID
 	switch o := org.(type) {
 	case *orgImpl:
 		gotID2 = o.orgID
 	}
-	require.Equal(t, orgID2, gotID2)
+	require.Equal(t, orgIdIdent2.DID, gotID2)
 }

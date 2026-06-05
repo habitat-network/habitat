@@ -22,6 +22,7 @@ var handlePattern = regexp.MustCompile(`^[a-zA-Z0-9]{1,50}$`)
 // not rely on the PLC directory as a central source of failure.
 
 type Hive interface {
+	MintOrgIdentity(ctx context.Context, subdomain string) (*identity.Identity, error)
 	// Minting new identities for members
 	MintIdentity(ctx context.Context, handle string, subdomain string) (*identity.Identity, error)
 	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
@@ -162,6 +163,11 @@ func (h *hive) SignServiceAuth(
 		return "", err
 	}
 	return auth.SignServiceAuth(iss, aud, ttl, lxm, priv)
+}
+
+// MintOrgIdentity implements [Hive].
+func (h *hive) MintOrgIdentity(ctx context.Context, subdomain string) (*identity.Identity, error) {
+	return h.store.mintIdentity(ctx, subdomain)
 }
 
 // MintIdentity implements Hive.

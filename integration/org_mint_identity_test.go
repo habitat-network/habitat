@@ -3,7 +3,6 @@ package integration
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -33,27 +32,21 @@ func TestMintThenLookup(t *testing.T) {
 
 	adminDID := syntax.DID("did:plc:admin1234")
 
-	// Create the org store and seed an org
 	dir := identity.DefaultDirectory()
-	signingSecret := []byte("test-signing-secret-for-org-00000")
 	orgStore, err := org.NewStore(db, h, dir, "pear.example.com")
 	require.NoError(t, err)
 
-	// Seed the org into the database
-	require.NoError(t, db.Create(&org.Organization{
-		ID:            "test-org",
-		Domain:        "example.com",
-		SigningSecret: base64.StdEncoding.EncodeToString(signingSecret),
-	}).Error)
-
-	testOrg, err := orgStore.GetOrg(ctx, "test-org")
+	orgIdIdent, _, err := orgStore.CreateOrg(ctx, "test-org", "admin", "password", "password", "", "test-org")
+	require.NoError(t, err)
+	testOrgID := orgIdIdent.DID
+	testOrg, err := orgStore.GetOrg(ctx, testOrgID)
 	require.NoError(t, err)
 	require.NoError(t, testOrg.AddAdmin(ctx, adminDID))
 
 	orgServer, err := org.NewServer(orgStore, authn.NewStubAuthnForTest(adminDID), nil)
 	require.NoError(t, err)
 
-	hiveServer, err := hive.NewServer(h)
+	hiveServer, err := hive.NewServer(h, authn.NewStubAuthnForTest(adminDID))
 	require.NoError(t, err)
 
 	// Admin issues an invite token via org server
@@ -74,7 +67,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	// New member uses the token to mint an identity via org server
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
-		OrgID:  "test-org",
+		OrgId:  testOrgID.String(),
 		Token:  issueOut.Token,
 		Handle: "alice",
 	})
