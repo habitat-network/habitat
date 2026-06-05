@@ -17,7 +17,7 @@ import (
 
 func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, syntax.DID) {
 	t.Helper()
-	storeImpl := NewTestStore(t)
+	storeImpl := newTestStore(t)
 
 	orgIdIdent, _, err := storeImpl.CreateOrg(
 		t.Context(),
