@@ -36,7 +36,15 @@ func TestMintThenLookup(t *testing.T) {
 	orgStore, err := org.NewStore(db, h, dir, "pear.example.com")
 	require.NoError(t, err)
 
-	orgIdIdent, _, err := orgStore.CreateOrg(ctx, "test-org", "admin", "password", "password", "", "test-org")
+	orgIdIdent, _, err := orgStore.CreateOrg(
+		ctx,
+		"test-org",
+		"admin",
+		"password",
+		"password",
+		"",
+		"test-org",
+	)
 	require.NoError(t, err)
 	testOrgID := orgIdIdent.DID
 	testOrg, err := orgStore.GetOrg(ctx, testOrgID)

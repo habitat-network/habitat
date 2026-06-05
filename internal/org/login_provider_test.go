@@ -22,7 +22,15 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	t.Helper()
 	s := NewTestStore(t)
 
-	orgIdIdent, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "", "", "testorg")
+	orgIdIdent, _, err := s.CreateOrg(
+		t.Context(),
+		"test-org",
+		"admin",
+		"password",
+		"",
+		"",
+		"testorg",
+	)
 	require.NoError(t, err)
 
 	scoped, err := s.GetOrg(context.Background(), orgIdIdent.DID)
