@@ -20,7 +20,7 @@ import (
 
 func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	t.Helper()
-	s := NewTestStore(t)
+	s := newTestStore(t)
 
 	orgIdIdent, _, err := s.CreateOrg(
 		t.Context(),
