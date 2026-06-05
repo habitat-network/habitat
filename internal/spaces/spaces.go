@@ -508,14 +508,15 @@ func (s *store) PutRecord(
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// acquire lock on permissioned repo within space
-		err := tx.Exec(
-			`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
-			spaceUri,
-			owner,
-		).Error
-		if err != nil {
-			return err
+		if tx.Dialector.Name() == "postgres" {
+			// acquire lock on permissioned repo within space
+			if err := tx.Exec(
+				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
+				spaceUri,
+				owner,
+			).Error; err != nil {
+				return err
+			}
 		}
 		tid := s.clock.Next()
 		if rkey == "" {
@@ -541,14 +542,14 @@ func (s *store) PutRecord(
 func (s *store) GetRecord(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
-	owner syntax.DID,
+	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 ) (*Record, error) {
 	var row spaceRecord
 	err := s.db.WithContext(ctx).
-		Where("space = ? AND owner = ? AND collection = ? AND rkey = ?",
-			uri, owner, collection, rkey).
+		Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+			uri, repo, collection, rkey).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrRecordNotFound
@@ -579,7 +580,7 @@ func (s *store) ListRecords(
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
 		Where("space = ?", uri).
-		Where("owner = ?", repo)
+		Where("repo = ?", repo)
 
 	if collection != nil {
 		query = query.Where("collection = ?", collection)
@@ -658,13 +659,13 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 func (s *store) GetRepoOplog(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
-	owner syntax.DID,
+	repo syntax.DID,
 	since string,
 	limit int,
 ) ([]Record, error) {
 	query := s.db.WithContext(ctx).
 		Model(&spaceRecord{}).
-		Where("space = ? AND owner = ?", uri, owner)
+		Where("space = ? AND repo = ?", uri, repo)
 
 	if since != "" {
 		query = query.Where("rev > ?", since)
