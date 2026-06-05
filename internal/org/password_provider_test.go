@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -123,21 +124,22 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
-func mintMember(t *testing.T, s *orgImpl) {
+func mintMember(t *testing.T, s *orgImpl) *identity.Identity {
 	t.Helper()
 	ctx := context.Background()
 	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPassword)
+	ident, err := s.CreateNewMemberIdentity(ctx, token, "alice", testPassword)
 	require.NoError(t, err)
+	return ident
 }
 
 func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	p, s := newTestLoginProvider(t)
-	mintMember(t, s)
+	ident := mintMember(t, s)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgLoginMemberInput{
-		Handle:   "did:web:alice.example.com",
+		Handle:   ident.Handle.String(),
 		Password: testPassword,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))
@@ -161,10 +163,9 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 
 	code := callbackUrl.Query().Get("code")
 
-	did := syntax.DID("did:web:alice.example.com")
 	require.NoError(
 		t,
-		p.Exchange(context.Background(), did, did.String(), code, "", nil),
+		p.Exchange(context.Background(), ident.DID, ident.DID.String(), code, "", nil),
 	)
 }
 
