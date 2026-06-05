@@ -207,17 +207,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to parse oauth server secret for login provider", "err", err)
 		os.Exit(1)
 	}
-	orgLoginProvider := org.NewLoginProvider(
-		orgStore,
-		cmd.String(fDomain),
-		cmd.String(fFrontendDomain),
-		oauthSecret,
-		dir,
-	)
-
-	providers := []login.Provider{
-		login.NewPDSProvider(oauthClient, pdsCredStore, dir),
-		orgLoginProvider,
+	providers := org.LoginRouter{
+		Pds: login.NewPDSProvider(oauthClient, pdsCredStore, dir),
+		Password: org.NewPasswordProvider(
+			orgStore,
+			cmd.String(fDomain),
+			cmd.String(fFrontendDomain),
+			oauthSecret,
+			dir,
+		),
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
@@ -233,10 +231,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 			slog.Error("unable to setup google login provider", "err", err)
 			os.Exit(1)
 		}
-		providers = append(providers, googleProvider)
+		providers.Google = googleProvider
 		slog.Info("google login provider enabled")
 	}
-	loginRouter := login.NewRouter(providers...)
 
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,

@@ -65,7 +65,9 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	require.NoError(t, err)
 	oauthSrv, err := NewOAuthServer(
 		secret,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		&org.LoginRouter{
+			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+		},
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -162,7 +164,9 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		&org.LoginRouter{
+			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+		},
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -277,7 +281,9 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		&org.LoginRouter{
+			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+		},
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -427,7 +433,9 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 
 	oauthServer, err := NewOAuthServer(
 		bytes,
-		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+		&org.LoginRouter{
+			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+		},
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
@@ -629,7 +637,9 @@ func TestValidate(t *testing.T) {
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
-			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+			&org.LoginRouter{
+				Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+			},
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
 			credStore,
@@ -732,7 +742,9 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
-			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+			&org.LoginRouter{
+				Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+			},
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
 			credStore,

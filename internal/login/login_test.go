@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // stubOAuthClient is a minimal PdsOAuthClient for testing.
@@ -61,35 +62,6 @@ func (s *stubOAuthClient) RefreshToken(
 	return nil, errors.New("not used in these tests")
 }
 
-// stubCredStore tracks UpsertCredentials calls.
-type stubCredStore struct {
-	upserted  map[syntax.DID]*pdscred.Credentials
-	upsertErr error
-}
-
-func newStubCredStore() *stubCredStore {
-	return &stubCredStore{upserted: make(map[syntax.DID]*pdscred.Credentials)}
-}
-
-func (s *stubCredStore) UpsertCredentials(
-	_ context.Context,
-	did syntax.DID,
-	creds *pdscred.Credentials,
-) error {
-	if s.upsertErr != nil {
-		return s.upsertErr
-	}
-	s.upserted[did] = creds
-	return nil
-}
-
-func (s *stubCredStore) GetCredentials(
-	_ context.Context,
-	did syntax.DID,
-) (*pdscred.Credentials, error) {
-	return nil, errors.New("not used in these tests")
-}
-
 // helpers to build identities with specific service combinations
 
 func idWithPDSOnly() *identity.Identity {
@@ -104,10 +76,22 @@ func idWithPDSOnly() *identity.Identity {
 // --- pdsProvider ---
 
 func TestPDSProvider_Authorize(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
 	client := &stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}
-	p := NewPDSProvider(client, newStubCredStore(), nil)
+	p := NewPDSProvider(
+		client,
+		credStore,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+	)
 
-	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
+	redirect, state, err := p.Authorize(
+		context.Background(),
+		"did:web:pds.example.com",
+		"did:plc:publicdid",
+	)
 	require.NoError(t, err)
 	require.Equal(t, "https://pds.example.com/authorize", redirect)
 	require.NotEmpty(t, state)
@@ -120,85 +104,39 @@ func TestPDSProvider_Authorize(t *testing.T) {
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
-	credStore := newStubCredStore()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
 	p := NewPDSProvider(
 		&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"},
 		credStore,
-		nil,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
-	did := syntax.DID("did:web:pds.example.com")
 
 	// Obtain valid state from Authorize.
-	_, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
+	_, state, err := p.Authorize(
+		context.Background(),
+		"did:web:pds.example.com",
+		"did:plc:publicdid",
+	)
 	require.NoError(t, err)
 
-	err = p.Exchange(context.Background(), did, "code", "https://pds.example.com", state)
+	err = p.Exchange(
+		context.Background(),
+		"did:web:pds.example.com",
+		"did:plc:publicdid",
+		"code",
+		"https://pds.example.com",
+		state,
+	)
 	require.NoError(t, err)
 
-	creds, stored := credStore.upserted[did]
-	require.True(t, stored, "credentials should have been upserted")
+	creds, err := credStore.GetCredentials(t.Context(), "did:web:pds.example.com")
+	require.NoError(t, err)
 	require.Equal(t, "access", creds.AccessToken)
 	require.Equal(t, "refresh", creds.RefreshToken)
 	require.NotNil(t, creds.DpopKey)
-}
-
-// dummyProvider is a test stand-in for any non-PDS provider.
-type dummyProvider struct{}
-
-func NewDummyProvider() Provider { return &dummyProvider{} }
-
-func (d *dummyProvider) LoginMethod() org.LoginMethod { return org.LoginMethodPassword }
-
-func (d *dummyProvider) Authorize(
-	_ context.Context,
-	_ *identity.Identity,
-	_ string,
-) (string, []byte, error) {
-	return "https://dummy.example.com/login", nil, nil
-}
-func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
-	return nil
-}
-
-// --- Router ---
-
-func newTestRouter() *Router {
-	return NewRouter(
-		NewPDSProvider(&stubOAuthClient{}, newStubCredStore(), nil),
-		NewDummyProvider(),
-	)
-}
-
-func TestRouter_ByLoginMethod(t *testing.T) {
-	r := newTestRouter()
-
-	p, err := r.ByLoginMethod(org.LoginMethodAtproto)
-	require.NoError(t, err)
-	require.Equal(t, org.LoginMethodAtproto, p.LoginMethod())
-
-	p, err = r.ByLoginMethod(org.LoginMethodPassword)
-	require.NoError(t, err)
-	require.Equal(t, org.LoginMethodPassword, p.LoginMethod())
-
-	_, err = r.ByLoginMethod("unknown")
-	require.Error(t, err)
-}
-
-func TestPDSProvider_AuthorizeWithLoginID(t *testing.T) {
-	client := &stubOAuthClient{redirectURL: "https://public-pds.example.com/authorize"}
-	dir := pdsclient.NewDummyDirectory("https://public-pds.example.com")
-	p := NewPDSProvider(client, newStubCredStore(), dir)
-
-	orgID := &identity.Identity{
-		DID: "did:web:internal.org.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://habitat.example.com"},
-		},
-	}
-	redirect, state, err := p.Authorize(context.Background(), orgID, "did:plc:mapped-public")
-	require.NoError(t, err)
-	require.Equal(t, "https://public-pds.example.com/authorize", redirect)
-	require.NotEmpty(t, state)
 }
 
 // unmarshalProviderState is a test helper to inspect the opaque pds state bytes.

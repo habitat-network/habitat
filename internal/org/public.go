@@ -18,7 +18,7 @@ var (
 	ErrNotSupportedPublic = errors.New("method not supported on public org")
 )
 
-func (e *everyoneOrg) LoginMethod(_ context.Context) LoginMethod {
+func (e *everyoneOrg) loginMethod() loginMethod {
 	return LoginMethodAtproto
 }
 

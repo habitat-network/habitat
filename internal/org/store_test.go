@@ -1,7 +1,6 @@
 package org
 
 import (
-	"context"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -34,7 +33,6 @@ func TestStore_CreateOrg(t *testing.T) {
 
 	org, err := s.GetOrg(t.Context(), orgID)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
 	members, err := org.GetMembers(t.Context())
 	require.NoError(t, err)
@@ -60,7 +58,6 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 
 	org, err := s.GetOrgForDID(t.Context(), id.DID)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
 	gotOrgID := ""
 	switch o := org.(type) {
@@ -75,7 +72,6 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	unknown := syntax.DID("did:plc:unknown")
 	org, err := s.GetOrgForDID(t.Context(), unknown)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodAtproto, org.LoginMethod(context.Background()))
 
 	ok, err := org.IsMember(t.Context(), unknown)
 	require.NoError(t, err)
@@ -94,14 +90,14 @@ func TestStore_GetMember_Existing(t *testing.T) {
 	require.NotEmpty(t, member.LoginID)
 }
 
-func TestStore_GetMember_NotFound(t *testing.T) {
+func TestStore_GetMember_Public(t *testing.T) {
 	s := newTestStore(t)
 	unknown := syntax.DID("did:plc:unknown")
 	member, err := s.GetMember(t.Context(), unknown)
 	require.NoError(t, err)
 	require.Equal(t, unknown, member.DID)
 	require.Equal(t, MemberRole, member.Role)
-	require.Empty(t, member.LoginID)
+	require.Equal(t, "did:plc:unknown", member.LoginID)
 
 	ok, err := member.Org.IsMember(t.Context(), unknown)
 	require.NoError(t, err)

@@ -6,30 +6,36 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
+func newTestLoginProvider(t *testing.T) (*passwordProviderImpl, *orgImpl) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 
-	s, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	s, err := NewStore(
+		db,
+		h,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+		"pear.example.com",
+	)
 	require.NoError(t, err)
 
 	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "", "", "testorg")
@@ -38,7 +44,7 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	scoped, err := s.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 
-	return NewLoginProvider(
+	return NewPasswordProvider(
 		s,
 		"pear.example.com",
 		"frontend.example.com",
@@ -47,34 +53,20 @@ func newTestLoginProvider(t *testing.T) (*LoginProvider, *orgImpl) {
 	), scoped.(*orgImpl)
 }
 
-func TestLoginProvider_LoginMethod(t *testing.T) {
-	p, _ := newTestLoginProvider(t)
-	require.Equal(t, LoginMethodPassword, p.LoginMethod())
-}
-
 func TestLoginProvider_Authorize(t *testing.T) {
 	p, _ := newTestLoginProvider(t)
-	id := &identity.Identity{
-		Handle: "alice.example.com",
-	}
-	redirect, state, err := p.Authorize(context.Background(), id, "")
+	redirect, state, err := p.Authorize(
+		context.Background(),
+		syntax.DID("did:web:alice.example.com"),
+		"",
+	)
 	require.NoError(t, err)
 	require.Nil(t, state)
 	require.Equal(
 		t,
-		"https://frontend.example.com/login/habitat?handle=alice.example.com",
+		"https://frontend.example.com/login/habitat?handle=did:web:alice.example.com",
 		redirect,
 	)
-}
-
-func TestLoginProvider_Authorize_HandleEscaping(t *testing.T) {
-	p, _ := newTestLoginProvider(t)
-	id := &identity.Identity{
-		Handle: "alice bob",
-	}
-	redirect, _, err := p.Authorize(context.Background(), id, "")
-	require.NoError(t, err)
-	require.Contains(t, redirect, "handle=alice+bob")
 }
 
 func TestLoginProvider_ExchangeRoundTrip(t *testing.T) {
@@ -83,12 +75,15 @@ func TestLoginProvider_ExchangeRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), token, "", nil))
+	did := syntax.DID("did:web:alice.example.com")
+
+	require.NoError(t, p.Exchange(context.Background(), did, did.String(), token, "", nil))
 }
 
 func TestLoginProvider_Exchange_InvalidToken(t *testing.T) {
 	p, _ := newTestLoginProvider(t)
-	err := p.Exchange(context.Background(), syntax.DID(""), "not-a-jwt", "", nil)
+	did := syntax.DID("did:web:alice.example.com")
+	err := p.Exchange(context.Background(), did, did.String(), "not-a-jwt", "", nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -105,7 +100,9 @@ func TestLoginProvider_Exchange_WrongSigningSecret(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	err = p.Exchange(context.Background(), syntax.DID(""), tok, "", nil)
+	did := syntax.DID("did:web:alice.example.com")
+
+	err = p.Exchange(context.Background(), did, did.String(), tok, "", nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -120,7 +117,9 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 	tok, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	require.NoError(t, err)
 
-	err = p.Exchange(context.Background(), syntax.DID(""), tok, "", nil)
+	did := syntax.DID("did:web:alice.example.com")
+
+	err = p.Exchange(context.Background(), did, did.String(), tok, "", nil)
 	require.ErrorIs(t, err, errInvalidLoginToken)
 }
 
@@ -138,12 +137,15 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	mintMember(t, s)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgLoginMemberInput{
-		Handle:   "alice.testorg.example.com",
+		Handle:   "did:web:alice.example.com",
 		Password: testPassword,
 	})
 	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	p.HandlePasswordLogin(w, req)
+
+	dump, err := httputil.DumpResponse(w.Result(), true)
+	t.Log(string(dump))
 
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -158,7 +160,12 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	require.Equal(t, callbackUrl.Path, "/oauth-callback")
 
 	code := callbackUrl.Query().Get("code")
-	require.NoError(t, p.Exchange(context.Background(), syntax.DID(""), code, "", nil))
+
+	did := syntax.DID("did:web:alice.example.com")
+	require.NoError(
+		t,
+		p.Exchange(context.Background(), did, did.String(), code, "", nil),
+	)
 }
 
 func TestLoginProvider_HandlePasswordLogin_BadRequestBody(t *testing.T) {

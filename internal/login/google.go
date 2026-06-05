@@ -10,10 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/org"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -64,15 +62,13 @@ func NewGoogleProvider(
 	}, nil
 }
 
-func (p *googleProvider) LoginMethod() org.LoginMethod { return org.LoginMethodGoogle }
-
 func (p *googleProvider) Authorize(
 	ctx context.Context,
-	id *identity.Identity,
-	loginID string,
+	did syntax.DID,
+	loginId string,
 ) (string, []byte, error) {
-	if loginID == "" {
-		return "", nil, fmt.Errorf("no google email configured for org %s", id.DID)
+	if loginId == "" {
+		return "", nil, fmt.Errorf("no google email configured for org %s", did)
 	}
 
 	verifier := oauth2.GenerateVerifier()
@@ -91,7 +87,7 @@ func (p *googleProvider) Authorize(
 		stateStr,
 		oauth2.AccessTypeOffline,
 		oauth2.S256ChallengeOption(verifier),
-		oauth2.SetAuthURLParam("login_hint", loginID),
+		oauth2.SetAuthURLParam("login_hint", loginId),
 		oauth2.SetAuthURLParam("prompt", "select_account"),
 	)
 
@@ -101,6 +97,7 @@ func (p *googleProvider) Authorize(
 func (p *googleProvider) Exchange(
 	ctx context.Context,
 	did syntax.DID,
+	loginId string,
 	code string,
 	_ string,
 	stateBytes []byte,
@@ -125,7 +122,7 @@ func (p *googleProvider) Exchange(
 		return fmt.Errorf("verify google id token: %w", err)
 	}
 
-	if err := p.upsertCredentials(ctx, did, &Credentials{
+	if err := p.upsertCredentials(ctx, loginId, &Credentials{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		Expiry:       token.Expiry,
@@ -139,22 +136,21 @@ func (p *googleProvider) Exchange(
 }
 
 type googleCredentialsModel struct {
-	DID          string `gorm:"column:did;primarykey"`
+	Email        string `gorm:"column:did;primarykey"`
 	AccessToken  string // encrypted
 	RefreshToken string // encrypted
 	Expiry       time.Time
 	IDToken      string // encrypted
-	Email        string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
 
 func (p *googleProvider) upsertCredentials(
 	ctx context.Context,
-	did syntax.DID,
+	email string,
 	creds *Credentials,
 ) error {
-	m := &googleCredentialsModel{DID: did.String()}
+	m := &googleCredentialsModel{Email: email}
 	var err error
 	if m.AccessToken, err = encrypt.EncryptCBOR(creds.AccessToken, p.encryptionKey); err != nil {
 		return fmt.Errorf("encrypt access token: %w", err)

@@ -10,7 +10,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"log/slog"
@@ -36,26 +35,21 @@ func NewPDSProvider(
 	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir}
 }
 
-func (p *pdsProvider) LoginMethod() org.LoginMethod { return org.LoginMethodAtproto }
-
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
-	id *identity.Identity,
+	did syntax.DID,
 	loginID string,
 ) (string, []byte, error) {
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
-	if loginID != "" {
-		publicDID, err := syntax.ParseDID(loginID)
-		if err != nil {
-			return "", nil, fmt.Errorf("parse loginID: %w", err)
-		}
-		publicID, err := p.dir.LookupDID(ctx, publicDID)
-		if err != nil {
-			return "", nil, fmt.Errorf("lookup loginID: %w", err)
-		}
-		id = publicID
+	did, err := syntax.ParseDID(loginID)
+	if err != nil {
+		return "", nil, fmt.Errorf("parse loginID: %w", err)
+	}
+	id, err := p.dir.LookupDID(ctx, did)
+	if err != nil {
+		return "", nil, fmt.Errorf("lookup loginID: %w", err)
 	}
 
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -81,6 +75,7 @@ func (p *pdsProvider) Authorize(
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
 	did syntax.DID,
+	loginId string,
 	code string,
 	issuer string,
 	stateBytes []byte,
@@ -98,7 +93,7 @@ func (p *pdsProvider) Exchange(
 	if err != nil {
 		return fmt.Errorf("exchange code: %w", err)
 	}
-	if err := p.credStore.UpsertCredentials(ctx, did, &pdscred.Credentials{
+	if err := p.credStore.UpsertCredentials(ctx, syntax.DID(loginId), &pdscred.Credentials{
 		AccessToken:  tokenInfo.AccessToken,
 		RefreshToken: tokenInfo.RefreshToken,
 		DpopKey:      dpopKey,

@@ -11,7 +11,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/org"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"gorm.io/driver/sqlite"
@@ -37,18 +36,6 @@ func makeIDToken(clientID, email string) string {
 	return header + "." + payload + ".fakesignature"
 }
 
-func TestGoogleProvider_LoginMethod(t *testing.T) {
-	p, err := NewGoogleProvider(
-		"client-id",
-		"client-secret",
-		"https://example.com/callback",
-		newTestDB(t),
-		encrypt.TestKey,
-	)
-	require.NoError(t, err)
-	require.Equal(t, org.LoginMethodGoogle, p.LoginMethod())
-}
-
 func TestGoogleProvider_Authorize(t *testing.T) {
 	p, err := NewGoogleProvider(
 		"client-id",
@@ -59,7 +46,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "user@gmail.com")
+	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly().DID, "user@gmail.com")
 	require.NoError(t, err)
 	require.Contains(t, redirect, "https://accounts.google.com/o/oauth2/v2/auth")
 	require.Contains(t, redirect, "login_hint=user%40gmail.com")
@@ -83,7 +70,7 @@ func TestGoogleProvider_Authorize_NoLoginID(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, _, err = p.Authorize(context.Background(), idWithPDSOnly(), "")
+	_, _, err = p.Authorize(context.Background(), idWithPDSOnly().DID, "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no google email configured")
 }
@@ -126,12 +113,12 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	gp := p.(*googleProvider)
 	gp.oauthCfg.Endpoint.TokenURL = tokenServer.URL
 
-	_, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "user@gmail.com")
+	_, state, err := p.Authorize(context.Background(), idWithPDSOnly().DID, "user@gmail.com")
 	require.NoError(t, err)
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
 	did := syntax.DID("did:web:example.com")
-	err = p.Exchange(ctx, did, "auth-code", "", state)
+	err = p.Exchange(ctx, did, "user@gmail.com", "auth-code", "", state)
 	require.NoError(t, err)
 
 	creds, err := gp.GetCredentials(ctx, did)

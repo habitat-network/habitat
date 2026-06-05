@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alexedwards/argon2id"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
@@ -59,8 +58,7 @@ type Org interface {
 	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
-	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
-	LoginMethod(ctx context.Context) LoginMethod
+	loginMethod() loginMethod
 
 	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(
@@ -90,33 +88,13 @@ type orgImpl struct {
 	db              *gorm.DB
 	signingSecret   []byte
 	handleSubdomain string
+	method          loginMethod
 }
 
 var _ Org = &orgImpl{}
 
-func NewOrg(
-	orgID string,
-	hive hive.Hive,
-	db *gorm.DB,
-	signingSecret []byte,
-) (*orgImpl, error) {
-	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
-		return nil, err
-	}
-	return &orgImpl{
-		orgID:         orgID,
-		hive:          hive,
-		db:            db,
-		signingSecret: signingSecret,
-	}, nil
-}
-
-func (s *orgImpl) LoginMethod(ctx context.Context) LoginMethod {
-	var org organization
-	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
-		return "password" // safe default
-	}
-	return org.LoginMethod
+func (s *orgImpl) loginMethod() loginMethod {
+	return s.method
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
@@ -340,36 +318,6 @@ func (s *orgImpl) CreateNewMemberIdentity(
 		return nil, err
 	}
 	return id, nil
-}
-
-func (s *orgImpl) AuthenticateMember(
-	ctx context.Context,
-	handle string,
-	password string,
-) (bool, error) {
-	id, err := s.hive.LookupHandle(ctx, syntax.Handle(handle))
-	if err != nil {
-		return false, nil
-	}
-
-	var row member
-	err = s.db.WithContext(ctx).
-		Where("org_id = ? AND did = ?", s.orgID, id.DID).
-		First(&row).
-		Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// Don't leak whether the handle exists
-		return false, nil
-	} else if err != nil {
-		return false, err
-	}
-
-	ok, err := verifyPassword(password, row.LoginID)
-	if errors.Is(err, argon2id.ErrInvalidHash) {
-		// Members created before passwords were required have no usable hash.
-		return false, nil
-	}
-	return ok, err
 }
 
 // WithTx implements [Org].

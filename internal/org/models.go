@@ -6,19 +6,19 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-type LoginMethod string
+type loginMethod string
 
 const (
-	LoginMethodAtproto  LoginMethod = "atproto"
-	LoginMethodGoogle   LoginMethod = "google"
-	LoginMethodPassword LoginMethod = "password"
+	LoginMethodAtproto  loginMethod = "atproto"
+	LoginMethodGoogle   loginMethod = "google"
+	LoginMethodPassword loginMethod = "password"
 )
 
 // organization represents a managed org on a pear instance.
 type organization struct {
 	ID              string      `gorm:"primaryKey"`
 	Name            string      // optional display name
-	LoginMethod     LoginMethod // "atproto", "google", "password"
+	LoginMethod     loginMethod // "atproto", "google", "password"
 	SigningSecret   string      // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt       time.Time
 	HandleSubdomain string `gorm:"unique"`

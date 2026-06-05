@@ -80,6 +80,7 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		db:              s.db,
 		signingSecret:   signingSecret,
 		handleSubdomain: org.HandleSubdomain,
+		method:          org.LoginMethod,
 	}, nil
 }
 
@@ -120,7 +121,7 @@ func (s *storeImpl) CreateOrg(
 	name string,
 	adminHandle string,
 	adminPassword string,
-	loginMethod string,
+	method string,
 	loginID string,
 	handleSubdomain string,
 ) (string, *identity.Identity, error) {
@@ -138,7 +139,7 @@ func (s *storeImpl) CreateOrg(
 
 	// Determine the member's LoginID based on login method
 	var memberLoginID string
-	switch loginMethod {
+	switch method {
 	case "password":
 		hash, err := hashPassword(adminPassword)
 		if err != nil {
@@ -154,7 +155,7 @@ func (s *storeImpl) CreateOrg(
 		if err := tx.Create(&organization{
 			ID:              orgID,
 			Name:            name,
-			LoginMethod:     LoginMethod(loginMethod),
+			LoginMethod:     loginMethod(method),
 			SigningSecret:   signingSecret,
 			CreatedAt:       time.Now(),
 			HandleSubdomain: handleSubdomain,
@@ -193,7 +194,7 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 				Org:     s.everyone,
 				DID:     did,
 				Role:    MemberRole,
-				LoginID: "",
+				LoginID: did.String(),
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to get member: %w", err)

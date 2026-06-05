@@ -43,7 +43,7 @@ type pdsCredentialStore struct {
 // These credentials are reused across multiple OAuth sessions.
 // Updated on every sign-in.
 type pdsCredentialsModel struct {
-	DID string `gorm:"column:did;primarykey"` // DID of the user (primary key)
+	DID syntax.DID `gorm:"column:did;primarykey"` // DID of the user (primary key)
 
 	// Tokens received from the AT Protocol PDS (via OAuth client)
 	AccessToken  string // Access token from PDS
@@ -112,7 +112,7 @@ func (p *pdsCredentialStore) UpsertCredentials(
 ) error {
 	// Find or create user credentials
 	userCreds := &pdsCredentialsModel{
-		DID: did.String(),
+		DID: did,
 	}
 	// Encrypt tokens before storing
 	var err error

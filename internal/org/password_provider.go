@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -14,6 +15,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -23,8 +25,8 @@ type loginTokenClaims struct {
 	jwt.Claims
 }
 
-// LoginProvider wraps Store and implements login.Provider for habitat-hosted member identities.
-type LoginProvider struct {
+// passwordProviderImpl wraps Store and implements login.Provider for habitat-hosted member identities.
+type passwordProviderImpl struct {
 	store          Store
 	pearDomain     string
 	frontendDomain string
@@ -32,14 +34,14 @@ type LoginProvider struct {
 	dir            identity.Directory
 }
 
-func NewLoginProvider(
+func NewPasswordProvider(
 	store Store,
 	pearDomain string,
 	frontendDomain string,
 	signingSecret []byte,
 	dir identity.Directory,
-) *LoginProvider {
-	return &LoginProvider{
+) *passwordProviderImpl {
+	return &passwordProviderImpl{
 		store:          store,
 		pearDomain:     pearDomain,
 		frontendDomain: frontendDomain,
@@ -48,20 +50,20 @@ func NewLoginProvider(
 	}
 }
 
-func (p *LoginProvider) LoginMethod() LoginMethod { return LoginMethodPassword }
+var _ login.Provider = (*passwordProviderImpl)(nil)
 
-func (p *LoginProvider) Authorize(
+func (p *passwordProviderImpl) Authorize(
 	_ context.Context,
-	id *identity.Identity,
-	_ string,
+	did syntax.DID,
+	loginId string,
 ) (string, []byte, error) {
 	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
-		string(id.Handle),
+		did.String(),
 	)
 	return redirect, nil, nil
 }
 
-func (p *LoginProvider) issueToken() (string, error) {
+func (p *passwordProviderImpl) issueToken() (string, error) {
 	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: p.signingSecret}, nil)
 	if err != nil {
 		return "", err
@@ -74,7 +76,7 @@ func (p *LoginProvider) issueToken() (string, error) {
 	return jwt.Signed(sig).Claims(claims).CompactSerialize()
 }
 
-func (p *LoginProvider) verifyToken(token string) error {
+func (p *passwordProviderImpl) verifyToken(token string) error {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
@@ -89,11 +91,17 @@ func (p *LoginProvider) verifyToken(token string) error {
 	return nil
 }
 
-func (p *LoginProvider) Exchange(_ context.Context, _ syntax.DID, code, _ string, _ []byte) error {
+func (p *passwordProviderImpl) Exchange(
+	_ context.Context,
+	_ syntax.DID,
+	_ string,
+	code, _ string,
+	_ []byte,
+) error {
 	return p.verifyToken(code)
 }
 
-func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	var req habitat.NetworkHabitatOrgLoginMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -108,6 +116,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	id, err := p.dir.Lookup(r.Context(), atid)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "invalid handle", "err", err)
 		http.Error(w, "invalid handle", http.StatusUnauthorized)
 		return
 	}
