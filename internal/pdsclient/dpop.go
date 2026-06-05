@@ -197,7 +197,7 @@ func doInternal(
 		return nil, err
 	}
 	// Check if new nonce is needed, and set it if so
-	if !isUseDPopNonceError(resp) {
+	if !isUseDPopNonceError(req.Context(), resp) {
 		return resp, nil
 	}
 	if resp.Header.Get("DPoP-Nonce") != "" {
@@ -287,7 +287,7 @@ func hashAccessToken(accessToken string) string {
 	return base64.RawURLEncoding.EncodeToString(hash)
 }
 
-func isUseDPopNonceError(resp *http.Response) bool {
+func isUseDPopNonceError(ctx context.Context, resp *http.Response) bool {
 	// Resource server
 	if resp.StatusCode == 401 {
 		wwwAuth := resp.Header.Get("WWW-Authenticate")
@@ -307,7 +307,7 @@ func isUseDPopNonceError(resp *http.Response) bool {
 					return true
 				}
 			}
-			slog.Error("error decoding response body", "err", err)
+			slog.ErrorContext(ctx, "error decoding response body", "err", err)
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 	}

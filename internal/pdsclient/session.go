@@ -119,11 +119,11 @@ func getCookieSession(r *http.Request, sessionStore sessions.Store) (*cookieSess
 func (s *cookieSession) Save(r *http.Request, w http.ResponseWriter) {
 	err := s.session.Save(r, w)
 	if err != nil {
-		slog.Error("error saving session", "err", err)
+		slog.ErrorContext(r.Context(), "error saving session", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err := w.Write([]byte(err.Error()))
 		if err != nil {
-			slog.Error("error writing error to response", "err", err)
+			slog.ErrorContext(r.Context(), "error writing error to response", "err", err)
 		}
 	}
 }

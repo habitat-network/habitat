@@ -79,13 +79,13 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	var req habitat.NetworkHabitatRepoPutRecordInput
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	target, err := syntax.ParseAtIdentifier(req.Repo)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
@@ -99,6 +99,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	record, ok := req.Record.(map[string]any)
 	if !ok {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			fmt.Errorf("record must be a JSON object"),
 			"invalid record type",
@@ -110,6 +111,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	parsed, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
@@ -131,6 +133,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			fmt.Sprintf("putting record for did %s", target.DID().String()),
@@ -142,7 +145,13 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
 		Uri: uri.String(),
 	}); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -157,13 +166,13 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 	var req habitat.NetworkHabitatRepoCreateRecordInput
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	target, err := syntax.ParseAtIdentifier(req.Repo)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
@@ -177,6 +186,7 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 	record, ok := req.Record.(map[string]any)
 	if !ok {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			fmt.Errorf("record must be a JSON object"),
 			"invalid record type",
@@ -188,6 +198,7 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 	parsed, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
@@ -209,6 +220,7 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 	)
 	if errors.Is(err, repo.ErrRecordAlreadyCreated) {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			fmt.Sprintf("putting record for did %s", target.DID().String()),
@@ -216,6 +228,7 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 		)
 	} else if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			fmt.Sprintf("putting record for did %s", target.DID().String()),
@@ -227,7 +240,13 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoCreateRecordOutput{
 		Uri: uri.String(),
 	}); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -241,41 +260,59 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	var params habitat.NetworkHabitatRepoGetRecordParams
 	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing url", http.StatusBadRequest)
 		return
 	}
 
 	target, err := syntax.ParseAtIdentifier(params.Repo)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing repo", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing repo", http.StatusBadRequest)
 		return
 	}
 
 	collection, err := syntax.ParseNSID(params.Collection)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing collection as NSID", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"parsing collection as NSID",
+			http.StatusBadRequest,
+		)
 		return
 	}
 	rkey, err := syntax.ParseRecordKey(params.Rkey)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing rkey as RecordKey", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"parsing rkey as RecordKey",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	record, err := s.pear.GetRecord(r.Context(), collection, rkey, target.DID(), callerDID)
 	if err != nil {
 		if errors.Is(err, repo.ErrRecordNotFound) {
-			utils.LogAndHTTPError(w, err, "record not found", http.StatusNotFound)
+			utils.LogAndHTTPError(r.Context(), w, err, "record not found", http.StatusNotFound)
 			return
 		} else if errors.Is(err, pear.ErrNotLocalRepo) {
 			// TODO: is this still relevant?
-			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"forwarding not implemented",
+				http.StatusNotImplemented,
+			)
 			return
 		} else if errors.Is(err, habitat_err.ErrUnauthorized) {
-			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusForbidden)
+			utils.LogAndHTTPError(r.Context(), w, err, "unauthorized", http.StatusForbidden)
 			return
 		}
-		utils.LogAndHTTPError(w, err, "getting record", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "getting record", http.StatusInternalServerError)
 		return
 	}
 
@@ -300,6 +337,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			utils.LogAndHTTPError(
+				r.Context(),
 				w,
 				err,
 				"listing permissions on fetched records",
@@ -311,7 +349,13 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if json.NewEncoder(w).Encode(output) != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -325,6 +369,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	mimeType := r.Header.Get("Content-Type")
 	if mimeType == "" {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			fmt.Errorf("no mimetype specified"),
 			"no mimetype specified",
@@ -335,13 +380,20 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 
 	bytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"reading request body",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	blob, err := s.pear.UploadBlob(r.Context(), callerDID, callerDID, bytes, mimeType)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"error in repo.uploadBlob",
@@ -356,6 +408,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(out)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"error encoding json output",
@@ -374,13 +427,13 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	req := &habitat.NetworkHabitatRepoDeleteRecordInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
 	repo, err := syntax.ParseAtIdentifier(req.Repo)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parse repo", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parse repo", http.StatusBadRequest)
 		return
 	}
 
@@ -393,10 +446,16 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		if errors.Is(err, habitat_err.ErrUnauthorized) {
-			utils.LogAndHTTPError(w, err, "unauthorized", http.StatusForbidden)
+			utils.LogAndHTTPError(r.Context(), w, err, "unauthorized", http.StatusForbidden)
 			return
 		}
-		utils.LogAndHTTPError(w, err, "error deleting record", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"error deleting record",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -415,25 +474,26 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	var params habitat.NetworkHabitatRepoGetBlobParams
 	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing url", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing url", http.StatusBadRequest)
 		return
 	}
 
 	did, err := syntax.ParseDID(params.Did)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing did", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing did", http.StatusBadRequest)
 		return
 	}
 
 	cid, err := syntax.ParseCID(params.Cid)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing cid", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing cid", http.StatusBadRequest)
 		return
 	}
 
 	mimeType, contentLen, blob, err := s.pear.GetBlob(r.Context(), callerDID, did, cid)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"error in repo.getBlob",
@@ -447,6 +507,7 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	_, err = io.Copy(w, blob)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"error writing getBlob response",
@@ -465,7 +526,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	var params habitat.NetworkHabitatRepoListRecordsParams
 	err := s.decoder.Decode(&params, r.URL.Query())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing request params", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing request params", http.StatusBadRequest)
 		return
 	}
 
@@ -475,6 +536,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		atid, err := syntax.ParseAtIdentifier(subject)
 		if err != nil {
 			utils.LogAndHTTPError(
+				r.Context(),
 				w,
 				err,
 				fmt.Sprintf("parsing subject as did or handle: %s", subject),
@@ -485,7 +547,13 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 		id, err := s.dir.Lookup(r.Context(), atid)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parsing looking up atid", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"parsing looking up atid",
+				http.StatusBadRequest,
+			)
 			return
 		}
 		dids[i] = id.DID
@@ -493,17 +561,29 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 	collection, err := syntax.ParseNSID(params.Collection)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing collection", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing collection", http.StatusBadRequest)
 		return
 	}
 
 	records, err := s.pear.ListRecords(r.Context(), callerDID, collection, dids)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
-			utils.LogAndHTTPError(w, err, "forwarding not implemented", http.StatusNotImplemented)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"forwarding not implemented",
+				http.StatusNotImplemented,
+			)
 			return
 		}
-		utils.LogAndHTTPError(w, err, "listing records", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"listing records",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -533,7 +613,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			)
 			if err != nil {
 				if errors.Is(err, habitat_err.ErrUnauthorized) {
-					slog.Error(
+					slog.ErrorContext(r.Context(),
 						"[pear] list records inconsistent state",
 						"caller",
 						callerDID,
@@ -550,6 +630,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 					)
 				}
 				utils.LogAndHTTPError(
+					r.Context(),
 					w,
 					err,
 					"listing permissions on fetched records",
@@ -564,7 +645,13 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		output.Records = append(output.Records, next)
 	}
 	if json.NewEncoder(w).Encode(output) != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -577,7 +664,13 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 
 	description, err := s.pear.DescribeRepo(r.Context(), callerDID, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "describing repo", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"describing repo",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -603,7 +696,13 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -613,6 +712,7 @@ func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
 	id, err := s.dir.Lookup(r.Context(), syntax.AtIdentifier(repo))
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			fmt.Sprintf("looking up did from repo param: %s", repo),
@@ -623,7 +723,13 @@ func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
 
 	description, err := s.pear.DescribeRepo(r.Context(), id.DID, id.DID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "describing repo", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"describing repo",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -649,7 +755,13 @@ func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -666,7 +778,13 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	}
 	perms, err := s.pear.ListPermissionGrants(r.Context(), callerDID, callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "list permissions from store", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"list permissions from store",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -686,8 +804,19 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 
 	err = json.NewEncoder(w).Encode(output)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "json marshal response", http.StatusInternalServerError)
-		slog.Error("error sending response for ListPermissions request", "err", err)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"json marshal response",
+			http.StatusInternalServerError,
+		)
+		slog.ErrorContext(
+			r.Context(),
+			"error sending response for ListPermissions request",
+			"err",
+			err,
+		)
 		return
 	}
 }
@@ -700,13 +829,13 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 	req := &habitat.NetworkHabitatPermissionsAddPermissionInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
 	grantees, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 	err = s.pear.AddPermissions(
@@ -718,7 +847,13 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 		syntax.RecordKey(req.Rkey),
 	)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "adding permission", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"adding permission",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -731,13 +866,14 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 	req := &habitat.NetworkHabitatPermissionsRemovePermissionInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
 	grantees, err := permissions.ParseGranteesFromInterface(req.Grantees)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			fmt.Sprintf("unable to parse grantees field: %v", req.Grantees),
@@ -754,7 +890,13 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 		syntax.RecordKey(req.Rkey),
 	)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "removing permission", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"removing permission",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -768,7 +910,7 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "decode json request", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
 		return
 	}
 
@@ -780,7 +922,13 @@ func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
 		req.Rkey,
 	)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "notify of update", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"notify of update",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }

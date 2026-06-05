@@ -24,6 +24,7 @@ type stubOAuthClient struct {
 func (s *stubOAuthClient) ClientMetadata() *pdsclient.ClientMetadata { return nil }
 
 func (s *stubOAuthClient) Authorize(
+	_ context.Context,
 	_ *pdsclient.DpopHttpClient,
 	_ *identity.Identity,
 ) (string, *pdsclient.AuthorizeState, error) {
