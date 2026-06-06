@@ -90,6 +90,7 @@ type Store interface {
 	// Space operations
 	CreateSpace(
 		ctx context.Context,
+		org syntax.DID,
 		owner syntax.DID,
 		spaceType syntax.NSID,
 		skey habitat_syntax.SpaceKey,
@@ -192,38 +193,45 @@ func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
 
 func (s *store) CreateSpace(
 	ctx context.Context,
-	owner syntax.DID,
+	org syntax.DID,
+	creator syntax.DID,
 	spaceType syntax.NSID,
 	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
+	tid := s.clock.Next()
 	if skey == "" {
-		skey = habitat_syntax.NewSkey()
+		skey = habitat_syntax.SpaceKey(tid)
 	}
 
-	var existing space
-	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", owner, skey).
-		First(&existing).
-		Error
-	if err == nil {
-		return "", ErrSpaceAlreadyExists
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", err
-	}
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var existing space
+		if err := tx.Where("owner = ? AND skey = ?", org, skey).First(&existing).Error; err == nil {
+			return ErrSpaceAlreadyExists
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 
-	sp := space{
-		Owner: owner,
-		Skey:  skey,
-		Type:  spaceType,
-		Rev:   s.clock.Next(),
-	}
+		if err := tx.Create(&space{
+			Owner: org,
+			Type:  spaceType,
+			Skey:  skey,
+			Rev:   tid,
+		}).Error; err != nil {
+			return err
+		}
 
-	err = s.db.WithContext(ctx).Create(&sp).Error
+		return s.fga.Write(
+			ctx,
+			fgastore.MemberUserString(creator),
+			fgastore.RelationSpaceOwner,
+			fgastore.SpaceObjectKey(habitat_syntax.ConstructSpaceURI(org, spaceType, skey)),
+		)
+	})
 	if err != nil {
 		return "", err
 	}
 
-	return habitat_syntax.ConstructSpaceURI(owner, spaceType, skey), nil
+	return habitat_syntax.ConstructSpaceURI(org, spaceType, skey), nil
 }
 
 func (s *store) ListSpaces(
@@ -232,19 +240,6 @@ func (s *store) ListSpaces(
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
 ) ([]SpaceView, error) {
-	var allRows []space
-	// start with owned spaces
-	ownedRowsQuery := s.db.WithContext(ctx).Model(&space{}).Where("owner = ?", member)
-	if filterOwner != nil {
-		ownedRowsQuery = ownedRowsQuery.Where("owner = ?", *filterOwner)
-	}
-	if filterType != nil {
-		ownedRowsQuery = ownedRowsQuery.Where("type = ?", *filterType)
-	}
-	if err := ownedRowsQuery.Find(&allRows).Error; err != nil {
-		return nil, fmt.Errorf("list owned spaces: %w", err)
-	}
-	// then check fga store for memberships
 	fgaObjects, err := s.fga.ListObjects(
 		ctx,
 		fgastore.MemberUserString(member),
@@ -252,37 +247,37 @@ func (s *store) ListSpaces(
 		"space",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list fga member spaces: %w", err)
+		return nil, fmt.Errorf("list fga spaces: %w", err)
 	}
-	if len(fgaObjects) > 0 {
-		conditions := s.db
-		for _, key := range fgaObjects {
-			uri, err := fgastore.ParseSpaceObjectKey(key)
-			if err != nil {
-				return nil, fmt.Errorf("parse space object key: %w", err)
-			}
-			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
-		}
-		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
-		if filterOwner != nil {
-			query = query.Where("owner = ?", *filterOwner)
-		}
-		if filterType != nil {
-			query = query.Where("type = ?", *filterType)
-		}
-
-		var otherRows []space
-		if err := query.Order("created_at DESC").Find(&otherRows).Error; err != nil {
-			return nil, err
-		}
-
-		allRows = append(allRows, otherRows...)
+	if len(fgaObjects) == 0 {
+		return []SpaceView{}, nil
 	}
 
-	slog.DebugContext(ctx, "list spaces", "spaces", len(allRows))
+	conditions := s.db
+	for _, key := range fgaObjects {
+		uri, err := fgastore.ParseSpaceObjectKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("parse space object key: %w", err)
+		}
+		conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
+	}
+	query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
+	if filterOwner != nil {
+		query = query.Where("owner = ?", *filterOwner)
+	}
+	if filterType != nil {
+		query = query.Where("type = ?", *filterType)
+	}
 
-	views := make([]SpaceView, len(allRows))
-	for i, row := range allRows {
+	var rows []space
+	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "list spaces", "spaces", len(rows))
+
+	views := make([]SpaceView, len(rows))
+	for i, row := range rows {
 		uri := habitat_syntax.ConstructSpaceURI(row.Owner, row.Type, row.Skey)
 		fgaUsers, err := s.fga.ListUsers(
 			ctx,
