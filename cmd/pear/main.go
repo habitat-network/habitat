@@ -216,6 +216,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 			oauthSecret,
 			dir,
 		),
+		OrgStore: orgStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
