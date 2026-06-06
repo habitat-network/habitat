@@ -6,13 +6,12 @@ import (
 	"regexp"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 )
 
 type SpaceKey string
 
-func NewSkey() SpaceKey {
-	return SpaceKey(uuid.New().String())
+func NewSkey(tid syntax.TID) SpaceKey {
+	return SpaceKey(tid)
 }
 
 func (s SpaceKey) String() string {
@@ -58,7 +57,7 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 	return SpaceURI(raw), nil
 }
 
-func (s SpaceURI) SpaceDID() syntax.DID {
+func (s SpaceURI) SpaceOwner() syntax.DID {
 	parts := spaceURIRegex.FindStringSubmatch(string(s))
 	if len(parts) < 4 {
 		return ""
