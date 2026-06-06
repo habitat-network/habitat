@@ -32,6 +32,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	adminDID := syntax.DID("did:plc:admin1234")
 
+	// Create the org store and seed an org
 	dir := identity.DefaultDirectory()
 	orgStore, err := org.NewStore(db, h, dir, "pear.example.com")
 	require.NoError(t, err)
