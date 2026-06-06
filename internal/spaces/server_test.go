@@ -1,15 +1,12 @@
 package spaces
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -18,93 +15,10 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
-	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/org/testutil"
 )
 
-// testOrgStub returns itself as the org for any DID lookup.
-type testOrgStub struct {
-	did syntax.DID
-}
-
-func (o *testOrgStub) DID() syntax.DID                                      { return o.did }
-func (o *testOrgStub) AddAdmin(ctx context.Context, admin syntax.DID) error { return nil }
-
-func (o *testOrgStub) GetAdmins(
-	ctx context.Context,
-) ([]syntax.DID, error) {
-	return nil, nil
-}
-
-func (o *testOrgStub) GetMembers(
-	ctx context.Context,
-) ([]syntax.DID, error) {
-	return nil, nil
-}
-func (o *testOrgStub) RemoveAdmin(ctx context.Context, admin syntax.DID) error       { return nil }
-func (o *testOrgStub) RemoveMembers(ctx context.Context, members []syntax.DID) error { return nil }
-func (o *testOrgStub) DowngradeAdmin(ctx context.Context, admin syntax.DID) error    { return nil }
-
-func (o *testOrgStub) IsAdmin(
-	ctx context.Context,
-	did syntax.DID,
-) (bool, error) {
-	return true, nil
-}
-
-func (o *testOrgStub) IsMember(
-	ctx context.Context,
-	did syntax.DID,
-) (bool, error) {
-	return true, nil
-}
-
-func (o *testOrgStub) LoginMethod(
-	ctx context.Context,
-) org.LoginMethod {
-	return org.LoginMethodAtproto
-}
-
-func (o *testOrgStub) IssueIdentityToken(
-	ctx context.Context,
-	caller syntax.DID,
-	reusable bool,
-	expiresAt time.Time,
-) (string, error) {
-	return "", nil
-}
-
-func (o *testOrgStub) CreateNewMemberIdentity(
-	ctx context.Context,
-	token string,
-	internalHandle string,
-	password string,
-) (*identity.Identity, error) {
-	return nil, nil
-}
-
-func (o *testOrgStub) AuthenticateMember(
-	ctx context.Context,
-	handle string,
-	password string,
-) (bool, error) {
-	return false, nil
-}
-func (o *testOrgStub) WithTx(tx *gorm.DB) org.Org                                 { return o }
-func (o *testOrgStub) AddMembers(ctx context.Context, members []syntax.DID) error { return nil }
-func (o *testOrgStub) GetMetadata() habitat.NetworkHabitatOrgGetMetadataOutput {
-	return habitat.NetworkHabitatOrgGetMetadataOutput{}
-}
-
-type testOrgStore struct {
-	org.Store
-	did syntax.DID
-}
-
-func (s *testOrgStore) GetOrgForDID(ctx context.Context, did syntax.DID) (org.Org, error) {
-	return &testOrgStub{did: s.did}, nil
-}
-
-func newTestServer(t *testing.T, oauth, serviceAuth authn.Method, orgDid syntax.DID) *Server {
+func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -114,14 +28,14 @@ func newTestServer(t *testing.T, oauth, serviceAuth authn.Method, orgDid syntax.
 	t.Cleanup(func() { _ = fga.Close() })
 	store, err := NewStore(db, fga)
 	require.NoError(t, err)
-	return NewServer(store, fga, oauth, serviceAuth, &testOrgStore{did: orgDid})
+
+	return NewServer(store, fga, oauth, serviceAuth, testutil.NewTestStore(t))
 }
 
 func newOwnerServer(t *testing.T) *Server {
 	return newTestServer(t,
 		authn.NewStubAuthnForTest(owner),
 		authn.NewStubAuthnForTest(owner),
-		owner,
 	)
 }
 
@@ -129,7 +43,6 @@ func newAliceServer(t *testing.T) *Server {
 	return newTestServer(t,
 		authn.NewStubAuthnForTest(alice),
 		authn.NewStubAuthnForTest(alice),
-		alice,
 	)
 }
 
@@ -150,7 +63,7 @@ func TestServer_CreateSpace(t *testing.T) {
 	var output habitat.NetworkHabitatSpaceCreateSpaceOutput
 	err := json.NewDecoder(w.Body).Decode(&output)
 	require.NoError(t, err)
-	require.Contains(t, output.Uri, "ats://did:plc:owner/network.habitat.group/")
+	require.Contains(t, output.Uri, "ats://did:web:public.habitat.network/network.habitat.group/")
 }
 
 func TestServer_ListSpaces(t *testing.T) {
@@ -418,7 +331,6 @@ func TestServer_Unauthorized(t *testing.T) {
 	s := newTestServer(t,
 		authn.NewStubAuthnFailedForTest(),
 		authn.NewStubAuthnFailedForTest(),
-		owner,
 	)
 
 	body := `{"type": "network.habitat.group"}`
