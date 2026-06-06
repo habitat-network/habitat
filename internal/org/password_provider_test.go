@@ -15,33 +15,17 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func newTestLoginProvider(t *testing.T) (*passwordProviderImpl, *orgImpl) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
-	h, err := hive.NewHive("example.com", "pear.example.com", db)
-	require.NoError(t, err)
-
-	s, err := NewStore(
-		db,
-		h,
-		pdsclient.NewDummyDirectory("https://pds.example.com"),
-		"pear.example.com",
-	)
-	require.NoError(t, err)
+	s := newTestStore(t)
 
 	orgId, _, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "", "", "testorg")
 	require.NoError(t, err)
 
-	scoped, err := s.GetOrg(context.Background(), orgId)
+	scoped, err := s.GetOrg(context.Background(), orgId.DID)
 	require.NoError(t, err)
 
 	return NewPasswordProvider(
@@ -49,7 +33,7 @@ func newTestLoginProvider(t *testing.T) (*passwordProviderImpl, *orgImpl) {
 		"pear.example.com",
 		"frontend.example.com",
 		testSigningSecret,
-		h,
+		s.hive,
 	), scoped.(*orgImpl)
 }
 

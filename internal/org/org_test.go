@@ -38,8 +38,10 @@ var (
 	did2 = syntax.DID("did:plc:bob2222")
 )
 
-const testPasswordHash = "testhash"
-const testPassword = "test-password-123"
+const (
+	testPasswordHash = "testhash"
+	testPassword     = "test-password-123"
+)
 
 func TestIsMember(t *testing.T) {
 	ctx := context.Background()

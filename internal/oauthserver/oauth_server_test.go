@@ -12,13 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -31,13 +30,8 @@ import (
 // testStore creates a Store with a seeded test org.
 func testStore(t *testing.T) org.Store {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	h, err := hive.NewHive("example.com", "example.com", db)
-	require.NoError(t, err)
-	s, err := org.NewStore(db, h, identity.DefaultDirectory(), "example.com")
-	require.NoError(t, err)
-	_, _, err = s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "")
+	s := testutil.NewTestStore(t)
+	_, _, err := s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "")
 	require.NoError(t, err)
 	return s
 }
