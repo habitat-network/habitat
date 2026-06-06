@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -13,17 +12,6 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-// helpers to build identities with specific service combinations
-
-func idWithPDSOnly() *identity.Identity {
-	return &identity.Identity{
-		DID: "did:web:pds.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {URL: "https://pds.example.com"},
-		},
-	}
-}
 
 // --- pdsProvider ---
 

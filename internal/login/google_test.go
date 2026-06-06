@@ -25,13 +25,13 @@ func newTestDB(t *testing.T) *gorm.DB {
 
 func makeIDToken(clientID, email string) string {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
-	payload := base64.RawURLEncoding.EncodeToString([]byte(
-		fmt.Sprintf(
+	payload := base64.RawURLEncoding.EncodeToString(
+		fmt.Appendf(
+			nil,
 			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"iat":1000000000,"exp":9999999999}`,
 			clientID,
 			email,
-		),
-	))
+		))
 	return header + "." + payload + ".fakesignature"
 }
 
@@ -45,7 +45,11 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly().DID, "user@gmail.com")
+	redirect, state, err := p.Authorize(
+		context.Background(),
+		"did:web:pds.example.com",
+		"user@gmail.com",
+	)
 	require.NoError(t, err)
 	require.Contains(t, redirect, "https://accounts.google.com/o/oauth2/v2/auth")
 	require.Contains(t, redirect, "login_hint=user%40gmail.com")
@@ -69,7 +73,7 @@ func TestGoogleProvider_Authorize_NoLoginID(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, _, err = p.Authorize(context.Background(), idWithPDSOnly().DID, "")
+	_, _, err = p.Authorize(context.Background(), "did:web:pds.example.com", "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no google email configured")
 }
@@ -112,7 +116,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	gp := p.(*googleProvider)
 	gp.oauthCfg.Endpoint.TokenURL = tokenServer.URL
 
-	_, state, err := p.Authorize(context.Background(), idWithPDSOnly().DID, "user@gmail.com")
+	_, state, err := p.Authorize(context.Background(), "did:web:pds.example.com", "user@gmail.com")
 	require.NoError(t, err)
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
