@@ -235,7 +235,6 @@ func (s *store) ListSpaces(
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
 ) ([]SpaceView, error) {
-	var allRows []space
 	fgaObjects, err := s.fga.ListObjects(
 		ctx,
 		fgastore.MemberUserString(member),
