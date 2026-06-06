@@ -8,7 +8,7 @@ import (
 )
 
 func TestSpaceKey(t *testing.T) {
-	generated := NewSkey()
+	generated := NewSkey("testKey")
 	require.NotEmpty(t, generated.String())
 
 	parsed, err := ParseSkey("my-space.1")
@@ -23,7 +23,7 @@ func TestConstructSpaceURI(t *testing.T) {
 	uri := ConstructSpaceURI("did:plc:abc123", "network.habitat.space", "my-space")
 	require.Equal(t, SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space"), uri)
 	require.Equal(t, "ats://did:plc:abc123/network.habitat.space/my-space", uri.String())
-	require.Equal(t, "did:plc:abc123", uri.SpaceDID().String())
+	require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
 	require.Equal(t, "network.habitat.space", uri.SpaceType().String())
 	require.Equal(t, SpaceKey("my-space"), uri.Skey())
 }
@@ -32,7 +32,7 @@ func TestParseSpaceURI(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		uri, err := ParseSpaceURI("ats://did:plc:abc123/network.habitat.space/my-space_1")
 		require.NoError(t, err)
-		require.Equal(t, "did:plc:abc123", uri.SpaceDID().String())
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
 		require.Equal(t, "network.habitat.space", uri.SpaceType().String())
 		require.Equal(t, SpaceKey("my-space_1"), uri.Skey())
 	})
@@ -62,12 +62,12 @@ func TestParseSpaceURI(t *testing.T) {
 
 func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 	uri := SpaceURI("not-a-space-uri")
-	require.Empty(t, uri.SpaceDID())
+	require.Empty(t, uri.SpaceOwner())
 	require.Empty(t, uri.SpaceType())
 	require.Empty(t, uri.Skey())
 
 	uri = SpaceURI("ats://not-a-did/network.habitat.space/my-space")
-	require.Empty(t, uri.SpaceDID())
+	require.Empty(t, uri.SpaceOwner())
 	require.Equal(t, "network.habitat.space", uri.SpaceType().String())
 	require.Equal(t, SpaceKey("my-space"), uri.Skey())
 

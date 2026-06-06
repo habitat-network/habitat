@@ -407,7 +407,7 @@ func TestDeleteRecord_Nonexistent(t *testing.T) {
 func TestSpaceURI(t *testing.T) {
 	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "my-key")
 	require.Equal(t, "ats://did:plc:owner/network.habitat.group/my-key", uri.String())
-	require.Equal(t, owner, uri.SpaceDID())
+	require.Equal(t, owner, uri.SpaceOwner())
 	require.Equal(t, groupType, uri.SpaceType())
 	require.Equal(t, habitat_syntax.SpaceKey("my-key"), uri.Skey())
 
