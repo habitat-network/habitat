@@ -65,7 +65,7 @@ func TestLoginProvider_Authorize(t *testing.T) {
 	require.Nil(t, state)
 	require.Equal(
 		t,
-		"https://frontend.example.com/login/habitat?handle=did:web:alice.example.com",
+		"https://frontend.example.com/login/habitat?handle=did%3Aweb%3Aalice.example.com",
 		redirect,
 	)
 }

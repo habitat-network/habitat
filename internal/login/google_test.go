@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -117,11 +116,10 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
-	did := syntax.DID("did:web:example.com")
-	err = p.Exchange(ctx, did, "user@gmail.com", "auth-code", "", state)
+	err = p.Exchange(ctx, "did:web:example.com", "user@gmail.com", "auth-code", "", state)
 	require.NoError(t, err)
 
-	creds, err := gp.GetCredentials(ctx, did)
+	creds, err := gp.GetCredentials(ctx, "user@gmail.com")
 	require.NoError(t, err)
 	require.Equal(t, "ya29.google-access-token", creds.AccessToken)
 	require.Equal(t, "1//google-refresh-token", creds.RefreshToken)

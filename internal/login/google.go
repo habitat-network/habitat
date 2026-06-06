@@ -136,7 +136,7 @@ func (p *googleProvider) Exchange(
 }
 
 type googleCredentialsModel struct {
-	Email        string `gorm:"column:did;primarykey"`
+	Email        string `gorm:"primarykey"`
 	AccessToken  string // encrypted
 	RefreshToken string // encrypted
 	Expiry       time.Time
@@ -171,10 +171,10 @@ func (p *googleProvider) upsertCredentials(
 
 func (p *googleProvider) GetCredentials(
 	ctx context.Context,
-	did syntax.DID,
+	email string,
 ) (*Credentials, error) {
 	var m googleCredentialsModel
-	if err := p.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err != nil {
+	if err := p.db.WithContext(ctx).Where("email = ?", email).First(&m).Error; err != nil {
 		return nil, fmt.Errorf("google credentials not found: %w", err)
 	}
 	var accessToken, refreshToken, idToken string

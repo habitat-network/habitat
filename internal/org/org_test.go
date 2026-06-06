@@ -19,6 +19,7 @@ func newTestOrg(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&organization{}, &member{}, &spentToken{}))
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
 	s := &orgImpl{

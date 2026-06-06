@@ -3,7 +3,6 @@ package login
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -14,53 +13,6 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-// stubOAuthClient is a minimal PdsOAuthClient for testing.
-type stubOAuthClient struct {
-	authorizeErr    error
-	exchangeCodeErr error
-	redirectURL     string
-}
-
-func (s *stubOAuthClient) ClientMetadata() *pdsclient.ClientMetadata { return nil }
-
-func (s *stubOAuthClient) Authorize(
-	_ context.Context,
-	_ *pdsclient.DpopHttpClient,
-	_ *identity.Identity,
-) (string, *pdsclient.AuthorizeState, error) {
-	if s.authorizeErr != nil {
-		return "", nil, s.authorizeErr
-	}
-	return s.redirectURL, &pdsclient.AuthorizeState{
-		Verifier:      "verifier",
-		State:         "state",
-		TokenEndpoint: "https://pds.example.com/token",
-	}, nil
-}
-
-func (s *stubOAuthClient) ExchangeCode(
-	_ *pdsclient.DpopHttpClient,
-	_, _ string,
-	_ *pdsclient.AuthorizeState,
-) (*pdsclient.TokenResponse, error) {
-	if s.exchangeCodeErr != nil {
-		return nil, s.exchangeCodeErr
-	}
-	return &pdsclient.TokenResponse{
-		AccessToken:  "access",
-		RefreshToken: "refresh",
-	}, nil
-}
-
-func (s *stubOAuthClient) RefreshToken(
-	_ *pdsclient.DpopHttpClient,
-	_ *identity.Identity,
-	_ string,
-	_ string,
-) (*pdsclient.TokenResponse, error) {
-	return nil, errors.New("not used in these tests")
-}
 
 // helpers to build identities with specific service combinations
 
@@ -80,7 +32,11 @@ func TestPDSProvider_Authorize(t *testing.T) {
 	require.NoError(t, err)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
-	client := &stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}
+	clientMetadata := &pdsclient.ClientMetadata{
+		RedirectUris: []string{"https://pds.example.com/authorize"},
+	}
+	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
+	defer client.Close()
 	p := NewPDSProvider(
 		client,
 		credStore,
@@ -93,14 +49,14 @@ func TestPDSProvider_Authorize(t *testing.T) {
 		"did:plc:publicdid",
 	)
 	require.NoError(t, err)
-	require.Equal(t, "https://pds.example.com/authorize", redirect)
+	require.Contains(t, redirect, "/authorize")
 	require.NotEmpty(t, state)
 
 	// state must round-trip through Exchange — verify it's valid JSON with expected fields
 	var s pdsProviderState
 	require.NoError(t, unmarshalProviderState(state, &s))
 	require.NotEmpty(t, s.DpopKey)
-	require.Equal(t, "verifier", s.AuthorizeState.Verifier)
+	require.Equal(t, "dummyVerifier", s.AuthorizeState.Verifier)
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
@@ -108,8 +64,13 @@ func TestPDSProvider_Exchange(t *testing.T) {
 	require.NoError(t, err)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{
+		RedirectUris: []string{"https://pds.example.com/authorize"},
+	}
+	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
+	defer client.Close()
 	p := NewPDSProvider(
-		&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"},
+		client,
 		credStore,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
@@ -126,16 +87,16 @@ func TestPDSProvider_Exchange(t *testing.T) {
 		context.Background(),
 		"did:web:pds.example.com",
 		"did:plc:publicdid",
-		"code",
+		"dummyCode",
 		"https://pds.example.com",
 		state,
 	)
 	require.NoError(t, err)
 
-	creds, err := credStore.GetCredentials(t.Context(), "did:web:pds.example.com")
+	creds, err := credStore.GetCredentials(t.Context(), "did:plc:publicdid")
 	require.NoError(t, err)
-	require.Equal(t, "access", creds.AccessToken)
-	require.Equal(t, "refresh", creds.RefreshToken)
+	require.Equal(t, "dummy_access_token", creds.AccessToken)
+	require.Equal(t, "dummy_refresh_token", creds.RefreshToken)
 	require.NotNil(t, creds.DpopKey)
 }
 

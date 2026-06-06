@@ -229,6 +229,10 @@ func NewOAuthServer(
 		return nil, err
 	}
 
+	if loginRouter.OrgStore == nil {
+		loginRouter.OrgStore = orgStore
+	}
+
 	return &OAuthServer{
 		metrics: oauthMetrics,
 		provider: compose.Compose(

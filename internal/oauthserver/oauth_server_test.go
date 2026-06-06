@@ -57,7 +57,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 	secretStr, err := encrypt.GenerateKey()
 	require.NoError(t, err)
@@ -66,7 +66,8 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secret,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+			Pds:      login.NewPDSProvider(oauthClient, credStore, nil),
+			OrgStore: testStore(t),
 		},
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
@@ -155,20 +156,21 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
 		node.NewDummy(),
-		pdsclient.NewDummyDirectory("http://pds.url"),
+		dummyDir,
 		credStore,
 		db,
 		noop.Meter{},
@@ -270,7 +272,7 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	// setup oauth server
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 
 	// Generate RSA key for JWT signing
@@ -279,13 +281,14 @@ func TestOAuthServerE2E(t *testing.T) {
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
 		node.NewDummy(),
-		pdsclient.NewDummyDirectory("http://pds.url"),
+		dummyDir,
 		credStore,
 		db,
 		noop.Meter{},
@@ -424,20 +427,21 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
 		node.NewDummy(),
-		pdsclient.NewDummyDirectory("http://pds.url"),
+		dummyDir,
 		credStore,
 		db,
 		noop.Meter{},
@@ -623,7 +627,7 @@ func TestValidate(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
@@ -634,14 +638,15 @@ func TestValidate(t *testing.T) {
 	// newSrv creates an OAuthServer sharing the same secret and database.
 	// Stateless JWT introspection means tokens issued by any server here are
 	// valid for all others created with the same secret.
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
 			&org.LoginRouter{
-				Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 			},
 			node.NewDummy(),
-			pdsclient.NewDummyDirectory("http://pds.url"),
+			dummyDir,
 			credStore,
 			db,
 			noop.Meter{},
@@ -732,21 +737,22 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
-	oauthClient := NewDummyOAuthClient(t, clientMetadata)
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	bytes, err := encrypt.ParseKey(secret)
 	require.NoError(t, err)
 
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
 			&org.LoginRouter{
-				Pds: login.NewPDSProvider(oauthClient, credStore, nil),
+				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 			},
 			node.NewDummy(),
-			pdsclient.NewDummyDirectory("http://pds.url"),
+			dummyDir,
 			credStore,
 			db,
 			noop.Meter{},
