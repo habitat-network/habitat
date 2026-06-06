@@ -10,6 +10,10 @@ import (
 
 type SpaceKey string
 
+func NewSkey(tid syntax.TID) SpaceKey {
+	return SpaceKey(tid)
+}
+
 func (s SpaceKey) String() string {
 	return string(s)
 }
@@ -53,7 +57,7 @@ func ParseSpaceURI(raw string) (SpaceURI, error) {
 	return SpaceURI(raw), nil
 }
 
-func (s SpaceURI) SpaceDID() syntax.DID {
+func (s SpaceURI) SpaceOwner() syntax.DID {
 	parts := spaceURIRegex.FindStringSubmatch(string(s))
 	if len(parts) < 4 {
 		return ""

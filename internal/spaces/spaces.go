@@ -182,7 +182,7 @@ func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
 // owner a recognized member of the space without storing the owner in FGA.
 func ownerContextualTuple(uri habitat_syntax.SpaceURI) fgastore.Tuple {
 	return fgastore.Tuple{
-		User:     fgastore.MemberUserString(uri.SpaceDID()),
+		User:     fgastore.MemberUserString(uri.SpaceOwner()),
 		Relation: fgastore.RelationSpaceOwner,
 		Object:   fgastore.SpaceObjectKey(uri),
 	}
@@ -195,7 +195,7 @@ func (s *store) CreateSpace(
 	skey habitat_syntax.SpaceKey,
 ) (habitat_syntax.SpaceURI, error) {
 	if skey == "" {
-		skey = habitat_syntax.SpaceKey(s.clock.Next())
+		skey = habitat_syntax.NewSkey(s.clock.Next())
 	}
 
 	var existing space
@@ -258,7 +258,7 @@ func (s *store) ListSpaces(
 			if err != nil {
 				return nil, fmt.Errorf("parse space object key: %w", err)
 			}
-			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey())
+			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey())
 		}
 		query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
 		if filterOwner != nil {
@@ -308,7 +308,7 @@ func (s *store) GetMembers(
 ) ([]MemberInfo, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrSpaceNotFound
@@ -378,14 +378,14 @@ func (s *store) AddMember(
 ) error {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrSpaceNotFound
 	} else if err != nil {
 		return err
 	}
-	if did == uri.SpaceDID() {
+	if did == uri.SpaceOwner() {
 		return nil
 	}
 	if access == SpaceAccessRead {
@@ -442,13 +442,13 @@ func (s *store) RemoveMember(
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) error {
-	if did == uri.SpaceDID() {
+	if did == uri.SpaceOwner() {
 		return ErrCannotRemoveOwner
 	}
 
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
 		First(&sp).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrSpaceNotFound
@@ -480,14 +480,14 @@ func (s *store) RemoveMember(
 func (s *store) PutRecord(
 	ctx context.Context,
 	spaceUri habitat_syntax.SpaceURI,
-	owner syntax.DID,
+	repo syntax.DID,
 	collection syntax.NSID,
 	rkey syntax.RecordKey,
 	value map[string]any,
 ) (habitat_syntax.SpaceRecordURI, *cid.Cid, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
-		Where("owner = ?", spaceUri.SpaceDID()).
+		Where("owner = ?", spaceUri.SpaceOwner()).
 		Where("type = ?", spaceUri.SpaceType()).
 		Where("skey = ?", spaceUri.Skey()).
 		First(&sp).Error
@@ -513,7 +513,7 @@ func (s *store) PutRecord(
 			if err := tx.Exec(
 				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
 				spaceUri,
-				owner,
+				repo,
 			).Error; err != nil {
 				return err
 			}
@@ -523,7 +523,7 @@ func (s *store) PutRecord(
 			rkey = syntax.RecordKey(tid)
 		}
 		newRecord := spaceRecord{
-			Repo:       owner,
+			Repo:       repo,
 			Space:      spaceUri,
 			Collection: collection,
 			Rkey:       rkey,
@@ -536,7 +536,7 @@ func (s *store) PutRecord(
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
-	return habitat_syntax.ConstructSpaceRecordURI(spaceUri, owner, collection, rkey), &cid, nil
+	return habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey), &cid, nil
 }
 
 func (s *store) GetRecord(
@@ -622,7 +622,7 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	// everything after this point is idempotent — use a transaction
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		deleteSpace := tx.
-			Where("owner = ? AND skey = ?", uri.SpaceDID(), uri.Skey()).
+			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
 			Delete(&space{})
 		if deleteSpace.Error != nil {
 			return err
