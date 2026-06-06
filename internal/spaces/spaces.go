@@ -508,7 +508,7 @@ func (s *store) PutRecord(
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if tx.Dialector.Name() == "postgres" {
+		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
 			if err := tx.Exec(
 				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
