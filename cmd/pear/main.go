@@ -207,15 +207,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to parse oauth server secret for login provider", "err", err)
 		os.Exit(1)
 	}
-	providers := org.LoginRouter{
-		Pds: login.NewPDSProvider(oauthClient, pdsCredStore, dir),
-		Password: org.NewPasswordProvider(
-			orgStore,
-			cmd.String(fDomain),
-			cmd.String(fFrontendDomain),
-			oauthSecret,
-			dir,
-		),
+	passwordProvider := org.NewPasswordProvider(
+		orgStore,
+		cmd.String(fDomain),
+		cmd.String(fFrontendDomain),
+		oauthSecret,
+		dir,
+	)
+	loginRouter := &org.LoginRouter{
+		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, dir),
+		Password: passwordProvider,
 		OrgStore: orgStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
@@ -232,7 +233,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 			slog.Error("unable to setup google login provider", "err", err)
 			os.Exit(1)
 		}
-		providers.Google = googleProvider
+		loginRouter.Google = googleProvider
 		slog.Info("google login provider enabled")
 	}
 
@@ -370,7 +371,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
-	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", orgLoginProvider.HandlePasswordLogin)
+	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)

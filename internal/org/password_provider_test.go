@@ -146,9 +146,6 @@ func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 	p.HandlePasswordLogin(w, req)
 
-	dump, err := httputil.DumpResponse(w.Result(), true)
-	t.Log(string(dump))
-
 	require.Equal(t, http.StatusOK, w.Code)
 
 	var out habitat.NetworkHabitatOrgLoginMemberOutput
