@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/org"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
@@ -22,6 +23,7 @@ type Server struct {
 	oauth       authn.Method
 	serviceAuth authn.Method
 	decoder     *schema.Decoder
+	orgStore    org.Store
 }
 
 func NewServer(
@@ -29,6 +31,7 @@ func NewServer(
 	fga fgastore.Store,
 	oauth authn.Method,
 	serviceAuth authn.Method,
+	orgStore org.Store,
 ) *Server {
 	return &Server{
 		store:       store,
@@ -36,6 +39,7 @@ func NewServer(
 		oauth:       oauth,
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
+		orgStore:    orgStore,
 	}
 }
 
@@ -84,7 +88,19 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		skey = parsedKey
 	}
 
-	uri, err := s.store.CreateSpace(r.Context(), callerDID, spaceType, skey)
+	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"get org for caller",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	uri, err := s.store.CreateSpace(r.Context(), callerOrg.DID(), callerDID, spaceType, skey)
 	if errors.Is(err, ErrSpaceAlreadyExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return

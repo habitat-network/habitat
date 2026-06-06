@@ -43,6 +43,7 @@ func isDuplicateError(err error) bool {
 
 // Org represents a single organization on a pear instance.
 type Org interface {
+	DID() syntax.DID
 	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
 	// The authz in this package is only for managing identities in the
 	// In the future, we may not want to be so prescriptive about the admin / member setup.
@@ -85,7 +86,7 @@ type inviteTokenClaims struct {
 }
 
 type orgImpl struct {
-	orgID           string
+	orgID           syntax.DID
 	hive            hive.Hive
 	db              *gorm.DB
 	signingSecret   []byte
@@ -95,7 +96,7 @@ type orgImpl struct {
 var _ Org = &orgImpl{}
 
 func NewOrg(
-	orgID string,
+	orgID syntax.DID,
 	hive hive.Hive,
 	db *gorm.DB,
 	signingSecret []byte,
@@ -109,6 +110,11 @@ func NewOrg(
 		db:            db,
 		signingSecret: signingSecret,
 	}, nil
+}
+
+// DID implements [Org].
+func (s *orgImpl) DID() syntax.DID {
+	return s.orgID
 }
 
 func (s *orgImpl) LoginMethod(ctx context.Context) LoginMethod {

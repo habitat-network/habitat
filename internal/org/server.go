@@ -97,7 +97,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	output := habitat.NetworkHabitatOrgCreateOutput{
-		OrgId:       orgID,
+		OrgId:       orgID.DID.String(),
 		AdminDid:    id.DID.String(),
 		AdminHandle: id.Handle.String(),
 		Name:        req.Name,
@@ -517,7 +517,19 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrg(r.Context(), req.OrgId)
+	orgDid, err := syntax.ParseDID(req.OrgId)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"parsing org did",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	org, err := s.store.GetOrg(r.Context(), orgDid)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

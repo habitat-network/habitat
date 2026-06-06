@@ -269,6 +269,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		fgaStore,
 		oauthServer,
 		authn.NewServiceAuthMethod(dir),
+		orgStore,
 	)
 
 	cdc := repo.NewChangeEmitter(startupCtx, repo.DefaultChangeBufferSize)
