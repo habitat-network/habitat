@@ -96,7 +96,7 @@ func (p *googleProvider) Authorize(
 
 func (p *googleProvider) Exchange(
 	ctx context.Context,
-	did syntax.DID,
+	_ syntax.DID,
 	loginId string,
 	code string,
 	_ string,

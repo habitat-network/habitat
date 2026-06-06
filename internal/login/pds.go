@@ -37,7 +37,7 @@ func NewPDSProvider(
 
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
-	did syntax.DID,
+	_ syntax.DID,
 	loginID string,
 ) (string, []byte, error) {
 	// If the member has a public ATProto DID as their loginID, resolve it and use
@@ -74,7 +74,7 @@ func (p *pdsProvider) Authorize(
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
-	did syntax.DID,
+	_ syntax.DID,
 	loginId string,
 	code string,
 	issuer string,
