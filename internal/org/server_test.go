@@ -98,7 +98,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 func newCreateTestServer(t *testing.T) *Server {
 	t.Helper()
-	srv, err := NewServer(NewTestStore(t), nil, nil)
+	srv, err := NewServer(newTestStore(t), nil, nil)
 	require.NoError(t, err)
 	return srv
 }
