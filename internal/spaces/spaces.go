@@ -13,6 +13,7 @@ import (
 	"github.com/openfga/openfga/pkg/tuple"
 	"gorm.io/gorm"
 
+	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
@@ -157,24 +158,25 @@ var (
 	ErrRecordNotFound     = errors.New("record not found")
 	ErrUserAlreadyMember  = errors.New("user is already a member of the space")
 	ErrNotAMember         = errors.New("user is not a member of the space")
-	ErrCannotRemoveOwner  = errors.New("cannot remove the owner of a space")
+	ErrCannotRemoveOrg    = errors.New("cannot remove the org from the space")
 )
 
 // ---- Store implementation ----
 
 type store struct {
-	db    *gorm.DB
-	fga   fgastore.Store
-	clock *syntax.TIDClock
+	db         *gorm.DB
+	fga        fgastore.Store
+	clock      *syntax.TIDClock
+	eventStore events.Store
 }
 
 var _ Store = &store{}
 
-func NewStore(db *gorm.DB, fga fgastore.Store) (*store, error) {
+func NewStore(db *gorm.DB, fga fgastore.Store, eventStore events.Store) (*store, error) {
 	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
-	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0)}, nil
+	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0), eventStore: eventStore}, nil
 }
 
 // ownerContextualTuple returns a Tuple representing the owner relationship,
@@ -433,7 +435,7 @@ func (s *store) RemoveMember(
 	did syntax.DID,
 ) error {
 	if did == uri.SpaceOwner() {
-		return ErrCannotRemoveOwner
+		return ErrCannotRemoveOrg
 	}
 
 	var sp space
@@ -497,6 +499,7 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
 
+	var recordUri habitat_syntax.SpaceRecordURI
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
@@ -508,11 +511,41 @@ func (s *store) PutRecord(
 				return err
 			}
 		}
+		action := "update"
+		var prev spaceRecord
+		err := tx.
+			Where("space = ?", spaceUri).
+			Where("repo = ?", repo).
+			Order("rev DESC").
+			First(&prev).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			action = "create"
+		} else if err != nil {
+			return err
+		}
 		tid := s.clock.Next()
 		if rkey == "" {
 			rkey = syntax.RecordKey(tid)
 		}
-		newRecord := spaceRecord{
+		recordUri = habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey)
+		if err := s.eventStore.WithTx(tx).AppendSpaceEvent(
+			ctx,
+			spaceUri,
+			repo,
+			tid,
+			prev.Rev,
+			[]events.EventOps{
+				{
+					Action: action,
+					Uri:    recordUri,
+					Value:  value,
+					Cid:    cid.String(),
+				},
+			},
+		); err != nil {
+			return err
+		}
+		return tx.Save(&spaceRecord{
 			Repo:       repo,
 			Space:      spaceUri,
 			Collection: collection,
@@ -520,13 +553,13 @@ func (s *store) PutRecord(
 			Value:      bytes,
 			Rev:        tid,
 			Cid:        cid.String(),
-		}
-		return tx.Save(&newRecord).Error
+		}).Error
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
-	return habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey), &cid, nil
+	s.eventStore.NotifyEvent(ctx)
+	return recordUri, &cid, nil
 }
 
 func (s *store) GetRecord(
