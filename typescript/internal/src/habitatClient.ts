@@ -40,9 +40,12 @@ import type {
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpaceRemoveMember,
+  NetworkHabitatSpaceCreateSpace,
+  NetworkHabitatSpacePutRecord,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
+import { Network } from "inspector";
 
 type Query<
   Params extends Record<string, string | number | boolean | string[]>,
@@ -228,6 +231,14 @@ type ProcedureEndpoints = {
     NetworkHabitatSpaceRemoveMember.InputSchema,
     void
   >;
+  "network.habitat.space.createSpace": Procedure<
+    NetworkHabitatSpaceCreateSpace.InputSchema,
+    NetworkHabitatSpaceCreateSpace.OutputSchema
+  >
+  "network.habitat.space.putRecord": Procedure<
+    NetworkHabitatSpacePutRecord.InputSchema,
+    NetworkHabitatSpacePutRecord.OutputSchema
+  >
 };
 
 interface AuthedOptions {
@@ -248,8 +259,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-    ? UnauthedOptions
-    : AuthedOptions;
+  ? UnauthedOptions
+  : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;
