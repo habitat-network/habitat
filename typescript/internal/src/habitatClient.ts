@@ -45,7 +45,7 @@ import type {
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
-import { Network } from "inspector";
+
 
 type Query<
   Params extends Record<string, string | number | boolean | string[]>,
