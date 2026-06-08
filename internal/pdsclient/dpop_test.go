@@ -27,7 +27,7 @@ import (
 
 type ErrorNonceProvider struct{}
 
-func (t *ErrorNonceProvider) GetDpopNonce() (string, bool, error) {
+func (t *ErrorNonceProvider) GetDpopNonce() (nonce string, ok bool, err error) {
 	return "", false, errors.New("test nonce provider error")
 }
 

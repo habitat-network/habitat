@@ -20,7 +20,7 @@ import (
 
 func setupServerTest(
 	t *testing.T,
-) (*stream.PipeSender[models.Event], *Server, *httptest.Server, func()) {
+) (sender *stream.PipeSender[models.Event], server *Server, httpServer *httptest.Server, cancel func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sender, receiver := stream.Pipe[models.Event](1)
 	srv := NewServer(ctx, receiver, authn.NewStubAuthnForTest(syntax.DID("did:plc:admin")))

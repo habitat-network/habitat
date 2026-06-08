@@ -92,9 +92,7 @@ type permission struct {
 	UpdatedAt  time.Time
 }
 
-var (
-	ErrCollectionLevelNotSupported = errors.New("collection-level permissions are not supported")
-)
+var ErrCollectionLevelNotSupported = errors.New("collection-level permissions are not supported")
 
 // NewStore creates a new db-backed permission store.
 // The store manages permissions at different granularities:
@@ -169,7 +167,7 @@ func (s *store) HasPermission(
 		}
 	}
 
-	// Default = deny
+	// Default deny
 	return false, nil
 }
 
@@ -288,8 +286,8 @@ func (s *store) ListGranteePermissions(
 		}
 	}
 
-	perms := append(direct, indirect...)
-	return perms, nil
+	direct = append(direct, indirect...)
+	return direct, nil
 }
 
 // ListPermissionGrants implements Store.
@@ -375,7 +373,7 @@ func (s *store) listPermissions(
 	permissions := make([]Permission, len(queried))
 	for i, p := range queried {
 		var err error
-		permissions[i], err = toPermission(p)
+		permissions[i], err = toPermission(&p)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing row: %w", err)
 		}
@@ -383,7 +381,7 @@ func (s *store) listPermissions(
 	return permissions, nil
 }
 
-func toPermission(p permission) (Permission, error) {
+func toPermission(p *permission) (Permission, error) {
 	grantee, err := ParseGranteeFromString(p.Grantee)
 	if err != nil {
 		return Permission{}, fmt.Errorf("error parsing grantee: %s", grantee)

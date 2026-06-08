@@ -54,8 +54,8 @@ func (p *LoginProvider) Authorize(
 	_ context.Context,
 	id *identity.Identity,
 	_ string,
-) (string, []byte, error) {
-	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
+) (redirect string, state []byte, err error) {
+	redirect = "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
 		string(id.Handle),
 	)
 	return redirect, nil, nil

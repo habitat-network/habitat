@@ -154,7 +154,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 		err = errors.Join(inErr, shutdown(ctx))
 	}
 
-	resource, err := habitatResourceDefinition()
+	res, err := habitatResourceDefinition()
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
@@ -166,21 +166,21 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 	)
 	otel.SetTextMapPropagator(prop)
 
-	traceProvider, err := setupTraceProvider(ctx, resource, &shutdownFuncs)
+	traceProvider, err := setupTraceProvider(ctx, res, &shutdownFuncs)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
 	}
 	otel.SetTracerProvider(traceProvider)
 
-	meterProvider, err := setupMetricsProvider(ctx, resource, &shutdownFuncs)
+	meterProvider, err := setupMetricsProvider(ctx, res, &shutdownFuncs)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
 	}
 	otel.SetMeterProvider(meterProvider)
 
-	loggerProvider, err := setupLoggingProvider(ctx, resource, &shutdownFuncs)
+	loggerProvider, err := setupLoggingProvider(ctx, res, &shutdownFuncs)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err

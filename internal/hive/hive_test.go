@@ -28,7 +28,7 @@ func TestMintIdentity(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 	id, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
-	require.Regexp(t, regexp.MustCompile("did:web:.*.example.com"), id.DID.String())
+	require.Regexp(t, regexp.MustCompile(`did:web:.*\.example\.com`), id.DID.String())
 	require.Equal(t, "alice.org.example.com", id.Handle.String())
 }
 

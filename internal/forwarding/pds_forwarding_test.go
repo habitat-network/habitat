@@ -13,7 +13,7 @@ import (
 )
 
 // fakePDSServer returns a test server that records the last request path it received.
-func fakePDSServer(t *testing.T) (*httptest.Server, *string) {
+func fakePDSServer(t *testing.T) (server *httptest.Server, path *string) {
 	t.Helper()
 	var lastPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

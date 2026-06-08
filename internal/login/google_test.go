@@ -29,7 +29,7 @@ func makeIDToken(clientID, email string) string {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
 	payload := base64.RawURLEncoding.EncodeToString([]byte(
 		fmt.Sprintf(
-			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"iat":1000000000,"exp":9999999999}`,
+			`{"iss":"https://accounts.google.com","aud":%q,"sub":"123","email":%q,"email_verified":true,"iat":1000000000,"exp":9999999999}`,
 			clientID,
 			email,
 		),

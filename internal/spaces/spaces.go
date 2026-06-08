@@ -492,7 +492,7 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	cid, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
+	recordCid, err := cid.V1Builder{}.WithCodec(cid.DagCBOR).Sum(bytes)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to compute cid: %w", err)
 	}
@@ -519,14 +519,14 @@ func (s *store) PutRecord(
 			Rkey:       rkey,
 			Value:      bytes,
 			Rev:        tid,
-			Cid:        cid.String(),
+			Cid:        recordCid.String(),
 		}
 		return tx.Save(&newRecord).Error
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
-	return habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey), &cid, nil
+	return habitat_syntax.ConstructSpaceRecordURI(spaceUri, repo, collection, rkey), &recordCid, nil
 }
 
 func (s *store) GetRecord(
@@ -582,19 +582,19 @@ func (s *store) ListRecords(
 	}
 
 	records := make([]Record, len(rows))
-	for i, row := range rows {
-		value, err := atdata.UnmarshalCBOR(row.Value)
+	for i := range rows {
+		value, err := atdata.UnmarshalCBOR(rows[i].Value)
 		if err != nil {
 			return nil, err
 		}
 		records[i] = Record{
-			Owner:      row.Repo,
-			Collection: row.Collection,
-			Rkey:       row.Rkey,
+			Owner:      rows[i].Repo,
+			Collection: rows[i].Collection,
+			Rkey:       rows[i].Rkey,
 			Value:      value,
-			Rev:        string(row.Rev),
-			UpdatedAt:  row.UpdatedAt,
-			Cid:        cid.MustParse(row.Cid),
+			Rev:        string(rows[i].Rev),
+			UpdatedAt:  rows[i].UpdatedAt,
+			Cid:        cid.MustParse(rows[i].Cid),
 		}
 	}
 
@@ -671,19 +671,19 @@ func (s *store) GetRepoOplog(
 	}
 
 	records := make([]Record, len(rows))
-	for i, row := range rows {
-		value, err := atdata.UnmarshalCBOR(row.Value)
+	for i := range rows {
+		value, err := atdata.UnmarshalCBOR(rows[i].Value)
 		if err != nil {
 			return nil, err
 		}
 		records[i] = Record{
-			Owner:      row.Repo,
-			Collection: row.Collection,
-			Rkey:       row.Rkey,
+			Owner:      rows[i].Repo,
+			Collection: rows[i].Collection,
+			Rkey:       rows[i].Rkey,
 			Value:      value,
-			Rev:        string(row.Rev),
-			UpdatedAt:  row.UpdatedAt,
-			Cid:        cid.MustParse(row.Cid),
+			Rev:        string(rows[i].Rev),
+			UpdatedAt:  rows[i].UpdatedAt,
+			Cid:        cid.MustParse(rows[i].Cid),
 		}
 	}
 	return records, nil

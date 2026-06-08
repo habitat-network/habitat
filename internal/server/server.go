@@ -49,14 +49,14 @@ type Server struct {
 // NewServer returns a pear server.
 func NewServer(
 	dir identity.Directory,
-	pear pear.Pear,
+	p pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
 	orgStore org.Store,
 ) *Server {
 	server := &Server{
 		dir:  dir,
-		pear: pear,
+		pear: p,
 		authMethods: authMethods{
 			oauth:       oauthServer,
 			serviceAuth: serviceAuthMethod,
@@ -295,10 +295,10 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	record, err := s.pear.GetRecord(r.Context(), collection, rkey, target.DID(), callerDID)
 	if err != nil {
-		if errors.Is(err, repo.ErrRecordNotFound) {
+		switch {
+		case errors.Is(err, repo.ErrRecordNotFound):
 			utils.LogAndHTTPError(r.Context(), w, err, "record not found", http.StatusNotFound)
-			return
-		} else if errors.Is(err, pear.ErrNotLocalRepo) {
+		case errors.Is(err, pear.ErrNotLocalRepo):
 			// TODO: is this still relevant?
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -307,12 +307,17 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 				"forwarding not implemented",
 				http.StatusNotImplemented,
 			)
-			return
-		} else if errors.Is(err, habitat_err.ErrUnauthorized) {
+		case errors.Is(err, habitat_err.ErrUnauthorized):
 			utils.LogAndHTTPError(r.Context(), w, err, "unauthorized", http.StatusForbidden)
-			return
+		default:
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"getting record",
+				http.StatusInternalServerError,
+			)
 		}
-		utils.LogAndHTTPError(r.Context(), w, err, "getting record", http.StatusInternalServerError)
 		return
 	}
 
@@ -431,7 +436,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo, err := syntax.ParseAtIdentifier(req.Repo)
+	repoID, err := syntax.ParseAtIdentifier(req.Repo)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse repo", http.StatusBadRequest)
 		return
@@ -440,7 +445,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	err = s.pear.DeleteRecord(
 		r.Context(),
 		callerDID,
-		repo.DID(),
+		repoID.DID(),
 		syntax.NSID(req.Collection),
 		syntax.RecordKey(req.Rkey),
 	)
@@ -708,14 +713,14 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
-	repo := r.URL.Query().Get("repo")
-	id, err := s.dir.Lookup(r.Context(), syntax.AtIdentifier(repo))
+	repoStr := r.URL.Query().Get("repo")
+	id, err := s.dir.Lookup(r.Context(), syntax.AtIdentifier(repoStr))
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
 			w,
 			err,
-			fmt.Sprintf("looking up did from repo param: %s", repo),
+			fmt.Sprintf("looking up did from repo param: %s", repoStr),
 			http.StatusInternalServerError,
 		)
 		return

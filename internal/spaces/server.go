@@ -238,14 +238,15 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = s.store.AddMember(r.Context(), spaceURI, memberDID, access)
-	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if errors.Is(err, ErrUserAlreadyMember) {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "add member", http.StatusInternalServerError)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrSpaceNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrUserAlreadyMember):
+			http.Error(w, err.Error(), http.StatusConflict)
+		default:
+			utils.LogAndHTTPError(r.Context(), w, err, "add member", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -298,17 +299,23 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = s.store.RemoveMember(r.Context(), spaceURI, memberDID)
-	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if errors.Is(err, ErrNotAMember) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	} else if errors.Is(err, ErrCannotRemoveOwner) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "remove member", http.StatusInternalServerError)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrSpaceNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrNotAMember):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, ErrCannotRemoveOwner):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"remove member",
+				http.StatusInternalServerError,
+			)
+		}
 		return
 	}
 

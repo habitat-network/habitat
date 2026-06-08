@@ -13,7 +13,7 @@ var _ DpopNonceProvider = (*MemoryNonceProvider)(nil)
 
 // GetDpopNonce retrieves the current DPoP nonce.
 // Returns the nonce value, whether a nonce is available, and any error.
-func (n *MemoryNonceProvider) GetDpopNonce() (string, bool, error) {
+func (n *MemoryNonceProvider) GetDpopNonce() (nonce string, ok bool, err error) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return n.nonce, n.nonce != "", nil

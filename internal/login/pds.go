@@ -7,13 +7,13 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
-	"log/slog"
 )
 
 type pdsProvider struct {
@@ -42,7 +42,7 @@ func (p *pdsProvider) Authorize(
 	ctx context.Context,
 	id *identity.Identity,
 	loginID string,
-) (string, []byte, error) {
+) (redirect string, stateBytes []byte, err error) {
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
@@ -71,7 +71,7 @@ func (p *pdsProvider) Authorize(
 	if err != nil {
 		return "", nil, fmt.Errorf("serialize dpop key: %w", err)
 	}
-	stateBytes, err := json.Marshal(pdsProviderState{DpopKey: dpopKeyBytes, AuthorizeState: *state})
+	stateBytes, err = json.Marshal(pdsProviderState{DpopKey: dpopKeyBytes, AuthorizeState: *state})
 	if err != nil {
 		return "", nil, fmt.Errorf("marshal pds provider state: %w", err)
 	}

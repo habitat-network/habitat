@@ -86,9 +86,9 @@ func idTemplateBuilder(memberDomain, pearDomain string) idTemplate {
 	}
 }
 
-func NewHive(memberDomain string, pearDomain string, db *gorm.DB) (Hive, error) {
+func NewHive(memberDomain, pearDomain string, gormDB *gorm.DB) (Hive, error) {
 	template := idTemplateBuilder(memberDomain, pearDomain)
-	store, err := newStore(db, template)
+	store, err := newStore(gormDB, template)
 	if err != nil {
 		return nil, err
 	}

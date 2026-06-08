@@ -22,7 +22,7 @@ type Server struct {
 	decoder     *schema.Decoder
 }
 
-func NewServer(store Store, oauth authn.Method, serviceAuth authn.Method) *Server {
+func NewServer(store Store, oauth, serviceAuth authn.Method) *Server {
 	return &Server{
 		store:       store,
 		oauth:       oauth,

@@ -36,7 +36,7 @@ const (
 func (us *updateService) subscribe(
 	ctx context.Context,
 	collections, dids []string,
-) (chan *models.Event, func()) {
+) (ch chan *models.Event, cancel func()) {
 	sub := &subscriber{
 		ctx:         ctx,
 		ch:          make(chan *models.Event, subscriberBufferSize),

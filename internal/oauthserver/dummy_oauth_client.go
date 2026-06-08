@@ -24,8 +24,7 @@ func NewDummyOAuthClient(t *testing.T, metadata *pdsclient.ClientMetadata) *dumm
 		t:        t,
 	}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/authorize":
+		if r.URL.Path == "/authorize" {
 			redirect := r.URL.Query().Get("redirect_uri")
 			q := url.Values{
 				"code":  []string{"dummyCode"},
