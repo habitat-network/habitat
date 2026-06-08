@@ -4,9 +4,12 @@ linters:
   enable:
     - bodyclose
     - sloglint
+    - gocritic
   settings:
     sloglint:
       static-msg: true
       context: "all"
+    gocritic:
+      enable-all: true
 formatters:
   enable: golines
