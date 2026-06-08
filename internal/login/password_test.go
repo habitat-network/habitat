@@ -22,7 +22,7 @@ import (
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
-func newTestLoginProvider(t *testing.T) *passwordProviderImpl {
+func newTestLoginProvider(t *testing.T) *PasswordLoginProvider {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -96,6 +96,8 @@ func TestLoginProvider_Exchange_ExpiredToken(t *testing.T) {
 
 func TestLoginProvider_HandlePasswordLogin_Success(t *testing.T) {
 	p := newTestLoginProvider(t)
+	err := p.AddLoginEntry("did:web:example.did.com", "12345")
+	require.NoError(t, err)
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgLoginMemberInput{
 		Handle:   "alice.example.com",
 		Password: "12345",

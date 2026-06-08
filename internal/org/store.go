@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
 )
 
@@ -42,11 +43,12 @@ type Store interface {
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
 type storeImpl struct {
-	db         *gorm.DB
-	hive       hive.Hive
-	dir        identity.Directory
-	pearDomain string
-	everyone   Org
+	db               *gorm.DB
+	hive             hive.Hive
+	dir              identity.Directory
+	pearDomain       string
+	everyone         Org
+	passwordProvider *login.PasswordLoginProvider
 }
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
@@ -55,16 +57,18 @@ func NewStore(
 	hve hive.Hive,
 	dir identity.Directory,
 	pearDomain string,
+	passwordProvider *login.PasswordLoginProvider,
 ) (Store, error) {
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &storeImpl{
-		db:         db,
-		hive:       hve,
-		dir:        dir,
-		pearDomain: pearDomain,
-		everyone:   NewEveryoneOrg(),
+		db:               db,
+		hive:             hve,
+		dir:              dir,
+		pearDomain:       pearDomain,
+		everyone:         NewEveryoneOrg(),
+		passwordProvider: passwordProvider,
 	}, nil
 }
 
@@ -130,19 +134,6 @@ func (s *storeImpl) CreateOrg(
 	}
 	signingSecret := base64.StdEncoding.EncodeToString(secret)
 
-	// Determine the member's LoginID based on login method
-	var memberLoginID string
-	switch method {
-	case "password":
-		hash, err := hashPassword(adminPassword)
-		if err != nil {
-			return nil, nil, err
-		}
-		memberLoginID = hash
-	case "atproto", "google":
-		memberLoginID = loginID
-	}
-
 	var orgId *identity.Identity
 	var id *identity.Identity
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -170,6 +161,19 @@ func (s *storeImpl) CreateOrg(
 			return err
 		}
 		id = mintedId
+		// Determine the member's LoginID based on login method
+		var memberLoginID string
+		switch method {
+		case "password":
+			memberLoginID = mintedId.DID.String()
+
+			if err := s.passwordProvider.WithTx(tx).
+				AddLoginEntry(mintedId.DID, adminPassword); err != nil {
+				return fmt.Errorf("failed to add login entry: %w", err)
+			}
+		case "atproto", "google":
+			memberLoginID = loginID
+		}
 		return tx.Create(&member{
 			OrgID:     mintedOrgId.DID,
 			Did:       id.DID,

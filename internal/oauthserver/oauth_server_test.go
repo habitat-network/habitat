@@ -223,7 +223,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:test", nil)
+	)+"&handle=did:web:example.did.com", nil)
 	require.NoError(t, err)
 
 	// CheckRedirect stops the client from following past the callback so we can
@@ -305,7 +305,7 @@ func TestOAuthServerE2E(t *testing.T) {
 		case "/resource":
 			did, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
-			require.Equal(t, syntax.DID("did:web:test"), did)
+			require.Equal(t, syntax.DID("did:web:example.did.com"), did)
 		default:
 			t.Errorf("unknown server path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -365,7 +365,7 @@ func TestOAuthServerE2E(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:test", nil)
+	)+"&handle=did:web:example.did.com", nil)
 	require.NoError(t, err, "failed to create authorize request")
 
 	// make authorize requests which will follow redirects all thw way to token response
@@ -495,7 +495,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:test&scope=org:*", nil)
+	)+"&handle=did:web:example.did.com&scope=org:*", nil)
 	require.NoError(t, err)
 
 	server.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -603,7 +603,7 @@ func acquireAccessToken(
 		oauthCfg.AuthCodeURL(
 			"test-state",
 			oauth2.S256ChallengeOption(verifier),
-		)+"&handle=did:web:test",
+		)+"&handle=did:web:example.did.com",
 		nil,
 	)
 	require.NoError(t, err)

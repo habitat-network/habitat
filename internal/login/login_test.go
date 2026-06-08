@@ -34,7 +34,6 @@ func TestPDSProvider_Authorize(t *testing.T) {
 	redirect, state, err := p.Authorize(
 		context.Background(),
 		"did:web:pds.example.com",
-		"did:plc:publicdid",
 	)
 	require.NoError(t, err)
 	require.Contains(t, redirect, "/authorize")
@@ -65,25 +64,23 @@ func TestPDSProvider_Exchange(t *testing.T) {
 
 	// Obtain valid state from Authorize.
 	_, state, err := p.Authorize(
-		context.Background(),
+		t.Context(),
 		"did:web:pds.example.com",
-		"did:plc:publicdid",
 	)
 	require.NoError(t, err)
 
-	err = p.Exchange(
-		context.Background(),
-		"did:web:pds.example.com",
-		"did:plc:publicdid",
+	loginID, err := p.Exchange(
+		t.Context(),
 		"dummyCode",
 		"https://pds.example.com",
 		state,
 	)
 	require.NoError(t, err)
+	// from dummy oauth client
+	require.Equal(t, "did:web:example.did.com", loginID)
 
-	creds, err := credStore.GetCredentials(t.Context(), "did:plc:publicdid")
+	creds, err := credStore.GetCredentials(t.Context(), "did:web:example.did.com")
 	require.NoError(t, err)
-	require.Equal(t, "dummy_access_token", creds.AccessToken)
 	require.Equal(t, "dummy_refresh_token", creds.RefreshToken)
 	require.NotNil(t, creds.DpopKey)
 }

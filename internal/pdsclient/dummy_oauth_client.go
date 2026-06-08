@@ -6,8 +6,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,8 +73,18 @@ func (d *DummyOAuthClient) ExchangeCode(
 	require.Equal(d.t, "dummyCode", code)
 	require.Equal(d.t, "dummyState", state.State)
 	require.Equal(d.t, "dummyVerifier", state.Verifier)
+	sig, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.HS256, Key: []byte("dummySecret")},
+		nil,
+	)
+	require.NoError(d.t, err)
+	token, err := jwt.Signed(sig).Claims(jwt.Claims{
+		Subject: "did:web:example.did.com",
+		Expiry:  jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}).CompactSerialize()
+	require.NoError(d.t, err)
 	return &TokenResponse{
-		AccessToken:  "dummy_access_token",
+		AccessToken:  token,
 		RefreshToken: "dummy_refresh_token",
 		TokenType:    "DPoP",
 		ExpiresIn:    3600,

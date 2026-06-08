@@ -14,6 +14,7 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -84,12 +85,13 @@ type inviteTokenClaims struct {
 }
 
 type orgImpl struct {
-	orgID           syntax.DID
-	hive            hive.Hive
-	db              *gorm.DB
-	signingSecret   []byte
-	handleSubdomain string
-	method          loginMethod
+	orgID            syntax.DID
+	hive             hive.Hive
+	db               *gorm.DB
+	signingSecret    []byte
+	handleSubdomain  string
+	method           loginMethod
+	passwordProvider login.PasswordLoginProvider
 }
 
 var _ Org = &orgImpl{}
@@ -120,13 +122,12 @@ func (s *orgImpl) addMemberTx(
 	ctx context.Context,
 	tx *gorm.DB,
 	did syntax.DID,
-	loginID string,
 ) error {
 	return tx.WithContext(ctx).Create(&member{
 		OrgID:   s.orgID,
 		Did:     did,
 		Role:    MemberRole,
-		LoginID: loginID,
+		LoginID: did.String(),
 	}).Error
 }
 
@@ -306,20 +307,16 @@ func (s *orgImpl) CreateNewMemberIdentity(
 		return nil, err
 	}
 
-	passwordHash, err := hashPassword(password)
-	if err != nil {
-		return nil, err
-	}
-
 	var id *identity.Identity
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// If token is valid, call into hive to mint the new identity and serve it
 		newId, err := s.hive.WithTx(tx).MintIdentity(ctx, internalHandle, s.handleSubdomain)
 		if err != nil {
 			return fmt.Errorf("mint identity: %w", err)
 		}
 		id = newId
-		return s.addMemberTx(ctx, tx, id.DID, passwordHash)
+		s.passwordProvider.WithTx(tx).AddLoginEntry(id.DID, password)
+		return s.addMemberTx(ctx, tx, id.DID)
 	})
 	if err != nil {
 		return nil, err

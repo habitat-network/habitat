@@ -77,7 +77,7 @@ func (p *pdsProvider) Exchange(
 	code string,
 	issuer string,
 	stateBytes []byte,
-) (loginId string, err error) {
+) (loginID string, err error) {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
 		return "", fmt.Errorf("unmarshal pds provider state: %w", err)
@@ -100,6 +100,9 @@ func (p *pdsProvider) Exchange(
 		return "", fmt.Errorf("parse access token claims: %w", err)
 	}
 	loginDID, err := syntax.ParseDID(claims.Subject)
+	if err != nil {
+		return "", fmt.Errorf("parse loginID: %w", err)
+	}
 	if err := p.credStore.UpsertCredentials(ctx, loginDID, &pdscred.Credentials{
 		AccessToken:  tokenInfo.AccessToken,
 		RefreshToken: tokenInfo.RefreshToken,

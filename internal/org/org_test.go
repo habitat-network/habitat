@@ -51,7 +51,7 @@ func TestIsMember(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1, testPasswordHash))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
 
 	ok, err = s.IsMember(ctx, did1)
 
@@ -63,7 +63,7 @@ func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1, testPasswordHash))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 
 	admins, err := s.GetAdmins(ctx)
@@ -83,7 +83,7 @@ func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1, testPasswordHash))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 
 	err := s.RemoveAdmin(ctx, did1)
@@ -94,8 +94,8 @@ func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1, testPasswordHash))
-	require.NoError(t, s.addMemberTx(ctx, s.db, did2, testPasswordHash))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did2))
 	require.NoError(t, s.AddAdmin(ctx, did1))
 	require.NoError(t, s.AddAdmin(ctx, did2))
 
@@ -114,8 +114,8 @@ func TestGetMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, members)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1, testPasswordHash))
-	require.NoError(t, s.addMemberTx(ctx, s.db, did2, testPasswordHash))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did2))
 
 	members, err = s.GetMembers(ctx)
 	require.NoError(t, err)
@@ -126,8 +126,8 @@ func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1, testPasswordHash))
-	require.NoError(t, s.addMemberTx(ctx, s.db, did2, testPasswordHash))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
+	require.NoError(t, s.addMemberTx(ctx, s.db, did2))
 	require.NoError(t, s.RemoveMembers(ctx, []syntax.DID{did2}))
 
 	ok, err := s.IsMember(ctx, did1)

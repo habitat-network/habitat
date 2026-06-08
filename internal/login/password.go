@@ -16,14 +16,17 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
 var errInvalidLoginToken = errors.New("invalid or expired login token")
 
-// passwordProviderImpl wraps Store and implements login.Provider for habitat-hosted member identities.
-type passwordProviderImpl struct {
+var _ db.Store[*PasswordLoginProvider] = (*PasswordLoginProvider)(nil)
+
+// PasswordLoginProvider wraps Store and implements login.Provider for habitat-hosted member identities.
+type PasswordLoginProvider struct {
 	db             *gorm.DB
 	pearDomain     string
 	frontendDomain string
@@ -42,12 +45,12 @@ func NewPasswordProvider(
 	frontendDomain string,
 	signingSecret []byte,
 	dir identity.Directory,
-) (*passwordProviderImpl, error) {
+) (*PasswordLoginProvider, error) {
 	err := db.AutoMigrate(&passwordEntry{})
 	if err != nil {
 		return nil, err
 	}
-	return &passwordProviderImpl{
+	return &PasswordLoginProvider{
 		db:             db,
 		pearDomain:     pearDomain,
 		frontendDomain: frontendDomain,
@@ -56,9 +59,9 @@ func NewPasswordProvider(
 	}, nil
 }
 
-var _ Provider = (*passwordProviderImpl)(nil)
+var _ Provider = (*PasswordLoginProvider)(nil)
 
-func (p *passwordProviderImpl) Authorize(
+func (p *PasswordLoginProvider) Authorize(
 	_ context.Context,
 	loginHint string,
 ) (string, []byte, error) {
@@ -68,7 +71,7 @@ func (p *passwordProviderImpl) Authorize(
 	return redirect, nil, nil
 }
 
-func (p *passwordProviderImpl) issueToken(did syntax.DID) (string, error) {
+func (p *PasswordLoginProvider) issueToken(did syntax.DID) (string, error) {
 	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: p.signingSecret}, nil)
 	if err != nil {
 		return "", err
@@ -79,7 +82,7 @@ func (p *passwordProviderImpl) issueToken(did syntax.DID) (string, error) {
 	}).CompactSerialize()
 }
 
-func (p *passwordProviderImpl) verifyToken(token string) (string, error) {
+func (p *PasswordLoginProvider) verifyToken(token string) (string, error) {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", errInvalidLoginToken, err)
@@ -94,7 +97,7 @@ func (p *passwordProviderImpl) verifyToken(token string) (string, error) {
 	return claims.Subject, nil
 }
 
-func (p *passwordProviderImpl) Exchange(
+func (p *PasswordLoginProvider) Exchange(
 	_ context.Context,
 	code, _ string,
 	_ []byte,
@@ -102,7 +105,7 @@ func (p *passwordProviderImpl) Exchange(
 	return p.verifyToken(code)
 }
 
-func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+func (p *PasswordLoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req habitat.NetworkHabitatOrgLoginMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -124,7 +127,7 @@ func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *htt
 	}
 
 	var entry passwordEntry
-	if err := p.db.WithContext(ctx).Where("did = ?", id).First(&entry).Error; err != nil {
+	if err := p.db.WithContext(ctx).Where("did = ?", id.DID).First(&entry).Error; err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
@@ -157,6 +160,28 @@ func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *htt
 	if err != nil {
 		utils.LogAndHTTPError(ctx, w, err, "encoding response", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (p *PasswordLoginProvider) AddLoginEntry(did syntax.DID, password string) error {
+	hash, err := hashPassword(password)
+	if err != nil {
+		return fmt.Errorf("hashing password: %w", err)
+	}
+	return p.db.Create(&passwordEntry{
+		DID:      did,
+		Password: hash,
+	}).Error
+}
+
+// WithTx implements [db.Store].
+func (p *PasswordLoginProvider) WithTx(tx *gorm.DB) *PasswordLoginProvider {
+	return &PasswordLoginProvider{
+		db:             tx,
+		dir:            p.dir,
+		signingSecret:  p.signingSecret,
+		frontendDomain: p.frontendDomain,
+		pearDomain:     p.pearDomain,
 	}
 }
 
