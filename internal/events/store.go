@@ -201,15 +201,19 @@ func (s *storeImpl) Subscribe(ctx context.Context, since uint64) <-chan Event {
 				s.subscribersMu.Unlock()
 				return
 			case <-notificationCh:
-				slog.Debug("notifying subscriber")
+				slog.DebugContext(ctx, "notifying subscriber")
 				events, err := s.GetEvents(ctx, lastSent)
 				if err != nil {
-					slog.Error("failed to get events", "err", err)
+					slog.ErrorContext(ctx, "failed to get events", "err", err)
 					continue
 				}
 				for _, event := range events {
 					if event.Seq > lastSent {
-						ch <- event
+						select {
+						case <-ctx.Done():
+							return
+						case ch <- event:
+						}
 						lastSent = event.Seq
 					}
 				}

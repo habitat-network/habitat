@@ -27,7 +27,7 @@ func TestStore_Concurrency(t *testing.T) {
 	store, err := NewStore(db)
 	require.NoError(t, err)
 
-	go store.StartSequencer(t.Context())
+	go func() { require.NoError(t, store.StartSequencer(t.Context())) }()
 
 	const numWriters = 10
 	const eventsPerWriter = 10
