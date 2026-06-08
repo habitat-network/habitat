@@ -19,7 +19,7 @@ func newTestOrg(t *testing.T) *orgImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	s, err := NewOrg("test-org", nil, db, testSigningSecret)
+	s, err := NewOrg(syntax.DID("did:web:test-org.example.com"), nil, db, testSigningSecret)
 	require.NoError(t, err)
 	return s
 }
@@ -30,7 +30,7 @@ func newTestOrgWithHive(t *testing.T) *orgImpl {
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	s, err := NewOrg("test-org", h, db, testSigningSecret)
+	s, err := NewOrg(syntax.DID("did:web:testorg.example.com"), h, db, testSigningSecret)
 	require.NoError(t, err)
 	s.handleSubdomain = "testorg"
 	return s
@@ -46,7 +46,7 @@ const testPassword = "test-password-123"
 
 func TestLoginMethod_Default(t *testing.T) {
 	s := newTestOrg(t)
-	require.Equal(t, LoginMethodPassword, s.LoginMethod())
+	require.Equal(t, LoginMethodPassword, s.LoginMethod(context.Background()))
 }
 
 func TestIsMember(t *testing.T) {

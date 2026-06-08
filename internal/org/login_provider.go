@@ -102,7 +102,7 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 
 	atid, err := syntax.ParseAtIdentifier(req.Handle)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
@@ -119,7 +119,13 @@ func (p *LoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *http.Reque
 	}
 	ok, err := verifyPassword(req.Password, member.LoginID)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "error while authenticating", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"error while authenticating",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !ok {

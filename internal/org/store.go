@@ -24,7 +24,7 @@ type OrgMember struct {
 // Store is the registry of all orgs on a pear instance.
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
-	GetOrg(ctx context.Context, orgID string) (Org, error)
+	GetOrg(ctx context.Context, orgID syntax.DID) (Org, error)
 	GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error)
 	CreateOrg(
 		ctx context.Context,
@@ -34,7 +34,7 @@ type Store interface {
 		loginMethod string,
 		loginID string,
 		handleSubdomain string,
-	) (orgID string, id *identity.Identity, err error)
+	) (orgId *identity.Identity, id *identity.Identity, err error)
 
 	GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error)
 }
@@ -47,8 +47,6 @@ type storeImpl struct {
 	pearDomain string
 	everyone   Org
 }
-
-var _ Store = &storeImpl{}
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
 func NewStore(
@@ -84,7 +82,7 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 }
 
 // GetOrg returns the org with the given ID.
-func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
+func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (Org, error) {
 	var org organization
 	if err := s.db.WithContext(ctx).Where("id = ?", orgID).First(&org).Error; err != nil {
 		return nil, ErrOrgNotFound
@@ -123,16 +121,10 @@ func (s *storeImpl) CreateOrg(
 	loginMethod string,
 	loginID string,
 	handleSubdomain string,
-) (string, *identity.Identity, error) {
-	orgBytes := make([]byte, 16)
-	if _, err := rand.Read(orgBytes); err != nil {
-		return "", nil, err
-	}
-	orgID := fmt.Sprintf("%x", orgBytes)
-
+) (*identity.Identity, *identity.Identity, error) {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	signingSecret := base64.StdEncoding.EncodeToString(secret)
 
@@ -142,19 +134,26 @@ func (s *storeImpl) CreateOrg(
 	case "password":
 		hash, err := hashPassword(adminPassword)
 		if err != nil {
-			return "", nil, err
+			return nil, nil, err
 		}
 		memberLoginID = hash
 	case "atproto", "google":
 		memberLoginID = loginID
 	}
 
+	var orgId *identity.Identity
 	var id *identity.Identity
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		mintedOrgId, err := s.hive.WithTx(tx).MintOrgIdentity(ctx, handleSubdomain)
+		if err != nil {
+			return err
+		}
+		orgId = mintedOrgId
 		if err := tx.Create(&organization{
-			ID:              orgID,
-			Name:            name,
-			LoginMethod:     LoginMethod(loginMethod),
+			ID:          mintedOrgId.DID,
+			Name:        name,
+			LoginMethod: LoginMethod(loginMethod),
+			// TODO: just use org did secret for this
 			SigningSecret:   signingSecret,
 			CreatedAt:       time.Now(),
 			HandleSubdomain: handleSubdomain,
@@ -165,13 +164,13 @@ func (s *storeImpl) CreateOrg(
 			return err
 		}
 		// Mint identity for the admin
-		mintedId, err := s.hive.WithTx(tx).MintIdentity(adminHandle, handleSubdomain)
+		mintedId, err := s.hive.WithTx(tx).MintIdentity(ctx, adminHandle, handleSubdomain)
 		if err != nil {
 			return err
 		}
 		id = mintedId
 		return tx.Create(&member{
-			OrgID:     orgID,
+			OrgID:     mintedOrgId.DID,
 			Did:       id.DID,
 			Role:      AdminRole,
 			LoginID:   memberLoginID,
@@ -179,10 +178,10 @@ func (s *storeImpl) CreateOrg(
 		}).Error
 	})
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 
-	return orgID, id, nil
+	return orgId, id, nil
 }
 
 func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {

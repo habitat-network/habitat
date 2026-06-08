@@ -14,6 +14,7 @@ type NetworkHabitatSpaceGetMembersOutput struct {
 
 // NetworkHabitatSpaceGetMembersMember represents a member object
 type NetworkHabitatSpaceGetMembersMember struct {
+	Access  string `json:"access,omitempty"`
 	AddedAt string `json:"addedAt,omitempty"`
 	Did     string `json:"did"`
 }

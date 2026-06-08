@@ -13,7 +13,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 // targetRoutedMethods maps XRPC method names that should be forwarded to the
@@ -59,7 +59,7 @@ func (p *PDSForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if paramName, ok := targetRoutedMethods[method]; ok {
 		target := r.URL.Query().Get(paramName)
 		if target == "" {
-			utils.LogAndHTTPError(w,
+			utils.LogAndHTTPError(r.Context(), w,
 				fmt.Errorf("missing required query param: %s", paramName),
 				"[pds forwarding]: missing target param",
 				http.StatusBadRequest,
@@ -70,6 +70,7 @@ func (p *PDSForwarding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		atid, err := syntax.ParseAtIdentifier(target)
 		if err != nil {
 			utils.LogAndHTTPError(
+				r.Context(),
 				w,
 				err,
 				"[pds forwarding]: invalid target identifier",
@@ -93,6 +94,7 @@ func (p *PDSForwarding) serveTargetPDS(
 	id, err := p.dir.Lookup(context.Background(), caller)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"[pds forwarding]: failed to lookup target identity",
@@ -103,7 +105,7 @@ func (p *PDSForwarding) serveTargetPDS(
 
 	pdsEndpoint, ok := id.Services["atproto_pds"]
 	if !ok {
-		utils.LogAndHTTPError(w,
+		utils.LogAndHTTPError(r.Context(), w,
 			fmt.Errorf("no atproto_pds service for %s", id.DID),
 			"[pds forwarding]: target has no PDS service",
 			http.StatusBadGateway,
@@ -114,6 +116,7 @@ func (p *PDSForwarding) serveTargetPDS(
 	pdsURL, err := url.Parse(pdsEndpoint.URL)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"[pds forwarding]: failed to parse target PDS URL",
@@ -125,6 +128,7 @@ func (p *PDSForwarding) serveTargetPDS(
 	requestURI, err := url.Parse(r.URL.RequestURI())
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"[pds forwarding]: failed to parse request URI",
@@ -142,6 +146,7 @@ func (p *PDSForwarding) serveTargetPDS(
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL.String(), body)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"[pds forwarding]: failed to create forwarding request",
@@ -167,6 +172,7 @@ func (p *PDSForwarding) serveTargetPDS(
 	resp, err := p.plainHTTPClient.Do(req)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"[pds forwarding]: failed to forward request to target PDS",
@@ -184,7 +190,12 @@ func (p *PDSForwarding) serveTargetPDS(
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		if utils.ShouldLog(err) {
-			log.Error().Err(err).Msg("[pds forwarding]: failed to copy response body")
+			slog.ErrorContext(
+				r.Context(),
+				"[pds forwarding]: failed to copy response body",
+				"err",
+				err,
+			)
 		}
 	}
 }
@@ -202,6 +213,7 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	fwdReq, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"[pds forwarding]: failed to create forwarding request",
@@ -224,6 +236,7 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	resp, err := p.client.Do(r.Context(), did, fwdReq)
 	if err != nil {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"[pds forwarding]: failed to forward request",
@@ -241,7 +254,12 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		if utils.ShouldLog(err) {
-			log.Error().Err(err).Msg("[pds forwarding]: failed to copy response body")
+			slog.ErrorContext(
+				r.Context(),
+				"[pds forwarding]: failed to copy response body",
+				"err",
+				err,
+			)
 		}
 	}
 }

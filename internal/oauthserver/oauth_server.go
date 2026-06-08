@@ -26,10 +26,10 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
-	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
+	"log/slog"
 )
 
 const (
@@ -214,6 +214,7 @@ func NewOAuthServer(
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
+		ScopeStrategy:              scopeStrategy,
 	}
 
 	strategy, err := newStrategy(secret, config)
@@ -287,20 +288,26 @@ func (o *OAuthServer) HandleAuthorize(
 	}
 	if err = r.ParseForm(); err != nil {
 		o.metrics.authorizeErr(err, "parse_form")
-		utils.LogAndHTTPError(w, err, "failed to parse form", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "failed to parse form", http.StatusBadRequest)
 		return
 	}
 	handle := r.Form.Get("handle")
 	atid, err := syntax.ParseAtIdentifier(handle)
 	if err != nil {
 		o.metrics.authorizeErr(err, "parse_handle")
-		utils.LogAndHTTPError(w, err, "failed to parse handle", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
 	id, err := o.directory.Lookup(ctx, atid)
 	if err != nil {
 		o.metrics.authorizeErr(err, "lookup_atid")
-		utils.LogAndHTTPError(w, err, "failed to lookup identity", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"failed to lookup identity",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -308,14 +315,26 @@ func (o *OAuthServer) HandleAuthorize(
 	org, err := o.orgStore.GetOrgForDID(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "no_org")
-		utils.LogAndHTTPError(w, err, "no org found for identity", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"no org found for identity",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
-	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod())
+	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod(ctx))
 	if err != nil {
 		o.metrics.authorizeErr(err, "no_provider")
-		utils.LogAndHTTPError(w, err, "no login provider for org", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"no login provider for org",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
@@ -324,7 +343,13 @@ func (o *OAuthServer) HandleAuthorize(
 	member, err := o.orgStore.GetMember(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "get_member")
-		utils.LogAndHTTPError(w, err, "no member found for identity", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"no member found for identity",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
@@ -332,6 +357,7 @@ func (o *OAuthServer) HandleAuthorize(
 	if err != nil {
 		o.metrics.authorizeErr(err, "begin_login")
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"failed to initiate authorization",
@@ -345,6 +371,7 @@ func (o *OAuthServer) HandleAuthorize(
 	if _, err := rand.Read(b); err != nil {
 		o.metrics.authorizeErr(err, "gen_flash_id")
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			err,
 			"failed to generate session id",
@@ -399,7 +426,13 @@ func (o *OAuthServer) HandleCallback(
 	cookie, err := r.Cookie(sessionName)
 	if err != nil {
 		o.metrics.callbackErr(err, "get_session")
-		utils.LogAndHTTPError(w, err, "failed to get session cookie", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"failed to get session cookie",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
@@ -411,26 +444,44 @@ func (o *OAuthServer) HandleCallback(
 
 	if !ok {
 		o.metrics.callbackErr(nil, "no_flash")
-		utils.LogAndHTTPError(w, nil, "no state found for session", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			nil,
+			"no state found for session",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(err, "recreate_req")
-		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"failed to recreate request",
+			http.StatusBadRequest,
+		)
 		return
 	}
 	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
 	if err != nil {
 		o.metrics.callbackErr(err, fositeErrReason(err))
-		utils.LogAndHTTPError(w, err, "failed to recreate request", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"failed to recreate request",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	// Check the DID allowlist after reconstructing authRequest so we can redirect
 	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	_, err = o.orgStore.GetOrgForDID(r.Context(), arf.Did)
+	org, err := o.orgStore.GetOrgForDID(r.Context(), arf.Did)
 	if err != nil {
 		o.metrics.callbackErr(err, "allowlist_dids")
 		o.provider.WriteAuthorizeError(
@@ -442,10 +493,53 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
+
+	// Re-check admin status for org-level scopes
+	for _, s := range authRequest.GetRequestedScopes() {
+		permission, err := permissionFromScope(s)
+		if err != nil {
+			o.metrics.authorizeErr(err, "bad_scope")
+			o.provider.WriteAuthorizeError(
+				ctx, w, authRequest,
+				fosite.ErrInvalidScope.WithDescription("Invalid scope: "+s),
+			)
+			return
+		}
+		if permission.Resource != "org" {
+			// don't need admin for non org scopes
+			continue
+		}
+		isAdmin, err := org.IsAdmin(ctx, arf.Did)
+		if err != nil {
+			o.metrics.callbackErr(err, "is_admin")
+			o.provider.WriteAuthorizeError(
+				ctx, w, authRequest,
+				fosite.ErrServerError,
+			)
+			return
+		}
+		if !isAdmin {
+			o.metrics.callbackErr(err, "not_admin")
+			o.provider.WriteAuthorizeError(
+				ctx, w, authRequest,
+				fosite.ErrAccessDenied.
+					WithDescription("Only org admins can authorize org-level permissions.").
+					WithHint(""),
+			)
+			return
+		}
+	}
+
 	provider, err := o.loginRouter.ByLoginMethod(arf.LoginMethod)
 	if err != nil {
 		o.metrics.callbackErr(err, "no_provider")
-		utils.LogAndHTTPError(w, err, "no login provider for session", http.StatusBadRequest)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"no login provider for session",
+			http.StatusBadRequest,
+		)
 		return
 	}
 	if err := provider.Exchange(
@@ -457,7 +551,13 @@ func (o *OAuthServer) HandleCallback(
 		arf.ProviderState,
 	); err != nil {
 		o.metrics.callbackErr(err, "complete_login")
-		utils.LogAndHTTPError(w, err, "failed to complete login", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"failed to complete login",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -465,11 +565,12 @@ func (o *OAuthServer) HandleCallback(
 		// Comment this out in dev because it's unused and node uses the default dir which fails bc of subdomain funnels
 			if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
 				o.metrics.callbackErr(err, "lookup_serves")
-				utils.LogAndHTTPError(w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
+				utils.LogAndHTTPError(r.Context(), w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
 				return
 			} else if !serves {
 				o.metrics.callbackErr(err, "wrong_server")
 				utils.LogAndHTTPError(
+					r.Context(),
 					w,
 					err,
 					"user's habitat service in DID doc does not match expected service",
@@ -486,7 +587,13 @@ func (o *OAuthServer) HandleCallback(
 	)
 	if err != nil {
 		o.metrics.callbackErr(err, fositeErrReason(err))
-		utils.LogAndHTTPError(w, err, "failed to create response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"failed to create response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	o.provider.WriteAuthorizeResponse(r.Context(), w, authRequest, resp)
@@ -513,7 +620,7 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req, err := o.provider.NewAccessRequest(ctx, r, &oauth2.JWTSession{})
 	if err != nil {
-		logError("token access request failed", err)
+		logError(ctx, err)
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
@@ -522,24 +629,24 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := o.provider.NewAccessResponse(ctx, req)
 	if err != nil {
-		logError("token access response failed", err)
+		logError(ctx, err)
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 
-func logError(msg string, err error) {
+func logError(ctx context.Context, err error) {
 	var rfcErr *fosite.RFC6749Error
 	if errors.As(err, &rfcErr) {
-		log.Error().
-			Err(err).
-			Str("error_field", rfcErr.ErrorField).
-			Str("hint", rfcErr.HintField).
-			Str("debug", rfcErr.DebugField).
-			Msg(msg)
+		slog.ErrorContext(ctx, "token access error",
+			"err", err,
+			"error_field", rfcErr.ErrorField,
+			"hint", rfcErr.HintField,
+			"debug", rfcErr.DebugField,
+		)
 	} else {
-		log.Error().Err(err).Msg(msg)
+		slog.ErrorContext(ctx, "token access error", "err", err)
 	}
 }
 
@@ -621,7 +728,13 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		Where("subject = ?", callerDID).
 		Find(&rows).Error
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "listing connected apps", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"listing connected apps",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -630,7 +743,14 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 	for i, row := range rows {
 		fositeClient, err := o.storage.GetClient(r.Context(), row.ClientID)
 		if err != nil {
-			log.Warn().Err(err).Str("clientID", row.ClientID).Msg("failed to fetch client metadata")
+			slog.WarnContext(
+				r.Context(),
+				"failed to fetch client metadata",
+				"err",
+				err,
+				"clientID",
+				row.ClientID,
+			)
 			continue
 		}
 
@@ -657,7 +777,13 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 	}
 	err = json.NewEncoder(w).Encode(output)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }

@@ -1,9 +1,15 @@
 {
   "extends": "../../../tsconfig.options.json",
-  "references": [
-    {
-      "path": "../../api"
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
     },
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*", "../../globals.d.ts"],
+  "references": [
     {
       "path": "../../internal"
     }

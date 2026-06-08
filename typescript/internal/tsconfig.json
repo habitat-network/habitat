@@ -3,15 +3,20 @@
   "compilerOptions": {
     "composite": true,
     "declaration": true,
-    "emitDeclarationOnly": false,
+    "declarationMap": true,
+    "noEmitOnError": true,
     "noEmit": false,
-    "allowImportingTsExtensions": false,
+    "emitDeclarationOnly": true,
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*"],
-  "references": [{ "path": "../api" }]
+  "include": ["src/**/*", "../globals.d.ts"],
+  "references": [
+    {
+      "path": "../api"
+    }
+  ]
 }

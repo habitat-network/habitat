@@ -3,12 +3,16 @@
   "compilerOptions": {
     "composite": true,
     "declaration": true,
-    "allowImportingTsExtensions": false,
+    "declarationMap": true,
+    "noEmitOnError": true,
     "noEmit": false,
-    "strict": false
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "strict": false,
+    "noImplicitAny": false,
+    "moduleResolution": "node"
   },
-  "include": [
-    "**/*"
-  ],
+  "include": ["**/*"],
+  "exclude": ["node_modules", "dist"],
   "references": []
 }

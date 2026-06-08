@@ -22,8 +22,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
-	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/metric"
+	"log/slog"
 )
 
 type peerRegistry struct {
@@ -118,7 +118,12 @@ type Server struct {
 
 var _ io.Closer = (*Server)(nil)
 
-func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*Server, error) {
+func NewServer(
+	ctx context.Context,
+	serviceAuth authn.Method,
+	pear pear.Pear,
+	meter metric.Meter,
+) (*Server, error) {
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0/ws"), // Websocket for browser relay
 		libp2p.Transport(websocket.New),
@@ -128,7 +133,7 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
-	log.Info().Msgf("p2p server peer id: %s", host.ID())
+	slog.InfoContext(ctx, "p2p server started", "peer_id", host.ID())
 
 	addr, err := manet.ToNetAddr(host.Addrs()[0])
 	if err != nil {
@@ -175,10 +180,13 @@ func NewServer(serviceAuth authn.Method, pear pear.Pear, meter metric.Meter) (*S
 
 		var req discoveryRequest
 		if err := json.NewDecoder(stream).Decode(&req); err != nil {
-			log.Error().
-				Err(err).
-				Str("peer", peerID.String()).
-				Msg("peer-discovery: failed to decode request")
+			slog.ErrorContext(ctx,
+				"peer-discovery: failed to decode request",
+				"err",
+				err,
+				"peer",
+				peerID.String(),
+			)
 			return
 		}
 

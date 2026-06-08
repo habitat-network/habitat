@@ -6,21 +6,30 @@ tasks:
     args:
       - --
       - --pds_oauth_client_uri
-      - oauth-client-metadata.${TS_DOMAIN}
+      - ${NGROK_DOMAIN}
     env:
       HABITAT_PORT: '8000'
       HABITAT_DEBUG: 'true'
       HABITAT_SERVICE_NAME: "habitat_local"
-      DEBUG: 'true'
-      DATABASE_URL: "postgres://habitat:habitat@localhost:5432/habitat"
       HABITAT_DOMAIN: pear.local.habitat.network
       HABITAT_PRETTY_LOGS: 'true'
     deps:
     - postgres
     - root:caddy
-    - target: oauth_client_metadata:start
-      env:
-        HABITAT_DOMAIN: pear.local.habitat.network
+    - ngrok
+  ngrok:
+    command: ngrok
+    args:
+      - http
+      - "8000"
+      - --url
+      - https://${NGROK_DOMAIN}
+      - --log
+      - stdout
+    preset: server
+    options:
+      envFile:
+      - /dev.env
   postgres:
     command: docker-compose -f ../../infra/docker-compose.yml up
     preset: server

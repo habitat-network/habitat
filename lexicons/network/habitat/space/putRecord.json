@@ -48,7 +48,8 @@
                         "uri": {
                             "type": "string",
                             "description": "URI of the written record."
-                        }
+                        },
+                        "cid": { "type": "string", "format": "cid" }
                     }
                 }
             },

@@ -15,7 +15,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 // Serve org-specific APIs
@@ -53,20 +53,20 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 	// no auth: bootstrapping a new org
 	var req habitat.NetworkHabitatOrgCreateInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.AdminHandle == "" || req.Name == "" || req.LoginMethod == "" {
-		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, nil, "missing required fields", http.StatusBadRequest)
 		return
 	}
 
 	if req.LoginMethod == "password" && req.AdminPassword == "" {
-		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, nil, "missing required fields", http.StatusBadRequest)
 		return
 	} else if req.LoginMethod != "password" && req.LoginId == "" {
-		utils.LogAndHTTPError(w, nil, "missing required fields", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, nil, "missing required fields", http.StatusBadRequest)
 		return
 	}
 
@@ -86,19 +86,31 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "creating organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"creating organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	output := habitat.NetworkHabitatOrgCreateOutput{
-		OrgId:       orgID,
+		OrgId:       orgID.DID.String(),
 		AdminDid:    id.DID.String(),
 		AdminHandle: id.Handle.String(),
 		Name:        req.Name,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -110,13 +122,25 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	dids, err := org.GetAdmins(r.Context())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting org members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting org members",
+			http.StatusInternalServerError,
+		)
 	}
 
 	admins := xslices.Map(dids, func(m syntax.DID) string {
@@ -126,7 +150,13 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetAdminsOutput{
 		Admins: admins,
 	}); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -139,13 +169,25 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	dids, err := org.GetMembers(r.Context())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting org members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting org members",
+			http.StatusInternalServerError,
+		)
 	}
 
 	members := xslices.Map(dids, func(m syntax.DID) string {
@@ -155,7 +197,13 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetMembersOutput{
 		Members: members,
 	}); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -168,26 +216,38 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	var req habitat.NetworkHabitatOrgAddAdminInput
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	admin, err := syntax.ParseAtIdentifier(req.Admin)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
 	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking admin status",
+			http.StatusInternalServerError,
+		)
 	}
 
 	if !ok {
@@ -197,7 +257,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 
 	err = org.AddAdmin(r.Context(), admin.DID())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "adding admin", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "adding admin", http.StatusInternalServerError)
 	}
 }
 
@@ -209,26 +269,38 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	var req habitat.NetworkHabitatOrgRemoveAdminInput
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	admin, err := syntax.ParseAtIdentifier(req.Admin)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
 	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking admin status",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -239,7 +311,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 
 	err = org.RemoveAdmin(r.Context(), admin.DID())
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "removing admin", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "removing admin", http.StatusInternalServerError)
 	}
 }
 
@@ -251,25 +323,37 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	var req habitat.NetworkHabitatOrgDowngradeAdminInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	admin, err := syntax.ParseAtIdentifier(req.Admin)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
 	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking admin status",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	if !ok {
@@ -278,7 +362,13 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = org.DowngradeAdmin(r.Context(), admin.DID()); err != nil {
-		utils.LogAndHTTPError(w, err, "downgrading admin", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"downgrading admin",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -290,20 +380,32 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	var req habitat.NetworkHabitatOrgRemoveMembersInput
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
 	ok, err = org.IsAdmin(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "checking admin status", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking admin status",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -316,7 +418,13 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 	for _, m := range req.Members {
 		id, err := syntax.ParseAtIdentifier(m)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parsing at identifier", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"parsing at identifier",
+				http.StatusBadRequest,
+			)
 			return
 		}
 		members = append(members, id.DID())
@@ -324,7 +432,13 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 
 	err = org.RemoveMembers(r.Context(), members)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "removing members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"removing members",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -336,14 +450,20 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 
 	org, err := s.store.GetOrgForDID(r.Context(), caller)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	var req habitat.NetworkHabitatOrgIssueInviteTokenInput
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
@@ -351,7 +471,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 	if req.ExpiresAt != "" {
 		parsed, err := time.Parse(time.RFC3339Nano, req.ExpiresAt)
 		if err != nil {
-			utils.LogAndHTTPError(w, err, "parsing expiresAt", http.StatusBadRequest)
+			utils.LogAndHTTPError(r.Context(), w, err, "parsing expiresAt", http.StatusBadRequest)
 			return
 		}
 		expiresAt = parsed
@@ -359,7 +479,13 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 
 	token, err := org.IssueIdentityToken(r.Context(), caller, req.Reusable, expiresAt)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "generating identity token", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"generating identity token",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -367,7 +493,13 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		Token: token,
 	}
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }
@@ -376,7 +508,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 	// no authn/authz: this is called by new members who don't exist yet
 	var req habitat.NetworkHabitatOrgMintMemberIdentityInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.LogAndHTTPError(w, err, "reading request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
 
@@ -385,9 +517,27 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrg(r.Context(), req.OrgId)
+	orgDid, err := syntax.ParseDID(req.OrgId)
 	if err != nil {
-		utils.LogAndHTTPError(w, err, "getting organization", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"parsing org did",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	org, err := s.store.GetOrg(r.Context(), orgDid)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting organization",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -396,7 +546,13 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(w, err, "minting member identity", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"minting member identity",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -418,7 +574,13 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 			[]permissions.Grantee{},
 		)
 		if err != nil {
-			log.Err(err).Msgf("failed to create profile record for new member %s", id.Handle)
+			slog.ErrorContext(r.Context(),
+				"failed to create profile record for new member",
+				"err",
+				err,
+				"handle",
+				id.Handle,
+			)
 		}
 	}
 
@@ -428,7 +590,13 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 }

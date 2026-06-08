@@ -43,6 +43,7 @@ func isDuplicateError(err error) bool {
 
 // Org represents a single organization on a pear instance.
 type Org interface {
+	DID() syntax.DID
 	// Any app-level / further authz (like teams in an org) should happen using our clique permissions model.
 	// The authz in this package is only for managing identities in the
 	// In the future, we may not want to be so prescriptive about the admin / member setup.
@@ -60,7 +61,7 @@ type Org interface {
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
 	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
-	LoginMethod() LoginMethod
+	LoginMethod(ctx context.Context) LoginMethod
 
 	// Org member identity management; may eventually replace some of the methods above
 	IssueIdentityToken(
@@ -85,7 +86,7 @@ type inviteTokenClaims struct {
 }
 
 type orgImpl struct {
-	orgID           string
+	orgID           syntax.DID
 	hive            hive.Hive
 	db              *gorm.DB
 	signingSecret   []byte
@@ -95,7 +96,7 @@ type orgImpl struct {
 var _ Org = &orgImpl{}
 
 func NewOrg(
-	orgID string,
+	orgID syntax.DID,
 	hive hive.Hive,
 	db *gorm.DB,
 	signingSecret []byte,
@@ -111,9 +112,14 @@ func NewOrg(
 	}, nil
 }
 
-func (s *orgImpl) LoginMethod() LoginMethod {
+// DID implements [Org].
+func (s *orgImpl) DID() syntax.DID {
+	return s.orgID
+}
+
+func (s *orgImpl) LoginMethod(ctx context.Context) LoginMethod {
 	var org organization
-	if err := s.db.First(&org, "id = ?", s.orgID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
 		return "password" // safe default
 	}
 	return org.LoginMethod
@@ -329,7 +335,7 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	var id *identity.Identity
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// If token is valid, call into hive to mint the new identity and serve it
-		newId, err := s.hive.WithTx(tx).MintIdentity(internalHandle, s.handleSubdomain)
+		newId, err := s.hive.WithTx(tx).MintIdentity(ctx, internalHandle, s.handleSubdomain)
 		if err != nil {
 			return fmt.Errorf("mint identity: %w", err)
 		}

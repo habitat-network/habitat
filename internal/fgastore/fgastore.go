@@ -7,12 +7,13 @@ import (
 	"strings"
 
 	"github.com/pressly/goose/v3"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/assets"
 	"github.com/openfga/openfga/pkg/server"
 	"github.com/openfga/openfga/pkg/storage"
+	"github.com/openfga/openfga/pkg/storage/memory"
 	"github.com/openfga/openfga/pkg/storage/postgres"
 	"github.com/openfga/openfga/pkg/storage/sqlcommon"
 	"github.com/openfga/openfga/pkg/storage/sqlite"
@@ -46,7 +47,9 @@ type Store interface {
 		object, relation string,
 		contextualTuples ...Tuple,
 	) ([]string, error)
+	Read(ctx context.Context, filter Tuple) ([]Tuple, error)
 	Close() error
+	WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error
 }
 
 type FGA struct {
@@ -63,7 +66,7 @@ func NewPostgres(ctx context.Context, uri string) (*FGA, error) {
 	// postgres.New below will open its own connection
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Warn().Err(err).Msg("fgastore close db")
+			slog.WarnContext(ctx, "fgastore close db", "err", err)
 		}
 	}()
 	pgFS, err := fs.Sub(assets.EmbedMigrations, assets.PostgresMigrationDir)
@@ -104,7 +107,7 @@ func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
 	// sqlite.New below will open its own connection
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Warn().Err(err).Msg("fgastore close db")
+			slog.WarnContext(ctx, "fgastore close db", "err", err)
 		}
 	}()
 	sqliteFS, err := fs.Sub(assets.EmbedMigrations, assets.SqliteMigrationDir)
@@ -130,6 +133,11 @@ func NewSQLite(ctx context.Context, uri string) (*FGA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fgastore sqlite: %w", err)
 	}
+	return newFromDS(ctx, ds)
+}
+
+func NewMemory(ctx context.Context) (*FGA, error) {
+	ds := memory.New()
 	return newFromDS(ctx, ds)
 }
 
@@ -227,7 +235,7 @@ func (f *FGA) ListUsers(
 		Object:   &openfgav1.Object{Type: objType, Id: objID},
 		Relation: relation,
 		UserFilters: []*openfgav1.UserTypeFilter{
-			{Type: "user"},
+			{Type: TypeUser},
 		},
 		ContextualTuples: toTupleKeys(contextualTuples),
 	})
@@ -269,6 +277,43 @@ func (f *FGA) Close() error {
 	f.svr.Close()
 	f.ds.Close()
 	return nil
+}
+
+// Read returns all stored tuples matching the given filter (empty fields are wildcards).
+func (f *FGA) Read(ctx context.Context, filter Tuple) ([]Tuple, error) {
+	var tupleKey *openfgav1.ReadRequestTupleKey
+	if filter.User != "" || filter.Relation != "" || filter.Object != "" {
+		tupleKey = &openfgav1.ReadRequestTupleKey{
+			User:     filter.User,
+			Relation: filter.Relation,
+			Object:   filter.Object,
+		}
+	}
+	resp, err := f.svr.Read(ctx, &openfgav1.ReadRequest{
+		StoreId:  f.storeID,
+		TupleKey: tupleKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read: %w", err)
+	}
+	tuples := make([]Tuple, 0, len(resp.GetTuples()))
+	for _, t := range resp.GetTuples() {
+		if k := t.GetKey(); k != nil {
+			tuples = append(tuples, Tuple{
+				User:     k.GetUser(),
+				Relation: k.GetRelation(),
+				Object:   k.GetObject(),
+			})
+		}
+	}
+	return tuples, nil
+}
+
+// WriteRaw implements [Store].
+func (f *FGA) WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error {
+	req.StoreId = f.storeID
+	_, err := f.svr.Write(ctx, req)
+	return err
 }
 
 // toTupleKeys converts domain Tuples to OpenFGA TupleKey pointers.

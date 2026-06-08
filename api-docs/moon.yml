@@ -22,8 +22,6 @@ tasks:
   build:
     deps:
       - generate
-    outputs:
-      - build
     options:
       mergeDeps: replace
       mergeOutputs: replace

@@ -5,9 +5,5 @@ tasks:
       DEVTOOLS_PORT: "42072"
       SERVER_PORT: "5175"
     deps:
-      - target: "pear:dev"
-      - target: "funnel:start"
-        args: ["5175", "$project"]
-    options:
-      envFile: /dev.env
-      mergeDeps: replace
+      - pear:dev
+      - root:caddy

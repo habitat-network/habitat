@@ -3,5 +3,10 @@ linters:
   default: standard
   enable:
     - bodyclose
+    - sloglint
+  settings:
+    sloglint:
+      static-msg: true
+      context: "all"
 formatters:
   enable: golines

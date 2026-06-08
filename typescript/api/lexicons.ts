@@ -2471,6 +2471,13 @@ export const schemaDict = {
                 format: 'did',
                 description: 'The DID of the user to add.',
               },
+              access: {
+                type: 'string',
+                enum: ['read', 'write'],
+                default: 'read',
+                description:
+                  'The access level to give the user. Defaults to read.',
+              },
             },
           },
         },
@@ -2605,6 +2612,37 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceDeleteSpace: {
+    lexicon: 1,
+    id: 'network.habitat.space.deleteSpace',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Delete an entire space. Only the space owner can delete. All records in the space and all member relationships are removed.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the space to delete.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The specified space does not exist.',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceGetMembers: {
     lexicon: 1,
     id: 'network.habitat.space.getMembers',
@@ -2655,6 +2693,10 @@ export const schemaDict = {
             type: 'string',
             format: 'did',
           },
+          access: {
+            type: 'string',
+            enum: ['read', 'write'],
+          },
           addedAt: {
             type: 'string',
             format: 'datetime',
@@ -2696,12 +2738,6 @@ export const schemaDict = {
               format: 'record-key',
               description: 'The Record Key.',
             },
-            cid: {
-              type: 'string',
-              format: 'cid',
-              description:
-                'The CID of the version of the record. If not specified, return the most recent version.',
-            },
           },
         },
         output: {
@@ -2729,6 +2765,97 @@ export const schemaDict = {
             name: 'RecordNotFound',
           },
         ],
+      },
+    },
+  },
+  NetworkHabitatSpaceGetRepoOplog: {
+    lexicon: 1,
+    id: 'network.habitat.space.getRepoOplog',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get records modified since a given revision for a member in a space. Used for incremental sync. Callable by any member of the space.',
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the member whose records to track.',
+            },
+            since: {
+              type: 'string',
+              description:
+                'Return records with revisions after this value (exclusive).',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of records to return.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.getRepoOplog#record',
+                },
+              },
+              cursor: {
+                type: 'string',
+                description:
+                  'The revision of the last returned record. Use as `since` in the next poll.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+      record: {
+        type: 'object',
+        required: ['rev', 'collection', 'rkey', 'value'],
+        properties: {
+          rev: {
+            type: 'string',
+            description: 'Revision (TID) of this record.',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          value: {
+            type: 'unknown',
+            description: 'The record value.',
+          },
+        },
       },
     },
   },
@@ -2946,6 +3073,10 @@ export const schemaDict = {
                 type: 'string',
                 description: 'URI of the written record.',
               },
+              cid: {
+                type: 'string',
+                format: 'cid',
+              },
             },
           },
         },
@@ -3084,8 +3215,10 @@ export const ids = {
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
+  NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
   NetworkHabitatSpaceGetMembers: 'network.habitat.space.getMembers',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
+  NetworkHabitatSpaceGetRepoOplog: 'network.habitat.space.getRepoOplog',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
   NetworkHabitatSpaceListSpaces: 'network.habitat.space.listSpaces',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
