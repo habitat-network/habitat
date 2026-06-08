@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -29,7 +30,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
-	"log/slog"
 )
 
 const (
@@ -203,7 +203,7 @@ type OAuthServer struct {
 func NewOAuthServer(
 	secret []byte,
 	loginRouter *login.Router,
-	node node.Node,
+	pearNode node.Node,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
@@ -246,7 +246,7 @@ func NewOAuthServer(
 		loginRouter: loginRouter,
 		flashStore:  make(map[string]*authRequestFlash),
 		directory:   directory,
-		node:        node,
+		node:        pearNode,
 		storage:     storage,
 		orgStore:    orgStore,
 	}, nil
@@ -454,7 +454,7 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
+	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), http.NoBody)
 	if err != nil {
 		o.metrics.callbackErr(err, "recreate_req")
 		utils.LogAndHTTPError(

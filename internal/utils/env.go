@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func GetEnvString(key string, defaultVal string) string {
+func GetEnvString(key, defaultVal string) string {
 	// TODO: possibly this should handle upper and lower envs?
 	val := os.Getenv(strings.ToUpper(key))
 	if val == "" {

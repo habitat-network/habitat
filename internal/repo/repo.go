@@ -52,9 +52,7 @@ type Repo interface {
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
-var (
-	ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
-)
+var ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
 
 // Persist private data within repos that mirror public repos.
 // A repo currently implements four basic methods: putRecord, getRecord, uploadBlob, getBlob
@@ -382,11 +380,11 @@ func (r *repo) UploadBlob(
 func (r *repo) GetBlob(
 	ctx context.Context,
 	did string,
-	cid string,
+	blobCid string,
 ) (string /* mimetype */, []byte /* blob body */, error) {
 	row, err := gorm.G[Blob](
 		r.db,
-	).Where("did = ? and cid = ?", did, cid).First(ctx)
+	).Where("did = ? and cid = ?", did, blobCid).First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrRecordNotFound
 	} else if err != nil {
@@ -399,11 +397,11 @@ func (r *repo) GetBlob(
 // GetRefs implements Repo.
 func (r *repo) GetBlobLinks(
 	ctx context.Context,
-	cid syntax.CID,
+	blobCid syntax.CID,
 	did syntax.DID,
 ) ([]habitat_syntax.HabitatURI, error) {
 	var links []link
-	err := r.db.WithContext(ctx).Where("cid = ?", cid).Where("did = ?", did).Find(&links).Error
+	err := r.db.WithContext(ctx).Where("cid = ?", blobCid).Where("did = ?", did).Find(&links).Error
 	if err != nil {
 		return nil, err
 	}

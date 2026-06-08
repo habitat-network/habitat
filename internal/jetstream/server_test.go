@@ -33,7 +33,7 @@ func setupServerTest(
 
 func sseRequest(t *testing.T, ts *httptest.Server) *http.Response {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL, http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestServerFilterByDIDHTTP(t *testing.T) {
 	sender, _, ts, teardown := setupServerTest(t)
 	defer teardown()
 
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"?wantedDids=did:plc:target", nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"?wantedDids=did:plc:target", http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestServerClientDisconnectHTTP(t *testing.T) {
 	defer teardown()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

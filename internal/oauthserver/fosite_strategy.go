@@ -44,7 +44,7 @@ func newStrategy(secret []byte, config fosite.Configurator) (*strategy, error) {
 func (s *strategy) GenerateAuthorizeCode(
 	ctx context.Context,
 	requester fosite.Requester,
-) (token string, signature string, err error) {
+) (token, signature string, err error) {
 	token, err = encrypt.EncryptCBOR(requester.GetSession().(*authSession), s.encryptionKey)
 	return token, token, err
 }

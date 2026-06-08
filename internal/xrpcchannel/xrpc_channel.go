@@ -51,11 +51,11 @@ func (m *serviceProxyXrpcChannel) SendXRPC(
 		return nil, fmt.Errorf("[xrpc channel]: failed to lookup identity: %w", err)
 	}
 	pearServiceEndpoint := atid.GetServiceEndpoint(m.serviceName)
-	url, err := url.Parse(pearServiceEndpoint)
+	pearURL, err := url.Parse(pearServiceEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse url: %w", err)
 	}
-	pearServiceDid := fmt.Sprintf("did:web:%s#habitat", url.Hostname())
+	pearServiceDid := fmt.Sprintf("did:web:%s#habitat", pearURL.Hostname())
 	client, err := m.clientFactory.NewClient(req.Context(), sender)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)

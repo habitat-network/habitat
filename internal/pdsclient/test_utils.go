@@ -178,7 +178,7 @@ func testDpopClient(t *testing.T, identity *identity.Identity) *DpopHttpClient {
 	sessionStore := sessions.NewCookieStore([]byte("test-key"))
 
 	// Create a test request for session creation
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 
 	// Create a fresh DPoP session
 	dpopSession, err := newCookieSession(req, sessionStore, identity, "https://test.com")
@@ -216,7 +216,7 @@ type DpopSessionOptions struct {
 // testDpopSession creates a test DPoP session with configurable options
 func testDpopSession(t *testing.T, opts DpopSessionOptions) *cookieSession {
 	sessionStore := sessions.NewCookieStore([]byte("test-key"))
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	w := httptest.NewRecorder()
 
 	// Use provided identity or create a default one
