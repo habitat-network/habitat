@@ -131,7 +131,7 @@ func TestGoogleProvider_Exchange(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, tokenServer.Client())
 	did := syntax.DID("did:web:example.com")
-	err = p.Exchange(ctx, did, "auth-code", "", state)
+	err = p.Exchange(ctx, did, "auth-code", "", "", state)
 	require.NoError(t, err)
 
 	creds, err := gp.GetCredentials(ctx, did)

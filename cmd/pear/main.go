@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,8 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-
-	"log/slog"
 
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
@@ -45,7 +44,6 @@ import (
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
@@ -131,14 +129,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	db := setupDB(cmd)
 	fgaStore := setupFGA(startupCtx, cmd)
 
+	// Load encryption key for credential storage
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
 		slog.Error("unable to load PDS encryption key", "err", err)
-		os.Exit(1)
-	}
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
-	if err != nil {
-		slog.Error("unable to setup pds cred store", "err", err)
 		os.Exit(1)
 	}
 
@@ -146,20 +140,18 @@ func run(_ context.Context, cmd *cli.Command) error {
 	var clientUri string
 	if cmd.String(fPdsOauthClientUri) != "" {
 		clientUri = "https://" + cmd.String(fPdsOauthClientUri)
-	}
-	if clientUri == "" {
+	} else {
 		clientUri = "https://" + domain
 	}
-	oauthClient, err := pdsclient.NewPdsOAuthClient(
+	oauthClient, err := pdsclient.NewClient(
+		db,
 		clientUri+"/client-metadata.json",
 		clientUri,
 		"https://"+domain+"/oauth-callback",
 		cmd.String(fOauthClientSecret),
-		meter,
 	)
 	if err != nil {
-		slog.Error("unable to setup oauth client", "err", err)
-		os.Exit(1)
+		slog.ErrorContext(startupCtx, "unable to setup oauth client", "err", err)
 	}
 
 	mux := mux.NewRouter()
@@ -190,17 +182,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
-		pdsCredStore,
-		oauthClient,
-		dir,
-	)
-	if err != nil {
-		slog.Error("unable to setup PDS client factory", "err", err)
-		os.Exit(1)
-	}
-
-	node := setupNode(cmd, pdsClientFactory, dir)
+	node := setupNode(cmd, oauthClient, dir)
 
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
 	if err != nil {
@@ -216,7 +198,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 
 	providers := []login.Provider{
-		login.NewPDSProvider(oauthClient, pdsCredStore, dir),
+		login.NewPDSProvider(oauthClient, dir),
 		orgLoginProvider,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
@@ -243,7 +225,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		loginRouter,
 		node,
 		dir,
-		pdsCredStore,
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
@@ -410,7 +391,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
 
-	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
+	pdsForwarding := forwarding.NewPDSForwarding(oauthServer, oauthClient, dir)
+	// Only forward specific routes that we know we handle correctly; for now.
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
@@ -530,8 +512,8 @@ func serveDid(domain string) http.HandlerFunc {
 	}
 }
 
-func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc {
-	metadata := oauthClient.ClientMetadata()
+func serveClientMetadata(client pdsclient.PdsOAuthClient) http.HandlerFunc {
+	metadata := client.ClientMetadata()
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(metadata); err != nil {
@@ -597,13 +579,13 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 
 func setupNode(
 	cmd *cli.Command,
-	clientFactory pdsclient.HttpClientFactory,
+	client pdsclient.PdsOAuthClient,
 	dir identity.Directory,
 ) node.Node {
 	serviceName := cmd.String(fServiceName)
 	domain := cmd.String(fDomain)
 	serviceEndpoint := "https://" + domain
-	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
+	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, client, dir)
 	return node.New(
 		serviceName,
 		serviceEndpoint,

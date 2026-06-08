@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
@@ -29,16 +29,15 @@ type store struct {
 type OAuthSession struct {
 	Signature string `gorm:"primaryKey"`
 	ClientID  string
-	Subject   string // DID of the user
-	Scopes    string // Space-separated scopes
+	Subject   string
+	Scopes    string
 	ExpiresAt time.Time
 }
 
 type ConnectedApp struct {
-	Subject  string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // user DID
-	ClientID string `gorm:"primaryKey,uniqueIndex:idx_connected_app"` // client_id URL
-	Scopes   string // Space-separated scopes
-	// GORM auto-managed
+	Subject  string `gorm:"primaryKey,uniqueIndex:idx_connected_app"`
+	ClientID string `gorm:"primaryKey,uniqueIndex:idx_connected_app"`
+	Scopes   string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -48,7 +47,6 @@ func newStore(strat *strategy, db *gorm.DB) (*store, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
 		memoryStore: storage.NewMemoryStore(),
 		strategy:    strat,
@@ -63,14 +61,11 @@ var (
 	_ pkce.PKCERequestStorage       = (*store)(nil)
 )
 
-// ClientAssertionJWTValid implements fosite.Storage.
 func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 	panic("not implemented")
 }
 
-// GetClient implements fosite.Storage.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
-	// TODO: consider caching
 	resp, err := http.Get(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)
@@ -81,7 +76,7 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 		return nil, fmt.Errorf("failed to fetch client metadata: status %d", resp.StatusCode)
 	}
 
-	var metadata pdsclient.ClientMetadata
+	var metadata oauth.ClientMetadata
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode client metadata: %w", err)
@@ -89,22 +84,18 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 	return &client{metadata}, nil
 }
 
-// SetClientAssertionJWT implements fosite.Storage.
 func (s *store) SetClientAssertionJWT(ctx context.Context, jti string, exp time.Time) error {
 	return s.memoryStore.SetClientAssertionJWT(ctx, jti, exp)
 }
 
-// CreateAuthorizeCodeSession implements oauth2.CoreStorage.
 func (s *store) CreateAuthorizeCodeSession(
 	ctx context.Context,
 	code string,
 	request fosite.Requester,
 ) (err error) {
-	// Session data is encrypted in the code itself by the strategy
 	return nil
 }
 
-// GetAuthorizeCodeSession implements oauth2.CoreStorage.
 func (s *store) GetAuthorizeCodeSession(
 	ctx context.Context,
 	code string,
@@ -126,13 +117,10 @@ func (s *store) GetAuthorizeCodeSession(
 	}, nil
 }
 
-// InvalidateAuthorizeCodeSession implements oauth2.CoreStorage.
 func (s *store) InvalidateAuthorizeCodeSession(ctx context.Context, code string) (err error) {
-	// Stateless - code is self-contained and single-use
 	return nil
 }
 
-// CreatePKCERequestSession implements pkce.PKCERequestStorage.
 func (s *store) CreatePKCERequestSession(
 	ctx context.Context,
 	signature string,
@@ -141,12 +129,10 @@ func (s *store) CreatePKCERequestSession(
 	return nil
 }
 
-// DeletePKCERequestSession implements pkce.PKCERequestStorage.
 func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) error {
 	return nil
 }
 
-// GetPKCERequestSession implements pkce.PKCERequestStorage.
 func (s *store) GetPKCERequestSession(
 	_ context.Context,
 	signature string,
@@ -165,7 +151,6 @@ func (s *store) GetPKCERequestSession(
 	}, nil
 }
 
-// CreateAccessTokenSession implements oauth2.CoreStorage.
 func (s *store) CreateAccessTokenSession(
 	_ context.Context,
 	_ string,
@@ -174,7 +159,6 @@ func (s *store) CreateAccessTokenSession(
 	return nil
 }
 
-// GetAccessTokenSession implements oauth2.CoreStorage.
 func (s *store) GetAccessTokenSession(
 	ctx context.Context,
 	signature string,
@@ -183,17 +167,14 @@ func (s *store) GetAccessTokenSession(
 	return &fosite.Request{Session: session}, nil
 }
 
-// DeleteAccessTokenSession implements oauth2.CoreStorage.
 func (s *store) DeleteAccessTokenSession(_ context.Context, _ string) error {
 	return nil
 }
 
-// RevokeAccessToken implements oauth2.TokenRevocationStorage.
 func (s *store) RevokeAccessToken(ctx context.Context, requestID string) error {
 	return fmt.Errorf("access token revocation not supported")
 }
 
-// CreateRefreshTokenSession implements oauth2.CoreStorage.
 func (s *store) CreateRefreshTokenSession(
 	ctx context.Context,
 	signature string,
@@ -220,12 +201,10 @@ func (s *store) CreateRefreshTokenSession(
 		FirstOrCreate(&ConnectedApp{}).Error
 }
 
-// DeleteRefreshTokenSession implements oauth2.CoreStorage.
 func (s *store) DeleteRefreshTokenSession(ctx context.Context, signature string) error {
 	return s.db.WithContext(ctx).Delete(&OAuthSession{}, "signature = ?", signature).Error
 }
 
-// GetRefreshTokenSession implements oauth2.CoreStorage.
 func (s *store) GetRefreshTokenSession(
 	ctx context.Context,
 	signature string,
@@ -264,17 +243,14 @@ func (s *store) GetRefreshTokenSession(
 	}, nil
 }
 
-// RotateRefreshToken implements oauth2.CoreStorage.
 func (s *store) RotateRefreshToken(
 	ctx context.Context,
 	requestID string,
 	refreshTokenSignature string,
 ) (err error) {
-	// Revoke the old refresh token by deleting it
 	return s.DeleteRefreshTokenSession(ctx, refreshTokenSignature)
 }
 
-// RevokeRefreshToken implements oauth2.TokenRevocationStorage.
 func (s *store) RevokeRefreshToken(_ context.Context, _ string) error {
 	return fmt.Errorf("refresh token revocation not supported")
 }

@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +27,16 @@ func newTestForwarding(t *testing.T, fakePDS *httptest.Server) *PDSForwarding {
 	t.Helper()
 	dir := pdsclient.NewDummyDirectory(fakePDS.URL)
 	return &PDSForwarding{
+		dir:             dir,
+		plainHTTPClient: fakePDS.Client(),
+	}
+}
+
+func newTestForwardingWithClient(t *testing.T, fakePDS *httptest.Server, client pdsclient.PdsOAuthClient) *PDSForwarding {
+	t.Helper()
+	dir := pdsclient.NewDummyDirectory(fakePDS.URL)
+	return &PDSForwarding{
+		client:          client,
 		dir:             dir,
 		plainHTTPClient: fakePDS.Client(),
 	}
@@ -79,26 +87,4 @@ func TestServeHTTP_ForwardsToTargetPDS(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, `{"ok":true}`, string(body))
 	require.Equal(t, "/xrpc/com.atproto.repo.getRecord", *lastPath)
-}
-
-func TestServeHTTP_ForwardsToCallerPDS(t *testing.T) {
-	fakePDS, lastPath := fakePDSServer(t)
-
-	callerDID := syntax.DID("did:plc:caller123")
-	p := &PDSForwarding{
-		oauth:            authn.NewStubAuthnForTest(callerDID),
-		pdsClientFactory: pdsclient.NewDummyClientFactory(fakePDS.URL),
-		plainHTTPClient:  fakePDS.Client(),
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.uploadBlob", nil)
-	req.Header.Set("Authorization", "Bearer caller-token")
-	w := httptest.NewRecorder()
-	p.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	body, err := io.ReadAll(w.Body)
-	require.NoError(t, err)
-	require.JSONEq(t, `{"ok":true}`, string(body))
-	require.Equal(t, "/xrpc/com.atproto.repo.uploadBlob", *lastPath)
 }

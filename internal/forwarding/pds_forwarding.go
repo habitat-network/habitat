@@ -12,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
 	"log/slog"
 )
@@ -33,25 +32,24 @@ var targetRoutedMethods = map[string]string{
 }
 
 type PDSForwarding struct {
-	oauth            authn.Method
-	pdsClientFactory pdsclient.HttpClientFactory
-	dir              identity.Directory
-	plainHTTPClient  *http.Client
+	oauth           authn.Method
+	client          pdsclient.PdsOAuthClient
+	dir             identity.Directory
+	plainHTTPClient *http.Client
 }
 
 var _ http.Handler = (*PDSForwarding)(nil)
 
 func NewPDSForwarding(
-	credStore pdscred.PDSCredentialStore,
 	oauthServer authn.Method,
-	pdsClientFactory pdsclient.HttpClientFactory,
+	client pdsclient.PdsOAuthClient,
 	dir identity.Directory,
 ) *PDSForwarding {
 	return &PDSForwarding{
-		oauth:            oauthServer,
-		pdsClientFactory: pdsClientFactory,
-		dir:              dir,
-		plainHTTPClient:  &http.Client{},
+		oauth:           oauthServer,
+		client:          client,
+		dir:             dir,
+		plainHTTPClient: &http.Client{},
 	}
 }
 
@@ -207,13 +205,12 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Only pass body for methods that support it
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 		body = r.Body
 	}
 
-	req, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
+	fwdReq, err := http.NewRequestWithContext(r.Context(), r.Method, r.URL.RequestURI(), body)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -224,37 +221,20 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	// Copy headers from original request, stripping hop-by-hop headers that
-	// must not be forwarded (e.g. Connection: upgrade, which HTTP/2 rejects).
-	req.Header = r.Header.Clone()
-	for _, h := range strings.Split(req.Header.Get("Connection"), ",") {
-		req.Header.Del(strings.TrimSpace(h))
+	fwdReq.Header = r.Header.Clone()
+	for _, h := range strings.Split(fwdReq.Header.Get("Connection"), ",") {
+		fwdReq.Header.Del(strings.TrimSpace(h))
 	}
-	req.Header.Del("Connection")
-	req.Header.Del("Upgrade")
-	req.Header.Del("Keep-Alive")
-	req.Header.Del("Transfer-Encoding")
-	req.Header.Del("Te")
+	fwdReq.Header.Del("Connection")
+	fwdReq.Header.Del("Upgrade")
+	fwdReq.Header.Del("Keep-Alive")
+	fwdReq.Header.Del("Transfer-Encoding")
+	fwdReq.Header.Del("Te")
+	fwdReq.Header.Del("Authorization")
+	fwdReq.Header.Del("DPoP")
 
-	dpopClient, err := p.pdsClientFactory.NewClient(r.Context(), did)
+	resp, err := p.client.Do(r.Context(), did, fwdReq)
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"[pds forwarding]: failed to create dpop client",
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-
-	// Forward the request using the dpopClient
-	resp, err := dpopClient.Do(req)
-	if err != nil {
-		// dpopClient.Do only returns an error for transport-level failures (network
-		// errors, signing errors, etc.) — never for PDS auth failures, which come
-		// back as valid HTTP responses. So always return 502 here.
 		utils.LogAndHTTPError(
 			r.Context(),
 			w,
@@ -265,17 +245,14 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
-	// Copy response headers
+
 	for key, values := range resp.Header {
 		for _, value := range values {
 			w.Header().Set(key, value)
 		}
 	}
-	// Set the status code
 	w.WriteHeader(resp.StatusCode)
-	// Copy response body
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		// Log error but can't change status code at this point
 		if utils.ShouldLog(err) {
 			slog.ErrorContext(
 				r.Context(),
@@ -284,6 +261,5 @@ func (p *PDSForwarding) serveCallerPDS(w http.ResponseWriter, r *http.Request) {
 				err,
 			)
 		}
-		return
 	}
 }

@@ -89,7 +89,7 @@ func (p *LoginProvider) verifyToken(token string) error {
 	return nil
 }
 
-func (p *LoginProvider) Exchange(_ context.Context, _ syntax.DID, code, _ string, _ []byte) error {
+func (p *LoginProvider) Exchange(_ context.Context, _ syntax.DID, code, _, _ string, _ []byte) error {
 	return p.verifyToken(code)
 }
 

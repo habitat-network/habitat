@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -21,7 +22,6 @@ import (
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -29,7 +29,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
-	"log/slog"
 )
 
 const (
@@ -171,9 +170,8 @@ type OAuthServer struct {
 	node node.Node
 
 	provider    fosite.OAuth2Provider
-	credStore   pdscred.PDSCredentialStore // Database storage for OAuth sessions
-	loginRouter *login.Router              // Routes login flows by org login method
-	directory   identity.Directory         // AT Protocol identity directory for handle resolution
+	loginRouter *login.Router      // Routes login flows by org login method
+	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
 	// Store a map of opaque cookie id --> flash between Authorize and Callback since session cookies have a size limit
@@ -197,7 +195,6 @@ type OAuthServer struct {
 //   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
-//   - credStore: Store for PDS credentials
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
@@ -205,7 +202,6 @@ func NewOAuthServer(
 	loginRouter *login.Router,
 	node node.Node,
 	directory identity.Directory,
-	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
 	meter metric.Meter,
 	orgStore org.Store,
@@ -242,7 +238,6 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		credStore:   credStore,
 		loginRouter: loginRouter,
 		flashStore:  make(map[string]*authRequestFlash),
 		directory:   directory,
@@ -547,6 +542,7 @@ func (o *OAuthServer) HandleCallback(
 		arf.Did,
 		r.URL.Query().Get("code"),
 		r.URL.Query().Get("iss"),
+		r.URL.Query().Get("state"),
 		arf.ProviderState,
 	); err != nil {
 		o.metrics.callbackErr(err, "complete_login")
@@ -754,12 +750,24 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 		}
 
 		c := fositeClient.(*client)
+		name := ""
+		if c.ClientName != nil {
+			name = *c.ClientName
+		}
+		clientURI := ""
+		if c.ClientURI != nil {
+			clientURI = *c.ClientURI
+		}
+		logoURI := ""
+		if c.LogoURI != nil {
+			logoURI = *c.LogoURI
+		}
 		output.Apps[i] = habitat.NetworkHabitatListConnectedAppsApp{
 			ClientID:  row.ClientID,
-			ClientUri: c.ClientUri,
+			ClientUri: clientURI,
 			LastUsed:  row.UpdatedAt.Format(time.RFC3339Nano),
-			Name:      c.ClientName,
-			LogoUri:   c.LogoUri,
+			Name:      name,
+			LogoUri:   logoURI,
 		}
 	}
 	err = json.NewEncoder(w).Encode(output)
