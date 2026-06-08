@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -64,30 +63,23 @@ func NewGoogleProvider(
 
 func (p *googleProvider) Authorize(
 	ctx context.Context,
-	did syntax.DID,
-	loginId string,
+	loginHint string,
 ) (string, []byte, error) {
-	if loginId == "" {
-		return "", nil, fmt.Errorf("no google email configured for org %s", did)
-	}
-
 	verifier := oauth2.GenerateVerifier()
 	state := make([]byte, 16)
 	if _, err := rand.Read(state); err != nil {
 		return "", nil, fmt.Errorf("generate state: %w", err)
 	}
 	stateStr := hex.EncodeToString(state)
-
 	stateBytes, err := json.Marshal(googleProviderState{Verifier: verifier, State: stateStr})
 	if err != nil {
 		return "", nil, fmt.Errorf("marshal google state: %w", err)
 	}
-
 	authURL := p.oauthCfg.AuthCodeURL(
 		stateStr,
 		oauth2.AccessTypeOffline,
 		oauth2.S256ChallengeOption(verifier),
-		oauth2.SetAuthURLParam("login_hint", loginId),
+		oauth2.SetAuthURLParam("login_hint", loginHint),
 		oauth2.SetAuthURLParam("prompt", "select_account"),
 	)
 
@@ -96,43 +88,41 @@ func (p *googleProvider) Authorize(
 
 func (p *googleProvider) Exchange(
 	ctx context.Context,
-	_ syntax.DID,
-	loginId string,
 	code string,
 	_ string,
 	stateBytes []byte,
-) error {
+) (loginID string, err error) {
 	var s googleProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return fmt.Errorf("unmarshal google state: %w", err)
+		return "", fmt.Errorf("unmarshal google state: %w", err)
 	}
 
 	token, err := p.oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(s.Verifier))
 	if err != nil {
-		return fmt.Errorf("google token exchange: %w", err)
+		return "", fmt.Errorf("google token exchange: %w", err)
 	}
 
 	idToken, ok := token.Extra("id_token").(string)
 	if !ok || idToken == "" {
-		return fmt.Errorf("no id_token in google token response")
+		return "", fmt.Errorf("no id_token in google token response")
 	}
 
 	email, err := verifyGoogleIDToken(idToken, p.oauthCfg.ClientID)
 	if err != nil {
-		return fmt.Errorf("verify google id token: %w", err)
+		return "", fmt.Errorf("verify google id token: %w", err)
 	}
 
-	if err := p.upsertCredentials(ctx, loginId, &Credentials{
+	if err := p.upsertCredentials(ctx, email, &Credentials{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		Expiry:       token.Expiry,
 		IDToken:      idToken,
 		Email:        email,
 	}); err != nil {
-		return fmt.Errorf("store google credentials: %w", err)
+		return "", fmt.Errorf("store google credentials: %w", err)
 	}
 
-	return nil
+	return email, nil
 }
 
 type googleCredentialsModel struct {

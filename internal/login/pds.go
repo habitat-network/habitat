@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 )
@@ -37,13 +38,12 @@ func NewPDSProvider(
 
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
-	_ syntax.DID,
-	loginID string,
+	loginHint string,
 ) (string, []byte, error) {
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
-	did, err := syntax.ParseDID(loginID)
+	did, err := syntax.ParseDID(loginHint)
 	if err != nil {
 		return "", nil, fmt.Errorf("parse loginID: %w", err)
 	}
@@ -74,26 +74,33 @@ func (p *pdsProvider) Authorize(
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
-	_ syntax.DID,
-	loginId string,
 	code string,
 	issuer string,
 	stateBytes []byte,
-) error {
+) (loginId string, err error) {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return fmt.Errorf("unmarshal pds provider state: %w", err)
+		return "", fmt.Errorf("unmarshal pds provider state: %w", err)
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), s.DpopKey)
 	if err != nil {
-		return fmt.Errorf("parse dpop key: %w", err)
+		return "", fmt.Errorf("parse dpop key: %w", err)
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	tokenInfo, err := p.oauthClient.ExchangeCode(dpopClient, code, issuer, &s.AuthorizeState)
 	if err != nil {
-		return fmt.Errorf("exchange code: %w", err)
+		return "", fmt.Errorf("exchange code: %w", err)
 	}
-	if err := p.credStore.UpsertCredentials(ctx, syntax.DID(loginId), &pdscred.Credentials{
+	token, err := jwt.ParseSigned(tokenInfo.AccessToken)
+	if err != nil {
+		return "", fmt.Errorf("parse access token: %w", err)
+	}
+	var claims jwt.Claims
+	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return "", fmt.Errorf("parse access token claims: %w", err)
+	}
+	loginDID, err := syntax.ParseDID(claims.Subject)
+	if err := p.credStore.UpsertCredentials(ctx, loginDID, &pdscred.Credentials{
 		AccessToken:  tokenInfo.AccessToken,
 		RefreshToken: tokenInfo.RefreshToken,
 		DpopKey:      dpopKey,
@@ -101,5 +108,5 @@ func (p *pdsProvider) Exchange(
 		// Log and move on since an error upserting doesn't mean the login failed
 		slog.WarnContext(ctx, "error upserting PDS credentials", "err", err)
 	}
-	return nil
+	return loginDID.String(), nil
 }

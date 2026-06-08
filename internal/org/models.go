@@ -31,7 +31,7 @@ type member struct {
 	Organization organization `gorm:"foreignKey:OrgID"`
 	Did          syntax.DID   `gorm:"primaryKey"`
 	Role         Role         `gorm:"not null"`
-	LoginID      string       `gorm:"not null"` // provider-specific identifier (password hash, public ATProto DID, google email, etc.)
+	LoginID      string       `gorm:"not null;index"` // provider-specific identifier (e.g. public ATProto DID, google email, etc.)
 
 	// Automatically populated by gorm
 	CreatedAt time.Time

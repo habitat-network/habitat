@@ -1,4 +1,4 @@
-package org
+package login
 
 import (
 	"context"
@@ -10,98 +10,100 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/utils"
+	"gorm.io/gorm"
 )
 
 var errInvalidLoginToken = errors.New("invalid or expired login token")
 
-type loginTokenClaims struct {
-	jwt.Claims
-}
-
 // passwordProviderImpl wraps Store and implements login.Provider for habitat-hosted member identities.
 type passwordProviderImpl struct {
-	store          Store
+	db             *gorm.DB
 	pearDomain     string
 	frontendDomain string
 	signingSecret  []byte
 	dir            identity.Directory
 }
 
+type passwordEntry struct {
+	DID      syntax.DID `gorm:"column:did;primaryKey"`
+	Password string
+}
+
 func NewPasswordProvider(
-	store Store,
+	db *gorm.DB,
 	pearDomain string,
 	frontendDomain string,
 	signingSecret []byte,
 	dir identity.Directory,
-) *passwordProviderImpl {
+) (*passwordProviderImpl, error) {
+	err := db.AutoMigrate(&passwordEntry{})
+	if err != nil {
+		return nil, err
+	}
 	return &passwordProviderImpl{
-		store:          store,
+		db:             db,
 		pearDomain:     pearDomain,
 		frontendDomain: frontendDomain,
 		signingSecret:  signingSecret,
 		dir:            dir,
-	}
+	}, nil
 }
 
-var _ login.Provider = (*passwordProviderImpl)(nil)
+var _ Provider = (*passwordProviderImpl)(nil)
 
 func (p *passwordProviderImpl) Authorize(
 	_ context.Context,
-	did syntax.DID,
-	loginId string,
+	loginHint string,
 ) (string, []byte, error) {
 	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
-		did.String(),
+		loginHint,
 	)
 	return redirect, nil, nil
 }
 
-func (p *passwordProviderImpl) issueToken() (string, error) {
+func (p *passwordProviderImpl) issueToken(did syntax.DID) (string, error) {
 	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: p.signingSecret}, nil)
 	if err != nil {
 		return "", err
 	}
-	claims := loginTokenClaims{
-		Claims: jwt.Claims{
-			Expiry: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
-		},
-	}
-	return jwt.Signed(sig).Claims(claims).CompactSerialize()
+	return jwt.Signed(sig).Claims(jwt.Claims{
+		Subject: did.String(),
+		Expiry:  jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+	}).CompactSerialize()
 }
 
-func (p *passwordProviderImpl) verifyToken(token string) error {
+func (p *passwordProviderImpl) verifyToken(token string) (string, error) {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
-		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
+		return "", fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
-	var claims loginTokenClaims
+	var claims jwt.Claims
 	if err := parsed.Claims(p.signingSecret, &claims); err != nil {
-		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
+		return "", fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
 	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
-		return fmt.Errorf("%w: %w", errInvalidLoginToken, err)
+		return "", fmt.Errorf("%w: %w", errInvalidLoginToken, err)
 	}
-	return nil
+	return claims.Subject, nil
 }
 
 func (p *passwordProviderImpl) Exchange(
 	_ context.Context,
-	_ syntax.DID,
-	_ string,
 	code, _ string,
 	_ []byte,
-) error {
+) (loginID string, err error) {
 	return p.verifyToken(code)
 }
 
 func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var req habitat.NetworkHabitatOrgLoginMemberInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -110,26 +112,26 @@ func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *htt
 
 	atid, err := syntax.ParseAtIdentifier(req.Handle)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parsing at identifier", http.StatusBadRequest)
+		utils.LogAndHTTPError(ctx, w, err, "parsing at identifier", http.StatusBadRequest)
 		return
 	}
 
-	id, err := p.dir.Lookup(r.Context(), atid)
+	id, err := p.dir.Lookup(ctx, atid)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "invalid handle", "err", err)
+		slog.ErrorContext(ctx, "invalid handle", "err", err)
 		http.Error(w, "invalid handle", http.StatusUnauthorized)
 		return
 	}
 
-	member, err := p.store.GetMember(r.Context(), id.DID)
-	if err != nil {
+	var entry passwordEntry
+	if err := p.db.WithContext(ctx).Where("did = ?", id).First(&entry).Error; err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
-	ok, err := verifyPassword(req.Password, member.LoginID)
+	ok, err := verifyPassword(req.Password, entry.Password)
 	if err != nil {
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"error while authenticating",
@@ -142,9 +144,9 @@ func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *htt
 		return
 	}
 
-	token, err := p.issueToken()
+	token, err := p.issueToken(entry.DID)
 	if err != nil {
-		http.Error(w, "error while issuing callback token", http.StatusInternalServerError)
+		utils.LogAndHTTPError(ctx, w, err, "issuing token", http.StatusInternalServerError)
 		return
 	}
 
@@ -153,7 +155,23 @@ func (p *passwordProviderImpl) HandlePasswordLogin(w http.ResponseWriter, r *htt
 		CallbackURL: "https://" + p.pearDomain + "/oauth-callback?code=" + token,
 	})
 	if err != nil {
-		http.Error(w, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(ctx, w, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
+}
+
+// HashPassword hashes a plaintext password using argon2id and returns a
+// self-describing encoded string that includes the parameters and salt.
+func hashPassword(password string) (string, error) {
+	return argon2id.CreateHash(password, argon2id.DefaultParams)
+}
+
+// VerifyPassword checks a plaintext password against an encoded argon2id hash.
+// Returns false, nil on mismatch; error only if the hash is malformed.
+func verifyPassword(password, encodedHash string) (bool, error) {
+	ok, err := argon2id.ComparePasswordAndHash(password, encodedHash)
+	if errors.Is(err, argon2id.ErrInvalidHash) {
+		return false, nil
+	}
+	return ok, err
 }

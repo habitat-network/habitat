@@ -2,6 +2,7 @@ package org
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -32,14 +33,26 @@ func (r *LoginRouter) Authorize(
 	did syntax.DID,
 ) (string, []byte, error) {
 	member, err := r.OrgStore.GetMember(ctx, did)
-	if err != nil {
-		return "", nil, err
+	// member login
+	if err == nil {
+		provider := r.getProvider(member.Org)
+		if provider == nil {
+			return "", nil, fmt.Errorf("unsupported login provider for %s", did)
+		}
+		return provider.Authorize(ctx, member.LoginID)
+	} else if !errors.Is(err, ErrMemberNotFound) {
+		return "", nil, fmt.Errorf("failed to get member: %w", err)
 	}
-	provider := r.getProvider(member.Org)
+	// org login (requires admin credential)
+	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get org: %w", err)
+	}
+	provider := r.getProvider(fetchedOrg)
 	if provider == nil {
 		return "", nil, fmt.Errorf("unsupported login provider for %s", did)
 	}
-	return provider.Authorize(ctx, did, member.LoginID)
+	return provider.Authorize(ctx, "" /* loginHint (empty because any admin will work) */)
 }
 
 func (r *LoginRouter) Exchange(
@@ -50,12 +63,39 @@ func (r *LoginRouter) Exchange(
 	state []byte,
 ) error {
 	member, err := r.OrgStore.GetMember(ctx, did)
-	if err != nil {
-		return err
+	// member login
+	if err == nil {
+		provider := r.getProvider(member.Org)
+		if provider == nil {
+			return fmt.Errorf("unsupported login provider for %s", did)
+		}
+		loginID, err := provider.Exchange(ctx, code, issuer, state)
+		if err != nil {
+			return fmt.Errorf("failed to exchange code: %w", err)
+		}
+		if member.LoginID != loginID {
+			return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
+		}
 	}
-	provider := r.getProvider(member.Org)
+	// org login (requires admin)
+	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
+	if err != nil {
+		return fmt.Errorf("failed to get org: %w", err)
+	}
+	provider := r.getProvider(fetchedOrg)
 	if provider == nil {
 		return fmt.Errorf("unsupported login provider for %s", did)
 	}
-	return provider.Exchange(ctx, did, member.LoginID, code, issuer, state)
+	loginID, err := provider.Exchange(ctx, code, issuer, state)
+	if err != nil {
+		return fmt.Errorf("failed to exchange code: %w", err)
+	}
+	member, err = r.OrgStore.GetMemberByLoginID(ctx, loginID)
+	if err != nil {
+		return fmt.Errorf("failed to get member by login id: %w", err)
+	}
+	if member.Role != AdminRole {
+		return fmt.Errorf("not an admin")
+	}
+	return nil
 }

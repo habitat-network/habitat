@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,8 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-
-	"log/slog"
 
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
@@ -207,8 +206,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to parse oauth server secret for login provider", "err", err)
 		os.Exit(1)
 	}
-	passwordProvider := org.NewPasswordProvider(
-		orgStore,
+	passwordProvider, err := login.NewPasswordProvider(
+		db,
 		cmd.String(fDomain),
 		cmd.String(fFrontendDomain),
 		oauthSecret,

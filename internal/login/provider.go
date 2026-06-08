@@ -2,8 +2,6 @@ package login
 
 import (
 	"context"
-
-	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 // Provider abstracts a login backend. Each implementation handles a specific
@@ -16,18 +14,15 @@ type Provider interface {
 	// (e.g. password hash, public ATProto DID, google email).
 	Authorize(
 		ctx context.Context,
-		did syntax.DID,
-		loginID string,
-	) (redirectUri string, state []byte, err error)
+		loginHint string,
+	) (redirectURI string, state []byte, err error)
 
 	// Exchange exchanges the callback code for credentials and should persist
 	// whatever credentials the provider acquires.
 	Exchange(
 		ctx context.Context,
-		did syntax.DID,
-		loginId string,
 		code string,
 		issuer string,
 		state []byte,
-	) error
+	) (loginId string, err error)
 }

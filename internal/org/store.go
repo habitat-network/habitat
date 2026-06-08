@@ -37,6 +37,7 @@ type Store interface {
 	) (orgId *identity.Identity, id *identity.Identity, err error)
 
 	GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error)
+	GetMemberByLoginID(ctx context.Context, loginID string) (*OrgMember, error)
 }
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
@@ -194,6 +195,26 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 				Role:    MemberRole,
 				LoginID: did.String(),
 			}, nil
+		}
+		return nil, fmt.Errorf("failed to get member: %w", err)
+	}
+	org, err := s.orgFromModel(&m.Organization)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get org from model: %w", err)
+	}
+	return &OrgMember{
+		Org:     org,
+		DID:     m.Did,
+		Role:    m.Role,
+		LoginID: m.LoginID,
+	}, nil
+}
+
+func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*OrgMember, error) {
+	var m member
+	if err := s.db.WithContext(ctx).Where("login_id = ?", loginID).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrMemberNotFound
 		}
 		return nil, fmt.Errorf("failed to get member: %w", err)
 	}
