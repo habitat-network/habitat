@@ -29,6 +29,13 @@ func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		lastSeq = parsed
+	} else if r.Header.Get("Last-Event-ID") != "" {
+		parsed, err := strconv.ParseUint(r.Header.Get("Last-Event-ID"), 10, 64)
+		if err != nil {
+			utils.LogAndHTTPError(r.Context(), w, err, "parse cursor", http.StatusBadRequest)
+			return
+		}
+		lastSeq = parsed
 	}
 
 	// sse
@@ -59,13 +66,21 @@ func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case event := <-ch:
-			eventJson, err := json.Marshal(event)
+			eventJSON, err := json.Marshal(event)
 			if err != nil {
 				slog.ErrorContext(r.Context(), "failed to marshal event", "err", err)
 				return
 			}
-			if _, err = fmt.Fprintf(w, "data: %s\n\n", eventJson); err != nil {
+			if _, err = fmt.Fprintf(w, "id: %d\n\n", event.Seq); err != nil {
+				slog.ErrorContext(r.Context(), "failed to write id", "err", err)
+				return
+			}
+			if _, err = fmt.Fprintf(w, "event: %s\n\n", event.Type); err != nil {
 				slog.ErrorContext(r.Context(), "failed to write event", "err", err)
+				return
+			}
+			if _, err = fmt.Fprintf(w, "data: %s\n\n", eventJSON); err != nil {
+				slog.ErrorContext(r.Context(), "failed to write data", "err", err)
 				return
 			}
 			flusher.Flush()
