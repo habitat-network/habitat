@@ -291,7 +291,7 @@ func TestRemoveMember_CanNotRemoveOrg(t *testing.T) {
 	require.NoError(t, err)
 
 	err = s.RemoveMember(t.Context(), uri, orgId)
-	require.ErrorIs(t, err, ErrCannotRemoveOwner)
+	require.ErrorIs(t, err, ErrCannotRemoveOrg)
 }
 
 func TestRemoveMember_CanRemoveOwner(t *testing.T) {
