@@ -234,11 +234,11 @@ type ProcedureEndpoints = {
   "network.habitat.space.createSpace": Procedure<
     NetworkHabitatSpaceCreateSpace.InputSchema,
     NetworkHabitatSpaceCreateSpace.OutputSchema
-  >
+  >;
   "network.habitat.space.putRecord": Procedure<
     NetworkHabitatSpacePutRecord.InputSchema,
     NetworkHabitatSpacePutRecord.OutputSchema
-  >
+  >;
 };
 
 interface AuthedOptions {
@@ -259,8 +259,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-  ? UnauthedOptions
-  : AuthedOptions;
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;

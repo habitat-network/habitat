@@ -113,14 +113,19 @@ function SpaceRecords() {
       <p className="text-sm text-muted-foreground mb-4">
         {records.length} record{records.length !== 1 ? "s" : ""}
       </p>
-      <Button onClick={async () => {
-        await procedure("network.habitat.space.putRecord", {
-          space,
-          collection: "test.record.collection",
-          record: { "key": "value" },
-        }, { authManager })
-
-      }} >
+      <Button
+        onClick={async () => {
+          await procedure(
+            "network.habitat.space.putRecord",
+            {
+              space,
+              collection: "test.record.collection",
+              record: { key: "value" },
+            },
+            { authManager },
+          );
+        }}
+      >
         Create test record
       </Button>
       <Table>
