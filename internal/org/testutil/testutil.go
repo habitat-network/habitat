@@ -3,7 +3,6 @@ package testutil
 import (
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
@@ -31,7 +30,7 @@ func NewTestStore(t *testing.T) org.Store {
 	store, err := org.NewStore(
 		db,
 		h,
-		identity.DefaultDirectory(),
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
 		"pear.example.com",
 		passwordProvider,
 	)

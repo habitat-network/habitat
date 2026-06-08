@@ -76,6 +76,7 @@ func (r *LoginRouter) Exchange(
 		if member.LoginID != loginID {
 			return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
 		}
+		return nil
 	}
 	// org login (requires admin)
 	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)

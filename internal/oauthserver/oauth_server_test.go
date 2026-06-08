@@ -721,7 +721,7 @@ func TestValidate(t *testing.T) {
 		status, did, ok := callValidate(newSrv(testStore(t)), validToken)
 		require.True(t, ok)
 		require.Equal(t, http.StatusOK, status)
-		require.Equal(t, syntax.DID("did:web:test"), did)
+		require.Equal(t, syntax.DID("did:web:example.did.com"), did)
 	})
 }
 
@@ -776,6 +776,6 @@ func TestValidateWithScopeChecking(t *testing.T) {
 		did, ok, err := srv.ValidateRaw(t.Context(), token)
 		require.NoError(t, err)
 		require.True(t, ok)
-		require.Equal(t, syntax.DID("did:web:test"), did)
+		require.Equal(t, syntax.DID("did:web:example.did.com"), did)
 	})
 }
