@@ -15,7 +15,7 @@ type LoginRouter struct {
 	OrgStore Store
 }
 
-func (r *LoginRouter) GetProvider(org Org) login.Provider {
+func (r *LoginRouter) getProvider(org Org) login.Provider {
 	switch org.loginMethod() {
 	case LoginMethodGoogle:
 		return r.Google
@@ -35,9 +35,9 @@ func (r *LoginRouter) Authorize(
 	if err != nil {
 		return "", nil, err
 	}
-	provider := r.GetProvider(member.Org)
+	provider := r.getProvider(member.Org)
 	if provider == nil {
-		return "", nil, fmt.Errorf("no login provider for %s", did)
+		return "", nil, fmt.Errorf("unsupported login provider for %s", did)
 	}
 	return provider.Authorize(ctx, did, member.LoginID)
 }
@@ -53,9 +53,9 @@ func (r *LoginRouter) Exchange(
 	if err != nil {
 		return err
 	}
-	provider := r.GetProvider(member.Org)
+	provider := r.getProvider(member.Org)
 	if provider == nil {
-		return fmt.Errorf("no login provider for %s", did)
+		return fmt.Errorf("unsupported login provider for %s", did)
 	}
 	return provider.Exchange(ctx, did, member.LoginID, code, issuer, state)
 }
