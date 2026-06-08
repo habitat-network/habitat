@@ -40,7 +40,7 @@ func TestStore_Concurrency(t *testing.T) {
 			for range eventsPerWriter {
 				tid := clock.Next()
 				repo := syntax.DID(fmt.Sprintf("did:plc:repo%d", id))
-				store.AppendSpaceEvent(
+				err := store.AppendSpaceEvent(
 					t.Context(),
 					"space",
 					repo,
@@ -48,10 +48,10 @@ func TestStore_Concurrency(t *testing.T) {
 					prev,
 					nil,
 				)
+				require.NoError(t, err)
 				prev = tid
 				t.Logf("appended %s to %s", tid, repo)
 				store.NotifyEvent(t.Context())
-				// time.Sleep(10 * time.Millisecond)
 			}
 		}(i)
 	}

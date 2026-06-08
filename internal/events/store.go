@@ -116,12 +116,12 @@ func (s *storeImpl) AppendSpaceEvent(
 
 // NotifyEvent implements [Store].
 func (s *storeImpl) NotifyEvent(ctx context.Context) {
-	slog.Debug("notifying sequencer")
+	slog.DebugContext(ctx, "notifying sequencer")
 	// notify sequencer
 	select {
 	case s.seqCh <- struct{}{}:
 	default:
-		slog.Debug("sequencer already notified")
+		slog.DebugContext(ctx, "sequencer already notified")
 		// sequencer already notified. this event will be picked up during next sequencer run
 	}
 }
@@ -131,7 +131,7 @@ func (s *storeImpl) StartSequencer(ctx context.Context) error {
 	var lastSequencedEvent eventEntry
 	err := s.db.Where("seq IS NOT NULL").Order("seq DESC").First(&lastSequencedEvent).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		slog.Error("failed to get last sequenced event", "err", err)
+		slog.ErrorContext(ctx, "failed to get last sequenced event", "err", err)
 		return err
 	}
 	nextSeq := uint64(1)
@@ -143,27 +143,29 @@ func (s *storeImpl) StartSequencer(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-s.seqCh:
-			slog.Debug("sequencing events")
+			slog.DebugContext(ctx, "sequencing events")
 			rows, err := s.db.Model(&eventEntry{}).Where("seq IS NULL").Order("tid ASC").Rows()
 			if err != nil {
-				slog.Error("failed to get unsequenced events", "err", err)
+				slog.ErrorContext(ctx, "failed to get unsequenced events", "err", err)
 				continue
 			}
 			for rows.Next() {
 				var entry eventEntry
 				err := s.db.ScanRows(rows, &entry)
 				if err != nil {
-					slog.Error("failed to scan unsequenced event", "err", err)
+					slog.ErrorContext(ctx, "failed to scan unsequenced event", "err", err)
 					continue
 				}
 				err = s.db.Model(&entry).Update("seq", new(nextSeq)).Error
 				if err != nil {
-					slog.Error("failed to update unsequenced event", "err", err)
+					slog.ErrorContext(ctx, "failed to update unsequenced event", "err", err)
 					continue
 				}
 				nextSeq++
 			}
-			rows.Close()
+			if err := rows.Close(); err != nil {
+				slog.ErrorContext(ctx, "failed to close unsequenced event rows", "err", err)
+			}
 			s.subscribersMu.RLock()
 			for ch := range s.subscribers {
 				select {
