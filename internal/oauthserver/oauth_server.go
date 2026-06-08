@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -29,7 +30,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
-	"log/slog"
 )
 
 const (
@@ -116,12 +116,12 @@ func newMetrics(meter metric.Meter) (*metrics, error) {
 	}, nil
 }
 
-func (m *metrics) authorizeErr(err error, reason string) {
+func (m *metrics) authorizeErr(ctx context.Context, err error, reason string) {
 	if errors.Is(err, context.Canceled) {
 		return
 	}
 	m.authorizeErrCtr.Add(
-		context.Background(),
+		ctx,
 		1,
 		metric.WithAttributeSet(
 			attribute.NewSet(
@@ -131,19 +131,16 @@ func (m *metrics) authorizeErr(err error, reason string) {
 	)
 }
 
-func (m *metrics) authorizeSuccess() {
-	m.authorizeSuccessCtr.Add(
-		context.Background(),
-		1,
-	)
+func (m *metrics) authorizeSuccess(ctx context.Context) {
+	m.authorizeSuccessCtr.Add(ctx, 1)
 }
 
-func (m *metrics) callbackErr(err error, reason string) {
+func (m *metrics) callbackErr(ctx context.Context, err error, reason string) {
 	if errors.Is(err, context.Canceled) {
 		return
 	}
 	m.callbackErrCtr.Add(
-		context.Background(),
+		ctx,
 		1,
 		metric.WithAttributeSet(
 			attribute.NewSet(
@@ -282,27 +279,27 @@ func (o *OAuthServer) HandleAuthorize(
 	ctx := r.Context()
 	requester, err := o.provider.NewAuthorizeRequest(ctx, r)
 	if err != nil {
-		o.metrics.authorizeErr(err, fositeErrReason(err))
+		o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
 		o.provider.WriteAuthorizeError(ctx, w, requester, err)
 		return
 	}
 	if err = r.ParseForm(); err != nil {
-		o.metrics.authorizeErr(err, "parse_form")
-		utils.LogAndHTTPError(r.Context(), w, err, "failed to parse form", http.StatusBadRequest)
+		o.metrics.authorizeErr(ctx, err, "parse_form")
+		utils.LogAndHTTPError(ctx, w, err, "failed to parse form", http.StatusBadRequest)
 		return
 	}
 	handle := r.Form.Get("handle")
 	atid, err := syntax.ParseAtIdentifier(handle)
 	if err != nil {
-		o.metrics.authorizeErr(err, "parse_handle")
-		utils.LogAndHTTPError(r.Context(), w, err, "failed to parse handle", http.StatusBadRequest)
+		o.metrics.authorizeErr(ctx, err, "parse_handle")
+		utils.LogAndHTTPError(ctx, w, err, "failed to parse handle", http.StatusBadRequest)
 		return
 	}
 	id, err := o.directory.Lookup(ctx, atid)
 	if err != nil {
-		o.metrics.authorizeErr(err, "lookup_atid")
+		o.metrics.authorizeErr(ctx, err, "lookup_atid")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to lookup identity",
@@ -355,9 +352,9 @@ func (o *OAuthServer) HandleAuthorize(
 
 	redirect, providerState, err := provider.Authorize(ctx, id, member.LoginID)
 	if err != nil {
-		o.metrics.authorizeErr(err, "begin_login")
+		o.metrics.authorizeErr(ctx, err, "begin_login")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to initiate authorization",
@@ -369,9 +366,9 @@ func (o *OAuthServer) HandleAuthorize(
 	// Generate opaque flash id to store in cookie
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		o.metrics.authorizeErr(err, "gen_flash_id")
+		o.metrics.authorizeErr(ctx, err, "gen_flash_id")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to generate session id",
@@ -400,7 +397,7 @@ func (o *OAuthServer) HandleAuthorize(
 	})
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
-	o.metrics.authorizeSuccess()
+	o.metrics.authorizeSuccess(ctx)
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -425,9 +422,9 @@ func (o *OAuthServer) HandleCallback(
 	ctx := r.Context()
 	cookie, err := r.Cookie(sessionName)
 	if err != nil {
-		o.metrics.callbackErr(err, "get_session")
+		o.metrics.callbackErr(ctx, err, "get_session")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to get session cookie",
@@ -443,9 +440,9 @@ func (o *OAuthServer) HandleCallback(
 	o.flashMu.Unlock()
 
 	if !ok {
-		o.metrics.callbackErr(nil, "no_flash")
+		o.metrics.callbackErr(ctx, nil, "no_flash")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			nil,
 			"no state found for session",
@@ -456,9 +453,9 @@ func (o *OAuthServer) HandleCallback(
 
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
-		o.metrics.callbackErr(err, "recreate_req")
+		o.metrics.callbackErr(ctx, err, "recreate_req")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to recreate request",
@@ -468,9 +465,9 @@ func (o *OAuthServer) HandleCallback(
 	}
 	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
 	if err != nil {
-		o.metrics.callbackErr(err, fositeErrReason(err))
+		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to recreate request",
@@ -483,7 +480,7 @@ func (o *OAuthServer) HandleCallback(
 	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
 	org, err := o.orgStore.GetOrgForDID(r.Context(), arf.Did)
 	if err != nil {
-		o.metrics.callbackErr(err, "allowlist_dids")
+		o.metrics.callbackErr(ctx, err, "allowlist_dids")
 		o.provider.WriteAuthorizeError(
 			ctx,
 			w,
@@ -498,7 +495,7 @@ func (o *OAuthServer) HandleCallback(
 	for _, s := range authRequest.GetRequestedScopes() {
 		permission, err := permissionFromScope(s)
 		if err != nil {
-			o.metrics.authorizeErr(err, "bad_scope")
+			o.metrics.callbackErr(ctx, err, "bad_scope")
 			o.provider.WriteAuthorizeError(
 				ctx, w, authRequest,
 				fosite.ErrInvalidScope.WithDescription("Invalid scope: "+s),
@@ -511,7 +508,7 @@ func (o *OAuthServer) HandleCallback(
 		}
 		isAdmin, err := org.IsAdmin(ctx, arf.Did)
 		if err != nil {
-			o.metrics.callbackErr(err, "is_admin")
+			o.metrics.callbackErr(ctx, err, "is_admin")
 			o.provider.WriteAuthorizeError(
 				ctx, w, authRequest,
 				fosite.ErrServerError,
@@ -519,7 +516,7 @@ func (o *OAuthServer) HandleCallback(
 			return
 		}
 		if !isAdmin {
-			o.metrics.callbackErr(err, "not_admin")
+			o.metrics.callbackErr(ctx, err, "not_admin")
 			o.provider.WriteAuthorizeError(
 				ctx, w, authRequest,
 				fosite.ErrAccessDenied.
@@ -549,9 +546,9 @@ func (o *OAuthServer) HandleCallback(
 		r.URL.Query().Get("iss"),
 		arf.ProviderState,
 	); err != nil {
-		o.metrics.callbackErr(err, "complete_login")
+		o.metrics.callbackErr(ctx, err, "complete_login")
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to complete login",
@@ -585,9 +582,9 @@ func (o *OAuthServer) HandleCallback(
 		newAuthorizeSession(authRequest, arf.Did),
 	)
 	if err != nil {
-		o.metrics.callbackErr(err, fositeErrReason(err))
+		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
 		utils.LogAndHTTPError(
-			r.Context(),
+			ctx,
 			w,
 			err,
 			"failed to create response",
@@ -595,7 +592,7 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-	o.provider.WriteAuthorizeResponse(r.Context(), w, authRequest, resp)
+	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
 }
 
