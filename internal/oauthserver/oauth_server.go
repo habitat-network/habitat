@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -21,7 +22,6 @@ import (
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
@@ -29,7 +29,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
-	"log/slog"
 )
 
 const (
@@ -171,9 +170,8 @@ type OAuthServer struct {
 	node node.Node
 
 	provider    fosite.OAuth2Provider
-	credStore   pdscred.PDSCredentialStore // Database storage for OAuth sessions
-	loginRouter *login.Router              // Routes login flows by org login method
-	directory   identity.Directory         // AT Protocol identity directory for handle resolution
+	loginRouter *login.Router      // Routes login flows by org login method
+	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
 	// Store a map of opaque cookie id --> flash between Authorize and Callback since session cookies have a size limit
@@ -197,7 +195,6 @@ type OAuthServer struct {
 //   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
-//   - credStore: Store for PDS credentials
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
@@ -205,7 +202,6 @@ func NewOAuthServer(
 	loginRouter *login.Router,
 	node node.Node,
 	directory identity.Directory,
-	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
 	meter metric.Meter,
 	orgStore org.Store,
@@ -242,7 +238,6 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		credStore:   credStore,
 		loginRouter: loginRouter,
 		flashStore:  make(map[string]*authRequestFlash),
 		directory:   directory,

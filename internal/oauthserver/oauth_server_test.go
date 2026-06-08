@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/login"
@@ -21,7 +20,6 @@ import (
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
@@ -50,8 +48,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	// Common setup for all handler tests.
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
 	fakeProvider := newFakePDSProvider(t)
 	defer fakeProvider.Close()
 	secretStr, err := encrypt.GenerateKey()
@@ -63,7 +59,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		login.NewRouter(fakeProvider),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -146,8 +141,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
 	fakeProvider := newFakePDSProvider(t)
 	defer fakeProvider.Close()
 	secret, err := encrypt.GenerateKey()
@@ -160,7 +153,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		login.NewRouter(fakeProvider),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -254,10 +246,6 @@ func TestOAuthServerE2E(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err, "failed to open test database")
 
-	// setup pds credential store
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err, "failed to setup pds credential store")
-
 	// setup oauth server
 	clientMetadata := &oauth.ClientMetadata{}
 	fakeProvider := newFakePDSProvider(t)
@@ -274,7 +262,6 @@ func TestOAuthServerE2E(t *testing.T) {
 		login.NewRouter(fakeProvider),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -410,8 +397,6 @@ func TestOAuthServerE2E(t *testing.T) {
 func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
 	oauthClient := NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
@@ -425,7 +410,6 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
 		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -609,8 +593,6 @@ func acquireAccessToken(
 func TestValidate(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
 	clientMetadata := &oauth.ClientMetadata{}
 	fakeProvider := newFakePDSProvider(t)
 	defer fakeProvider.Close()
@@ -629,7 +611,6 @@ func TestValidate(t *testing.T) {
 			login.NewRouter(fakeProvider),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
-			credStore,
 			db,
 			noop.Meter{},
 			st,
@@ -716,9 +697,7 @@ func TestValidate(t *testing.T) {
 func TestValidateWithScopeChecking(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
-	require.NoError(t, err)
-	clientMetadata := &pdsclient.ClientMetadata{}
+	clientMetadata := &oauth.ClientMetadata{}
 	oauthClient := NewDummyOAuthClient(t, clientMetadata)
 	defer oauthClient.Close()
 	secret, err := encrypt.GenerateKey()
@@ -729,10 +708,9 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	newSrv := func(st org.Store) *OAuthServer {
 		s, srvErr := NewOAuthServer(
 			bytes,
-			login.NewRouter(login.NewPDSProvider(oauthClient, credStore, nil)),
+			login.NewRouter(login.NewPDSProvider(oauthClient, nil)),
 			node.NewDummy(),
 			pdsclient.NewDummyDirectory("http://pds.url"),
-			credStore,
 			db,
 			noop.Meter{},
 			st,

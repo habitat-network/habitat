@@ -44,7 +44,6 @@ import (
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
-	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/repo"
@@ -155,13 +154,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.ErrorContext(startupCtx, "unable to setup oauth client", "err", err)
 	}
 
-	// pdscred still needed by oauthserver (will be removed in follow-up)
-	pdsCredStore, err := pdscred.NewPDSCredentialStore(db, credKey)
-	if err != nil {
-		slog.ErrorContext(startupCtx, "unable to setup pds cred store")
-		os.Exit(1)
-	}
-
 	mux := mux.NewRouter()
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
@@ -233,7 +225,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		loginRouter,
 		node,
 		dir,
-		pdsCredStore,
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
