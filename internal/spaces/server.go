@@ -304,7 +304,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	} else if errors.Is(err, ErrNotAMember) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	} else if errors.Is(err, ErrCannotRemoveOwner) {
+	} else if errors.Is(err, ErrCannotRemoveOrg) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	} else if err != nil {

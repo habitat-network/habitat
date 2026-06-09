@@ -33,6 +33,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -41,6 +42,7 @@ import (
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/sync"
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -267,7 +269,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore)
+	eventStore, err := events.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		slog.Error("unable to setup event store", "err", err)
+		os.Exit(1)
+	}
+	syncServer := sync.NewServer(eventStore)
+
+	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore)
 	if err != nil {
 		slog.Error("unable to setup spaces store", "err", err)
 		os.Exit(1)
@@ -418,6 +427,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
 
+	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
+
 	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
@@ -482,6 +493,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	eg, egCtx := errgroup.WithContext(startupCtx)
+	eg.Go(func() error {
+		slog.Info("starting sequencer")
+		return eventStore.StartSequencer(egCtx)
+	})
 	eg.Go(func() error {
 		slog.Info("starting server", "port", port)
 		if httpsCerts == "" {
@@ -561,7 +576,7 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 		slog.Info("connected to postgres database")
 	} else {
 		dbPath := cmd.String(fDb)
-		db, err = gorm.Open(sqlite.Open(dbPath))
+		db, err = gorm.Open(sqlite.Open(dbPath + "?_journal_mode=WAL"))
 		if err != nil {
 			slog.Error("unable to open sqlite file backing pear server")
 		}
@@ -596,7 +611,10 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 		}
 		return fga
 	}
-	fga, err := fgastore.NewSQLite(ctx, cmd.String(fDb))
+	// Use a separate SQLite file for FGA to avoid lock conflicts between
+	// mattn/go-sqlite3 (used by GORM) and modernc.org/sqlite (used by OpenFGA).
+	fgaPath := cmd.String(fDb) + ".fga"
+	fga, err := fgastore.NewSQLite(ctx, fgaPath)
 	if err != nil {
 		slog.Error("unable to setup fga sqlite store")
 	}

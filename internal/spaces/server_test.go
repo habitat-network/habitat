@@ -14,6 +14,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/org/testutil"
 )
@@ -26,7 +27,9 @@ func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 	fga, err := fgastore.NewMemory(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
-	store, err := NewStore(db, fga)
+	eventStore, err := events.NewStore(db)
+	require.NoError(t, err)
+	store, err := NewStore(db, fga, eventStore)
 	require.NoError(t, err)
 
 	return NewServer(store, fga, oauth, serviceAuth, testutil.NewTestStore(t))
