@@ -126,7 +126,7 @@ func (p *googleProvider) Exchange(
 }
 
 type googleCredentialsModel struct {
-	Email        string `gorm:"primarykey"`
+	Email        string `gorm:"primaryKey"`
 	AccessToken  string // encrypted
 	RefreshToken string // encrypted
 	Expiry       time.Time

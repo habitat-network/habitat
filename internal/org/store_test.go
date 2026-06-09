@@ -106,13 +106,22 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 
 func TestStore_GetMember_Existing(t *testing.T) {
 	s := newTestStore(t)
-	_, adminId, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "password", "", "")
+	orgId, adminId, err := s.CreateOrg(
+		t.Context(),
+		"test-org",
+		"admin",
+		"password",
+		"password",
+		"",
+		"",
+	)
 	require.NoError(t, err)
 
 	member, err := s.GetMember(t.Context(), adminId.DID)
 	require.NoError(t, err)
 	require.Equal(t, adminId.DID, member.DID)
 	require.Equal(t, AdminRole, member.Role)
+	require.Equal(t, orgId.DID, member.Org.DID())
 	require.NotEmpty(t, member.LoginID)
 }
 

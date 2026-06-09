@@ -28,8 +28,8 @@ type organization struct {
 // Each member belongs to exactly one org.
 type member struct {
 	OrgID        syntax.DID   `gorm:"primaryKey"`
-	Organization organization `gorm:"foreignKey:OrgID"`
 	Did          syntax.DID   `gorm:"primaryKey"`
+	Organization organization `gorm:"foreignKey:OrgID;references:ID"`
 	Role         Role         `gorm:"not null"`
 	LoginID      string       `gorm:"not null;index"` // provider-specific identifier (e.g. public ATProto DID, google email, etc.)
 

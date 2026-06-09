@@ -191,7 +191,11 @@ func (s *storeImpl) CreateOrg(
 
 func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {
 	var m member
-	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Preload("Organization").
+		Where("did = ?", did).
+		First(&m).
+		Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &OrgMember{
 				Org:     s.everyone,

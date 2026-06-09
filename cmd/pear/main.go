@@ -183,12 +183,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 	dir := identity.DefaultDirectory()
 
-	orgStore, err := org.NewStore(db.WithContext(startupCtx), orgHive, dir, domain)
-	if err != nil {
-		slog.Error("unable to setup org store", "err", err)
-		os.Exit(1)
-	}
-
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
@@ -213,6 +207,22 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthSecret,
 		dir,
 	)
+	if err != nil {
+		slog.Error("unable to setup password login provider", "err", err)
+		os.Exit(1)
+	}
+	orgStore, err := org.NewStore(
+		db.WithContext(startupCtx),
+		orgHive,
+		dir,
+		domain,
+		passwordProvider,
+	)
+	if err != nil {
+		slog.Error("unable to setup org store", "err", err)
+		os.Exit(1)
+	}
+
 	loginRouter := &org.LoginRouter{
 		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, dir),
 		Password: passwordProvider,
