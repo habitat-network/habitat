@@ -40,6 +40,9 @@ func (p *pdsProvider) Authorize(
 	ctx context.Context,
 	loginHint string,
 ) (string, []byte, error) {
+	// TODO if login hint is empty (like when authing an org), we need to redirect to a page that let's the user
+	// enter their handle so we can resolve the right pds to auth with.
+
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
