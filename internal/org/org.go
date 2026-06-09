@@ -310,12 +310,14 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	var id *identity.Identity
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// If token is valid, call into hive to mint the new identity and serve it
-		newId, err := s.hive.WithTx(tx).MintIdentity(ctx, internalHandle, s.handleSubdomain)
+		newID, err := s.hive.WithTx(tx).MintIdentity(ctx, internalHandle, s.handleSubdomain)
 		if err != nil {
 			return fmt.Errorf("mint identity: %w", err)
 		}
-		id = newId
-		s.passwordProvider.WithTx(tx).AddLoginEntry(id.DID, password)
+		id = newID
+		if err := s.passwordProvider.WithTx(tx).AddLoginEntry(id.DID, password); err != nil {
+			return fmt.Errorf("add login entry: %w", err)
+		}
 		return s.addMemberTx(ctx, tx, id.DID)
 	})
 	if err != nil {
