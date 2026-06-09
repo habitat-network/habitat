@@ -58,7 +58,7 @@ func newStore(db *gorm.DB, template idTemplate) (*store, error) {
 }
 
 // persistIdentity writes a prepared ident row to the given DB (or transaction).
-func (s *store) mintIdentity(handle string) (*identity.Identity, error) {
+func (s *store) mintIdentity(ctx context.Context, handle string) (*identity.Identity, error) {
 	opaqueID, err := generateOpaqueID()
 	if err != nil {
 		return nil, fmt.Errorf("generateOpaqueID: %w", err)
@@ -73,7 +73,7 @@ func (s *store) mintIdentity(handle string) (*identity.Identity, error) {
 		SigningPublicKey:     pubMultibase,
 		SigningPrivateKeyEnc: privMultibase, // TODO: encrypt before storing
 	}
-	result := s.db.Clauses(clause.OnConflict{DoNothing: true}).Create(row)
+	result := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(row)
 	if result.Error != nil {
 		return nil, result.Error
 	} else if result.RowsAffected == 0 {

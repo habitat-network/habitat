@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +25,7 @@ type OrgMember struct {
 // Store is the registry of all orgs on a pear instance.
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
-	GetOrg(ctx context.Context, orgID string) (Org, error)
+	GetOrg(ctx context.Context, orgID syntax.DID) (Org, error)
 	GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error)
 	CreateOrg(
 		ctx context.Context,
@@ -34,21 +35,21 @@ type Store interface {
 		loginMethod string,
 		loginID string,
 		handleSubdomain string,
-	) (orgID string, id *identity.Identity, err error)
+	) (orgId *identity.Identity, id *identity.Identity, err error)
 
 	GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error)
+	GetMemberByLoginID(ctx context.Context, loginID string) (*OrgMember, error)
 }
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
 type storeImpl struct {
-	db         *gorm.DB
-	hive       hive.Hive
-	dir        identity.Directory
-	pearDomain string
-	everyone   Org
+	db               *gorm.DB
+	hive             hive.Hive
+	dir              identity.Directory
+	pearDomain       string
+	everyone         Org
+	passwordProvider *login.PasswordLoginProvider
 }
-
-var _ Store = &storeImpl{}
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
 func NewStore(
@@ -56,16 +57,18 @@ func NewStore(
 	hve hive.Hive,
 	dir identity.Directory,
 	pearDomain string,
+	passwordProvider *login.PasswordLoginProvider,
 ) (Store, error) {
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &storeImpl{
-		db:         db,
-		hive:       hve,
-		dir:        dir,
-		pearDomain: pearDomain,
-		everyone:   NewEveryoneOrg(),
+		db:               db,
+		hive:             hve,
+		dir:              dir,
+		pearDomain:       pearDomain,
+		everyone:         NewEveryoneOrg(),
+		passwordProvider: passwordProvider,
 	}, nil
 }
 
@@ -80,11 +83,12 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		db:              s.db,
 		signingSecret:   signingSecret,
 		handleSubdomain: org.HandleSubdomain,
+		method:          org.LoginMethod,
 	}, nil
 }
 
 // GetOrg returns the org with the given ID.
-func (s *storeImpl) GetOrg(ctx context.Context, orgID string) (Org, error) {
+func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (Org, error) {
 	var org organization
 	if err := s.db.WithContext(ctx).Where("id = ?", orgID).First(&org).Error; err != nil {
 		return nil, ErrOrgNotFound
@@ -120,41 +124,28 @@ func (s *storeImpl) CreateOrg(
 	name string,
 	adminHandle string,
 	adminPassword string,
-	loginMethod string,
+	method string,
 	loginID string,
 	handleSubdomain string,
-) (string, *identity.Identity, error) {
-	orgBytes := make([]byte, 16)
-	if _, err := rand.Read(orgBytes); err != nil {
-		return "", nil, err
-	}
-	orgID := fmt.Sprintf("%x", orgBytes)
-
+) (*identity.Identity, *identity.Identity, error) {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	signingSecret := base64.StdEncoding.EncodeToString(secret)
 
-	// Determine the member's LoginID based on login method
-	var memberLoginID string
-	switch loginMethod {
-	case "password":
-		hash, err := hashPassword(adminPassword)
-		if err != nil {
-			return "", nil, err
-		}
-		memberLoginID = hash
-	case "atproto", "google":
-		memberLoginID = loginID
-	}
-
+	var orgId *identity.Identity
 	var id *identity.Identity
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		mintedOrgId, err := s.hive.WithTx(tx).MintOrgIdentity(ctx, handleSubdomain)
+		if err != nil {
+			return err
+		}
+		orgId = mintedOrgId
 		if err := tx.Create(&organization{
-			ID:              orgID,
+			ID:              mintedOrgId.DID,
 			Name:            name,
-			LoginMethod:     LoginMethod(loginMethod),
+			LoginMethod:     loginMethod(method),
 			SigningSecret:   signingSecret,
 			CreatedAt:       time.Now(),
 			HandleSubdomain: handleSubdomain,
@@ -165,13 +156,26 @@ func (s *storeImpl) CreateOrg(
 			return err
 		}
 		// Mint identity for the admin
-		mintedId, err := s.hive.WithTx(tx).MintIdentity(adminHandle, handleSubdomain)
+		mintedId, err := s.hive.WithTx(tx).MintIdentity(ctx, adminHandle, handleSubdomain)
 		if err != nil {
 			return err
 		}
 		id = mintedId
+		// Determine the member's LoginID based on login method
+		var memberLoginID string
+		switch method {
+		case "password":
+			memberLoginID = mintedId.DID.String()
+
+			if err := s.passwordProvider.WithTx(tx).
+				AddLoginEntry(mintedId.DID, adminPassword); err != nil {
+				return fmt.Errorf("failed to add login entry: %w", err)
+			}
+		case "atproto", "google":
+			memberLoginID = loginID
+		}
 		return tx.Create(&member{
-			OrgID:     orgID,
+			OrgID:     mintedOrgId.DID,
 			Did:       id.DID,
 			Role:      AdminRole,
 			LoginID:   memberLoginID,
@@ -179,22 +183,46 @@ func (s *storeImpl) CreateOrg(
 		}).Error
 	})
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 
-	return orgID, id, nil
+	return orgId, id, nil
 }
 
 func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {
 	var m member
-	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err != nil {
+	if err := s.db.WithContext(ctx).
+		Preload("Organization").
+		Where("did = ?", did).
+		First(&m).
+		Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &OrgMember{
 				Org:     s.everyone,
 				DID:     did,
 				Role:    MemberRole,
-				LoginID: "",
+				LoginID: did.String(),
 			}, nil
+		}
+		return nil, fmt.Errorf("failed to get member: %w", err)
+	}
+	org, err := s.orgFromModel(&m.Organization)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get org from model: %w", err)
+	}
+	return &OrgMember{
+		Org:     org,
+		DID:     m.Did,
+		Role:    m.Role,
+		LoginID: m.LoginID,
+	}, nil
+}
+
+func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*OrgMember, error) {
+	var m member
+	if err := s.db.WithContext(ctx).Where("login_id = ?", loginID).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrMemberNotFound
 		}
 		return nil, fmt.Errorf("failed to get member: %w", err)
 	}

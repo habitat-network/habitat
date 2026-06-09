@@ -6,8 +6,6 @@ tasks:
       SERVER_PORT: "5173"
     deps:
       - target: "pear:dev"
-      - target: "funnel:start"
-        args: ["5173", "$project"]
       - target: "calendarServer:dev"
     options:
       mergeDeps: replace

@@ -6,19 +6,19 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-type LoginMethod string
+type loginMethod string
 
 const (
-	LoginMethodAtproto  LoginMethod = "atproto"
-	LoginMethodGoogle   LoginMethod = "google"
-	LoginMethodPassword LoginMethod = "password"
+	LoginMethodAtproto  loginMethod = "atproto"
+	LoginMethodGoogle   loginMethod = "google"
+	LoginMethodPassword loginMethod = "password"
 )
 
 // organization represents a managed org on a pear instance.
 type organization struct {
-	ID              string      `gorm:"primaryKey"`
+	ID              syntax.DID  `gorm:"primaryKey"`
 	Name            string      // optional display name
-	LoginMethod     LoginMethod // "atproto", "google", "password"
+	LoginMethod     loginMethod // "atproto", "google", "password"
 	SigningSecret   string      // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt       time.Time
 	HandleSubdomain string `gorm:"unique"`
@@ -27,11 +27,11 @@ type organization struct {
 // Keep track of members in the org.
 // Each member belongs to exactly one org.
 type member struct {
-	OrgID        string       `gorm:"primaryKey"`
-	Organization organization `gorm:"foreignKey:OrgID"`
+	OrgID        syntax.DID   `gorm:"primaryKey"`
 	Did          syntax.DID   `gorm:"primaryKey"`
+	Organization organization `gorm:"foreignKey:OrgID;references:ID"`
 	Role         Role         `gorm:"not null"`
-	LoginID      string       `gorm:"not null"` // provider-specific identifier (password hash, public ATProto DID, google email, etc.)
+	LoginID      string       `gorm:"not null;index"` // provider-specific identifier (e.g. public ATProto DID, google email, etc.)
 
 	// Automatically populated by gorm
 	CreatedAt time.Time
@@ -39,7 +39,7 @@ type member struct {
 
 // spentToken tracks consumed single-use invite tokens by their JWT ID, scoped per org.
 type spentToken struct {
-	OrgID      string    `gorm:"primaryKey"`
-	JTI        string    `gorm:"primaryKey"`
-	ConsumedAt time.Time `gorm:"not null"`
+	OrgID      syntax.DID `gorm:"primaryKey"`
+	JTI        string     `gorm:"primaryKey"`
+	ConsumedAt time.Time  `gorm:"not null"`
 }

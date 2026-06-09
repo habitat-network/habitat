@@ -68,6 +68,7 @@ func (s *Server) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		utils.LogAndHTTPError(
+			r.Context(),
 			w,
 			fmt.Errorf("streaming unsupported on client"),
 			"jetstream: connection open",

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,19 +14,25 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/org/testutil"
 )
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	fga, err := fgastore.NewSQLite(t.Context(), filepath.Join(t.TempDir(), "fga.db"))
+	ctx := t.Context()
+	fga, err := fgastore.NewMemory(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
-	store, err := NewStore(db, fga)
+	eventStore, err := events.NewStore(db)
 	require.NoError(t, err)
-	return NewServer(store, fga, oauth, serviceAuth)
+	store, err := NewStore(db, fga, eventStore)
+	require.NoError(t, err)
+
+	return NewServer(store, fga, oauth, serviceAuth, testutil.NewTestStore(t))
 }
 
 func newOwnerServer(t *testing.T) *Server {
@@ -61,13 +66,13 @@ func TestServer_CreateSpace(t *testing.T) {
 	var output habitat.NetworkHabitatSpaceCreateSpaceOutput
 	err := json.NewDecoder(w.Body).Decode(&output)
 	require.NoError(t, err)
-	require.Contains(t, output.Uri, "ats://did:plc:owner/network.habitat.group/")
+	require.Contains(t, output.Uri, "ats://did:web:public.habitat.network/network.habitat.group/")
 }
 
 func TestServer_ListSpaces(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "my-space")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "my-space")
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.listSpaces", nil)
@@ -87,7 +92,7 @@ func TestServer_ListSpaces(t *testing.T) {
 func TestServer_AddMemberAndGetMembers(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "shared")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "shared")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice", "access": "read"}`
@@ -122,7 +127,7 @@ func TestServer_AddMemberAndGetMembers(t *testing.T) {
 func TestServer_RemoveMember(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "shared")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "shared")
 	require.NoError(t, err)
 
 	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
@@ -146,7 +151,7 @@ func TestServer_RemoveMember(t *testing.T) {
 func TestServer_PutAndGetRecord(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
@@ -185,10 +190,10 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 func TestServer_DeleteRecord(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.store.PutRecord(
+	_, _, err = s.store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -221,13 +226,13 @@ func TestServer_DeleteRecord(t *testing.T) {
 func TestServer_ListRecords(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -250,7 +255,7 @@ func TestServer_ListRecords(t *testing.T) {
 func TestServer_AddMember_Unauthorized(t *testing.T) {
 	s := newAliceServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:bob"}`
@@ -267,7 +272,7 @@ func TestServer_AddMember_Unauthorized(t *testing.T) {
 func TestServer_RemoveMember_Unauthorized(t *testing.T) {
 	s := newAliceServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "did": "did:plc:bob"}`
@@ -284,7 +289,7 @@ func TestServer_RemoveMember_Unauthorized(t *testing.T) {
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
 	s := newAliceServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "test", "record": {"x": 1}}`
@@ -301,10 +306,10 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	s := newAliceServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
-	err = s.store.PutRecord(
+	_, _, err = s.store.PutRecord(
 		t.Context(),
 		uri,
 		owner,
@@ -345,7 +350,7 @@ func TestServer_Unauthorized(t *testing.T) {
 func TestServer_DeleteSpace(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "to-delete")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "to-delete")
 	require.NoError(t, err)
 
 	err = s.store.AddMember(t.Context(), uri, alice, SpaceAccessRead)
@@ -369,7 +374,7 @@ func TestServer_DeleteSpace(t *testing.T) {
 func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
 	s := newAliceServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	body := `{"space": "` + uri.String() + `"}`
@@ -386,14 +391,14 @@ func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
 func TestServer_GetRepoOplog(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -420,14 +425,14 @@ func TestServer_GetRepoOplog(t *testing.T) {
 func TestServer_GetRepoOplog_Since(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
 	require.NoError(t, err)
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -458,7 +463,7 @@ func TestServer_GetRepoOplog_Since(t *testing.T) {
 func TestServer_GetRepoOplog_Unauthorized(t *testing.T) {
 	s := newAliceServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(
@@ -474,12 +479,19 @@ func TestServer_GetRepoOplog_Unauthorized(t *testing.T) {
 func TestServer_GetRepoOplog_IncludesValue(t *testing.T) {
 	s := newOwnerServer(t)
 
-	uri, err := s.store.CreateSpace(t.Context(), owner, groupType, "test")
+	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "test")
 	require.NoError(t, err)
 
 	coll := syntax.NSID("network.habitat.note")
 
-	err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
+	_, _, err = s.store.PutRecord(
+		t.Context(),
+		uri,
+		owner,
+		coll,
+		"k1",
+		map[string]any{"text": "hello"},
+	)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(

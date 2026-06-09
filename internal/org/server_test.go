@@ -9,27 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
+func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, syntax.DID) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
-	h, err := hive.NewHive("example.com", "pear.example.com", db)
-	require.NoError(t, err)
-	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
-	require.NoError(t, err)
+	storeImpl := newTestStore(t)
 
-	orgId, _, err := storeImpl.CreateOrg(
+	orgIdIdent, _, err := storeImpl.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -40,15 +30,15 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, string) {
 	)
 	require.NoError(t, err)
 
-	scoped, err := storeImpl.GetOrg(context.Background(), orgId)
+	scoped, err := storeImpl.GetOrg(context.Background(), orgIdIdent.DID)
 	require.NoError(t, err)
 	st := scoped.(*orgImpl)
-	require.NoError(t, st.addMemberTx(context.Background(), st.db, adminDID, testPasswordHash))
+	require.NoError(t, st.addMemberTx(context.Background(), st.db, adminDID))
 	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
 
 	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID), nil)
 	require.NoError(t, err)
-	return srv, orgId
+	return srv, orgIdIdent.DID
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
@@ -74,7 +64,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 	// Someone uses the token to mint an identity
 	mintBody, _ := json.Marshal(habitat.NetworkHabitatOrgMintMemberIdentityInput{
-		OrgId:    orgId,
+		OrgId:    orgId.String(),
 		Token:    issueOut.Token,
 		Password: "password",
 		Handle:   "alice",
@@ -108,13 +98,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 
 func newCreateTestServer(t *testing.T) *Server {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
-	h, err := hive.NewHive("example.com", "pear.example.com", db)
-	require.NoError(t, err)
-	storeImpl, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
-	require.NoError(t, err)
-	srv, err := NewServer(storeImpl, nil, nil)
+	srv, err := NewServer(newTestStore(t), nil, nil)
 	require.NoError(t, err)
 	return srv
 }
@@ -149,7 +133,10 @@ func TestCreateOrg(t *testing.T) {
 	adminDID, err := syntax.ParseDID(out.AdminDid)
 	require.NoError(t, err)
 
-	org, err := srv.store.GetOrg(context.Background(), out.OrgId)
+	orgID, err := syntax.ParseDID(out.OrgId)
+	require.NoError(t, err)
+
+	org, err := srv.store.GetOrg(context.Background(), orgID)
 	require.NoError(t, err)
 	members, err := org.GetMembers(context.Background())
 	require.NoError(t, err)
@@ -160,8 +147,6 @@ func TestCreateOrg(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, admins, 1)
 	require.Equal(t, adminDID, admins[0])
-
-	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 }
 
 func TestCreateOrg_InvalidHandle(t *testing.T) {

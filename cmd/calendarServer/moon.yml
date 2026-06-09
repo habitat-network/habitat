@@ -3,15 +3,7 @@ tasks:
     deps:
     - root:build
   dev:
-    args:
-    - --
-    - --domain
-    - calendar-server.${TS_DOMAIN}
     env:
+      CALENDAR_DOMAIN: calendar-server.local.habitat.network
       CALENDAR_PORT: '8801'
       CALENDAR_DEBUG: 'true'
-    deps:
-    - target: funnel:start
-      args:
-      - '8801'
-      - calendar-server

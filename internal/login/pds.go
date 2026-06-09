@@ -7,13 +7,13 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/org"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
-	"github.com/rs/zerolog/log"
 )
 
 type pdsProvider struct {
@@ -36,26 +36,23 @@ func NewPDSProvider(
 	return &pdsProvider{oauthClient: oauthClient, credStore: credStore, dir: dir}
 }
 
-func (p *pdsProvider) LoginMethod() org.LoginMethod { return org.LoginMethodAtproto }
-
 func (p *pdsProvider) Authorize(
 	ctx context.Context,
-	id *identity.Identity,
-	loginID string,
+	loginHint string,
 ) (string, []byte, error) {
+	// TODO if login hint is empty (like when authing an org), we need to redirect to a page that let's the user
+	// enter their handle so we can resolve the right pds to auth with.
+
 	// If the member has a public ATProto DID as their loginID, resolve it and use
 	// that identity's PDS for the OAuth flow. If no loginID (e.g. everyone org),
 	// use the identity as-is.
-	if loginID != "" {
-		publicDID, err := syntax.ParseDID(loginID)
-		if err != nil {
-			return "", nil, fmt.Errorf("parse loginID: %w", err)
-		}
-		publicID, err := p.dir.LookupDID(ctx, publicDID)
-		if err != nil {
-			return "", nil, fmt.Errorf("lookup loginID: %w", err)
-		}
-		id = publicID
+	did, err := syntax.ParseDID(loginHint)
+	if err != nil {
+		return "", nil, fmt.Errorf("parse loginID: %w", err)
+	}
+	id, err := p.dir.LookupDID(ctx, did)
+	if err != nil {
+		return "", nil, fmt.Errorf("lookup loginID: %w", err)
 	}
 
 	dpopKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -63,7 +60,7 @@ func (p *pdsProvider) Authorize(
 		return "", nil, fmt.Errorf("generate dpop key: %w", err)
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
-	redirect, state, err := p.oauthClient.Authorize(dpopClient, id)
+	redirect, state, err := p.oauthClient.Authorize(ctx, dpopClient, id)
 	if err != nil {
 		return "", nil, err
 	}
@@ -80,31 +77,42 @@ func (p *pdsProvider) Authorize(
 
 func (p *pdsProvider) Exchange(
 	ctx context.Context,
-	did syntax.DID,
 	code string,
 	issuer string,
 	stateBytes []byte,
-) error {
+) (loginID string, err error) {
 	var s pdsProviderState
 	if err := json.Unmarshal(stateBytes, &s); err != nil {
-		return fmt.Errorf("unmarshal pds provider state: %w", err)
+		return "", fmt.Errorf("unmarshal pds provider state: %w", err)
 	}
 	dpopKey, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), s.DpopKey)
 	if err != nil {
-		return fmt.Errorf("parse dpop key: %w", err)
+		return "", fmt.Errorf("parse dpop key: %w", err)
 	}
 	dpopClient := pdsclient.NewDpopHttpClient(dpopKey, &pdsclient.MemoryNonceProvider{})
 	tokenInfo, err := p.oauthClient.ExchangeCode(dpopClient, code, issuer, &s.AuthorizeState)
 	if err != nil {
-		return fmt.Errorf("exchange code: %w", err)
+		return "", fmt.Errorf("exchange code: %w", err)
 	}
-	if err := p.credStore.UpsertCredentials(ctx, did, &pdscred.Credentials{
+	token, err := jwt.ParseSigned(tokenInfo.AccessToken)
+	if err != nil {
+		return "", fmt.Errorf("parse access token: %w", err)
+	}
+	var claims jwt.Claims
+	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return "", fmt.Errorf("parse access token claims: %w", err)
+	}
+	loginDID, err := syntax.ParseDID(claims.Subject)
+	if err != nil {
+		return "", fmt.Errorf("parse loginID: %w", err)
+	}
+	if err := p.credStore.UpsertCredentials(ctx, loginDID, &pdscred.Credentials{
 		AccessToken:  tokenInfo.AccessToken,
 		RefreshToken: tokenInfo.RefreshToken,
 		DpopKey:      dpopKey,
 	}); err != nil {
 		// Log and move on since an error upserting doesn't mean the login failed
-		log.Err(err).Msgf("error upserting PDS credentials")
+		slog.WarnContext(ctx, "error upserting PDS credentials", "err", err)
 	}
-	return nil
+	return loginDID.String(), nil
 }

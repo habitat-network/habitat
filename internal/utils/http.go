@@ -7,20 +7,26 @@ import (
 	"net/http"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
-	"github.com/rs/zerolog/log"
+	"log/slog"
 )
 
 type ErrorMessage struct {
 	Error string `json:"error"`
 }
 
-// LogAndHTTPError logs the error before sending and HTTP error response to the provided writer.
+// LogAndHTTPError logs the error with the given context before sending and HTTP error response to the provided writer.
 // It takes in both an error and a debug message for verobosity.
-func LogAndHTTPError(w http.ResponseWriter, err error, debug string, code int) {
+func LogAndHTTPError(
+	ctx context.Context,
+	w http.ResponseWriter,
+	err error,
+	debug string,
+	code int,
+) {
 	if ShouldLog(err) {
-		log.Error().Err(err).Msg(debug)
+		slog.ErrorContext(ctx, "handler error", "err", err, "debug", debug)
 	} else {
-		log.Warn().Err(err).Msg(debug)
+		slog.WarnContext(ctx, "handler error", "err", err, "debug", debug)
 	}
 	w.WriteHeader(code)
 	if err != nil {
