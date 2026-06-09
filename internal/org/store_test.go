@@ -1,12 +1,13 @@
 package org
 
 import (
-	"context"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -19,7 +20,15 @@ func newTestStore(t *testing.T) *storeImpl {
 	require.NoError(t, err)
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
-	store, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com")
+	passwordProvider, err := login.NewPasswordProvider(
+		db,
+		"pear.example.com",
+		"frontend.example.com",
+		[]byte("test-signing-secret-for-org-00000"),
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+	)
+	require.NoError(t, err)
+	store, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com", passwordProvider)
 	require.NoError(t, err)
 	return store.(*storeImpl)
 }
@@ -42,7 +51,6 @@ func TestStore_CreateOrg(t *testing.T) {
 
 	org, err := s.GetOrg(t.Context(), orgId.DID)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
 	members, err := org.GetMembers(t.Context())
 	require.NoError(t, err)
@@ -76,7 +84,6 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 
 	org, err := s.GetOrgForDID(t.Context(), adminId.DID)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
 	var gotOrgID syntax.DID
 	switch o := org.(type) {
@@ -91,7 +98,6 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	unknown := syntax.DID("did:plc:unknown")
 	org, err := s.GetOrgForDID(t.Context(), unknown)
 	require.NoError(t, err)
-	require.Equal(t, LoginMethodAtproto, org.LoginMethod(context.Background()))
 
 	ok, err := org.IsMember(t.Context(), unknown)
 	require.NoError(t, err)
@@ -100,24 +106,33 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 
 func TestStore_GetMember_Existing(t *testing.T) {
 	s := newTestStore(t)
-	_, adminId, err := s.CreateOrg(t.Context(), "test-org", "admin", "password", "password", "", "")
+	orgId, adminId, err := s.CreateOrg(
+		t.Context(),
+		"test-org",
+		"admin",
+		"password",
+		"password",
+		"",
+		"",
+	)
 	require.NoError(t, err)
 
 	member, err := s.GetMember(t.Context(), adminId.DID)
 	require.NoError(t, err)
 	require.Equal(t, adminId.DID, member.DID)
 	require.Equal(t, AdminRole, member.Role)
+	require.Equal(t, orgId.DID, member.Org.DID())
 	require.NotEmpty(t, member.LoginID)
 }
 
-func TestStore_GetMember_NotFound(t *testing.T) {
+func TestStore_GetMember_Public(t *testing.T) {
 	s := newTestStore(t)
 	unknown := syntax.DID("did:plc:unknown")
 	member, err := s.GetMember(t.Context(), unknown)
 	require.NoError(t, err)
 	require.Equal(t, unknown, member.DID)
 	require.Equal(t, MemberRole, member.Role)
-	require.Empty(t, member.LoginID)
+	require.Equal(t, "did:plc:unknown", member.LoginID)
 
 	ok, err := member.Org.IsMember(t.Context(), unknown)
 	require.NoError(t, err)

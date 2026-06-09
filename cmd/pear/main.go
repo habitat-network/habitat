@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,8 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-
-	"log/slog"
 
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
@@ -184,12 +183,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 	dir := identity.DefaultDirectory()
 
-	orgStore, err := org.NewStore(db.WithContext(startupCtx), orgHive, dir, domain)
-	if err != nil {
-		slog.Error("unable to setup org store", "err", err)
-		os.Exit(1)
-	}
-
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
@@ -207,17 +200,33 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to parse oauth server secret for login provider", "err", err)
 		os.Exit(1)
 	}
-	orgLoginProvider := org.NewLoginProvider(
-		orgStore,
+	passwordProvider, err := login.NewPasswordProvider(
+		db,
 		cmd.String(fDomain),
 		cmd.String(fFrontendDomain),
 		oauthSecret,
 		dir,
 	)
+	if err != nil {
+		slog.Error("unable to setup password login provider", "err", err)
+		os.Exit(1)
+	}
+	orgStore, err := org.NewStore(
+		db.WithContext(startupCtx),
+		orgHive,
+		dir,
+		domain,
+		passwordProvider,
+	)
+	if err != nil {
+		slog.Error("unable to setup org store", "err", err)
+		os.Exit(1)
+	}
 
-	providers := []login.Provider{
-		login.NewPDSProvider(oauthClient, pdsCredStore, dir),
-		orgLoginProvider,
+	loginRouter := &org.LoginRouter{
+		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, dir),
+		Password: passwordProvider,
+		OrgStore: orgStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
@@ -233,10 +242,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 			slog.Error("unable to setup google login provider", "err", err)
 			os.Exit(1)
 		}
-		providers = append(providers, googleProvider)
+		loginRouter.Google = googleProvider
 		slog.Info("google login provider enabled")
 	}
-	loginRouter := login.NewRouter(providers...)
 
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
@@ -373,7 +381,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
-	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", orgLoginProvider.HandlePasswordLogin)
+	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
 	mux.HandleFunc("/xrpc/network.habitat.repo.putRecord", pearServer.PutRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)

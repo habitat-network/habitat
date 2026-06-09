@@ -3,202 +3,86 @@ package login
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
-
-// stubOAuthClient is a minimal PdsOAuthClient for testing.
-type stubOAuthClient struct {
-	authorizeErr    error
-	exchangeCodeErr error
-	redirectURL     string
-}
-
-func (s *stubOAuthClient) ClientMetadata() *pdsclient.ClientMetadata { return nil }
-
-func (s *stubOAuthClient) Authorize(
-	_ context.Context,
-	_ *pdsclient.DpopHttpClient,
-	_ *identity.Identity,
-) (string, *pdsclient.AuthorizeState, error) {
-	if s.authorizeErr != nil {
-		return "", nil, s.authorizeErr
-	}
-	return s.redirectURL, &pdsclient.AuthorizeState{
-		Verifier:      "verifier",
-		State:         "state",
-		TokenEndpoint: "https://pds.example.com/token",
-	}, nil
-}
-
-func (s *stubOAuthClient) ExchangeCode(
-	_ *pdsclient.DpopHttpClient,
-	_, _ string,
-	_ *pdsclient.AuthorizeState,
-) (*pdsclient.TokenResponse, error) {
-	if s.exchangeCodeErr != nil {
-		return nil, s.exchangeCodeErr
-	}
-	return &pdsclient.TokenResponse{
-		AccessToken:  "access",
-		RefreshToken: "refresh",
-	}, nil
-}
-
-func (s *stubOAuthClient) RefreshToken(
-	_ *pdsclient.DpopHttpClient,
-	_ *identity.Identity,
-	_ string,
-	_ string,
-) (*pdsclient.TokenResponse, error) {
-	return nil, errors.New("not used in these tests")
-}
-
-// stubCredStore tracks UpsertCredentials calls.
-type stubCredStore struct {
-	upserted  map[syntax.DID]*pdscred.Credentials
-	upsertErr error
-}
-
-func newStubCredStore() *stubCredStore {
-	return &stubCredStore{upserted: make(map[syntax.DID]*pdscred.Credentials)}
-}
-
-func (s *stubCredStore) UpsertCredentials(
-	_ context.Context,
-	did syntax.DID,
-	creds *pdscred.Credentials,
-) error {
-	if s.upsertErr != nil {
-		return s.upsertErr
-	}
-	s.upserted[did] = creds
-	return nil
-}
-
-func (s *stubCredStore) GetCredentials(
-	_ context.Context,
-	did syntax.DID,
-) (*pdscred.Credentials, error) {
-	return nil, errors.New("not used in these tests")
-}
-
-// helpers to build identities with specific service combinations
-
-func idWithPDSOnly() *identity.Identity {
-	return &identity.Identity{
-		DID: "did:web:pds.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"atproto_pds": {URL: "https://pds.example.com"},
-		},
-	}
-}
 
 // --- pdsProvider ---
 
 func TestPDSProvider_Authorize(t *testing.T) {
-	client := &stubOAuthClient{redirectURL: "https://pds.example.com/authorize"}
-	p := NewPDSProvider(client, newStubCredStore(), nil)
-
-	redirect, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.Equal(t, "https://pds.example.com/authorize", redirect)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{
+		RedirectUris: []string{"https://pds.example.com/authorize"},
+	}
+	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
+	defer client.Close()
+	p := NewPDSProvider(
+		client,
+		credStore,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+	)
+
+	redirect, state, err := p.Authorize(
+		context.Background(),
+		"did:web:pds.example.com",
+	)
+	require.NoError(t, err)
+	require.Contains(t, redirect, "/authorize")
 	require.NotEmpty(t, state)
 
 	// state must round-trip through Exchange — verify it's valid JSON with expected fields
 	var s pdsProviderState
 	require.NoError(t, unmarshalProviderState(state, &s))
 	require.NotEmpty(t, s.DpopKey)
-	require.Equal(t, "verifier", s.AuthorizeState.Verifier)
+	require.Equal(t, "dummyVerifier", s.AuthorizeState.Verifier)
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
-	credStore := newStubCredStore()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{
+		RedirectUris: []string{"https://pds.example.com/authorize"},
+	}
+	client := pdsclient.NewDummyOAuthClient(t, clientMetadata)
+	defer client.Close()
 	p := NewPDSProvider(
-		&stubOAuthClient{redirectURL: "https://pds.example.com/authorize"},
+		client,
 		credStore,
-		nil,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
-	did := syntax.DID("did:web:pds.example.com")
 
 	// Obtain valid state from Authorize.
-	_, state, err := p.Authorize(context.Background(), idWithPDSOnly(), "")
-	require.NoError(t, err)
-
-	err = p.Exchange(context.Background(), did, "code", "https://pds.example.com", state)
-	require.NoError(t, err)
-
-	creds, stored := credStore.upserted[did]
-	require.True(t, stored, "credentials should have been upserted")
-	require.Equal(t, "access", creds.AccessToken)
-	require.Equal(t, "refresh", creds.RefreshToken)
-	require.NotNil(t, creds.DpopKey)
-}
-
-// dummyProvider is a test stand-in for any non-PDS provider.
-type dummyProvider struct{}
-
-func NewDummyProvider() Provider { return &dummyProvider{} }
-
-func (d *dummyProvider) LoginMethod() org.LoginMethod { return org.LoginMethodPassword }
-
-func (d *dummyProvider) Authorize(
-	_ context.Context,
-	_ *identity.Identity,
-	_ string,
-) (string, []byte, error) {
-	return "https://dummy.example.com/login", nil, nil
-}
-func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {
-	return nil
-}
-
-// --- Router ---
-
-func newTestRouter() *Router {
-	return NewRouter(
-		NewPDSProvider(&stubOAuthClient{}, newStubCredStore(), nil),
-		NewDummyProvider(),
+	_, state, err := p.Authorize(
+		t.Context(),
+		"did:web:pds.example.com",
 	)
-}
-
-func TestRouter_ByLoginMethod(t *testing.T) {
-	r := newTestRouter()
-
-	p, err := r.ByLoginMethod(org.LoginMethodAtproto)
 	require.NoError(t, err)
-	require.Equal(t, org.LoginMethodAtproto, p.LoginMethod())
 
-	p, err = r.ByLoginMethod(org.LoginMethodPassword)
+	loginID, err := p.Exchange(
+		t.Context(),
+		"dummyCode",
+		"https://pds.example.com",
+		state,
+	)
 	require.NoError(t, err)
-	require.Equal(t, org.LoginMethodPassword, p.LoginMethod())
+	// from dummy oauth client
+	require.Equal(t, "did:web:example.did.com", loginID)
 
-	_, err = r.ByLoginMethod("unknown")
-	require.Error(t, err)
-}
-
-func TestPDSProvider_AuthorizeWithLoginID(t *testing.T) {
-	client := &stubOAuthClient{redirectURL: "https://public-pds.example.com/authorize"}
-	dir := pdsclient.NewDummyDirectory("https://public-pds.example.com")
-	p := NewPDSProvider(client, newStubCredStore(), dir)
-
-	orgID := &identity.Identity{
-		DID: "did:web:internal.org.example.com",
-		Services: map[string]identity.ServiceEndpoint{
-			"habitat": {URL: "https://habitat.example.com"},
-		},
-	}
-	redirect, state, err := p.Authorize(context.Background(), orgID, "did:plc:mapped-public")
+	creds, err := credStore.GetCredentials(t.Context(), "did:web:example.did.com")
 	require.NoError(t, err)
-	require.Equal(t, "https://public-pds.example.com/authorize", redirect)
-	require.NotEmpty(t, state)
+	require.Equal(t, "dummy_refresh_token", creds.RefreshToken)
+	require.NotNil(t, creds.DpopKey)
 }
 
 // unmarshalProviderState is a test helper to inspect the opaque pds state bytes.
