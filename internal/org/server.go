@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"log/slog"
+
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bradenaw/juniper/xslices"
@@ -15,7 +17,6 @@ import (
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
-	"log/slog"
 )
 
 // Serve org-specific APIs

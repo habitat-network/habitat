@@ -18,7 +18,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -42,10 +41,9 @@ const (
 // This data is temporarily stored during the OAuth authorization flow to preserve
 // request context across redirects.
 type authRequestFlash struct {
-	Form          url.Values      // Original authorization request form data
-	LoginMethod   org.LoginMethod // Which login method initiated this flow
-	ProviderState []byte          // Opaque provider-specific state
-	Did           syntax.DID      // DID of the user
+	Form          url.Values // Original authorization request form data
+	ProviderState []byte     // Opaque provider-specific state
+	Did           syntax.DID // DID of the user
 }
 
 type metrics struct {
@@ -172,7 +170,7 @@ type OAuthServer struct {
 
 	provider    fosite.OAuth2Provider
 	credStore   pdscred.PDSCredentialStore // Database storage for OAuth sessions
-	loginRouter *login.Router              // Routes login flows by org login method
+	loginRouter *org.LoginRouter           // Routes login flows by org login method
 	directory   identity.Directory         // AT Protocol identity directory for handle resolution
 	storage     *store
 
@@ -202,7 +200,7 @@ type OAuthServer struct {
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
 	secret []byte,
-	loginRouter *login.Router,
+	loginRouter *org.LoginRouter,
 	node node.Node,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
@@ -229,6 +227,10 @@ func NewOAuthServer(
 	oauthMetrics, err := newMetrics(meter)
 	if err != nil {
 		return nil, err
+	}
+
+	if loginRouter.OrgStore == nil {
+		loginRouter.OrgStore = orgStore
 	}
 
 	return &OAuthServer{
@@ -311,49 +313,7 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	// Look up org to determine the login method
-	org, err := o.orgStore.GetOrgForDID(ctx, id.DID)
-	if err != nil {
-		o.metrics.authorizeErr(err, "no_org")
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no org found for identity",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod(ctx))
-	if err != nil {
-		o.metrics.authorizeErr(err, "no_provider")
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no login provider for org",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	// Look up the member's login ID (provider-specific identifier) from the store.
-	// If the DID isn't a member (e.g. everyone org), loginID stays empty.
-	member, err := o.orgStore.GetMember(ctx, id.DID)
-	if err != nil {
-		o.metrics.authorizeErr(err, "get_member")
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no member found for identity",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	redirect, providerState, err := provider.Authorize(ctx, id, member.LoginID)
+	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "begin_login")
 		utils.LogAndHTTPError(
@@ -384,7 +344,6 @@ func (o *OAuthServer) HandleAuthorize(
 	o.flashMu.Lock()
 	o.flashStore[flashID] = &authRequestFlash{
 		Form:          requester.GetRequestForm(),
-		LoginMethod:   provider.LoginMethod(),
 		ProviderState: providerState,
 		Did:           id.DID,
 	}
@@ -530,19 +489,7 @@ func (o *OAuthServer) HandleCallback(
 		}
 	}
 
-	provider, err := o.loginRouter.ByLoginMethod(arf.LoginMethod)
-	if err != nil {
-		o.metrics.callbackErr(err, "no_provider")
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"no login provider for session",
-			http.StatusBadRequest,
-		)
-		return
-	}
-	if err := provider.Exchange(
+	if err := o.loginRouter.Exchange(
 		ctx,
 		arf.Did,
 		r.URL.Query().Get("code"),

@@ -40,6 +40,8 @@ import type {
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpaceRemoveMember,
+  NetworkHabitatSpaceCreateSpace,
+  NetworkHabitatSpacePutRecord,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -227,6 +229,14 @@ type ProcedureEndpoints = {
   "network.habitat.space.removeMember": Procedure<
     NetworkHabitatSpaceRemoveMember.InputSchema,
     void
+  >;
+  "network.habitat.space.createSpace": Procedure<
+    NetworkHabitatSpaceCreateSpace.InputSchema,
+    NetworkHabitatSpaceCreateSpace.OutputSchema
+  >;
+  "network.habitat.space.putRecord": Procedure<
+    NetworkHabitatSpacePutRecord.InputSchema,
+    NetworkHabitatSpacePutRecord.OutputSchema
   >;
 };
 
