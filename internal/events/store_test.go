@@ -78,3 +78,68 @@ func TestStore_Concurrency(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestStore_SubscriberDoesntBlock(t *testing.T) {
+	db := openTestDB(t)
+	store, err := NewStore(db)
+	require.NoError(t, err)
+	go func() { require.NoError(t, store.StartSequencer(t.Context())) }()
+
+	subscriberChan1 := store.Subscribe(t.Context(), 0)
+	subscriberChan2 := store.Subscribe(t.Context(), 0)
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		// only drain subscriber 1 for 10 events
+		for e := range subscriberChan1 {
+			if e.Seq >= 10 {
+				return
+			}
+		}
+	})
+
+	clock := syntax.NewTIDClock(0)
+	wg.Go(func() {
+		prev := clock.Next()
+		for range 10 {
+			tid := clock.Next()
+			err := store.AppendSpaceEvent(
+				t.Context(),
+				"space",
+				"did:plc:test",
+				tid,
+				prev,
+				nil,
+			)
+			require.NoError(t, err)
+			prev = tid
+			store.NotifyEvent(t.Context())
+
+		}
+	})
+
+	wg.Wait()
+
+	prev := clock.Next()
+	for range 10 {
+		tid := clock.Next()
+		err := store.AppendSpaceEvent(
+			t.Context(),
+			"space",
+			"did:plc:test",
+			tid,
+			prev,
+			nil,
+		)
+		require.NoError(t, err)
+		prev = tid
+		store.NotifyEvent(t.Context())
+	}
+
+	for e := range subscriberChan2 {
+		if e.Seq >= 20 {
+			break
+		}
+	}
+}
