@@ -11,9 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-var (
-	ErrNotSupportedPublic = errors.New("method not supported on public org")
-)
+var ErrNotSupportedPublic = errors.New("method not supported on public org")
 
 // Create an org that has everyone for instances that don't belong to an org, they just host pear servers for people.
 type everyoneOrg struct{}
@@ -24,7 +22,7 @@ func (e *everyoneOrg) DID() syntax.DID {
 	return syntax.DID("did:web:public.habitat.network")
 }
 
-func (e *everyoneOrg) LoginMethod(_ context.Context) LoginMethod {
+func (e *everyoneOrg) loginMethod() loginMethod {
 	return LoginMethodAtproto
 }
 

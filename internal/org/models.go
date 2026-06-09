@@ -6,19 +6,19 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-type LoginMethod string
+type loginMethod string
 
 const (
-	LoginMethodAtproto  LoginMethod = "atproto"
-	LoginMethodGoogle   LoginMethod = "google"
-	LoginMethodPassword LoginMethod = "password"
+	LoginMethodAtproto  loginMethod = "atproto"
+	LoginMethodGoogle   loginMethod = "google"
+	LoginMethodPassword loginMethod = "password"
 )
 
 // organization represents a managed org on a pear instance.
 type organization struct {
 	ID              syntax.DID  `gorm:"primaryKey"`
 	Name            string      // optional display name
-	LoginMethod     LoginMethod // "atproto", "google", "password"
+	LoginMethod     loginMethod // "atproto", "google", "password"
 	SigningSecret   string      // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt       time.Time
 	HandleSubdomain string `gorm:"unique"`
@@ -28,10 +28,10 @@ type organization struct {
 // Each member belongs to exactly one org.
 type member struct {
 	OrgID        syntax.DID   `gorm:"primaryKey"`
-	Organization organization `gorm:"foreignKey:OrgID"`
 	Did          syntax.DID   `gorm:"primaryKey"`
+	Organization organization `gorm:"foreignKey:OrgID;references:ID"`
 	Role         Role         `gorm:"not null"`
-	LoginID      string       `gorm:"not null"` // provider-specific identifier (password hash, public ATProto DID, google email, etc.)
+	LoginID      string       `gorm:"not null;index"` // provider-specific identifier (e.g. public ATProto DID, google email, etc.)
 
 	// Automatically populated by gorm
 	CreatedAt time.Time
