@@ -148,7 +148,7 @@ export class AuthManager {
               this.setAuthState(token);
             }
           })
-          .then(() => {})
+          .then(() => { })
           .finally(() => {
             this.refreshPromise = undefined;
           });
@@ -193,7 +193,7 @@ export class AuthManager {
     const state = {
       did: decoded.sub,
       accessToken: token.access_token,
-      refreshToken: token.refresh_token,
+      refreshToken: token.refresh_token ?? this.store.getState().authInfo?.refreshToken,
       expiresAt: decoded.exp,
     };
     this.store.setState({ authInfo: state });
@@ -206,4 +206,4 @@ export class AuthManager {
   }
 }
 
-export class UnauthenticatedError extends Error {}
+export class UnauthenticatedError extends Error { }
