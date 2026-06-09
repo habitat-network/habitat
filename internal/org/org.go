@@ -91,7 +91,7 @@ type orgImpl struct {
 	signingSecret    []byte
 	handleSubdomain  string
 	method           loginMethod
-	passwordProvider login.PasswordLoginProvider
+	passwordProvider *login.PasswordLoginProvider
 }
 
 var _ Org = &orgImpl{}

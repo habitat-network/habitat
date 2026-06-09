@@ -78,12 +78,13 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		return nil, err
 	}
 	return &orgImpl{
-		orgID:           org.ID,
-		hive:            s.hive,
-		db:              s.db,
-		signingSecret:   signingSecret,
-		handleSubdomain: org.HandleSubdomain,
-		method:          org.LoginMethod,
+		orgID:            org.ID,
+		hive:             s.hive,
+		db:               s.db,
+		signingSecret:    signingSecret,
+		handleSubdomain:  org.HandleSubdomain,
+		method:           org.LoginMethod,
+		passwordProvider: s.passwordProvider,
 	}, nil
 }
 
