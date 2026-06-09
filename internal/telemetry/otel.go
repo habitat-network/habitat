@@ -3,11 +3,9 @@ package telemetry
 // OpenTelemetry integration
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
-
-	"errors"
-
 	"time"
 
 	"github.com/habitat-network/habitat/internal/utils"
@@ -37,7 +35,7 @@ import (
 
 func habitatResourceDefinition() (*resource.Resource, error) {
 	env := utils.GetEnvString("env", "unknown")
-	resource, err := resource.New(
+	res, err := resource.New(
 		context.Background(),
 		resource.WithFromEnv(),
 		resource.WithOSDescription(),
@@ -49,12 +47,12 @@ func habitatResourceDefinition() (*resource.Resource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return resource, nil
+	return res, nil
 }
 
 func setupTraceProvider(
 	ctx context.Context,
-	resource *resource.Resource,
+	res *resource.Resource,
 	shutdownFuncs *[]func(context.Context) error,
 ) (trace.TracerProvider, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" &&
@@ -68,7 +66,7 @@ func setupTraceProvider(
 	}
 	provider := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exporter),
-		tracesdk.WithResource(resource),
+		tracesdk.WithResource(res),
 		tracesdk.WithSampler(tracesdk.AlwaysSample()),
 	)
 	*shutdownFuncs = append(*shutdownFuncs, func(ctx context.Context) error {
@@ -79,7 +77,7 @@ func setupTraceProvider(
 
 func setupMetricsProvider(
 	ctx context.Context,
-	resource *resource.Resource,
+	res *resource.Resource,
 	shutdownFuncs *[]func(context.Context) error,
 ) (metric.MeterProvider, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" &&
@@ -93,7 +91,7 @@ func setupMetricsProvider(
 	}
 	provider := metricsdk.NewMeterProvider(
 		metricsdk.WithReader(metricsdk.NewPeriodicReader(exporter)),
-		metricsdk.WithResource(resource),
+		metricsdk.WithResource(res),
 	)
 	*shutdownFuncs = append(*shutdownFuncs, func(ctx context.Context) error {
 		return provider.Shutdown(ctx)
@@ -103,7 +101,7 @@ func setupMetricsProvider(
 
 func setupLoggingProvider(
 	ctx context.Context,
-	resource *resource.Resource,
+	res *resource.Resource,
 	shutdownFuncs *[]func(context.Context) error,
 ) (log.LoggerProvider, error) {
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" &&
@@ -119,7 +117,7 @@ func setupLoggingProvider(
 	}
 	provider := logsdk.NewLoggerProvider(
 		logsdk.WithProcessor(logsdk.NewBatchProcessor(exporter)),
-		logsdk.WithResource(resource),
+		logsdk.WithResource(res),
 	)
 	*shutdownFuncs = append(*shutdownFuncs, func(ctx context.Context) error {
 		return provider.Shutdown(ctx)
@@ -156,7 +154,7 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 		err = errors.Join(inErr, shutdown(ctx))
 	}
 
-	resource, err := habitatResourceDefinition()
+	res, err := habitatResourceDefinition()
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
@@ -168,21 +166,21 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 	)
 	otel.SetTextMapPropagator(prop)
 
-	traceProvider, err := setupTraceProvider(ctx, resource, &shutdownFuncs)
+	traceProvider, err := setupTraceProvider(ctx, res, &shutdownFuncs)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
 	}
 	otel.SetTracerProvider(traceProvider)
 
-	meterProvider, err := setupMetricsProvider(ctx, resource, &shutdownFuncs)
+	meterProvider, err := setupMetricsProvider(ctx, res, &shutdownFuncs)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err
 	}
 	otel.SetMeterProvider(meterProvider)
 
-	loggerProvider, err := setupLoggingProvider(ctx, resource, &shutdownFuncs)
+	loggerProvider, err := setupLoggingProvider(ctx, res, &shutdownFuncs)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err

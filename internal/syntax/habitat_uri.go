@@ -32,7 +32,7 @@ var HabitatURIRegex = regexp.MustCompile(
 // Syntax specification: https://atproto.com/specs/at-uri-scheme
 type HabitatURI string
 
-func ConstructHabitatUri(did string, collection string, rkey string) HabitatURI {
+func ConstructHabitatUri(did, collection, rkey string) HabitatURI {
 	sb := strings.Builder{}
 	sb.WriteString(habitatScheme)
 	sb.WriteString(did)

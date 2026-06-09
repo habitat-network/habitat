@@ -78,11 +78,9 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, LoginMethodPassword, org.LoginMethod(context.Background()))
 
-	var gotOrgID syntax.DID
-	switch o := org.(type) {
-	case *orgImpl:
-		gotOrgID = o.orgID
-	}
+	o, ok := org.(*orgImpl)
+	require.True(t, ok)
+	gotOrgID := o.orgID
 	require.Equal(t, orgId.DID, gotOrgID)
 }
 
@@ -147,21 +145,17 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	org, err := s.GetOrgForDID(t.Context(), adminId1.DID)
+	org1, err := s.GetOrgForDID(t.Context(), adminId1.DID)
 	require.NoError(t, err)
-	var gotID1 syntax.DID
-	switch o := org.(type) {
-	case *orgImpl:
-		gotID1 = o.orgID
-	}
+	o1, ok := org1.(*orgImpl)
+	require.True(t, ok)
+	gotID1 := o1.orgID
 	require.Equal(t, orgId1.DID, gotID1)
 
-	org, err = s.GetOrgForDID(t.Context(), adminId2.DID)
+	org2, err := s.GetOrgForDID(t.Context(), adminId2.DID)
 	require.NoError(t, err)
-	var gotID2 syntax.DID
-	switch o := org.(type) {
-	case *orgImpl:
-		gotID2 = o.orgID
-	}
+	o2, ok := org2.(*orgImpl)
+	require.True(t, ok)
+	gotID2 := o2.orgID
 	require.Equal(t, orgId2.DID, gotID2)
 }

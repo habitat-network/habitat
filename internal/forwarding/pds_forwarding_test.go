@@ -13,7 +13,7 @@ import (
 )
 
 // fakePDSServer returns a test server that records the last request path it received.
-func fakePDSServer(t *testing.T) (*httptest.Server, *string) {
+func fakePDSServer(t *testing.T) (server *httptest.Server, path *string) {
 	t.Helper()
 	var lastPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +38,7 @@ func TestServeHTTP_MissingTargetParam(t *testing.T) {
 	fakePDS, _ := fakePDSServer(t)
 	p := newTestForwarding(t, fakePDS)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", nil)
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.getRecord", http.NoBody)
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
 
@@ -52,7 +52,7 @@ func TestServeHTTP_InvalidAtIdentifier(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.repo.getRecord?repo=not-a-valid-did-or-handle!!!",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)
@@ -67,7 +67,7 @@ func TestServeHTTP_ForwardsToTargetPDS(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/com.atproto.repo.getRecord?repo=did:plc:abc123&collection=app.bsky.feed.post&rkey=abc",
-		nil,
+		http.NoBody,
 	)
 	// Strip Authorization to confirm it isn't forwarded (security check)
 	req.Header.Set("Authorization", "Bearer secret-token")
@@ -91,7 +91,7 @@ func TestServeHTTP_ForwardsToCallerPDS(t *testing.T) {
 		plainHTTPClient:  fakePDS.Client(),
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.uploadBlob", nil)
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/com.atproto.repo.uploadBlob", http.NoBody)
 	req.Header.Set("Authorization", "Bearer caller-token")
 	w := httptest.NewRecorder()
 	p.ServeHTTP(w, req)

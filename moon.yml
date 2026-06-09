@@ -13,6 +13,11 @@ tasks:
     command: golangci-lint run
     inputs:
     - /**/*.go
+  lint:
+    command: golangci-lint run --fix
+    inputs:
+    - /**/*.go
+    preset: utility
   caddy:
     command: caddy
     args:

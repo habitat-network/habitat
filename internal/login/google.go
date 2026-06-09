@@ -70,7 +70,7 @@ func (p *googleProvider) Authorize(
 	ctx context.Context,
 	id *identity.Identity,
 	loginID string,
-) (string, []byte, error) {
+) (url string, stateBytes []byte, err error) {
 	if loginID == "" {
 		return "", nil, fmt.Errorf("no google email configured for org %s", id.DID)
 	}
@@ -82,7 +82,7 @@ func (p *googleProvider) Authorize(
 	}
 	stateStr := hex.EncodeToString(state)
 
-	stateBytes, err := json.Marshal(googleProviderState{Verifier: verifier, State: stateStr})
+	stateBytes, err = json.Marshal(googleProviderState{Verifier: verifier, State: stateStr})
 	if err != nil {
 		return "", nil, fmt.Errorf("marshal google state: %w", err)
 	}

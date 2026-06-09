@@ -1,6 +1,7 @@
 package authn
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestServiceAuthValidate(t *testing.T) {
 	require.NoError(t, err, "failed to create token")
 	serviceAuth := NewServiceAuthMethod(directory)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	resultDid, ok := serviceAuth.Validate(w, r)
@@ -41,7 +42,7 @@ func TestServiceAuthValidate_InvalidToken(t *testing.T) {
 	directory := pdsclient.NewDummyDirectory("https://pds.com")
 	serviceAuth := NewServiceAuthMethod(directory)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer invalid")
 	_, ok := serviceAuth.Validate(w, r)
 	require.False(t, ok)
@@ -65,7 +66,7 @@ func TestServiceAuthValidate_InvalidSignature(t *testing.T) {
 	require.NoError(t, err, "failed to create token")
 	serviceAuth := NewServiceAuthMethod(directory)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer "+token)
 	_, ok := serviceAuth.Validate(w, r)
 	require.False(t, ok)
@@ -74,7 +75,7 @@ func TestServiceAuthValidate_InvalidSignature(t *testing.T) {
 func TestServiceAuthCanHandle(t *testing.T) {
 	directory := pdsclient.NewDummyDirectory("https://pds.com")
 	serviceAuth := NewServiceAuthMethod(directory)
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Authorization", "Bearer invalid")
 	require.True(t, serviceAuth.CanHandle(r))
 }

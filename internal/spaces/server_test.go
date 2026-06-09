@@ -72,7 +72,11 @@ func TestServer_ListSpaces(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), owner, owner, groupType, "my-space")
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.space.listSpaces", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listSpaces",
+		http.NoBody,
+	)
 	w := httptest.NewRecorder()
 	s.ListSpaces(w, req)
 
@@ -105,7 +109,7 @@ func TestServer_AddMemberAndGetMembers(t *testing.T) {
 	req = httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getMembers?space="+uri.String(),
-		nil,
+		http.NoBody,
 	)
 	w = httptest.NewRecorder()
 	s.GetMembers(w, req)
@@ -169,7 +173,7 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	getReq := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=my-note",
-		nil,
+		http.NoBody,
 	)
 	getW := httptest.NewRecorder()
 	s.GetRecord(getW, getReq)
@@ -235,7 +239,7 @@ func TestServer_ListRecords(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.ListRecords(w, req)
@@ -401,7 +405,7 @@ func TestServer_GetRepoOplog(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepoOplog(w, req)
@@ -435,7 +439,7 @@ func TestServer_GetRepoOplog_Since(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepoOplog(w, req)
@@ -447,7 +451,7 @@ func TestServer_GetRepoOplog_Since(t *testing.T) {
 	req = httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner&since="+first.Cursor,
-		nil,
+		http.NoBody,
 	)
 	w = httptest.NewRecorder()
 	s.GetRepoOplog(w, req)
@@ -466,7 +470,7 @@ func TestServer_GetRepoOplog_Unauthorized(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepoOplog(w, req)
@@ -494,7 +498,7 @@ func TestServer_GetRepoOplog_IncludesValue(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.space.getRepoOplog?space="+uri.String()+"&repo=did:plc:owner",
-		nil,
+		http.NoBody,
 	)
 	w := httptest.NewRecorder()
 	s.GetRepoOplog(w, req)

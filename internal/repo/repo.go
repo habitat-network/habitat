@@ -52,9 +52,7 @@ type Repo interface {
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
-var (
-	ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
-)
+var ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
 
 // Persist private data within repos that mirror public repos.
 // A repo currently implements four basic methods: putRecord, getRecord, uploadBlob, getBlob
@@ -310,7 +308,7 @@ func (r *repo) GetRecord(
 }
 
 // DeleteRecord implements Repo.
-func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, rkey string) error {
+func (r *repo) DeleteRecord(ctx context.Context, did, collection, rkey string) error {
 	var ts time.Time
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
@@ -352,7 +350,7 @@ func (r *repo) UploadBlob(
 	mimeType string,
 ) (*BlobRef, error) {
 	// "blessed" CID type: https://atproto.com/specs/blob#blob-metadata
-	cid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
+	blobCid, err := cid.NewPrefixV1(cid.Raw, multihash.SHA2_256).Sum(data)
 	if err != nil {
 		return nil, err
 	}
@@ -362,7 +360,7 @@ func (r *repo) UploadBlob(
 		clause.OnConflict{UpdateAll: true},
 	).Create(ctx, &Blob{
 		Did:      did,
-		Cid:      cid.String(),
+		Cid:      blobCid.String(),
 		MimeType: mimeType,
 		Blob:     data,
 	})
@@ -371,7 +369,7 @@ func (r *repo) UploadBlob(
 	}
 
 	return &BlobRef{
-		Ref:      atdata.CIDLink(cid),
+		Ref:      atdata.CIDLink(blobCid),
 		MimeType: mimeType,
 		Size:     int64(len(data)),
 	}, nil
@@ -382,11 +380,11 @@ func (r *repo) UploadBlob(
 func (r *repo) GetBlob(
 	ctx context.Context,
 	did string,
-	cid string,
-) (string /* mimetype */, []byte /* blob body */, error) {
+	blobCid string,
+) (mimeType string, blob []byte, err error) {
 	row, err := gorm.G[Blob](
 		r.db,
-	).Where("did = ? and cid = ?", did, cid).First(ctx)
+	).Where("did = ? and cid = ?", did, blobCid).First(ctx)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil, ErrRecordNotFound
 	} else if err != nil {
@@ -399,11 +397,11 @@ func (r *repo) GetBlob(
 // GetRefs implements Repo.
 func (r *repo) GetBlobLinks(
 	ctx context.Context,
-	cid syntax.CID,
+	blobCid syntax.CID,
 	did syntax.DID,
 ) ([]habitat_syntax.HabitatURI, error) {
 	var links []link
-	err := r.db.WithContext(ctx).Where("cid = ?", cid).Where("did = ?", did).Find(&links).Error
+	err := r.db.WithContext(ctx).Where("cid = ?", blobCid).Where("did = ?", did).Find(&links).Error
 	if err != nil {
 		return nil, err
 	}
@@ -477,7 +475,7 @@ func (r *repo) ListRecordsFromPermissions(
 	return rowsToRecords(rows)
 }
 
-func (r *repo) ListRecords(ctx context.Context, did string, collection string) ([]Record, error) {
+func (r *repo) ListRecords(ctx context.Context, did, collection string) ([]Record, error) {
 	// Execute query
 	var rows []record
 	if err := r.db.WithContext(ctx).

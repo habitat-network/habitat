@@ -21,6 +21,6 @@ func mapAuthServerURL(oldURL string) (string, error) {
 	return newURL.String(), nil
 }
 
-func doesHandleBelongToDomain(handle string, domain string) bool {
+func doesHandleBelongToDomain(handle, domain string) bool {
 	return strings.HasSuffix(handle, "."+domain) || handle == domain
 }

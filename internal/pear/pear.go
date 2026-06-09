@@ -258,18 +258,18 @@ var (
 )
 
 func NewPear(
-	node node.Node,
+	n node.Node,
 	dir identity.Directory,
 	perms permissions.Store,
-	repo repo.Repo,
-	inbox inbox.Inbox,
+	r repo.Repo,
+	ibx inbox.Inbox,
 ) *pear {
 	return &pear{
-		node:        node,
+		node:        n,
 		dir:         dir,
 		permissions: perms,
-		repo:        repo,
-		inbox:       inbox,
+		repo:        r,
+		inbox:       ibx,
 	}
 }
 
@@ -647,7 +647,7 @@ func (p *pear) getBlobRemote(
 	caller syntax.DID,
 	target syntax.DID,
 	cid syntax.CID,
-) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
+) (mimeType, contentLength string, blob io.ReadCloser, err error) {
 	// Otherwise, forward this request to the right repo (the clique member)
 	reqURL, err := url.Parse("/xrpc/network.habitat.repo.getBlob")
 	if err != nil {
@@ -659,12 +659,7 @@ func (p *pear) getBlobRemote(
 	q.Set("cid", cid.String())
 	reqURL.RawQuery = q.Encode()
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		reqURL.String(),
-		nil,
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), http.NoBody)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("constructing http request for remote resolve: %w", err)
 	}
@@ -687,12 +682,12 @@ func (p *pear) getBlobRemote(
 	}
 }
 
-func (p *pear) GetBlob(
+func (p *pear) GetBlob( //nolint:gocritic // returns are used as local vars in body
 	ctx context.Context,
 	caller syntax.DID,
 	target syntax.DID,
 	cid syntax.CID,
-) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
+) (string, string, io.ReadCloser, error) {
 	serves, err := p.node.ServesDID(ctx, target)
 	if err != nil {
 		return "", "", nil, err

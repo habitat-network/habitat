@@ -16,7 +16,7 @@ func TestStubAuthn(t *testing.T) {
 	t.Run("valid stub", func(t *testing.T) {
 		stub := NewStubAuthnForTest(testDID)
 
-		r := httptest.NewRequest("GET", "/", nil)
+		r := httptest.NewRequest("GET", "/", http.NoBody)
 		require.True(t, stub.CanHandle(r))
 
 		w := httptest.NewRecorder()
@@ -33,7 +33,7 @@ func TestStubAuthn(t *testing.T) {
 	t.Run("failed stub", func(t *testing.T) {
 		stub := NewStubAuthnFailedForTest()
 
-		r := httptest.NewRequest("GET", "/", nil)
+		r := httptest.NewRequest("GET", "/", http.NoBody)
 		require.True(t, stub.CanHandle(r))
 
 		w := httptest.NewRecorder()
@@ -53,7 +53,7 @@ func TestStubAuthn_Validate(t *testing.T) {
 	t.Run("writes 401 on failed auth", func(t *testing.T) {
 		stub := NewStubAuthnFailedForTest()
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/", nil)
+		r := httptest.NewRequest("GET", "/", http.NoBody)
 		did, ok := stub.Validate(w, r)
 		require.False(t, ok)
 		require.Empty(t, did)

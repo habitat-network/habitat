@@ -51,9 +51,9 @@ type options struct {
 
 type option func(*options)
 
-func withNode(node node.Node) option {
+func withNode(n node.Node) option {
 	return func(o *options) {
-		o.node = node
+		o.node = n
 	}
 }
 
@@ -65,17 +65,17 @@ func newPearForTest(t *testing.T, db *gorm.DB, dir identity.Directory, opts ...o
 		opt(o)
 	}
 
-	repo, err := repo.NewRepo(repo.NewDummyChangelog(), db)
+	r, err := repo.NewRepo(repo.NewDummyChangelog(), db)
 	require.NoError(t, err)
-	inbox, err := inbox.New(db)
+	ibx, err := inbox.New(db)
 	require.NoError(t, err)
 
 	cliqueStore, err := clique.NewStore(db)
 	require.NoError(t, err)
 
-	permissions, err := permissions.NewStore(db, cliqueStore)
+	perms, err := permissions.NewStore(db, cliqueStore)
 	require.NoError(t, err)
-	p := NewPear(o.node, dir, permissions, repo, inbox)
+	p := NewPear(o.node, dir, perms, r, ibx)
 	return p
 }
 
@@ -446,7 +446,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	// A creates the clique and adds B as a member
-	clique, err := cs.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
+	cl, err := cs.CreateClique(t.Context(), aDID, []syntax.DID{bDID})
 	require.NoError(t, err)
 
 	val := map[string]any{"data": "value"}
@@ -456,11 +456,11 @@ func TestCliqueFlow(t *testing.T) {
 	bRkey := syntax.RecordKey("b-record")
 
 	// A and B both are direct grantees of the clique
-	isMember, err := cs.IsMember(t.Context(), clique, aDID)
+	isMember, err := cs.IsMember(t.Context(), cl, aDID)
 	require.NoError(t, err)
 	require.True(t, isMember)
 
-	isMember, err = cs.IsMember(t.Context(), clique, bDID)
+	isMember, err = cs.IsMember(t.Context(), cl, bDID)
 	require.NoError(t, err)
 	require.True(t, isMember)
 
@@ -473,7 +473,7 @@ func TestCliqueFlow(t *testing.T) {
 		val,
 		aRkey,
 		&validate,
-		[]permissions.Grantee{clique},
+		[]permissions.Grantee{cl},
 	)
 	require.NoError(t, err)
 
@@ -486,7 +486,7 @@ func TestCliqueFlow(t *testing.T) {
 		val,
 		bRkey,
 		&validate,
-		[]permissions.Grantee{clique},
+		[]permissions.Grantee{cl},
 	)
 	require.NoError(t, err)
 
@@ -517,7 +517,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, bRecords, 2)
 
 	// A adds C to the clique
-	require.NoError(t, cs.AddMembers(t.Context(), clique, []syntax.DID{cDID}))
+	require.NoError(t, cs.AddMembers(t.Context(), cl, []syntax.DID{cDID}))
 
 	// C can see both records
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(cDID))
@@ -534,7 +534,7 @@ func TestCliqueFlow(t *testing.T) {
 	require.Len(t, cRecords, 2)
 
 	// A removes B from the clique
-	require.NoError(t, cs.RemoveMembers(t.Context(), clique, []syntax.DID{bDID}))
+	require.NoError(t, cs.RemoveMembers(t.Context(), cl, []syntax.DID{bDID}))
 
 	// B can no longer see A's record
 	got, err = p.GetRecord(t.Context(), coll, aRkey, syntax.DID(aDID), syntax.DID(bDID))
@@ -631,7 +631,7 @@ func TestDescribeRepo(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a clique owned by owner with member as a member
-	clique, err := cs.CreateClique(t.Context(), ownerDID, []syntax.DID{memberDID})
+	cl, err := cs.CreateClique(t.Context(), ownerDID, []syntax.DID{memberDID})
 	require.NoError(t, err)
 
 	coll := syntax.NSID("my.fake.collection")
@@ -646,7 +646,7 @@ func TestDescribeRepo(t *testing.T) {
 		map[string]any{"data": "value"},
 		"my-rkey",
 		&validate,
-		[]permissions.Grantee{clique, permissions.DIDGrantee(granteeDID)},
+		[]permissions.Grantee{cl, permissions.DIDGrantee(granteeDID)},
 	)
 	require.NoError(t, err)
 

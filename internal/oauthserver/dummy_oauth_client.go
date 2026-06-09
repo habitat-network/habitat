@@ -24,17 +24,14 @@ func NewDummyOAuthClient(t *testing.T, metadata *pdsclient.ClientMetadata) *dumm
 		t:        t,
 	}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/authorize":
-			{
-				redirect := r.URL.Query().Get("redirect_uri")
-				q := url.Values{
-					"code":  []string{"dummyCode"},
-					"state": []string{r.URL.Query().Get("state")},
-				}
-				w.Header().Add("Location", redirect+"?"+q.Encode())
-				w.WriteHeader(http.StatusSeeOther)
+		if r.URL.Path == "/authorize" {
+			redirect := r.URL.Query().Get("redirect_uri")
+			q := url.Values{
+				"code":  []string{"dummyCode"},
+				"state": []string{r.URL.Query().Get("state")},
 			}
+			w.Header().Add("Location", redirect+"?"+q.Encode())
+			w.WriteHeader(http.StatusSeeOther)
 		}
 	}))
 	client.server = server
@@ -86,7 +83,7 @@ func (d *dummyOAuthClient) ExchangeCode(
 // RefreshToken implements OAuthClient.
 func (d *dummyOAuthClient) RefreshToken(
 	dpopClient *pdsclient.DpopHttpClient,
-	identity *identity.Identity,
+	id *identity.Identity,
 	issuer string,
 	refreshToken string,
 ) (*pdsclient.TokenResponse, error) {

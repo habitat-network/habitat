@@ -97,17 +97,17 @@ var _ Org = &orgImpl{}
 
 func NewOrg(
 	orgID syntax.DID,
-	hive hive.Hive,
-	db *gorm.DB,
+	h hive.Hive,
+	gormDB *gorm.DB,
 	signingSecret []byte,
 ) (*orgImpl, error) {
-	if err := db.AutoMigrate(&member{}, &spentToken{}); err != nil {
+	if err := gormDB.AutoMigrate(&member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
 	return &orgImpl{
 		orgID:         orgID,
-		hive:          hive,
-		db:            db,
+		hive:          h,
+		db:            gormDB,
 		signingSecret: signingSecret,
 	}, nil
 }
@@ -166,9 +166,9 @@ func (s *orgImpl) GetAdmins(ctx context.Context) ([]syntax.DID, error) {
 		Error; err != nil {
 		return nil, err
 	}
-	dids := make([]syntax.DID, 0, len(rows))
-	for _, r := range rows {
-		dids = append(dids, r.Did)
+	dids := make([]syntax.DID, len(rows))
+	for i := range rows {
+		dids[i] = rows[i].Did
 	}
 	return dids, nil
 }
@@ -178,9 +178,9 @@ func (s *orgImpl) GetMembers(ctx context.Context) ([]syntax.DID, error) {
 	if err := s.db.WithContext(ctx).Where("org_id = ?", s.orgID).Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	dids := make([]syntax.DID, 0, len(rows))
-	for _, r := range rows {
-		dids = append(dids, r.Did)
+	dids := make([]syntax.DID, len(rows))
+	for i := range rows {
+		dids[i] = rows[i].Did
 	}
 	return dids, nil
 }

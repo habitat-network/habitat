@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -29,7 +30,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
-	"log/slog"
 )
 
 const (
@@ -203,7 +203,7 @@ type OAuthServer struct {
 func NewOAuthServer(
 	secret []byte,
 	loginRouter *login.Router,
-	node node.Node,
+	pearNode node.Node,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
@@ -246,7 +246,7 @@ func NewOAuthServer(
 		loginRouter: loginRouter,
 		flashStore:  make(map[string]*authRequestFlash),
 		directory:   directory,
-		node:        node,
+		node:        pearNode,
 		storage:     storage,
 		orgStore:    orgStore,
 	}, nil
@@ -312,7 +312,7 @@ func (o *OAuthServer) HandleAuthorize(
 	}
 
 	// Look up org to determine the login method
-	org, err := o.orgStore.GetOrgForDID(ctx, id.DID)
+	currOrg, err := o.orgStore.GetOrgForDID(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(err, "no_org")
 		utils.LogAndHTTPError(
@@ -325,7 +325,7 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod(ctx))
+	provider, err := o.loginRouter.ByLoginMethod(currOrg.LoginMethod(ctx))
 	if err != nil {
 		o.metrics.authorizeErr(err, "no_provider")
 		utils.LogAndHTTPError(
@@ -454,7 +454,7 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
+	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), http.NoBody)
 	if err != nil {
 		o.metrics.callbackErr(err, "recreate_req")
 		utils.LogAndHTTPError(
@@ -481,7 +481,7 @@ func (o *OAuthServer) HandleCallback(
 
 	// Check the DID allowlist after reconstructing authRequest so we can redirect
 	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	org, err := o.orgStore.GetOrgForDID(r.Context(), arf.Did)
+	currOrg, err := o.orgStore.GetOrgForDID(r.Context(), arf.Did)
 	if err != nil {
 		o.metrics.callbackErr(err, "allowlist_dids")
 		o.provider.WriteAuthorizeError(
@@ -509,7 +509,7 @@ func (o *OAuthServer) HandleCallback(
 			// don't need admin for non org scopes
 			continue
 		}
-		isAdmin, err := org.IsAdmin(ctx, arf.Did)
+		isAdmin, err := currOrg.IsAdmin(ctx, arf.Did)
 		if err != nil {
 			o.metrics.callbackErr(err, "is_admin")
 			o.provider.WriteAuthorizeError(
@@ -559,25 +559,6 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-
-	/*
-		// Comment this out in dev because it's unused and node uses the default dir which fails bc of subdomain funnels
-			if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
-				o.metrics.callbackErr(err, "lookup_serves")
-				utils.LogAndHTTPError(r.Context(), w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
-				return
-			} else if !serves {
-				o.metrics.callbackErr(err, "wrong_server")
-				utils.LogAndHTTPError(
-					r.Context(),
-					w,
-					err,
-					"user's habitat service in DID doc does not match expected service",
-					http.StatusMethodNotAllowed,
-				)
-				return
-			}
-	*/
 
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,

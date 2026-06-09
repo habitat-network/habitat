@@ -12,7 +12,7 @@ import (
 )
 
 func TestValidate(t *testing.T) {
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	w := httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")
 	did, ok := Validate(

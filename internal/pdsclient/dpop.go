@@ -212,7 +212,7 @@ func doInternal(
 	if hasBody {
 		req2.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
-	if err = sign(req2, nonceProvider, key, accessToken); err != nil {
+	if err := sign(req2, nonceProvider, key, accessToken); err != nil {
 		return nil, err
 	}
 	return http.DefaultClient.Do(req2)

@@ -62,13 +62,11 @@ type didDocWithContext struct {
 	identity.DIDDocument
 }
 
-var (
-	didCtx = []string{
-		"https://www.w3.org/ns/did/v1",
-		"https://w3id.org/security/multikey/v1",
-		"https://w3id.org/security/suites/secp256k1-2019/v1",
-	}
-)
+var didCtx = []string{
+	"https://www.w3.org/ns/did/v1",
+	"https://w3id.org/security/multikey/v1",
+	"https://w3id.org/security/suites/secp256k1-2019/v1",
+}
 
 // GetServiceAuth implements com.atproto.server.getServiceAuth for habitat-hosted
 // identities. Habitat owns the signing key registered in the identity's did:web
@@ -173,5 +171,6 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(doc)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

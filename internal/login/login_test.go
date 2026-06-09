@@ -153,7 +153,7 @@ func (d *dummyProvider) Authorize(
 	_ context.Context,
 	_ *identity.Identity,
 	_ string,
-) (string, []byte, error) {
+) (redirect string, state []byte, err error) {
 	return "https://dummy.example.com/login", nil, nil
 }
 func (d *dummyProvider) Exchange(_ context.Context, _ syntax.DID, _, _ string, _ []byte) error {

@@ -186,7 +186,7 @@ func (s *cookieSession) SetIssuer(issuer string) error {
 	return nil
 }
 
-func (s *cookieSession) GetIssuer() (string, bool, error) {
+func (s *cookieSession) GetIssuer() (issuer string, ok bool, err error) {
 	v, ok := s.session.Values[cIssuerSessionKey]
 	if !ok {
 		return "", false, nil
@@ -203,7 +203,7 @@ func (s *cookieSession) SetPDSURL(pdsURL string) error {
 	return nil
 }
 
-func (s *cookieSession) GetPDSURL() (string, bool, error) {
+func (s *cookieSession) GetPDSURL() (pdsURL string, ok bool, err error) {
 	v, ok := s.session.Values[cPDSURLSessionKey]
 	if !ok {
 		return "", false, nil
@@ -246,7 +246,7 @@ func (s *cookieSession) SetDpopNonce(nonce string) error {
 	return nil
 }
 
-func (s *cookieSession) GetDpopNonce() (string, bool, error) {
+func (s *cookieSession) GetDpopNonce() (nonce string, ok bool, err error) {
 	v, ok := s.session.Values[cNonceSessionKey]
 	if !ok {
 		return "", false, nil

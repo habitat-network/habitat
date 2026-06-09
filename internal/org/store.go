@@ -121,7 +121,7 @@ func (s *storeImpl) CreateOrg(
 	loginMethod string,
 	loginID string,
 	handleSubdomain string,
-) (*identity.Identity, *identity.Identity, error) {
+) (orgId, adminId *identity.Identity, err error) {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		return nil, nil, err
@@ -141,16 +141,13 @@ func (s *storeImpl) CreateOrg(
 		memberLoginID = loginID
 	}
 
-	var orgId *identity.Identity
-	var id *identity.Identity
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		mintedOrgId, err := s.hive.WithTx(tx).MintOrgIdentity(ctx, handleSubdomain)
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		orgId, err = s.hive.WithTx(tx).MintOrgIdentity(ctx, handleSubdomain)
 		if err != nil {
 			return err
 		}
-		orgId = mintedOrgId
 		if err := tx.Create(&organization{
-			ID:          mintedOrgId.DID,
+			ID:          orgId.DID,
 			Name:        name,
 			LoginMethod: LoginMethod(loginMethod),
 			// TODO: just use org did secret for this
@@ -164,14 +161,13 @@ func (s *storeImpl) CreateOrg(
 			return err
 		}
 		// Mint identity for the admin
-		mintedId, err := s.hive.WithTx(tx).MintIdentity(ctx, adminHandle, handleSubdomain)
+		adminId, err = s.hive.WithTx(tx).MintIdentity(ctx, adminHandle, handleSubdomain)
 		if err != nil {
 			return err
 		}
-		id = mintedId
 		return tx.Create(&member{
-			OrgID:     mintedOrgId.DID,
-			Did:       id.DID,
+			OrgID:     orgId.DID,
+			Did:       adminId.DID,
 			Role:      AdminRole,
 			LoginID:   memberLoginID,
 			CreatedAt: time.Now(),
@@ -181,7 +177,7 @@ func (s *storeImpl) CreateOrg(
 		return nil, nil, err
 	}
 
-	return orgId, id, nil
+	return orgId, adminId, nil
 }
 
 func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {
