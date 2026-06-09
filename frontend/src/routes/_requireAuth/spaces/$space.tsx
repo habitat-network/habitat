@@ -22,7 +22,7 @@ import { RecordRenderer } from "@/components/RecordRenderer";
 export const Route = createFileRoute("/_requireAuth/spaces/$space")({
   async loader({ context, params }) {
     const { authManager } = context;
-    const space = decodeURIComponent(params.space);
+    const space = params.space;
 
     const { members } = await query(
       "network.habitat.space.getMembers",
@@ -55,7 +55,6 @@ export const Route = createFileRoute("/_requireAuth/spaces/$space")({
 function SpaceRecords() {
   const { space } = Route.useParams();
   const { records, members } = Route.useLoaderData();
-  const decodedSpace = decodeURIComponent(space);
   const router = useRouter();
   const { authManager } = Route.useRouteContext();
 
@@ -78,7 +77,7 @@ function SpaceRecords() {
     }) {
       await procedure(
         "network.habitat.space.deleteRecord",
-        { space: decodedSpace, collection, rkey },
+        { space, collection, rkey },
         { authManager },
       );
       router.invalidate();
@@ -89,7 +88,7 @@ function SpaceRecords() {
     async mutationFn(did: string) {
       await procedure(
         "network.habitat.space.removeMember",
-        { space: decodedSpace, did },
+        { space, did },
         { authManager },
       );
       router.invalidate();
@@ -100,7 +99,7 @@ function SpaceRecords() {
     async mutationFn({ did, access }: AddMemberForm) {
       await procedure(
         "network.habitat.space.addMember",
-        { space: decodedSpace, did, access },
+        { space, did, access },
         { authManager },
       );
       form.reset();
@@ -110,10 +109,25 @@ function SpaceRecords() {
 
   return (
     <>
-      <h2 className="text-2xl mb-4">Space: {decodedSpace}</h2>
+      <h2 className="text-2xl mb-4">Space: {space}</h2>
       <p className="text-sm text-muted-foreground mb-4">
         {records.length} record{records.length !== 1 ? "s" : ""}
       </p>
+      <Button
+        onClick={async () => {
+          await procedure(
+            "network.habitat.space.putRecord",
+            {
+              space,
+              collection: "test.record.collection",
+              record: { key: "value" },
+            },
+            { authManager },
+          );
+        }}
+      >
+        Create test record
+      </Button>
       <Table>
         <TableHeader>
           <TableRow>
@@ -133,7 +147,7 @@ function SpaceRecords() {
                   <RecordRenderer
                     record={record.value ?? {}}
                     lexicon={record.collection}
-                    uri={`${decodedSpace}/${record.collection}/${record.rkey}`}
+                    uri={`${space}/${record.collection}/${record.rkey}`}
                   />
                 </div>
               </TableCell>
