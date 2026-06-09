@@ -32,27 +32,28 @@ func (r *LoginRouter) Authorize(
 	ctx context.Context,
 	did syntax.DID,
 ) (string, []byte, error) {
-	member, err := r.OrgStore.GetMember(ctx, did)
-	// member login
+	// org login (requires admin credential)
+	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
 	if err == nil {
-		provider := r.getProvider(member.Org)
+		provider := r.getProvider(fetchedOrg)
 		if provider == nil {
 			return "", nil, fmt.Errorf("unsupported login provider for %s", did)
 		}
-		return provider.Authorize(ctx, member.LoginID)
-	} else if !errors.Is(err, ErrMemberNotFound) {
-		return "", nil, fmt.Errorf("failed to get member: %w", err)
-	}
-	// org login (requires admin credential)
-	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
-	if err != nil {
+		return provider.Authorize(ctx, "" /* loginHint (empty because any admin will work) */)
+	} else if !errors.Is(err, ErrOrgNotFound) {
 		return "", nil, fmt.Errorf("failed to get org: %w", err)
 	}
-	provider := r.getProvider(fetchedOrg)
+
+	// member login
+	member, err := r.OrgStore.GetMember(ctx, did)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get member: %w", err)
+	}
+	provider := r.getProvider(member.Org)
 	if provider == nil {
 		return "", nil, fmt.Errorf("unsupported login provider for %s", did)
 	}
-	return provider.Authorize(ctx, "" /* loginHint (empty because any admin will work) */)
+	return provider.Authorize(ctx, member.LoginID)
 }
 
 func (r *LoginRouter) Exchange(
@@ -62,10 +63,10 @@ func (r *LoginRouter) Exchange(
 	issuer string,
 	state []byte,
 ) error {
-	member, err := r.OrgStore.GetMember(ctx, did)
-	// member login
+	// org login (requires admin)
+	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
 	if err == nil {
-		provider := r.getProvider(member.Org)
+		provider := r.getProvider(fetchedOrg)
 		if provider == nil {
 			return fmt.Errorf("unsupported login provider for %s", did)
 		}
@@ -73,17 +74,24 @@ func (r *LoginRouter) Exchange(
 		if err != nil {
 			return fmt.Errorf("failed to exchange code: %w", err)
 		}
-		if member.LoginID != loginID {
-			return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
+		member, err := r.OrgStore.GetMemberByLoginID(ctx, loginID)
+		if err != nil {
+			return fmt.Errorf("failed to get member by login id: %w", err)
+		}
+		if member.Role != AdminRole {
+			return fmt.Errorf("not an admin")
 		}
 		return nil
-	}
-	// org login (requires admin)
-	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
-	if err != nil {
+	} else if !errors.Is(err, ErrOrgNotFound) {
 		return fmt.Errorf("failed to get org: %w", err)
 	}
-	provider := r.getProvider(fetchedOrg)
+
+	// member login
+	member, err := r.OrgStore.GetMember(ctx, did)
+	if err != nil {
+		return fmt.Errorf("failed to get member: %w", err)
+	}
+	provider := r.getProvider(member.Org)
 	if provider == nil {
 		return fmt.Errorf("unsupported login provider for %s", did)
 	}
@@ -91,12 +99,8 @@ func (r *LoginRouter) Exchange(
 	if err != nil {
 		return fmt.Errorf("failed to exchange code: %w", err)
 	}
-	member, err = r.OrgStore.GetMemberByLoginID(ctx, loginID)
-	if err != nil {
-		return fmt.Errorf("failed to get member by login id: %w", err)
-	}
-	if member.Role != AdminRole {
-		return fmt.Errorf("not an admin")
+	if member.LoginID != loginID {
+		return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
 	}
 	return nil
 }
