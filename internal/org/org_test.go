@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -22,11 +25,19 @@ func newTestOrg(t *testing.T) *orgImpl {
 	require.NoError(t, db.AutoMigrate(&organization{}, &member{}, &spentToken{}))
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)
+	passwordProvider, err := login.NewPasswordProvider(
+		db,
+		"",
+		"",
+		encrypt.TestKey,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+	)
 	s := &orgImpl{
-		orgID:         "test-org",
-		hive:          h,
-		db:            db,
-		signingSecret: testSigningSecret,
+		orgID:            "test-org",
+		hive:             h,
+		db:               db,
+		signingSecret:    testSigningSecret,
+		passwordProvider: passwordProvider,
 	}
 	require.NoError(t, err)
 	s.handleSubdomain = "testorg"
