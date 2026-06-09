@@ -311,7 +311,7 @@ func (o *OAuthServer) HandleAuthorize(
 	// Look up org to determine the login method
 	org, err := o.orgStore.GetOrgForDID(ctx, id.DID)
 	if err != nil {
-		o.metrics.authorizeErr(err, "no_org")
+		o.metrics.authorizeErr(ctx, err, "no_org")
 		utils.LogAndHTTPError(
 			r.Context(),
 			w,
@@ -324,7 +324,7 @@ func (o *OAuthServer) HandleAuthorize(
 
 	provider, err := o.loginRouter.ByLoginMethod(org.LoginMethod(ctx))
 	if err != nil {
-		o.metrics.authorizeErr(err, "no_provider")
+		o.metrics.authorizeErr(ctx, err, "no_provider")
 		utils.LogAndHTTPError(
 			r.Context(),
 			w,
@@ -339,7 +339,7 @@ func (o *OAuthServer) HandleAuthorize(
 	// If the DID isn't a member (e.g. everyone org), loginID stays empty.
 	member, err := o.orgStore.GetMember(ctx, id.DID)
 	if err != nil {
-		o.metrics.authorizeErr(err, "get_member")
+		o.metrics.authorizeErr(ctx, err, "get_member")
 		utils.LogAndHTTPError(
 			r.Context(),
 			w,
@@ -529,7 +529,7 @@ func (o *OAuthServer) HandleCallback(
 
 	provider, err := o.loginRouter.ByLoginMethod(arf.LoginMethod)
 	if err != nil {
-		o.metrics.callbackErr(err, "no_provider")
+		o.metrics.callbackErr(ctx, err, "no_provider")
 		utils.LogAndHTTPError(
 			r.Context(),
 			w,
