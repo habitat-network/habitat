@@ -17,6 +17,7 @@ import (
 	"github.com/ory/fosite/handler/pkce"
 	"github.com/ory/fosite/storage"
 	"github.com/ory/fosite/token/jwt"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"gorm.io/gorm"
 )
 
@@ -71,7 +72,12 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 // GetClient implements fosite.Storage.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
 	// TODO: consider caching
-	resp, err := http.Get(id)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	cl := http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+	resp, err := cl.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch client metadata: %w", err)
 	}
