@@ -601,7 +601,7 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 	}
 	// Use a separate SQLite file for FGA to avoid lock conflicts between
 	// mattn/go-sqlite3 (used by GORM) and modernc.org/sqlite (used by OpenFGA).
-	fgaPath := cmd.String(fDb) + ".fga"
+	fgaPath := "fga-" + cmd.String(fDb)
 	fga, err := fgastore.NewSQLite(ctx, fgaPath)
 	if err != nil {
 		slog.Error("unable to setup fga sqlite store")
