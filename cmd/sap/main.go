@@ -10,7 +10,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/urfave/cli/v3"
 	"gorm.io/driver/sqlite"
@@ -52,30 +51,24 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup database: %w", err)
 	}
 
-	s, err := sap.NewSap(db)
+	s, err := sap.NewSap(sap.SapConfig{
+		DB:           db,
+		PublicDomain: cmd.String(fDomain),
+		Secret:       cmd.String(fSecret),
+	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	secret, err := atcrypto.ParsePrivateMultibase(cmd.String(fSecret))
-	if err != nil {
-		return fmt.Errorf("parse secret: %w", err)
-	}
-
-	orgManager, err := newOrgManager(db, cmd.String(fDomain), secret)
-	if err != nil {
-		return fmt.Errorf("create org manager: %w", err)
-	}
-
-	server := NewSapServer(s, orgManager)
+	server := NewSapServer(s)
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", server.handleHealth)
 	mux.HandleFunc("/org/add", server.handleAddOrg)
 	mux.HandleFunc("/org/list", server.handleListOrgs)
-	mux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
-	mux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	mux.Handle("/oauth-callback", s)
+	mux.Handle("/client-metadata.json", s)
 
 	slog.InfoContext(ctx, "listening", "port", cmd.String(fPort))
 	return http.ListenAndServe(":"+cmd.String(fPort), mux)

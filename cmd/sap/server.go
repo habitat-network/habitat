@@ -2,21 +2,18 @@ package main
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 
 	"github.com/habitat-network/habitat/internal/sap"
 )
 
 type server struct {
-	sap        sap.Sap
-	orgManager *orgManager
+	sap sap.Sap
 }
 
-func NewSapServer(sap sap.Sap, o *orgManager) *server {
+func NewSapServer(sap sap.Sap) *server {
 	s := &server{
-		sap:        sap,
-		orgManager: o,
+		sap: sap,
 	}
 	return s
 }
@@ -34,7 +31,7 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	redirectURL, err := s.orgManager.InitiateAuth(r.Context(), req.Handle)
+	redirectURL, err := s.sap.AddOrg(r.Context(), req.Handle)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -52,7 +49,7 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := s.orgManager.GetOrgs(r.Context())
+	orgs, err := s.sap.GetOrgs(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -60,29 +57,4 @@ func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"orgs": orgs})
-}
-
-func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	stateVal := r.URL.Query().Get("state")
-	if code == "" || stateVal == "" {
-		http.Error(w, "missing code or state parameter", http.StatusBadRequest)
-		return
-	}
-	org, err := s.orgManager.CompleteAuth(r.Context(), code, stateVal)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	slog.Info("org added", "org", org)
-}
-
-func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
-	cm, err := s.orgManager.ClientMetadata()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(cm)
 }

@@ -1,4 +1,4 @@
-package main
+package sap
 
 import (
 	"context"
@@ -45,7 +45,7 @@ func newOrgManager(db *gorm.DB, domain string, secret atcrypto.PrivateKey) (*org
 	return &orgManager{db: db, domain: domain, secret: secret}, nil
 }
 
-func (o *orgManager) InitiateAuth(
+func (o *orgManager) AddOrg(
 	ctx context.Context,
 	orgHandle string,
 ) (redirectURL string, err error) {
@@ -85,7 +85,7 @@ func (o *orgManager) InitiateAuth(
 	return authorizeURL, nil
 }
 
-func (o *orgManager) CompleteAuth(ctx context.Context, code, state string) (syntax.DID, error) {
+func (o *orgManager) completeAuth(ctx context.Context, code, state string) (syntax.DID, error) {
 	var pending orgCredential
 	if err := o.db.WithContext(ctx).Where("state = ?", state).First(&pending).Error; err != nil {
 		return "", fmt.Errorf("pending state not found: %w", err)
@@ -116,7 +116,7 @@ func (o *orgManager) CompleteAuth(ctx context.Context, code, state string) (synt
 
 var ErrOrgNotFound = fmt.Errorf("no org")
 
-func (o *orgManager) GetOrgs(ctx context.Context) ([]syntax.DID, error) {
+func (o *orgManager) ListOrgs(ctx context.Context) ([]syntax.DID, error) {
 	var creds []orgCredential
 	err := o.db.WithContext(ctx).
 		Where("access_token != ''").
@@ -133,7 +133,7 @@ func (o *orgManager) GetOrgs(ctx context.Context) ([]syntax.DID, error) {
 	return orgs, nil
 }
 
-func (o *orgManager) ClientMetadata() (*oauth.ClientMetadata, error) {
+func (o *orgManager) clientMetadata() (*oauth.ClientMetadata, error) {
 	config := oauth.NewPublicConfig("https://"+o.domain+"/client-metadata.json",
 		"https://"+o.domain+"/oauth-callback", []string{})
 	err := config.SetClientSecret(o.secret, "sap")
