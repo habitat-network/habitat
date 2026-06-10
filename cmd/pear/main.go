@@ -372,17 +372,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to set up waitlist service", "err", err)
 	}
 
-	// TODO: enable this when jetstream has auth on it
-	/*
-		consumer, err := changeEmitter.Consume()
-		if err != nil {
-			log.Fatal().Err(err).Msg("unable to setup change emitter consumer for jetstream service")
-		}
-		jss := jetstream.NewServer(egCtx, consumer, nil)
-		mux.HandleFunc("/jetstream", jss.HandleSubscribe)
-	*/
-
-	// always public routes
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
 
