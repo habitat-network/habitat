@@ -13,8 +13,9 @@ tasks:
       HABITAT_SERVICE_NAME: "habitat_local"
       HABITAT_DOMAIN: pear.local.habitat.network
       HABITAT_PRETTY_LOGS: 'true'
+      HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
     deps:
-    - postgres
+    # - postgres
     - root:caddy
     - ngrok
   ngrok:
