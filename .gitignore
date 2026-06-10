@@ -49,3 +49,5 @@ cmd/pear/repo.db
 .worktrees/
 
 **/*.db
+**/*-shm
+**/*-wal
