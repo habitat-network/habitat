@@ -15,7 +15,6 @@ tasks:
       HABITAT_PRETTY_LOGS: 'true'
       HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
     deps:
-    # - postgres
     - root:caddy
     - ngrok
   ngrok:
@@ -31,11 +30,6 @@ tasks:
     options:
       envFile:
       - /dev.env
-  postgres:
-    command: docker-compose -f ../../infra/docker-compose.yml up
-    preset: server
-    options:
-      internal: true
   docker-build:
     options:
       internal: false
