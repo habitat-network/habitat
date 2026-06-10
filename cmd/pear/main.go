@@ -289,7 +289,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		orgStore,
 	)
 
-	repo, err := repo.NewRepo( db.WithContext(startupCtx))
+	repo, err := repo.NewRepo(db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup repo", "err", err)
 		os.Exit(1)
