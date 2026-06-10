@@ -65,7 +65,7 @@ func newPearForTest(t *testing.T, db *gorm.DB, dir identity.Directory, opts ...o
 		opt(o)
 	}
 
-	repo, err := repo.NewRepo(repo.NewDummyChangelog(), db)
+	repo, err := repo.NewRepo(db)
 	require.NoError(t, err)
 	inbox, err := inbox.New(db)
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func mockIdentities(dids []syntax.DID) identity.Directory {
 		dir.Insert(identity.Identity{
 			DID: did,
 			Services: map[string]identity.ServiceEndpoint{
-				testServiceName: identity.ServiceEndpoint{
+				testServiceName: {
 					URL: testServiceEndpoint,
 				},
 			},
@@ -747,7 +747,7 @@ func TestListRecordsWithPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create pear with the shared database
-	repoStore, err := repo.NewRepo(repo.NewDummyChangelog(), db)
+	repoStore, err := repo.NewRepo(db)
 	require.NoError(t, err)
 	inboxInstance, err := inbox.New(db)
 	require.NoError(t, err)
