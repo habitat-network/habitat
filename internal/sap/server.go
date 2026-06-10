@@ -14,7 +14,7 @@ type server struct {
 var _ http.Handler = (*server)(nil)
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
-	cm, err := s.sap.ClientMetadata()
+	cm, err := s.sap.clientMetadata()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

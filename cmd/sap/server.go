@@ -38,7 +38,9 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost {
 		w.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(w).Encode(map[string]string{"redirect_url": redirectURL})
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		err = enc.Encode(map[string]string{"redirect_url": redirectURL})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -49,7 +51,7 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := s.sap.GetOrgs(r.Context())
+	orgs, err := s.sap.ListOrgs(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
