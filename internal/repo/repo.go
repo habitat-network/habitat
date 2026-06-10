@@ -52,9 +52,7 @@ type Repo interface {
 	ListCollections(ctx context.Context, did syntax.DID) ([]CollectionMetadata, error)
 }
 
-var (
-	ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
-)
+var ErrRecordAlreadyCreated = errors.New("error creating record: a record already exists")
 
 // Persist private data within repos that mirror public repos.
 // A repo currently implements four basic methods: putRecord, getRecord, uploadBlob, getBlob
@@ -68,7 +66,6 @@ var (
 // We really shouldn't have unexported types that get passed around outside the package, like to `main.go`
 // Leaving this as-is for now.
 type repo struct {
-	ee EventEmitter
 	db *gorm.DB
 }
 
@@ -111,13 +108,12 @@ type link struct {
 }
 
 // TODO: create table etc.
-func NewRepo(ee EventEmitter, db *gorm.DB) (Repo, error) {
+func NewRepo(db *gorm.DB) (Repo, error) {
 	if err := db.AutoMigrate(&record{}, &Blob{}, &link{}); err != nil {
 		return nil, err
 	}
 
 	return &repo{
-		ee: ee,
 		db: db,
 	}, nil
 }
@@ -160,8 +156,6 @@ func (r *repo) PutRecord(
 
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
-	op := OperationUpdate
-	var ts time.Time
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
@@ -175,7 +169,6 @@ func (r *repo) PutRecord(
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// If a matching record is found, this is an update
 			// We can't rely on result.RowsAffected below because that returns 1 for both a create and and update
-			op = OperationCreate
 		} else if err != nil {
 			return fmt.Errorf("existence check failed with err: %w", err)
 		}
@@ -192,12 +185,9 @@ func (r *repo) PutRecord(
 				return err
 			}
 		}
-		ts = tx.NowFunc()
 		return nil
 	})
 
-	// Emit the change
-	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, op, ts, marshalled)
 	return uri, err
 }
 
@@ -239,7 +229,6 @@ func (r *repo) CreateRecord(
 
 	// Store rkey directly (no concatenation with collection)
 	// Always put (even if something exists).
-	var ts time.Time
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		bytes, err := json.Marshal(val)
 		if err != nil {
@@ -261,15 +250,12 @@ func (r *repo) CreateRecord(
 				return err
 			}
 		}
-		ts = tx.NowFunc()
 		return nil
 	})
 	if err != nil {
 		return "", err
 	}
 
-	// Emit the change
-	r.ee.EmitChangeEvent(rec.Did, rec.Collection, rec.Rkey, OperationCreate, ts, marshalled)
 	return uri, nil
 }
 
@@ -311,7 +297,6 @@ func (r *repo) GetRecord(
 
 // DeleteRecord implements Repo.
 func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, rkey string) error {
-	var ts time.Time
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Where("did = ? AND collection = ? AND rkey = ?", did, collection, rkey).
 			Delete(&record{}).
@@ -320,22 +305,12 @@ func (r *repo) DeleteRecord(ctx context.Context, did string, collection string, 
 			return err
 		}
 
-		ts = tx.NowFunc()
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 
-	// Emit the change
-	r.ee.EmitChangeEvent(
-		did,
-		collection,
-		rkey,
-		OperationDelete,
-		ts,
-		nil, /* delete changes don't include record value */
-	)
 	return nil
 }
 

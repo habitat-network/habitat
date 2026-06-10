@@ -39,7 +39,6 @@ require (
 	github.com/alexedwards/argon2id v1.0.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/bluesky-social/jetstream v0.0.0-20260415170838-8a65de4eda28 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
@@ -49,7 +48,6 @@ require (
 	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/cel-go v0.28.0 // indirect
