@@ -435,57 +435,6 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	// Check the DID allowlist after reconstructing authRequest so we can redirect
-	// errors back to the client via WriteAuthorizeError instead of returning a raw 401.
-	org, err := o.orgStore.GetOrgForDID(r.Context(), arf.Did)
-	if err != nil {
-		o.metrics.callbackErr(ctx, err, "allowlist_dids")
-		o.provider.WriteAuthorizeError(
-			ctx,
-			w,
-			authRequest,
-			fosite.ErrAccessDenied.WithDescription("You are not a member of this habitat organization.").
-				WithHint(""),
-		)
-		return
-	}
-
-	// Re-check admin status for org-level scopes
-	for _, s := range authRequest.GetRequestedScopes() {
-		permission, err := permissionFromScope(s)
-		if err != nil {
-			o.metrics.callbackErr(ctx, err, "bad_scope")
-			o.provider.WriteAuthorizeError(
-				ctx, w, authRequest,
-				fosite.ErrInvalidScope.WithDescription("Invalid scope: "+s),
-			)
-			return
-		}
-		if permission.Resource != "org" {
-			// don't need admin for non org scopes
-			continue
-		}
-		isAdmin, err := org.IsAdmin(ctx, arf.Did)
-		if err != nil {
-			o.metrics.callbackErr(ctx, err, "is_admin")
-			o.provider.WriteAuthorizeError(
-				ctx, w, authRequest,
-				fosite.ErrServerError,
-			)
-			return
-		}
-		if !isAdmin {
-			o.metrics.callbackErr(ctx, err, "not_admin")
-			o.provider.WriteAuthorizeError(
-				ctx, w, authRequest,
-				fosite.ErrAccessDenied.
-					WithDescription("Only org admins can authorize org-level permissions.").
-					WithHint(""),
-			)
-			return
-		}
-	}
-
 	if err := o.loginRouter.Exchange(
 		ctx,
 		arf.Did,
