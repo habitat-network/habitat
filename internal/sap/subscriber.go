@@ -35,12 +35,12 @@ func newSubscriber(db *gorm.DB, orgManager *orgManager, sseCh chan *sse.Event) *
 	}
 }
 
+// addSubscription adds a new subscription to subscribeSpaces and tracks it by org id
 func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	client := sse.NewClient(org.Host + "/xrpc/network.habitat.sync.subscribeSpaces")
 	client.Connection = s.orgManager.GetClient(ctx, org.DID)
 	client.LastEventID.Store([]byte(org.Cursor))
 	sub := &subscription{client: client}
-	// client.ReconnectStrategy = &backoff.StopBackOff{}
 	err := client.SubscribeChanRawWithContext(context.Background(), s.sseCh)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to subscribe", "org", org.DID, "err", err)
@@ -53,6 +53,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	s.subscriptionsMu.Unlock()
 }
 
+// closeSubscriptions cleans up the subscriptions
 func (s *subscriber) closeSubscriptions() error {
 	lastEventIDs := map[syntax.DID]string{}
 	s.subscriptionsMu.Lock()
@@ -73,6 +74,7 @@ func (s *subscriber) closeSubscriptions() error {
 	return errors.Join(errs...)
 }
 
+// loadSubscriptions loads orgs from the database and adds them to the subscriptions
 func (s *subscriber) loadSubscriptions(ctx context.Context) error {
 	activeSubs := []syntax.DID{}
 	s.subscriptionsMu.RLock()
