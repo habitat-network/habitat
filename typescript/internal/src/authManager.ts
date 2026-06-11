@@ -159,6 +159,7 @@ export class AuthManager {
         return this.handleUnauthenticated();
       }
       // get the refreshed authInfo
+            await this.store.persist.rehydrate();
       authInfo = this.store.getState().authInfo;
       if (!authInfo) {
         return this.handleUnauthenticated();
