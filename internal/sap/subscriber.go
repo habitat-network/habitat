@@ -20,8 +20,8 @@ type subscriber struct {
 	db         *gorm.DB
 	orgManager *orgManager
 
-	mu            sync.RWMutex
-	subscriptions map[syntax.DID]*subscription
+	subscriptionsMu sync.RWMutex
+	subscriptions   map[syntax.DID]*subscription
 
 	sseCh chan *sse.Event
 }
@@ -48,20 +48,20 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 		return
 	}
 
-	s.mu.Lock()
+	s.subscriptionsMu.Lock()
 	s.subscriptions[org.DID] = sub
-	s.mu.Unlock()
+	s.subscriptionsMu.Unlock()
 }
 
 func (s *subscriber) closeSubscriptions() error {
 	lastEventIDs := map[syntax.DID]string{}
-	s.mu.Lock()
+	s.subscriptionsMu.Lock()
 	for did, sub := range s.subscriptions {
 		lastEventIDs[did] = string(sub.client.LastEventID.Load().([]byte))
 		sub.client.Unsubscribe(s.sseCh)
 		delete(s.subscriptions, did)
 	}
-	s.mu.Unlock()
+	s.subscriptionsMu.Unlock()
 	var errs []error
 	for did, cursor := range lastEventIDs {
 		// track errors but keep going
@@ -75,11 +75,11 @@ func (s *subscriber) closeSubscriptions() error {
 
 func (s *subscriber) loadSubscriptions(ctx context.Context) error {
 	activeSubs := []syntax.DID{}
-	s.mu.RLock()
+	s.subscriptionsMu.RLock()
 	for k := range s.subscriptions {
 		activeSubs = append(activeSubs, k)
 	}
-	s.mu.RUnlock()
+	s.subscriptionsMu.RUnlock()
 	var orgs []managedOrg
 	query := s.db.Where("access_token != ''")
 	if len(activeSubs) > 0 {
