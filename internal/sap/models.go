@@ -15,8 +15,8 @@ type managedOrg struct {
 	CodeVerifier *string
 
 	// Completed auth
-	AccessToken  string `gorm:"type:text"`
-	RefreshToken string `gorm:"type:text"`
+	AccessToken  string
+	RefreshToken string
 	ExpiresAt    time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
