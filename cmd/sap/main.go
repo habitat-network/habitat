@@ -12,6 +12,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/urfave/cli/v3"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -19,7 +20,7 @@ import (
 
 func main() {
 	if err := run(os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		slog.Error("error running command", "err", err)
 		os.Exit(1)
 	}
 }
@@ -71,7 +72,25 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	mux.Handle("/client-metadata.json", s)
 
 	slog.InfoContext(ctx, "listening", "port", cmd.String(fPort))
-	return http.ListenAndServe(":"+cmd.String(fPort), mux)
+
+	eg, ctx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		err := s.Start(ctx)
+		slog.ErrorContext(ctx, "stopped", "error", err)
+		return err
+	})
+	eg.Go(func() error {
+		srv := http.Server{
+			Addr:    fmt.Sprintf(":%s", cmd.String(fPort)),
+			Handler: mux,
+		}
+		go func() { _ = srv.ListenAndServe() }()
+		<-ctx.Done()
+		return srv.Shutdown(ctx)
+	})
+
+	err = eg.Wait()
+	return err
 }
 
 func setupDatabase(dbURL string) (*gorm.DB, error) {
@@ -81,7 +100,7 @@ func setupDatabase(dbURL string) (*gorm.DB, error) {
 
 	path := dbURL[len("sqlite://"):]
 	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		return nil, err

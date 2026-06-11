@@ -595,16 +595,18 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 	if postgresUrl != "" {
 		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
 		if err != nil {
-			slog.Error("unable to setup fga store with postgres")
+			slog.Error("unable to setup fga store with postgres", "err", err)
+			os.Exit(1)
 		}
 		return fga
 	}
 	// Use a separate SQLite file for FGA to avoid lock conflicts between
 	// mattn/go-sqlite3 (used by GORM) and modernc.org/sqlite (used by OpenFGA).
-	fgaPath := "fga-" + cmd.String(fDb)
+	fgaPath := cmd.String(fDb) + ".fga.db"
 	fga, err := fgastore.NewSQLite(ctx, fgaPath)
 	if err != nil {
-		slog.Error("unable to setup fga sqlite store")
+		slog.Error("unable to setup fga sqlite store", "err", err)
+		os.Exit(1)
 	}
 	return fga
 }
