@@ -38,3 +38,8 @@ pear.local.habitat.network {
 		on_demand
 	}
 }
+
+sap.local.habitat.network {
+    reverse_proxy 127.0.0.1:2580
+    tls internal
+}

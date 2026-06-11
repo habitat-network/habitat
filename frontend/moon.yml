@@ -10,9 +10,7 @@ tasks:
       HABITAT_DOMAIN: pear.local.habitat.network
       DOMAIN: frontend.local.habitat.network
     deps:
-      - target: pear:dev
-        env:
-          HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
+      - pear:dev
       - root:caddy
   docker-build:
     deps:
