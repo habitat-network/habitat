@@ -27,7 +27,7 @@ type sapImpl struct {
 	db         *gorm.DB
 	pathPrefix string
 	sub        *subscriber
-	sseChan    chan *sse.Event
+	sseCh      chan *sse.Event
 }
 
 type SapConfig struct {
@@ -46,15 +46,15 @@ func NewSap(config SapConfig) (Sap, error) {
 		return nil, fmt.Errorf("failed to create org manager: %w", err)
 	}
 
-	sseChan := make(chan *sse.Event)
+	sseCh := make(chan *sse.Event)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
-		sub:        newSubscriber(config.DB, o, sseChan),
-		sseChan:    sseChan,
+		sub:        newSubscriber(config.DB, o, sseCh),
+		sseCh:      sseCh,
 	}, nil
 }
 
@@ -74,7 +74,7 @@ func (s *sapImpl) Start(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return nil
-			case event := <-s.sseChan:
+			case event := <-s.sseCh:
 				slog.InfoContext(ctx, "received event", "event", event)
 			}
 		}

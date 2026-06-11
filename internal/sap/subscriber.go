@@ -23,15 +23,15 @@ type subscriber struct {
 	mu            sync.RWMutex
 	subscriptions map[syntax.DID]*subscription
 
-	sseChan chan *sse.Event
+	sseCh chan *sse.Event
 }
 
-func newSubscriber(db *gorm.DB, orgManager *orgManager, sseChan chan *sse.Event) *subscriber {
+func newSubscriber(db *gorm.DB, orgManager *orgManager, sseCh chan *sse.Event) *subscriber {
 	return &subscriber{
 		db:            db,
 		orgManager:    orgManager,
 		subscriptions: map[syntax.DID]*subscription{},
-		sseChan:       sseChan,
+		sseCh:         sseCh,
 	}
 }
 
@@ -41,7 +41,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	client.LastEventID.Store([]byte(org.Cursor))
 	sub := &subscription{client: client}
 	// client.ReconnectStrategy = &backoff.StopBackOff{}
-	err := client.SubscribeChanRawWithContext(context.Background(), s.sseChan)
+	err := client.SubscribeChanRawWithContext(context.Background(), s.sseCh)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to subscribe", "org", org.DID, "err", err)
 		s.db.Model(&managedOrg{}).Where("did = ?", org.DID).UpdateColumn("error_msg", err.Error())
@@ -58,7 +58,7 @@ func (s *subscriber) closeSubscriptions() error {
 	s.mu.Lock()
 	for did, sub := range s.subscriptions {
 		lastEventIDs[did] = string(sub.client.LastEventID.Load().([]byte))
-		sub.client.Unsubscribe(s.sseChan)
+		sub.client.Unsubscribe(s.sseCh)
 		delete(s.subscriptions, did)
 	}
 	s.mu.Unlock()
