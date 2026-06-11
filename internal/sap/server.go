@@ -40,7 +40,7 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.InfoContext(r.Context(), "org added", "org", org.DID)
 
-	s.sap.subber.addSubscription(r.Context(), org)
+	s.sap.sub.addSubscription(r.Context(), org)
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

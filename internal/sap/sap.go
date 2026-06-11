@@ -26,7 +26,7 @@ type sapImpl struct {
 	*orgManager
 	db         *gorm.DB
 	pathPrefix string
-	subber     *subscriber
+	sub        *subscriber
 	sseChan    chan *sse.Event
 }
 
@@ -53,7 +53,7 @@ func NewSap(config SapConfig) (Sap, error) {
 		orgManager: o,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
-		subber:     newSubscriber(config.DB, o, sseChan),
+		sub:        newSubscriber(config.DB, o, sseChan),
 		sseChan:    sseChan,
 	}, nil
 }
@@ -61,7 +61,7 @@ func NewSap(config SapConfig) (Sap, error) {
 func (s *sapImpl) Start(ctx context.Context) error {
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		err := s.subber.loadSubscriptions(ctx)
+		err := s.sub.loadSubscriptions(ctx)
 		if err != nil {
 			return err
 		}
@@ -81,7 +81,7 @@ func (s *sapImpl) Start(ctx context.Context) error {
 	})
 
 	err := eg.Wait()
-	return errors.Join(err, s.subber.closeSubscriptions())
+	return errors.Join(err, s.sub.closeSubscriptions())
 }
 
 func (s *sapImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
