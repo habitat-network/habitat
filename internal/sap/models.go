@@ -4,6 +4,9 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"gorm.io/gorm"
+
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type managedOrg struct {
@@ -24,4 +27,31 @@ type managedOrg struct {
 	ErrorMsg string
 
 	Cursor string
+}
+
+type repoState string
+
+const (
+	RepoStatePending  repoState = "pending"
+	RepoStateActive   repoState = "active"
+	RepoStateDesynced repoState = "desynced"
+)
+
+type managedRepo struct {
+	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	DID   syntax.DID              `gorm:"column:did;primaryKey"`
+	Rev   syntax.TID
+	State repoState `gorm:"index"`
+}
+
+type outbox struct {
+	ID        string `gorm:"primaryKey;autoIncrement"`
+	URI       habitat_syntax.SpaceRecordURI
+	Value     []byte
+	CreatedAt time.Time
+	AckedAt   *time.Time
+}
+
+func autoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(&managedOrg{}, &managedRepo{}, &outbox{})
 }

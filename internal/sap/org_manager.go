@@ -22,12 +22,8 @@ type orgManager struct {
 	secret atcrypto.PrivateKey
 }
 
-func newOrgManager(db *gorm.DB, domain string, secret atcrypto.PrivateKey) (*orgManager, error) {
-	err := db.AutoMigrate(&managedOrg{})
-	if err != nil {
-		return nil, err
-	}
-	return &orgManager{db: db, domain: domain, secret: secret}, nil
+func newOrgManager(db *gorm.DB, domain string, secret atcrypto.PrivateKey) *orgManager {
+	return &orgManager{db: db, domain: domain, secret: secret}
 }
 
 func (o *orgManager) AddOrg(

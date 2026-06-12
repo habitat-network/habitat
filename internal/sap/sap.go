@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/r3labs/sse/v2"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
@@ -27,7 +25,6 @@ type sapImpl struct {
 	db         *gorm.DB
 	pathPrefix string
 	sub        *subscriber
-	sseCh      chan *sse.Event
 }
 
 type SapConfig struct {
@@ -37,24 +34,21 @@ type SapConfig struct {
 }
 
 func NewSap(config SapConfig) (Sap, error) {
+	if err := autoMigrate(config.DB); err != nil {
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
+	}
 	secret, err := atcrypto.ParsePrivateMultibase(config.Secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
-	o, err := newOrgManager(config.DB, config.PublicDomain, secret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create org manager: %w", err)
-	}
-
-	sseCh := make(chan *sse.Event)
+	o := newOrgManager(config.DB, config.PublicDomain, secret)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
-		sub:        newSubscriber(config.DB, o, sseCh),
-		sseCh:      sseCh,
+		sub:        newSubscriber(config.DB, o),
 	}, nil
 }
 
@@ -67,17 +61,6 @@ func (s *sapImpl) Start(ctx context.Context) error {
 		}
 		// TODO: retry failed orgs
 		return nil
-	})
-
-	eg.Go(func() error {
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case event := <-s.sseCh:
-				slog.InfoContext(ctx, "received event", "event", event)
-			}
-		}
 	})
 
 	err := eg.Wait()

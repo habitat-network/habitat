@@ -48,7 +48,12 @@ type EventOps struct {
 	Access string
 }
 
+type Subscriber interface {
+	Subscribe(ctx context.Context, since uint64) <-chan Event
+}
+
 type Store interface {
+	Subscriber
 	AppendSpaceEvent(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -57,7 +62,6 @@ type Store interface {
 		prev syntax.TID,
 		ops []EventOps,
 	) error
-	Subscribe(ctx context.Context, since uint64) <-chan Event
 	StartSequencer(ctx context.Context) error
 	NotifyEvent(ctx context.Context)
 
