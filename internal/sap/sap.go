@@ -51,10 +51,6 @@ func NewSap(config SapConfig) (Sap, error) {
 	resyncer := newResyncer(config.DB, o, repos, resyncBuf, config.ResyncParallelism)
 	crawler := newCrawler(config.DB, o, repos, resyncBuf)
 
-	if err := repos.ResetPartiallyResynced(context.Background()); err != nil {
-		return nil, fmt.Errorf("reset partially resynced repos: %w", err)
-	}
-
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
@@ -69,6 +65,9 @@ func NewSap(config SapConfig) (Sap, error) {
 }
 
 func (s *sapImpl) Start(ctx context.Context) error {
+	if err := s.repos.ResetPartiallyResynced(ctx); err != nil {
+		return fmt.Errorf("reset partially resynced repos: %w", err)
+	}
 	go func() {
 		if err := s.sub.loadSubscriptions(ctx); err != nil {
 			slog.ErrorContext(ctx, "load subscriptions", "err", err)
