@@ -183,7 +183,7 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 	require.Len(t, buffered, 0)
 }
 
-func TestResyncBuffer_DrainBrokenChainMarksDesynced(t *testing.T) {
+func TestResyncBuffer_DrainSkipsAlreadyCovered(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
@@ -194,7 +194,7 @@ func TestResyncBuffer_DrainBrokenChainMarksDesynced(t *testing.T) {
 	repoDID := syntax.DID("did:plc:member1")
 
 	clock := syntax.NewTIDClock(0)
-	// Repo was resynced up to rev1, then a live event advanced it to rev2
+	// Repo was resynced up to rev2; a buffered event chains from rev1 (already covered)
 	rev1 := clock.Next()
 	rev2 := clock.Next()
 
@@ -225,22 +225,79 @@ func TestResyncBuffer_DrainBrokenChainMarksDesynced(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, resyncBuf.drainRepo(t.Context(), repo))
 
+	// Repo stays active at rev2 since the buffered event was already covered by resync
 	repo, err = repos.GetRepo(t.Context(), space, repoDID)
 	require.NoError(t, err)
 	require.Equal(
 		t,
-		RepoStateDesynced,
+		RepoStateActive,
 		repo.State,
-		"repo should be desynced when buffered event doesn't chain",
+		"repo should stay active when buffered event is already covered",
 	)
 
 	var remaining []bufferedEvent
 	require.NoError(t, db.Find(&remaining).Error)
 	require.Len(t, remaining, 0, "stale buffered events should be deleted")
 
+	// Event was already covered by resync — no duplicate outbox records
 	var records []outbox
 	require.NoError(t, db.Find(&records).Error)
-	require.Len(t, records, 0, "no outbox records should be written for non-chaining events")
+	require.Len(t, records, 0, "no outbox records for already-covered events")
+}
+
+func TestResyncBuffer_DrainDesyncsOnFutureSince(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	repos := newRepoManager(db)
+	resyncBuf := newResyncBuffer(db, repos)
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	repoDID := syntax.DID("did:plc:member1")
+
+	clock := syntax.NewTIDClock(0)
+	// Repo was synced to rev1, but a buffered event chains from rev2 (ahead — we missed something)
+	rev1 := clock.Next()
+	rev2 := clock.Next()
+
+	require.NoError(t, repos.EnsureRepo(t.Context(), space, repoDID))
+	require.NoError(t, repos.SetActive(t.Context(), space, repoDID, rev1))
+
+	recordURI := habitat_syntax.SpaceRecordURI(
+		"ats://did:plc:testorg/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
+	)
+
+	bufferedEventData := events.Event{
+		Seq:   1,
+		Space: space,
+		Repo:  repoDID,
+		Rev:   rev2,
+		Since: rev2,
+		Ops: []events.EventOps{
+			{
+				Uri:    recordURI,
+				Action: "create",
+				Value:  map[string]any{"text": "hello"},
+			},
+		},
+	}
+	require.NoError(t, resyncBuf.appendEvent(bufferedEventData))
+	repo, err := repos.GetRepo(t.Context(), space, repoDID)
+	require.NoError(t, err)
+	require.NoError(t, resyncBuf.drainRepo(t.Context(), repo))
+
+	repo, err = repos.GetRepo(t.Context(), space, repoDID)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		RepoStateDesynced,
+		repo.State,
+		"repo should be desynced when buffered event has Since > current Rev",
+	)
+
+	var remaining []bufferedEvent
+	require.NoError(t, db.Find(&remaining).Error)
+	require.Len(t, remaining, 0, "stale buffered events should be deleted")
 }
 
 func TestRepoManager_ClaimForResync(t *testing.T) {

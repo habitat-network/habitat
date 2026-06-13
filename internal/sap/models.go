@@ -30,9 +30,10 @@ type managedOrg struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 
-	ErrorMsg   string
-	CrawlState *string
-	Cursor     string
+	ErrorMsg        string
+	CrawlState      *string
+	SubscribeCursor string
+	CrawlCursor     string
 }
 
 type repoState string
@@ -72,17 +73,11 @@ type bufferedEvent struct {
 	Data  []byte
 }
 
-type crawlCursor struct {
-	Org    syntax.DID `gorm:"column:org;primaryKey"`
-	Cursor string
-}
-
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&managedOrg{},
 		&managedRepo{},
 		&outbox{},
 		&bufferedEvent{},
-		&crawlCursor{},
 	)
 }

@@ -100,6 +100,7 @@ func (o *orgManager) completeAuth(ctx context.Context, code, state string) (*man
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
+		CrawlState:   new(crawlStateRunning),
 	}
 	if err := o.db.Save(addedOrg).Error; err != nil {
 		return nil, fmt.Errorf("save refreshed token: %w", err)

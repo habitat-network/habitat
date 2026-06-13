@@ -3,7 +3,6 @@ package sap
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -57,7 +56,7 @@ func newSubscriber(
 func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	client := sse.NewClient(org.Host + "/xrpc/network.habitat.sync.subscribeSpaces")
 	client.Connection = s.orgManager.GetClient(ctx, org.DID)
-	client.LastEventID.Store([]byte(org.Cursor))
+	client.LastEventID.Store([]byte(org.SubscribeCursor))
 	subscribeCtx, cancel := context.WithCancel(ctx)
 	sub := &subscription{
 		client: client,
@@ -85,7 +84,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 			err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				if err := tx.Model(&managedOrg{}).
 					Where("did = ?", org.DID).
-					Update("cursor", spaceEvent.Seq).
+					Update("subscribe_cursor", spaceEvent.Seq).
 					Error; err != nil {
 					return err
 				}
@@ -122,24 +121,16 @@ func (s *subscriber) cancelSubscription(orgDID syntax.DID) {
 	}
 }
 
-// closeSubscriptions cleans up the subscriptions
+// closeSubscriptions cleans up the subscriptions. The cursor is already
+// persisted per-event in handleSpaceEvent's transaction, so we only cancel.
 func (s *subscriber) closeSubscriptions() error {
-	lastEventIDs := map[syntax.DID]string{}
 	s.subscriptionsMu.Lock()
 	for did, sub := range s.subscriptions {
-		lastEventIDs[did] = string(sub.client.LastEventID.Load().([]byte))
 		sub.cancel()
 		delete(s.subscriptions, did)
 	}
 	s.subscriptionsMu.Unlock()
-	var errs []error
-	for did, cursor := range lastEventIDs {
-		errs = append(errs, s.db.Model(&managedOrg{}).
-			Where("did = ?", did).
-			UpdateColumn("cursor", cursor).
-			Error)
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
 // loadSubscriptions loads orgs from the database and adds them to the subscriptions

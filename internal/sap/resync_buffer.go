@@ -70,23 +70,18 @@ func eventChains(prevRev syntax.TID, since syntax.TID) bool {
 }
 
 func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error {
-	var prevRev syntax.TID
-	if repo != nil {
-		prevRev = repo.Rev
+	if !eventChains(repo.Rev, event.Since) {
+		if event.Since > repo.Rev {
+			return rb.db.Model(&managedRepo{}).
+				Where("space = ? AND did = ?", event.Space, event.Repo).
+				Update("state", RepoStateDesynced).Error
+		}
+		return nil
 	}
-
-	if !eventChains(prevRev, event.Since) {
-		return rb.db.Model(&managedRepo{}).
-			Where("space = ? AND did = ?", event.Space, event.Repo).
-			Update("state", RepoStateDesynced).Error
-	}
-
-	if err := rb.db.Save(&managedRepo{
-		Space: event.Space,
-		DID:   event.Repo,
-		Rev:   event.Rev,
-		State: RepoStateActive,
-	}).Error; err != nil {
+	if err := rb.db.Model(&managedRepo{}).
+		Where("space = ? AND did = ?", event.Space, event.Repo).
+		Updates(map[string]any{"rev": event.Rev, "state": RepoStateActive}).
+		Error; err != nil {
 		return err
 	}
 	return writeEventOps(rb.db, event.Ops)
@@ -96,6 +91,11 @@ func (rb *resyncBuffer) drainRepo(
 	ctx context.Context,
 	repo *managedRepo,
 ) error {
+	// Single-pass drain. If a live event is buffered during the transition
+	// window (subscriber loaded stale state before SetActive committed), the
+	// subscriber's next event for this repo will fail the chain check and mark
+	// the repo desynced. The resyncer picks up desynced repos, so no events
+	// are lost — they arrive in the full resync.
 	var buffered []bufferedEvent
 	if err := rb.db.WithContext(ctx).
 		Where("space = ? AND did = ?", repo.Space, repo.DID).
@@ -107,6 +107,7 @@ func (rb *resyncBuffer) drainRepo(
 		return nil
 	}
 
+	rev := repo.Rev
 	for _, entry := range buffered {
 		var event events.Event
 		if err := json.Unmarshal(entry.Data, &event); err != nil {
@@ -114,21 +115,28 @@ func (rb *resyncBuffer) drainRepo(
 		}
 
 		if err := rb.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			txBuf := rb.WithTx(tx)
-
-			prevRev := syntax.TID("")
-			if repo != nil {
-				prevRev = repo.Rev
-			}
-			if !eventChains(prevRev, event.Since) {
-				if mErr := txBuf.repos.MarkDesynced(ctx, repo.Space, repo.DID); mErr != nil {
-					return mErr
+			if !eventChains(rev, event.Since) {
+				if event.Since > rev {
+					// missed events; mark repo desynced
+					if mErr := tx.Model(&managedRepo{}).
+						Where("space = ? AND did = ?", repo.Space, repo.DID).
+						Update("state", RepoStateDesynced).Error; mErr != nil {
+						return mErr
+					}
 				}
 				return tx.Where("space = ? AND did = ?", repo.Space, repo.DID).
 					Delete(&bufferedEvent{}).Error
 			}
-			if aErr := txBuf.applyEvent(event, repo); aErr != nil {
-				return aErr
+
+			if err := tx.Model(&managedRepo{}).
+				Where("space = ? AND did = ?", repo.Space, repo.DID).
+				Updates(map[string]any{"rev": event.Rev, "state": RepoStateActive}).
+				Error; err != nil {
+				return err
+			}
+			rev = event.Rev
+			if err := writeEventOps(tx, event.Ops); err != nil {
+				return err
 			}
 			return tx.Delete(&bufferedEvent{}, entry.ID).Error
 		}); err != nil {

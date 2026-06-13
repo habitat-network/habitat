@@ -3,7 +3,6 @@ package sap
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -54,18 +53,16 @@ func newCrawler(
 
 func (c *crawler) resumeIncompleteCrawls(ctx context.Context) {
 	var orgs []managedOrg
-	err := c.db.WithContext(ctx).
+	if err := c.db.WithContext(ctx).
 		Where("access_token != ''").
-		Where("crawl_state IS NULL OR crawl_state = ?", crawlStateRunning).
-		Find(&orgs).Error
-	if err != nil {
+		Where("crawl_state = ?", crawlStateRunning).
+		Find(&orgs).Error; err != nil {
 		slog.ErrorContext(ctx, "load orgs for crawl", "err", err)
 		return
 	}
 	for i := range orgs {
 		go c.crawlOrg(ctx, &orgs[i])
 	}
-	<-ctx.Done()
 }
 
 func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
@@ -114,6 +111,7 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 
 func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 	client := c.orgManager.GetClient(ctx, org.DID)
+	cursor := org.CrawlCursor
 	for {
 		select {
 		case <-ctx.Done():
@@ -121,15 +119,9 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 		default:
 		}
 
-		var cursor crawlCursor
-		err := c.db.WithContext(ctx).First(&cursor, "org = ?", org.DID).Error
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("find cursor: %w", err)
-		}
-
 		params := url.Values{}
-		if cursor.Cursor != "" {
-			params.Set("cursor", cursor.Cursor)
+		if cursor != "" {
+			params.Set("cursor", cursor)
 		}
 
 		resp, err := client.Get(
@@ -165,11 +157,12 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 		if listSpacesOutput.Cursor == "" {
 			break
 		}
+		cursor = listSpacesOutput.Cursor
 
-		if err := c.db.WithContext(ctx).Save(&crawlCursor{
-			Org:    org.DID,
-			Cursor: listSpacesOutput.Cursor,
-		}).Error; err != nil {
+		if err := c.db.WithContext(ctx).
+			Model(&managedOrg{}).
+			Where("did = ?", org.DID).
+			Update("crawl_cursor", listSpacesOutput.Cursor).Error; err != nil {
 			return fmt.Errorf("save crawl cursor: %w", err)
 		}
 	}
