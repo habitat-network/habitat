@@ -12,7 +12,6 @@ import (
 	"github.com/habitat-network/habitat/internal/events"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type resyncBuffer struct {
@@ -71,19 +70,6 @@ func eventChains(prevRev syntax.TID, since syntax.TID) bool {
 	return prevRev == since
 }
 
-func eventMissed(prevRev syntax.TID, since syntax.TID) bool {
-	if since == "" {
-		return false
-	}
-	if prevRev == "" {
-		return true
-	}
-	if prevRev == since {
-		return false
-	}
-	return string(since) > string(prevRev)
-}
-
 func (rb *resyncBuffer) getRepo(
 	space habitat_syntax.SpaceURI,
 	did syntax.DID,
@@ -99,23 +85,16 @@ func (rb *resyncBuffer) getRepo(
 	return &repo, nil
 }
 
-func (rb *resyncBuffer) applyEvent(event events.Event) error {
-	repo, err := rb.getRepo(event.Space, event.Repo)
-	if err != nil {
-		return err
-	}
-	prevRev := syntax.TID("")
+func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error {
+	var prevRev syntax.TID
 	if repo != nil {
 		prevRev = repo.Rev
 	}
 
-	if eventMissed(prevRev, event.Since) {
+	if !eventChains(prevRev, event.Since) {
 		return rb.db.Model(&managedRepo{}).
 			Where("space = ? AND did = ?", event.Space, event.Repo).
 			Update("state", RepoStateDesynced).Error
-	}
-	if !eventChains(prevRev, event.Since) {
-		return nil
 	}
 
 	if err := rb.db.Save(&managedRepo{
@@ -160,11 +139,16 @@ func (rb *resyncBuffer) drainRepo(
 			prevRev = repo.Rev
 		}
 		if !eventChains(prevRev, event.Since) {
-			continue
+			if err := rb.repos.MarkDesynced(ctx, space, did); err != nil {
+				return err
+			}
+			return rb.db.WithContext(ctx).
+				Where("space = ? AND did = ?", space, did).
+				Delete(&bufferedEvent{}).Error
 		}
 
 		err = rb.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := rb.WithTx(tx).applyEvent(event); err != nil {
+			if err := rb.WithTx(tx).applyEvent(event, repo); err != nil {
 				return err
 			}
 			return tx.Delete(&bufferedEvent{}, entry.ID).Error
@@ -206,20 +190,19 @@ func (rb *resyncBuffer) handleSpaceEvent(org *managedOrg, event events.Event) er
 		return err
 	}
 	if repo == nil {
-		if err := rb.db.Clauses(clause.OnConflict{DoNothing: true}).
-			Create(&managedRepo{
-				Space: event.Space,
-				DID:   event.Repo,
-				State: RepoStatePending,
-			}).Error; err != nil {
+		repo = &managedRepo{
+			Space: event.Space,
+			DID:   event.Repo,
+			State: RepoStatePending,
+		}
+		if err := rb.db.Create(repo).Error; err != nil {
 			return err
 		}
-		repo = &managedRepo{State: RepoStatePending}
 	}
 
 	if rb.shouldBuffer(org, repo) {
 		return rb.appendEvent(event)
 	}
 
-	return rb.applyEvent(event)
+	return rb.applyEvent(event, repo)
 }

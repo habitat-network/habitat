@@ -181,6 +181,64 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 	require.Len(t, buffered, 0)
 }
 
+func TestResyncBuffer_DrainBrokenChainMarksDesynced(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	repos := newRepoManager(db)
+	resyncBuf := newResyncBuffer(db, repos)
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	repoDID := syntax.DID("did:plc:member1")
+
+	clock := syntax.NewTIDClock(0)
+	// Repo was resynced up to rev1, then a live event advanced it to rev2
+	rev1 := clock.Next()
+	rev2 := clock.Next()
+
+	require.NoError(t, repos.EnsureRepo(context.Background(), space, repoDID))
+	require.NoError(t, repos.SetActive(context.Background(), space, repoDID, rev2))
+
+	recordURI := habitat_syntax.SpaceRecordURI(
+		"ats://did:plc:testorg/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
+	)
+
+	// Buffered event chains from rev1, but current rev is rev2 (live event arrived during gap)
+	bufferedEventData := events.Event{
+		Seq:   1,
+		Space: space,
+		Repo:  repoDID,
+		Rev:   rev1,
+		Since: rev1,
+		Ops: []events.EventOps{
+			{
+				Uri:    recordURI,
+				Action: "create",
+				Value:  map[string]any{"text": "hello"},
+			},
+		},
+	}
+	require.NoError(t, resyncBuf.appendEvent(bufferedEventData))
+	require.NoError(t, resyncBuf.drainRepo(t.Context(), space, repoDID))
+
+	repo, err := repos.GetRepo(t.Context(), space, repoDID)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		RepoStateDesynced,
+		repo.State,
+		"repo should be desynced when buffered event doesn't chain",
+	)
+
+	var remaining []bufferedEvent
+	require.NoError(t, db.Find(&remaining).Error)
+	require.Len(t, remaining, 0, "stale buffered events should be deleted")
+
+	var records []outbox
+	require.NoError(t, db.Find(&records).Error)
+	require.Len(t, records, 0, "no outbox records should be written for non-chaining events")
+}
+
 func TestRepoManager_ClaimForResync(t *testing.T) {
 	t.Parallel()
 
