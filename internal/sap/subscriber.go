@@ -33,9 +33,9 @@ type subscriber struct {
 
 func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
 	return &subscriber{
-		db:          tx,
-		orgManager:  s.orgManager,
-		resyncBuf:   s.resyncBuf,
+		db:            tx,
+		orgManager:    s.orgManager,
+		resyncBuf:     s.resyncBuf,
 		subscriptions: s.subscriptions,
 	}
 }
@@ -82,7 +82,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 				)
 				return
 			}
-			err := s.db.Transaction(func(tx *gorm.DB) error {
+			err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				if err := tx.Model(&managedOrg{}).
 					Where("did = ?", org.DID).
 					Update("cursor", spaceEvent.Seq).
@@ -93,7 +93,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 				if err := tx.First(&currentOrg, "did = ?", org.DID).Error; err != nil {
 					return err
 				}
-				return s.resyncBuf.WithTx(tx).handleSpaceEvent(&currentOrg, spaceEvent)
+				return s.resyncBuf.WithTx(tx).handleSpaceEvent(ctx, &currentOrg, spaceEvent)
 			})
 			if err != nil {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)
@@ -110,6 +110,15 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 		delete(s.subscriptions, org.DID)
 		s.subscriptionsMu.Unlock()
 		return
+	}
+}
+
+func (s *subscriber) cancelSubscription(orgDID syntax.DID) {
+	s.subscriptionsMu.Lock()
+	defer s.subscriptionsMu.Unlock()
+	if sub, ok := s.subscriptions[orgDID]; ok {
+		sub.cancel()
+		delete(s.subscriptions, orgDID)
 	}
 }
 

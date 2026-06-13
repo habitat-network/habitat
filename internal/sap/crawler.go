@@ -23,6 +23,7 @@ type crawler struct {
 	orgManager *orgManager
 	repos      *repoManager
 	resyncBuf  *resyncBuffer
+	sub        *subscriber
 }
 
 func (c *crawler) WithTx(tx *gorm.DB) *crawler {
@@ -31,6 +32,7 @@ func (c *crawler) WithTx(tx *gorm.DB) *crawler {
 		orgManager: c.orgManager,
 		repos:      c.repos,
 		resyncBuf:  c.resyncBuf,
+		sub:        c.sub,
 	}
 }
 
@@ -39,12 +41,14 @@ func newCrawler(
 	orgManager *orgManager,
 	repos *repoManager,
 	resyncBuf *resyncBuffer,
+	sub *subscriber,
 ) *crawler {
 	return &crawler{
 		db:         db,
 		orgManager: orgManager,
 		repos:      repos,
 		resyncBuf:  resyncBuf,
+		sub:        sub,
 	}
 }
 
@@ -65,27 +69,41 @@ func (c *crawler) resumeIncompleteCrawls(ctx context.Context) {
 }
 
 func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
-	running := crawlStateRunning
 	if err := c.db.WithContext(ctx).
 		Model(&managedOrg{}).
 		Where("did = ?", org.DID).
-		Update("crawl_state", running).Error; err != nil {
+		Update("crawl_state", crawlStateRunning).Error; err != nil {
 		slog.ErrorContext(ctx, "set crawl running", "org", org.DID, "err", err)
 		return
 	}
 
-	if err := c.resumeCrawl(ctx, org); err != nil {
-		slog.ErrorContext(ctx, "crawl failed", "org", org.DID, "err", err)
+	crawlErr := c.resumeCrawl(ctx, org)
+
+	if crawlErr != nil {
+		if err := c.db.WithContext(ctx).
+			Model(&managedOrg{}).
+			Where("did = ?", org.DID).
+			Updates(map[string]any{
+				"crawl_state": crawlStateErrored,
+				"error_msg":   crawlErr.Error(),
+			}).Error; err != nil {
+			slog.ErrorContext(ctx, "set crawl errored", "org", org.DID, "err", err)
+		}
+
+		if err := c.resyncBuf.clearOrg(ctx, org.DID); err != nil {
+			slog.ErrorContext(ctx, "clear org buffer", "org", org.DID, "err", err)
+		}
+
+		c.sub.cancelSubscription(org.DID)
+		slog.ErrorContext(ctx, "crawl failed", "org", org.DID, "err", crawlErr)
 		return
 	}
 
-	complete := crawlStateComplete
 	if err := c.db.WithContext(ctx).
 		Model(&managedOrg{}).
 		Where("did = ?", org.DID).
-		Update("crawl_state", complete).Error; err != nil {
+		Update("crawl_state", crawlStateComplete).Error; err != nil {
 		slog.ErrorContext(ctx, "set crawl complete", "org", org.DID, "err", err)
-		return
 	}
 
 	if err := c.resyncBuf.drainOrg(ctx, org.DID); err != nil {

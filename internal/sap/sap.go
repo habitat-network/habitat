@@ -48,15 +48,16 @@ func NewSap(config SapConfig) (Sap, error) {
 	o := newOrgManager(config.DB, config.PublicDomain, secret)
 	repos := newRepoManager(config.DB)
 	resyncBuf := newResyncBuffer(config.DB, repos)
+	sub := newSubscriber(config.DB, o, resyncBuf)
 	resyncer := newResyncer(config.DB, o, repos, resyncBuf, config.ResyncParallelism)
-	crawler := newCrawler(config.DB, o, repos, resyncBuf)
+	crawler := newCrawler(config.DB, o, repos, resyncBuf, sub)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
-		sub:        newSubscriber(config.DB, o, resyncBuf),
+		sub:        sub,
 		repos:      repos,
 		resyncBuf:  resyncBuf,
 		resyncer:   resyncer,

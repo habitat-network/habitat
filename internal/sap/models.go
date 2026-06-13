@@ -12,6 +12,7 @@ import (
 const (
 	crawlStateRunning  = "running"
 	crawlStateComplete = "complete"
+	crawlStateErrored  = "errored"
 )
 
 type managedOrg struct {

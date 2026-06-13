@@ -3,6 +3,7 @@ package sap
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -177,7 +178,9 @@ func (r *resyncer) syncRepo(
 			if err != nil {
 				return r.handleSyncError(ctx, space, repoDID, err)
 			}
-			since = output.Cursor
+			if output.Cursor != "" {
+				since = output.Cursor
+			}
 		}
 
 		if output.Cursor == "" || len(output.Records) == 0 {
@@ -185,11 +188,16 @@ func (r *resyncer) syncRepo(
 		}
 	}
 
-	finalRev := syntax.TID(since)
-	if err := r.repos.SetActive(ctx, space, repoDID, finalRev); err != nil {
-		return err
+	if err := r.repos.SetActive(ctx, space, repoDID, syntax.TID(since)); err != nil {
+		return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("set active: %w", err))
 	}
-	return r.resyncBuf.drainRepo(ctx, space, repoDID)
+	if err := r.resyncBuf.drainRepo(ctx, repo); err != nil {
+		if markErr := r.repos.MarkDesynced(ctx, space, repoDID); markErr != nil {
+			return errors.Join(err, markErr)
+		}
+		return fmt.Errorf("drain repo after sync: %w", err)
+	}
+	return nil
 }
 
 func (r *resyncer) handleSyncError(

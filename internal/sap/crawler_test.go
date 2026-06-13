@@ -1,7 +1,6 @@
 package sap
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -46,7 +45,8 @@ func TestCrawler_DiscoverRepos(t *testing.T) {
 	orgManager := newOrgManager(db, "", nil)
 	repos := newRepoManager(db)
 	resyncBuf := newResyncBuffer(db, repos)
-	crawler := newCrawler(db, orgManager, repos, resyncBuf)
+	sub := newSubscriber(db, orgManager, resyncBuf)
+	crawler := newCrawler(db, orgManager, repos, resyncBuf, sub)
 
 	org := &managedOrg{
 		DID:         "did:plc:testorg",
@@ -118,18 +118,18 @@ func TestResyncer_SyncRepo(t *testing.T) {
 
 	space := habitat_syntax.SpaceURI(spaceURI)
 	repoDID := syntax.DID("did:plc:member1")
-	require.NoError(t, repos.EnsureRepo(context.Background(), space, repoDID))
+	require.NoError(t, repos.EnsureRepo(t.Context(), space, repoDID))
 	require.NoError(t, db.Model(&managedRepo{}).
 		Where("space = ? AND did = ?", space, repoDID).
 		Update("state", RepoStateResyncing).Error)
 
-	require.NoError(t, resyncer.syncRepo(context.Background(), space, repoDID))
+	require.NoError(t, resyncer.syncRepo(t.Context(), space, repoDID))
 
 	var records []outbox
 	require.NoError(t, db.Find(&records).Error)
 	require.Len(t, records, 2)
 
-	repo, err := repos.GetRepo(context.Background(), space, repoDID)
+	repo, err := repos.GetRepo(t.Context(), space, repoDID)
 	require.NoError(t, err)
 	require.Equal(t, RepoStateActive, repo.State)
 	require.Equal(t, syntax.TID(rev2), repo.Rev)
@@ -144,7 +144,7 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
-	require.NoError(t, repos.EnsureRepo(context.Background(), space, repoDID))
+	require.NoError(t, repos.EnsureRepo(t.Context(), space, repoDID))
 
 	clock := syntax.NewTIDClock(0)
 	rev := clock.Next()
@@ -169,8 +169,10 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 		return resyncBuf.WithTx(tx).appendEvent(event)
 	}))
 
-	require.NoError(t, repos.SetActive(context.Background(), space, repoDID, rev))
-	require.NoError(t, resyncBuf.drainRepo(context.Background(), space, repoDID))
+	require.NoError(t, repos.SetActive(t.Context(), space, repoDID, rev))
+	repo, err := repos.GetRepo(t.Context(), space, repoDID)
+	require.NoError(t, err)
+	require.NoError(t, resyncBuf.drainRepo(t.Context(), repo))
 
 	var records []outbox
 	require.NoError(t, db.Find(&records).Error)
@@ -196,8 +198,8 @@ func TestResyncBuffer_DrainBrokenChainMarksDesynced(t *testing.T) {
 	rev1 := clock.Next()
 	rev2 := clock.Next()
 
-	require.NoError(t, repos.EnsureRepo(context.Background(), space, repoDID))
-	require.NoError(t, repos.SetActive(context.Background(), space, repoDID, rev2))
+	require.NoError(t, repos.EnsureRepo(t.Context(), space, repoDID))
+	require.NoError(t, repos.SetActive(t.Context(), space, repoDID, rev2))
 
 	recordURI := habitat_syntax.SpaceRecordURI(
 		"ats://did:plc:testorg/network.habitat.space/my-space/did:plc:member1/network.habitat.note/k1",
@@ -219,9 +221,11 @@ func TestResyncBuffer_DrainBrokenChainMarksDesynced(t *testing.T) {
 		},
 	}
 	require.NoError(t, resyncBuf.appendEvent(bufferedEventData))
-	require.NoError(t, resyncBuf.drainRepo(t.Context(), space, repoDID))
-
 	repo, err := repos.GetRepo(t.Context(), space, repoDID)
+	require.NoError(t, err)
+	require.NoError(t, resyncBuf.drainRepo(t.Context(), repo))
+
+	repo, err = repos.GetRepo(t.Context(), space, repoDID)
 	require.NoError(t, err)
 	require.Equal(
 		t,
@@ -246,18 +250,18 @@ func TestRepoManager_ClaimForResync(t *testing.T) {
 	repos := newRepoManager(db)
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 
-	require.NoError(t, repos.EnsureRepo(context.Background(), space, "did:plc:a"))
-	require.NoError(t, repos.EnsureRepo(context.Background(), space, "did:plc:b"))
+	require.NoError(t, repos.EnsureRepo(t.Context(), space, "did:plc:a"))
+	require.NoError(t, repos.EnsureRepo(t.Context(), space, "did:plc:b"))
 
-	_, _, found, err := repos.ClaimForResync(context.Background(), RepoStatePending)
+	_, _, found, err := repos.ClaimForResync(t.Context(), RepoStatePending)
 	require.NoError(t, err)
 	require.True(t, found)
 
-	_, _, found, err = repos.ClaimForResync(context.Background(), RepoStatePending)
+	_, _, found, err = repos.ClaimForResync(t.Context(), RepoStatePending)
 	require.NoError(t, err)
 	require.True(t, found)
 
-	_, _, found, err = repos.ClaimForResync(context.Background(), RepoStatePending)
+	_, _, found, err = repos.ClaimForResync(t.Context(), RepoStatePending)
 	require.NoError(t, err)
 	require.False(t, found)
 }
