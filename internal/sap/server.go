@@ -1,7 +1,6 @@
 package sap
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -42,7 +41,7 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(r.Context(), "org added", "org", org.DID)
 
 	w.WriteHeader(http.StatusOK)
-	go s.sap.sub.addSubscription(context.Background(), org)
+	s.sap.startOrgSync(org)
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -53,9 +53,10 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	s, err := sap.NewSap(sap.SapConfig{
-		DB:           db,
-		PublicDomain: cmd.String(fDomain),
-		Secret:       cmd.String(fSecret),
+		DB:                db,
+		PublicDomain:      cmd.String(fDomain),
+		Secret:            cmd.String(fSecret),
+		ResyncParallelism: cmd.Int(fResyncParallelism),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)

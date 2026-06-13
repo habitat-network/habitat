@@ -3,11 +3,12 @@ package main
 import "github.com/urfave/cli/v3"
 
 var (
-	fDb       = "db"
-	fPort     = "port"
-	fDomain   = "domain"
-	fLogLevel = "log-level"
-	fSecret   = "secret"
+	fDb                = "db"
+	fPort              = "port"
+	fDomain            = "domain"
+	fLogLevel          = "log-level"
+	fSecret            = "secret"
+	fResyncParallelism = "resync-parallelism"
 )
 
 func getFlags() []cli.Flag {
@@ -41,6 +42,12 @@ func getFlags() []cli.Flag {
 			Usage:   "Secret used in OAuth flow",
 			Value:   "secret",
 			Sources: cli.EnvVars("SAP_SECRET"),
+		},
+		&cli.IntFlag{
+			Name:    fResyncParallelism,
+			Usage:   "Number of concurrent repo resync workers",
+			Value:   5,
+			Sources: cli.EnvVars("SAP_RESYNC_PARALLELISM"),
 		},
 	}
 }

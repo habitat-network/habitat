@@ -2,14 +2,13 @@ package sap
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
@@ -25,12 +24,17 @@ type sapImpl struct {
 	db         *gorm.DB
 	pathPrefix string
 	sub        *subscriber
+	repos      *repoManager
+	resyncBuf  *resyncBuffer
+	resyncer   *resyncer
+	crawler    *crawler
 }
 
 type SapConfig struct {
-	PublicDomain string
-	Secret       string
-	DB           *gorm.DB
+	PublicDomain      string
+	Secret            string
+	DB                *gorm.DB
+	ResyncParallelism int
 }
 
 func NewSap(config SapConfig) (Sap, error) {
@@ -42,32 +46,46 @@ func NewSap(config SapConfig) (Sap, error) {
 		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
 	o := newOrgManager(config.DB, config.PublicDomain, secret)
+	repos := newRepoManager(config.DB)
+	resyncBuf := newResyncBuffer(config.DB, repos)
+	resyncer := newResyncer(config.DB, o, repos, resyncBuf, config.ResyncParallelism)
+	crawler := newCrawler(config.DB, o, repos, resyncBuf)
+
+	if err := repos.ResetPartiallyResynced(context.Background()); err != nil {
+		return nil, fmt.Errorf("reset partially resynced repos: %w", err)
+	}
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
-		sub:        newSubscriber(config.DB, o),
+		sub:        newSubscriber(config.DB, o, resyncBuf),
+		repos:      repos,
+		resyncBuf:  resyncBuf,
+		resyncer:   resyncer,
+		crawler:    crawler,
 	}, nil
 }
 
 func (s *sapImpl) Start(ctx context.Context) error {
-	eg, ctx := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		err := s.sub.loadSubscriptions(ctx)
-		if err != nil {
-			return err
+	go func() {
+		if err := s.sub.loadSubscriptions(ctx); err != nil {
+			slog.ErrorContext(ctx, "load subscriptions", "err", err)
 		}
-		// TODO: retry failed orgs
-		return nil
-	})
-
-	err := eg.Wait()
-	return errors.Join(err, s.sub.closeSubscriptions())
+	}()
+	go s.resyncer.run(ctx)
+	go s.crawler.resumeIncompleteCrawls(ctx)
+	<-ctx.Done()
+	return s.sub.closeSubscriptions()
 }
 
 func (s *sapImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	srv := &server{sap: s}
 	srv.ServeHTTP(w, r)
+}
+
+func (s *sapImpl) startOrgSync(org *managedOrg) {
+	go s.crawler.crawlOrg(context.Background(), org)
+	go s.sub.addSubscription(context.Background(), org)
 }

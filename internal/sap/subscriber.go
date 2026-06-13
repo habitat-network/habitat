@@ -22,15 +22,21 @@ type subscription struct {
 type subscriber struct {
 	db         *gorm.DB
 	orgManager *orgManager
+	resyncBuf  *resyncBuffer
 
 	subscriptionsMu sync.RWMutex
 	subscriptions   map[syntax.DID]*subscription
 }
 
-func newSubscriber(db *gorm.DB, orgManager *orgManager) *subscriber {
+func newSubscriber(
+	db *gorm.DB,
+	orgManager *orgManager,
+	resyncBuf *resyncBuffer,
+) *subscriber {
 	return &subscriber{
 		db:            db,
 		orgManager:    orgManager,
+		resyncBuf:     resyncBuf,
 		subscriptions: map[syntax.DID]*subscription{},
 	}
 }
@@ -71,60 +77,11 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 					Error; err != nil {
 					return err
 				}
-				var prevRepo managedRepo
-				if err := tx.Where("space = ?", spaceEvent.Space).
-					Where("did = ?", spaceEvent.Repo).
-					First(&prevRepo).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				var currentOrg managedOrg
+				if err := tx.First(&currentOrg, "did = ?", org.DID).Error; err != nil {
 					return err
 				}
-				if prevRepo.State != "" && prevRepo.State != RepoStateActive {
-					// not actively listening to events for this repo yet
-					// TODO: write to resync buffer
-					return nil
-				}
-				if spaceEvent.Since != "" && prevRepo.Rev != spaceEvent.Since {
-					if err := tx.Save(&managedRepo{
-						Space: spaceEvent.Space,
-						DID:   spaceEvent.Repo,
-						State: RepoStateDesynced,
-					}).Error; err != nil {
-						return err
-					}
-					slog.WarnContext(
-						subscribeCtx,
-						"repo desynced",
-						"space",
-						spaceEvent.Space,
-						"repo",
-						spaceEvent.Repo,
-						"expected",
-						spaceEvent.Since,
-						"actual",
-						prevRepo.Rev,
-					)
-					return nil
-				}
-				if err := tx.Save(&managedRepo{
-					Space: spaceEvent.Space,
-					DID:   spaceEvent.Repo,
-					Rev:   spaceEvent.Rev,
-					State: RepoStateActive,
-				}).Error; err != nil {
-					return err
-				}
-				for _, op := range spaceEvent.Ops {
-					value, err := json.Marshal(op.Value)
-					if err != nil {
-						return err
-					}
-					if err := tx.Create(&outbox{
-						URI:   op.Uri,
-						Value: value,
-					}).Error; err != nil {
-						return err
-					}
-				}
-				return nil
+				return s.resyncBuf.handleSpaceEvent(tx, &currentOrg, spaceEvent)
 			})
 			if err != nil {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)
@@ -156,7 +113,6 @@ func (s *subscriber) closeSubscriptions() error {
 	s.subscriptionsMu.Unlock()
 	var errs []error
 	for did, cursor := range lastEventIDs {
-		// track errors but keep going
 		errs = append(errs, s.db.Model(&managedOrg{}).
 			Where("did = ?", did).
 			UpdateColumn("cursor", cursor).
