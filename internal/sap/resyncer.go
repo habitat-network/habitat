@@ -12,9 +12,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/db"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"gorm.io/gorm"
 )
+
+var _ db.Store[*resyncer] = (*resyncer)(nil)
 
 type resyncer struct {
 	db          *gorm.DB
@@ -22,6 +25,16 @@ type resyncer struct {
 	repos       *repoManager
 	resyncBuf   *resyncBuffer
 	parallelism int
+}
+
+func (r *resyncer) WithTx(tx *gorm.DB) *resyncer {
+	return &resyncer{
+		db:          tx,
+		orgManager:  r.orgManager,
+		repos:       r.repos,
+		resyncBuf:   r.resyncBuf,
+		parallelism: r.parallelism,
+	}
 }
 
 func newResyncer(
@@ -159,7 +172,7 @@ func (r *resyncer) syncRepo(
 					return err
 				}
 				lastRev := syntax.TID(output.Records[len(output.Records)-1].Rev)
-				return rbUpdateRev(tx, space, repoDID, lastRev)
+				return r.repos.WithTx(tx).UpdateRev(ctx, space, repoDID, lastRev)
 			})
 			if err != nil {
 				return r.handleSyncError(ctx, space, repoDID, err)
@@ -177,17 +190,6 @@ func (r *resyncer) syncRepo(
 		return err
 	}
 	return r.resyncBuf.drainRepo(ctx, space, repoDID)
-}
-
-func rbUpdateRev(
-	tx *gorm.DB,
-	space habitat_syntax.SpaceURI,
-	did syntax.DID,
-	rev syntax.TID,
-) error {
-	return tx.Model(&managedRepo{}).
-		Where("space = ? AND did = ?", space, did).
-		Update("rev", rev).Error
 }
 
 func (r *resyncer) handleSyncError(

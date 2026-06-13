@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"gorm.io/gorm"
@@ -19,8 +20,17 @@ type resyncBuffer struct {
 	repos *repoManager
 }
 
+var _ db.Store[*resyncBuffer] = (*resyncBuffer)(nil)
+
 func newResyncBuffer(db *gorm.DB, repos *repoManager) *resyncBuffer {
 	return &resyncBuffer{db: db, repos: repos}
+}
+
+func (rb *resyncBuffer) WithTx(tx *gorm.DB) *resyncBuffer {
+	return &resyncBuffer{
+		db:    tx,
+		repos: rb.repos,
+	}
 }
 
 func (rb *resyncBuffer) shouldBuffer(org *managedOrg, repo *managedRepo) bool {
@@ -38,12 +48,12 @@ func (rb *resyncBuffer) shouldBuffer(org *managedOrg, repo *managedRepo) bool {
 	}
 }
 
-func (rb *resyncBuffer) appendTx(tx *gorm.DB, event events.Event) error {
+func (rb *resyncBuffer) appendEvent(event events.Event) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
-	return tx.Create(&bufferedEvent{
+	return rb.db.Create(&bufferedEvent{
 		Space: event.Space,
 		DID:   event.Repo,
 		Seq:   event.Seq,
@@ -74,13 +84,12 @@ func eventMissed(prevRev syntax.TID, since syntax.TID) bool {
 	return string(since) > string(prevRev)
 }
 
-func (rb *resyncBuffer) getRepoTx(
-	tx *gorm.DB,
+func (rb *resyncBuffer) getRepo(
 	space habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) (*managedRepo, error) {
 	var repo managedRepo
-	err := tx.Where("space = ? AND did = ?", space, did).First(&repo).Error
+	err := rb.db.Where("space = ? AND did = ?", space, did).First(&repo).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -90,8 +99,8 @@ func (rb *resyncBuffer) getRepoTx(
 	return &repo, nil
 }
 
-func (rb *resyncBuffer) applyEvent(tx *gorm.DB, event events.Event) error {
-	repo, err := rb.getRepoTx(tx, event.Space, event.Repo)
+func (rb *resyncBuffer) applyEvent(event events.Event) error {
+	repo, err := rb.getRepo(event.Space, event.Repo)
 	if err != nil {
 		return err
 	}
@@ -101,7 +110,7 @@ func (rb *resyncBuffer) applyEvent(tx *gorm.DB, event events.Event) error {
 	}
 
 	if eventMissed(prevRev, event.Since) {
-		return tx.Model(&managedRepo{}).
+		return rb.db.Model(&managedRepo{}).
 			Where("space = ? AND did = ?", event.Space, event.Repo).
 			Update("state", RepoStateDesynced).Error
 	}
@@ -109,7 +118,7 @@ func (rb *resyncBuffer) applyEvent(tx *gorm.DB, event events.Event) error {
 		return nil
 	}
 
-	if err := tx.Save(&managedRepo{
+	if err := rb.db.Save(&managedRepo{
 		Space: event.Space,
 		DID:   event.Repo,
 		Rev:   event.Rev,
@@ -117,7 +126,7 @@ func (rb *resyncBuffer) applyEvent(tx *gorm.DB, event events.Event) error {
 	}).Error; err != nil {
 		return err
 	}
-	return writeEventOps(tx, event.Ops)
+	return writeEventOps(rb.db, event.Ops)
 }
 
 func (rb *resyncBuffer) drainRepo(
@@ -155,7 +164,7 @@ func (rb *resyncBuffer) drainRepo(
 		}
 
 		err = rb.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := rb.applyEvent(tx, event); err != nil {
+			if err := rb.WithTx(tx).applyEvent(event); err != nil {
 				return err
 			}
 			return tx.Delete(&bufferedEvent{}, entry.ID).Error
@@ -191,17 +200,13 @@ func (rb *resyncBuffer) drainOrg(ctx context.Context, orgDID syntax.DID) error {
 	return errors.Join(errs...)
 }
 
-func (rb *resyncBuffer) handleSpaceEvent(
-	tx *gorm.DB,
-	org *managedOrg,
-	event events.Event,
-) error {
-	repo, err := rb.getRepoTx(tx, event.Space, event.Repo)
+func (rb *resyncBuffer) handleSpaceEvent(org *managedOrg, event events.Event) error {
+	repo, err := rb.getRepo(event.Space, event.Repo)
 	if err != nil {
 		return err
 	}
 	if repo == nil {
-		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
+		if err := rb.db.Clauses(clause.OnConflict{DoNothing: true}).
 			Create(&managedRepo{
 				Space: event.Space,
 				DID:   event.Repo,
@@ -213,8 +218,8 @@ func (rb *resyncBuffer) handleSpaceEvent(
 	}
 
 	if rb.shouldBuffer(org, repo) {
-		return rb.appendTx(tx, event)
+		return rb.appendEvent(event)
 	}
 
-	return rb.applyEvent(tx, event)
+	return rb.applyEvent(event)
 }

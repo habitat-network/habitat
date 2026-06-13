@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/habitat-network/habitat/internal/db"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -17,8 +18,14 @@ type repoManager struct {
 	db *gorm.DB
 }
 
+var _ db.Store[*repoManager] = (*repoManager)(nil)
+
 func newRepoManager(db *gorm.DB) *repoManager {
 	return &repoManager{db: db}
+}
+
+func (rm *repoManager) WithTx(tx *gorm.DB) *repoManager {
+	return &repoManager{db: tx}
 }
 
 func (rm *repoManager) GetRepo(

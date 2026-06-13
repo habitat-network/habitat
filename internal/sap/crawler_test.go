@@ -166,7 +166,7 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 	}
 
 	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
-		return resyncBuf.appendTx(tx, event)
+		return resyncBuf.WithTx(tx).appendEvent(event)
 	}))
 
 	require.NoError(t, repos.SetActive(context.Background(), space, repoDID, rev))

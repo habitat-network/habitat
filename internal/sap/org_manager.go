@@ -14,12 +14,24 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
+
+	"github.com/habitat-network/habitat/internal/db"
 )
+
+var _ db.Store[*orgManager] = (*orgManager)(nil)
 
 type orgManager struct {
 	db     *gorm.DB
 	domain string
 	secret atcrypto.PrivateKey
+}
+
+func (o *orgManager) WithTx(tx *gorm.DB) *orgManager {
+	return &orgManager{
+		db:     tx,
+		domain: o.domain,
+		secret: o.secret,
+	}
 }
 
 func newOrgManager(db *gorm.DB, domain string, secret atcrypto.PrivateKey) *orgManager {

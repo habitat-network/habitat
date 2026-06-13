@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/r3labs/sse/v2"
 	"gorm.io/gorm"
@@ -19,6 +20,8 @@ type subscription struct {
 	cancel context.CancelFunc
 }
 
+var _ db.Store[*subscriber] = (*subscriber)(nil)
+
 type subscriber struct {
 	db         *gorm.DB
 	orgManager *orgManager
@@ -26,6 +29,15 @@ type subscriber struct {
 
 	subscriptionsMu sync.RWMutex
 	subscriptions   map[syntax.DID]*subscription
+}
+
+func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
+	return &subscriber{
+		db:          tx,
+		orgManager:  s.orgManager,
+		resyncBuf:   s.resyncBuf,
+		subscriptions: s.subscriptions,
+	}
 }
 
 func newSubscriber(
@@ -81,7 +93,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 				if err := tx.First(&currentOrg, "did = ?", org.DID).Error; err != nil {
 					return err
 				}
-				return s.resyncBuf.handleSpaceEvent(tx, &currentOrg, spaceEvent)
+				return s.resyncBuf.WithTx(tx).handleSpaceEvent(&currentOrg, spaceEvent)
 			})
 			if err != nil {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)

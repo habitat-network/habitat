@@ -11,15 +11,27 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/db"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"gorm.io/gorm"
 )
+
+var _ db.Store[*crawler] = (*crawler)(nil)
 
 type crawler struct {
 	db         *gorm.DB
 	orgManager *orgManager
 	repos      *repoManager
 	resyncBuf  *resyncBuffer
+}
+
+func (c *crawler) WithTx(tx *gorm.DB) *crawler {
+	return &crawler{
+		db:         tx,
+		orgManager: c.orgManager,
+		repos:      c.repos,
+		resyncBuf:  c.resyncBuf,
+	}
 }
 
 func newCrawler(
