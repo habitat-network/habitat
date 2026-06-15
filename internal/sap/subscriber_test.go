@@ -17,9 +17,9 @@ import (
 
 type dummySubscriber struct{ ch chan events.Event }
 
-var _ events.Subscriber = (*dummySubscriber)(nil)
+var _ events.EventStream = (*dummySubscriber)(nil)
 
-// Subscribe implements [events.Subscriber].
+// Subscribe implements [events.EventStream].
 func (d *dummySubscriber) Subscribe(ctx context.Context, since uint64) <-chan events.Event {
 	return d.ch
 }
