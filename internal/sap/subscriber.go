@@ -41,14 +41,6 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	client.Connection = s.orgManager.GetClient(ctx, org.DID)
 	client.LastEventID.Store([]byte(org.Cursor))
 	subscribeCtx, cancel := context.WithCancel(ctx)
-	sub := &subscription{
-		client: client,
-		cancel: cancel,
-	}
-
-	s.subscriptionsMu.Lock()
-	s.subscriptions[org.DID] = sub
-	s.subscriptionsMu.Unlock()
 
 	err := client.SubscribeRawWithContext(subscribeCtx, func(event *sse.Event) {
 		eventType := string(event.Event)
@@ -142,6 +134,14 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 		s.subscriptionsMu.Unlock()
 		return
 	}
+	sub := &subscription{
+		client: client,
+		cancel: cancel,
+	}
+
+	s.subscriptionsMu.Lock()
+	s.subscriptions[org.DID] = sub
+	s.subscriptionsMu.Unlock()
 }
 
 // closeSubscriptions cleans up the subscriptions
