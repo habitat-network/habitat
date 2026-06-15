@@ -129,9 +129,6 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to subscribe", "org", org.DID, "err", err)
 		s.db.Model(&managedOrg{}).Where("did = ?", org.DID).UpdateColumn("error_msg", err.Error())
-		s.subscriptionsMu.Lock()
-		delete(s.subscriptions, org.DID)
-		s.subscriptionsMu.Unlock()
 		return
 	}
 	sub := &subscription{
