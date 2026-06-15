@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
@@ -15,22 +16,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type orgCredential struct {
-	Org  syntax.DID `gorm:"primaryKey"`
-	Host string
-
-	// Pending auth
-	State        *string `gorm:"index"`
-	CodeVerifier *string
-
-	// Completed auth
-	AccessToken  string `gorm:"type:text"`
-	RefreshToken string `gorm:"type:text"`
-	ExpiresAt    time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-}
-
 type orgManager struct {
 	db     *gorm.DB
 	domain string
@@ -38,7 +23,7 @@ type orgManager struct {
 }
 
 func newOrgManager(db *gorm.DB, domain string, secret atcrypto.PrivateKey) (*orgManager, error) {
-	err := db.AutoMigrate(&orgCredential{})
+	err := db.AutoMigrate(&managedOrg{})
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +52,8 @@ func (o *orgManager) AddOrg(
 	if host == "" {
 		return "", fmt.Errorf("no habitat service endpoint for %q", orgHandle)
 	}
-	if err := o.db.WithContext(ctx).Save(&orgCredential{
-		Org:          id.DID,
+	if err := o.db.WithContext(ctx).Save(&managedOrg{
+		DID:          id.DID,
 		Host:         host,
 		State:        &state,
 		CodeVerifier: &verifier,
@@ -85,10 +70,10 @@ func (o *orgManager) AddOrg(
 	return authorizeURL, nil
 }
 
-func (o *orgManager) completeAuth(ctx context.Context, code, state string) (syntax.DID, error) {
-	var pending orgCredential
+func (o *orgManager) completeAuth(ctx context.Context, code, state string) (*managedOrg, error) {
+	var pending managedOrg
 	if err := o.db.WithContext(ctx).Where("state = ?", state).First(&pending).Error; err != nil {
-		return "", fmt.Errorf("pending state not found: %w", err)
+		return nil, fmt.Errorf("pending state not found: %w", err)
 	}
 
 	config := o.oauthConfig(pending.Host)
@@ -98,26 +83,26 @@ func (o *orgManager) completeAuth(ctx context.Context, code, state string) (synt
 		oauth2.SetAuthURLParam("code_verifier", *pending.CodeVerifier),
 	)
 	if err != nil {
-		return "", fmt.Errorf("exchange code: %w", err)
+		return nil, fmt.Errorf("exchange code: %w", err)
 	}
 
-	if err := o.db.Save(&orgCredential{
-		Org:          pending.Org,
+	addedOrg := &managedOrg{
+		DID:          pending.DID,
 		Host:         pending.Host,
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
-	}).Error; err != nil {
-		return "", fmt.Errorf("save refreshed token: %w", err)
 	}
-
-	return pending.Org, nil
+	if err := o.db.Save(addedOrg).Error; err != nil {
+		return nil, fmt.Errorf("save refreshed token: %w", err)
+	}
+	return addedOrg, nil
 }
 
 var ErrOrgNotFound = fmt.Errorf("no org")
 
 func (o *orgManager) ListOrgs(ctx context.Context) ([]syntax.DID, error) {
-	var creds []orgCredential
+	var creds []managedOrg
 	err := o.db.WithContext(ctx).
 		Where("access_token != ''").
 		Where("expires_at > ?", time.Now()).
@@ -128,7 +113,7 @@ func (o *orgManager) ListOrgs(ctx context.Context) ([]syntax.DID, error) {
 	}
 	var orgs []syntax.DID
 	for _, cred := range creds {
-		orgs = append(orgs, cred.Org)
+		orgs = append(orgs, cred.DID)
 	}
 	return orgs, nil
 }
@@ -157,20 +142,20 @@ func (o *orgManager) oauthConfig(hostURL string) *oauth2.Config {
 
 type tokenSource struct {
 	did syntax.DID
-	a   *orgManager
+	o   *orgManager
 }
 
-func (o *orgManager) GetTokenSource(orgID syntax.DID) oauth2.TokenSource {
-	return &tokenSource{a: o, did: orgID}
+func (o *orgManager) GetClient(ctx context.Context, orgDID syntax.DID) *http.Client {
+	return oauth2.NewClient(ctx, &tokenSource{o: o, did: orgDID})
 }
 
 // Token implements [oauth2.TokenSource].
 func (t *tokenSource) Token() (*oauth2.Token, error) {
-	var cred orgCredential
-	if err := t.a.db.Where("org = ?", t.did).First(&cred).Error; err != nil {
+	var cred managedOrg
+	if err := t.o.db.Where("did = ?", t.did).First(&cred).Error; err != nil {
 		return nil, err
 	}
-	refreshedToken, err := t.a.oauthConfig(cred.Host).
+	refreshedToken, err := t.o.oauthConfig(cred.Host).
 		TokenSource(context.Background(), &oauth2.Token{
 			AccessToken:  cred.AccessToken,
 			RefreshToken: cred.RefreshToken,
@@ -181,8 +166,8 @@ func (t *tokenSource) Token() (*oauth2.Token, error) {
 		return nil, err
 	}
 	if refreshedToken.AccessToken != cred.AccessToken {
-		if err := t.a.db.Save(&orgCredential{
-			Org:          cred.Org,
+		if err := t.o.db.Save(&managedOrg{
+			DID:          cred.DID,
 			Host:         cred.Host,
 			AccessToken:  refreshedToken.AccessToken,
 			RefreshToken: refreshedToken.RefreshToken,

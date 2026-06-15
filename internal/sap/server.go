@@ -38,7 +38,9 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	slog.InfoContext(r.Context(), "org added", "org", org)
+	slog.InfoContext(r.Context(), "org added", "org", org.DID)
+
+	s.sap.sub.addSubscription(r.Context(), org)
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
