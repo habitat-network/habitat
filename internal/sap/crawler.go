@@ -183,14 +183,13 @@ func (c *crawler) enumerateSpaceMembers(
 
 	space := habitat_syntax.SpaceURI(spaceURI)
 	for _, member := range getMembersOutput.Members {
-		err := c.db.WithContext(ctx).
+		if err := c.db.WithContext(ctx).
 			Clauses(clause.OnConflict{DoNothing: true}).
 			Create(&managedRepo{
 				Space: space,
 				DID:   syntax.DID(member.Did),
 				State: RepoStatePending,
-			}).Error
-		if err != nil {
+			}).Error; err != nil {
 			return err
 		}
 	}
