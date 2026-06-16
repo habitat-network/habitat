@@ -34,7 +34,7 @@ type managedOrg struct {
 	UpdatedAt    time.Time
 
 	ErrorMsg        string
-	CrawlState      *string
+	CrawlState      *crawlState
 	SubscribeCursor string
 	CrawlCursor     string
 }
