@@ -214,7 +214,7 @@ func setupSubscriber(
 	t.Cleanup(func() { srv.Close() })
 
 	orgManager := newOrgManager(db, "", nil, pdsclient.NewDummyDirectory("https://pds.example.com"))
-	resyncBuf := newResyncBuffer(db)
+	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1))
 	subscriber = newSubscriber(db, orgManager, resyncBuf)
 
 	go func() {

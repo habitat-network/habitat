@@ -37,10 +37,11 @@ func TestCrawler_DiscoverRepos(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	db := openTestDB(t)
+	resyncNotifCh := make(chan struct{}, 1)
 	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db)
+	resyncBuf := newResyncBuffer(db, resyncNotifCh)
 	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub)
+	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
 
 	org := &managedOrg{
 		DID:         "did:plc:testorg",

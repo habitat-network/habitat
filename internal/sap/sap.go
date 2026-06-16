@@ -50,12 +50,10 @@ func NewSap(config SapConfig) (Sap, error) {
 	resyncNotifCh := make(chan struct{}, 1)
 
 	o := newOrgManager(config.DB, config.PublicDomain, secret, identity.DefaultDirectory())
-	resyncBuf := newResyncBuffer(config.DB)
+	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh)
 	sub := newSubscriber(config.DB, o, resyncBuf)
 	resyncer := newResyncer(config.DB, o, resyncBuf, resyncNotifCh, config.ResyncParallelism)
-	crawler := newCrawler(config.DB, o, resyncBuf, sub)
-	resyncBuf.notify = resyncer.NotifyResyncNeeded
-	crawler.notify = resyncer.NotifyResyncNeeded
+	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotifCh)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
