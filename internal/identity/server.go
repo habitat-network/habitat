@@ -1,4 +1,4 @@
-package hive
+package identity
 
 import (
 	"encoding/json"
@@ -11,6 +11,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
@@ -28,33 +30,16 @@ func effectiveHost(r *http.Request) string {
 // Serve DID docs and handle --> did mappings.
 // Does not serve the MintIdentity endpoint.
 type Server struct {
-	hive  Hive
-	oauth authn.Method
+	hive     hive.Hive
+	oauth    authn.Method
+	orgStore org.Store
 }
 
 // NewServer constructs the hive HTTP server. The OAuth method is required to
 // authenticate the caller for endpoints that mint things using the identity's
 // signing key (e.g. com.atproto.server.getServiceAuth).
-func NewServer(hive Hive, oauth authn.Method) (*Server, error) {
-	return &Server{hive: hive, oauth: oauth}, nil
-}
-
-// Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
-func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
-	handle, err := syntax.ParseHandle(effectiveHost(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	ident, err := s.hive.LookupHandle(r.Context(), handle)
-	// TODO: better status codes dependening on the identity.Err type
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	_, _ = w.Write([]byte(ident.DID.String()))
+func NewServer(hive hive.Hive, oauth authn.Method, orgStore org.Store) (*Server, error) {
+	return &Server{hive: hive, oauth: oauth, orgStore: orgStore}, nil
 }
 
 type didDocWithContext struct {
@@ -150,9 +135,32 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
+	// Must present valid oauth credential for this org to read identities
+	callerDID, ok := authn.Validate(w, r, s.oauth)
+	if !ok {
+		return
+	}
+	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		return
+	}
+
 	did, err := syntax.ParseDID("did:web:" + effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	targetOrg, err := s.orgStore.GetOrgForDID(r.Context(), did)
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		return
+	}
+
+	// authz: oauth credential must be for the same org
+	if callerOrg.DID() != targetOrg.DID() {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -174,4 +182,46 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
+func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
+	// Must present valid oauth credential for this org to read identities
+	callerDID, ok := authn.Validate(w, r, s.oauth)
+	if !ok {
+		return
+	}
+	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		return
+	}
+
+	handle, err := syntax.ParseHandle(effectiveHost(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	ident, err := s.hive.LookupHandle(r.Context(), handle)
+	// TODO: better status codes dependening on the identity.Err type
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError) // don't leak whether the DID exists or not
+		return
+	}
+
+	targetOrg, err := s.orgStore.GetOrgForDID(r.Context(), ident.DID)
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		return
+	}
+
+	// authz: oauth credential must be for the same org
+	if callerOrg.DID() != targetOrg.DID() {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	_, _ = w.Write([]byte(ident.DID.String()))
 }

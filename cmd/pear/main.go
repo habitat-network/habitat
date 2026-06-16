@@ -37,6 +37,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
@@ -334,7 +335,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	hiveServer, err := hive.NewServer(orgHive, oauthServer)
+	idServer, err := habitat_identity.NewServer(orgHive, oauthServer, orgStore)
 	if err != nil {
 		slog.Error("unable to setup hive server", "err", err)
 		os.Exit(1)
@@ -342,16 +343,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.Host("{opaqueID:.+}." + hiveDomain).
 		Path("/.well-known/did.json").
-		HandlerFunc(hiveServer.ServeDIDDoc)
+		HandlerFunc(idServer.ServeDIDDoc)
 	mux.Host("{handle:.+}." + hiveDomain).
 		Path("/.well-known/atproto-did").
-		HandlerFunc(hiveServer.ServeHandle)
-	mux.Headers(hive.HabitatHostHeader, "").
+		HandlerFunc(idServer.ServeHandle)
+	mux.Headers(habitat_identity.HabitatHostHeader, "").
 		Path("/.well-known/did.json").
-		HandlerFunc(hiveServer.ServeDIDDoc)
-	mux.Headers(hive.HabitatHostHeader, "").
+		HandlerFunc(idServer.ServeDIDDoc)
+	mux.Headers(habitat_identity.HabitatHostHeader, "").
 		Path("/.well-known/atproto-did").
-		HandlerFunc(hiveServer.ServeHandle)
+		HandlerFunc(idServer.ServeHandle)
 
 	waitlistSvc, err := NewWaitlistService(
 		startupCtx,
@@ -438,7 +439,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 				return
 			}
 			if _, ok := id.Services["habitat"]; ok {
-				hiveServer.GetServiceAuth(w, r)
+				idServer.GetServiceAuth(w, r)
 				return
 			}
 			utils.LogAndHTTPError(
