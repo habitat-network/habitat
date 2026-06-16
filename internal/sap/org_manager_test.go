@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
@@ -94,4 +95,18 @@ func TestOrgManager_GetClient(t *testing.T) {
 	require.NoError(t, db.First(&updatedOrg).Error)
 
 	require.Equal(t, "refreshed_token", updatedOrg.AccessToken)
+}
+
+func TestOrgManager_ClientMetadata(t *testing.T) {
+	o := newOrgManager(
+		nil,
+		"test.domain",
+		&atcrypto.PrivateKeyP256{},
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+	)
+	md, err := o.clientMetadata()
+	require.NoError(t, err)
+	require.Equal(t, "https://test.domain/oauth-callback", md.RedirectURIs[0])
+	require.Equal(t, "https://test.domain/client-metadata.json", md.ClientID)
+	require.Equal(t, "https://test.domain/client-metadata.json", md.ClientID)
 }

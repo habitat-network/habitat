@@ -22,7 +22,7 @@ func TestSap_Start(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		require.NoError(t, s.Start(ctx))
+		require.ErrorIs(t, s.Start(ctx), context.Canceled)
 	})
 
 	cancel()
