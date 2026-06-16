@@ -1,47 +1,45 @@
 ---
 id: auth
 slug: /building/auth.mdx
-sidebar_label: Auth
-sidebar_position: 1
+sidebar_label: Identities & Authentication
+sidebar_position: 2
+---
+
+# Identities & Authentication
+
+# Identities
+
+### Decentralized Identifiers (DIDs)
+
+Identities in Habitat are based on DIDs. Both organizations and members of an organization have a unique identity, defined by a DID document. The `did:web:` DID method is used for all identities in Habitat. Application developers should reference both organizations and users by DID. Currently, the DID docs for both organizations and users only have a single service in the services field, a `#habitat` service which points to the ODS (Organizational Data Server) on which the identity lives. Because Habitat is starting with the permissioned data usecase, the `#atproto_PDS` service would be an inaccurate service to include, though eventually we will reach parity with that and switch over.
+
+### Organization identities
+
+Every organization in Habitat has its own identity. This is a `did:web:` that directly references the Habitat domain the organization is hosted on. For organizations that use the managed hosting provided by Habitat's main instance, this looks like `<org-name>.id.habitat.network`. For self-hosted instances, this is `<org-name>.<domain where habitat is running>`. TODO: examples.
+
+### User identities
+
+Habitat uses **DIDs (Decentralized Identifiers)** as the foundation of user identity. Every user is identified by their DID, and has a handle that is tied to the organization. The username that is in this handle is chosen by the user when they are added as a member of the organization. So, for example, `alice.acmecorp.id.habitat.network` is the AT Protocol handle for a user Alice who is a part of the Acmecorp organization hosted by Habitat. [TODO, can this change to alice.acmecorp.com].
+
 ---
 
 # Authentication
 
-Habitat uses **DIDs (Decentralized Identifiers)** as the foundation of user identity. Every user is identified by their DID, resolved from their AT Protocol handle (e.g. `alice.bsky.social`).
+### Login methods
 
-## Two-layer OAuth architecture
+When creating a Habitat organization, admins will be prompted about which login method to set for the entire organization. The options offered today are sign-in with password, sign-in with AT Protocol, and sign-in with Google. Choosing a login method is a final operation and cannot be changed in the future. We currently do not support multiple login methods for an organization, though we may in the future. Every login method creates a DID for the user within Habitat's Organizational Data Server, but the AT Protocol and Google login methods defer to those services for authentication.
 
-Habitat runs its own OAuth 2.0 server, which is what your app authenticates with. Separately, Habitat's backend authenticates with [the user's PDS (Personal Data Server)](https://atproto.com/guides/glossary#pds-personal-data-server) as part of the login flow to verify identity and obtain credentials for making PDS API calls.
+### OAuth
 
-Your app never directly authenticates with the PDS — it only talks to Habitat's OAuth server. Habitat can make authenticated requests to the PDS on your behalf.
+Habitat's Organizational Data Server runs its own OAuth 2.0 server, which is what your app authenticates with on behalf of both users and on behalf of the application itself. You can use a standard OAuth client that supports PKCE to authenticate with Habitat's OAuth server. The OAuth flow will redirect the user to a Habitat consent screen before navigating back to your page once the auth flow has completed. See an example of how we do it here.
 
-## Habitat's internal login flow
+### Admin-approved applications
 
-1. The user enters their AT Protocol handle
-2. Habitat resolves the handle to a DID via the AT Protocol identity directory
-3. Habitat's backend initiates an OAuth flow with the user's PDS to verify their identity
-4. The user authenticates on their PDS, which redirects back to Habitat
-5. Habitat stores the PDS credentials server-side (encrypted) for future PDS API calls
-6. Habitat's OAuth server issues its own access and refresh tokens to the client
+Applications that are built on Habitat must get organization approval in order to receive an OAuth credential for the org's identity, which allows the app to read and write to the Habitat Data Server. Applications must implement a flow that redirects to Habitat to request relevant permissions, and from which authenticated admins can either approve or deny the request. This flow is currently a work-in-progress and updated documentation is coming soon.
 
-From the client's perspective, authentication is entirely against Habitat's OAuth server. The PDS interaction is an implementation detail handled server-side.
 
----
+### Service Auth
 
-As an app developer, there are two ways to authenticate with Habitat, and which one you pick depends on your Habitat usage.
+The Habitat Data Server also supports [service proxying](https://atproto.com/specs/xrpc#service-proxying) for authenticated inter-service requests. 
 
-## Authentication method: Direct
 
-You can use a standard OAuth client that supports PKCE to authenticate with Habitat's OAuth server. This authentication method is preferred if you are building a local-first or client-side only app. The OAuth flow will redirect the user to a Habitat consent screen before navigating back to your page once the auth flow has completed. See an example of how we do it [here](https://github.com/habitat-network/habitat/blob/297e32a8c3dbfd1b14b10ad5d9d0825a9b83ec53/typescript/internal/src/authManager.ts).
-
-## Authentication method: Service Auth
-
-Internal services can authenticate using **signed JWTs** instead of user OAuth tokens. JWTs can be retrieved via the [getServiceAuth endpoint](https://docs.bsky.app/docs/api/com-atproto-server-get-service-auth) on a user's PDS and included as a `Bearer` token in the `Authorization` header. The JWT is signed with the PDS's private key and verified against its public key from the service's DID document. The issuer DID is used as the caller identity.
-
-## Your app's perspective
-
-When making requests to Habitat on behalf of a user:
-
-- Include the access token as a `Bearer` token in the `Authorization` header
-- Set `Habitat-Auth-Method: oauth` to indicate the Direct authentication method. Otherwise the Service Auth method is assumed.
-- Refresh the token before it expires

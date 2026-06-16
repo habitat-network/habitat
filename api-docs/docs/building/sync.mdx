@@ -1,18 +1,13 @@
 ---
 id: sync
 slug: /building/sync
-sidebar_label: Sync & local-first
-sidebar_position: 5
+sidebar_label: Sync
+sidebar_position: 4
 ---
 
-# Sync & local-first software
-
-## Local-first software
-
-The sweet spot for building on habitat is to build social, [local-first](https://www.inkandswitch.com/essay/local-first/#5-the-long-now) applications. Local-first means that the user's device is treated as the primary source, and data is synced back up to their user-owned data store, such as their standard AT protocol PDS as well as their habitat repo. It is expected that data travels between user PDS'es and the client application, and does not get stored on application servers. We aim to provide the right developer primitives to make this possible, so if you have a use case that is not currently supported, please reach out to us.
-
-## Sync
+# Sync
 
 ⚠️ Under construction ⚠️
 
-Real-time collaboration on the web is now a standard. We are developing peer2peer libraries that operate on AT protocol data (records) and make use of CRDTs to easily create real-time syncing applications no top of habitat. Our first demo of this is the [docs](https://habitat.network/habitat/docs/#/login) app and we will be formalizing these APIs shortly.
+Habitat follows the standards AT Protocol has set in terms of data synchronization mechanisms for organizational data. However, rather than applications sync-ing with individual user data repositories to get updates, Habitat's Organizational Data Server provides a subscription primitive for syncing an entire organization's updates (documentation coming soon). We also are developing Sap, a standalone binary / Go library that is modelled off of AT Protocol's [Tap tool](https://atproto.com/blog/introducing-tap), and handles backfill and recovery for desynchronized states. Sap is meant to be run by application servers building on top of Habitat, embedded into their architecture.
+
