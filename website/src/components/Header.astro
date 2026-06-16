@@ -6,6 +6,7 @@ import Icon from "./Icon.astro";
 <header class="flex justify-between px-6 py-4 items-center sticky top-0 z-10 bg-white">
   <div class="flex items-center gap-6">
     <a href="/"><img src="/habitat-wordmark.svg" class="w-32" /></a>
+    <a href="https://habitat.network/habitat/api" class="hidden md:block docs-link">Documentation</a>
     <div class="hidden md:block">
       <div class="products-menu">
         <button type="button" class="products-trigger" aria-haspopup="true" aria-expanded="false">
@@ -46,6 +47,7 @@ import Icon from "./Icon.astro";
       </svg>
     </summary>
     <div class="absolute right-0 top-full mt-2 bg-white border border-gray-300 rounded-lg p-4 flex flex-col gap-4 min-w-56 shadow-lg z-20">
+      <a href="https://habitat.network/habitat/api" class="text-black no-underline text-sm">Documentation</a>
       <div class="flex flex-col gap-2 text-sm">
         <div class="text-xs uppercase tracking-wider text-gray-500">Products</div>
         <a href="/community-platform" class="text-black no-underline">Community Platform</a>
@@ -67,6 +69,21 @@ import Icon from "./Icon.astro";
 </header>
 
 <style>
+  .docs-link {
+    font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: #000;
+    text-decoration: none;
+    letter-spacing: -0.005em;
+    transition: color 160ms ease;
+  }
+  .docs-link:hover {
+    color: #008000;
+    transform: none;
+    text-decoration: none;
+  }
+
   .products-menu {
     position: relative;
     font-family: 'General Sans', ui-sans-serif, system-ui, sans-serif;
