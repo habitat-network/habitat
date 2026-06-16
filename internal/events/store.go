@@ -48,7 +48,14 @@ type EventOps struct {
 	Access string
 }
 
+// EventStream returns a channel of sequenced event objects
+type EventStream interface {
+	Subscribe(ctx context.Context, since uint64) <-chan Event
+}
+
+// Store appends to the event store, sequences events, and pushes events to subscribers
 type Store interface {
+	EventStream
 	AppendSpaceEvent(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
@@ -57,8 +64,8 @@ type Store interface {
 		prev syntax.TID,
 		ops []EventOps,
 	) error
-	Subscribe(ctx context.Context, since uint64) <-chan Event
 	StartSequencer(ctx context.Context) error
+	// NotifyEvent should be called after appending an event succeeds in order to sequence the event
 	NotifyEvent(ctx context.Context)
 
 	db.Store[Store]

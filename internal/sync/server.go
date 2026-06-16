@@ -12,10 +12,10 @@ import (
 )
 
 type Server struct {
-	eventStore events.Store
+	eventStore events.EventStream
 }
 
-func NewServer(eventStore events.Store) *Server {
+func NewServer(eventStore events.EventStream) *Server {
 	return &Server{eventStore: eventStore}
 }
 
@@ -71,11 +71,11 @@ func (s *Server) HandleSubscribeSpaces(w http.ResponseWriter, r *http.Request) {
 				slog.ErrorContext(r.Context(), "failed to marshal event", "err", err)
 				return
 			}
-			if _, err = fmt.Fprintf(w, "id: %d\n\n", event.Seq); err != nil {
+			if _, err = fmt.Fprintf(w, "id: %d\n", event.Seq); err != nil {
 				slog.ErrorContext(r.Context(), "failed to write id", "err", err)
 				return
 			}
-			if _, err = fmt.Fprintf(w, "event: %s\n\n", event.Type); err != nil {
+			if _, err = fmt.Fprintf(w, "event: %s\n", event.Type); err != nil {
 				slog.ErrorContext(r.Context(), "failed to write event", "err", err)
 				return
 			}

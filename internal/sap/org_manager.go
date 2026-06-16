@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -20,14 +19,16 @@ type orgManager struct {
 	db     *gorm.DB
 	domain string
 	secret atcrypto.PrivateKey
+	dir    identity.Directory
 }
 
-func newOrgManager(db *gorm.DB, domain string, secret atcrypto.PrivateKey) (*orgManager, error) {
-	err := db.AutoMigrate(&managedOrg{})
-	if err != nil {
-		return nil, err
-	}
-	return &orgManager{db: db, domain: domain, secret: secret}, nil
+func newOrgManager(
+	db *gorm.DB,
+	domain string,
+	secret atcrypto.PrivateKey,
+	dir identity.Directory,
+) *orgManager {
+	return &orgManager{db: db, domain: domain, secret: secret, dir: dir}
 }
 
 func (o *orgManager) AddOrg(
@@ -43,7 +44,7 @@ func (o *orgManager) AddOrg(
 		return "", fmt.Errorf("parse handle %q: %w", orgHandle, err)
 	}
 
-	id, err := identity.DefaultDirectory().Lookup(ctx, atid)
+	id, err := o.dir.Lookup(ctx, atid)
 	if err != nil {
 		return "", fmt.Errorf("lookup %q: %w", orgHandle, err)
 	}
@@ -105,7 +106,6 @@ func (o *orgManager) ListOrgs(ctx context.Context) ([]syntax.DID, error) {
 	var creds []managedOrg
 	err := o.db.WithContext(ctx).
 		Where("access_token != ''").
-		Where("expires_at > ?", time.Now()).
 		Find(&creds).
 		Error
 	if err != nil {
@@ -134,8 +134,9 @@ func (o *orgManager) oauthConfig(hostURL string) *oauth2.Config {
 		ClientID:    "https://" + o.domain + "/client-metadata.json",
 		RedirectURL: "https://" + o.domain + "/oauth-callback",
 		Endpoint: oauth2.Endpoint{
-			TokenURL: hostURL + "/oauth/token",
-			AuthURL:  hostURL + "/oauth/authorize",
+			TokenURL:  hostURL + "/oauth/token",
+			AuthURL:   hostURL + "/oauth/authorize",
+			AuthStyle: oauth2.AuthStyleInParams,
 		},
 	}
 }
