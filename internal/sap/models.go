@@ -9,10 +9,12 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
+type crawlState string
+
 const (
-	crawlStateRunning  = "running"
-	crawlStateComplete = "complete"
-	crawlStateErrored  = "errored"
+	crawlStateRunning  crawlState = "running"
+	crawlStateComplete crawlState = "complete"
+	crawlStateErrored  crawlState = "errored"
 )
 
 // managedOrg is the GORM model for organization auth and crawl state
