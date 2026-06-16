@@ -1,10 +1,23 @@
 ---
 id: habitat
 slug: /habitat
-sidebar_label: What is habitat?
+sidebar_label: What is Habitat?
 sidebar_position: 0
 ---
 
-# What is habitat?
+# What is Habitat?
 
-Habitat is an extension of ATProtocol that makes it possible for users to have full transparency and control into their personal data, and developers to build social apps for the internet without storing any user data. Our pear node (short for permission-enforcing ATProtocol repository) mirrors a generic public ATProtocol repository and its APIs, but gives users and applications fine-grained control over record-level permissions. The sweet spot for building on habitat is creating local-first applications that operate on private data and can inter-operate with other applications in the ATProtocol ecosystem. habitat additionally provides primitives specifically for organizations and communities seeking to own their own data.
+Habitat is building an open-source and self-hostable data ownership layer for organizations. Our mission is to make data ownership part of the internet's infrastructure. Habitat gives communities and organizations a data server with identities, user data repositories, fine-grained permissioning, and syncing mechanisms built-in, and Habitat is made with open protocols and standards. That way, groups can focus on building and using the applications and experiences that serve their needs, without giving up control of their data, now or at any point in the future. [TODO: sentence here talking about switching costs etc.] 
+
+### What can I do with the Habitat?
+
+If you are:
+- someone creating custom or niche applications for a community you are a part of
+- a developer seeking to give your users more value from your product through [data interoperability](TODO: link)
+- an AT protocol builder hoping to serve organizations and groups beyond the big-world and global network use cases
+
+then Habitat enables you to pursue these goals by providing the backend primitives and frameworks that underpin communitiy and organizational data and allow real applications to be built on top, without needing to build them from scratch.
+
+### For AT Protocol developers:
+
+Habitat is an adaptation of [AT Protocol](https://atproto.com) built specifically for the organizational and community use case. At Habitat, we believe that the primitives afforded by AT Protocol--data ownership, data interoperability, credible exit--are just as important to collectives as they are to individuals. Beyond using the internet to connect with each other socially, we also use the internet to work, collaborate, and organize towards shared goals and ambitions. While AT protocol provides better affordances at an individual level, for groups with governance and entities that exist beyond any particular set of users, additional considerations come into play: data and identities that persist as people come and go, sub-groups and roles that permeate across application boundaries, and complicated permissions with rich inheritance structures. Habitat extends AT Protocol and reconfigures some of its main components to deliver on these goals. See our Architecture docs for more information.

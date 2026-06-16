@@ -7,15 +7,8 @@ sidebar_position: 0
 
 # Introduction
 
-habitat is building extensions to AT protocol that brings data ownership to a greater degree than the protocol currently offers. Our server is an extension to standard AT protocol infrastructure and a developer platform that is built with two use-cases in mind:
+Habitat provides a data ownership layer for organizations. This means that building a product or application with Habitat looks a bit different than the traditional product stack today. The components that Habitat provides as primitives for teams to use are [authentication & identities](auth.mdx), [fine-grained permissioning](permissions.mdx), and [syncing primitives](sync.mdx). Using these foundations, products built on Habitat push to and pull from an [Organizational Data Server](../arch/overview.mdx) to deliver richer user experiences. 
 
-1. Building local-first apps for end-users in order to provide better privacy guarantees.
-2. Building applications for organizations that give the organizations control over their data.
+Architecturally, Habitat is an adaptation of AT Protocol that directly solves for community and organizational needs. Products and applications build on Habitat are roughly analogous to AppViews in AT Protocol. We highly recommend reading and getting familiar with a few basic concepts of AT Protocol, such as user repositories, DIDs, lexicons, AppViews, and how sync works. Though we provide high-level documentation of relevant components, more in-depth documentation and linked readngs of these concepts can be found on the official AT Protocol docs [here](TODO: add link). 
 
-These two use-cases are interrelated, but not the same, and in the long term we hope our platform can evolve to meet the needs of both.
 
-You may be interested in using habitat to build your app if:
-
-- you want to quickly get started building a product experience without worrying about where to store the backing data, implementing permissions, implementing identity and auth
-- you want to build applications that are interoperable with the ATmosphere but use private data
-- you want to build in community / group / organizational settings

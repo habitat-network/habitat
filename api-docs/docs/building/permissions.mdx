@@ -1,37 +1,28 @@
 ---
 id: permissions
 slug: /building/permissions.mdx
-sidebar_label: Permissions model
+sidebar_label: Permissions
 sidebar_position: 3
 ---
 
-# Permissions model
+# Permissions
 
-Habitat's permissions model gives record owners fine-grained control over who can read their data. Access is denied by default; owners explicitly grant access to specific users or groups.
+User repositories within a Habitat organization only support permissioned data. To do so, we use the proposed Permissioned Spaces implementation developed by the AT Protocol team. The APIs for this are documented here, and in our HTTP reference [here](../api/habitat-api.info.mdx). 
 
-## Scope
+## Spaces
 
-Permissions apply at the record level: a permission grants access to a single record, identified by owner DID + collection + rkey for a given grantee.
+Permissioned Spaces are the current proposal for implementing AT Protocol data that can only be read by a scoped set of users. This proposal has not become a part of the official AT Protocol spec yet, and details about how the proposed implementation works can be found in the Permissioned Data Diaries [here](https://dholms.leaflet.pub). Habitat implements spaces according to the outlined API in the diaries and in [this PR](https://github.com/bluesky-social/atproto/compare/main...permissioned-data). The proposed API seems close enough to what will become the finalized one that we have gone ahead and implemented it with the plan to be forwards-compatible with the finalized version and migrate to that implementation at that point. The rest of this page gives an overview about how permissioned data works in spaces and any assumptions and departures we have made from the proposed spec.
 
-## Grantees
+### Overview
 
-A grantee can be either
+Currently, all data on AT Protocol is fully public. Of course, this excludes many applications and products from being built on the protocol. Because Habitat is building for communities and organizations where privacy is key, we have started from private data rather than public. User data in Habitat does not support public data. Instead, all writes must go through our Spaces API, which makes records private by default. 
 
-- **DID** — a specific user, identified by their AT Protocol DID (e.g. `did:plc:abc123`)
-- **[Clique](../specs/cliques.mdx)** — a named group of DIDs (e.g. `clique:did:plc:abc123/followers`)
+### Spaces in Habitat
 
-Granting to a clique is equivalent to granting to all current and future members of that group. Membership is resolved at read time.
+Records are always [put](../api/network-habitat-space-put-record) directly into spaces with the `network.habitat.space.putRecord` XRPC endpoint. A space must first be created with the `network.habitat.space.createSpace` XRPC endpoint before a record can be put into it. Spaces which have a member list that can be altered with the `network.habitat.space.addMember`, `network.habitat.space.removeMember` APIs.
 
-## Default behavior
+Whenever a space is created with `network.habitat.space.createSpace`, the space owner is the organization (the org's DID) that the authenticated user making the request belongs to. The user becomes an admin of the space. The space host is Habitat, more specifically our orgnaizational data server. Because all spaces are owned by the organization, an OAuth credential for the org's DID is valid for applications to read permissioned data (see [Authentication](auth.mdx#OAuth)).
 
-Access is **denied by default**. A record is only readable by someone other than the owner if an explicit allow exists and is not overridden by a deny.
+### Roles, groups, and inheritance
 
-## API
-
-Permissions are managed through these endpoints and the [clique](/specs/cliques.mdx) APIs:
-
-- `POST /xrpc/network.habitat.permissions.addPermission` — grant access to a collection or record
-- `POST /xrpc/network.habitat.permissions.removePermission` — revoke access (adds a deny if a broader grant exists)
-- `GET /xrpc/network.habitat.permissions.listPermissions` — list grants made by the calling user
-
-See the [API reference](/docs/api/network-habitat-permissions-add-permission) for full request/response shapes.
+Habitat's Data Server will provide additional APIs for application developers to declare roles, groups, and inheritance relationships on specific subjects using those primitives. These will likely expose APIs that model off of user-relation-objects tuples in OpenFGA and encode these tuples as records owned by an organization. This would allow concepts such as teams within an organization to be consistent across applications, rather than redefined by each application. This is currently a work-in-progress and developing in conversation with other teams in AT Protocol building community and group infrastructure.
