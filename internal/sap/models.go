@@ -15,6 +15,7 @@ const (
 	crawlStateErrored  = "errored"
 )
 
+// managedOrg is the GORM model for organization auth and crawl state
 type managedOrg struct {
 	DID  syntax.DID `gorm:"column:did;primaryKey"`
 	Host string
@@ -46,6 +47,7 @@ const (
 	RepoStateError     repoState = "error"
 )
 
+// managedRepo is the GORM model for repository sync state
 type managedRepo struct {
 	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	DID   syntax.DID              `gorm:"column:did;primaryKey"`
@@ -57,6 +59,7 @@ type managedRepo struct {
 	RetryAfter int64 `gorm:"not null;default:0;index:idx_repos_state_retry"`
 }
 
+// outbox is the GORM model for outbox events to be sent to the client
 type outbox struct {
 	ID        uint `gorm:"primaryKey;autoIncrement"`
 	URI       habitat_syntax.SpaceRecordURI

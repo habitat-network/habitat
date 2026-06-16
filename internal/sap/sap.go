@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 )
@@ -45,7 +46,7 @@ func NewSap(config SapConfig) (Sap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
-	o := newOrgManager(config.DB, config.PublicDomain, secret)
+	o := newOrgManager(config.DB, config.PublicDomain, secret, identity.DefaultDirectory())
 	repos := newRepoManager(config.DB)
 	resyncBuf := newResyncBuffer(config.DB, repos)
 	sub := newSubscriber(config.DB, o, resyncBuf)

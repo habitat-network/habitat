@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/sync"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
@@ -18,9 +19,9 @@ import (
 
 type dummySubscriber struct{ ch chan events.Event }
 
-var _ events.Subscriber = (*dummySubscriber)(nil)
+var _ events.EventStream = (*dummySubscriber)(nil)
 
-// Subscribe implements [events.Subscriber].
+// Subscribe implements [events.EventStream].
 func (d *dummySubscriber) Subscribe(ctx context.Context, since uint64) <-chan events.Event {
 	return d.ch
 }
@@ -212,7 +213,7 @@ func setupSubscriber(
 	}).Error)
 	t.Cleanup(func() { srv.Close() })
 
-	orgManager := newOrgManager(db, "", nil)
+	orgManager := newOrgManager(db, "", nil, pdsclient.NewDummyDirectory("https://pds.example.com"))
 	repos := newRepoManager(db)
 	resyncBuf := newResyncBuffer(db, repos)
 	subscriber = newSubscriber(db, orgManager, resyncBuf)

@@ -12,10 +12,10 @@ import (
 )
 
 type Server struct {
-	eventStore events.Subscriber
+	eventStore events.EventStream
 }
 
-func NewServer(eventStore events.Subscriber) *Server {
+func NewServer(eventStore events.EventStream) *Server {
 	return &Server{eventStore: eventStore}
 }
 

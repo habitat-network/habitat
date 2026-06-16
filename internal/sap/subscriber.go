@@ -63,10 +63,6 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 		cancel: cancel,
 	}
 
-	s.subscriptionsMu.Lock()
-	s.subscriptions[org.DID] = sub
-	s.subscriptionsMu.Unlock()
-
 	err := client.SubscribeRawWithContext(subscribeCtx, func(event *sse.Event) {
 		eventType := string(event.Event)
 		switch eventType {
@@ -105,11 +101,12 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to subscribe", "org", org.DID, "err", err)
 		s.db.Model(&managedOrg{}).Where("did = ?", org.DID).UpdateColumn("error_msg", err.Error())
-		s.subscriptionsMu.Lock()
-		delete(s.subscriptions, org.DID)
-		s.subscriptionsMu.Unlock()
 		return
 	}
+
+	s.subscriptionsMu.Lock()
+	s.subscriptions[org.DID] = sub
+	s.subscriptionsMu.Unlock()
 }
 
 func (s *subscriber) cancelSubscription(orgDID syntax.DID) {

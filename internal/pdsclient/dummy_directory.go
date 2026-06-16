@@ -10,14 +10,14 @@ import (
 )
 
 type options struct {
-	withHabitatService bool
+	withHabitatService string
 }
 
 type Option func(*options)
 
-func WithHabitatService() Option {
+func WithHabitatService(habitatURL string) Option {
 	return func(o *options) {
-		o.withHabitatService = true
+		o.withHabitatService = habitatURL
 	}
 }
 
@@ -93,9 +93,9 @@ func (d *DummyDirectory) getIdentity(handle syntax.Handle, did syntax.DID) *iden
 			},
 		},
 	}
-	if d.options.withHabitatService {
+	if d.options.withHabitatService != "" {
 		id.Services["habitat"] = identity.ServiceEndpoint{
-			URL: "https://habitat.network",
+			URL: d.options.withHabitatService,
 		}
 	}
 	return id
