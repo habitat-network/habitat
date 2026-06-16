@@ -49,7 +49,10 @@ func TestCrawler_DiscoverRepos(t *testing.T) {
 	}
 	require.NoError(t, db.Create(org).Error)
 
-	require.NoError(t, crawler.resumeCrawl(t.Context(), org))
+	crawler.crawlOrg(t.Context(), org)
+
+	require.NoError(t, db.First(&org).Error)
+	require.Equal(t, string(crawlStateComplete), *org.CrawlState)
 
 	var discovered []managedRepo
 	require.NoError(t, db.Find(&discovered).Error)

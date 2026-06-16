@@ -75,6 +75,7 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 		Where("did = ?", org.DID).
 		Update("crawl_state", crawlStateComplete).Error; err != nil {
 		slog.ErrorContext(ctx, "set crawl complete", "org", org.DID, "err", err)
+		return
 	}
 
 	slog.InfoContext(ctx, "crawler finished", "org", org.DID)
