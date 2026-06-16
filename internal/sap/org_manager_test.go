@@ -38,7 +38,9 @@ func TestOrgManager_AddOrg(t *testing.T) {
 		),
 	)
 	redirectURL, err := o.AddOrg(t.Context(), "example.handle.com")
+	require.NoError(t, err)
 	parsedURL, err := url.Parse(redirectURL)
+	require.NoError(t, err)
 	state := parsedURL.Query().Get("state")
 
 	addedOrg, err := o.completeAuth(t.Context(), "code", state)
@@ -84,6 +86,7 @@ func TestOrgManager_GetClient(t *testing.T) {
 	cl := o.GetClient(t.Context(), "did:plc:testorg")
 
 	resp, err := cl.Get(pearServer.URL + "/xrpc/test.endpoint")
+	defer func() { _ = resp.Body.Close() }()
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
