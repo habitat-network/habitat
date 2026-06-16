@@ -16,17 +16,26 @@ import (
 )
 
 type crawler struct {
-	db         *gorm.DB
-	orgManager *orgManager
+	db            *gorm.DB
+	orgManager    *orgManager
+	resyncBuf     *resyncBuffer
+	sub           *subscriber
+	resyncNotifCh chan struct{}
 }
 
 func newCrawler(
 	db *gorm.DB,
 	orgManager *orgManager,
+	resyncBuf *resyncBuffer,
+	sub *subscriber,
+	resyncNotifCh chan struct{},
 ) *crawler {
 	return &crawler{
-		db:         db,
-		orgManager: orgManager,
+		db:            db,
+		orgManager:    orgManager,
+		resyncBuf:     resyncBuf,
+		sub:           sub,
+		resyncNotifCh: resyncNotifCh,
 	}
 }
 
@@ -65,7 +74,12 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 			}).Error; err != nil {
 			slog.ErrorContext(ctx, "set crawl errored", "org", org.DID, "err", err)
 		}
-		// TODO: cancel subscriptions
+
+		if err := c.resyncBuf.clearOrg(ctx, org.DID); err != nil {
+			slog.ErrorContext(ctx, "clear org buffer", "org", org.DID, "err", err)
+		}
+
+		c.sub.cancelSubscription(org.DID)
 		slog.ErrorContext(ctx, "crawl failed", "org", org.DID, "err", crawlErr)
 		return
 	}
@@ -78,6 +92,9 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 		return
 	}
 
+	if err := c.resyncBuf.drainOrg(ctx, org.DID); err != nil {
+		slog.ErrorContext(ctx, "drain org buffer", "org", org.DID, "err", err)
+	}
 	slog.InfoContext(ctx, "crawler finished", "org", org.DID)
 }
 
@@ -166,15 +183,20 @@ func (c *crawler) enumerateSpaceMembers(
 
 	space := habitat_syntax.SpaceURI(spaceURI)
 	for _, member := range getMembersOutput.Members {
-		if err := c.db.WithContext(ctx).
+		err := c.db.WithContext(ctx).
 			Clauses(clause.OnConflict{DoNothing: true}).
 			Create(&managedRepo{
 				Space: space,
 				DID:   syntax.DID(member.Did),
 				State: RepoStatePending,
-			}).Error; err != nil {
+			}).Error
+		if err != nil {
 			return err
 		}
+	}
+	select {
+	case c.resyncNotifCh <- struct{}{}:
+	default:
 	}
 	return nil
 }

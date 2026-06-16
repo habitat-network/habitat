@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -38,8 +37,10 @@ func TestCrawler_DiscoverRepos(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	db := openTestDB(t)
-	orgManager := newOrgManager(db, "", nil, pdsclient.NewDummyDirectory("https://pds.example.com"))
-	crawler := newCrawler(db, orgManager)
+	orgManager := newOrgManager(db, "", nil, nil)
+	resyncBuf := newResyncBuffer(db)
+	sub := newSubscriber(db, orgManager, resyncBuf)
+	crawler := newCrawler(db, orgManager, resyncBuf, sub)
 
 	org := &managedOrg{
 		DID:         "did:plc:testorg",
@@ -49,10 +50,7 @@ func TestCrawler_DiscoverRepos(t *testing.T) {
 	}
 	require.NoError(t, db.Create(org).Error)
 
-	crawler.crawlOrg(t.Context(), org)
-
-	require.NoError(t, db.First(&org).Error)
-	require.Equal(t, string(crawlStateComplete), *org.CrawlState)
+	require.NoError(t, crawler.resumeCrawl(t.Context(), org))
 
 	var discovered []managedRepo
 	require.NoError(t, db.Find(&discovered).Error)

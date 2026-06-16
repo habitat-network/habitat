@@ -26,13 +26,16 @@ type sapImpl struct {
 	db         *gorm.DB
 	pathPrefix string
 	sub        *subscriber
+	resyncBuf  *resyncBuffer
+	resyncer   *resyncer
 	crawler    *crawler
 }
 
 type SapConfig struct {
-	PublicDomain string
-	Secret       string
-	DB           *gorm.DB
+	PublicDomain      string
+	Secret            string
+	DB                *gorm.DB
+	ResyncParallelism int
 }
 
 func NewSap(config SapConfig) (Sap, error) {
@@ -43,16 +46,26 @@ func NewSap(config SapConfig) (Sap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
+
+	resyncNotifCh := make(chan struct{}, 1)
+
 	o := newOrgManager(config.DB, config.PublicDomain, secret, identity.DefaultDirectory())
-	c := newCrawler(config.DB, o)
+	resyncBuf := newResyncBuffer(config.DB)
+	sub := newSubscriber(config.DB, o, resyncBuf)
+	resyncer := newResyncer(config.DB, o, resyncBuf, resyncNotifCh, config.ResyncParallelism)
+	crawler := newCrawler(config.DB, o, resyncBuf, sub)
+	resyncBuf.notify = resyncer.NotifyResyncNeeded
+	crawler.notify = resyncer.NotifyResyncNeeded
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
-		sub:        newSubscriber(config.DB, o),
-		crawler:    c,
+		sub:        sub,
+		resyncBuf:  resyncBuf,
+		resyncer:   resyncer,
+		crawler:    crawler,
 	}, nil
 }
 
@@ -66,6 +79,11 @@ func (s *sapImpl) Start(ctx context.Context) error {
 		return s.crawler.resumeIncompleteCrawls(ctx)
 	})
 
+	eg.Go(func() error {
+		s.resyncer.run(ctx)
+		return nil
+	})
+
 	err := eg.Wait()
 	return errors.Join(err, s.sub.closeSubscriptions())
 }
@@ -73,4 +91,9 @@ func (s *sapImpl) Start(ctx context.Context) error {
 func (s *sapImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	srv := &server{sap: s}
 	srv.ServeHTTP(w, r)
+}
+
+func (s *sapImpl) startOrgSync(org *managedOrg) {
+	go s.crawler.crawlOrg(context.Background(), org)
+	go s.sub.addSubscription(context.Background(), org)
 }

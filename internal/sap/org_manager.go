@@ -13,13 +13,26 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
+
+	"github.com/habitat-network/habitat/internal/db"
 )
+
+var _ db.Store[*orgManager] = (*orgManager)(nil)
 
 type orgManager struct {
 	db     *gorm.DB
 	domain string
 	secret atcrypto.PrivateKey
 	dir    identity.Directory
+}
+
+func (o *orgManager) WithTx(tx *gorm.DB) *orgManager {
+	return &orgManager{
+		db:     tx,
+		domain: o.domain,
+		secret: o.secret,
+		dir:    o.dir,
+	}
 }
 
 func newOrgManager(
@@ -93,6 +106,7 @@ func (o *orgManager) completeAuth(ctx context.Context, code, state string) (*man
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
+		CrawlState:   new(crawlStateRunning),
 	}
 	if err := o.db.Save(addedOrg).Error; err != nil {
 		return nil, fmt.Errorf("save refreshed token: %w", err)

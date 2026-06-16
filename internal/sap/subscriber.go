@@ -3,12 +3,12 @@ package sap
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/r3labs/sse/v2"
 	"gorm.io/gorm"
@@ -19,18 +19,35 @@ type subscription struct {
 	cancel context.CancelFunc
 }
 
+var _ db.Store[*subscriber] = (*subscriber)(nil)
+
 type subscriber struct {
 	db         *gorm.DB
 	orgManager *orgManager
+	resyncBuf  *resyncBuffer
 
 	subscriptionsMu sync.RWMutex
 	subscriptions   map[syntax.DID]*subscription
 }
 
-func newSubscriber(db *gorm.DB, orgManager *orgManager) *subscriber {
+func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
+	return &subscriber{
+		db:            tx,
+		orgManager:    s.orgManager,
+		resyncBuf:     s.resyncBuf,
+		subscriptions: s.subscriptions,
+	}
+}
+
+func newSubscriber(
+	db *gorm.DB,
+	orgManager *orgManager,
+	resyncBuf *resyncBuffer,
+) *subscriber {
 	return &subscriber{
 		db:            db,
 		orgManager:    orgManager,
+		resyncBuf:     resyncBuf,
 		subscriptions: map[syntax.DID]*subscription{},
 	}
 }
@@ -60,55 +77,18 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 				)
 				return
 			}
-			err := s.db.Transaction(func(tx *gorm.DB) error {
+			err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				if err := tx.Model(&managedOrg{}).
 					Where("did = ?", org.DID).
 					Update("subscribe_cursor", spaceEvent.Seq).
 					Error; err != nil {
 					return err
 				}
-				var prevRepo managedRepo
-				if err := tx.Where("space = ?", spaceEvent.Space).
-					Where("did = ?", spaceEvent.Repo).
-					First(&prevRepo).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				var currentOrg managedOrg
+				if err := tx.First(&currentOrg, "did = ?", org.DID).Error; err != nil {
 					return err
 				}
-				if prevRepo.State != "" && prevRepo.State != RepoStateActive {
-					// not actively listening to events for this repo yet
-					// TODO: write to resync buffer
-					return nil
-				}
-				if spaceEvent.Since != "" && prevRepo.Rev != spaceEvent.Since {
-					if err := tx.Save(&managedRepo{
-						Space: spaceEvent.Space,
-						DID:   spaceEvent.Repo,
-						State: RepoStateDesynced,
-					}).Error; err != nil {
-						return err
-					}
-					slog.WarnContext(
-						subscribeCtx,
-						"repo desynced",
-						"space",
-						spaceEvent.Space,
-						"repo",
-						spaceEvent.Repo,
-						"expected",
-						spaceEvent.Since,
-						"actual",
-						prevRepo.Rev,
-					)
-					return nil
-				}
-				if err := tx.Save(&managedRepo{
-					Space: spaceEvent.Space,
-					DID:   spaceEvent.Repo,
-					Rev:   spaceEvent.Rev,
-					State: RepoStateActive,
-				}).Error; err != nil {
-					return err
-				}
-				return writeEventOps(tx, spaceEvent.Ops)
+				return s.resyncBuf.WithTx(tx).handleSpaceEvent(ctx, &currentOrg, spaceEvent)
 			})
 			if err != nil {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)
@@ -129,25 +109,25 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	s.subscriptionsMu.Unlock()
 }
 
-// closeSubscriptions cleans up the subscriptions
+func (s *subscriber) cancelSubscription(orgDID syntax.DID) {
+	s.subscriptionsMu.Lock()
+	defer s.subscriptionsMu.Unlock()
+	if sub, ok := s.subscriptions[orgDID]; ok {
+		sub.cancel()
+		delete(s.subscriptions, orgDID)
+	}
+}
+
+// closeSubscriptions cleans up the subscriptions. The cursor is already
+// persisted per-event in handleSpaceEvent's transaction, so we only cancel.
 func (s *subscriber) closeSubscriptions() error {
-	lastEventIDs := map[syntax.DID]string{}
 	s.subscriptionsMu.Lock()
 	for did, sub := range s.subscriptions {
-		lastEventIDs[did] = string(sub.client.LastEventID.Load().([]byte))
 		sub.cancel()
 		delete(s.subscriptions, did)
 	}
 	s.subscriptionsMu.Unlock()
-	var errs []error
-	for did, cursor := range lastEventIDs {
-		// track errors but keep going
-		errs = append(errs, s.db.Model(&managedOrg{}).
-			Where("did = ?", did).
-			UpdateColumn("subscribe_cursor", cursor).
-			Error)
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
 // loadSubscriptions loads orgs from the database and adds them to the subscriptions
