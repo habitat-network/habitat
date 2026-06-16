@@ -54,11 +54,11 @@ type managedRepo struct {
 	Space habitat_syntax.SpaceURI `gorm:"primaryKey"`
 	DID   syntax.DID              `gorm:"column:did;primaryKey"`
 	Rev   syntax.TID
-	State repoState `gorm:"index:idx_repos_state_retry"`
+	State repoState `gorm:"index"`
 
 	ErrorMsg   string
 	RetryCount int   `gorm:"not null;default:0"`
-	RetryAfter int64 `gorm:"not null;default:0;index:idx_repos_state_retry"`
+	RetryAfter int64 `gorm:"not null;default:0;index"`
 }
 
 // outbox is the GORM model for outbox events to be sent to the client
