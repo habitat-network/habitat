@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	"log/slog"
+
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"log/slog"
 
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -895,38 +896,6 @@ func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
 			w,
 			err,
 			"removing permission",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-}
-
-func (s *Server) NotifyOfUpdate(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.authMethods.serviceAuth)
-	if !ok {
-		return
-	}
-
-	req := &habitat.NetworkHabitatInternalNotifyOfUpdateInput{}
-	err := json.NewDecoder(r.Body).Decode(req)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode json request", http.StatusBadRequest)
-		return
-	}
-
-	err = s.pear.NotifyOfUpdate(
-		r.Context(),
-		callerDID,
-		syntax.DID(req.Recipient),
-		req.Collection,
-		req.Rkey,
-	)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"notify of update",
 			http.StatusInternalServerError,
 		)
 		return

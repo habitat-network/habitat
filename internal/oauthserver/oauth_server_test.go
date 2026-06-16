@@ -15,7 +15,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -40,7 +39,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
-			nil, nil, nil, nil, nil, noop.Meter{}, testStore(t),
+			nil, nil, nil, nil, noop.Meter{}, testStore(t),
 		)
 		require.Error(t, err)
 	})
@@ -63,7 +62,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			Pds:      login.NewPDSProvider(oauthClient, credStore, nil),
 			OrgStore: testStore(t),
 		},
-		node.NewDummy(),
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		credStore,
 		db,
@@ -163,7 +161,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		&org.LoginRouter{
 			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
-		node.NewDummy(),
 		dummyDir,
 		credStore,
 		db,
@@ -281,7 +278,6 @@ func TestOAuthServerE2E(t *testing.T) {
 		&org.LoginRouter{
 			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
-		node.NewDummy(),
 		dummyDir,
 		credStore,
 		db,
@@ -434,7 +430,6 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		&org.LoginRouter{
 			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
-		node.NewDummy(),
 		dummyDir,
 		credStore,
 		db,
@@ -639,7 +634,6 @@ func TestValidate(t *testing.T) {
 			&org.LoginRouter{
 				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 			},
-			node.NewDummy(),
 			dummyDir,
 			credStore,
 			db,
@@ -745,7 +739,6 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			&org.LoginRouter{
 				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 			},
-			node.NewDummy(),
 			dummyDir,
 			credStore,
 			db,

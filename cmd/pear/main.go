@@ -37,9 +37,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/inbox"
 	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/sync"
@@ -54,7 +52,6 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/habitat-network/habitat/internal/xrpcchannel"
 	"github.com/lmittmann/tint"
 	"github.com/urfave/cli/v3"
 
@@ -195,8 +192,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	node := setupNode(cmd, pdsClientFactory, dir)
-
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
 	if err != nil {
 		slog.Error("unable to parse oauth server secret for login provider", "err", err)
@@ -251,7 +246,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
 		loginRouter,
-		node,
 		dir,
 		pdsCredStore,
 		db.WithContext(startupCtx),
@@ -296,11 +290,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	pear, err := setupPear(
-		startupCtx,
-		cmd,
 		dir,
 		repo,
-		node,
 		cliqueStore,
 		db.WithContext(startupCtx),
 	)
@@ -611,31 +602,9 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 	return fga
 }
 
-func setupNode(
-	cmd *cli.Command,
-	clientFactory pdsclient.HttpClientFactory,
-	dir identity.Directory,
-) node.Node {
-	serviceName := cmd.String(fServiceName)
-	domain := cmd.String(fDomain)
-	serviceEndpoint := "https://" + domain
-	xrpcCh := xrpcchannel.NewServiceProxyXrpcChannel(serviceName, clientFactory, dir)
-	return node.New(
-		serviceName,
-		serviceEndpoint,
-		dir,
-		xrpcCh,
-		// add self fallback just for medium term public demos
-		node.WithSelfFallback(),
-	)
-}
-
 func setupPear(
-	ctx context.Context,
-	cmd *cli.Command,
 	dir identity.Directory,
 	repo repo.Repo,
-	node node.Node,
 	cliqueStore clique.Store,
 	db *gorm.DB,
 ) (pear.Pear, error) {
@@ -644,12 +613,7 @@ func setupPear(
 		return nil, fmt.Errorf("failed to create permission store: %w", err)
 	}
 
-	inbox, err := inbox.New(db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create inbox: %w", err)
-	}
-
-	return pear.NewPear(node, dir, permissions, repo, inbox), nil
+	return pear.NewPear(dir, permissions, repo), nil
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
