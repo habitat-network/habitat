@@ -26,6 +26,7 @@ type sapImpl struct {
 	db         *gorm.DB
 	pathPrefix string
 	sub        *subscriber
+	crawler    *crawler
 }
 
 type SapConfig struct {
@@ -43,6 +44,7 @@ func NewSap(config SapConfig) (Sap, error) {
 		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
 	o := newOrgManager(config.DB, config.PublicDomain, secret, identity.DefaultDirectory())
+	c := newCrawler(config.DB, o)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
@@ -50,18 +52,18 @@ func NewSap(config SapConfig) (Sap, error) {
 		db:         config.DB,
 		pathPrefix: pathPrefix,
 		sub:        newSubscriber(config.DB, o),
+		crawler:    c,
 	}, nil
 }
 
 func (s *sapImpl) Start(ctx context.Context) error {
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		err := s.sub.loadSubscriptions(ctx)
-		if err != nil {
-			return err
-		}
-		// TODO: retry failed orgs
-		return nil
+		return s.sub.loadSubscriptions(ctx)
+	})
+
+	eg.Go(func() error {
+		return s.crawler.resumeIncompleteCrawls(ctx)
 	})
 
 	err := eg.Wait()

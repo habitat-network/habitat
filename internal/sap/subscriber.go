@@ -39,7 +39,7 @@ func newSubscriber(db *gorm.DB, orgManager *orgManager) *subscriber {
 func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	client := sse.NewClient(org.Host + "/xrpc/network.habitat.sync.subscribeSpaces")
 	client.Connection = s.orgManager.GetClient(ctx, org.DID)
-	client.LastEventID.Store([]byte(org.Cursor))
+	client.LastEventID.Store([]byte(org.SubscribeCursor))
 	subscribeCtx, cancel := context.WithCancel(ctx)
 	sub := &subscription{
 		client: client,
@@ -63,7 +63,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 			err := s.db.Transaction(func(tx *gorm.DB) error {
 				if err := tx.Model(&managedOrg{}).
 					Where("did = ?", org.DID).
-					Update("cursor", spaceEvent.Seq).
+					Update("subscribe_cursor", spaceEvent.Seq).
 					Error; err != nil {
 					return err
 				}
@@ -108,19 +108,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 				}).Error; err != nil {
 					return err
 				}
-				for _, op := range spaceEvent.Ops {
-					value, err := json.Marshal(op.Value)
-					if err != nil {
-						return err
-					}
-					if err := tx.Create(&outbox{
-						URI:   op.Uri,
-						Value: value,
-					}).Error; err != nil {
-						return err
-					}
-				}
-				return nil
+				return writeEventOps(tx, spaceEvent.Ops)
 			})
 			if err != nil {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)
@@ -156,7 +144,7 @@ func (s *subscriber) closeSubscriptions() error {
 		// track errors but keep going
 		errs = append(errs, s.db.Model(&managedOrg{}).
 			Where("did = ?", did).
-			UpdateColumn("cursor", cursor).
+			UpdateColumn("subscribe_cursor", cursor).
 			Error)
 	}
 	return errors.Join(errs...)
