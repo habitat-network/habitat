@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/sync"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -155,7 +156,7 @@ func setupSubscriber(
 	}).Error)
 	t.Cleanup(func() { srv.Close() })
 
-	orgManager := newOrgManager(db, "", nil)
+	orgManager := newOrgManager(db, "", nil, pdsclient.NewDummyDirectory("https://pds.example.com"))
 	subscriber = newSubscriber(db, orgManager)
 
 	err = subscriber.loadSubscriptions(t.Context())

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
@@ -41,7 +42,7 @@ func NewSap(config SapConfig) (Sap, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
-	o := newOrgManager(config.DB, config.PublicDomain, secret)
+	o := newOrgManager(config.DB, config.PublicDomain, secret, identity.DefaultDirectory())
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
