@@ -19,7 +19,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/node"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -162,9 +161,6 @@ type OAuthServer struct {
 	// Metrics
 	metrics *metrics
 
-	// The habitat service name to look up in DID docs.
-	node node.Node
-
 	provider    fosite.OAuth2Provider
 	credStore   pdscred.PDSCredentialStore // Database storage for OAuth sessions
 	loginRouter *org.LoginRouter           // Routes login flows by org login method
@@ -198,7 +194,6 @@ type OAuthServer struct {
 func NewOAuthServer(
 	secret []byte,
 	loginRouter *org.LoginRouter,
-	node node.Node,
 	directory identity.Directory,
 	credStore pdscred.PDSCredentialStore,
 	db *gorm.DB,
@@ -245,7 +240,6 @@ func NewOAuthServer(
 		loginRouter: loginRouter,
 		flashStore:  make(map[string]*authRequestFlash),
 		directory:   directory,
-		node:        node,
 		storage:     storage,
 		orgStore:    orgStore,
 	}, nil
@@ -452,25 +446,6 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-
-	/*
-		// Comment this out in dev because it's unused and node uses the default dir which fails bc of subdomain funnels
-			if serves, err := o.node.ServesDID(r.Context(), arf.Did); err != nil {
-				o.metrics.callbackErr(err, "lookup_serves")
-				utils.LogAndHTTPError(r.Context(), w, err, "[oauth server: handle callback] failed to lookup did", http.StatusInternalServerError)
-				return
-			} else if !serves {
-				o.metrics.callbackErr(err, "wrong_server")
-				utils.LogAndHTTPError(
-					r.Context(),
-					w,
-					err,
-					"user's habitat service in DID doc does not match expected service",
-					http.StatusMethodNotAllowed,
-				)
-				return
-			}
-	*/
 
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
