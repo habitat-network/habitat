@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// crawler lists spaces and their members to discover repos once an org is added
 type crawler struct {
 	db            *gorm.DB
 	orgManager    *orgManager

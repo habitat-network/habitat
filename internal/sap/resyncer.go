@@ -22,6 +22,7 @@ type resyncJob struct {
 	DID   syntax.DID
 }
 
+// resyncer schedules resync workers to backfill repos
 type resyncer struct {
 	db          *gorm.DB
 	orgManager  *orgManager

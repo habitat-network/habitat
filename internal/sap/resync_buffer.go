@@ -13,6 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// resyncBuffer processes events from the subscriber before sending to the outbox.
+// if the resyncer is in progress, then events are persisted in the buffer to be drained
+// at the end of the resync.
 type resyncBuffer struct {
 	db            *gorm.DB
 	resyncNotifCh chan struct{}
@@ -31,11 +34,11 @@ func (rb *resyncBuffer) WithTx(tx *gorm.DB) *resyncBuffer {
 	}
 }
 
-func (rb *resyncBuffer) shouldBuffer(org *managedOrg, repo *managedRepo) bool {
+func (rb *resyncBuffer) shouldBuffer(org *managedOrg, repo *managedRepo, event events.Event) bool {
 	if org.CrawlState != nil && *org.CrawlState == crawlStateRunning {
 		return true
 	}
-	if repo == nil {
+	if repo == nil && event.Since != "" {
 		return true
 	}
 	switch repo.State {
@@ -206,7 +209,7 @@ func (rb *resyncBuffer) handleSpaceEvent(
 		rb.notify()
 	}
 
-	if rb.shouldBuffer(org, &repo) {
+	if rb.shouldBuffer(org, &repo, event) {
 		return rb.appendEvent(event)
 	}
 
