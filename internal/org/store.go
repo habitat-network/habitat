@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type OrgMember struct {
+type Member struct {
 	Org     Org
 	DID     syntax.DID
 	Role    Role
@@ -37,8 +37,8 @@ type Store interface {
 		handleSubdomain string,
 	) (orgId *identity.Identity, id *identity.Identity, err error)
 
-	GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error)
-	GetMemberByLoginID(ctx context.Context, loginID string) (*OrgMember, error)
+	GetMember(ctx context.Context, did syntax.DID) (*Member, error)
+	GetMemberByLoginID(ctx context.Context, loginID string) (*Member, error)
 }
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
@@ -85,6 +85,7 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		handleSubdomain:  org.HandleSubdomain,
 		method:           org.LoginMethod,
 		passwordProvider: s.passwordProvider,
+		name:             org.Name,
 	}, nil
 }
 
@@ -190,7 +191,7 @@ func (s *storeImpl) CreateOrg(
 	return orgId, id, nil
 }
 
-func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, error) {
+func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*Member, error) {
 	var m member
 	if err := s.db.WithContext(ctx).
 		Preload("Organization").
@@ -198,7 +199,7 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 		First(&m).
 		Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &OrgMember{
+			return &Member{
 				Org:     s.everyone,
 				DID:     did,
 				Role:    MemberRole,
@@ -211,7 +212,7 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get org from model: %w", err)
 	}
-	return &OrgMember{
+	return &Member{
 		Org:     org,
 		DID:     m.Did,
 		Role:    m.Role,
@@ -219,7 +220,7 @@ func (s *storeImpl) GetMember(ctx context.Context, did syntax.DID) (*OrgMember, 
 	}, nil
 }
 
-func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*OrgMember, error) {
+func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*Member, error) {
 	var m member
 	if err := s.db.WithContext(ctx).Where("login_id = ?", loginID).First(&m).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -231,7 +232,7 @@ func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*Or
 	if err != nil {
 		return nil, fmt.Errorf("failed to get org from model: %w", err)
 	}
-	return &OrgMember{
+	return &Member{
 		Org:     org,
 		DID:     m.Did,
 		Role:    m.Role,

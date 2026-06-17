@@ -37,6 +37,7 @@ tmp/
 /pear
 cmd/pear/key.jwk
 cmd/pear/repo.db
+*repo.db*
 
 # Ignore custom VSCode/Cursor settings
 .vscode/settings.json
