@@ -1,4 +1,13 @@
 $schema: https://moonrepo.dev/schemas/tasks.json
+fileGroups:
+  mod:
+    - 'go.mod'
+    - 'go.sum'
+  src:
+    - '**/*.go'
+    - '!**/*_test.go'
+  test:
+    - '**/*_test.go'
 tasks:
   format-check:
     command: noop
@@ -16,6 +25,9 @@ tasks:
   build:
     deps:
     - ^:build
+    inputs:
+    - '@group(mod)'
+    - '@group(src)'
     command: go 
     args:
     - build
@@ -25,7 +37,11 @@ tasks:
     - /bin/$project
   test:
     deps:
-    - ~:build
+      - ^:test
+    inputs:
+    - '@group(mod)'
+    - '@group(src)'
+    - '@group(test)'
     command: go
     args:
     - test
@@ -35,7 +51,7 @@ tasks:
     args:
     - mod
     - tidy
-    preset: server
+    preset: utility
   start:
     command: ./bin/$project
     deps:
