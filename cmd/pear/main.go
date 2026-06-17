@@ -176,7 +176,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	orgHive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
+	hive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup hive (identity service for org)", "err", err)
 		os.Exit(1)
@@ -211,7 +211,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 	orgStore, err := org.NewStore(
 		db.WithContext(startupCtx),
-		orgHive,
+		hive,
 		dir,
 		domain,
 		passwordProvider,
@@ -247,7 +247,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
 		loginRouter,
-		dir,
+		hive, // Pass in hive which wraps the default directory with lookups to its db
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
@@ -335,7 +335,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	idServer, err := habitat_identity.NewServer(orgHive, oauthServer, orgStore)
+	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore)
 	if err != nil {
 		slog.Error("unable to setup hive server", "err", err)
 		os.Exit(1)

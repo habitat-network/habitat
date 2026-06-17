@@ -158,8 +158,8 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// authz: oauth credential must be for the same org
-	if callerOrg.DID() != targetOrg.DID() {
+	if did != targetOrg.DID() && callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
+		// authz: oauth credential must be for the same org
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
