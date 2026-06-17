@@ -3,6 +3,7 @@ package identity
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -26,13 +27,17 @@ func (d *WrappedDirectory) LookupHandle(
 	ctx context.Context,
 	handle syntax.Handle,
 ) (*identity.Identity, error) {
+	fmt.Println("handle lookup")
 	id, err := d.base.LookupHandle(ctx, handle)
 	if err == nil {
 		return id, nil
 	}
-	if !errors.Is(err, identity.ErrHandleNotFound) {
+	fmt.Println("err", err.Error())
+	if !(errors.Is(err, identity.ErrHandleResolutionFailed) || errors.Is(err, identity.ErrHandleNotFound)) {
+		fmt.Println("other err", err.Error())
 		return nil, err
 	}
+	fmt.Println("falling back")
 	return d.fallback.LookupHandle(ctx, handle)
 }
 
@@ -45,7 +50,9 @@ func (d *WrappedDirectory) LookupDID(
 	if err == nil {
 		return id, nil
 	}
-	if !errors.Is(err, identity.ErrDIDNotFound) {
+	fmt.Println("lookup did err", err.Error())
+
+	if !(errors.Is(err, identity.ErrDIDNotFound) || errors.Is(err, identity.ErrDIDResolutionFailed)) {
 		return nil, err
 	}
 	return d.fallback.LookupDID(ctx, did)
@@ -56,6 +63,7 @@ func (d *WrappedDirectory) Lookup(
 	ctx context.Context,
 	atid syntax.AtIdentifier,
 ) (*identity.Identity, error) {
+	fmt.Println("warpped dir lookup")
 	if atid.IsDID() {
 		did, err := atid.AsDID()
 		if err != nil {

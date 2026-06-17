@@ -10,7 +10,6 @@ import (
 
 	"log/slog"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
@@ -40,23 +39,18 @@ type Server struct {
 	// Org store for membership lookups
 	orgStore org.Store
 
-	// Used for resolving handles -> did, did -> PDS
-	dir identity.Directory
-
 	authMethods authMethods
 	decoder     *schema.Decoder
 }
 
 // NewServer returns a pear server.
 func NewServer(
-	dir identity.Directory,
 	pear pear.Pear,
 	oauthServer *oauthserver.OAuthServer,
 	serviceAuthMethod authn.Method,
 	orgStore org.Store,
 ) *Server {
 	server := &Server{
-		dir:  dir,
 		pear: pear,
 		authMethods: authMethods{
 			oauth:       oauthServer,
@@ -531,7 +525,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dids := make([]syntax.DID, len(params.Subjects))
+	subjects := make([]syntax.AtIdentifier, len(params.Subjects))
 	for i, subject := range params.Subjects {
 		// TODO: support handles
 		atid, err := syntax.ParseAtIdentifier(subject)
@@ -545,19 +539,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-
-		id, err := s.dir.Lookup(r.Context(), atid)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"parsing looking up atid",
-				http.StatusBadRequest,
-			)
-			return
-		}
-		dids[i] = id.DID
+		subjects[i] = atid
 	}
 
 	collection, err := syntax.ParseNSID(params.Collection)
@@ -566,7 +548,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records, err := s.pear.ListRecords(r.Context(), callerDID, collection, dids)
+	records, err := s.pear.ListRecords(r.Context(), callerDID, collection, subjects)
 	if err != nil {
 		if errors.Is(err, pear.ErrNotLocalRepo) {
 			utils.LogAndHTTPError(
@@ -664,65 +646,6 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	description, err := s.pear.DescribeRepo(r.Context(), callerDID, callerDID)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"describing repo",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	output := habitat.NetworkHabitatRepoDescribeRepoOutput{
-		Did:             description.DID.String(),
-		Handle:          description.Handle,
-		DidDoc:          description.DIDDoc,
-		HandleIsCorrect: description.HandleIsCorrect,
-		Collections: make(
-			[]habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata,
-			len(description.Collections),
-		),
-	}
-
-	for i, c := range description.Collections {
-		grantees := permissions.ConstructInterfaceFromGrantees(c.Grantees)
-		output.Collections[i] = habitat.NetworkHabitatRepoDescribeRepoCollectionMetadata{
-			Grantees:    grantees,
-			LastTouched: c.LastTouched.Format(time.RFC3339Nano),
-			Nsid:        c.Name,
-			RecordCount: int64(c.RecordCount),
-		}
-	}
-
-	if err = json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-}
-
-func (s *Server) DescribeRepoPublic(w http.ResponseWriter, r *http.Request) {
-	repo := r.URL.Query().Get("repo")
-	id, err := s.dir.Lookup(r.Context(), syntax.AtIdentifier(repo))
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			fmt.Sprintf("looking up did from repo param: %s", repo),
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	description, err := s.pear.DescribeRepo(r.Context(), id.DID, id.DID)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

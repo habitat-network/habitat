@@ -488,7 +488,6 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			OrgStore: orgStore,
 		},
 		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
-		credStore,
 		db,
 		noop.Meter{},
 		orgStore,
