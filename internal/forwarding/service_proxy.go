@@ -26,41 +26,51 @@ var hopByHopHeaders = []string{
 // request carries an Atproto-Proxy header, it validates the caller's OAuth
 // session and forwards the request to the specified service using a service
 // auth JWT signed on the caller's behalf.
-type ServiceProxy struct {
+type serviceProxy struct {
 	oauth      authn.Method
-	h          hive.Hive
+	hive       hive.Hive
 	dir        identity.Directory
 	httpClient *http.Client
 }
 
-// NewServiceProxy constructs a ServiceProxy.
+// NewServiceProxy constructs a ServiceProxy, which is a MiddlewareFunc and intercepts requests that have atproto-proxy in the headers.
 // oauth validates the incoming caller's session.
-// h signs service auth JWTs for forwarded requests via hive.SignServiceAuth.
+// hive signs service auth JWTs for forwarded requests via hive.SignServiceAuth.
 // dir resolves external DIDs to find service endpoints.
-func NewServiceProxy(oauth authn.Method, h hive.Hive, dir identity.Directory) *ServiceProxy {
-	return &ServiceProxy{
+func NewServiceProxy(
+	oauth authn.Method,
+	hive hive.Hive,
+	dir identity.Directory,
+) func(http.Handler) http.Handler /* type of mux.MiddlewareFunc */ {
+	sp := &serviceProxy{
 		oauth:      oauth,
-		h:          h,
+		hive:       hive,
 		dir:        dir,
 		httpClient: &http.Client{},
 	}
+
+	// Requests carrying an Atproto-Proxy header on an XRPC path are intercepted and
+	// forwarded to the specified service; all other requests pass through unchanged.
+	middleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			proxyHeader := r.Header.Get("Atproto-Proxy")
+			if proxyHeader == "" || !strings.HasPrefix(r.URL.Path, "/xrpc/") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			sp.proxy(w, r, proxyHeader)
+		})
+	}
+	return middleware
 }
 
-// Middleware returns a gorilla/mux-compatible middleware handler. Requests
-// carrying an Atproto-Proxy header on an XRPC path are intercepted and
-// forwarded to the specified service; all other requests pass through unchanged.
-func (s *ServiceProxy) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		proxyHeader := r.Header.Get("Atproto-Proxy")
-		if proxyHeader == "" || !strings.HasPrefix(r.URL.Path, "/xrpc/") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		s.proxy(w, r, proxyHeader)
-	})
-}
+func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader string) {
+	// Validate the caller's OAuth session before acting on their behalf.
+	callerDID, ok := authn.Validate(w, r, s.oauth)
+	if !ok {
+		return
+	}
 
-func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader string) {
 	// Parse "did#serviceId" — the "#" separator is required by the AT Protocol spec.
 	rawDID, serviceID, ok := strings.Cut(proxyHeader, "#")
 	if !ok {
@@ -69,12 +79,6 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 			fmt.Errorf("malformed Atproto-Proxy header: missing '#'"),
 			http.StatusBadRequest,
 		)
-		return
-	}
-
-	// Validate the caller's OAuth session before acting on their behalf.
-	callerDID, ok := authn.Validate(w, r, s.oauth)
-	if !ok {
 		return
 	}
 
@@ -121,7 +125,7 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	// Habitat owns user signing keys, so it signs service auth tokens on behalf
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
-	jwt, err := s.h.SignServiceAuth(
+	jwt, err := s.hive.SignServiceAuth(
 		r.Context(),
 		callerDID,
 		targetDID.String(),

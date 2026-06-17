@@ -46,7 +46,7 @@ func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
-	sp.Middleware(next).ServeHTTP(w, r)
+	sp(next).ServeHTTP(w, r)
 
 	require.True(t, nextCalled)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -62,7 +62,7 @@ func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
 	r.Header.Set("Atproto-Proxy", "did:web:labeler.example.com") // missing #serviceId
-	sp.Middleware(neverNext(t)).ServeHTTP(w, r)
+	sp(neverNext(t)).ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -73,7 +73,7 @@ func TestServiceProxyAuthFails_Returns401(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
 	r.Header.Set("Atproto-Proxy", "did:web:labeler.example.com#atproto_labeler")
-	sp.Middleware(neverNext(t)).ServeHTTP(w, r)
+	sp(neverNext(t)).ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
@@ -89,7 +89,7 @@ func TestServiceProxyDIDResolutionFails_Returns502(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
 	r.Header.Set("Atproto-Proxy", "did:web:labeler.example.com#atproto_labeler")
-	sp.Middleware(neverNext(t)).ServeHTTP(w, r)
+	sp(neverNext(t)).ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusBadGateway, w.Code)
 }
@@ -113,7 +113,7 @@ func TestServiceProxyServiceNotFound_Returns400(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
 	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
-	sp.Middleware(neverNext(t)).ServeHTTP(w, r)
+	sp(neverNext(t)).ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -147,7 +147,7 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
 	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
 	r.Header.Set("DPoP", "some-dpop-proof")
-	sp.Middleware(neverNext(t)).ServeHTTP(w, r)
+	sp(neverNext(t)).ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, received, "forwarded request was not received by target")

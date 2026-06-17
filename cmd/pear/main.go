@@ -263,8 +263,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	serviceProxy := forwarding.NewServiceProxy(oauthServer, orgHive, dir)
-	mux.Use(serviceProxy.Middleware)
+	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
+	mux.Use(forwarding.NewServiceProxy(oauthServer, orgHive, dir))
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
