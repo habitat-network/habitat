@@ -209,7 +209,16 @@ func (r *resyncer) syncRepo(
 			return closeErr
 		}
 		if resp.StatusCode != http.StatusOK {
-			slog.WarnContext(ctx, "getRepoOplog status", "space", space, "repo", repoDID, "status", resp.StatusCode)
+			slog.WarnContext(
+				ctx,
+				"getRepoOplog status",
+				"space",
+				space,
+				"repo",
+				repoDID,
+				"status",
+				resp.StatusCode,
+			)
 			return r.handleSyncError(
 				ctx,
 				space,
@@ -218,7 +227,18 @@ func (r *resyncer) syncRepo(
 			)
 		}
 
-		slog.InfoContext(ctx, "getRepoOplog response", "space", space, "repo", repoDID, "records", len(output.Records), "cursor", output.Cursor)
+		slog.InfoContext(
+			ctx,
+			"getRepoOplog response",
+			"space",
+			space,
+			"repo",
+			repoDID,
+			"records",
+			len(output.Records),
+			"cursor",
+			output.Cursor,
+		)
 
 		if len(output.Records) > 0 {
 			err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
