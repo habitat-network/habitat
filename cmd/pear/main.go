@@ -409,7 +409,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
-	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, defaultDir)
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
+		oauthServer,
+		pdsClientFactory,
+		defaultDir,
+	)
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
