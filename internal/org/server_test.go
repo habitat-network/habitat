@@ -132,7 +132,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 
 	var out habitat.NetworkHabitatOrgGetMetadataOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Equal(t, orgId, out.OrgId)
+	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
 	require.Equal(t, string(LoginMethodPassword), out.LoginMethod)
 }
@@ -167,7 +167,7 @@ func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
 
 	var out habitat.NetworkHabitatOrgGetMetadataOutput
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
-	require.Equal(t, orgId, out.OrgId)
+	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
 	require.Equal(t, string(LoginMethodPassword), out.LoginMethod)
 }
