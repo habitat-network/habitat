@@ -39,7 +39,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	t.Run("NewOAuthServer rejects invalid secret", func(t *testing.T) {
 		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
-			nil, nil, nil, nil, noop.Meter{}, testStore(t),
+			nil, nil, nil, noop.Meter{}, testStore(t),
 		)
 		require.Error(t, err)
 	})
@@ -63,7 +63,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 			OrgStore: testStore(t),
 		},
 		pdsclient.NewDummyDirectory("http://pds.url"),
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -162,7 +161,6 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
 		dummyDir,
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -279,7 +277,6 @@ func TestOAuthServerE2E(t *testing.T) {
 			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
 		dummyDir,
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -431,7 +428,6 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
 		dummyDir,
-		credStore,
 		db,
 		noop.Meter{},
 		testStore(t),
@@ -635,7 +631,6 @@ func TestValidate(t *testing.T) {
 				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 			},
 			dummyDir,
-			credStore,
 			db,
 			noop.Meter{},
 			st,
@@ -740,7 +735,6 @@ func TestValidateWithScopeChecking(t *testing.T) {
 				Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 			},
 			dummyDir,
-			credStore,
 			db,
 			noop.Meter{},
 			st,

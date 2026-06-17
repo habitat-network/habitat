@@ -247,7 +247,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthSecret,
 		loginRouter,
 		dir,
-		pdsCredStore,
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
