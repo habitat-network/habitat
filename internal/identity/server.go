@@ -142,7 +142,13 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	}
 	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"looking up caller org",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -154,11 +160,18 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 
 	targetOrg, err := s.orgStore.GetOrgForDID(r.Context(), did)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"looking up caller org",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
-	if did != targetOrg.DID() && callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
+	if did != targetOrg.DID() &&
+		callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
 		// authz: oauth credential must be for the same org
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -193,7 +206,13 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 	}
 	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"looking up caller org",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -206,13 +225,23 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 	ident, err := s.hive.LookupHandle(r.Context(), handle)
 	// TODO: better status codes dependening on the identity.Err type
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError) // don't leak whether the DID exists or not
+		http.Error(
+			w,
+			"internal error",
+			http.StatusInternalServerError,
+		) // don't leak whether the DID exists or not
 		return
 	}
 
 	targetOrg, err := s.orgStore.GetOrgForDID(r.Context(), ident.DID)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "looking up caller org", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"looking up caller org",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
