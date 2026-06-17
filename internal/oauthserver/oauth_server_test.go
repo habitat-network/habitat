@@ -14,6 +14,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/org/testutil"
@@ -401,6 +402,205 @@ func TestOAuthServerE2E(t *testing.T) {
 
 	// retry to test refresh
 	resp, err = client.Get(server.URL + "/resource")
+	require.NoError(t, err, "failed to make resource request")
+	respBytes, err = io.ReadAll(resp.Body)
+	require.NoError(t, err, "failed to read response body")
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
+}
+
+// TestOAuthServerAuthenticatesHiveServedIdentity drives the full authorization
+// code flow for an identity minted and served entirely by hive (not by any
+// public-facing did:web host or the PLC directory). It asserts that the OAuth
+// server resolves the user's handle to a DID, and the DID back to an identity,
+// using only hive's internal store — no DNS or HTTP-based identity resolution
+// is configured or reachable for the domain used here.
+func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
+	// memberDomain deliberately isn't a resolvable public host: hive must be
+	// able to serve this identity without any network-based did:web lookup.
+	const memberDomain = "unreachable.invalid"
+	const pearDomain = "pear." + memberDomain
+
+	// hive and the org store share one db: org.WithTx swaps hive's db
+	// connection for its own transaction when minting member identities.
+	hiveDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err, "failed to open hive database")
+	h, err := hive.NewHive(memberDomain, pearDomain, hiveDB)
+	require.NoError(t, err, "failed to create hive")
+
+	// The PDS-side directory only needs to resolve a DID to a PDS endpoint for
+	// the OAuth handshake with the (dummy) PDS; it is independent of how the
+	// OAuth server itself resolves a handle to a hive-served DID.
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+
+	// The dummy PDS always issues tokens for "did:web:example.did.com" (see
+	// DummyOAuthClient.ExchangeCode), so the org member is registered with
+	// that as their external atproto login identity, while their actual
+	// habitat identity (and the DID the OAuth server issues a token for) is
+	// the hive-served one resolved from their handle.
+	const pdsLoginDID = "did:web:example.did.com"
+
+	passwordProvider, err := login.NewPasswordProvider(
+		hiveDB,
+		pearDomain,
+		"frontend."+memberDomain,
+		[]byte("test-signing-secret-for-org-00000"),
+		dummyDir,
+	)
+	require.NoError(t, err, "failed to setup password provider")
+	orgStore, err := org.NewStore(hiveDB, h, dummyDir, pearDomain, passwordProvider)
+	require.NoError(t, err, "failed to setup org store")
+
+	_, member, err := orgStore.CreateOrg(
+		t.Context(),
+		"org-name",
+		"alice",
+		"",
+		"atproto",
+		pdsLoginDID,
+		"acme",
+	)
+	require.NoError(t, err, "failed to create org with hive-served admin")
+
+	// setup test database
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err, "failed to open test database")
+
+	// setup pds credential store
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err, "failed to setup pds credential store")
+
+	// setup oauth server
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+
+	// Generate RSA key for JWT signing
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err, "failed to generate secret")
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{
+			Pds:      login.NewPDSProvider(oauthClient, credStore, dummyDir),
+			OrgStore: orgStore,
+		},
+		node.NewDummy(),
+		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
+		credStore,
+		db,
+		noop.Meter{},
+		orgStore,
+	)
+	require.NoError(t, err, "failed to setup oauth server")
+
+	// setup http server oauth client to make requests to
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			oauthServer.HandleAuthorize(w, r)
+			return
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+			return
+		case "/token":
+			oauthServer.HandleToken(w, r)
+			return
+		case "/resource":
+			did, ok := oauthServer.Validate(w, r)
+			require.True(t, ok, "failed to validate token")
+			require.Equal(t, member.DID, did)
+		default:
+			t.Errorf("unknown server path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err, "failed to create cookie jar")
+	server.Client().Jar = jar
+	// set the server's oauthClient redirectUri now that we know the url
+	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+
+	// setup client app that oauth server can make requests to
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/authorize",
+			TokenURL: server.URL + "/token",
+		},
+	}
+	clientApp := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/client-metadata.json":
+				w.Header().Set("Content-Type", "application/json")
+				err := json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+					ClientId:      "http://" + r.Host + "/client-metadata.json",
+					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+					ResponseTypes: []string{"code"},
+					GrantTypes:    []string{"authorization_code", "refresh_token"},
+				})
+				require.NoError(t, err, "failed to encode client metadata")
+				return
+			case "/oauth-callback":
+				ctx := context.WithValue(r.Context(), oauth2.HTTPClient, server.Client())
+				token, err := config.Exchange(
+					ctx,
+					r.URL.Query().Get("code"),
+					oauth2.VerifierOption(verifier),
+				)
+				require.NoError(t, err, "failed to exchange token")
+				require.NoError(t, json.NewEncoder(w).Encode(token))
+				return
+			default:
+				t.Logf("unknown client app path: %v", r.URL.Path)
+				t.Fail()
+			}
+		}),
+	)
+	defer clientApp.Close()
+
+	// Set the client app's OAuth configuration now that we know the url
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
+
+	// create authorize request, identifying the user by their hive-served handle
+	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
+		"test-state",
+		oauth2.S256ChallengeOption(verifier),
+	)+"&handle="+member.Handle.String(), nil)
+	require.NoError(t, err, "failed to create authorize request")
+
+	// make authorize requests which will follow redirects all the way to token response
+	result, err := server.Client().Do(authRequest)
+	require.NoError(t, err, "failed to make authorize request")
+	respBytes, err := io.ReadAll(result.Body)
+	require.NoError(t, err, "failed to read response body")
+	require.NoError(t, result.Body.Close())
+	require.Equal(
+		t,
+		http.StatusOK,
+		result.StatusCode,
+		"authorize request failed: %s",
+		respBytes,
+	)
+
+	token := &oauth2.Token{}
+	require.NoError(t, json.Unmarshal(respBytes, token), "failed to decode token")
+	require.NotEmpty(t, token.AccessToken, "access token should not be empty")
+
+	// use server as the oauth client http client because it has the tls cert
+	oauthClientCtx := context.WithValue(
+		context.Background(),
+		oauth2.HTTPClient,
+		server.Client(),
+	)
+	client := config.Client(oauthClientCtx, token)
+
+	resp, err := client.Get(server.URL + "/resource")
 	require.NoError(t, err, "failed to make resource request")
 	respBytes, err = io.ReadAll(resp.Body)
 	require.NoError(t, err, "failed to read response body")

@@ -247,7 +247,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
 		loginRouter,
-		hive, // Pass in hive which wraps the default directory with lookups to its db
+		// Resolve public atproto identities first, falling back to hive for
+		// org-internal identities that aren't publicly resolvable.
+		habitat_identity.NewWrappedDirectory(dir, hive),
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
