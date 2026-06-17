@@ -61,29 +61,32 @@ func (r *resyncer) run(ctx context.Context) {
 }
 
 func (r *resyncer) runDispatcher(ctx context.Context) {
+	slog.InfoContext(ctx, "resync dispatcher started")
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-r.notify:
+			slog.InfoContext(ctx, "dispatcher received notification")
 			r.dispatch(ctx)
 		}
 	}
 }
 
 func (r *resyncer) dispatch(ctx context.Context) {
+	slog.InfoContext(ctx, "resync dispatch called")
 	now := time.Now().Unix()
 	for {
 		rows, err := r.db.WithContext(ctx).Raw(`
-			UPDATE managed_repos SET state = "resyncing"
+			UPDATE managed_repos SET state = 'resyncing'
 			WHERE rowid IN (
 				SELECT rowid FROM managed_repos
-				WHERE state IN ("pending", "desynced", "error") AND (retry_after = 0 OR retry_after < ?)
+				WHERE state IN ('pending', 'desynced', 'error') AND (retry_after = 0 OR retry_after < ?)
 				ORDER BY
 					CASE state
-						WHEN "pending" THEN 1
-						WHEN "desynced" THEN 2
-						WHEN "error" THEN 3
+						WHEN 'pending' THEN 1
+						WHEN 'desynced' THEN 2
+						WHEN 'error' THEN 3
 					END,
 					rowid
 				LIMIT ?
@@ -206,6 +209,7 @@ func (r *resyncer) syncRepo(
 			return closeErr
 		}
 		if resp.StatusCode != http.StatusOK {
+			slog.WarnContext(ctx, "getRepoOplog status", "space", space, "repo", repoDID, "status", resp.StatusCode)
 			return r.handleSyncError(
 				ctx,
 				space,
@@ -213,6 +217,8 @@ func (r *resyncer) syncRepo(
 				fmt.Errorf("getRepoOplog: %s", resp.Status),
 			)
 		}
+
+		slog.InfoContext(ctx, "getRepoOplog response", "space", space, "repo", repoDID, "records", len(output.Records), "cursor", output.Cursor)
 
 		if len(output.Records) > 0 {
 			err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
