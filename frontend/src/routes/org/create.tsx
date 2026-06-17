@@ -9,8 +9,9 @@ import {
 } from "internal/components/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
-import { procedure } from "internal";
+import { procedure, SingleHandleCombobox } from "internal";
 import { NetworkHabitatOrgCreate } from "api";
+import { useState } from "react";
 
 export const Route = createFileRoute("/org/create")({
   component: CreateOrgPage,
@@ -25,19 +26,32 @@ interface FormValues {
   handle_subdomain: string;
 }
 
+function PasswordInput(props: React.ComponentProps<typeof Input>) {
+  const [isPlain, setIsPlain] = useState(true);
+
+  return (
+    <Input
+      type={isPlain ? "text" : "password"}
+      {...props}
+      onFocus={() => setIsPlain(false)}
+    />
+  );
+}
+
 function CreateOrgPage() {
   const navigate = useNavigate();
   const {
     register,
     handleSubmit,
     setError,
+    setValue,
     watch,
     formState: { isSubmitting, errors },
     control,
   } = useForm<FormValues>({
     defaultValues: {
       admin_handle: "admin",
-      admin_password: "12345",
+      admin_password: "",
       handle_subdomain: "acmecorp",
       name: "My Organization",
       login_method: "password",
@@ -113,7 +127,11 @@ function CreateOrgPage() {
                     variant="outline"
                     {...field}
                     value={[value]}
-                    onValueChange={(value) => onChange(value[0])}
+                    onValueChange={(newValue) => {
+                      onChange(newValue[0]);
+                      setValue("login_id", "");
+                      setValue("admin_password", "");
+                    }}
                   >
                     <ToggleGroupItem value="password">Password</ToggleGroupItem>
                     <ToggleGroupItem value="atproto">
@@ -128,23 +146,42 @@ function CreateOrgPage() {
           {loginMethod === "password" ? (
             <Field>
               <FieldLabel>Admin Password</FieldLabel>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="password"
                 {...register("admin_password", { required: true })}
               />
               <FieldError errors={[errors.admin_password]} />
             </Field>
+          ) : loginMethod === "atproto" ? (
+            <Field>
+              <FieldLabel>AT Protocol Handle</FieldLabel>
+              <Controller
+                control={control}
+                name="login_id"
+                rules={{ required: true }}
+                render={({ field: { onChange, value } }) => (
+                  <SingleHandleCombobox
+                    value={value ?? ""}
+                    onValueChange={onChange}
+                  />
+                )}
+              />
+              <FieldError errors={[errors.login_id]} />
+            </Field>
           ) : (
             <Field>
-              <FieldLabel>
-                {loginMethod === "atproto" ? "AT Protocol DID" : "Google Email"}
-              </FieldLabel>
-              <Input
-                placeholder={
-                  loginMethod === "atproto" ? "did:plc:..." : "user@gmail.com"
-                }
-                {...register("login_id", { required: true })}
+              <FieldLabel>Google Email</FieldLabel>
+              <Controller
+                control={control}
+                name="login_id"
+                rules={{ required: true }}
+                render={({ field: { onChange, value } }) => (
+                  <Input
+                    placeholder="user@gmail.com"
+                    value={value ?? ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
               />
               <FieldError errors={[errors.login_id]} />
             </Field>

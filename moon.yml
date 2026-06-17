@@ -1,4 +1,10 @@
 layer: library
+fileGroups:
+  src:
+    - internal/**/*.go
+    - '!internal/**/*_test.go'
+  test:
+    - internal/**/*_test.go
 tasks:
   format-check:
     command: golangci-lint fmt -d

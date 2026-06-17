@@ -41,7 +41,20 @@ export const Route = createFileRoute("/_requireAuth/")({
     const apps = appData.apps.filter(
       (app) => app.clientUri !== `https://${__DOMAIN__}`,
     );
-    return { collections, apps: apps };
+
+    let orgName: string | undefined;
+    try {
+      const meta = await query(
+        "network.habitat.org.getMetadata",
+        {},
+        { authManager },
+      );
+      orgName = meta.name;
+    } catch {
+      // Not a member of an org
+    }
+
+    return { collections, apps, orgName };
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {

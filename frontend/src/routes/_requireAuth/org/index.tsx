@@ -10,6 +10,7 @@ import { Button, Input } from "internal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { Route as RootRoute } from "../../__root";
 import { useState } from "react";
 
 export const Route = createFileRoute("/_requireAuth/org/")({
@@ -20,9 +21,11 @@ export const Route = createFileRoute("/_requireAuth/org/")({
       queryClient.fetchQuery(getMembersQueryOptions(authManager)),
     ]);
     const authInfo = authManager.getAuthInfo();
-    const isAdmin = adminsData.admins.includes(authInfo?.did ?? "");
-    const adminSet = new Set(adminsData.admins);
-    const members = membersData.members.filter((did) => !adminSet.has(did));
+    const callerDid = authInfo?.did ?? "";
+    const isAdmin = adminsData.admins.some((a) => a.did === callerDid);
+    const adminDids = new Set(adminsData.admins.map((a) => a.did));
+    const members = membersData.members.filter((m) => !adminDids.has(m.did));
+
     return { admins: adminsData.admins, members, isAdmin };
   },
   component: OrgPage,
@@ -33,6 +36,8 @@ function OrgPage() {
   const { authManager } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { org } = RootRoute.useLoaderData();
+  const orgId = org?.orgId;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["org"] });
@@ -43,7 +48,7 @@ function OrgPage() {
     <div className="flex flex-col gap-8">
       <MemberSection
         title="Admins"
-        dids={admins}
+        members={admins}
         isAdmin={isAdmin}
         onRemove={(did) => downgradeAdmin(authManager, did).then(invalidate)}
         addLabel="Add admin"
@@ -52,28 +57,32 @@ function OrgPage() {
       />
       <MemberSection
         title="Members"
-        dids={members}
+        members={members}
         isAdmin={isAdmin}
         onRemove={(did) => removeMembers(authManager, [did]).then(invalidate)}
         onPromote={(did) => addAdmin(authManager, did).then(invalidate)}
         canPromote={true}
       />
-      {isAdmin && <InviteSection authManager={authManager} />}
+      {isAdmin && <InviteSection authManager={authManager} orgId={orgId} />}
     </div>
   );
 }
 
 function InviteSection({
   authManager,
+  orgId,
 }: {
   authManager: Parameters<typeof issueInviteToken>[0];
+  orgId: string | undefined;
 }) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const { mutate: generateLink, isPending } = useMutation({
     mutationFn: () => issueInviteToken(authManager),
     onSuccess: ({ token }) => {
-      setInviteUrl(`${window.location.origin}/org/join?token=${token}`);
+      setInviteUrl(
+        `${window.location.origin}/org/join?token=${token}&orgId=${orgId}`,
+      );
     },
   });
 
@@ -122,7 +131,7 @@ function InviteSection({
 
 function MemberSection({
   title,
-  dids,
+  members,
   isAdmin,
   onRemove,
   onAdd,
@@ -131,7 +140,7 @@ function MemberSection({
   canPromote,
 }: {
   title: string;
-  dids: string[];
+  members: { did: string; handle: string }[];
   isAdmin: boolean;
   onRemove: (did: string) => Promise<void>;
   onAdd?: (did: string) => Promise<void>;
@@ -151,9 +160,9 @@ function MemberSection({
       <h2 className="text-lg font-semibold mb-2">{title}</h2>
       <table className="w-full text-sm">
         <tbody>
-          {dids.map((did) => (
+          {members.map(({ did, handle }) => (
             <tr key={did} className="border-b">
-              <td className="py-2 pr-4 font-mono">{did}</td>
+              <td className="py-2 pr-4 font-mono">{handle}</td>
               {isAdmin && (
                 <td className="py-2 flex gap-2 justify-end">
                   {canPromote && onPromote && (

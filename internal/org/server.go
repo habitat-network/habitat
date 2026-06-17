@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/bradenaw/juniper/xslices"
+	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/pear"
@@ -19,19 +20,33 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
+var errNotMemberOfOrg = errors.New("not a member of an organization")
+
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
-	store Store
-	auth  authn.Method
-	pear  pear.Pear
+	store   Store
+	auth    authn.Method
+	pear    pear.Pear
+	domain  string
+	decoder *schema.Decoder
+	dir     identity.Directory
 }
 
-func NewServer(store Store, auth authn.Method, p pear.Pear) (*Server, error) {
+func NewServer(
+	store Store,
+	auth authn.Method,
+	p pear.Pear,
+	domain string,
+	dir identity.Directory,
+) (*Server, error) {
 	return &Server{
-		store: store,
-		auth:  auth,
-		pear:  p,
+		store:   store,
+		auth:    auth,
+		pear:    p,
+		domain:  domain,
+		decoder: schema.NewDecoder(),
+		dir:     dir,
 	}, nil
 }
 
@@ -42,6 +57,85 @@ func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) 
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *Server) validateOrgToken(ctx context.Context, orgID string, token string) (Org, error) {
+	org, err := s.store.GetOrg(ctx, syntax.DID(orgID))
+	if err != nil {
+		return nil, err
+	}
+
+	// Org found, validate token.
+	err = org.ValidateAdminSignedToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	return org, nil
+}
+
+func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
+	var params habitat.NetworkHabitatOrgGetMetadataParams
+	err := s.decoder.Decode(&params, r.URL.Query())
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "parsing url", http.StatusBadRequest)
+		return
+	}
+
+	orgID := params.OrgId
+	var org Org
+	// Either orgID is supplied in query params and the signed token is passed up for authn method
+	if orgID != "" {
+		org, err = s.validateOrgToken(
+			r.Context(),
+			orgID,
+			strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "),
+		)
+		if err != nil {
+			utils.LogAndHTTPError(r.Context(), w, err, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	} else {
+		// Or regular authn via authenticated caller
+		caller, ok := authn.Validate(w, r, s.auth)
+		if !ok {
+			return
+		}
+
+		org, err = s.store.GetOrgForDID(r.Context(), caller)
+		if errors.Is(err, ErrMemberNotFound) {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				errNotMemberOfOrg.Error(),
+				http.StatusNotFound,
+			)
+			return
+		} else if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"getting organization",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+	}
+
+	meta := org.GetMetadata(r.Context(), s.domain)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(meta); err != nil {
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
+	}
 }
 
 // Org APIs
@@ -144,9 +238,24 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	admins := xslices.Map(dids, func(m syntax.DID) string {
-		return m.String()
-	})
+	admins := make([]habitat.NetworkHabitatOrgGetAdminsMember, len(dids))
+	for i, did := range dids {
+		id, err := s.dir.LookupDID(context.Background(), did)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"looking up org admins",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		admins[i] = habitat.NetworkHabitatOrgGetAdminsMember{
+			Did:    did.String(),
+			Handle: id.Handle.String(),
+		}
+	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetAdminsOutput{
 		Admins: admins,
@@ -191,9 +300,24 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	members := xslices.Map(dids, func(m syntax.DID) string {
-		return m.String()
-	})
+	members := make([]habitat.NetworkHabitatOrgGetMembersMember, len(dids))
+	for i, did := range dids {
+		id, err := s.dir.LookupDID(context.Background(), did)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"looking up org admins",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		members[i] = habitat.NetworkHabitatOrgGetMembersMember{
+			Did:    did.String(),
+			Handle: id.Handle.String(),
+		}
+	}
 
 	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetMembersOutput{
 		Members: members,
@@ -461,6 +585,21 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// authz: calelr must be admin
+	if ok, err := org.IsAdmin(r.Context(), caller); !ok {
+		utils.LogAndHTTPError(r.Context(), w, err, "not authorized", http.StatusUnauthorized)
+		return
+	} else if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking IsAdmin",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	var req habitat.NetworkHabitatOrgIssueInviteTokenInput
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -513,7 +652,7 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Token == "" || req.Handle == "" || req.Password == "" || req.OrgId == "" {
+	if req.Token == "" || req.Handle == "" || req.OrgId == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -542,7 +681,13 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := org.CreateNewMemberIdentity(r.Context(), req.Token, req.Handle, req.Password)
+	id, err := org.CreateNewMemberIdentity(
+		r.Context(),
+		req.Token,
+		req.Handle,
+		req.Password,
+		req.LoginID,
+	)
 	if errors.Is(err, ErrInvalidToken) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return

@@ -1206,8 +1206,7 @@
                     "admins": {
                       "type": "array",
                       "items": {
-                        "type": "string",
-                        "format": "did"
+                        "$ref": "#/components/schemas/network.habitat.org.getAdmins.member"
                       }
                     }
                   }
@@ -1300,8 +1299,7 @@
                     "members": {
                       "type": "array",
                       "items": {
-                        "type": "string",
-                        "format": "did"
+                        "$ref": "#/components/schemas/network.habitat.org.getMembers.member"
                       }
                     }
                   }
@@ -1380,6 +1378,18 @@
             "Bearer": []
           }
         ],
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "query",
+            "description": "The orge ID of the organization to look up. If not specified, defaults to the authenticated caller's org.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The orge ID of the organization to look up. If not specified, defaults to the authenticated caller's org."
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1388,13 +1398,11 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "domain"
+                    "loginMethod",
+                    "handleSubdomain",
+                    "orgId"
                   ],
                   "properties": {
-                    "domain": {
-                      "type": "string",
-                      "description": "The domain where habitat is hosted for this organization."
-                    },
                     "name": {
                       "type": "string",
                       "description": "The name of this organization."
@@ -1402,6 +1410,18 @@
                     "description": {
                       "type": "string",
                       "description": "A description for this organization."
+                    },
+                    "loginMethod": {
+                      "type": "string",
+                      "description": "Login method for the org: 'password', 'atproto', or 'google'."
+                    },
+                    "handleSubdomain": {
+                      "type": "string",
+                      "description": "The subdomain used for all org member handles."
+                    },
+                    "orgId": {
+                      "type": "string",
+                      "description": "The unique ID of this organization."
                     }
                   }
                 }
@@ -1714,8 +1734,7 @@
                 "type": "object",
                 "required": [
                   "token",
-                  "handle",
-                  "password"
+                  "handle"
                 ],
                 "properties": {
                   "orgId": {
@@ -1728,11 +1747,15 @@
                   },
                   "token": {
                     "type": "string",
-                    "description": "The token that was issued by an org admin to allow members to join the organization.."
+                    "description": "The token that was issued by an org admin to allow members to join the organization."
                   },
                   "password": {
                     "type": "string",
-                    "description": "The password for the new member's account."
+                    "description": "The password for the new member's account (required for 'password' login method)."
+                  },
+                  "loginID": {
+                    "type": "string",
+                    "description": "Provider-specific identifier (AT Protocol handle for 'atproto', email for 'google'). Required for non-password login methods."
                   }
                 }
               }
@@ -4880,6 +4903,38 @@
           "logoUri": {
             "type": "string",
             "description": "The logo URI of this app."
+          }
+        }
+      },
+      "network.habitat.org.getAdmins.member": {
+        "type": "object",
+        "required": [
+          "did",
+          "handle"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          },
+          "handle": {
+            "type": "string"
+          }
+        }
+      },
+      "network.habitat.org.getMembers.member": {
+        "type": "object",
+        "required": [
+          "did",
+          "handle"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          },
+          "handle": {
+            "type": "string"
           }
         }
       },
