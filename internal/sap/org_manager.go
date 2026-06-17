@@ -148,7 +148,19 @@ type tokenSource struct {
 }
 
 func (o *orgManager) GetClient(ctx context.Context, orgDID syntax.DID) *http.Client {
-	return oauth2.NewClient(ctx, &tokenSource{o: o, did: orgDID})
+	client := oauth2.NewClient(ctx, &tokenSource{o: o, did: orgDID})
+	client.Transport = &oauthHeaderTransport{base: client.Transport}
+	return client
+}
+
+type oauthHeaderTransport struct {
+	base http.RoundTripper
+}
+
+func (t *oauthHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("Habitat-Auth-Method", "oauth")
+	return t.base.RoundTrip(req)
 }
 
 // Token implements [oauth2.TokenSource].

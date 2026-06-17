@@ -36,6 +36,7 @@ type SapConfig struct {
 	Secret            string
 	DB                *gorm.DB
 	ResyncParallelism int
+	Directory         identity.Directory
 }
 
 func NewSap(config SapConfig) (Sap, error) {
@@ -49,7 +50,12 @@ func NewSap(config SapConfig) (Sap, error) {
 
 	resyncNotifCh := make(chan struct{}, 1)
 
-	o := newOrgManager(config.DB, config.PublicDomain, secret, identity.DefaultDirectory())
+	dir := config.Directory
+	if dir == nil {
+		dir = identity.DefaultDirectory()
+	}
+
+	o := newOrgManager(config.DB, config.PublicDomain, secret, dir)
 	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh)
 	sub := newSubscriber(config.DB, o, resyncBuf)
 	resyncer := newResyncer(config.DB, o, resyncBuf, resyncNotifCh, config.ResyncParallelism)
