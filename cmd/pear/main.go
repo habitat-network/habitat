@@ -247,7 +247,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthSecret,
 		loginRouter,
 		dir,
-		pdsCredStore,
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
@@ -256,6 +255,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to setup oauth server", "err", err)
 		os.Exit(1)
 	}
+
+	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
+	mux.Use(forwarding.NewServiceProxy(oauthServer, orgHive, dir))
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
