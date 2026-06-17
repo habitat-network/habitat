@@ -186,7 +186,6 @@ type OAuthServer struct {
 //   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
-//   - credStore: Store for PDS credentials
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
