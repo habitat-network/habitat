@@ -257,6 +257,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
+	serviceProxy := forwarding.NewServiceProxy(oauthServer, orgHive, dir)
+	mux.Use(serviceProxy.Middleware)
+
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup clique store", "err", err)
