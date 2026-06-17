@@ -17,7 +17,7 @@ type LoginRouter struct {
 }
 
 func (r *LoginRouter) getProvider(org Org) login.Provider {
-	switch org.loginMethod() {
+	switch org.loginMethod(context.Background() /* todo: fix context */) {
 	case LoginMethodGoogle:
 		return r.Google
 	case LoginMethodPassword:

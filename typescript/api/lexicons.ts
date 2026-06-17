@@ -1392,11 +1392,24 @@ export const schemaDict = {
               admins: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'ref',
+                  ref: 'lex:network.habitat.org.getAdmins#member',
                 },
               },
             },
+          },
+        },
+      },
+      member: {
+        type: 'object',
+        required: ['did', 'handle'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          handle: {
+            type: 'string',
           },
         },
       },
@@ -1419,11 +1432,24 @@ export const schemaDict = {
               members: {
                 type: 'array',
                 items: {
-                  type: 'string',
-                  format: 'did',
+                  type: 'ref',
+                  ref: 'lex:network.habitat.org.getMembers#member',
                 },
               },
             },
+          },
+        },
+      },
+      member: {
+        type: 'object',
+        required: ['did', 'handle'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          handle: {
+            type: 'string',
           },
         },
       },
@@ -1436,17 +1462,22 @@ export const schemaDict = {
       main: {
         type: 'query',
         description: 'Get general info about this organization.',
+        parameters: {
+          type: 'params',
+          properties: {
+            orgId: {
+              type: 'string',
+              description:
+                "The orge ID of the organization to look up. If not specified, defaults to the authenticated caller's org.",
+            },
+          },
+        },
         output: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['domain'],
+            required: ['loginMethod', 'handleSubdomain', 'orgId'],
             properties: {
-              domain: {
-                type: 'string',
-                description:
-                  'The domain where habitat is hosted for this organization.',
-              },
               name: {
                 type: 'string',
                 description: 'The name of this organization.',
@@ -1454,6 +1485,19 @@ export const schemaDict = {
               description: {
                 type: 'string',
                 description: 'A description for this organization.',
+              },
+              loginMethod: {
+                type: 'string',
+                description:
+                  "Login method for the org: 'password', 'atproto', or 'google'.",
+              },
+              handleSubdomain: {
+                type: 'string',
+                description: 'The subdomain used for all org member handles.',
+              },
+              orgId: {
+                type: 'string',
+                description: 'The unique ID of this organization.',
               },
             },
           },
@@ -1558,7 +1602,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['token', 'handle', 'password'],
+            required: ['token', 'handle'],
             properties: {
               orgId: {
                 type: 'string',
@@ -1572,11 +1616,17 @@ export const schemaDict = {
               token: {
                 type: 'string',
                 description:
-                  'The token that was issued by an org admin to allow members to join the organization..',
+                  'The token that was issued by an org admin to allow members to join the organization.',
               },
               password: {
                 type: 'string',
-                description: "The password for the new member's account.",
+                description:
+                  "The password for the new member's account (required for 'password' login method).",
+              },
+              loginID: {
+                type: 'string',
+                description:
+                  "Provider-specific identifier (AT Protocol handle for 'atproto', email for 'google'). Required for non-password login methods.",
               },
             },
           },

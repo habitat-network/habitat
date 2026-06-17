@@ -3,6 +3,7 @@ export { default as AuthForm } from "./AuthForm";
 export { UserAvatar } from "./components/UserAvatar";
 export type { UserAvatarProps } from "./components/UserAvatar";
 export { default as UserCombobox } from "./components/UserCombobox";
+export { SingleHandleCombobox } from "./components/SingleHandleCombobox";
 export type { Actor } from "./types/Actor";
 export { AppHeader } from "./components/AppHeader";
 export { AppLayout } from "./components/AppLayout";

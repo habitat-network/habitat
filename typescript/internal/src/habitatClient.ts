@@ -9,6 +9,7 @@ import type {
   ComAtprotoServerGetServiceAuth,
 } from "@atproto/api";
 import type {
+  ComAtprotoRepoDescribeRepo,
   NetworkHabitatCliqueCreateClique,
   NetworkHabitatListConnectedApps,
   NetworkHabitatRepoDeleteRecord,
@@ -52,6 +53,7 @@ type Query<
 > = {
   params: Params;
   output: Output;
+  unauthenticated?: false;
 };
 
 type QueryEndpoints = {
@@ -62,6 +64,10 @@ type QueryEndpoints = {
   "com.atproto.repo.getRecord": Query<
     ComAtprotoRepoGetRecord.QueryParams,
     ComAtprotoRepoGetRecord.OutputSchema
+  >;
+  "com.atproto.repo.describeRepo": Query<
+    ComAtprotoRepoDescribeRepo.QueryParams,
+    ComAtprotoRepoDescribeRepo.OutputSchema
   >;
   "com.atproto.server.getServiceAuth": Query<
     ComAtprotoServerGetServiceAuth.QueryParams,
@@ -214,7 +220,7 @@ type ProcedureEndpoints = {
     NetworkHabitatOrgLoginMember.InputSchema,
     NetworkHabitatOrgLoginMember.OutputSchema
   >;
-  "network.habitat.org.mintMemberIdentity": Procedure<
+  "network.habitat.org.mintMemberIdentity": UnauthedProcedure<
     NetworkHabitatOrgMintMemberIdentity.InputSchema,
     NetworkHabitatOrgMintMemberIdentity.OutputSchema
   >;

@@ -235,7 +235,6 @@ var (
 	ErrPublicRecordExists     = fmt.Errorf("a public record exists with the same key")
 	ErrNotLocalRepo           = fmt.Errorf("the desired did does not live on this repo")
 	ErrRemoteFetchUnsupported = errors.New("fetches from remote pears are unsupported as of now")
-	ErrDIDNotServed           = errors.New("DID is not served by this node")
 )
 
 func NewPear(
@@ -605,7 +604,6 @@ func (p *pear) GetBlob(
 	target syntax.DID,
 	cid syntax.CID,
 ) (string /* mimetype */, string /* Content-Length */, io.ReadCloser /* raw blob */, error) {
-
 	authz := false
 
 	if caller == target {
