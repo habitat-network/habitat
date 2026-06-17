@@ -27,9 +27,10 @@ var hopByHopHeaders = []string{
 // session and forwards the request to the specified service using a service
 // auth JWT signed on the caller's behalf.
 type ServiceProxy struct {
-	oauth authn.Method
-	h     hive.Hive
-	dir   identity.Directory
+	oauth      authn.Method
+	h          hive.Hive
+	dir        identity.Directory
+	httpClient *http.Client
 }
 
 // NewServiceProxy constructs a ServiceProxy.
@@ -38,9 +39,10 @@ type ServiceProxy struct {
 // dir resolves external DIDs to find service endpoints.
 func NewServiceProxy(oauth authn.Method, h hive.Hive, dir identity.Directory) *ServiceProxy {
 	return &ServiceProxy{
-		oauth: oauth,
-		h:     h,
-		dir:   dir,
+		oauth:      oauth,
+		h:          h,
+		dir:        dir,
+		httpClient: &http.Client{},
 	}
 }
 
@@ -130,16 +132,22 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 		return
 	}
 
-	// Clone headers, then scrub hop-by-hop and override auth.
+	// Clone headers, then scrub hop-by-hop headers and any headers named in the
+	// Connection value (per RFC 7230 §6.1), then override auth.
 	outReq.Header = r.Header.Clone()
+	for _, h := range strings.Split(outReq.Header.Get("Connection"), ",") {
+		outReq.Header.Del(strings.TrimSpace(h))
+	}
 	for _, h := range hopByHopHeaders {
 		outReq.Header.Del(h)
 	}
 	outReq.Header.Set("Authorization", "Bearer "+jwt)
+	// DPoP proofs are bound to Habitat's endpoint and must not be forwarded.
+	outReq.Header.Del("DPoP")
 	// Strip Atproto-Proxy to prevent the target from attempting further proxying.
 	outReq.Header.Del("Atproto-Proxy")
 
-	resp, err := http.DefaultClient.Do(outReq)
+	resp, err := s.httpClient.Do(outReq)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "[service proxy]: forwarded request failed", http.StatusBadGateway)
 		return
@@ -148,7 +156,7 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	for key, values := range resp.Header {
 		for _, value := range values {
-			w.Header().Set(key, value)
+			w.Header().Add(key, value)
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
