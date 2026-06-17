@@ -37,7 +37,13 @@ func newTestServer(t *testing.T, adminDID syntax.DID) (*Server, syntax.DID) {
 	require.NoError(t, st.addMemberTx(context.Background(), st.db, adminDID))
 	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
 
-	srv, err := NewServer(storeImpl, authn.NewStubAuthnForTest(adminDID), nil, "pear.example.com", identity.DefaultDirectory())
+	srv, err := NewServer(
+		storeImpl,
+		authn.NewStubAuthnForTest(adminDID),
+		nil,
+		"pear.example.com",
+		identity.DefaultDirectory(),
+	)
 	require.NoError(t, err)
 	return srv, orgIdIdent.DID
 }
@@ -116,7 +122,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId,
+		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId.String(),
 		nil,
 	)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -136,7 +142,7 @@ func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId,
+		"/xrpc/network.habitat.org.getMetadata?OrgId="+orgId.String(),
 		nil,
 	)
 	req.Header.Set("Authorization", "Bearer not-a-valid-token")

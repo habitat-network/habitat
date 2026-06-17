@@ -116,7 +116,13 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	meta := org.GetMetadata(r.Context(), s.domain)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(meta); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "encoding response", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"encoding response",
+			http.StatusInternalServerError,
+		)
 	}
 }
 
@@ -224,7 +230,13 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 	for i, did := range dids {
 		id, err := s.dir.LookupDID(context.Background(), did)
 		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "looking up org admins", http.StatusInternalServerError)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"looking up org admins",
+				http.StatusInternalServerError,
+			)
 			return
 		}
 		admins[i] = habitat.NetworkHabitatOrgGetAdminsMember{
@@ -280,7 +292,13 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 	for i, did := range dids {
 		id, err := s.dir.LookupDID(context.Background(), did)
 		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "looking up org admins", http.StatusInternalServerError)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"looking up org admins",
+				http.StatusInternalServerError,
+			)
 			return
 		}
 		members[i] = habitat.NetworkHabitatOrgGetMembersMember{
