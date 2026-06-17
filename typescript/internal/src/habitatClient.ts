@@ -56,7 +56,6 @@ type Query<
   unauthenticated?: false;
 };
 
-
 type QueryEndpoints = {
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,
@@ -265,8 +264,8 @@ interface UnauthedOptions {
 // AuthManager.
 type ProcedureOptions<T extends keyof ProcedureEndpoints> =
   ProcedureEndpoints[T]["unauthenticated"] extends true
-  ? UnauthedOptions
-  : AuthedOptions;
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export class XRPCError extends Error {
   public status: number;

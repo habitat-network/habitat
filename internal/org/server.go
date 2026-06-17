@@ -104,10 +104,22 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 
 		org, err = s.store.GetOrgForDID(r.Context(), caller)
 		if errors.Is(err, ErrMemberNotFound) {
-			utils.LogAndHTTPError(r.Context(), w, err, errNotMemberOfOrg.Error(), http.StatusNotFound)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				errNotMemberOfOrg.Error(),
+				http.StatusNotFound,
+			)
 			return
 		} else if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "getting organization", http.StatusInternalServerError)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"getting organization",
+				http.StatusInternalServerError,
+			)
 			return
 		}
 
@@ -578,7 +590,13 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(r.Context(), w, err, "not authorized", http.StatusUnauthorized)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "checking IsAdmin", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking IsAdmin",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
