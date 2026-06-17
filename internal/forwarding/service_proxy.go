@@ -64,7 +64,11 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	// Parse "did#serviceId" — the "#" separator is required by the AT Protocol spec.
 	rawDID, serviceID, ok := strings.Cut(proxyHeader, "#")
 	if !ok {
-		utils.WriteHTTPError(w, fmt.Errorf("malformed Atproto-Proxy header: missing '#'"), http.StatusBadRequest)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("malformed Atproto-Proxy header: missing '#'"),
+			http.StatusBadRequest,
+		)
 		return
 	}
 
@@ -76,7 +80,11 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	targetDID, err := syntax.ParseDID(rawDID)
 	if err != nil {
-		utils.WriteHTTPError(w, fmt.Errorf("invalid DID in Atproto-Proxy header: %w", err), http.StatusBadRequest)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("invalid DID in Atproto-Proxy header: %w", err),
+			http.StatusBadRequest,
+		)
 		return
 	}
 
@@ -84,13 +92,23 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	// https://github.com/bluesky-social/indigo/pull/1345
 	id, err := s.dir.LookupDID(context.Background(), targetDID)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "[service proxy]: failed to resolve proxy target DID", http.StatusBadGateway)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"[service proxy]: failed to resolve proxy target DID",
+			http.StatusBadGateway,
+		)
 		return
 	}
 
 	svc, ok := id.Services[serviceID]
 	if !ok {
-		utils.WriteHTTPError(w, fmt.Errorf("service %q not found in DID document for %s", serviceID, targetDID), http.StatusBadRequest)
+		utils.WriteHTTPError(
+			w,
+			fmt.Errorf("service %q not found in DID document for %s", serviceID, targetDID),
+			http.StatusBadRequest,
+		)
 		return
 	}
 
@@ -103,20 +121,44 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	// Habitat owns user signing keys, so it signs service auth tokens on behalf
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
-	jwt, err := s.h.SignServiceAuth(r.Context(), callerDID, targetDID.String(), 60*time.Second, &nsid)
+	jwt, err := s.h.SignServiceAuth(
+		r.Context(),
+		callerDID,
+		targetDID.String(),
+		60*time.Second,
+		&nsid,
+	)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "[service proxy]: failed to sign service auth", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"[service proxy]: failed to sign service auth",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	base, err := url.Parse(svc.URL)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "[service proxy]: invalid service URL in DID document", http.StatusBadGateway)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"[service proxy]: invalid service URL in DID document",
+			http.StatusBadGateway,
+		)
 		return
 	}
 	requestURI, err := url.Parse(r.URL.RequestURI())
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "[service proxy]: failed to parse request URI", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"[service proxy]: failed to parse request URI",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	forwardURL := base.ResolveReference(requestURI)
@@ -128,7 +170,13 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, forwardURL.String(), body)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "[service proxy]: failed to build forwarded request", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"[service proxy]: failed to build forwarded request",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -149,7 +197,13 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	resp, err := s.httpClient.Do(outReq)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "[service proxy]: forwarded request failed", http.StatusBadGateway)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"[service proxy]: forwarded request failed",
+			http.StatusBadGateway,
+		)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -162,7 +216,12 @@ func (s *ServiceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		if utils.ShouldLog(err) {
-			slog.ErrorContext(r.Context(), "[service proxy]: failed to copy response body", "err", err)
+			slog.ErrorContext(
+				r.Context(),
+				"[service proxy]: failed to copy response body",
+				"err",
+				err,
+			)
 		}
 	}
 }

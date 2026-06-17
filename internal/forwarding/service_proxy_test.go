@@ -53,7 +53,11 @@ func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
 }
 
 func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
-	sp := NewServiceProxy(authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")), nil, identity.NewMockDirectory())
+	sp := NewServiceProxy(
+		authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")),
+		nil,
+		identity.NewMockDirectory(),
+	)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
@@ -76,7 +80,11 @@ func TestServiceProxyAuthFails_Returns401(t *testing.T) {
 
 func TestServiceProxyDIDResolutionFails_Returns502(t *testing.T) {
 	// Empty directory — LookupDID will not find the target DID.
-	sp := NewServiceProxy(authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")), nil, identity.NewMockDirectory())
+	sp := NewServiceProxy(
+		authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")),
+		nil,
+		identity.NewMockDirectory(),
+	)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
@@ -91,10 +99,16 @@ func TestServiceProxyServiceNotFound_Returns400(t *testing.T) {
 	dir := identity.NewMockDirectory()
 	// DID is registered but does not have the requested service.
 	dir.Insert(identity.Identity{
-		DID:      syntax.DID(targetDID),
-		Services: map[string]identity.ServiceEndpoint{"other_service": {URL: "https://other.example.com"}},
+		DID: syntax.DID(targetDID),
+		Services: map[string]identity.ServiceEndpoint{
+			"other_service": {URL: "https://other.example.com"},
+		},
 	})
-	sp := NewServiceProxy(authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")), nil, dir)
+	sp := NewServiceProxy(
+		authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")),
+		nil,
+		dir,
+	)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
@@ -137,8 +151,16 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, received, "forwarded request was not received by target")
-	require.Empty(t, received.Header.Get("Atproto-Proxy"), "Atproto-Proxy must be stripped to prevent forwarding loops")
-	require.Empty(t, received.Header.Get("DPoP"), "DPoP must be stripped (proof is bound to Habitat's endpoint)")
+	require.Empty(
+		t,
+		received.Header.Get("Atproto-Proxy"),
+		"Atproto-Proxy must be stripped to prevent forwarding loops",
+	)
+	require.Empty(
+		t,
+		received.Header.Get("DPoP"),
+		"DPoP must be stripped (proof is bound to Habitat's endpoint)",
+	)
 
 	// Verify the forwarded Authorization is a service auth JWT issued by the caller.
 	auth := received.Header.Get("Authorization")
