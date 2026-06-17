@@ -1,36 +1,14 @@
 package permissions
 
 import (
-	"context"
-	"net/http"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/clique"
-	"github.com/habitat-network/habitat/internal/node"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-type mockNode struct {
-	servedDIDs map[string]bool
-}
-
-var _ node.Node = &mockNode{}
-
-func (m *mockNode) ServesDID(_ context.Context, did syntax.DID) (bool, error) {
-	return m.servedDIDs[did.String()], nil
-}
-
-func (m *mockNode) SendXRPC(
-	_ context.Context,
-	_ syntax.DID,
-	_ syntax.DID,
-	_ *http.Request,
-) (*http.Response, error) {
-	return nil, nil
-}
 
 func newTestStore(t *testing.T) *store {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
