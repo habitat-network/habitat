@@ -487,7 +487,6 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			Pds:      login.NewPDSProvider(oauthClient, credStore, dummyDir),
 			OrgStore: orgStore,
 		},
-		node.NewDummy(),
 		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
 		credStore,
 		db,
