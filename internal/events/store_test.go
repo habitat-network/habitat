@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -27,7 +28,7 @@ func TestStore_Concurrency(t *testing.T) {
 	store, err := NewStore(db)
 	require.NoError(t, err)
 
-	go func() { require.NoError(t, store.StartSequencer(t.Context())) }()
+	go func() { require.ErrorIs(t, store.StartSequencer(t.Context()), context.Canceled) }()
 
 	const numWriters = 10
 	const eventsPerWriter = 10
@@ -83,7 +84,7 @@ func TestStore_SubscriberDoesntBlock(t *testing.T) {
 	db := openTestDB(t)
 	store, err := NewStore(db)
 	require.NoError(t, err)
-	go func() { require.NoError(t, store.StartSequencer(t.Context())) }()
+	go func() { require.ErrorIs(t, store.StartSequencer(t.Context()), context.Canceled) }()
 
 	subscriberChan1 := store.Subscribe(t.Context(), 0)
 	subscriberChan2 := store.Subscribe(t.Context(), 0)

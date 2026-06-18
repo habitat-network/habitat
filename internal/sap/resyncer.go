@@ -15,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type resyncJob struct {
@@ -264,7 +265,8 @@ func (r *resyncer) syncRepo(
 	}
 
 	if err := r.db.WithContext(ctx).
-		Model(&managedRepo{}).
+		Clauses(clause.Returning{}).
+		Model(&repo).
 		Where("space = ? AND did = ?", space, repoDID).
 		Updates(map[string]any{
 			"state":       RepoStateActive,

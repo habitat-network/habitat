@@ -64,7 +64,7 @@ func (rb *resyncBuffer) appendEvent(event events.Event) error {
 
 func eventChains(prevRev syntax.TID, since syntax.TID) bool {
 	if since == "" {
-		return true
+		return prevRev == ""
 	}
 	if prevRev == "" {
 		return false

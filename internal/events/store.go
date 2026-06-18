@@ -148,30 +148,24 @@ func (s *storeImpl) StartSequencer(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case <-s.seqCh:
 			slog.DebugContext(ctx, "sequencing events")
-			rows, err := s.db.Model(&eventEntry{}).Where("seq IS NULL").Order("tid ASC").Rows()
-			if err != nil {
+			var entries []eventEntry
+			if err := s.db.Model(&eventEntry{}).
+				Where("seq IS NULL").
+				Order("tid ASC").
+				Find(&entries).
+				Error; err != nil {
 				slog.ErrorContext(ctx, "failed to get unsequenced events", "err", err)
 				continue
 			}
-			for rows.Next() {
-				var entry eventEntry
-				err := s.db.ScanRows(rows, &entry)
-				if err != nil {
-					slog.ErrorContext(ctx, "failed to scan unsequenced event", "err", err)
-					continue
-				}
-				err = s.db.Model(&entry).Update("seq", new(nextSeq)).Error
-				if err != nil {
+			for _, entry := range entries {
+				if err := s.db.Model(&entry).Update("seq", new(nextSeq)).Error; err != nil {
 					slog.ErrorContext(ctx, "failed to update unsequenced event", "err", err)
 					continue
 				}
 				nextSeq++
-			}
-			if err := rows.Close(); err != nil {
-				slog.ErrorContext(ctx, "failed to close unsequenced event rows", "err", err)
 			}
 			s.subscribersMu.RLock()
 			for ch := range s.subscribers {

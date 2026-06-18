@@ -1,8 +1,7 @@
 layer: library
 fileGroups:
   src:
-    - internal/**/*.go
-    - '!internal/**/*_test.go'
+    - internal/**/*{!_test}.go
   test:
     - internal/**/*_test.go
 tasks:

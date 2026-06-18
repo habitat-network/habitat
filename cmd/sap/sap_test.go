@@ -51,7 +51,7 @@ func TestSap(t *testing.T) {
 
 	// 2. Initialize Pear with backfill data before starting SAP
 	// We'll create 3 spaces and put 5 records in each (total 15 records)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		skey := fmt.Sprintf("backfill-space-%d", i)
 		groupType := syntax.NSID("network.habitat.group")
 		uri, err := spacesStore.CreateSpace(
@@ -64,7 +64,7 @@ func TestSap(t *testing.T) {
 		require.NoError(t, err)
 
 		collection := syntax.NSID("network.habitat.test")
-		for j := 0; j < 5; j++ {
+		for j := range 5 {
 			rkey := syntax.RecordKey(fmt.Sprintf("rkey-%d", j))
 			recURI, _, err := spacesStore.PutRecord(
 				t.Context(),
@@ -84,7 +84,12 @@ func TestSap(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/sap.db"), &gorm.Config{})
+	db, err := gorm.Open(
+		sqlite.Open(
+			t.TempDir()+"/sap.db?_journal_mode=WAL",
+		),
+		&gorm.Config{},
+	)
 	require.NoError(t, err)
 
 	s, err := sap.NewSap(sap.SapConfig{
@@ -111,55 +116,7 @@ func TestSap(t *testing.T) {
 		}
 	}()
 
-	// 5. Create remaining data before the crawl runs.
-	// This ensures all spaces and records exist when the crawl lists spaces,
-	// avoiding races between the crawl and live data creation.
-	for i := 0; i < 2; i++ {
-		skey := fmt.Sprintf("live-space-%d", i)
-		groupType := syntax.NSID("network.habitat.group")
-		uri, err := spacesStore.CreateSpace(
-			t.Context(),
-			orgId.DID,
-			adminId.DID,
-			groupType,
-			habitat_syntax.SpaceKey(skey),
-		)
-		require.NoError(t, err)
-
-		collection := syntax.NSID("network.habitat.test")
-		for j := 0; j < 5; j++ {
-			rkey := syntax.RecordKey(fmt.Sprintf("rkey-%d", j))
-			recURI, _, err := spacesStore.PutRecord(
-				t.Context(),
-				uri,
-				adminId.DID,
-				collection,
-				rkey,
-				map[string]any{"data": fmt.Sprintf("live-%d-%d", i, j)},
-			)
-			require.NoError(t, err)
-			createdURIs[recURI.String()] = true
-		}
-	}
-	// Add 5 more records to backfill-space-0 (total 5 records)
-	backfillGroupType := syntax.NSID("network.habitat.group")
-	backfillSpaceURI := habitat_syntax.ConstructSpaceURI(orgId.DID, backfillGroupType, "backfill-space-0")
-	collection := syntax.NSID("network.habitat.test")
-	for j := 5; j < 10; j++ {
-		rkey := syntax.RecordKey(fmt.Sprintf("rkey-%d", j))
-		recURI, _, err := spacesStore.PutRecord(
-			t.Context(),
-			backfillSpaceURI,
-			adminId.DID,
-			collection,
-			rkey,
-			map[string]any{"data": fmt.Sprintf("live-update-%d", j)},
-		)
-		require.NoError(t, err)
-		createdURIs[recURI.String()] = true
-	}
-
-	// 6. Complete OAuth authentication flow to add the org and trigger crawl
+	// 5. Complete OAuth authentication flow to add the org and trigger crawl
 	redirectURL, err := s.AddOrg(t.Context(), orgId.Handle.String())
 	require.NoError(t, err)
 
@@ -178,6 +135,56 @@ func TestSap(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("Expected 200 but got %d. Body: %s", resp.StatusCode, string(body))
+	}
+
+	// 6. Create data to be synced during live subscription
+	for i := range 2 {
+		skey := fmt.Sprintf("live-space-%d", i)
+		groupType := syntax.NSID("network.habitat.group")
+		uri, err := spacesStore.CreateSpace(
+			t.Context(),
+			orgId.DID,
+			adminId.DID,
+			groupType,
+			habitat_syntax.SpaceKey(skey),
+		)
+		require.NoError(t, err)
+
+		collection := syntax.NSID("network.habitat.test")
+		for j := range 5 {
+			rkey := syntax.RecordKey(fmt.Sprintf("rkey-%d", j))
+			recURI, _, err := spacesStore.PutRecord(
+				t.Context(),
+				uri,
+				adminId.DID,
+				collection,
+				rkey,
+				map[string]any{"data": fmt.Sprintf("live-%d-%d", i, j)},
+			)
+			require.NoError(t, err)
+			createdURIs[recURI.String()] = true
+		}
+	}
+	// Add 5 more records to backfill-space-0 (total 5 records)
+	backfillGroupType := syntax.NSID("network.habitat.group")
+	backfillSpaceURI := habitat_syntax.ConstructSpaceURI(
+		orgId.DID,
+		backfillGroupType,
+		"backfill-space-0",
+	)
+	collection := syntax.NSID("network.habitat.test")
+	for j := 5; j < 10; j++ {
+		rkey := syntax.RecordKey(fmt.Sprintf("rkey-%d", j))
+		recURI, _, err := spacesStore.PutRecord(
+			t.Context(),
+			backfillSpaceURI,
+			adminId.DID,
+			collection,
+			rkey,
+			map[string]any{"data": fmt.Sprintf("live-update-%d", j)},
+		)
+		require.NoError(t, err)
+		createdURIs[recURI.String()] = true
 	}
 
 	// Total expected records = 15 (backfill) + 10 (new spaces) + 5 (existing space updates) = 30
@@ -219,8 +226,14 @@ func setupPear(
 
 	fgaStore, err := fgastore.NewSQLite(t.Context(), t.TempDir()+"/pear.fga.db")
 	require.NoError(t, err)
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/pear.db"), &gorm.Config{})
+	db, err := gorm.Open(
+		sqlite.Open(t.TempDir()+"/pear.db?_journal_mode=WAL"),
+		&gorm.Config{},
+	)
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
 
 	orgHive, err := hive.NewHive("hive.domain", strings.TrimPrefix(server.URL, "https://"), db)
 	require.NoError(t, err)
@@ -251,6 +264,7 @@ func setupPear(
 		slog.Error("unable to setup event store", "err", err)
 		os.Exit(1)
 	}
+
 	syncServer := sync.NewServer(eventStore)
 
 	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore)
@@ -284,6 +298,12 @@ func setupPear(
 		"org",
 	)
 	require.NoError(t, err)
+
+	// Start sequencer after backfill data is created so that there's no
+	// concurrent write contention on the Pear DB during backfill.
+	go func() {
+		require.ErrorIs(t, eventStore.StartSequencer(t.Context()), context.Canceled)
+	}()
 
 	return server, orgId, adminId, spacesStore, orgHive
 }

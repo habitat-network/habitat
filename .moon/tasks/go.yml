@@ -4,8 +4,7 @@ fileGroups:
     - 'go.mod'
     - 'go.sum'
   src:
-    - '**/*.go'
-    - '!**/*_test.go'
+    - '**/*{!_test}.go'
   test:
     - '**/*_test.go'
 tasks:
