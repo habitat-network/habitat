@@ -60,9 +60,16 @@ type Store interface {
 	// IssueInvite creates and signs a new single-use invite token.
 	IssueInvite(ctx context.Context) (token string, err error)
 
-	// RedeemInvite validates and consumes an invite token. All failure modes
-	// (unknown, expired, already used, bad signature) return ErrInvalidInvite.
-	RedeemInvite(ctx context.Context, token string) error
+	// ValidateInvite checks that token is a well-formed, signed, unexpired,
+	// not-yet-used invite for this instance, without consuming it. All
+	// failure modes (unknown, expired, already used, bad signature) return
+	// ErrInvalidInvite.
+	ValidateInvite(ctx context.Context, token string) error
+
+	// MarkInviteUsed marks the invite identified by token as used. Call this
+	// only after the action the invite was gating (e.g. org creation) has
+	// actually succeeded. token must have already passed ValidateInvite.
+	MarkInviteUsed(ctx context.Context, token string) error
 }
 
 type storeImpl struct {
@@ -141,6 +148,9 @@ func (s *storeImpl) DeleteSession(w http.ResponseWriter, r *http.Request) error 
 	return s.sessions.Save(r, w, session)
 }
 
+// getOrCreateSettings lazily creates the singleton settings row on first access.
+// This assumes a single pear process per instance — concurrent first-accesses from
+// multiple processes against the same database could race on the initial Create.
 func (s *storeImpl) getOrCreateSettings(ctx context.Context) (*instanceSettings, error) {
 	var settings instanceSettings
 	err := s.db.WithContext(ctx).First(&settings, instanceSettingsID).Error
@@ -253,35 +263,52 @@ func (s *storeImpl) IssueInvite(ctx context.Context) (string, error) {
 	}).CompactSerialize()
 }
 
-func (s *storeImpl) RedeemInvite(ctx context.Context, token string) error {
+// checkInvite parses+verifies the JWT (signature via the instance's
+// SigningSecret, expiry) and loads the corresponding instanceInvite DB row,
+// confirming it exists, is unexpired, and is not yet used. It does not mutate
+// any state. All failure modes collapse into ErrInvalidInvite.
+func (s *storeImpl) checkInvite(ctx context.Context, token string) (*instanceInvite, error) {
 	settings, err := s.getOrCreateSettings(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	secret, err := base64.StdEncoding.DecodeString(settings.SigningSecret)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
-		return ErrInvalidInvite
+		return nil, ErrInvalidInvite
 	}
 	var claims inviteClaims
 	if err := parsed.Claims(secret, &claims); err != nil {
-		return ErrInvalidInvite
+		return nil, ErrInvalidInvite
 	}
 	if err := claims.Claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
-		return ErrInvalidInvite
+		return nil, ErrInvalidInvite
 	}
 
 	var invite instanceInvite
-	err = s.db.WithContext(ctx).Where("token = ?", claims.ID).First(&invite).Error
-	if err != nil {
-		return ErrInvalidInvite
+	if err := s.db.WithContext(ctx).Where("token = ?", claims.ID).First(&invite).Error; err != nil {
+		return nil, ErrInvalidInvite
 	}
 	if invite.UsedAt != nil || invite.ExpiresAt.Before(time.Now()) {
-		return ErrInvalidInvite
+		return nil, ErrInvalidInvite
+	}
+
+	return &invite, nil
+}
+
+func (s *storeImpl) ValidateInvite(ctx context.Context, token string) error {
+	_, err := s.checkInvite(ctx, token)
+	return err
+}
+
+func (s *storeImpl) MarkInviteUsed(ctx context.Context, token string) error {
+	invite, err := s.checkInvite(ctx, token)
+	if err != nil {
+		return err
 	}
 
 	now := time.Now()

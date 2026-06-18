@@ -22,15 +22,25 @@ import (
 
 var errNotMemberOfOrg = errors.New("not a member of an organization")
 
+// InstancePolicy is the subset of instance-admin functionality org needs to
+// enforce the instance's org-creation policy, without importing instanceadmin
+// directly.
+type InstancePolicy interface {
+	GetOrgCreationPolicy(ctx context.Context) (string, error)
+	ValidateInvite(ctx context.Context, token string) error
+	MarkInviteUsed(ctx context.Context, token string) error
+}
+
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
-	store   Store
-	auth    authn.Method
-	pear    pear.Pear
-	domain  string
-	decoder *schema.Decoder
-	dir     identity.Directory
+	store          Store
+	auth           authn.Method
+	pear           pear.Pear
+	domain         string
+	decoder        *schema.Decoder
+	dir            identity.Directory
+	instancePolicy InstancePolicy
 }
 
 func NewServer(
@@ -39,14 +49,16 @@ func NewServer(
 	p pear.Pear,
 	domain string,
 	dir identity.Directory,
+	instancePolicy InstancePolicy,
 ) (*Server, error) {
 	return &Server{
-		store:   store,
-		auth:    auth,
-		pear:    p,
-		domain:  domain,
-		decoder: schema.NewDecoder(),
-		dir:     dir,
+		store:          store,
+		auth:           auth,
+		pear:           p,
+		domain:         domain,
+		decoder:        schema.NewDecoder(),
+		dir:            dir,
+		instancePolicy: instancePolicy,
 	}, nil
 }
 
@@ -165,6 +177,35 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	policy, err := s.instancePolicy.GetOrgCreationPolicy(r.Context())
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "checking org creation policy", http.StatusInternalServerError)
+		return
+	}
+	inviteOnly := policy == "invite_only"
+	if inviteOnly {
+		if req.InviteToken == "" {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				errors.New("an invite link is required to create an org on this instance"),
+				"checking org creation policy",
+				http.StatusForbidden,
+			)
+			return
+		}
+		if err := s.instancePolicy.ValidateInvite(r.Context(), req.InviteToken); err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				errors.New("an invite link is required to create an org on this instance"),
+				"validating invite",
+				http.StatusForbidden,
+			)
+			return
+		}
+	}
+
 	orgID, id, err := s.store.CreateOrg(
 		r.Context(),
 		req.Name,
@@ -189,6 +230,20 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError,
 		)
 		return
+	}
+
+	// The org now exists. If an invite gated this creation, mark it used now
+	// (not before creation) so a failed attempt doesn't permanently burn a
+	// single-use invite. If marking-used fails here, the org was still
+	// created successfully, so we log but do not fail the response.
+	if inviteOnly {
+		if err := s.instancePolicy.MarkInviteUsed(r.Context(), req.InviteToken); err != nil {
+			slog.ErrorContext(
+				r.Context(),
+				"failed to mark invite as used after org creation succeeded",
+				"err", err,
+			)
+		}
 	}
 
 	output := habitat.NetworkHabitatOrgCreateOutput{

@@ -10,10 +10,14 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { procedure, SingleHandleCombobox } from "internal";
+import { describeInstance } from "@/queries/instance";
 import { NetworkHabitatOrgCreate } from "api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/org/create")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: search.token ? String(search.token) : undefined,
+  }),
   component: CreateOrgPage,
 });
 
@@ -24,6 +28,25 @@ interface FormValues {
   login_method: "password" | "atproto" | "google";
   login_id: string;
   handle_subdomain: string;
+}
+
+interface DecodedInvite {
+  domain: string;
+  name: string;
+}
+
+function decodeInviteToken(token: string): DecodedInvite | null {
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const claims = JSON.parse(json);
+    if (typeof claims.domain !== "string" || typeof claims.name !== "string") {
+      return null;
+    }
+    return { domain: claims.domain, name: claims.name };
+  } catch {
+    return null;
+  }
 }
 
 function PasswordInput(props: React.ComponentProps<typeof Input>) {
@@ -40,6 +63,47 @@ function PasswordInput(props: React.ComponentProps<typeof Input>) {
 
 function CreateOrgPage() {
   const navigate = useNavigate();
+  const { token } = Route.useSearch();
+  const invite = token ? decodeInviteToken(token) : null;
+
+  const [useCustomInstance, setUseCustomInstance] = useState(false);
+  const [customDomain, setCustomDomain] = useState("");
+  const [customInstanceName, setCustomInstanceName] = useState<string | null>(
+    null,
+  );
+  const [customInstanceError, setCustomInstanceError] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    if (invite || !useCustomInstance || !customDomain) {
+      setCustomInstanceName(null);
+      setCustomInstanceError(null);
+      return;
+    }
+    let cancelled = false;
+    describeInstance(customDomain)
+      .then((result) => {
+        if (!cancelled) {
+          setCustomInstanceName(result.name);
+          setCustomInstanceError(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCustomInstanceName(null);
+          setCustomInstanceError("Could not reach that instance.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invite, useCustomInstance, customDomain]);
+
+  const targetDomain = invite ? invite.domain : useCustomInstance
+    ? customDomain
+    : __HABITAT_DOMAIN__;
+
   const {
     register,
     handleSubmit,
@@ -68,6 +132,7 @@ function CreateOrgPage() {
         name: values.name || undefined,
         login_method: values.login_method,
         handle_subdomain: values.handle_subdomain,
+        invite_token: token,
       };
       if (values.login_method === "password") {
         body.admin_password = values.admin_password;
@@ -77,7 +142,7 @@ function CreateOrgPage() {
       const { admin_handle } = await procedure(
         "network.habitat.org.create",
         body,
-        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
+        { unauthenticated: true, domain: targetDomain },
       );
       await navigate({
         to: "/oauth-login",
@@ -95,6 +160,43 @@ function CreateOrgPage() {
       <h1 className="text-2xl font-semibold">Create Organization</h1>
       <form onSubmit={handleSubmit(onSubmit)}>
         <fieldset disabled={isSubmitting} className="flex flex-col gap-4">
+          {invite ? (
+            <Field>
+              <FieldLabel>Hosted on</FieldLabel>
+              <Input value={invite.name} disabled />
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel>Hosting</FieldLabel>
+              <ToggleGroup
+                variant="outline"
+                value={[useCustomInstance ? "custom" : "managed"]}
+                onValueChange={(v) => setUseCustomInstance(v[0] === "custom")}
+              >
+                <ToggleGroupItem value="managed">
+                  Managed hosting by Habitat
+                </ToggleGroupItem>
+                <ToggleGroupItem value="custom">Custom instance</ToggleGroupItem>
+              </ToggleGroup>
+              {useCustomInstance ? (
+                <>
+                  <Input
+                    placeholder="myinstance.example.com"
+                    value={customDomain}
+                    onChange={(e) => setCustomDomain(e.target.value)}
+                  />
+                  {customInstanceName ? (
+                    <Input value={customInstanceName} disabled />
+                  ) : null}
+                  {customInstanceError ? (
+                    <p className="text-sm text-destructive">
+                      {customInstanceError}
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </Field>
+          )}
           <Field>
             <FieldLabel>Organization Name</FieldLabel>
             <Input placeholder="My Organization" {...register("name")} />

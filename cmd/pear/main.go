@@ -317,7 +317,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pear := pear.NewPear(hiveDir, permissions, repo)
 	// Server for org management routes
-	orgServer, err := org.NewServer(orgStore, oauthServer, pear, domain, hiveDir)
+	orgServer, err := org.NewServer(orgStore, oauthServer, pear, domain, hiveDir, instanceAdminStore)
 	if err != nil {
 		slog.Error("unable to setup org server for domain", "err", err, "domain", domain)
 		os.Exit(1)
@@ -381,6 +381,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
 	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
+	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)
+	mux.HandleFunc("/xrpc/network.habitat.instance.describeInstance", instanceAdminServer.DescribeInstance)
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))

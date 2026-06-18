@@ -142,16 +142,35 @@ func TestIssueInvite_CanBeRedeemedOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	require.NoError(t, s.RedeemInvite(t.Context(), token))
+	require.NoError(t, s.ValidateInvite(t.Context(), token))
+	require.NoError(t, s.MarkInviteUsed(t.Context(), token))
 
-	err = s.RedeemInvite(t.Context(), token)
+	err = s.ValidateInvite(t.Context(), token)
 	require.ErrorIs(t, err, ErrInvalidInvite)
+}
+
+func TestValidateInvite_DoesNotConsumeToken(t *testing.T) {
+	s := newTestStore(t)
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+
+	token, err := s.IssueInvite(t.Context())
+	require.NoError(t, err)
+
+	// Validating multiple times should not consume the invite.
+	require.NoError(t, s.ValidateInvite(t.Context(), token))
+	require.NoError(t, s.ValidateInvite(t.Context(), token))
+
+	// It can still be marked used afterwards.
+	require.NoError(t, s.MarkInviteUsed(t.Context(), token))
 }
 
 func TestRedeemInvite_UnknownTokenFails(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.RedeemInvite(t.Context(), "not-a-real-token")
+	err := s.ValidateInvite(t.Context(), "not-a-real-token")
+	require.ErrorIs(t, err, ErrInvalidInvite)
+
+	err = s.MarkInviteUsed(t.Context(), "not-a-real-token")
 	require.ErrorIs(t, err, ErrInvalidInvite)
 }
 
@@ -163,6 +182,6 @@ func TestRedeemInvite_WrongSigningSecretFails(t *testing.T) {
 
 	// A different store (different generated signing secret) must reject it.
 	s2 := newTestStore(t)
-	err = s2.RedeemInvite(t.Context(), token)
+	err = s2.ValidateInvite(t.Context(), token)
 	require.ErrorIs(t, err, ErrInvalidInvite)
 }
