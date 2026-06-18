@@ -30,6 +30,8 @@ export interface InputSchema {
   login_method?: string
   /** Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'. */
   login_id?: string
+  /** Single-use invite token from an instance admin, required when the instance's org creation policy is invite_only. */
+  invite_token?: string
 }
 
 export interface OutputSchema {
