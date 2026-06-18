@@ -39,9 +39,11 @@ All under `network.habitat.admin.*`, JSON XRPC over `/xrpc/...`, gated by sessio
 - `network.habitat.admin.updateSettings` — procedure. Input: `{ manager_name: string, org_creation_policy: string }`. Output: same shape as `getSettings` (the updated values), so the page can refresh its display from the response.
 - `network.habitat.admin.issueInvite` — procedure, no input. Output: `{ token: string }` (the signed JWT; the page builds the full shareable URL client-side as `https://<frontend-domain>/org/create?token=<token>`, using a frontend domain value the server injects into the rendered HTML template — same `fFrontendDomain` flag already plumbed into `main.go` for `login.NewPasswordProvider`).
 
-Because these are called via `fetch()` from the admin page's JS rather than full-page navigation, a 401 here should *not* redirect like the existing page-level `RequireSession` does. Split the existing middleware:
-- `RequireSessionPage` (rename of today's `RequireSession`) — redirects to `/admin/login` on failure; used for `GET /admin`.
-- `RequireSessionAPI` — writes a 401 via `utils.WriteHTTPError` on failure; used for the three lexicon handlers above.
+Because these are called via `fetch()` from the admin page's JS rather than full-page navigation, a failed check here should *not* redirect like the existing page route does. Rather than wrapping handlers in middleware, follow the existing `authn.Validate(w, r, s.auth)` pattern used elsewhere in the codebase (e.g. `internal/org/server.go`) — a helper called at the top of each handler that returns `(ok bool)` and writes the failure response itself:
+- `requireSessionPage(w, r) bool` — on failure, redirects to `/admin/login` and returns `false`; called at the top of `ServeAdminHome` (replaces today's `RequireSession`-wrapped route registration in `main.go`, which becomes a plain `mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome)`).
+- `requireSessionAPI(w, r) bool` — on failure, writes a 401 via `utils.WriteHTTPError` and returns `false`; called at the top of the three lexicon handlers above.
+
+Both share the same cookie-read + `ValidateSession` logic internally; only the failure response differs.
 
 The `/admin` page (`home.html`) is extended with a settings form (manager name input, open/invite-only radio) and, when invite-only, a "Generate invite link" button. A small inline `<script>` block does `fetch` calls to the three endpoints above (cookies are same-origin, sent automatically) and updates the DOM — no separate JS bundle/build step, consistent with this page being plain server-rendered HTML.
 
