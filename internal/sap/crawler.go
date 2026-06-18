@@ -15,18 +15,28 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// crawler lists spaces and their members to discover repos once an org is added
 type crawler struct {
-	db         *gorm.DB
-	orgManager *orgManager
+	db            *gorm.DB
+	orgManager    *orgManager
+	resyncBuf     *resyncBuffer
+	sub           *subscriber
+	resyncNotifCh chan struct{}
 }
 
 func newCrawler(
 	db *gorm.DB,
 	orgManager *orgManager,
+	resyncBuf *resyncBuffer,
+	sub *subscriber,
+	resyncNotifCh chan struct{},
 ) *crawler {
 	return &crawler{
-		db:         db,
-		orgManager: orgManager,
+		db:            db,
+		orgManager:    orgManager,
+		resyncBuf:     resyncBuf,
+		sub:           sub,
+		resyncNotifCh: resyncNotifCh,
 	}
 }
 
@@ -34,7 +44,7 @@ func (c *crawler) resumeIncompleteCrawls(ctx context.Context) error {
 	var orgs []managedOrg
 	if err := c.db.WithContext(ctx).
 		Where("access_token != ''").
-		Where("crawl_state = ?", crawlStateRunning).
+		Where(c.db.Where("crawl_state = ?", crawlStateRunning).Or("crawl_state IS NULL")).
 		Find(&orgs).Error; err != nil {
 		return fmt.Errorf("find incomplete crawls: %w", err)
 	}
@@ -65,7 +75,12 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 			}).Error; err != nil {
 			slog.ErrorContext(ctx, "set crawl errored", "org", org.DID, "err", err)
 		}
-		// TODO: cancel subscriptions
+
+		if err := c.resyncBuf.clearOrg(ctx, org.DID); err != nil {
+			slog.ErrorContext(ctx, "clear org buffer", "org", org.DID, "err", err)
+		}
+
+		c.sub.cancelSubscription(org.DID)
 		slog.ErrorContext(ctx, "crawl failed", "org", org.DID, "err", crawlErr)
 		return
 	}
@@ -78,6 +93,9 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 		return
 	}
 
+	if err := c.resyncBuf.drainOrg(ctx, org.DID); err != nil {
+		slog.ErrorContext(ctx, "drain org buffer", "org", org.DID, "err", err)
+	}
 	slog.InfoContext(ctx, "crawler finished", "org", org.DID)
 }
 
@@ -122,7 +140,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 
 		for _, space := range listSpacesOutput.Spaces {
 			if err := c.enumerateSpaceMembers(ctx, client, org, space.Uri); err != nil {
-				slog.ErrorContext(ctx, "enumerate space members", "space", space.Uri, "err", err)
+				return fmt.Errorf("enumerate space members for %s: %w", space.Uri, err)
 			}
 		}
 
@@ -175,6 +193,10 @@ func (c *crawler) enumerateSpaceMembers(
 			}).Error; err != nil {
 			return err
 		}
+	}
+	select {
+	case c.resyncNotifCh <- struct{}{}:
+	default:
 	}
 	return nil
 }
