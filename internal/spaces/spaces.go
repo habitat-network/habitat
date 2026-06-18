@@ -246,11 +246,11 @@ func (s *store) ListSpaces(
 	if err != nil {
 		return nil, fmt.Errorf("list fga spaces: %w", err)
 	}
-	if len(fgaObjects) == 0 {
-		return []SpaceView{}, nil
-	}
 
-	conditions := s.db
+	// A member always has access to spaces they own in the DB (the DB owner field).
+	// This mirrors the authorize/Check behavior where ownerContextualTuple grants
+	// implicit access, which ListObjects in FGA cannot use without knowing URIs upfront.
+	conditions := s.db.Where("owner = ?", member)
 	for _, key := range fgaObjects {
 		uri, err := fgastore.ParseSpaceObjectKey(key)
 		if err != nil {
@@ -258,7 +258,7 @@ func (s *store) ListSpaces(
 		}
 		conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey())
 	}
-	query := s.db.WithContext(ctx).Model(&space{}).Where(conditions)
+	query := s.db.WithContext(ctx).Model(&space{}).Where(conditions).Distinct()
 	if filterOwner != nil {
 		query = query.Where("owner = ?", *filterOwner)
 	}

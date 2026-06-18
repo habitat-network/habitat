@@ -83,7 +83,6 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 		return resyncBuf.WithTx(tx).appendEvent(event)
 	}))
 
-	require.NoError(t, setActive(db, t.Context(), space, repoDID, rev))
 	repo, err := getRepo(db, t.Context(), space, repoDID)
 	require.NoError(t, err)
 	require.NoError(t, resyncBuf.drainRepo(t.Context(), repo))
@@ -91,6 +90,12 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 	var records []outbox
 	require.NoError(t, db.Find(&records).Error)
 	require.Len(t, records, 1)
+
+	// drainRepo should have transitioned the repo to Active with the event's rev.
+	var updated managedRepo
+	require.NoError(t, db.Where("space = ? AND did = ?", space, repoDID).First(&updated).Error)
+	require.Equal(t, RepoStateActive, updated.State)
+	require.Equal(t, rev, updated.Rev)
 
 	var buffered []bufferedEvent
 	require.NoError(t, db.Find(&buffered).Error)
