@@ -2,8 +2,13 @@ package instanceadmin
 
 import (
 	"embed"
+	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
+
+	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/utils"
 
 	"log/slog"
 )
@@ -15,14 +20,15 @@ var templates = template.Must(
 	template.ParseFS(templateFS, "login.html", "home.html", "style.css"),
 )
 
-// Server serves the instance admin login/logout flow and gates access to
-// instance admin routes via session cookies.
+// Server serves the instance admin login/logout flow, the admin settings
+// page, and gates access to instance admin routes via session cookies.
 type Server struct {
-	store Store
+	store          Store
+	frontendDomain string
 }
 
-func NewServer(store Store) *Server {
-	return &Server{store: store}
+func NewServer(store Store, frontendDomain string) *Server {
+	return &Server{store: store, frontendDomain: frontendDomain}
 }
 
 func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
@@ -74,28 +80,111 @@ func (s *Server) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
 
-// RequireSession wraps next so it is only called when the request carries a valid
-// instance admin session cookie; otherwise it redirects to the login page.
-func (s *Server) RequireSession(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ok, err := s.store.ValidateSession(r)
-		if err != nil {
-			slog.ErrorContext(r.Context(), "validating instance admin session", "err", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		if !ok {
-			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-			return
-		}
-
-		next(w, r)
+// requireSessionPage reports whether the request carries a valid instance
+// admin session, redirecting to the login page and returning false if not.
+func (s *Server) requireSessionPage(w http.ResponseWriter, r *http.Request) bool {
+	ok, err := s.store.ValidateSession(r)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "validating instance admin session", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return false
 	}
+	if !ok {
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+		return false
+	}
+	return true
+}
+
+// requireSessionAPI reports whether the request carries a valid instance
+// admin session, writing a 401 and returning false if not.
+func (s *Server) requireSessionAPI(w http.ResponseWriter, r *http.Request) bool {
+	ok, err := s.store.ValidateSession(r)
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "validating instance admin session", http.StatusInternalServerError)
+		return false
+	}
+	if !ok {
+		utils.LogAndHTTPError(r.Context(), w, errors.New("not authenticated"), "checking instance admin session", http.StatusUnauthorized)
+		return false
+	}
+	return true
 }
 
 func (s *Server) ServeAdminHome(w http.ResponseWriter, r *http.Request) {
+	if !s.requireSessionPage(w, r) {
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "home.html", nil); err != nil {
+	data := struct{ FrontendDomain string }{s.frontendDomain}
+	if err := templates.ExecuteTemplate(w, "home.html", data); err != nil {
 		slog.ErrorContext(r.Context(), "rendering instance admin home page", "err", err)
 	}
+}
+
+func (s *Server) GetSettings(w http.ResponseWriter, r *http.Request) {
+	if !s.requireSessionAPI(w, r) {
+		return
+	}
+	instanceName, policy, err := s.store.GetSettings(r.Context())
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "getting instance settings", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, habitat.NetworkHabitatAdminGetSettingsOutput{
+		InstanceName:      instanceName,
+		OrgCreationPolicy: policy,
+	})
+}
+
+func (s *Server) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	if !s.requireSessionAPI(w, r) {
+		return
+	}
+	var req habitat.NetworkHabitatAdminUpdateSettingsInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
+		return
+	}
+	if err := s.store.UpdateSettings(r.Context(), req.InstanceName, req.OrgCreationPolicy); err != nil {
+		if errors.Is(err, ErrInvalidPolicy) {
+			utils.LogAndHTTPError(r.Context(), w, err, "updating instance settings", http.StatusBadRequest)
+			return
+		}
+		utils.LogAndHTTPError(r.Context(), w, err, "updating instance settings", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, habitat.NetworkHabitatAdminUpdateSettingsOutput{
+		InstanceName:      req.InstanceName,
+		OrgCreationPolicy: req.OrgCreationPolicy,
+	})
+}
+
+func (s *Server) IssueInvite(w http.ResponseWriter, r *http.Request) {
+	if !s.requireSessionAPI(w, r) {
+		return
+	}
+	token, err := s.store.IssueInvite(r.Context())
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "issuing invite", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, habitat.NetworkHabitatAdminIssueInviteOutput{Token: token})
+}
+
+func (s *Server) DescribeInstance(w http.ResponseWriter, r *http.Request) {
+	instanceName, policy, err := s.store.GetSettings(r.Context())
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "getting instance settings", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, habitat.NetworkHabitatInstanceDescribeInstanceOutput{
+		Name:           instanceName,
+		InviteRequired: policy == policyInviteOnly,
+	})
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
 }

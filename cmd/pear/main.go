@@ -144,7 +144,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to setup instance admin store", "err", err)
 		os.Exit(1)
 	}
-	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore)
+
+	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -379,8 +380,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
-	mux.HandleFunc("/admin", instanceAdminServer.RequireSession(instanceAdminServer.ServeAdminHome)).
-		Methods("GET")
+	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))

@@ -1,19 +1,33 @@
 package instanceadmin
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestServer(t *testing.T) (*Server, Store, string) {
 	t.Helper()
 	store := newTestStore(t)
-	return NewServer(store), store, "password"
+	return NewServer(store, "https://frontend.example"), store, "password"
+}
+
+// sessionCookie creates a new session in store and returns its cookie.
+func sessionCookie(t *testing.T, store Store) *http.Cookie {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
+	require.NoError(t, store.CreateSession(rec, req))
+	cookies := rec.Result().Cookies()
+	require.Len(t, cookies, 1)
+	return cookies[0]
 }
 
 func TestServeLoginPage(t *testing.T) {
@@ -67,43 +81,26 @@ func TestHandleLogin_WrongPassword(t *testing.T) {
 	require.Empty(t, rec.Result().Cookies())
 }
 
-func TestRequireSession_RedirectsWithoutCookie(t *testing.T) {
+func TestRequireSessionAPI_FailsWithoutCookie(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
-	called := false
-	handler := server.RequireSession(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.admin.getSettings", nil)
 	rec := httptest.NewRecorder()
-	handler(rec, req)
+	ok := server.requireSessionAPI(rec, req)
 
-	require.False(t, called)
-	require.Equal(t, http.StatusSeeOther, rec.Code)
-	require.Equal(t, "/admin/login", rec.Header().Get("Location"))
+	require.False(t, ok)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
-func TestRequireSession_PassesThroughWithValidCookie(t *testing.T) {
+func TestRequireSessionAPI_PassesWithValidCookie(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
-	createRec := httptest.NewRecorder()
-	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
-	require.NoError(t, store.CreateSession(createRec, createReq))
-	cookies := createRec.Result().Cookies()
-	require.Len(t, cookies, 1)
-
-	called := false
-	handler := server.RequireSession(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-	})
-
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	req.AddCookie(cookies[0])
+	req.AddCookie(sessionCookie(t, store))
 	rec := httptest.NewRecorder()
-	handler(rec, req)
+	ok := server.requireSessionAPI(rec, req)
 
-	require.True(t, called)
+	require.True(t, ok)
 }
 
 func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
@@ -135,12 +132,119 @@ func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 }
 
 func TestServeAdminHome(t *testing.T) {
+	server, store, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req.AddCookie(sessionCookie(t, store))
+	rec := httptest.NewRecorder()
+	server.ServeAdminHome(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "Instance settings")
+}
+
+func TestServeAdminHome_RedirectsWithoutSession(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	rec := httptest.NewRecorder()
 	server.ServeAdminHome(rec, req)
 
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	require.Equal(t, "/admin/login", rec.Header().Get("Location"))
+}
+
+func TestGetSettings_RequiresSession(t *testing.T) {
+	server, _, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.admin.getSettings", nil)
+	rec := httptest.NewRecorder()
+	server.GetSettings(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestGetSettings_ReturnsDefaults(t *testing.T) {
+	server, store, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.admin.getSettings", nil)
+	req.AddCookie(sessionCookie(t, store))
+	rec := httptest.NewRecorder()
+	server.GetSettings(rec, req)
+
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), "instance admin")
+	var out habitat.NetworkHabitatAdminGetSettingsOutput
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Equal(t, "open", out.OrgCreationPolicy)
+}
+
+func TestUpdateSettings_PersistsAndReturnsUpdated(t *testing.T) {
+	server, store, _ := newTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatAdminUpdateSettingsInput{
+		InstanceName:      "Acme Hosting",
+		OrgCreationPolicy: "invite_only",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.admin.updateSettings",
+		bytes.NewReader(body),
+	)
+	req.AddCookie(sessionCookie(t, store))
+	rec := httptest.NewRecorder()
+	server.UpdateSettings(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var out habitat.NetworkHabitatAdminUpdateSettingsOutput
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Equal(t, "Acme Hosting", out.InstanceName)
+	require.Equal(t, "invite_only", out.OrgCreationPolicy)
+}
+
+func TestUpdateSettings_InvalidPolicyReturns400(t *testing.T) {
+	server, store, _ := newTestServer(t)
+
+	body, _ := json.Marshal(habitat.NetworkHabitatAdminUpdateSettingsInput{
+		InstanceName:      "Acme Hosting",
+		OrgCreationPolicy: "sometimes",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.admin.updateSettings",
+		bytes.NewReader(body),
+	)
+	req.AddCookie(sessionCookie(t, store))
+	rec := httptest.NewRecorder()
+	server.UpdateSettings(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestIssueInvite_ReturnsToken(t *testing.T) {
+	server, store, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.admin.issueInvite", nil)
+	req.AddCookie(sessionCookie(t, store))
+	rec := httptest.NewRecorder()
+	server.IssueInvite(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var out habitat.NetworkHabitatAdminIssueInviteOutput
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.NotEmpty(t, out.Token)
+}
+
+func TestDescribeInstance_NoAuthRequired(t *testing.T) {
+	server, store, _ := newTestServer(t)
+	require.NoError(t, store.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+
+	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.instance.describeInstance", nil)
+	rec := httptest.NewRecorder()
+	server.DescribeInstance(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var out habitat.NetworkHabitatInstanceDescribeInstanceOutput
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Equal(t, "Acme Hosting", out.Name)
+	require.True(t, out.InviteRequired)
 }
