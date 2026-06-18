@@ -2,6 +2,7 @@ package sap
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,14 +14,19 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestCrawler_DiscoverRepos(t *testing.T) {
-	spaceURI := "ats://did:plc:testorg/network.habitat.space/my-space"
+func TestCrawler(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/xrpc/network.habitat.space.listSpaces":
 			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListSpacesOutput{
 				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{
-					{Uri: spaceURI, Type: "network.habitat.space"},
+					{
+						Uri: fmt.Sprintf(
+							"ats://%s/network.habitat.space/my-space",
+							r.Header.Get("Authorization")[len("Bearer "):],
+						),
+						Type: "network.habitat.space",
+					},
 				},
 			})
 		case "/xrpc/network.habitat.space.getMembers":
@@ -43,29 +49,90 @@ func TestCrawler_DiscoverRepos(t *testing.T) {
 	sub := newSubscriber(db, orgManager, resyncBuf)
 	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
 
-	org := &managedOrg{
+	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",
 		Host:        srv.URL,
-		AccessToken: "token",
+		AccessToken: "did:plc:testorg",
 		ExpiresAt:   time.Now().Add(time.Hour),
-	}
-	require.NoError(t, db.Create(org).Error)
+	}).Error)
 
-	crawler.crawlOrg(t.Context(), org)
+	require.NoError(t, db.Create(&managedOrg{
+		DID:         "did:plc:testorg2",
+		Host:        srv.URL,
+		AccessToken: "did:plc:testorg2",
+		ExpiresAt:   time.Now().Add(time.Hour),
+		CrawlState:  new(crawlStateRunning),
+	}).Error)
 
-	require.NoError(t, db.First(&org).Error)
-	require.Equal(t, crawlStateComplete, *org.CrawlState)
+	require.NoError(t, crawler.resumeIncompleteCrawls(t.Context()))
+
+	require.Eventually(t, func() bool {
+		var orgs []managedOrg
+		require.NoError(t, db.Find(&orgs).Error)
+		t.Logf("discovered: %v", orgs[0].CrawlState)
+		return orgs[0].CrawlState != nil &&
+			*orgs[0].CrawlState == crawlStateComplete &&
+			orgs[1].CrawlState != nil &&
+			*orgs[1].CrawlState == crawlStateComplete
+	}, 1*time.Second, 10*time.Millisecond)
 
 	var discovered []managedRepo
 	require.NoError(t, db.Find(&discovered).Error)
-	require.Len(t, discovered, 2)
+	require.Len(t, discovered, 4)
 	require.Equal(t, RepoStatePending, discovered[0].State)
 	require.Equal(t, RepoStatePending, discovered[1].State)
 }
 
+func TestCrawler_Error(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.listSpaces":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListSpacesOutput{
+				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{
+					{
+						Uri: fmt.Sprintf(
+							"ats://%s/network.habitat.space/my-space",
+							r.Header.Get("Authorization")[len("Bearer "):],
+						),
+						Type: "network.habitat.space",
+					},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	db := openTestDB(t)
+	resyncNotifCh := make(chan struct{}, 1)
+	orgManager := newOrgManager(db, "", nil, nil)
+	resyncBuf := newResyncBuffer(db, resyncNotifCh)
+	sub := newSubscriber(db, orgManager, resyncBuf)
+	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
+
+	require.NoError(t, db.Create(&managedOrg{
+		DID:         "did:plc:testorg",
+		Host:        srv.URL,
+		AccessToken: "did:plc:testorg",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}).Error)
+
+	require.NoError(t, crawler.resumeIncompleteCrawls(t.Context()))
+
+	var org managedOrg
+	require.Eventually(t, func() bool {
+		require.NoError(t, db.First(&org).Error)
+		return org.CrawlState != nil && *org.CrawlState == crawlStateErrored
+	}, 1*time.Second, 10*time.Millisecond)
+
+	require.NotEmpty(t, org.ErrorMsg)
+}
+
 func openTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db?_journal_mode=WAL"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, autoMigrate(db))
 	return db

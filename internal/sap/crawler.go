@@ -44,7 +44,7 @@ func (c *crawler) resumeIncompleteCrawls(ctx context.Context) error {
 	var orgs []managedOrg
 	if err := c.db.WithContext(ctx).
 		Where("access_token != ''").
-		Where("crawl_state = ?", crawlStateRunning).
+		Where(c.db.Where("crawl_state = ?", crawlStateRunning).Or("crawl_state IS NULL")).
 		Find(&orgs).Error; err != nil {
 		return fmt.Errorf("find incomplete crawls: %w", err)
 	}
@@ -140,7 +140,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 
 		for _, space := range listSpacesOutput.Spaces {
 			if err := c.enumerateSpaceMembers(ctx, client, org, space.Uri); err != nil {
-				slog.ErrorContext(ctx, "enumerate space members", "space", space.Uri, "err", err)
+				return fmt.Errorf("enumerate space members for %s: %w", space.Uri, err)
 			}
 		}
 
