@@ -194,7 +194,14 @@ func (c *crawler) enumerateSpaceMembers(
 			return err
 		}
 	}
-	slog.InfoContext(ctx, "enumerate space members, notifying resync", "space", space, "members", len(getMembersOutput.Members))
+	slog.InfoContext(
+		ctx,
+		"enumerate space members, notifying resync",
+		"space",
+		space,
+		"members",
+		len(getMembersOutput.Members),
+	)
 	select {
 	case c.resyncNotifCh <- struct{}{}:
 	default:
