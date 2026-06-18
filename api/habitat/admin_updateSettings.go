@@ -4,8 +4,8 @@ package habitat
 
 // NetworkHabitatAdminUpdateSettingsInput represents the input for network.habitat.admin.updateSettings
 type NetworkHabitatAdminUpdateSettingsInput struct {
-	InstanceName      string `json:"instanceName"`
-	OrgCreationPolicy string `json:"orgCreationPolicy"`
+	InstanceName      string `json:"instanceName,omitempty"`
+	OrgCreationPolicy string `json:"orgCreationPolicy,omitempty"`
 }
 
 // NetworkHabitatAdminUpdateSettingsOutput represents the output for network.habitat.admin.updateSettings

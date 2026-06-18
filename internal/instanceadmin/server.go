@@ -154,9 +154,14 @@ func (s *Server) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(r.Context(), w, err, "updating instance settings", http.StatusInternalServerError)
 		return
 	}
+	instanceName, orgCreationPolicy, err := s.store.GetSettings(r.Context())
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "getting instance settings", http.StatusInternalServerError)
+		return
+	}
 	writeJSON(w, habitat.NetworkHabitatAdminUpdateSettingsOutput{
-		InstanceName:      req.InstanceName,
-		OrgCreationPolicy: req.OrgCreationPolicy,
+		InstanceName:      instanceName,
+		OrgCreationPolicy: orgCreationPolicy,
 	})
 }
 

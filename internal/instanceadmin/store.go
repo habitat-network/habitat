@@ -193,19 +193,30 @@ func (s *storeImpl) GetSettings(ctx context.Context) (string, string, error) {
 	return settings.InstanceName, settings.OrgCreationPolicy, nil
 }
 
+// UpdateSettings updates only the fields given a non-empty value; an empty
+// instanceName or orgCreationPolicy leaves that setting unchanged.
 func (s *storeImpl) UpdateSettings(ctx context.Context, instanceName, orgCreationPolicy string) error {
-	if orgCreationPolicy != policyOpen && orgCreationPolicy != policyInviteOnly {
+	if orgCreationPolicy != "" && orgCreationPolicy != policyOpen && orgCreationPolicy != policyInviteOnly {
 		return ErrInvalidPolicy
 	}
 	if _, err := s.getOrCreateSettings(ctx); err != nil {
 		return err
 	}
+
+	updates := map[string]any{}
+	if instanceName != "" {
+		updates["instanceName"] = instanceName
+	}
+	if orgCreationPolicy != "" {
+		updates["orgCreationPolicy"] = orgCreationPolicy
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+
 	return s.db.WithContext(ctx).Model(&instanceSettings{}).
 		Where("id = ?", instanceSettingsID).
-		Updates(map[string]any{
-			"instanceName":      instanceName,
-			"orgCreationPolicy": orgCreationPolicy,
-		}).Error
+		Updates(updates).Error
 }
 
 func (s *storeImpl) GetOrgCreationPolicy(ctx context.Context) (string, error) {

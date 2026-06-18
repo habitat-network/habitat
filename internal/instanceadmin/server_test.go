@@ -220,6 +220,31 @@ func TestUpdateSettings_InvalidPolicyReturns400(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestUpdateSettings_OmittedFieldLeavesItUnchanged(t *testing.T) {
+	server, store, _ := newTestServer(t)
+	token, _, err := store.CreateSession(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, store.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+
+	body, _ := json.Marshal(habitat.NetworkHabitatAdminUpdateSettingsInput{
+		InstanceName: "New Name",
+	})
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.admin.updateSettings",
+		bytes.NewReader(body),
+	)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+	server.UpdateSettings(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var out habitat.NetworkHabitatAdminUpdateSettingsOutput
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Equal(t, "New Name", out.InstanceName)
+	require.Equal(t, "invite_only", out.OrgCreationPolicy)
+}
+
 func TestIssueInvite_ReturnsToken(t *testing.T) {
 	server, store, _ := newTestServer(t)
 

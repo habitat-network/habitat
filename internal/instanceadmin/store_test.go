@@ -117,6 +117,30 @@ func TestUpdateSettings_RejectsInvalidPolicy(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidPolicy)
 }
 
+func TestUpdateSettings_OmittedPolicyLeavesItUnchanged(t *testing.T) {
+	s := newTestStore(t)
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+
+	require.NoError(t, s.UpdateSettings(t.Context(), "New Name", ""))
+
+	instanceName, policy, err := s.GetSettings(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "New Name", instanceName)
+	require.Equal(t, "invite_only", policy)
+}
+
+func TestUpdateSettings_OmittedNameLeavesItUnchanged(t *testing.T) {
+	s := newTestStore(t)
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "open"))
+
+	require.NoError(t, s.UpdateSettings(t.Context(), "", "invite_only"))
+
+	instanceName, policy, err := s.GetSettings(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "Acme Hosting", instanceName)
+	require.Equal(t, "invite_only", policy)
+}
+
 func TestGetOrgCreationPolicy_DefaultsToOpen(t *testing.T) {
 	s := newTestStore(t)
 

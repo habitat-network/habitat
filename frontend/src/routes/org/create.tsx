@@ -9,10 +9,10 @@ import {
 } from "internal/components/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
-import { procedure, SingleHandleCombobox } from "internal";
+import { procedure, query, SingleHandleCombobox } from "internal";
 import { describeInstance } from "@/queries/instance";
 import { NetworkHabitatOrgCreate } from "api";
-import { useEffect, useState } from "react";
+import { SetStateAction, useEffect, useState } from "react";
 
 export const Route = createFileRoute("/org/create")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -82,13 +82,16 @@ function CreateOrgPage() {
       return;
     }
     let cancelled = false;
-    describeInstance(customDomain)
-      .then((result) => {
-        if (!cancelled) {
-          setCustomInstanceName(result.name);
-          setCustomInstanceError(null);
-        }
-      })
+    query(
+      "network.habitat.instance.describeInstance",
+      {},
+      { unauthenticated: true, domain: customDomain },
+    ).then((result: { name: SetStateAction<string | null>; }) => {
+      if (!cancelled) {
+        setCustomInstanceName(result.name);
+        setCustomInstanceError(null);
+      }
+    })
       .catch(() => {
         if (!cancelled) {
           setCustomInstanceName(null);

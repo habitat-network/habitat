@@ -9,15 +9,14 @@
                 "encoding": "application/json",
                 "schema": {
                     "type": "object",
-                    "required": ["instanceName", "orgCreationPolicy"],
                     "properties": {
                         "instanceName": {
                             "type": "string",
-                            "description": "This instance's display name."
+                            "description": "This instance's display name. Omit to leave unchanged."
                         },
                         "orgCreationPolicy": {
                             "type": "string",
-                            "description": "'open' or 'invite_only'."
+                            "description": "'open' or 'invite_only'. Omit to leave unchanged."
                         }
                     }
                 }
