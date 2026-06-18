@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -37,6 +35,7 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
+	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
@@ -175,17 +174,20 @@ func run(_ context.Context, cmd *cli.Command) error {
 		hiveDomain = domain
 	}
 
-	orgHive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
+	hive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup hive (identity service for org)", "err", err)
 		os.Exit(1)
 	}
-	dir := identity.DefaultDirectory()
+	// Be careful about where this is passed, because only privileged services that are doing auth
+	// should be able to fallback to the hive directory implementation
+	defaultDir := identity.DefaultDirectory()
+	hiveDir := habitat_identity.NewWrappedDirectory(defaultDir, hive)
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
 		oauthClient,
-		dir,
+		defaultDir,
 	)
 	if err != nil {
 		slog.Error("unable to setup PDS client factory", "err", err)
@@ -197,12 +199,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to parse oauth server secret for login provider", "err", err)
 		os.Exit(1)
 	}
+
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		cmd.String(fDomain),
 		cmd.String(fFrontendDomain),
 		oauthSecret,
-		dir,
+		hiveDir,
 	)
 	if err != nil {
 		slog.Error("unable to setup password login provider", "err", err)
@@ -210,8 +213,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 	orgStore, err := org.NewStore(
 		db.WithContext(startupCtx),
-		orgHive,
-		dir,
+		hive,
+		hiveDir,
 		domain,
 		passwordProvider,
 	)
@@ -221,7 +224,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	loginRouter := &org.LoginRouter{
-		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, dir),
+		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
 		Password: passwordProvider,
 		OrgStore: orgStore,
 	}
@@ -246,7 +249,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	oauthServer, err := oauthserver.NewOAuthServer(
 		oauthSecret,
 		loginRouter,
-		dir,
+		// OAuth server needs privileged access to lookup hive-hosted identities
+		hiveDir,
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
@@ -257,7 +261,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(oauthServer, orgHive, dir))
+	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir))
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
@@ -277,11 +281,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to setup spaces store", "err", err)
 		os.Exit(1)
 	}
+	serviceAuth := authn.NewServiceAuthMethod(defaultDir)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
 		oauthServer,
-		authn.NewServiceAuthMethod(dir),
+		serviceAuth,
 		orgStore,
 	)
 
@@ -291,19 +296,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	pear, err := setupPear(
-		dir,
-		repo,
-		cliqueStore,
-		db.WithContext(startupCtx),
-	)
+	permissions, err := permissions.NewStore(db, cliqueStore)
 	if err != nil {
-		slog.Error("unable to setup pear", "err", err)
+		slog.Error("failed to create permission store", "err", err)
 		os.Exit(1)
 	}
 
+	pear := pear.NewPear(hiveDir, permissions, repo)
 	// Server for org management routes
-	orgServer, err := org.NewServer(orgStore, oauthServer, pear, domain, dir)
+	orgServer, err := org.NewServer(orgStore, oauthServer, pear, domain, hiveDir)
 	if err != nil {
 		slog.Error("unable to setup org server for domain", "err", err, "domain", domain)
 		os.Exit(1)
@@ -319,22 +320,20 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.org.mintMemberIdentity", orgServer.MintMemberIdentity)
 	mux.HandleFunc("/xrpc/network.habitat.org.create", orgServer.CreateOrg)
 
-	cliqueServer := clique.NewServer(cliqueStore, oauthServer, authn.NewServiceAuthMethod(dir))
-
+	cliqueServer := clique.NewServer(cliqueStore, oauthServer, serviceAuth)
 	pearServer := server.NewServer(
-		dir,
 		pear,
 		oauthServer,
-		authn.NewServiceAuthMethod(dir),
+		serviceAuth,
 		orgStore,
 	)
-	p2pServer, err := p2p.NewServer(startupCtx, authn.NewServiceAuthMethod(dir), pear, meter)
+	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pear, meter)
 	if err != nil {
 		slog.Error("unable to setup p2p server", "err", err)
 		os.Exit(1)
 	}
 
-	hiveServer, err := hive.NewServer(orgHive, oauthServer)
+	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore)
 	if err != nil {
 		slog.Error("unable to setup hive server", "err", err)
 		os.Exit(1)
@@ -342,16 +341,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.Host("{opaqueID:.+}." + hiveDomain).
 		Path("/.well-known/did.json").
-		HandlerFunc(hiveServer.ServeDIDDoc)
+		HandlerFunc(idServer.ServeDIDDoc)
 	mux.Host("{handle:.+}." + hiveDomain).
 		Path("/.well-known/atproto-did").
-		HandlerFunc(hiveServer.ServeHandle)
-	mux.Headers(hive.HabitatHostHeader, "").
+		HandlerFunc(idServer.ServeHandle)
+	mux.Headers(habitat_identity.HabitatHostHeader, "").
 		Path("/.well-known/did.json").
-		HandlerFunc(hiveServer.ServeDIDDoc)
-	mux.Headers(hive.HabitatHostHeader, "").
+		HandlerFunc(idServer.ServeDIDDoc)
+	mux.Headers(habitat_identity.HabitatHostHeader, "").
 		Path("/.well-known/atproto-did").
-		HandlerFunc(hiveServer.ServeHandle)
+		HandlerFunc(idServer.ServeHandle)
 
 	waitlistSvc, err := NewWaitlistService(
 		startupCtx,
@@ -378,7 +377,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.repo.getRecord", pearServer.GetRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.listRecords", pearServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.repo.describeRepo", pearServer.DescribeRepo)
-	mux.HandleFunc("/xrpc/com.atproto.repo.describeRepo", pearServer.DescribeRepoPublic)
 	mux.HandleFunc("/xrpc/network.habitat.repo.deleteRecord", pearServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.createRecord", pearServer.CreateRecord)
 	mux.HandleFunc("/xrpc/network.habitat.repo.uploadBlob", pearServer.UploadBlob)
@@ -411,7 +409,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
-	pdsForwarding := forwarding.NewPDSForwarding(pdsCredStore, oauthServer, pdsClientFactory, dir)
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
+		oauthServer,
+		pdsClientFactory,
+		defaultDir,
+	)
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
@@ -422,7 +425,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 			if !ok {
 				return
 			}
-			id, err := dir.LookupDID(r.Context(), callerDID)
+			id, err := hiveDir.LookupDID(r.Context(), callerDID)
 			if err != nil {
 				utils.LogAndHTTPError(
 					r.Context(),
@@ -438,7 +441,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 				return
 			}
 			if _, ok := id.Services["habitat"]; ok {
-				hiveServer.GetServiceAuth(w, r)
+				idServer.GetServiceAuth(w, r)
 				return
 			}
 			utils.LogAndHTTPError(
@@ -450,20 +453,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 			)
 		},
 	)
-
-	postHogUrl, err := url.Parse("https://us.i.posthog.com")
-	if err != nil {
-		slog.Error("failed to parse posthog url", "err", err)
-		os.Exit(1)
-	}
-	postHogProxy := httputil.NewSingleHostReverseProxy(postHogUrl)
-	defaultDirector := postHogProxy.Director
-	postHogProxy.Director = func(req *http.Request) {
-		defaultDirector(req)
-		req.Host = postHogUrl.Host
-	}
-	mux.PathPrefix("/posthog").
-		Handler(http.StripPrefix("/posthog", postHogProxy))
 
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
@@ -603,20 +592,6 @@ func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
 		os.Exit(1)
 	}
 	return fga
-}
-
-func setupPear(
-	dir identity.Directory,
-	repo repo.Repo,
-	cliqueStore clique.Store,
-	db *gorm.DB,
-) (pear.Pear, error) {
-	permissions, err := permissions.NewStore(db, cliqueStore)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create permission store: %w", err)
-	}
-
-	return pear.NewPear(dir, permissions, repo), nil
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

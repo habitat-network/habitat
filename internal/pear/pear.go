@@ -102,7 +102,7 @@ type Pear interface {
 		ctx context.Context,
 		caller syntax.DID,
 		collection syntax.NSID,
-		subjects []syntax.DID,
+		subjects []syntax.AtIdentifier,
 	) ([]repo.Record, error)
 	GetBlob(
 		ctx context.Context,
@@ -520,10 +520,19 @@ func (p *pear) ListRecords(
 	ctx context.Context,
 	caller syntax.DID,
 	collection syntax.NSID,
-	subjects []syntax.DID,
+	subjects []syntax.AtIdentifier,
 ) ([]repo.Record, error) {
 	// Get records owned by this repo
-	localRecords, err := p.listRecordsLocal(ctx, collection, caller, subjects)
+	dids := make([]syntax.DID, len(subjects))
+	for i, atid := range subjects {
+		id, err := p.dir.Lookup(ctx, atid)
+		if err != nil {
+			return nil, err
+		}
+		dids[i] = id.DID
+	}
+
+	localRecords, err := p.listRecordsLocal(ctx, collection, caller, dids)
 	if err != nil {
 		return nil, err
 	}
