@@ -2,7 +2,6 @@ package hive
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -132,7 +131,6 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 // It strips the member domain suffix from the given handle. Handle format is <internal-handle>.<memberDomain>
 // (e.g. "admin.acmecorp2" for org subdomain handles).
 func (h *hive) LookupHandle(ctx context.Context, handle syntax.Handle) (*identity.Identity, error) {
-	fmt.Println("hive lookup handle")
 	internalHandle, found := strings.CutSuffix(handle.String(), "."+h.memberDomain)
 	if !found {
 		return nil, identity.ErrHandleNotFound
