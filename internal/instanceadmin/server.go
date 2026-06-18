@@ -8,9 +8,6 @@ import (
 	"log/slog"
 )
 
-const sessionCookieName = "habitat_admin_session"
-const sessionCookiePath = "/admin"
-
 //go:embed login.html home.html style.css
 var templateFS embed.FS
 
@@ -58,41 +55,18 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, expiresAt, err := s.store.CreateSession(r.Context())
-	if err != nil {
+	if err := s.store.CreateSession(w, r); err != nil {
 		slog.ErrorContext(r.Context(), "creating instance admin session", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    token,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		Path:     sessionCookiePath,
-		Expires:  expiresAt,
-	})
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
 func (s *Server) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	if cookie, err := r.Cookie(sessionCookieName); err == nil {
-		if err := s.store.DeleteSession(r.Context(), cookie.Value); err != nil {
-			slog.ErrorContext(r.Context(), "deleting instance admin session", "err", err)
-		}
+	if err := s.store.DeleteSession(w, r); err != nil {
+		slog.ErrorContext(r.Context(), "deleting instance admin session", "err", err)
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    "",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		Path:     sessionCookiePath,
-		MaxAge:   -1,
-	})
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
 
@@ -100,13 +74,7 @@ func (s *Server) HandleLogout(w http.ResponseWriter, r *http.Request) {
 // instance admin session cookie; otherwise it redirects to the login page.
 func (s *Server) RequireSession(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(sessionCookieName)
-		if err != nil {
-			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-			return
-		}
-
-		ok, err := s.store.ValidateSession(r.Context(), cookie.Value)
+		ok, err := s.store.ValidateSession(r)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "validating instance admin session", "err", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)

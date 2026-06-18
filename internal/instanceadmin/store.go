@@ -4,49 +4,66 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/alexedwards/argon2id"
-	"gorm.io/gorm"
+	"github.com/gorilla/sessions"
 )
 
-const sessionDuration = 24 * time.Hour
+const (
+	sessionName          = "habitat_admin_session"
+	sessionDuration      = 24 * time.Hour
+	sessionAuthenticated = "authenticated"
+)
 
-// Store manages the single instance admin account and its sessions.
+// Store manages the instance admin credential and its sessions. Neither is
+// persisted: the credential lives only in process memory (see Bootstrap), and
+// sessions are encoded directly into a signed/encrypted cookie via
+// gorilla/sessions, so both reset on restart.
 type Store interface {
-	// Bootstrap ensures the instance admin account exists. If it does not exist yet,
-	// it is created using presetPassword if non-empty, otherwise a randomly generated
-	// password. The plaintext password is returned only when created is true and
-	// presetPassword was empty (i.e. it was generated, not operator-supplied).
-	Bootstrap(ctx context.Context, presetPassword string) (password string, created bool, err error)
+	// Bootstrap sets the in-memory instance admin credential for this process:
+	// presetPassword if non-empty, otherwise a freshly generated random password.
+	// The plaintext password is returned only when generated is true, so callers can
+	// surface it to the operator exactly once.
+	Bootstrap(ctx context.Context, presetPassword string) (password string, generated bool, err error)
 
-	// Authenticate checks the given password against the stored admin account.
+	// Authenticate checks the given password against the in-memory admin credential.
 	Authenticate(ctx context.Context, password string) (bool, error)
 
-	// CreateSession creates a new session for the instance admin and returns its token
-	// and expiry.
-	CreateSession(ctx context.Context) (token string, expiresAt time.Time, err error)
+	// CreateSession establishes a new authenticated session for the request,
+	// writing the session cookie to w.
+	CreateSession(w http.ResponseWriter, r *http.Request) error
 
-	// ValidateSession reports whether the given session token is valid and unexpired.
-	ValidateSession(ctx context.Context, token string) (bool, error)
+	// ValidateSession reports whether r carries a valid authenticated session.
+	ValidateSession(r *http.Request) (bool, error)
 
-	// DeleteSession removes the given session, if present.
-	DeleteSession(ctx context.Context, token string) error
+	// DeleteSession invalidates the session carried by r and clears its cookie.
+	DeleteSession(w http.ResponseWriter, r *http.Request) error
 }
 
 type storeImpl struct {
-	db *gorm.DB
+	// passwordHash is the in-memory hash of the current instance admin credential,
+	// set by Bootstrap. It is never written to the database.
+	passwordHash string
+
+	sessions *sessions.CookieStore
 }
 
 var _ Store = (*storeImpl)(nil)
 
-func NewStore(db *gorm.DB) (Store, error) {
-	if err := db.AutoMigrate(&instanceAdminAccount{}, &instanceAdminSession{}); err != nil {
-		return nil, err
+func NewStore(key []byte) (Store, error) {
+	cookieStore := sessions.NewCookieStore(key)
+	cookieStore.Options = &sessions.Options{
+		Path:     "/admin",
+		MaxAge:   int(sessionDuration.Seconds()),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	}
-	return &storeImpl{db: db}, nil
+
+	return &storeImpl{sessions: cookieStore}, nil
 }
 
 func generatePassword() (string, error) {
@@ -61,18 +78,10 @@ func (s *storeImpl) Bootstrap(
 	ctx context.Context,
 	presetPassword string,
 ) (string, bool, error) {
-	var existing instanceAdminAccount
-	err := s.db.WithContext(ctx).First(&existing, instanceAdminAccountID).Error
-	if err == nil {
-		return "", false, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", false, err
-	}
-
 	generated := presetPassword == ""
 	password := presetPassword
 	if generated {
+		var err error
 		password, err = generatePassword()
 		if err != nil {
 			return "", false, err
@@ -83,74 +92,53 @@ func (s *storeImpl) Bootstrap(
 	if err != nil {
 		return "", false, err
 	}
-
-	account := instanceAdminAccount{
-		ID:           instanceAdminAccountID,
-		PasswordHash: hash,
-		CreatedAt:    time.Now(),
-	}
-	if err := s.db.WithContext(ctx).Create(&account).Error; err != nil {
-		return "", false, err
-	}
+	s.passwordHash = hash
 
 	if !generated {
-		return "", true, nil
+		return "", false, nil
 	}
 	return password, true, nil
 }
 
 func (s *storeImpl) Authenticate(ctx context.Context, password string) (bool, error) {
-	var account instanceAdminAccount
-	if err := s.db.WithContext(ctx).First(&account, instanceAdminAccountID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, err
+	if s.passwordHash == "" {
+		return false, nil
 	}
-	ok, err := argon2id.ComparePasswordAndHash(password, account.PasswordHash)
+	ok, err := argon2id.ComparePasswordAndHash(password, s.passwordHash)
 	if errors.Is(err, argon2id.ErrInvalidHash) {
 		return false, nil
 	}
 	return ok, err
 }
 
-func (s *storeImpl) CreateSession(ctx context.Context) (string, time.Time, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", time.Time{}, err
-	}
-	token := hex.EncodeToString(b)
-	expiresAt := time.Now().Add(sessionDuration)
-
-	session := instanceAdminSession{
-		Token:     token,
-		ExpiresAt: expiresAt,
-		CreatedAt: time.Now(),
-	}
-	if err := s.db.WithContext(ctx).Create(&session).Error; err != nil {
-		return "", time.Time{}, err
-	}
-	return token, expiresAt, nil
-}
-
-func (s *storeImpl) ValidateSession(ctx context.Context, token string) (bool, error) {
-	var session instanceAdminSession
-	err := s.db.WithContext(ctx).Where("token = ?", token).First(&session).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
-	}
+func (s *storeImpl) CreateSession(w http.ResponseWriter, r *http.Request) error {
+	session, err := s.sessions.New(r, sessionName)
 	if err != nil {
-		return false, err
+		return err
 	}
-	if session.ExpiresAt.Before(time.Now()) {
-		if err := s.DeleteSession(ctx, token); err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-	return true, nil
+	session.Values[sessionAuthenticated] = true
+	return s.sessions.Save(r, w, session)
 }
 
-func (s *storeImpl) DeleteSession(ctx context.Context, token string) error {
-	return s.db.WithContext(ctx).Where("token = ?", token).Delete(&instanceAdminSession{}).Error
+func (s *storeImpl) ValidateSession(r *http.Request) (bool, error) {
+	session, err := s.sessions.Get(r, sessionName)
+	if err != nil {
+		// Missing, expired, or tampered cookie - treat as unauthenticated rather
+		// than as an error.
+		return false, nil
+	}
+	authed, _ := session.Values[sessionAuthenticated].(bool)
+	return authed, nil
+}
+
+func (s *storeImpl) DeleteSession(w http.ResponseWriter, r *http.Request) error {
+	// Get always returns a usable (if empty) session, even on a decode error, so
+	// there's nothing else to handle for an invalid/missing cookie here.
+	session, _ := s.sessions.Get(r, sessionName)
+	// Clearing Values (in addition to MaxAge, which only tells the browser to drop
+	// the cookie) ensures the session is invalid even if a client replays the old
+	// cookie value.
+	session.Values[sessionAuthenticated] = false
+	session.Options.MaxAge = -1
+	return s.sessions.Save(r, w, session)
 }

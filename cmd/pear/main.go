@@ -129,12 +129,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 	db := setupDB(cmd)
 	fgaStore := setupFGA(startupCtx, cmd)
 
-	instanceAdminStore, err := instanceadmin.NewStore(db.WithContext(startupCtx))
+	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
+	if err != nil {
+		slog.Error("unable to parse oauth server secret for login provider", "err", err)
+		os.Exit(1)
+	}
+
+	// Reuse the oauth server secret
+	instanceAdminStore, err := instanceadmin.NewStore(oauthSecret)
 	if err != nil {
 		slog.Error("unable to setup instance admin store", "err", err)
 		os.Exit(1)
 	}
-	adminPassword, adminCreated, err := instanceAdminStore.Bootstrap(
+	adminPassword, adminGenerated, err := instanceAdminStore.Bootstrap(
 		startupCtx,
 		cmd.String(fAdminPassword),
 	)
@@ -142,9 +149,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to bootstrap instance admin", "err", err)
 		os.Exit(1)
 	}
-	if adminCreated && adminPassword != "" {
+	if adminGenerated {
 		slog.Warn(
-			"generated instance admin password; save it now, it will not be shown again",
+			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
 			"username", "admin",
 			"password", adminPassword,
 		)
@@ -214,12 +221,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	)
 	if err != nil {
 		slog.Error("unable to setup PDS client factory", "err", err)
-		os.Exit(1)
-	}
-
-	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
-	if err != nil {
-		slog.Error("unable to parse oauth server secret for login provider", "err", err)
 		os.Exit(1)
 	}
 

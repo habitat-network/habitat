@@ -1,29 +1,26 @@
 package instanceadmin
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func newTestStore(t *testing.T) Store {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	store, err := NewStore(db)
+	store, err := NewStore([]byte("random"))
 	require.NoError(t, err)
 	return store
 }
 
-func TestBootstrap_GeneratesPasswordOnFirstCall(t *testing.T) {
+func TestBootstrap_GeneratesPasswordWhenNoPresetGiven(t *testing.T) {
 	s := newTestStore(t)
 
-	password, created, err := s.Bootstrap(t.Context(), "")
+	password, generated, err := s.Bootstrap(t.Context(), "")
 	require.NoError(t, err)
-	require.True(t, created)
+	require.True(t, generated)
 	require.NotEmpty(t, password)
 
 	ok, err := s.Authenticate(t.Context(), password)
@@ -31,30 +28,12 @@ func TestBootstrap_GeneratesPasswordOnFirstCall(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestBootstrap_SecondCallDoesNotRegenerate(t *testing.T) {
-	s := newTestStore(t)
-
-	firstPassword, created, err := s.Bootstrap(t.Context(), "")
-	require.NoError(t, err)
-	require.True(t, created)
-
-	secondPassword, created, err := s.Bootstrap(t.Context(), "")
-	require.NoError(t, err)
-	require.False(t, created)
-	require.Empty(t, secondPassword)
-
-	// Original password still works.
-	ok, err := s.Authenticate(t.Context(), firstPassword)
-	require.NoError(t, err)
-	require.True(t, ok)
-}
-
 func TestBootstrap_UsesPresetPasswordWithoutReturningIt(t *testing.T) {
 	s := newTestStore(t)
 
-	password, created, err := s.Bootstrap(t.Context(), "preset-password-123")
+	password, generated, err := s.Bootstrap(t.Context(), "preset-password-123")
 	require.NoError(t, err)
-	require.True(t, created)
+	require.False(t, generated)
 	require.Empty(t, password)
 
 	ok, err := s.Authenticate(t.Context(), "preset-password-123")
@@ -62,21 +41,29 @@ func TestBootstrap_UsesPresetPasswordWithoutReturningIt(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestBootstrap_PresetIgnoredOnSubsequentCalls(t *testing.T) {
+func TestBootstrap_SubsequentCallReplacesCredential(t *testing.T) {
 	s := newTestStore(t)
 
-	_, _, err := s.Bootstrap(t.Context(), "first-password")
+	firstPassword, _, err := s.Bootstrap(t.Context(), "")
 	require.NoError(t, err)
 
-	_, created, err := s.Bootstrap(t.Context(), "second-password")
+	_, _, err = s.Bootstrap(t.Context(), "second-password")
 	require.NoError(t, err)
-	require.False(t, created)
 
-	ok, err := s.Authenticate(t.Context(), "first-password")
+	// The first credential no longer works once Bootstrap is called again.
+	ok, err := s.Authenticate(t.Context(), firstPassword)
 	require.NoError(t, err)
-	require.True(t, ok)
+	require.False(t, ok)
 
 	ok, err = s.Authenticate(t.Context(), "second-password")
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestAuthenticate_BeforeBootstrapFails(t *testing.T) {
+	s := newTestStore(t)
+
+	ok, err := s.Authenticate(t.Context(), "anything")
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -95,45 +82,54 @@ func TestAuthenticate_WrongPasswordFails(t *testing.T) {
 func TestSession_CreateValidateDelete(t *testing.T) {
 	s := newTestStore(t)
 
-	token, expiresAt, err := s.CreateSession(t.Context())
-	require.NoError(t, err)
-	require.NotEmpty(t, token)
-	require.True(t, expiresAt.After(time.Now()))
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
+	require.NoError(t, s.CreateSession(createRec, createReq))
+	cookies := createRec.Result().Cookies()
+	require.Len(t, cookies, 1)
 
-	ok, err := s.ValidateSession(t.Context(), token)
+	validateReq := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	validateReq.AddCookie(cookies[0])
+	ok, err := s.ValidateSession(validateReq)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	err = s.DeleteSession(t.Context(), token)
-	require.NoError(t, err)
+	deleteRec := httptest.NewRecorder()
+	require.NoError(t, s.DeleteSession(deleteRec, validateReq))
+	deleteCookies := deleteRec.Result().Cookies()
+	require.Len(t, deleteCookies, 1)
+	require.LessOrEqual(t, deleteCookies[0].MaxAge, 0)
 
-	ok, err = s.ValidateSession(t.Context(), token)
+	finalReq := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	finalReq.AddCookie(deleteCookies[0])
+	ok, err = s.ValidateSession(finalReq)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
 
-func TestValidateSession_UnknownTokenFails(t *testing.T) {
+func TestValidateSession_NoCookieFails(t *testing.T) {
 	s := newTestStore(t)
 
-	ok, err := s.ValidateSession(t.Context(), "does-not-exist")
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	ok, err := s.ValidateSession(req)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
 
-func TestValidateSession_ExpiredSessionFails(t *testing.T) {
-	s := newTestStore(t).(*storeImpl)
+func TestValidateSession_TamperedCookieFails(t *testing.T) {
+	s := newTestStore(t)
 
-	token, _, err := s.CreateSession(t.Context())
-	require.NoError(t, err)
-
-	// Force the session into the past.
-	err = s.db.WithContext(t.Context()).
-		Model(&instanceAdminSession{}).
-		Where("token = ?", token).
-		Update("expires_at", time.Now().Add(-time.Hour)).Error
-	require.NoError(t, err)
-
-	ok, err := s.ValidateSession(t.Context(), token)
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req.AddCookie(&http.Cookie{Name: sessionName, Value: "not-a-valid-session-value"})
+	ok, err := s.ValidateSession(req)
 	require.NoError(t, err)
 	require.False(t, ok)
+}
+
+func TestNewStore_SessionCookieOptions(t *testing.T) {
+	s := newTestStore(t).(*storeImpl)
+
+	require.Equal(t, "/admin", s.sessions.Options.Path)
+	require.Equal(t, int(sessionDuration.Seconds()), s.sessions.Options.MaxAge)
+	require.True(t, s.sessions.Options.HttpOnly)
 }

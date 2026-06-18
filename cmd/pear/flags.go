@@ -117,7 +117,7 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 			},
 			&cli.StringFlag{
 				Name:    fAdminPassword,
-				Usage:   "Preset password for the instance admin account; if unset, a password is generated on first boot and printed once",
+				Usage:   "Preset password for the instance admin account; if unset, a random password is generated on every boot and printed once. Not persisted - kept in memory only",
 				Sources: getSources(fAdminPassword),
 			},
 		}, []cli.MutuallyExclusiveFlags{

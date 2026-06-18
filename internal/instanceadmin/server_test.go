@@ -13,9 +13,9 @@ import (
 func newTestServer(t *testing.T) (*Server, Store, string) {
 	t.Helper()
 	store := newTestStore(t)
-	password, created, err := store.Bootstrap(t.Context(), "")
+	password, generated, err := store.Bootstrap(t.Context(), "")
 	require.NoError(t, err)
-	require.True(t, created)
+	require.True(t, generated)
 	return NewServer(store), store, password
 }
 
@@ -48,7 +48,7 @@ func TestHandleLogin_Success(t *testing.T) {
 
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
-	require.Equal(t, sessionCookieName, cookies[0].Name)
+	require.Equal(t, sessionName, cookies[0].Name)
 	require.NotEmpty(t, cookies[0].Value)
 	require.True(t, cookies[0].HttpOnly)
 }
@@ -90,8 +90,11 @@ func TestRequireSession_RedirectsWithoutCookie(t *testing.T) {
 func TestRequireSession_PassesThroughWithValidCookie(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
-	token, _, err := store.CreateSession(t.Context())
-	require.NoError(t, err)
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
+	require.NoError(t, store.CreateSession(createRec, createReq))
+	cookies := createRec.Result().Cookies()
+	require.Len(t, cookies, 1)
 
 	called := false
 	handler := server.RequireSession(func(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +102,7 @@ func TestRequireSession_PassesThroughWithValidCookie(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	req.AddCookie(cookies[0])
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
@@ -109,11 +112,14 @@ func TestRequireSession_PassesThroughWithValidCookie(t *testing.T) {
 func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 	server, store, _ := newTestServer(t)
 
-	token, _, err := store.CreateSession(t.Context())
-	require.NoError(t, err)
+	createRec := httptest.NewRecorder()
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/login", nil)
+	require.NoError(t, store.CreateSession(createRec, createReq))
+	sessionCookies := createRec.Result().Cookies()
+	require.Len(t, sessionCookies, 1)
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/logout", nil)
-	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	req.AddCookie(sessionCookies[0])
 	rec := httptest.NewRecorder()
 	server.HandleLogout(rec, req)
 
@@ -124,7 +130,9 @@ func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 	require.Len(t, cookies, 1)
 	require.LessOrEqual(t, cookies[0].MaxAge, 0)
 
-	ok, err := store.ValidateSession(t.Context(), token)
+	finalReq := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	finalReq.AddCookie(cookies[0])
+	ok, err := store.ValidateSession(finalReq)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
