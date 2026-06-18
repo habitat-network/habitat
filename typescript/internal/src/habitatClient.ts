@@ -284,12 +284,10 @@ type ProcedureOptions<T extends keyof ProcedureEndpoints> =
 export class XRPCError extends Error {
   public status: number;
   public error: string;
-  public message: string;
-  constructor(status: number, response: { error: string; message: string }) {
+  constructor(status: number, response: { error: string }) {
     super(response.error);
     this.status = status;
     this.error = response.error;
-    this.message = response.message;
   }
 }
 
