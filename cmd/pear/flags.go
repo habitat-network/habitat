@@ -26,6 +26,7 @@ var (
 	fGoogleClientSecret = "google_client_secret"
 	fPrettyLogs         = "pretty_logs"
 	fPdsOauthClientUri  = "pds_oauth_client_uri"
+	fAdminPassword      = "admin_password"
 )
 var profiles []string
 
@@ -113,6 +114,11 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fPdsOauthClientUri,
 				Usage:   "PDS OAuth client ID for PDS login method",
 				Sources: getSources(fPdsOauthClientUri),
+			},
+			&cli.StringFlag{
+				Name:    fAdminPassword,
+				Usage:   "Preset password for the instance admin account; if unset, a password is generated on first boot and printed once",
+				Sources: getSources(fAdminPassword),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{

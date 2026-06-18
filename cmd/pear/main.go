@@ -36,6 +36,7 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
+	"github.com/habitat-network/habitat/internal/instanceadmin"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
@@ -127,6 +128,28 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	db := setupDB(cmd)
 	fgaStore := setupFGA(startupCtx, cmd)
+
+	instanceAdminStore, err := instanceadmin.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		slog.Error("unable to setup instance admin store", "err", err)
+		os.Exit(1)
+	}
+	adminPassword, adminCreated, err := instanceAdminStore.Bootstrap(
+		startupCtx,
+		cmd.String(fAdminPassword),
+	)
+	if err != nil {
+		slog.Error("unable to bootstrap instance admin", "err", err)
+		os.Exit(1)
+	}
+	if adminCreated && adminPassword != "" {
+		slog.Warn(
+			"generated instance admin password; save it now, it will not be shown again",
+			"username", "admin",
+			"password", adminPassword,
+		)
+	}
+	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore)
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -363,6 +386,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 	} else {
 		slog.Error("unable to set up waitlist service", "err", err)
 	}
+
+	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
+	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
+	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
+	mux.HandleFunc("/admin", instanceAdminServer.RequireSession(instanceAdminServer.ServeAdminHome)).
+		Methods("GET")
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
