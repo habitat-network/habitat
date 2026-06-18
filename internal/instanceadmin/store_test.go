@@ -5,74 +5,29 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func newTestStore(t *testing.T) Store {
 	t.Helper()
-	store, err := NewStore([]byte("random"))
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+
+	hash, err := argon2id.CreateHash("password", argon2id.DefaultParams)
+	require.NoError(t, err)
+
+	store, err := NewStore(db, []byte("random"), hash)
 	require.NoError(t, err)
 	return store
 }
 
-func TestBootstrap_GeneratesPasswordWhenNoPresetGiven(t *testing.T) {
-	s := newTestStore(t)
-
-	password, generated, err := s.Bootstrap(t.Context(), "")
-	require.NoError(t, err)
-	require.True(t, generated)
-	require.NotEmpty(t, password)
-
-	ok, err := s.Authenticate(t.Context(), password)
-	require.NoError(t, err)
-	require.True(t, ok)
-}
-
-func TestBootstrap_UsesPresetPasswordWithoutReturningIt(t *testing.T) {
-	s := newTestStore(t)
-
-	password, generated, err := s.Bootstrap(t.Context(), "preset-password-123")
-	require.NoError(t, err)
-	require.False(t, generated)
-	require.Empty(t, password)
-
-	ok, err := s.Authenticate(t.Context(), "preset-password-123")
-	require.NoError(t, err)
-	require.True(t, ok)
-}
-
-func TestBootstrap_SubsequentCallReplacesCredential(t *testing.T) {
-	s := newTestStore(t)
-
-	firstPassword, _, err := s.Bootstrap(t.Context(), "")
-	require.NoError(t, err)
-
-	_, _, err = s.Bootstrap(t.Context(), "second-password")
-	require.NoError(t, err)
-
-	// The first credential no longer works once Bootstrap is called again.
-	ok, err := s.Authenticate(t.Context(), firstPassword)
-	require.NoError(t, err)
-	require.False(t, ok)
-
-	ok, err = s.Authenticate(t.Context(), "second-password")
-	require.NoError(t, err)
-	require.True(t, ok)
-}
-
-func TestAuthenticate_BeforeBootstrapFails(t *testing.T) {
-	s := newTestStore(t)
-
-	ok, err := s.Authenticate(t.Context(), "anything")
-	require.NoError(t, err)
-	require.False(t, ok)
-}
-
 func TestAuthenticate_WrongPasswordFails(t *testing.T) {
 	s := newTestStore(t)
-
-	_, _, err := s.Bootstrap(t.Context(), "correct-password")
-	require.NoError(t, err)
 
 	ok, err := s.Authenticate(t.Context(), "wrong-password")
 	require.NoError(t, err)
@@ -132,4 +87,49 @@ func TestNewStore_SessionCookieOptions(t *testing.T) {
 	require.Equal(t, "/admin", s.sessions.Options.Path)
 	require.Equal(t, int(sessionDuration.Seconds()), s.sessions.Options.MaxAge)
 	require.True(t, s.sessions.Options.HttpOnly)
+}
+
+func TestGetSettings_DefaultsOnFirstAccess(t *testing.T) {
+	s := newTestStore(t)
+
+	instanceName, policy, err := s.GetSettings(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "", instanceName)
+	require.Equal(t, "open", policy)
+}
+
+func TestUpdateSettings_PersistsAndReads(t *testing.T) {
+	s := newTestStore(t)
+
+	err := s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only")
+	require.NoError(t, err)
+
+	instanceName, policy, err := s.GetSettings(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "Acme Hosting", instanceName)
+	require.Equal(t, "invite_only", policy)
+}
+
+func TestUpdateSettings_RejectsInvalidPolicy(t *testing.T) {
+	s := newTestStore(t)
+
+	err := s.UpdateSettings(t.Context(), "Acme Hosting", "sometimes")
+	require.ErrorIs(t, err, ErrInvalidPolicy)
+}
+
+func TestGetOrgCreationPolicy_DefaultsToOpen(t *testing.T) {
+	s := newTestStore(t)
+
+	policy, err := s.GetOrgCreationPolicy(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "open", policy)
+}
+
+func TestGetOrgCreationPolicy_ReflectsUpdate(t *testing.T) {
+	s := newTestStore(t)
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+
+	policy, err := s.GetOrgCreationPolicy(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "invite_only", policy)
 }

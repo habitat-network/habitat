@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
@@ -135,28 +137,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
+	passwordHash, err := setupInstanceAdminPassword(cmd)
 	// Reuse the oauth server secret
-	instanceAdminStore, err := instanceadmin.NewStore(oauthSecret)
+	instanceAdminStore, err := instanceadmin.NewStore(db, oauthSecret, passwordHash)
 	if err != nil {
 		slog.Error("unable to setup instance admin store", "err", err)
 		os.Exit(1)
-	}
-	adminPassword, adminGenerated, err := instanceAdminStore.Bootstrap(
-		startupCtx,
-		cmd.String(fAdminPassword),
-	)
-	if err != nil {
-		slog.Error("unable to bootstrap instance admin", "err", err)
-		os.Exit(1)
-	}
-	if adminGenerated {
-		slog.Warn(
-			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
-			"username",
-			"admin",
-			"password",
-			adminPassword,
-		)
 	}
 	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore)
 
@@ -642,4 +628,30 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func setupInstanceAdminPassword(cmd *cli.Command) (string, error) {
+	pass := cmd.String(fAdminPassword)
+
+	// Generate a password on startup if not given
+	generate := pass == ""
+	if generate {
+		b := make([]byte, 24)
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		pass = string(b)
+		slog.Warn(
+			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
+			"username",
+			"admin",
+			"password",
+			pass,
+		)
+	}
+	passwordHash, err := argon2id.CreateHash(pass, argon2id.DefaultParams)
+	if err != nil {
+		return "", err
+	}
+	return passwordHash, nil
 }

@@ -10,28 +10,24 @@ import (
 
 	"github.com/alexedwards/argon2id"
 	"github.com/gorilla/sessions"
+	"gorm.io/gorm"
 )
 
 const (
 	sessionName          = "habitat_admin_session"
 	sessionDuration      = 24 * time.Hour
 	sessionAuthenticated = "authenticated"
+	policyOpen           = "open"
+	policyInviteOnly     = "invite_only"
 )
+
+var ErrInvalidPolicy = errors.New("invalid org creation policy")
 
 // Store manages the instance admin credential and its sessions. Neither is
 // persisted: the credential lives only in process memory (see Bootstrap), and
 // sessions are encoded directly into a signed/encrypted cookie via
 // gorilla/sessions, so both reset on restart.
 type Store interface {
-	// Bootstrap sets the in-memory instance admin credential for this process:
-	// presetPassword if non-empty, otherwise a freshly generated random password.
-	// The plaintext password is returned only when generated is true, so callers can
-	// surface it to the operator exactly once.
-	Bootstrap(
-		ctx context.Context,
-		presetPassword string,
-	) (password string, generated bool, err error)
-
 	// Authenticate checks the given password against the in-memory admin credential.
 	Authenticate(ctx context.Context, password string) (bool, error)
 
@@ -44,6 +40,17 @@ type Store interface {
 
 	// DeleteSession invalidates the session carried by r and clears its cookie.
 	DeleteSession(w http.ResponseWriter, r *http.Request) error
+
+	// GetSettings returns the instance's current name and org creation
+	// policy, creating the settings row with defaults on first access.
+	GetSettings(ctx context.Context) (instanceName, orgCreationPolicy string, err error)
+
+	// UpdateSettings updates the instance's name and org creation policy.
+	// orgCreationPolicy must be "open" or "invite_only".
+	UpdateSettings(ctx context.Context, instanceName, orgCreationPolicy string) error
+
+	// GetOrgCreationPolicy is a convenience accessor for just the policy field.
+	GetOrgCreationPolicy(ctx context.Context) (string, error)
 }
 
 type storeImpl struct {
@@ -52,11 +59,12 @@ type storeImpl struct {
 	passwordHash string
 
 	sessions *sessions.CookieStore
+	db       *gorm.DB
 }
 
 var _ Store = (*storeImpl)(nil)
 
-func NewStore(key []byte) (Store, error) {
+func NewStore(db *gorm.DB, key []byte, passwordHash string) (Store, error) {
 	cookieStore := sessions.NewCookieStore(key)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/admin",
@@ -65,42 +73,15 @@ func NewStore(key []byte) (Store, error) {
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	}
-
-	return &storeImpl{sessions: cookieStore}, nil
-}
-
-func generatePassword() (string, error) {
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func (s *storeImpl) Bootstrap(
-	ctx context.Context,
-	presetPassword string,
-) (string, bool, error) {
-	generated := presetPassword == ""
-	password := presetPassword
-	if generated {
-		var err error
-		password, err = generatePassword()
-		if err != nil {
-			return "", false, err
-		}
+	if err := db.AutoMigrate(&instanceSettings{}); err != nil {
+		return nil, err
 	}
 
-	hash, err := argon2id.CreateHash(password, argon2id.DefaultParams)
-	if err != nil {
-		return "", false, err
-	}
-	s.passwordHash = hash
-
-	if !generated {
-		return "", false, nil
-	}
-	return password, true, nil
+	return &storeImpl{
+		passwordHash: passwordHash,
+		sessions:     cookieStore,
+		db:           db,
+	}, nil
 }
 
 func (s *storeImpl) Authenticate(ctx context.Context, password string) (bool, error) {
@@ -144,4 +125,69 @@ func (s *storeImpl) DeleteSession(w http.ResponseWriter, r *http.Request) error 
 	session.Values[sessionAuthenticated] = false
 	session.Options.MaxAge = -1
 	return s.sessions.Save(r, w, session)
+}
+
+func (s *storeImpl) getOrCreateSettings(ctx context.Context) (*instanceSettings, error) {
+	var settings instanceSettings
+	err := s.db.WithContext(ctx).First(&settings, instanceSettingsID).Error
+	if err == nil {
+		return &settings, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	secret, err := generateSigningSecret()
+	if err != nil {
+		return nil, err
+	}
+	settings = instanceSettings{
+		ID:                instanceSettingsID,
+		OrgCreationPolicy: policyOpen,
+		SigningSecret:     secret,
+		CreatedAt:         time.Now(),
+	}
+	if err := s.db.WithContext(ctx).Create(&settings).Error; err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+func generateSigningSecret() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
+func (s *storeImpl) GetSettings(ctx context.Context) (string, string, error) {
+	settings, err := s.getOrCreateSettings(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	return settings.InstanceName, settings.OrgCreationPolicy, nil
+}
+
+func (s *storeImpl) UpdateSettings(ctx context.Context, instanceName, orgCreationPolicy string) error {
+	if orgCreationPolicy != policyOpen && orgCreationPolicy != policyInviteOnly {
+		return ErrInvalidPolicy
+	}
+	if _, err := s.getOrCreateSettings(ctx); err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Model(&instanceSettings{}).
+		Where("id = ?", instanceSettingsID).
+		Updates(map[string]any{
+			"instanceName":      instanceName,
+			"orgCreationPolicy": orgCreationPolicy,
+		}).Error
+}
+
+func (s *storeImpl) GetOrgCreationPolicy(ctx context.Context) (string, error) {
+	settings, err := s.getOrCreateSettings(ctx)
+	if err != nil {
+		return "", err
+	}
+	return settings.OrgCreationPolicy, nil
 }

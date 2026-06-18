@@ -13,10 +13,7 @@ import (
 func newTestServer(t *testing.T) (*Server, Store, string) {
 	t.Helper()
 	store := newTestStore(t)
-	password, generated, err := store.Bootstrap(t.Context(), "")
-	require.NoError(t, err)
-	require.True(t, generated)
-	return NewServer(store), store, password
+	return NewServer(store), store, "password"
 }
 
 func TestServeLoginPage(t *testing.T) {
