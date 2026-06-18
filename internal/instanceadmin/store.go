@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/alexedwards/argon2id"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"gorm.io/gorm"
 )
@@ -17,11 +20,13 @@ const (
 	sessionName          = "habitat_admin_session"
 	sessionDuration      = 24 * time.Hour
 	sessionAuthenticated = "authenticated"
+	inviteDuration       = 7 * 24 * time.Hour
 	policyOpen           = "open"
 	policyInviteOnly     = "invite_only"
 )
 
 var ErrInvalidPolicy = errors.New("invalid org creation policy")
+var ErrInvalidInvite = errors.New("invalid or expired invite")
 
 // Store manages the instance admin credential and its sessions. Neither is
 // persisted: the credential lives only in process memory (see Bootstrap), and
@@ -51,6 +56,13 @@ type Store interface {
 
 	// GetOrgCreationPolicy is a convenience accessor for just the policy field.
 	GetOrgCreationPolicy(ctx context.Context) (string, error)
+
+	// IssueInvite creates and signs a new single-use invite token.
+	IssueInvite(ctx context.Context) (token string, err error)
+
+	// RedeemInvite validates and consumes an invite token. All failure modes
+	// (unknown, expired, already used, bad signature) return ErrInvalidInvite.
+	RedeemInvite(ctx context.Context, token string) error
 }
 
 type storeImpl struct {
@@ -60,11 +72,12 @@ type storeImpl struct {
 
 	sessions *sessions.CookieStore
 	db       *gorm.DB
+	domain   string
 }
 
 var _ Store = (*storeImpl)(nil)
 
-func NewStore(db *gorm.DB, key []byte, passwordHash string) (Store, error) {
+func NewStore(db *gorm.DB, key []byte, domain, passwordHash string) (Store, error) {
 	cookieStore := sessions.NewCookieStore(key)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/admin",
@@ -80,6 +93,7 @@ func NewStore(db *gorm.DB, key []byte, passwordHash string) (Store, error) {
 	return &storeImpl{
 		passwordHash: passwordHash,
 		sessions:     cookieStore,
+		domain:       domain,
 		db:           db,
 	}, nil
 }
@@ -190,4 +204,88 @@ func (s *storeImpl) GetOrgCreationPolicy(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return settings.OrgCreationPolicy, nil
+}
+
+type inviteClaims struct {
+	jwt.Claims
+	Domain string `json:"domain"`
+	Name   string `json:"name"`
+}
+
+func (s *storeImpl) IssueInvite(ctx context.Context) (string, error) {
+	settings, err := s.getOrCreateSettings(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	jti := hex.EncodeToString(b)
+	now := time.Now()
+	expiresAt := now.Add(inviteDuration)
+
+	invite := instanceInvite{
+		Token:     jti,
+		CreatedAt: now,
+		ExpiresAt: expiresAt,
+	}
+	if err := s.db.WithContext(ctx).Create(&invite).Error; err != nil {
+		return "", err
+	}
+
+	secret, err := base64.StdEncoding.DecodeString(settings.SigningSecret)
+	if err != nil {
+		return "", err
+	}
+	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: secret}, nil)
+	if err != nil {
+		return "", err
+	}
+	return jwt.Signed(sig).Claims(inviteClaims{
+		Claims: jwt.Claims{
+			ID:     jti,
+			Expiry: jwt.NewNumericDate(expiresAt),
+		},
+		Domain: s.domain,
+		Name:   settings.InstanceName,
+	}).CompactSerialize()
+}
+
+func (s *storeImpl) RedeemInvite(ctx context.Context, token string) error {
+	settings, err := s.getOrCreateSettings(ctx)
+	if err != nil {
+		return err
+	}
+	secret, err := base64.StdEncoding.DecodeString(settings.SigningSecret)
+	if err != nil {
+		return err
+	}
+
+	parsed, err := jwt.ParseSigned(token)
+	if err != nil {
+		return ErrInvalidInvite
+	}
+	var claims inviteClaims
+	if err := parsed.Claims(secret, &claims); err != nil {
+		return ErrInvalidInvite
+	}
+	if err := claims.Claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
+		return ErrInvalidInvite
+	}
+
+	var invite instanceInvite
+	err = s.db.WithContext(ctx).Where("token = ?", claims.ID).First(&invite).Error
+	if err != nil {
+		return ErrInvalidInvite
+	}
+	if invite.UsedAt != nil || invite.ExpiresAt.Before(time.Now()) {
+		return ErrInvalidInvite
+	}
+
+	now := time.Now()
+	return s.db.WithContext(ctx).Model(&instanceInvite{}).
+		Where("token = ?", invite.Token).
+		Update("used_at", &now).Error
 }

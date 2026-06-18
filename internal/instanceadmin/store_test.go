@@ -21,7 +21,7 @@ func newTestStore(t *testing.T) Store {
 	hash, err := argon2id.CreateHash("password", argon2id.DefaultParams)
 	require.NoError(t, err)
 
-	store, err := NewStore(db, []byte("random"), hash)
+	store, err := NewStore(db, []byte("random"), "pear.example.com", hash)
 	require.NoError(t, err)
 	return store
 }
@@ -132,4 +132,37 @@ func TestGetOrgCreationPolicy_ReflectsUpdate(t *testing.T) {
 	policy, err := s.GetOrgCreationPolicy(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "invite_only", policy)
+}
+
+func TestIssueInvite_CanBeRedeemedOnce(t *testing.T) {
+	s := newTestStore(t)
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+
+	token, err := s.IssueInvite(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	require.NoError(t, s.RedeemInvite(t.Context(), token))
+
+	err = s.RedeemInvite(t.Context(), token)
+	require.ErrorIs(t, err, ErrInvalidInvite)
+}
+
+func TestRedeemInvite_UnknownTokenFails(t *testing.T) {
+	s := newTestStore(t)
+
+	err := s.RedeemInvite(t.Context(), "not-a-real-token")
+	require.ErrorIs(t, err, ErrInvalidInvite)
+}
+
+func TestRedeemInvite_WrongSigningSecretFails(t *testing.T) {
+	s1 := newTestStore(t)
+	require.NoError(t, s1.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+	token, err := s1.IssueInvite(t.Context())
+	require.NoError(t, err)
+
+	// A different store (different generated signing secret) must reject it.
+	s2 := newTestStore(t)
+	err = s2.RedeemInvite(t.Context(), token)
+	require.ErrorIs(t, err, ErrInvalidInvite)
 }

@@ -139,7 +139,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	passwordHash, err := setupInstanceAdminPassword(cmd)
 	// Reuse the oauth server secret
-	instanceAdminStore, err := instanceadmin.NewStore(db, oauthSecret, passwordHash)
+	instanceAdminStore, err := instanceadmin.NewStore(db.WithContext(startupCtx), oauthSecret, fDomain, passwordHash)
 	if err != nil {
 		slog.Error("unable to setup instance admin store", "err", err)
 		os.Exit(1)
