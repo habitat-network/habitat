@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
@@ -51,8 +52,8 @@ func NewSap(config SapConfig) (Sap, error) {
 		return nil, fmt.Errorf("failed to parse secret: %w", err)
 	}
 
-	resyncNotifCh := make(chan struct{}, 1)
-	outboxNotifyCh := make(chan struct{}, 1)
+	resyncNotif := utils.NewPollNotifier()
+	outboxNotif := utils.NewPollNotifier()
 
 	dir := config.Directory
 	if dir == nil {
@@ -60,18 +61,18 @@ func NewSap(config SapConfig) (Sap, error) {
 	}
 
 	o := newOrgManager(config.DB, config.PublicDomain, secret, dir)
-	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh, outboxNotifyCh)
+	resyncBuf := newResyncBuffer(config.DB, resyncNotif, outboxNotif)
 	sub := newSubscriber(config.DB, o, resyncBuf)
 	resyncer := newResyncer(
 		config.DB,
 		o,
 		resyncBuf,
-		resyncNotifCh,
-		outboxNotifyCh,
+		resyncNotif,
+		outboxNotif,
 		config.ResyncParallelism,
 	)
-	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotifCh)
-	outbox := newOutbox(config.DB, outboxNotifyCh)
+	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotif)
+	outbox := newOutbox(config.DB, outboxNotif)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
