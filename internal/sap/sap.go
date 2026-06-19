@@ -10,6 +10,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
@@ -29,6 +31,7 @@ type sapImpl struct {
 	resyncBuf  *resyncBuffer
 	resyncer   *resyncer
 	crawler    *crawler
+	metrics    *metrics
 }
 
 type SapConfig struct {
@@ -37,6 +40,8 @@ type SapConfig struct {
 	DB                *gorm.DB
 	ResyncParallelism int
 	Directory         identity.Directory
+	Meter             metric.Meter
+	Tracer            trace.Tracer
 }
 
 func NewSap(config SapConfig) (Sap, error) {
@@ -55,11 +60,16 @@ func NewSap(config SapConfig) (Sap, error) {
 		dir = identity.DefaultDirectory()
 	}
 
+	m, err := newMetrics(config.Meter, config.Tracer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics: %w", err)
+	}
+
 	o := newOrgManager(config.DB, config.PublicDomain, secret, dir)
 	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh)
-	sub := newSubscriber(config.DB, o, resyncBuf)
-	resyncer := newResyncer(config.DB, o, resyncBuf, resyncNotifCh, config.ResyncParallelism)
-	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotifCh)
+	sub := newSubscriber(config.DB, o, resyncBuf, m)
+	resyncer := newResyncer(config.DB, o, resyncBuf, resyncNotifCh, config.ResyncParallelism, m)
+	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotifCh, m)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
@@ -70,6 +80,7 @@ func NewSap(config SapConfig) (Sap, error) {
 		resyncBuf:  resyncBuf,
 		resyncer:   resyncer,
 		crawler:    crawler,
+		metrics:    m,
 	}, nil
 }
 

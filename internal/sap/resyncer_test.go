@@ -57,7 +57,7 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	resyncNotifCh := make(chan struct{}, 1)
 	orgManager := newOrgManager(db, "", nil, nil)
 	resyncBuf := newResyncBuffer(db, resyncNotifCh)
-	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotifCh, 1)
+	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotifCh, 1, newTestMetrics(t))
 
 	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",
@@ -114,7 +114,7 @@ func TestResyncer_Dispatcher(t *testing.T) {
 	resyncNotifCh := make(chan struct{}, 1)
 	orgManager := newOrgManager(db, "", nil, nil)
 	resyncBuf := newResyncBuffer(db, resyncNotifCh)
-	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotifCh, 10)
+	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotifCh, 10, newTestMetrics(t))
 
 	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",

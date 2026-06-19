@@ -46,8 +46,8 @@ func TestCrawler(t *testing.T) {
 	resyncNotifCh := make(chan struct{}, 1)
 	orgManager := newOrgManager(db, "", nil, nil)
 	resyncBuf := newResyncBuffer(db, resyncNotifCh)
-	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
+	sub := newSubscriber(db, orgManager, resyncBuf, newTestMetrics(t))
+	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh, newTestMetrics(t))
 
 	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",
@@ -109,8 +109,8 @@ func TestCrawler_Error(t *testing.T) {
 	resyncNotifCh := make(chan struct{}, 1)
 	orgManager := newOrgManager(db, "", nil, nil)
 	resyncBuf := newResyncBuffer(db, resyncNotifCh)
-	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
+	sub := newSubscriber(db, orgManager, resyncBuf, newTestMetrics(t))
+	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh, newTestMetrics(t))
 
 	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",
@@ -136,4 +136,11 @@ func openTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, autoMigrate(db))
 	return db
+}
+
+func newTestMetrics(t *testing.T) *metrics {
+	t.Helper()
+	m, err := newMetrics(nil, nil)
+	require.NoError(t, err)
+	return m
 }

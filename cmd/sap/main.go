@@ -11,7 +11,9 @@ import (
 	"syscall"
 
 	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -47,6 +49,12 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 	slog.SetLogLoggerLevel(logLevel)
 
+	otelShutdown, err := telemetry.SetupOpenTelemetry(ctx)
+	if err != nil {
+		return fmt.Errorf("setup opentelemetry: %w", err)
+	}
+	defer func() { _ = otelShutdown(context.Background()) }()
+
 	db, err := setupDatabase(cmd.String(fDb))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
@@ -56,6 +64,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		DB:           db,
 		PublicDomain: cmd.String(fDomain),
 		Secret:       cmd.String(fSecret),
+		Meter:        otel.Meter("sap"),
+		Tracer:       otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
