@@ -86,6 +86,9 @@ type storeImpl struct {
 	// set by Bootstrap. It is never written to the database.
 	passwordHash string
 
+	// Signing secret for sessions
+	secret []byte
+
 	sessions *sessions.CookieStore
 	db       *gorm.DB
 	domain   string
@@ -94,8 +97,8 @@ type storeImpl struct {
 var _ AdminStore = (*storeImpl)(nil)
 var _ PolicyStore = (*storeImpl)(nil)
 
-func NewStore(db *gorm.DB, key []byte, domain, passwordHash string) (*storeImpl, error) {
-	cookieStore := sessions.NewCookieStore(key)
+func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeImpl, error) {
+	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/admin",
 		MaxAge:   int(sessionDuration.Seconds()),
@@ -109,6 +112,7 @@ func NewStore(db *gorm.DB, key []byte, domain, passwordHash string) (*storeImpl,
 
 	return &storeImpl{
 		passwordHash: passwordHash,
+		secret:       secret,
 		sessions:     cookieStore,
 		domain:       domain,
 		db:           db,
@@ -171,28 +175,15 @@ func (s *storeImpl) getOrCreateSettings(ctx context.Context) (*instanceSettings,
 		return nil, err
 	}
 
-	secret, err := generateSigningSecret()
-	if err != nil {
-		return nil, err
-	}
 	settings = instanceSettings{
 		ID:                instanceSettingsID,
 		OrgCreationPolicy: policyOpen,
-		SigningSecret:     secret,
-		CreatedAt:         time.Now(),
+		SigningSecret:     base64.StdEncoding.EncodeToString(s.secret),
 	}
 	if err := s.db.WithContext(ctx).Create(&settings).Error; err != nil {
 		return nil, err
 	}
 	return &settings, nil
-}
-
-func generateSigningSecret() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(b), nil
 }
 
 func (s *storeImpl) GetSettings(ctx context.Context) (string, InvitePolicy, error) {
@@ -263,9 +254,7 @@ func (s *storeImpl) IssueInvite(ctx context.Context) (string, error) {
 	expiresAt := now.Add(inviteDuration)
 
 	invite := instanceInvite{
-		Token:     jti,
-		CreatedAt: now,
-		ExpiresAt: expiresAt,
+		Token: jti,
 	}
 	if err := s.db.WithContext(ctx).Create(&invite).Error; err != nil {
 		return "", err
@@ -319,7 +308,7 @@ func (s *storeImpl) checkInvite(ctx context.Context, token string) (*instanceInv
 	if err := s.db.WithContext(ctx).Where("token = ?", claims.ID).First(&invite).Error; err != nil {
 		return nil, ErrInvalidInvite
 	}
-	if invite.UsedAt != nil || invite.ExpiresAt.Before(time.Now()) {
+	if invite.UsedAt != nil {
 		return nil, ErrInvalidInvite
 	}
 

@@ -27,6 +27,8 @@ interface FormValues {
   login_method: "password" | "atproto" | "google";
   login_id: string;
   handle_subdomain: string;
+  use_custom_instance: boolean;
+  custom_domain: string;
 }
 
 interface DecodedInvite {
@@ -65,14 +67,37 @@ function CreateOrgPage() {
   const { token } = Route.useSearch();
   const invite = token ? decodeInviteToken(token) : null;
 
-  const [useCustomInstance, setUseCustomInstance] = useState(false);
-  const [customDomain, setCustomDomain] = useState("");
   const [customInstanceName, setCustomInstanceName] = useState<string | null>(
     null,
   );
   const [customInstanceError, setCustomInstanceError] = useState<string | null>(
     null,
   );
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    setValue,
+    watch,
+    formState: { isSubmitting, errors },
+    control,
+  } = useForm<FormValues>({
+    defaultValues: {
+      admin_handle: "admin",
+      admin_password: "",
+      handle_subdomain: "acmecorp",
+      name: "My Organization",
+      login_method: "password",
+      login_id: "",
+      use_custom_instance: false,
+      custom_domain: "",
+    },
+  });
+
+  const loginMethod = watch("login_method");
+  const useCustomInstance = watch("use_custom_instance");
+  const customDomain = watch("custom_domain");
 
   useEffect(() => {
     if (invite || !useCustomInstance || !customDomain) {
@@ -108,27 +133,6 @@ function CreateOrgPage() {
     : useCustomInstance
       ? customDomain
       : __HABITAT_DOMAIN__;
-
-  const {
-    register,
-    handleSubmit,
-    setError,
-    setValue,
-    watch,
-    formState: { isSubmitting, errors },
-    control,
-  } = useForm<FormValues>({
-    defaultValues: {
-      admin_handle: "admin",
-      admin_password: "",
-      handle_subdomain: "acmecorp",
-      name: "My Organization",
-      login_method: "password",
-      login_id: "",
-    },
-  });
-
-  const loginMethod = watch("login_method");
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -176,7 +180,9 @@ function CreateOrgPage() {
               <ToggleGroup
                 variant="outline"
                 value={[useCustomInstance ? "custom" : "managed"]}
-                onValueChange={(v) => setUseCustomInstance(v[0] === "custom")}
+                onValueChange={(v) =>
+                  setValue("use_custom_instance", v[0] === "custom")
+                }
               >
                 <ToggleGroupItem value="managed">
                   Managed hosting by Habitat
@@ -189,8 +195,7 @@ function CreateOrgPage() {
                 <>
                   <Input
                     placeholder="myinstance.example.com"
-                    value={customDomain}
-                    onChange={(e) => setCustomDomain(e.target.value)}
+                    {...register("custom_domain")}
                   />
                   {customInstanceName ? (
                     <Input value={customInstanceName} disabled />

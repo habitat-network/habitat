@@ -20,6 +20,5 @@ type instanceSettings struct {
 type instanceInvite struct {
 	Token     string `gorm:"primaryKey"`
 	CreatedAt time.Time
-	ExpiresAt time.Time
 	UsedAt    *time.Time
 }
