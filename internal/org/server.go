@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	instance "github.com/habitat-network/habitat/internal/instanceadmin"
+	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"

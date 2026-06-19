@@ -14,7 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	instance "github.com/habitat-network/habitat/internal/instanceadmin"
+	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

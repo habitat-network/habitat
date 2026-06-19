@@ -311,7 +311,7 @@ func (s *storeImpl) checkInvite(ctx context.Context, token string) (*instanceInv
 	if err := parsed.Claims(secret, &claims); err != nil {
 		return nil, ErrInvalidInvite
 	}
-	if err := claims.Claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
+	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
 		return nil, ErrInvalidInvite
 	}
 

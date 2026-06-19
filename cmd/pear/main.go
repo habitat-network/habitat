@@ -38,7 +38,7 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	instance "github.com/habitat-network/habitat/internal/instanceadmin"
+	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
