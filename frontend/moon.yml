@@ -23,8 +23,6 @@ tasks:
   dev-all:
     deps:
       - target: ~:dev
-      - target: greensky:dev
-      - target: calendar:dev
       - target: docs:dev
     options:
       persistent: true
@@ -32,14 +30,6 @@ tasks:
   gh-pages:
     deps:
       - target: ~:build
-      - target: calendar:build
-        env:
-          DOMAIN: ${DOMAIN}/calendar
-          OUT_DIR: $projectRoot/dist/calendar
-      - target: greensky:build
-        env:
-          DOMAIN: ${DOMAIN}/greensky
-          OUT_DIR: $projectRoot/dist/greensky
       - target: docs:build
         env:
           DOMAIN: ${DOMAIN}/docs
