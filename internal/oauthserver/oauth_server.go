@@ -42,6 +42,12 @@ type authRequestFlash struct {
 	Form          url.Values // Original authorization request form data
 	ProviderState []byte     // Opaque provider-specific state
 	Did           syntax.DID // DID of the user
+
+	// RequiresConsent is true when Did belongs to an org rather than an
+	// individual member: an admin authenticated on the org's behalf, so the
+	// admin must explicitly consent to the client's request before an
+	// authorization code is issued.
+	RequiresConsent bool
 }
 
 type metrics struct {
@@ -169,6 +175,11 @@ type OAuthServer struct {
 	flashMu    sync.Mutex
 	flashStore map[string]*authRequestFlash
 
+	// Store a map of opaque cookie id --> flash between Callback and the consent
+	// page, for org DID logins that require admin consent before code issuance.
+	consentMu    sync.Mutex
+	consentStore map[string]*consentFlash
+
 	// Org store for membership lookups
 	orgStore org.Store
 }
@@ -232,11 +243,12 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		loginRouter: loginRouter,
-		flashStore:  make(map[string]*authRequestFlash),
-		directory:   directory,
-		storage:     storage,
-		orgStore:    orgStore,
+		loginRouter:  loginRouter,
+		flashStore:   make(map[string]*authRequestFlash),
+		consentStore: make(map[string]*consentFlash),
+		directory:    directory,
+		storage:      storage,
+		orgStore:     orgStore,
 	}, nil
 }
 
@@ -314,6 +326,23 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
+	// Org DID logins are completed by an admin acting on the org's behalf, so
+	// they require an explicit consent step before an authorization code is
+	// issued. Member DID logins do not.
+	_, err = o.orgStore.GetOrg(ctx, id.DID)
+	requiresConsent := err == nil
+	if err != nil && !errors.Is(err, org.ErrOrgNotFound) {
+		o.metrics.authorizeErr(ctx, err, "lookup_org")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to look up organization",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	// Generate opaque flash id to store in cookie
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -331,9 +360,10 @@ func (o *OAuthServer) HandleAuthorize(
 
 	o.flashMu.Lock()
 	o.flashStore[flashID] = &authRequestFlash{
-		Form:          requester.GetRequestForm(),
-		ProviderState: providerState,
-		Did:           id.DID,
+		Form:            requester.GetRequestForm(),
+		ProviderState:   providerState,
+		Did:             id.DID,
+		RequiresConsent: requiresConsent,
 	}
 	o.flashMu.Unlock()
 
@@ -401,19 +431,7 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
-	if err != nil {
-		o.metrics.callbackErr(ctx, err, "recreate_req")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to recreate request",
-			http.StatusBadRequest,
-		)
-		return
-	}
-	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
+	authRequest, err := o.recreateAuthorizeRequest(ctx, arf.Form)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
 		utils.LogAndHTTPError(
@@ -444,6 +462,11 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
+	if arf.RequiresConsent {
+		o.beginConsent(w, r, arf.Form, arf.Did)
+		return
+	}
+
 	resp, err := o.provider.NewAuthorizeResponse(
 		ctx,
 		authRequest,
@@ -462,6 +485,20 @@ func (o *OAuthServer) HandleCallback(
 	}
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
+}
+
+// recreateAuthorizeRequest rebuilds a fosite authorize request from the
+// original request form data, e.g. data preserved in a flash across a
+// redirect.
+func (o *OAuthServer) recreateAuthorizeRequest(
+	ctx context.Context,
+	form url.Values,
+) (fosite.AuthorizeRequester, error) {
+	req, err := http.NewRequest(http.MethodGet, "/?"+form.Encode(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("recreate request: %w", err)
+	}
+	return o.provider.NewAuthorizeRequest(ctx, req)
 }
 
 // HandleToken processes OAuth 2.0 token requests from the client.

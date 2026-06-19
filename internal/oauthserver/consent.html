@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authorize access</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fafafa;
+      color: #171717;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    .card {
+      width: 380px;
+      padding: 2rem;
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.625rem;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .app {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .app img {
+      width: 40px;
+      height: 40px;
+      border-radius: 0.5rem;
+      object-fit: contain;
+    }
+    h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+    .subtitle {
+      margin: 0 0 1.5rem;
+      font-size: 0.875rem;
+      color: #737373;
+      word-break: break-all;
+    }
+    .scopes {
+      margin: 0 0 1.5rem;
+      padding: 0.75rem 1rem;
+      background: #f5f5f5;
+      border-radius: 0.5rem;
+      font-size: 0.8125rem;
+    }
+    .scopes p {
+      margin: 0 0 0.5rem;
+      font-weight: 500;
+    }
+    .scopes ul {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+    .actions {
+      display: flex;
+      gap: 0.625rem;
+    }
+    button {
+      flex: 1;
+      padding: 0.5rem 0.625rem;
+      border: none;
+      border-radius: 0.5rem;
+      background: #171717;
+      color: #fafafa;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #353535;
+    }
+    button.secondary {
+      background: #f5f5f5;
+      color: #171717;
+      border: 1px solid #e5e5e5;
+    }
+    button.secondary:hover {
+      background: #ececec;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="app">
+      {{if .LogoUri}}<img src="{{.LogoUri}}" alt="">{{end}}
+      <h1>{{if .ClientName}}{{.ClientName}}{{else}}{{.ClientUri}}{{end}}</h1>
+    </div>
+    <p class="subtitle">wants to access your organization ({{.OrgDID}})</p>
+    {{if .Scopes}}
+    <div class="scopes">
+      <p>This will allow access to:</p>
+      <ul>
+        {{range .Scopes}}<li>{{.}}</li>{{end}}
+      </ul>
+    </div>
+    {{end}}
+    <form method="POST" action="/oauth/consent" class="actions">
+      <button type="submit" name="decision" value="deny" class="secondary">Deny</button>
+      <button type="submit" name="decision" value="allow">Allow</button>
+    </form>
+  </main>
+</body>
+</html>
