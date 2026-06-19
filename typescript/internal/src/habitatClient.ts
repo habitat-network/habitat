@@ -43,6 +43,7 @@ import type {
   NetworkHabitatSpaceRemoveMember,
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
+  NetworkHabitatInstanceDescribeInstance,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -54,6 +55,15 @@ type Query<
   params: Params;
   output: Output;
   unauthenticated?: false;
+};
+
+type UnauthedQuery<
+  Params extends Record<string, string | number | boolean | string[]>,
+  Output,
+> = {
+  params: Params;
+  output: Output;
+  unauthenticated: true;
 };
 
 type QueryEndpoints = {
@@ -136,6 +146,10 @@ type QueryEndpoints = {
   "network.habitat.space.listSpaces": Query<
     NetworkHabitatSpaceListSpaces.QueryParams,
     NetworkHabitatSpaceListSpaces.OutputSchema
+  >;
+  "network.habitat.instance.describeInstance": UnauthedQuery<
+    NetworkHabitatInstanceDescribeInstance.QueryParams,
+    NetworkHabitatInstanceDescribeInstance.OutputSchema
   >;
 };
 
@@ -270,19 +284,22 @@ type ProcedureOptions<T extends keyof ProcedureEndpoints> =
 export class XRPCError extends Error {
   public status: number;
   public error: string;
-  public message: string;
-  constructor(status: number, response: { error: string; message: string }) {
+  constructor(status: number, response: { error: string }) {
     super(response.error);
     this.status = status;
     this.error = response.error;
-    this.message = response.message;
   }
 }
+
+type QueryOptions<T extends keyof QueryEndpoints> =
+  QueryEndpoints[T]["unauthenticated"] extends true
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
   params: QueryEndpoints[T]["params"],
-  options: AuthedOptions,
+  options: QueryOptions<T>,
 ): Promise<QueryEndpoints[T]["output"]> => {
   const queryParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -295,13 +312,16 @@ export const query = async <T extends keyof QueryEndpoints>(
       queryParams.set(key, value.toString());
     }
   }
-  const response = await options.authManager.fetch(
-    "/xrpc/" + endpoint + "?" + queryParams.toString(),
-    "GET",
-    null,
-    options.headers,
-    options.fetchOptions,
-  );
+  const path = "/xrpc/" + endpoint + "?" + queryParams.toString();
+  const response = options.unauthenticated
+    ? await fetch(`https://${(options as UnauthedOptions).domain}${path}`)
+    : await (options as AuthedOptions).authManager.fetch(
+        path,
+        "GET",
+        null,
+        options.headers,
+        (options as AuthedOptions).fetchOptions,
+      );
   try {
     const data = await response.json();
     if (!response.ok) {
