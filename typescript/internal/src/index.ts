@@ -44,6 +44,9 @@ export {
 } from "./habitatClient";
 export type { TypedRecord } from "./habitatClient";
 export { default as GranteeAvatars } from "./components/GranteeAvatars";
+export { describeInstance } from "./components/instanceQueries";
+export { HostingSelector } from "./components/HostingSelector";
+export { LoginForm } from "./components/LoginForm";
 
 // Utilities
 export { default as clientMetadata } from "./clientMetadata";

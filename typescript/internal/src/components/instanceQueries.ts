@@ -1,4 +1,4 @@
-import { query } from "internal";
+import { query } from "../habitatClient";
 import type { NetworkHabitatInstanceDescribeInstance } from "api";
 
 export function describeInstance(

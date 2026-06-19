@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AuthForm } from "internal";
+import { LoginForm } from "internal";
 
 export const Route = createFileRoute("/login")({
   component() {
     const { authManager } = Route.useRouteContext();
     return (
-      <AuthForm
+      <LoginForm
         authManager={authManager}
         redirectUrl={`https://${__DOMAIN__}`}
+        defaultDomain={__HABITAT_DOMAIN__}
       />
     );
   },
