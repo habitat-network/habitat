@@ -93,7 +93,7 @@ func NewStore(db *gorm.DB, key []byte, domain, passwordHash string) (Store, erro
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	}
-	if err := db.AutoMigrate(&instanceSettings{}); err != nil {
+	if err := db.AutoMigrate(&instanceSettings{}, &instanceInvite{}); err != nil {
 		return nil, err
 	}
 
