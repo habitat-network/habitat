@@ -4,19 +4,18 @@ package oauthserver
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/org"
@@ -34,6 +33,10 @@ const (
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
 )
+
+func init() {
+	gob.Register(authRequestFlash{})
+}
 
 // authRequestFlash stores the authorization request state in a session flash.
 // This data is temporarily stored during the OAuth authorization flow to preserve
@@ -165,12 +168,11 @@ type OAuthServer struct {
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
-	// Store a map of opaque cookie id --> flash between Authorize and Callback since session cookies have a size limit
-	flashMu    sync.Mutex
-	flashStore map[string]*authRequestFlash
-
 	// Org store for membership lookups
 	orgStore org.Store
+
+	// Session store for OAuth flash data across redirects
+	sessionStore sessions.Store
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -221,6 +223,14 @@ func NewOAuthServer(
 		loginRouter.OrgStore = orgStore
 	}
 
+	cookieStore := sessions.NewCookieStore(secret)
+	cookieStore.Options = &sessions.Options{
+		Path:     "/oauth-callback",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	}
+
 	return &OAuthServer{
 		metrics: oauthMetrics,
 		provider: compose.Compose(
@@ -232,11 +242,11 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		loginRouter: loginRouter,
-		flashStore:  make(map[string]*authRequestFlash),
-		directory:   directory,
-		storage:     storage,
-		orgStore:    orgStore,
+		loginRouter:  loginRouter,
+		sessionStore: cookieStore,
+		directory:    directory,
+		storage:      storage,
+		orgStore:     orgStore,
 	}, nil
 }
 
@@ -314,37 +324,34 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	// Generate opaque flash id to store in cookie
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		o.metrics.authorizeErr(ctx, err, "gen_flash_id")
+	session, err := o.sessionStore.New(r, sessionName)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "new_session")
 		utils.LogAndHTTPError(
 			ctx,
 			w,
 			err,
-			"failed to generate session id",
+			"failed to create session",
 			http.StatusInternalServerError,
 		)
 		return
 	}
-	flashID := hex.EncodeToString(b)
-
-	o.flashMu.Lock()
-	o.flashStore[flashID] = &authRequestFlash{
+	session.AddFlash(&authRequestFlash{
 		Form:          requester.GetRequestForm(),
 		ProviderState: providerState,
 		Did:           id.DID,
-	}
-	o.flashMu.Unlock()
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionName,
-		Value:    flashID,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-		Path:     "/oauth-callback",
 	})
+	if err := o.sessionStore.Save(r, w, session); err != nil {
+		o.metrics.authorizeErr(ctx, err, "save_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to save session",
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 	o.metrics.authorizeSuccess(ctx)
@@ -370,26 +377,21 @@ func (o *OAuthServer) HandleCallback(
 	r *http.Request,
 ) {
 	ctx := r.Context()
-	cookie, err := r.Cookie(sessionName)
+	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "get_session")
 		utils.LogAndHTTPError(
 			ctx,
 			w,
 			err,
-			"failed to get session cookie",
+			"failed to get session",
 			http.StatusBadRequest,
 		)
 		return
 	}
 
-	// Lookup cookie --> flash
-	o.flashMu.Lock()
-	arf, ok := o.flashStore[cookie.Value]
-	delete(o.flashStore, cookie.Value)
-	o.flashMu.Unlock()
-
-	if !ok {
+	flashes := session.Flashes()
+	if len(flashes) == 0 {
 		o.metrics.callbackErr(ctx, nil, "no_flash")
 		utils.LogAndHTTPError(
 			ctx,
@@ -397,6 +399,31 @@ func (o *OAuthServer) HandleCallback(
 			nil,
 			"no state found for session",
 			http.StatusBadRequest,
+		)
+		return
+	}
+	arf, ok := flashes[0].(authRequestFlash)
+	if !ok {
+		o.metrics.callbackErr(ctx, nil, "invalid_flash_type")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			nil,
+			"invalid session data",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	session.Options.MaxAge = -1
+	if err := o.sessionStore.Save(r, w, session); err != nil {
+		o.metrics.callbackErr(ctx, err, "delete_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to clear session",
+			http.StatusInternalServerError,
 		)
 		return
 	}
