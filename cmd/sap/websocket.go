@@ -32,7 +32,7 @@ type outboxAck struct {
 
 // handleOutboxChannel streams outbox events to a connected websocket client
 // in delivery order. A message is held until the client acks it by ID; only
-// once acked is it marked processed so [sap.Outbox.Poll] stops redelivering
+// once acked is it marked processed so [sap.Sap.Poll] stops redelivering
 // it. Unacked messages (e.g. the client disconnects) are redelivered on the
 // next connection.
 func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
@@ -62,13 +62,10 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	outbox := s.sap.Outbox()
-	watch := outbox.Watch()
-
 	pending := map[uint]sap.OutboxMessage{}
 	for {
 		if len(pending) == 0 {
-			msgs, err := outbox.Poll(ctx, outboxPollLimit)
+			msgs, err := s.sap.Poll(ctx, outboxPollLimit)
 			if err != nil {
 				slog.ErrorContext(ctx, "poll outbox", "err", err)
 				return
@@ -99,7 +96,7 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			delete(pending, id)
-		case <-watch:
+		case <-s.sap.Watch():
 		}
 	}
 }

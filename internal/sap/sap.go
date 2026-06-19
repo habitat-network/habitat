@@ -20,18 +20,18 @@ type Sap interface {
 	AddOrg(ctx context.Context, orgIdenitifier string) (redirectURL string, err error)
 	ListOrgs(ctx context.Context) ([]syntax.DID, error)
 	// Outbox exposes durable, ordered delivery of repo events to library consumers.
-	Outbox() Outbox
+	Outbox
 }
 
 type sapImpl struct {
 	*orgManager
+	Outbox
 	db         *gorm.DB
 	pathPrefix string
 	sub        *subscriber
 	resyncBuf  *resyncBuffer
 	resyncer   *resyncer
 	crawler    *crawler
-	outbox     Outbox
 }
 
 type SapConfig struct {
@@ -76,18 +76,14 @@ func NewSap(config SapConfig) (Sap, error) {
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
+		Outbox:     outbox,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
 		sub:        sub,
 		resyncBuf:  resyncBuf,
 		resyncer:   resyncer,
 		crawler:    crawler,
-		outbox:     outbox,
 	}, nil
-}
-
-func (s *sapImpl) Outbox() Outbox {
-	return s.outbox
 }
 
 func (s *sapImpl) Start(ctx context.Context) error {

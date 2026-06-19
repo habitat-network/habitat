@@ -93,7 +93,7 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "expected message to be acked")
 
 	// Once acked, the message must no longer be a candidate for delivery.
-	remaining, err := s.Outbox().Poll(t.Context(), 10)
+	remaining, err := s.Poll(t.Context(), 10)
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 }
