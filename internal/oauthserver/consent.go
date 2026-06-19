@@ -16,6 +16,10 @@ import (
 
 const (
 	consentSessionName = "consent-session"
+	// consentPath scopes the consent cookie to the consent page. It must stay
+	// in sync between session creation and invalidation, since a Set-Cookie
+	// only clears a cookie with a matching path.
+	consentPath = "/oauth/consent"
 
 	consentFormKey = "form"
 	consentDidKey  = "did"
@@ -69,7 +73,7 @@ func (o *OAuthServer) beginConsent(
 		return
 	}
 	session.Options = &sessions.Options{
-		Path:     "/oauth/consent",
+		Path:     consentPath,
 		MaxAge:   int(consentMaxAge.Seconds()),
 		HttpOnly: true,
 		Secure:   true,
@@ -89,7 +93,7 @@ func (o *OAuthServer) beginConsent(
 		return
 	}
 
-	http.Redirect(w, r, "/oauth/consent", http.StatusSeeOther)
+	http.Redirect(w, r, consentPath, http.StatusSeeOther)
 }
 
 // lookupConsent reads the consent cookie session off r. If pop is true, the
@@ -116,6 +120,11 @@ func (o *OAuthServer) lookupConsent(
 
 	if pop {
 		clear(session.Values)
+		// Get() loads Options from the store's defaults rather than whatever
+		// was set in beginConsent (Options aren't part of the encoded
+		// cookie), so Path must be set again here: a Set-Cookie only clears
+		// a cookie when its path matches the one it was created with.
+		session.Options.Path = consentPath
 		session.Options.MaxAge = -1
 		if err := session.Save(r, w); err != nil {
 			return nil, err

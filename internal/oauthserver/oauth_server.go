@@ -31,6 +31,11 @@ const (
 	// this is the cookie name.
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
+	// sessionPath scopes the flash cookie to the callback endpoint that
+	// consumes it. It must stay in sync between session creation and
+	// invalidation, since a Set-Cookie only clears a cookie with a matching
+	// path.
+	sessionPath = "/oauth-callback"
 
 	flashFormKey            = "form"
 	flashProviderStateKey   = "provider_state"
@@ -178,14 +183,14 @@ type OAuthServer struct {
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
+	// Org store for membership lookups
+	orgStore org.Store
+
 	// sessionStore carries short-lived OAuth flow state across redirects (the
 	// pending authorize request between Authorize and Callback, and again
 	// between Callback and the consent page for org DID logins) in signed,
 	// encrypted cookies rather than server-side memory.
 	sessionStore sessions.Store
-
-	// Org store for membership lookups
-	orgStore org.Store
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -362,7 +367,7 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 	session.Options = &sessions.Options{
-		Path:     "/oauth-callback",
+		Path:     sessionPath,
 		MaxAge:   int(flashMaxAge.Seconds()),
 		HttpOnly: true,
 		Secure:   true,
@@ -502,6 +507,11 @@ func (o *OAuthServer) popFlash(
 	requiresConsent, _ := session.Values[flashRequiresConsentKey].(bool)
 
 	clear(session.Values)
+	// Get() loads Options from the store's defaults rather than whatever was
+	// set in HandleAuthorize (Options aren't part of the encoded cookie), so
+	// Path must be set again here: a Set-Cookie only clears a cookie when its
+	// path matches the one it was created with.
+	session.Options.Path = sessionPath
 	session.Options.MaxAge = -1
 	if err := session.Save(r, w); err != nil {
 		return nil, err

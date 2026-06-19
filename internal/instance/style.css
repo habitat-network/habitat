@@ -36,6 +36,11 @@
     font-size: 0.875rem;
     color: #b91c1c;
   }
+  .success {
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
+    color: #15803d;
+  }
   label {
     display: block;
     margin-bottom: 0.375rem;

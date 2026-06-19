@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
@@ -36,7 +38,7 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	"github.com/habitat-network/habitat/internal/instanceadmin"
+	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
@@ -135,30 +137,20 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
+	passwordHash, err := setupInstanceAdminPassword(cmd)
 	// Reuse the oauth server secret
-	instanceAdminStore, err := instanceadmin.NewStore(oauthSecret)
+	instanceAdminStore, err := instance.NewStore(
+		db.WithContext(startupCtx),
+		oauthSecret,
+		fDomain,
+		passwordHash,
+	)
 	if err != nil {
 		slog.Error("unable to setup instance admin store", "err", err)
 		os.Exit(1)
 	}
-	adminPassword, adminGenerated, err := instanceAdminStore.Bootstrap(
-		startupCtx,
-		cmd.String(fAdminPassword),
-	)
-	if err != nil {
-		slog.Error("unable to bootstrap instance admin", "err", err)
-		os.Exit(1)
-	}
-	if adminGenerated {
-		slog.Warn(
-			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
-			"username",
-			"admin",
-			"password",
-			adminPassword,
-		)
-	}
-	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore)
+
+	instanceAdminServer := instance.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -330,7 +322,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pear := pear.NewPear(hiveDir, permissions, repo)
 	// Server for org management routes
-	orgServer, err := org.NewServer(orgStore, oauthServer, pear, domain, hiveDir)
+	orgServer, err := org.NewServer(
+		orgStore,
+		oauthServer,
+		pear,
+		domain,
+		hiveDir,
+		instanceAdminStore,
+	)
 	if err != nil {
 		slog.Error("unable to setup org server for domain", "err", err, "domain", domain)
 		os.Exit(1)
@@ -393,8 +392,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
-	mux.HandleFunc("/admin", instanceAdminServer.RequireSession(instanceAdminServer.ServeAdminHome)).
-		Methods("GET")
+	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
+	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.instance.describeInstance",
+		instanceAdminServer.DescribeInstance,
+	)
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
@@ -644,4 +649,30 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func setupInstanceAdminPassword(cmd *cli.Command) (string, error) {
+	pass := cmd.String(fAdminPassword)
+
+	// Generate a password on startup if not given
+	generate := pass == ""
+	if generate {
+		b := make([]byte, 24)
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		pass = string(b)
+		slog.Warn(
+			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
+			"username",
+			"admin",
+			"password",
+			pass,
+		)
+	}
+	passwordHash, err := argon2id.CreateHash(pass, argon2id.DefaultParams)
+	if err != nil {
+		return "", err
+	}
+	return passwordHash, nil
 }

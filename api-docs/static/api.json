@@ -17,6 +17,307 @@
     }
   ],
   "paths": {
+    "/network.habitat.admin.getSettings": {
+      "get": {
+        "tags": [
+          "network.habitat.admin"
+        ],
+        "summary": "network.habitat.admin.getSettings",
+        "description": "Get this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+        "operationId": "network.habitat.admin.getSettings",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "instanceName",
+                    "orgCreationPolicy"
+                  ],
+                  "properties": {
+                    "instanceName": {
+                      "type": "string",
+                      "description": "This instance's display name."
+                    },
+                    "orgCreationPolicy": {
+                      "type": "string",
+                      "description": "'open' or 'invite_only'."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.admin.issueInvite": {
+      "post": {
+        "tags": [
+          "network.habitat.admin"
+        ],
+        "summary": "network.habitat.admin.issueInvite",
+        "description": "Issue a single-use invite token for creating an org on this instance. Requires an authenticated instance admin session.",
+        "operationId": "network.habitat.admin.issueInvite",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "Signed, single-use invite token to embed in an org-creation link."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.admin.updateSettings": {
+      "post": {
+        "tags": [
+          "network.habitat.admin"
+        ],
+        "summary": "network.habitat.admin.updateSettings",
+        "description": "Update this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+        "operationId": "network.habitat.admin.updateSettings",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "instanceName": {
+                    "type": "string",
+                    "description": "This instance's display name. Omit to leave unchanged."
+                  },
+                  "orgCreationPolicy": {
+                    "type": "string",
+                    "description": "'open' or 'invite_only'. Omit to leave unchanged."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "instanceName",
+                    "orgCreationPolicy"
+                  ],
+                  "properties": {
+                    "instanceName": {
+                      "type": "string"
+                    },
+                    "orgCreationPolicy": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.clique.addMembers": {
       "post": {
         "tags": [
@@ -547,6 +848,102 @@
         }
       }
     },
+    "/network.habitat.instance.describeInstance": {
+      "get": {
+        "tags": [
+          "network.habitat.instance"
+        ],
+        "summary": "network.habitat.instance.describeInstance",
+        "description": "Get public info about this instance. Modeled on com.atproto.server.describeServer. No authentication required.",
+        "operationId": "network.habitat.instance.describeInstance",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "inviteRequired"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "This instance's manager-configured display name."
+                    },
+                    "inviteRequired": {
+                      "type": "boolean",
+                      "description": "Whether creating an org on this instance requires an invite token."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.internal.notifyOfUpdate": {
       "post": {
         "tags": [
@@ -985,6 +1382,10 @@
                   "login_id": {
                     "type": "string",
                     "description": "Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'."
+                  },
+                  "invite_token": {
+                    "type": "string",
+                    "description": "Single-use invite token from an instance admin, required when the instance's org creation policy is invite_only."
                   }
                 }
               }
@@ -5270,6 +5671,9 @@
   },
   "tags": [
     {
+      "name": "network.habitat.admin"
+    },
+    {
       "name": "network.habitat.clique"
     },
     {
@@ -5277,6 +5681,9 @@
     },
     {
       "name": "network.habitat.grantee"
+    },
+    {
+      "name": "network.habitat.instance"
     },
     {
       "name": "network.habitat.internal"

@@ -131,7 +131,7 @@ func TestSap(t *testing.T) {
 
 	resp, err := client.Get(redirectURL)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("Expected 200 but got %d. Body: %s", resp.StatusCode, string(body))
@@ -261,7 +261,7 @@ func setupPear(
 
 	eventStore, err := events.NewStore(db)
 	if err != nil {
-		slog.Error("unable to setup event store", "err", err)
+		slog.ErrorContext(t.Context(), "unable to setup event store", "err", err)
 		os.Exit(1)
 	}
 
@@ -269,7 +269,7 @@ func setupPear(
 
 	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore)
 	if err != nil {
-		slog.Error("unable to setup spaces store", "err", err)
+		slog.ErrorContext(t.Context(), "unable to setup spaces store", "err", err)
 		os.Exit(1)
 	}
 	spacesServer := spaces.NewServer(

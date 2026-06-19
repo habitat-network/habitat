@@ -20,7 +20,7 @@ import (
 
 func main() {
 	if err := run(os.Args); err != nil {
-		slog.Error("error running command", "err", err)
+		slog.ErrorContext(context.Background(), "error running command", "err", err)
 		os.Exit(1)
 	}
 }
