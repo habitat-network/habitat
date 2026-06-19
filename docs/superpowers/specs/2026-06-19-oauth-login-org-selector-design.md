@@ -12,9 +12,11 @@ Separately, when a user is redirected to `/oauth-login` right after creating an 
 - Pre-fill that selection when arriving from `org/create.tsx` after creating an org.
 - Reuse the existing "Managed hosting by Habitat" vs "Custom instance" pattern already built for `org/create.tsx`, rather than inventing a new UI.
 
+- Let `docs` reuse the same login UI (selector + handle form) as `frontend`, since both are actively maintained Habitat apps, without duplicating the selector/lookup logic.
+
 ## Non-goals
 
-- `calendar`, `greensky`, and `docs` apps' login pages do not get an org selector. They keep logging in against `__HABITAT_DOMAIN__` only.
+- `calendar` and `greensky` apps' login pages do not get an org selector. They keep logging in against `__HABITAT_DOMAIN__` only, and are otherwise unaffected beyond the `AuthManager` signature change in section 1.
 - No change to how orgs are created, joined, or to the org-create/join backend APIs.
 
 ## Design
@@ -33,36 +35,56 @@ Change:
 
 ### 2. Call site updates for non-selector apps
 
-`calendar`, `greensky`, `docs`:
+`calendar`, `greensky`:
 - `main.tsx`: `new AuthManager(appName, __DOMAIN__, onUnauthenticated)` (drop the `__HABITAT_DOMAIN__` arg).
-- `routes/login.tsx`: pass `domain={__HABITAT_DOMAIN__}` to `<AuthForm />`.
+- `routes/login.tsx`: pass `domain={__HABITAT_DOMAIN__}` to `<AuthForm />`, unchanged otherwise (still plain `AuthForm`, no selector).
 
-### 3. Shared hosting-selector component
+### 3. Shared components, moved into `typescript/internal`
 
-Extract the existing inline "Hosting" `ToggleGroup` (managed vs custom) + custom-domain `Input` + `describeInstance` name lookup from `org/create.tsx` (lines ~70-129, ~178-211) into `frontend/src/components/HostingSelector.tsx`:
+Everything org-selector-related becomes shared so both `frontend` and `docs` can use it (`calendar`/`greensky` are untouched, per non-goals).
+
+**`typescript/internal/src/components/instanceQueries.ts`** (new) — move `describeInstance` here from `frontend/src/queries/instance.ts` (same implementation, just relocated so it's available to any app via `internal`). Delete the old `frontend/src/queries/instance.ts` and update its one caller (`org/create.tsx`) to import from `internal`.
+
+**`typescript/internal/src/components/HostingSelector.tsx`** (new) — extract the existing inline "Hosting" `ToggleGroup` (managed vs custom) + custom-domain `Input` + `describeInstance` name lookup from `org/create.tsx` (lines ~70-129, ~178-211):
 
 ```ts
 interface HostingSelectorProps {
+  defaultDomain: string; // the managed-hosting domain (app passes its __HABITAT_DOMAIN__)
   value: string; // resolved domain
   onChange: (domain: string) => void;
   disabled?: boolean; // e.g. when an invite token fixes the domain
 }
 ```
 
-Internally it owns the managed/custom toggle state and the `describeInstance` lookup effect (debounced via the existing `useEffect`/cancellation pattern), and calls `onChange` with the resolved domain (either `__HABITAT_DOMAIN__` or the typed custom domain) whenever it changes.
+Internally it owns the managed/custom toggle state and the `describeInstance` lookup effect (debounced via the existing `useEffect`/cancellation pattern), and calls `onChange` with the resolved domain (either `defaultDomain` or the typed custom domain) whenever it changes. Takes `defaultDomain` as a prop rather than reading `__HABITAT_DOMAIN__` directly, matching how `internal` already avoids referencing app-injected build globals (e.g. `AuthManager`/`clientMetadata` take `domain` as constructor args instead).
 
 `org/create.tsx` is updated to use this component for its existing "Hosting" field (the invite-token case, where the domain is fixed and displayed read-only, is unchanged — `HostingSelector` is simply not rendered when `invite` is set, same as today).
 
+**`typescript/internal/src/components/LoginForm.tsx`** (new) — composes `HostingSelector` + `AuthForm` into the full login page body:
+
+```ts
+interface LoginFormProps {
+  authManager: AuthManager;
+  redirectUrl: string;
+  defaultDomain: string; // the managed-hosting domain (app passes its __HABITAT_DOMAIN__)
+  serverError?: string;
+  defaultHandle?: string;
+  customDomain?: string; // pre-fill, e.g. from org/create.tsx redirect; if it differs from defaultDomain, the selector starts on "custom"
+}
+```
+
+It holds the resolved-domain state (seeded from `customDomain ?? defaultDomain`, with the toggle starting on "custom" iff `customDomain` is set and differs from `defaultDomain`), renders `HostingSelector` above the handle field, and renders `AuthForm` with that resolved domain. Both `HostingSelector` and `LoginForm` are exported from `internal`'s `index.ts`.
+
 ### 4. `AuthForm` (`typescript/internal/src/AuthForm.tsx`)
 
-Add a required `domain: string` prop. `loginUrl` is called as `authManager.loginUrl(handle, redirectUrl, domain)`.
+Add a required `domain: string` prop. `loginUrl` is called as `authManager.loginUrl(handle, redirectUrl, domain)`. (Used directly by `calendar`/`greensky`'s plain login pages, and internally by `LoginForm`.)
 
-### 5. `oauth-login.tsx`
+### 5. `oauth-login.tsx` (`frontend`) and `login.tsx` (`docs`)
 
-- `loginSearchSchema` gains `domain: z.string().optional()`.
-- Local state holds the resolved domain, initialized from the `domain` search param if present, else `__HABITAT_DOMAIN__`.
-- Renders `HostingSelector` above the handle field, wired to that state.
-- Passes the resolved domain to `<AuthForm domain={domain} .../>`.
+Both become thin wrappers around `LoginForm`:
+
+- `loginSearchSchema` (frontend) gains `domain: z.string().optional()`. `docs`'s `login.tsx` doesn't currently take search params, so it just omits `defaultHandle`/`customDomain`.
+- Each renders `<LoginForm authManager={authManager} redirectUrl={...} defaultDomain={__HABITAT_DOMAIN__} serverError={error} defaultHandle={handle} customDomain={domain} />`.
 
 ### 6. `org/create.tsx`
 
@@ -80,4 +102,5 @@ await navigate({
 - Manual: create an org with a custom instance domain (or via invite token), confirm redirect pre-selects that custom domain and OAuth authorize/token requests go to it.
 - Manual: visit `/oauth-login` directly with no search params, confirm managed hosting is the default and login still works.
 - Manual: switch the selector from managed to custom and back before submitting, confirm the authorize request goes to whichever domain is selected at submit time.
-- Verify `calendar`/`greensky`/`docs` login still works unchanged (no selector, always managed domain).
+- Manual: visit `docs`'s `/login` directly, confirm it shows the same selector and logs in to either managed or a custom domain.
+- Verify `calendar`/`greensky` login still works unchanged (no selector, always managed domain).
