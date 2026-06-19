@@ -44,8 +44,9 @@ func TestCrawler(t *testing.T) {
 
 	db := openTestDB(t)
 	resyncNotifCh := make(chan struct{}, 1)
+	outboxNotifCh := make(chan struct{}, 1)
 	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotifCh)
+	resyncBuf := newResyncBuffer(db, resyncNotifCh, outboxNotifCh)
 	sub := newSubscriber(db, orgManager, resyncBuf)
 	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
 
@@ -107,8 +108,9 @@ func TestCrawler_Error(t *testing.T) {
 
 	db := openTestDB(t)
 	resyncNotifCh := make(chan struct{}, 1)
+	outboxNotifCh := make(chan struct{}, 1)
 	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotifCh)
+	resyncBuf := newResyncBuffer(db, resyncNotifCh, outboxNotifCh)
 	sub := newSubscriber(db, orgManager, resyncBuf)
 	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
 

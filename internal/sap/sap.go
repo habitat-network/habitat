@@ -19,6 +19,8 @@ type Sap interface {
 	Start(ctx context.Context) error
 	AddOrg(ctx context.Context, orgIdenitifier string) (redirectURL string, err error)
 	ListOrgs(ctx context.Context) ([]syntax.DID, error)
+	// Outbox exposes durable, ordered delivery of repo events to library consumers.
+	Outbox() Outbox
 }
 
 type sapImpl struct {
@@ -29,6 +31,7 @@ type sapImpl struct {
 	resyncBuf  *resyncBuffer
 	resyncer   *resyncer
 	crawler    *crawler
+	outbox     Outbox
 }
 
 type SapConfig struct {
@@ -49,6 +52,7 @@ func NewSap(config SapConfig) (Sap, error) {
 	}
 
 	resyncNotifCh := make(chan struct{}, 1)
+	outboxNotifyCh := make(chan struct{}, 1)
 
 	dir := config.Directory
 	if dir == nil {
@@ -56,10 +60,18 @@ func NewSap(config SapConfig) (Sap, error) {
 	}
 
 	o := newOrgManager(config.DB, config.PublicDomain, secret, dir)
-	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh)
+	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh, outboxNotifyCh)
 	sub := newSubscriber(config.DB, o, resyncBuf)
-	resyncer := newResyncer(config.DB, o, resyncBuf, resyncNotifCh, config.ResyncParallelism)
+	resyncer := newResyncer(
+		config.DB,
+		o,
+		resyncBuf,
+		resyncNotifCh,
+		outboxNotifyCh,
+		config.ResyncParallelism,
+	)
 	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotifCh)
+	outbox := newOutbox(config.DB, outboxNotifyCh)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
@@ -70,7 +82,12 @@ func NewSap(config SapConfig) (Sap, error) {
 		resyncBuf:  resyncBuf,
 		resyncer:   resyncer,
 		crawler:    crawler,
+		outbox:     outbox,
 	}, nil
+}
+
+func (s *sapImpl) Outbox() Outbox {
+	return s.outbox
 }
 
 func (s *sapImpl) Start(ctx context.Context) error {
