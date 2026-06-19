@@ -100,7 +100,7 @@ var _ PolicyStore = (*storeImpl)(nil)
 func NewStore(db *gorm.DB, secret []byte, domain, passwordHash string) (*storeImpl, error) {
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
-		Path:     "/admin",
+		Path:     "/",
 		MaxAge:   int(sessionDuration.Seconds()),
 		HttpOnly: true,
 		Secure:   true,

@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Habitat instance admin</title>
-  <style>{{template "style.css"}}</style>
+  <style>{{ template "style.css" }}
+  </style>
 </head>
+
 <body>
   <main class="card">
     <h1>Habitat</h1>
     <p class="subtitle">Instance settings</p>
     <div id="error" class="error" style="display:none"></div>
+    <div id="success" class="success" style="display:none"></div>
     <label for="instanceName">Instance name</label>
     <input type="text" id="instanceName">
     <label for="policy">Org creation</label>
@@ -28,16 +32,24 @@
     </form>
   </main>
   <script>
-    const frontendDomain = {{.FrontendDomain}};
+    const frontendDomain = {{.FrontendDomain }};
     const errorEl = document.getElementById("error");
+    const successEl = document.getElementById("success");
     const nameEl = document.getElementById("instanceName");
     const policyEl = document.getElementById("policy");
     const inviteSection = document.getElementById("invite-section");
     const inviteLinkEl = document.getElementById("invite-link");
 
     function showError(msg) {
+      successEl.style.display = "none";
       errorEl.textContent = msg;
       errorEl.style.display = "block";
+    }
+
+    function showSuccess(msg) {
+      errorEl.style.display = "none";
+      successEl.textContent = msg;
+      successEl.style.display = "block";
     }
 
     function applyPolicy(policy) {
@@ -68,7 +80,10 @@
           if (!r.ok) throw new Error("save failed");
           return r.json();
         })
-        .then((data) => applyPolicy(data.orgCreationPolicy))
+        .then((data) => {
+          applyPolicy(data.orgCreationPolicy);
+          showSuccess("Successfully saved settings");
+        })
         .catch(() => showError("failed to save settings"));
     });
 
@@ -86,4 +101,5 @@
     });
   </script>
 </body>
+
 </html>
