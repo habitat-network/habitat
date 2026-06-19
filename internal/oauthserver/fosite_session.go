@@ -75,3 +75,31 @@ func newJWTSession(authSess *authSession) *oauth2.JWTSession {
 		JWTHeader: &jwt.Headers{},
 	}
 }
+
+// jwtBearerSession wraps oauth2.JWTSession so the subject set by fosite's
+// RFC 7523 (JWT Bearer) grant handler ends up in the issued access token.
+// That handler only calls Session.SetSubject, which oauth2.JWTSession stores
+// on its own Subject field — a field DefaultJWTStrategy never reads when
+// generating the token. The "sub" claim is instead read from JWTClaims.Subject,
+// so SetSubject is overridden here to keep both in sync.
+type jwtBearerSession struct {
+	*oauth2.JWTSession
+}
+
+// newJWTBearerSession creates the session passed into the token endpoint's
+// access request; it is only mutated by the RFC 7523 handler, other grant
+// types replace it outright with their own session loaded from storage.
+func newJWTBearerSession() *jwtBearerSession {
+	return &jwtBearerSession{
+		JWTSession: &oauth2.JWTSession{
+			JWTClaims: &jwt.JWTClaims{},
+			JWTHeader: &jwt.Headers{},
+		},
+	}
+}
+
+// SetSubject implements rfc7523.Session.
+func (s *jwtBearerSession) SetSubject(subject string) {
+	s.JWTSession.SetSubject(subject)
+	s.JWTClaims.Subject = subject
+}

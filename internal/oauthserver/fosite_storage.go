@@ -10,11 +10,13 @@ import (
 	"strings"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
+	"github.com/ory/fosite/handler/rfc7523"
 	"github.com/ory/fosite/storage"
 	"github.com/ory/fosite/token/jwt"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -22,9 +24,10 @@ import (
 )
 
 type store struct {
-	memoryStore *storage.MemoryStore
-	strategy    *strategy
-	db          *gorm.DB
+	memoryStore            *storage.MemoryStore
+	strategy               *strategy
+	db                     *gorm.DB
+	jwtBearerClientDomains []string
 }
 
 type OAuthSession struct {
@@ -44,16 +47,17 @@ type ConnectedApp struct {
 	UpdatedAt time.Time
 }
 
-func newStore(strat *strategy, db *gorm.DB) (*store, error) {
+func newStore(strat *strategy, db *gorm.DB, jwtBearerClientDomains []string) (*store, error) {
 	err := db.AutoMigrate(&OAuthSession{}, &ConnectedApp{})
 	if err != nil {
 		return nil, err
 	}
 	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
-		memoryStore: storage.NewMemoryStore(),
-		strategy:    strat,
-		db:          db,
+		memoryStore:            storage.NewMemoryStore(),
+		strategy:               strat,
+		db:                     db,
+		jwtBearerClientDomains: jwtBearerClientDomains,
 	}, nil
 }
 
@@ -62,6 +66,7 @@ var (
 	_ oauth2.CoreStorage            = (*store)(nil)
 	_ oauth2.TokenRevocationStorage = (*store)(nil)
 	_ pkce.PKCERequestStorage       = (*store)(nil)
+	_ rfc7523.RFC7523KeyStorage     = (*store)(nil)
 )
 
 // ClientAssertionJWTValid implements fosite.Storage.
@@ -71,6 +76,20 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 
 // GetClient implements fosite.Storage.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
+	metadata, err := s.fetchClientMetadata(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &client{*metadata}, nil
+}
+
+// fetchClientMetadata fetches and decodes the client metadata document
+// published at id (the client's client_id URL). See
+// https://atproto.com/specs/oauth#client-id-metadata-document.
+func (s *store) fetchClientMetadata(
+	ctx context.Context,
+	id string,
+) (*pdsclient.ClientMetadata, error) {
 	// TODO: consider caching
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
 	if err != nil {
@@ -92,7 +111,89 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode client metadata: %w", err)
 	}
-	return &client{metadata}, nil
+	return &metadata, nil
+}
+
+// GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"
+// claim of the JWT bearer assertion, expected to be a client ID (client
+// metadata URL) present in the hardcoded jwtBearerAllowedClients allow-list.
+func (s *store) GetPublicKey(
+	ctx context.Context,
+	issuer string,
+	subject string,
+	keyID string,
+) (*jose.JSONWebKey, error) {
+	keys, err := s.GetPublicKeys(ctx, issuer, subject)
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range keys.Keys {
+		if key.KeyID == keyID {
+			return &key, nil
+		}
+	}
+	return nil, fosite.ErrNotFound
+}
+
+// GetPublicKeys implements rfc7523.RFC7523KeyStorage.
+func (s *store) GetPublicKeys(
+	ctx context.Context,
+	issuer string,
+	_ string,
+) (*jose.JSONWebKeySet, error) {
+	if !s.isJWTBearerClientAllowed(issuer) {
+		return nil, fosite.ErrNotFound
+	}
+	metadata, err := s.fetchClientMetadata(ctx, issuer)
+	if err != nil {
+		return nil, err
+	}
+	if metadata.Jwks == nil || len(metadata.Jwks.Keys) == 0 {
+		return nil, fosite.ErrNotFound
+	}
+	return metadata.Jwks, nil
+}
+
+// GetPublicKeyScopes implements rfc7523.RFC7523KeyStorage.
+func (s *store) GetPublicKeyScopes(
+	ctx context.Context,
+	issuer string,
+	_ string,
+	_ string,
+) ([]string, error) {
+	if !s.isJWTBearerClientAllowed(issuer) {
+		return nil, fosite.ErrNotFound
+	}
+	cl, err := s.GetClient(ctx, issuer)
+	if err != nil {
+		return nil, err
+	}
+	return cl.GetScopes(), nil
+}
+
+func (s *store) isJWTBearerClientAllowed(clientID string) bool {
+	metadataURL, err := url.Parse(clientID)
+	if err != nil {
+		return false
+	}
+	// support any subdomains for now
+	// TODO: probably should support explicit wildcards
+	for _, domain := range s.jwtBearerClientDomains {
+		if strings.HasSuffix(metadataURL.Host, domain) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsJWTUsed implements rfc7523.RFC7523KeyStorage.
+func (s *store) IsJWTUsed(ctx context.Context, jti string) (bool, error) {
+	return false, nil
+}
+
+// MarkJWTUsedForTime implements rfc7523.RFC7523KeyStorage.
+func (s *store) MarkJWTUsedForTime(ctx context.Context, jti string, exp time.Time) error {
+	return nil
 }
 
 // SetClientAssertionJWT implements fosite.Storage.
