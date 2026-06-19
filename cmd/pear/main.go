@@ -152,8 +152,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	if adminGenerated {
 		slog.Warn(
 			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
-			"username", "admin",
-			"password", adminPassword,
+			"username",
+			"admin",
+			"password",
+			adminPassword,
 		)
 	}
 	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore)

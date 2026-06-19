@@ -26,13 +26,17 @@ func NewServer(store Store) *Server {
 }
 
 func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
-	s.renderLogin(w, "")
+	s.renderLogin(r, w, "")
 }
 
-func (s *Server) renderLogin(w http.ResponseWriter, errMsg string) {
+func (s *Server) renderLogin(r *http.Request, w http.ResponseWriter, errMsg string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "login.html", struct{ Error string }{errMsg}); err != nil {
-		slog.Error("rendering instance admin login page", "err", err)
+	if err := templates.ExecuteTemplate(
+		w,
+		"login.html",
+		struct{ Error string }{errMsg},
+	); err != nil {
+		slog.ErrorContext(r.Context(), "rendering instance admin login page", "err", err)
 	}
 }
 
@@ -51,7 +55,7 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
-		s.renderLogin(w, "invalid password")
+		s.renderLogin(r, w, "invalid password")
 		return
 	}
 
@@ -92,6 +96,6 @@ func (s *Server) RequireSession(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) ServeAdminHome(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := templates.ExecuteTemplate(w, "home.html", nil); err != nil {
-		slog.Error("rendering instance admin home page", "err", err)
+		slog.ErrorContext(r.Context(), "rendering instance admin home page", "err", err)
 	}
 }

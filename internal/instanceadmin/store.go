@@ -27,7 +27,10 @@ type Store interface {
 	// presetPassword if non-empty, otherwise a freshly generated random password.
 	// The plaintext password is returned only when generated is true, so callers can
 	// surface it to the operator exactly once.
-	Bootstrap(ctx context.Context, presetPassword string) (password string, generated bool, err error)
+	Bootstrap(
+		ctx context.Context,
+		presetPassword string,
+	) (password string, generated bool, err error)
 
 	// Authenticate checks the given password against the in-memory admin credential.
 	Authenticate(ctx context.Context, password string) (bool, error)
