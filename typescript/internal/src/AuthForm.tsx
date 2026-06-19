@@ -17,6 +17,7 @@ interface AuthFormData {
 interface AuthFormProps {
   authManager: AuthManager;
   redirectUrl: string;
+  domain?: string;
   serverError?: string;
   defaultHandle?: string;
 }
@@ -24,6 +25,7 @@ interface AuthFormProps {
 export default function AuthForm({
   authManager,
   redirectUrl,
+  domain,
   serverError,
   defaultHandle,
 }: AuthFormProps) {

@@ -5,39 +5,35 @@ import { create, StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
 const stateLocalStorageKey = "state";
+const serverDomainLocalStorageKey = "login-server-domain";
 
 interface AuthInfo {
   did: string;
   accessToken: string;
   refreshToken: string | undefined;
   expiresAt: number; // epoch seconds
+  serverDomain: string;
 }
 
 export class AuthManager {
-  private serverDomain: string;
+  private appName: string;
+  private domain: string;
+  private defaultDomain: string;
   private store: StoreApi<{ authInfo: AuthInfo | undefined }> & {
     persist: { rehydrate: () => void | Promise<void> };
   };
-  private config: client.Configuration;
   private onUnauthenticated: () => void;
   private refreshPromise: Promise<void> | undefined;
 
   constructor(
     appName: string,
     domain: string,
-    serverDomain: string,
+    defaultDomain: string,
     onUnauthenticated: () => void,
   ) {
-    const { client_id } = clientMetadata(appName, domain);
-    this.config = new client.Configuration(
-      {
-        issuer: `https://${serverDomain}/oauth/authorize`,
-        authorization_endpoint: `https://${serverDomain}/oauth/authorize`,
-        token_endpoint: `https://${serverDomain}/oauth/token`,
-      },
-      client_id,
-    );
-    this.serverDomain = serverDomain;
+    this.appName = appName;
+    this.domain = domain;
+    this.defaultDomain = defaultDomain;
     this.store = create(
       persist<{ authInfo: AuthInfo | undefined }>(
         () => ({ authInfo: undefined }),
@@ -54,10 +50,28 @@ export class AuthManager {
     return this.store.getState().authInfo;
   }
 
-  loginUrl(handle: string, redirectUri: string) {
+  // Builds a fresh openid-client Configuration pointed at the given OAuth
+  // server domain. Called per-login/per-request instead of once at
+  // construction, since the server domain now varies by which org/instance
+  // the user is logging into.
+  private buildConfig(serverDomain: string) {
+    const { client_id } = clientMetadata(this.appName, this.domain);
+    return new client.Configuration(
+      {
+        issuer: `https://${serverDomain}/oauth/authorize`,
+        authorization_endpoint: `https://${serverDomain}/oauth/authorize`,
+        token_endpoint: `https://${serverDomain}/oauth/token`,
+      },
+      client_id,
+    );
+  }
+
+  loginUrl(handle: string, redirectUri: string, serverDomain?: string) {
+    const resolvedDomain = serverDomain ?? this.defaultDomain;
     const state = client.randomState();
     localStorage.setItem(stateLocalStorageKey, state);
-    return client.buildAuthorizationUrl(this.config, {
+    localStorage.setItem(serverDomainLocalStorageKey, resolvedDomain);
+    return client.buildAuthorizationUrl(this.buildConfig(resolvedDomain), {
       redirect_uri: redirectUri,
       response_type: "code",
       handle,
@@ -87,19 +101,24 @@ export class AuthManager {
       return false;
     }
     const state = localStorage.getItem(stateLocalStorageKey);
-    if (!state) {
-      // State is missing — the browser session was cleared or a prior exchange
-      // failed. Redirect to login so the user can retry.
+    const serverDomain = localStorage.getItem(serverDomainLocalStorageKey);
+    if (!state || !serverDomain) {
+      // State (or the server domain stashed alongside it) is missing — the
+      // browser session was cleared or a prior exchange failed. Redirect to
+      // login so the user can retry.
       window.location.href = `/oauth-login?error=${encodeURIComponent("Login session expired. Please try again.")}`;
       return false;
     }
-    const token = await client.authorizationCodeGrant(this.config, url, {
-      expectedState: state,
-    });
+    const token = await client.authorizationCodeGrant(
+      this.buildConfig(serverDomain),
+      url,
+      { expectedState: state },
+    );
     // Only remove state after a successful exchange so a failed exchange
     // (network error, etc.) can be retried without losing the state.
     localStorage.removeItem(stateLocalStorageKey);
-    this.setAuthState(token);
+    localStorage.removeItem(serverDomainLocalStorageKey);
+    this.setAuthState(token, serverDomain);
     // Remove code and state from URL
     url.searchParams.delete("code");
     url.searchParams.delete("state");
@@ -140,12 +159,12 @@ export class AuthManager {
               return; // Token is already fresh; nothing to do.
             }
             const token = await client.refreshTokenGrant(
-              this.config,
+              this.buildConfig(currentInfo.serverDomain),
               currentInfo.refreshToken,
             );
             // Only write back if the user hasn't logged out in the meantime.
             if (this.store.getState().authInfo) {
-              this.setAuthState(token);
+              this.setAuthState(token, currentInfo.serverDomain);
             }
           })
           .then(() => {})
@@ -170,9 +189,9 @@ export class AuthManager {
     }
     headers.append("Habitat-Auth-Method", "oauth");
     const response = await client.fetchProtectedResource(
-      this.config,
+      this.buildConfig(authInfo.serverDomain),
       authInfo.accessToken,
-      new URL(url, `https://${this.serverDomain}`),
+      new URL(url, `https://${authInfo.serverDomain}`),
       method,
       body,
       headers,
@@ -185,7 +204,10 @@ export class AuthManager {
     return response;
   }
 
-  private setAuthState(token: client.TokenEndpointResponse) {
+  private setAuthState(
+    token: client.TokenEndpointResponse,
+    serverDomain: string,
+  ) {
     // The DID is encoded in the sub claim of the JWT
     const decoded = decodeJwt(token.access_token);
     if (!decoded.sub || !decoded.exp) {
@@ -196,6 +218,7 @@ export class AuthManager {
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiresAt: decoded.exp,
+      serverDomain,
     };
     this.store.setState({ authInfo: state });
     return state;
