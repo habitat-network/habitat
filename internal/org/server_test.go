@@ -14,21 +14,23 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/instanceadmin"
+	instance "github.com/habitat-network/habitat/internal/instanceadmin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 type fakeInstancePolicy struct {
-	policy           string
+	policy           instance.InvitePolicy
 	validateErr      error
 	markUsedErr      error
 	validatedTokens  []string
 	markedUsedTokens []string
 }
 
-func (f *fakeInstancePolicy) GetOrgCreationPolicy(ctx context.Context) (string, error) {
+func (f *fakeInstancePolicy) GetOrgCreationPolicy(
+	ctx context.Context,
+) (instance.InvitePolicy, error) {
 	return f.policy, nil
 }
 
@@ -45,7 +47,7 @@ func (f *fakeInstancePolicy) MarkInviteUsed(ctx context.Context, token string) e
 func newTestServer(
 	t *testing.T,
 	adminDID syntax.DID,
-	policy InstancePolicy,
+	policy instance.PolicyStore,
 ) (*Server, syntax.DID) {
 	t.Helper()
 	storeImpl := newTestStore(t)
@@ -479,7 +481,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	instanceStore, err := instanceadmin.NewStore(db, []byte("key"), "passhash", "pear.example.com")
+	instanceStore, err := instance.NewStore(db, []byte("key"), "passhash", "pear.example.com")
 	require.NoError(t, err)
 	require.NoError(t, instanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 	token, err := instanceStore.IssueInvite(t.Context())
@@ -517,6 +519,6 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	require.ErrorIs(
 		t,
 		instanceStore.ValidateInvite(t.Context(), token),
-		instanceadmin.ErrInvalidInvite,
+		instance.ErrInvalidInvite,
 	)
 }

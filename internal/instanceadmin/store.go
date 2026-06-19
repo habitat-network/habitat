@@ -1,4 +1,4 @@
-package instanceadmin
+package instance
 
 import (
 	"context"
@@ -21,18 +21,39 @@ const (
 	sessionDuration      = 24 * time.Hour
 	sessionAuthenticated = "authenticated"
 	inviteDuration       = 7 * 24 * time.Hour
-	policyOpen           = "open"
-	policyInviteOnly     = "invite_only"
+)
+
+type InvitePolicy string
+
+const (
+	policyOpen       InvitePolicy = "open"
+	policyInviteOnly InvitePolicy = "invite_only"
 )
 
 var ErrInvalidPolicy = errors.New("invalid org creation policy")
 var ErrInvalidInvite = errors.New("invalid or expired invite")
 
+type PolicyStore interface {
+	// GetOrgCreationPolicy is a convenience accessor for just the policy field.
+	GetOrgCreationPolicy(ctx context.Context) (InvitePolicy, error)
+
+	// ValidateInvite checks that token is a well-formed, signed, unexpired,
+	// not-yet-used invite for this instance, without consuming it. All
+	// failure modes (unknown, expired, already used, bad signature) return
+	// ErrInvalidInvite.
+	ValidateInvite(ctx context.Context, token string) error
+
+	// MarkInviteUsed marks the invite identified by token as used. Call this
+	// only after the action the invite was gating (e.g. org creation) has
+	// actually succeeded. token must have already passed ValidateInvite.
+	MarkInviteUsed(ctx context.Context, token string) error
+}
+
 // Store manages the instance admin credential and its sessions. Neither is
 // persisted: the credential lives only in process memory (see Bootstrap), and
 // sessions are encoded directly into a signed/encrypted cookie via
 // gorilla/sessions, so both reset on restart.
-type Store interface {
+type AdminStore interface {
 	// Authenticate checks the given password against the in-memory admin credential.
 	Authenticate(ctx context.Context, password string) (bool, error)
 
@@ -48,28 +69,16 @@ type Store interface {
 
 	// GetSettings returns the instance's current name and org creation
 	// policy, creating the settings row with defaults on first access.
-	GetSettings(ctx context.Context) (instanceName, orgCreationPolicy string, err error)
+	GetSettings(
+		ctx context.Context,
+	) (instanceName string, orgCreationPolicy InvitePolicy, err error)
 
 	// UpdateSettings updates the instance's name and org creation policy.
 	// orgCreationPolicy must be "open" or "invite_only".
-	UpdateSettings(ctx context.Context, instanceName, orgCreationPolicy string) error
-
-	// GetOrgCreationPolicy is a convenience accessor for just the policy field.
-	GetOrgCreationPolicy(ctx context.Context) (string, error)
+	UpdateSettings(ctx context.Context, instanceName string, orgCreationPolicy InvitePolicy) error
 
 	// IssueInvite creates and signs a new single-use invite token.
 	IssueInvite(ctx context.Context) (token string, err error)
-
-	// ValidateInvite checks that token is a well-formed, signed, unexpired,
-	// not-yet-used invite for this instance, without consuming it. All
-	// failure modes (unknown, expired, already used, bad signature) return
-	// ErrInvalidInvite.
-	ValidateInvite(ctx context.Context, token string) error
-
-	// MarkInviteUsed marks the invite identified by token as used. Call this
-	// only after the action the invite was gating (e.g. org creation) has
-	// actually succeeded. token must have already passed ValidateInvite.
-	MarkInviteUsed(ctx context.Context, token string) error
 }
 
 type storeImpl struct {
@@ -82,9 +91,10 @@ type storeImpl struct {
 	domain   string
 }
 
-var _ Store = (*storeImpl)(nil)
+var _ AdminStore = (*storeImpl)(nil)
+var _ PolicyStore = (*storeImpl)(nil)
 
-func NewStore(db *gorm.DB, key []byte, domain, passwordHash string) (Store, error) {
+func NewStore(db *gorm.DB, key []byte, domain, passwordHash string) (*storeImpl, error) {
 	cookieStore := sessions.NewCookieStore(key)
 	cookieStore.Options = &sessions.Options{
 		Path:     "/admin",
@@ -185,7 +195,7 @@ func generateSigningSecret() (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-func (s *storeImpl) GetSettings(ctx context.Context) (string, string, error) {
+func (s *storeImpl) GetSettings(ctx context.Context) (string, InvitePolicy, error) {
 	settings, err := s.getOrCreateSettings(ctx)
 	if err != nil {
 		return "", "", err
@@ -197,7 +207,8 @@ func (s *storeImpl) GetSettings(ctx context.Context) (string, string, error) {
 // instanceName or orgCreationPolicy leaves that setting unchanged.
 func (s *storeImpl) UpdateSettings(
 	ctx context.Context,
-	instanceName, orgCreationPolicy string,
+	instanceName string,
+	orgCreationPolicy InvitePolicy,
 ) error {
 	if orgCreationPolicy != "" && orgCreationPolicy != policyOpen &&
 		orgCreationPolicy != policyInviteOnly {
@@ -223,7 +234,7 @@ func (s *storeImpl) UpdateSettings(
 		Updates(updates).Error
 }
 
-func (s *storeImpl) GetOrgCreationPolicy(ctx context.Context) (string, error) {
+func (s *storeImpl) GetOrgCreationPolicy(ctx context.Context) (InvitePolicy, error) {
 	settings, err := s.getOrCreateSettings(ctx)
 	if err != nil {
 		return "", err

@@ -1,4 +1,4 @@
-package instanceadmin
+package instance
 
 import (
 	"bytes"
@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestServer(t *testing.T) (*Server, Store, string) {
+func newTestServer(t *testing.T) (*Server, AdminStore, string) {
 	t.Helper()
 	store := newTestStore(t)
 	return NewServer(store, "https://frontend.example"), store, "password"
 }
 
 // sessionCookie creates a new session in store and returns its cookie.
-func sessionCookie(t *testing.T, store Store) *http.Cookie {
+func sessionCookie(t *testing.T, store AdminStore) *http.Cookie {
 	t.Helper()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/admin/login", nil)

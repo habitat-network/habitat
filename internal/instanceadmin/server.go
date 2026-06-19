@@ -1,4 +1,4 @@
-package instanceadmin
+package instance
 
 import (
 	"embed"
@@ -23,11 +23,11 @@ var templates = template.Must(
 // Server serves the instance admin login/logout flow, the admin settings
 // page, and gates access to instance admin routes via session cookies.
 type Server struct {
-	store          Store
+	store          AdminStore
 	frontendDomain string
 }
 
-func NewServer(store Store, frontendDomain string) *Server {
+func NewServer(store AdminStore, frontendDomain string) *Server {
 	return &Server{store: store, frontendDomain: frontendDomain}
 }
 
@@ -151,7 +151,7 @@ func (s *Server) GetSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, habitat.NetworkHabitatAdminGetSettingsOutput{
 		InstanceName:      instanceName,
-		OrgCreationPolicy: policy,
+		OrgCreationPolicy: string(policy),
 	})
 }
 
@@ -167,7 +167,7 @@ func (s *Server) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.UpdateSettings(
 		r.Context(),
 		req.InstanceName,
-		req.OrgCreationPolicy,
+		InvitePolicy(req.OrgCreationPolicy),
 	); err != nil {
 		if errors.Is(err, ErrInvalidPolicy) {
 			utils.LogAndHTTPError(
@@ -201,7 +201,7 @@ func (s *Server) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, habitat.NetworkHabitatAdminUpdateSettingsOutput{
 		InstanceName:      instanceName,
-		OrgCreationPolicy: orgCreationPolicy,
+		OrgCreationPolicy: string(orgCreationPolicy),
 	})
 }
 

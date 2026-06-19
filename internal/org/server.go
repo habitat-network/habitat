@@ -15,21 +15,13 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	instance "github.com/habitat-network/habitat/internal/instanceadmin"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 var errNotMemberOfOrg = errors.New("not a member of an organization")
-
-// InstancePolicy is the subset of instance-admin functionality org needs to
-// enforce the instance's org-creation policy, without importing instanceadmin
-// directly.
-type InstancePolicy interface {
-	GetOrgCreationPolicy(ctx context.Context) (string, error)
-	ValidateInvite(ctx context.Context, token string) error
-	MarkInviteUsed(ctx context.Context, token string) error
-}
 
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
@@ -40,7 +32,7 @@ type Server struct {
 	domain         string
 	decoder        *schema.Decoder
 	dir            identity.Directory
-	instancePolicy InstancePolicy
+	instancePolicy instance.PolicyStore
 }
 
 func NewServer(
@@ -49,7 +41,7 @@ func NewServer(
 	p pear.Pear,
 	domain string,
 	dir identity.Directory,
-	instancePolicy InstancePolicy,
+	instancePolicy instance.PolicyStore,
 ) (*Server, error) {
 	return &Server{
 		store:          store,

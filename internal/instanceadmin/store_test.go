@@ -1,4 +1,4 @@
-package instanceadmin
+package instance
 
 import (
 	"net/http"
@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func newTestStore(t *testing.T) Store {
+func newTestStore(t *testing.T) *storeImpl {
 	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
@@ -82,7 +82,7 @@ func TestValidateSession_TamperedCookieFails(t *testing.T) {
 }
 
 func TestNewStore_SessionCookieOptions(t *testing.T) {
-	s := newTestStore(t).(*storeImpl)
+	s := newTestStore(t)
 
 	require.Equal(t, "/admin", s.sessions.Options.Path)
 	require.Equal(t, int(sessionDuration.Seconds()), s.sessions.Options.MaxAge)
@@ -95,19 +95,19 @@ func TestGetSettings_DefaultsOnFirstAccess(t *testing.T) {
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "", instanceName)
-	require.Equal(t, "open", policy)
+	require.Equal(t, policyOpen, policy)
 }
 
 func TestUpdateSettings_PersistsAndReads(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only")
+	err := s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly)
 	require.NoError(t, err)
 
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "Acme Hosting", instanceName)
-	require.Equal(t, "invite_only", policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestUpdateSettings_RejectsInvalidPolicy(t *testing.T) {
@@ -119,26 +119,26 @@ func TestUpdateSettings_RejectsInvalidPolicy(t *testing.T) {
 
 func TestUpdateSettings_OmittedPolicyLeavesItUnchanged(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	require.NoError(t, s.UpdateSettings(t.Context(), "New Name", ""))
 
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "New Name", instanceName)
-	require.Equal(t, "invite_only", policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestUpdateSettings_OmittedNameLeavesItUnchanged(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "open"))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyOpen))
 
-	require.NoError(t, s.UpdateSettings(t.Context(), "", "invite_only"))
+	require.NoError(t, s.UpdateSettings(t.Context(), "", policyInviteOnly))
 
 	instanceName, policy, err := s.GetSettings(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "Acme Hosting", instanceName)
-	require.Equal(t, "invite_only", policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestGetOrgCreationPolicy_DefaultsToOpen(t *testing.T) {
@@ -146,21 +146,21 @@ func TestGetOrgCreationPolicy_DefaultsToOpen(t *testing.T) {
 
 	policy, err := s.GetOrgCreationPolicy(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "open", policy)
+	require.Equal(t, policyOpen, policy)
 }
 
 func TestGetOrgCreationPolicy_ReflectsUpdate(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	policy, err := s.GetOrgCreationPolicy(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "invite_only", policy)
+	require.Equal(t, policyInviteOnly, policy)
 }
 
 func TestIssueInvite_CanBeRedeemedOnce(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	token, err := s.IssueInvite(t.Context())
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestIssueInvite_CanBeRedeemedOnce(t *testing.T) {
 
 func TestValidateInvite_DoesNotConsumeToken(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+	require.NoError(t, s.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 
 	token, err := s.IssueInvite(t.Context())
 	require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestRedeemInvite_UnknownTokenFails(t *testing.T) {
 
 func TestRedeemInvite_WrongSigningSecretFails(t *testing.T) {
 	s1 := newTestStore(t)
-	require.NoError(t, s1.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
+	require.NoError(t, s1.UpdateSettings(t.Context(), "Acme Hosting", policyInviteOnly))
 	token, err := s1.IssueInvite(t.Context())
 	require.NoError(t, err)
 

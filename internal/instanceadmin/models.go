@@ -1,4 +1,4 @@
-package instanceadmin
+package instance
 
 import "time"
 
@@ -9,7 +9,7 @@ const instanceSettingsID = 1
 type instanceSettings struct {
 	ID                uint `gorm:"primaryKey"`
 	InstanceName      string
-	OrgCreationPolicy string
+	OrgCreationPolicy InvitePolicy
 	SigningSecret     string
 	CreatedAt         time.Time
 }

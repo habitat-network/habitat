@@ -38,7 +38,7 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	"github.com/habitat-network/habitat/internal/instanceadmin"
+	instance "github.com/habitat-network/habitat/internal/instanceadmin"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
@@ -139,7 +139,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	passwordHash, err := setupInstanceAdminPassword(cmd)
 	// Reuse the oauth server secret
-	instanceAdminStore, err := instanceadmin.NewStore(
+	instanceAdminStore, err := instance.NewStore(
 		db.WithContext(startupCtx),
 		oauthSecret,
 		fDomain,
@@ -150,7 +150,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
+	instanceAdminServer := instance.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
