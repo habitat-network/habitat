@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/habitat-network/habitat/internal/sap"
@@ -65,8 +64,6 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 
 	outbox := s.sap.Outbox()
 	watch := outbox.Watch()
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
 
 	pending := map[uint]sap.OutboxMessage{}
 	for {
@@ -103,7 +100,6 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 			}
 			delete(pending, id)
 		case <-watch:
-		case <-ticker.C:
 		}
 	}
 }
