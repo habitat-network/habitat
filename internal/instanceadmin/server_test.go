@@ -261,7 +261,11 @@ func TestDescribeInstance_NoAuthRequired(t *testing.T) {
 	server, store, _ := newTestServer(t)
 	require.NoError(t, store.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 
-	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.instance.describeInstance", nil)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.instance.describeInstance",
+		nil,
+	)
 	rec := httptest.NewRecorder()
 	server.DescribeInstance(rec, req)
 

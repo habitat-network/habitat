@@ -179,7 +179,13 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 
 	policy, err := s.instancePolicy.GetOrgCreationPolicy(r.Context())
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "checking org creation policy", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"checking org creation policy",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	inviteOnly := policy == "invite_only"

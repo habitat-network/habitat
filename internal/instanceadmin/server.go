@@ -101,11 +101,23 @@ func (s *Server) requireSessionPage(w http.ResponseWriter, r *http.Request) bool
 func (s *Server) requireSessionAPI(w http.ResponseWriter, r *http.Request) bool {
 	ok, err := s.store.ValidateSession(r)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "validating instance admin session", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"validating instance admin session",
+			http.StatusInternalServerError,
+		)
 		return false
 	}
 	if !ok {
-		utils.LogAndHTTPError(r.Context(), w, errors.New("not authenticated"), "checking instance admin session", http.StatusUnauthorized)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			errors.New("not authenticated"),
+			"checking instance admin session",
+			http.StatusUnauthorized,
+		)
 		return false
 	}
 	return true
@@ -128,7 +140,13 @@ func (s *Server) GetSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	instanceName, policy, err := s.store.GetSettings(r.Context())
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "getting instance settings", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting instance settings",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	writeJSON(w, habitat.NetworkHabitatAdminGetSettingsOutput{
@@ -146,17 +164,39 @@ func (s *Server) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(r.Context(), w, err, "reading request body", http.StatusBadRequest)
 		return
 	}
-	if err := s.store.UpdateSettings(r.Context(), req.InstanceName, req.OrgCreationPolicy); err != nil {
+	if err := s.store.UpdateSettings(
+		r.Context(),
+		req.InstanceName,
+		req.OrgCreationPolicy,
+	); err != nil {
 		if errors.Is(err, ErrInvalidPolicy) {
-			utils.LogAndHTTPError(r.Context(), w, err, "updating instance settings", http.StatusBadRequest)
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"updating instance settings",
+				http.StatusBadRequest,
+			)
 			return
 		}
-		utils.LogAndHTTPError(r.Context(), w, err, "updating instance settings", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"updating instance settings",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	instanceName, orgCreationPolicy, err := s.store.GetSettings(r.Context())
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "getting instance settings", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting instance settings",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	writeJSON(w, habitat.NetworkHabitatAdminUpdateSettingsOutput{
@@ -180,7 +220,13 @@ func (s *Server) IssueInvite(w http.ResponseWriter, r *http.Request) {
 func (s *Server) DescribeInstance(w http.ResponseWriter, r *http.Request) {
 	instanceName, policy, err := s.store.GetSettings(r.Context())
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "getting instance settings", http.StatusInternalServerError)
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"getting instance settings",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 	writeJSON(w, habitat.NetworkHabitatInstanceDescribeInstanceOutput{

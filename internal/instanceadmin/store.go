@@ -195,8 +195,12 @@ func (s *storeImpl) GetSettings(ctx context.Context) (string, string, error) {
 
 // UpdateSettings updates only the fields given a non-empty value; an empty
 // instanceName or orgCreationPolicy leaves that setting unchanged.
-func (s *storeImpl) UpdateSettings(ctx context.Context, instanceName, orgCreationPolicy string) error {
-	if orgCreationPolicy != "" && orgCreationPolicy != policyOpen && orgCreationPolicy != policyInviteOnly {
+func (s *storeImpl) UpdateSettings(
+	ctx context.Context,
+	instanceName, orgCreationPolicy string,
+) error {
+	if orgCreationPolicy != "" && orgCreationPolicy != policyOpen &&
+		orgCreationPolicy != policyInviteOnly {
 		return ErrInvalidPolicy
 	}
 	if _, err := s.getOrCreateSettings(ctx); err != nil {

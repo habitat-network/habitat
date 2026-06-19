@@ -319,7 +319,11 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
 	rec := httptest.NewRecorder()
 	srv.CreateOrg(rec, req)
 
@@ -344,7 +348,11 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
 	rec := httptest.NewRecorder()
 	srv.CreateOrg(rec, req)
 
@@ -370,7 +378,11 @@ func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 		HandleSubdomain: "test",
 		InviteToken:     "garbage",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
 	rec := httptest.NewRecorder()
 	srv.CreateOrg(rec, req)
 
@@ -397,7 +409,11 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 		HandleSubdomain: "test",
 		InviteToken:     "a-valid-token",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
 	rec := httptest.NewRecorder()
 	srv.CreateOrg(rec, req)
 
@@ -443,7 +459,11 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 		HandleSubdomain: "test",
 		InviteToken:     "a-valid-token",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
 	rec := httptest.NewRecorder()
 	srv.CreateOrg(rec, req)
 
@@ -459,7 +479,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	instanceStore, err := instanceadmin.NewStore(db, "pear.example.com")
+	instanceStore, err := instanceadmin.NewStore(db, []byte("key"), "passhash", "pear.example.com")
 	require.NoError(t, err)
 	require.NoError(t, instanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 	token, err := instanceStore.IssueInvite(t.Context())
@@ -483,12 +503,20 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 		HandleSubdomain: "test",
 		InviteToken:     token,
 	})
-	req := httptest.NewRequest(http.MethodPost, "/xrpc/network.habitat.org.create", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/xrpc/network.habitat.org.create",
+		bytes.NewReader(body),
+	)
 	rec := httptest.NewRecorder()
 	srv.CreateOrg(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// The real invite should now be consumed - validating it again should fail.
-	require.ErrorIs(t, instanceStore.ValidateInvite(t.Context(), token), instanceadmin.ErrInvalidInvite)
+	require.ErrorIs(
+		t,
+		instanceStore.ValidateInvite(t.Context(), token),
+		instanceadmin.ErrInvalidInvite,
+	)
 }

@@ -10,7 +10,6 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { procedure, query, SingleHandleCombobox } from "internal";
-import { describeInstance } from "@/queries/instance";
 import { NetworkHabitatOrgCreate } from "api";
 import { SetStateAction, useEffect, useState } from "react";
 
@@ -71,9 +70,9 @@ function CreateOrgPage() {
   const [customInstanceName, setCustomInstanceName] = useState<string | null>(
     null,
   );
-  const [customInstanceError, setCustomInstanceError] = useState<
-    string | null
-  >(null);
+  const [customInstanceError, setCustomInstanceError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (invite || !useCustomInstance || !customDomain) {
@@ -86,12 +85,13 @@ function CreateOrgPage() {
       "network.habitat.instance.describeInstance",
       {},
       { unauthenticated: true, domain: customDomain },
-    ).then((result: { name: SetStateAction<string | null>; }) => {
-      if (!cancelled) {
-        setCustomInstanceName(result.name);
-        setCustomInstanceError(null);
-      }
-    })
+    )
+      .then((result: { name: SetStateAction<string | null> }) => {
+        if (!cancelled) {
+          setCustomInstanceName(result.name);
+          setCustomInstanceError(null);
+        }
+      })
       .catch(() => {
         if (!cancelled) {
           setCustomInstanceName(null);
@@ -103,9 +103,11 @@ function CreateOrgPage() {
     };
   }, [invite, useCustomInstance, customDomain]);
 
-  const targetDomain = invite ? invite.domain : useCustomInstance
-    ? customDomain
-    : __HABITAT_DOMAIN__;
+  const targetDomain = invite
+    ? invite.domain
+    : useCustomInstance
+      ? customDomain
+      : __HABITAT_DOMAIN__;
 
   const {
     register,
@@ -179,7 +181,9 @@ function CreateOrgPage() {
                 <ToggleGroupItem value="managed">
                   Managed hosting by Habitat
                 </ToggleGroupItem>
-                <ToggleGroupItem value="custom">Custom instance</ToggleGroupItem>
+                <ToggleGroupItem value="custom">
+                  Custom instance
+                </ToggleGroupItem>
               </ToggleGroup>
               {useCustomInstance ? (
                 <>
