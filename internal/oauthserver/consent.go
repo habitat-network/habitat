@@ -1,23 +1,33 @@
 package oauthserver
 
 import (
-	"crypto/rand"
 	"embed"
-	"encoding/hex"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
 )
 
-const consentSessionName = "consent-session"
+const (
+	consentSessionName = "consent-session"
 
-// consentFlash stores the pending authorization request while an org admin
-// reviews the client's consent screen.
+	consentFormKey = "form"
+	consentDidKey  = "did"
+
+	// consentMaxAge bounds how long the consent page may sit unanswered
+	// before its flash cookie expires.
+	consentMaxAge = 10 * time.Minute
+)
+
+// consentFlash holds the pending authorization request decoded from the
+// signed cookie session set while an org admin reviews the client's consent
+// screen.
 type consentFlash struct {
 	Form url.Values
 	Did  syntax.DID
@@ -37,8 +47,8 @@ type consentPageData struct {
 	OrgDID     string
 }
 
-// beginConsent stores the pending authorization request behind a new opaque
-// cookie and redirects the browser to the consent page.
+// beginConsent stores the pending authorization request in a signed cookie
+// session and redirects the browser to the consent page.
 func (o *OAuthServer) beginConsent(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -46,61 +56,80 @@ func (o *OAuthServer) beginConsent(
 	did syntax.DID,
 ) {
 	ctx := r.Context()
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		o.metrics.callbackErr(ctx, err, "gen_consent_id")
+	session, err := o.sessionStore.New(r, consentSessionName)
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "new_consent_session")
 		utils.LogAndHTTPError(
 			ctx,
 			w,
 			err,
-			"failed to generate consent session id",
+			"failed to create consent session",
 			http.StatusInternalServerError,
 		)
 		return
 	}
-	consentID := hex.EncodeToString(b)
-
-	o.consentMu.Lock()
-	o.consentStore[consentID] = &consentFlash{Form: form, Did: did}
-	o.consentMu.Unlock()
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     consentSessionName,
-		Value:    consentID,
+	session.Options = &sessions.Options{
+		Path:     "/oauth/consent",
+		MaxAge:   int(consentMaxAge.Seconds()),
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-		Path:     "/oauth/consent",
-	})
+	}
+	session.Values[consentFormKey] = form.Encode()
+	session.Values[consentDidKey] = string(did)
+	if err := session.Save(r, w); err != nil {
+		o.metrics.callbackErr(ctx, err, "save_consent_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to save consent session",
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	http.Redirect(w, r, "/oauth/consent", http.StatusSeeOther)
 }
 
-// lookupConsent reads the consent cookie off r and returns the associated
-// flash. If pop is true, the flash is removed so it can only be used once.
-func (o *OAuthServer) lookupConsent(r *http.Request, pop bool) (*consentFlash, error) {
-	cookie, err := r.Cookie(consentSessionName)
+// lookupConsent reads the consent cookie session off r. If pop is true, the
+// session is invalidated so it can only be used once.
+func (o *OAuthServer) lookupConsent(
+	r *http.Request,
+	w http.ResponseWriter,
+	pop bool,
+) (*consentFlash, error) {
+	session, err := o.sessionStore.Get(r, consentSessionName)
 	if err != nil {
 		return nil, err
 	}
 
-	o.consentMu.Lock()
-	cf, ok := o.consentStore[cookie.Value]
-	if pop {
-		delete(o.consentStore, cookie.Value)
-	}
-	o.consentMu.Unlock()
+	formStr, ok := session.Values[consentFormKey].(string)
 	if !ok {
 		return nil, http.ErrNoCookie
 	}
-	return cf, nil
+	form, err := url.ParseQuery(formStr)
+	if err != nil {
+		return nil, err
+	}
+	did, _ := session.Values[consentDidKey].(string)
+
+	if pop {
+		clear(session.Values)
+		session.Options.MaxAge = -1
+		if err := session.Save(r, w); err != nil {
+			return nil, err
+		}
+	}
+
+	return &consentFlash{Form: form, Did: syntax.DID(did)}, nil
 }
 
 // HandleConsent renders the consent page for a pending org DID authorization
 // request, showing the requesting client's metadata and requested scopes.
 func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	cf, err := o.lookupConsent(r, false)
+	cf, err := o.lookupConsent(r, w, false)
 	if err != nil {
 		utils.LogAndHTTPError(
 			ctx,
@@ -148,7 +177,7 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 // consent page. An authorization code is only issued on accept.
 func (o *OAuthServer) HandleConsentDecision(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	cf, err := o.lookupConsent(r, true)
+	cf, err := o.lookupConsent(r, w, true)
 	if err != nil {
 		utils.LogAndHTTPError(
 			ctx,

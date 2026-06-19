@@ -4,19 +4,17 @@ package oauthserver
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/org"
@@ -33,11 +31,20 @@ const (
 	// this is the cookie name.
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
+
+	flashFormKey            = "form"
+	flashProviderStateKey   = "provider_state"
+	flashDidKey             = "did"
+	flashRequiresConsentKey = "requires_consent"
+
+	// flashMaxAge bounds how long an in-progress authorize flow may take
+	// before its flash cookie expires.
+	flashMaxAge = 10 * time.Minute
 )
 
-// authRequestFlash stores the authorization request state in a session flash.
-// This data is temporarily stored during the OAuth authorization flow to preserve
-// request context across redirects.
+// authRequestFlash holds the authorization request state decoded from the
+// signed cookie session set by HandleAuthorize and consumed by HandleCallback,
+// preserving request context across the redirect to the user's PDS and back.
 type authRequestFlash struct {
 	Form          url.Values // Original authorization request form data
 	ProviderState []byte     // Opaque provider-specific state
@@ -171,14 +178,11 @@ type OAuthServer struct {
 	directory   identity.Directory // AT Protocol identity directory for handle resolution
 	storage     *store
 
-	// Store a map of opaque cookie id --> flash between Authorize and Callback since session cookies have a size limit
-	flashMu    sync.Mutex
-	flashStore map[string]*authRequestFlash
-
-	// Store a map of opaque cookie id --> flash between Callback and the consent
-	// page, for org DID logins that require admin consent before code issuance.
-	consentMu    sync.Mutex
-	consentStore map[string]*consentFlash
+	// sessionStore carries short-lived OAuth flow state across redirects (the
+	// pending authorize request between Authorize and Callback, and again
+	// between Callback and the consent page for org DID logins) in signed,
+	// encrypted cookies rather than server-side memory.
+	sessionStore sessions.Store
 
 	// Org store for membership lookups
 	orgStore org.Store
@@ -243,9 +247,11 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		loginRouter:  loginRouter,
-		flashStore:   make(map[string]*authRequestFlash),
-		consentStore: make(map[string]*consentFlash),
+		loginRouter: loginRouter,
+		// secret doubles as both the cookie authentication and encryption
+		// key: it's already reused for several purposes in newStrategy, and
+		// these cookies hold nothing beyond the lifetime of one OAuth flow.
+		sessionStore: sessions.NewCookieStore(secret, secret),
 		directory:    directory,
 		storage:      storage,
 		orgStore:     orgStore,
@@ -343,38 +349,40 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	// Generate opaque flash id to store in cookie
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		o.metrics.authorizeErr(ctx, err, "gen_flash_id")
+	session, err := o.sessionStore.New(r, sessionName)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "new_session")
 		utils.LogAndHTTPError(
 			ctx,
 			w,
 			err,
-			"failed to generate session id",
+			"failed to create session",
 			http.StatusInternalServerError,
 		)
 		return
 	}
-	flashID := hex.EncodeToString(b)
-
-	o.flashMu.Lock()
-	o.flashStore[flashID] = &authRequestFlash{
-		Form:            requester.GetRequestForm(),
-		ProviderState:   providerState,
-		Did:             id.DID,
-		RequiresConsent: requiresConsent,
-	}
-	o.flashMu.Unlock()
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionName,
-		Value:    flashID,
+	session.Options = &sessions.Options{
+		Path:     "/oauth-callback",
+		MaxAge:   int(flashMaxAge.Seconds()),
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-		Path:     "/oauth-callback",
-	})
+	}
+	session.Values[flashFormKey] = requester.GetRequestForm().Encode()
+	session.Values[flashProviderStateKey] = providerState
+	session.Values[flashDidKey] = string(id.DID)
+	session.Values[flashRequiresConsentKey] = requiresConsent
+	if err := session.Save(r, w); err != nil {
+		o.metrics.authorizeErr(ctx, err, "save_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to save session",
+			http.StatusInternalServerError,
+		)
+		return
+	}
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 	o.metrics.authorizeSuccess(ctx)
@@ -400,31 +408,13 @@ func (o *OAuthServer) HandleCallback(
 	r *http.Request,
 ) {
 	ctx := r.Context()
-	cookie, err := r.Cookie(sessionName)
+	arf, err := o.popFlash(r, w)
 	if err != nil {
-		o.metrics.callbackErr(ctx, err, "get_session")
+		o.metrics.callbackErr(ctx, err, "no_flash")
 		utils.LogAndHTTPError(
 			ctx,
 			w,
 			err,
-			"failed to get session cookie",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	// Lookup cookie --> flash
-	o.flashMu.Lock()
-	arf, ok := o.flashStore[cookie.Value]
-	delete(o.flashStore, cookie.Value)
-	o.flashMu.Unlock()
-
-	if !ok {
-		o.metrics.callbackErr(ctx, nil, "no_flash")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			nil,
 			"no state found for session",
 			http.StatusBadRequest,
 		)
@@ -485,6 +475,44 @@ func (o *OAuthServer) HandleCallback(
 	}
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
+}
+
+// popFlash reads the flash cookie session set by HandleAuthorize and
+// invalidates it, so it can't be replayed even if the rest of the callback
+// fails partway through.
+func (o *OAuthServer) popFlash(
+	r *http.Request,
+	w http.ResponseWriter,
+) (*authRequestFlash, error) {
+	session, err := o.sessionStore.Get(r, sessionName)
+	if err != nil {
+		return nil, err
+	}
+
+	formStr, ok := session.Values[flashFormKey].(string)
+	if !ok {
+		return nil, http.ErrNoCookie
+	}
+	form, err := url.ParseQuery(formStr)
+	if err != nil {
+		return nil, err
+	}
+	providerState, _ := session.Values[flashProviderStateKey].([]byte)
+	did, _ := session.Values[flashDidKey].(string)
+	requiresConsent, _ := session.Values[flashRequiresConsentKey].(bool)
+
+	clear(session.Values)
+	session.Options.MaxAge = -1
+	if err := session.Save(r, w); err != nil {
+		return nil, err
+	}
+
+	return &authRequestFlash{
+		Form:            form,
+		ProviderState:   providerState,
+		Did:             syntax.DID(did),
+		RequiresConsent: requiresConsent,
+	}, nil
 }
 
 // recreateAuthorizeRequest rebuilds a fosite authorize request from the
