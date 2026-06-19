@@ -1,0 +1,23 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.admin.issueInvite",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Issue a single-use invite token for creating an org on this instance. Requires an authenticated instance admin session.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": ["token"],
+                    "properties": {
+                        "token": {
+                            "type": "string",
+                            "description": "Signed, single-use invite token to embed in an org-creation link."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

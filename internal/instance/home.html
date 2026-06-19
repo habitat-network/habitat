@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Habitat instance admin</title>
+  <style>{{template "style.css"}}</style>
+</head>
+<body>
+  <main class="card">
+    <h1>Habitat</h1>
+    <p class="subtitle">Instance settings</p>
+    <div id="error" class="error" style="display:none"></div>
+    <label for="instanceName">Instance name</label>
+    <input type="text" id="instanceName">
+    <label for="policy">Org creation</label>
+    <select id="policy">
+      <option value="open">Open</option>
+      <option value="invite_only">Invite only</option>
+    </select>
+    <button id="save">Save settings</button>
+    <div id="invite-section" style="display:none; margin-top: 1rem;">
+      <button id="generate-invite" class="secondary" type="button">Generate invite link</button>
+      <input type="text" id="invite-link" readonly style="margin-top: 0.5rem;">
+    </div>
+    <form method="POST" action="/admin/logout" style="margin-top: 1.5rem;">
+      <button type="submit" class="secondary">Log out</button>
+    </form>
+  </main>
+  <script>
+    const frontendDomain = {{.FrontendDomain}};
+    const errorEl = document.getElementById("error");
+    const nameEl = document.getElementById("instanceName");
+    const policyEl = document.getElementById("policy");
+    const inviteSection = document.getElementById("invite-section");
+    const inviteLinkEl = document.getElementById("invite-link");
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = "block";
+    }
+
+    function applyPolicy(policy) {
+      inviteSection.style.display = policy === "invite_only" ? "block" : "none";
+    }
+
+    fetch("/xrpc/network.habitat.admin.getSettings")
+      .then((r) => r.json())
+      .then((data) => {
+        nameEl.value = data.instanceName || "";
+        policyEl.value = data.orgCreationPolicy;
+        applyPolicy(data.orgCreationPolicy);
+      })
+      .catch(() => showError("failed to load settings"));
+
+    policyEl.addEventListener("change", () => applyPolicy(policyEl.value));
+
+    document.getElementById("save").addEventListener("click", () => {
+      fetch("/xrpc/network.habitat.admin.updateSettings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          instanceName: nameEl.value,
+          orgCreationPolicy: policyEl.value,
+        }),
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error("save failed");
+          return r.json();
+        })
+        .then((data) => applyPolicy(data.orgCreationPolicy))
+        .catch(() => showError("failed to save settings"));
+    });
+
+    document.getElementById("generate-invite").addEventListener("click", () => {
+      fetch("/xrpc/network.habitat.admin.issueInvite", { method: "POST" })
+        .then((r) => {
+          if (!r.ok) throw new Error("issue failed");
+          return r.json();
+        })
+        .then((data) => {
+          inviteLinkEl.style.display = "block";
+          inviteLinkEl.value = "https://" + frontendDomain + "/org/create?token=" + data.token;
+        })
+        .catch(() => showError("failed to generate invite link"));
+    });
+  </script>
+</body>
+</html>
