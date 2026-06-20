@@ -26,9 +26,9 @@ export function HostingSelector({
   const [customInstanceName, setCustomInstanceName] = useState<string | null>(
     null,
   );
-  const [customInstanceError, setCustomInstanceError] = useState<
-    string | null
-  >(null);
+  const [customInstanceError, setCustomInstanceError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!useCustomInstance || !customDomain) {

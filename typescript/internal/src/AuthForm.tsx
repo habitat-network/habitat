@@ -40,7 +40,7 @@ export default function AuthForm({
       if (!handle) {
         throw new Error("Handle required");
       }
-      const url = authManager.loginUrl(handle, redirectUrl);
+      const url = authManager.loginUrl(handle, redirectUrl, domain);
       window.location.href = url.toString();
     },
   });
