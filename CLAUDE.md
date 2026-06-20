@@ -39,7 +39,7 @@ Habitat is building a data ownership layer for organizations, built with AT Prot
 **TypeScript packages (`typescript/`)**
 - `internal/` — shared design system, UI components, auth utilities
 - `api/` — generated AT Protocol client bindings (do not edit manually)
-- `apps/` — calendar, docs, greensky sub-apps
+- `apps/` — docs, sub-apps
 
 **API types**
 - `lexicons/` - all lexicon + XRPC endpoints (as defined in AT protocol) live here
