@@ -273,100 +273,6 @@ importers:
         specifier: ^0.9.8
         version: 0.9.8
 
-  typescript/apps/calendar:
-    dependencies:
-      '@fullcalendar/core':
-        specifier: ^6.1.15
-        version: 6.1.20
-      '@fullcalendar/daygrid':
-        specifier: ^6.1.20
-        version: 6.1.20(@fullcalendar/core@6.1.20)
-      '@fullcalendar/interaction':
-        specifier: ^6.1.15
-        version: 6.1.20(@fullcalendar/core@6.1.20)
-      '@fullcalendar/react':
-        specifier: ^6.1.15
-        version: 6.1.20(@fullcalendar/core@6.1.20)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@tanstack/query-db-collection':
-        specifier: ^1.0.33
-        version: 1.0.33(@tanstack/query-core@5.90.16)(typescript@5.9.3)
-      '@tanstack/react-db':
-        specifier: ^0.1.80
-        version: 0.1.80(react@19.2.4)(typescript@5.9.3)
-      '@tanstack/react-devtools':
-        specifier: 'catalog:'
-        version: 0.7.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(csstype@3.2.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.9)
-      '@tanstack/react-query':
-        specifier: 'catalog:'
-        version: 5.90.16(react@19.2.4)
-      '@tanstack/react-router':
-        specifier: 'catalog:'
-        version: 1.133.32(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@tanstack/react-router-devtools':
-        specifier: 'catalog:'
-        version: 1.133.32(@tanstack/react-router@1.133.32(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@tanstack/router-core@1.133.28)(@types/node@22.19.3)(csstype@3.2.3)(jiti@2.6.1)(lightningcss@1.31.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.98.0)(solid-js@1.9.9)(terser@5.44.1)(tiny-invariant@1.3.3)(tsx@4.20.6)(yaml@2.8.2)
-      '@tanstack/react-virtual':
-        specifier: ^3.13.23
-        version: 3.13.23(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@tanstack/router-plugin':
-        specifier: 'catalog:'
-        version: 1.133.32(@tanstack/react-router@1.133.32(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.1.12(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))(webpack@5.105.4)
-      api:
-        specifier: workspace:*
-        version: link:../../api
-      internal:
-        specifier: workspace:*
-        version: link:../../internal
-      react:
-        specifier: 'catalog:'
-        version: 19.2.4
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.4(react@19.2.4)
-      react-hook-form:
-        specifier: 'catalog:'
-        version: 7.65.0(react@19.2.4)
-      tailwindcss:
-        specifier: ^4.2.1
-        version: 4.2.1
-      vite-tsconfig-paths:
-        specifier: 'catalog:'
-        version: 5.1.4(typescript@5.9.3)(vite@7.1.12(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
-    devDependencies:
-      '@tanstack/devtools-vite':
-        specifier: 'catalog:'
-        version: 0.3.12(vite@7.1.12(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
-      '@testing-library/dom':
-        specifier: 'catalog:'
-        version: 10.4.1
-      '@testing-library/react':
-        specifier: 'catalog:'
-        version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@types/node':
-        specifier: 'catalog:'
-        version: 22.19.3
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.14)
-      '@vitejs/plugin-react':
-        specifier: 'catalog:'
-        version: 5.1.2(vite@7.1.12(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))
-      jsdom:
-        specifier: 'catalog:'
-        version: 27.4.0
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-      vite:
-        specifier: 'catalog:'
-        version: 7.1.12(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
-      vitest:
-        specifier: 'catalog:'
-        version: 3.2.4(@types/debug@4.1.12)(@types/node@22.19.3)(jiti@2.6.1)(jsdom@27.4.0)(lightningcss@1.31.1)(msw@2.12.10(@types/node@22.19.3)(typescript@5.9.3))(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
-
   typescript/apps/docs:
     dependencies:
       '@atproto/api':
@@ -845,9 +751,6 @@ packages:
 
   '@atproto/api@0.18.9':
     resolution: {integrity: sha512-ft+0+sczS0qsoxwjqO1VhCXSNG792QEr+uQ91OCc36DTa3sPtaTPL7yNOVTDyEHaYDfp8tYN4v+Pq5/bzz3EpA==}
-
-  '@atproto/api@0.19.0':
-    resolution: {integrity: sha512-7u/EGgkIj4bbslGer2RMQPtMWCPvREcpH0mVagaf5om+NcPzUIZeIacWKANVv95BdMJ7jlcHS7xrkEMPmg2dFw==}
 
   '@atproto/api@0.20.7':
     resolution: {integrity: sha512-7IrOFPwkgLZJrc2PDUsdJLZtbwuQ+sLm+HbyrtTNo5yT3hjbyOOMxZUiCXTurVl5zZFvZ0RIbmS7F0JdPQWl0A==}
@@ -2627,26 +2530,6 @@ packages:
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
 
-  '@fullcalendar/core@6.1.20':
-    resolution: {integrity: sha512-1cukXLlePFiJ8YKXn/4tMKsy0etxYLCkXk8nUCFi11nRONF2Ba2CD5b21/ovtOO2tL6afTJfwmc1ed3HG7eB1g==}
-
-  '@fullcalendar/daygrid@6.1.20':
-    resolution: {integrity: sha512-AO9vqhkLP77EesmJzuU+IGXgxNulsA8mgQHynclJ8U70vSwAVnbcLG9qftiTAFSlZjiY/NvhE7sflve6cJelyQ==}
-    peerDependencies:
-      '@fullcalendar/core': ~6.1.20
-
-  '@fullcalendar/interaction@6.1.20':
-    resolution: {integrity: sha512-p6txmc5txL0bMiPaJxe2ip6o0T384TyoD2KGdsU6UjZ5yoBlaY+dg7kxfnYKpYMzEJLG58n+URrHr2PgNL2fyA==}
-    peerDependencies:
-      '@fullcalendar/core': ~6.1.20
-
-  '@fullcalendar/react@6.1.20':
-    resolution: {integrity: sha512-1w0pZtceaUdfAnxMSCGHCQalhi+mR1jOe76sXzyAXpcPz/Lf0zHSdcGK/U2XpZlnQgQtBZW+d+QBnnzVQKCxAA==}
-    peerDependencies:
-      '@fullcalendar/core': ~6.1.20
-      react: ^16.7.0 || ^17 || ^18 || ^19
-      react-dom: ^16.7.0 || ^17 || ^18 || ^19
-
   '@hapi/hoek@9.3.0':
     resolution: {integrity: sha512-/c6rf4UJlmHlC9b5BaNvzAcFv7HZ2QHaV0D4/HNlBdvFnvQq8RI4kYdhyPCl7Xj+oWvTWQ8ujhqS53LIgAe6KQ==}
 
@@ -3871,9 +3754,6 @@ packages:
     peerDependencies:
       solid-js: ^1.6.12
 
-  '@standard-schema/spec@1.1.0':
-    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
-
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0':
     resolution: {integrity: sha512-b9MIk7yhdS1pMCZM8VeNfUlSKVRhsHZNMl5O9SfaX0l0t5wjdgu4IDzGB8bpnGBBOjGST3rRFVsaaEtI4W6f7g==}
     engines: {node: '>=14'}
@@ -4059,16 +3939,6 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7
 
-  '@tanstack/db-ivm@0.1.18':
-    resolution: {integrity: sha512-+pZJiRKdoKRM5Epq9T7otD9ZJl82pRFauo7LKuJGrarjVKQ7r+QQlPe3kGdN9LEKSnuNGIWjX9OOY4M8kH4eLw==}
-    peerDependencies:
-      typescript: '>=4.7'
-
-  '@tanstack/db@0.6.2':
-    resolution: {integrity: sha512-WqKx0tupIp95YQdt/KVuG40q5qIej51nYM8s8QHz7x0XInutSBtMUKWbS0N7tVt9H2LE6Hktn4eGLlyW1Vgnxg==}
-    peerDependencies:
-      typescript: '>=4.7'
-
   '@tanstack/devtools-client@0.0.3':
     resolution: {integrity: sha512-kl0r6N5iIL3t9gGDRAv55VRM3UIyMKVH83esRGq7xBjYsRLe/BeCIN2HqrlJkObUXQMKhy7i8ejuGOn+bDqDBw==}
     engines: {node: '>=18'}
@@ -4111,23 +3981,8 @@ packages:
     resolution: {integrity: sha512-B7+x7eP2FFvi3fgd3rNH9o/Eixt+pp0zCIdGhnQbAJjFrlwIKGjGnwyJjhWJ5fMQlGks/E2LdDTqEV4W9Plx7g==}
     engines: {node: '>=12'}
 
-  '@tanstack/pacer-lite@0.2.1':
-    resolution: {integrity: sha512-3PouiFjR4B6x1c969/Pl4ZIJleof1M0n6fNX8NRiC9Sqv1g06CVDlEaXUR4212ycGFyfq4q+t8Gi37Xy+z34iQ==}
-    engines: {node: '>=18'}
-
   '@tanstack/query-core@5.90.16':
     resolution: {integrity: sha512-MvtWckSVufs/ja463/K4PyJeqT+HMlJWtw6PrCpywznd2NSgO3m4KwO9RqbFqGg6iDE8vVMFWMeQI4Io3eEYww==}
-
-  '@tanstack/query-db-collection@1.0.33':
-    resolution: {integrity: sha512-irofWH0nQk2b5eUO5LqTw4qbDnxV1li/w5Yg1/cGiWXx32BnqN1nkayPPQ35xx7rOAH/iujYhqiJIFSknnYvzA==}
-    peerDependencies:
-      '@tanstack/query-core': ^5.0.0
-      typescript: '>=4.7'
-
-  '@tanstack/react-db@0.1.80':
-    resolution: {integrity: sha512-TJ7m3Vu8Crn1yeHY/qLIisVLCOXYtTl3a22fT/wSe9GTG9mX5RMvOTEqXwZPc12uflSmFS3i7RzPPsHThJf4rA==}
-    peerDependencies:
-      react: '>=16.8.0'
 
   '@tanstack/react-devtools@0.7.11':
     resolution: {integrity: sha512-a2Lmz8x+JoDrsU6f7uKRcyyY+k8mA/n5mb9h7XJ3Fz/y3+sPV9t7vAW1s5lyNkQyyDt6V1Oim99faLthoJSxMw==}
@@ -4160,12 +4015,6 @@ packages:
 
   '@tanstack/react-store@0.7.7':
     resolution: {integrity: sha512-qqT0ufegFRDGSof9D/VqaZgjNgp4tRPHZIJq2+QIHkMUtHjaJ0lYrrXjeIUJvjnTbgPfSD1XgOMEt0lmANn6Zg==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@tanstack/react-virtual@3.13.23':
-    resolution: {integrity: sha512-XnMRnHQ23piOVj2bzJqHrRrLg4r+F86fuBcwteKfbIjJrtGxb4z7tIvPVAe4B+4UVwo9G4Giuz5fmapcrnZ0OQ==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -4217,9 +4066,6 @@ packages:
 
   '@tanstack/store@0.7.7':
     resolution: {integrity: sha512-xa6pTan1bcaqYDS9BDpSiS63qa6EoDkPN9RsRaxHuDdVDNntzq3xNwR5YKTU/V3SkSyC9T4YVOPh2zRQN0nhIQ==}
-
-  '@tanstack/virtual-core@3.13.23':
-    resolution: {integrity: sha512-zSz2Z2HNyLjCplANTDyl3BcdQJc2k1+yyFoKhNRmCr7V7dY8o8q5m8uFTI1/Pg1kL+Hgrz6u3Xo6eFUB7l66cg==}
 
   '@tanstack/virtual-file-routes@1.133.19':
     resolution: {integrity: sha512-IKwZENsK7owmW1Lm5FhuHegY/SyQ8KqtL/7mTSnzoKJgfzhrrf9qwKB1rmkKkt+svUuy/Zw3uVEpZtUzQruWtA==}
@@ -6597,10 +6443,6 @@ packages:
 
   fraction.js@5.3.4:
     resolution: {integrity: sha512-1X1NTtiJphryn/uLQz3whtY6jK3fTqoE3ohKs0tT+Ujr1W59oopxmoEh7Lu5p6vBaPbgoM0bzveAW4Qi5RyWDQ==}
-
-  fractional-indexing@3.2.0:
-    resolution: {integrity: sha512-PcOxmqwYCW7O2ovKRU8OoQQj2yqTfEB/yeTYk4gPid6dN5ODRfU1hXd9tTVZzax/0NkO7AxpHykvZnT1aYp/BQ==}
-    engines: {node: ^14.13.1 || >=16.0.0}
 
   fresh@0.5.2:
     resolution: {integrity: sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==}
@@ -9367,9 +9209,6 @@ packages:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
 
-  preact@10.12.1:
-    resolution: {integrity: sha512-l8386ixSsBdbreOAkqtrwqHwdvR35ID8c3rKPa8lCWuO86dBi32QWHV4vfsZK1utLLFMvw+Z5Ad4XLkZzchscg==}
-
   preact@10.29.0:
     resolution: {integrity: sha512-wSAGyk2bYR1c7t3SZ3jHcM6xy0lcBcDel6lODcs9ME6Th++Dx2KU+6D3HD8wMMKGA8Wpw7OMd3/4RGzYRpzwRg==}
 
@@ -10364,9 +10203,6 @@ packages:
     resolution: {integrity: sha512-0xtkGhWCC9MGt/EzgnvbbbKhqWjl1+/rncmhTh5qCpbYguXh6S/qwePfv/JQ8jePXXmqingylxoC49pCkSPIbA==}
     engines: {node: '>= 6.3.0'}
 
-  sorted-btree@1.8.1:
-    resolution: {integrity: sha512-395+XIP+wqNn3USkFSrNz7G3Ss/MXlZEqesxvzCRFwL14h6e8LukDHdLBePn5pwbm5OQ9vGu8mDyz2lLDIqamQ==}
-
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -10754,6 +10590,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -11959,17 +11796,6 @@ snapshots:
       '@atproto/common-web': 0.4.9
       '@atproto/lexicon': 0.6.2
       '@atproto/syntax': 0.4.2
-      '@atproto/xrpc': 0.7.7
-      await-lock: 2.2.2
-      multiformats: 9.9.0
-      tlds: 1.261.0
-      zod: 3.25.76
-
-  '@atproto/api@0.19.0':
-    dependencies:
-      '@atproto/common-web': 0.4.18
-      '@atproto/lexicon': 0.6.2
-      '@atproto/syntax': 0.4.3
       '@atproto/xrpc': 0.7.7
       await-lock: 2.2.2
       multiformats: 9.9.0
@@ -14647,24 +14473,6 @@ snapshots:
 
   '@floating-ui/utils@0.2.10': {}
 
-  '@fullcalendar/core@6.1.20':
-    dependencies:
-      preact: 10.12.1
-
-  '@fullcalendar/daygrid@6.1.20(@fullcalendar/core@6.1.20)':
-    dependencies:
-      '@fullcalendar/core': 6.1.20
-
-  '@fullcalendar/interaction@6.1.20(@fullcalendar/core@6.1.20)':
-    dependencies:
-      '@fullcalendar/core': 6.1.20
-
-  '@fullcalendar/react@6.1.20(@fullcalendar/core@6.1.20)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@fullcalendar/core': 6.1.20
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
   '@hapi/hoek@9.3.0': {}
 
   '@hapi/topo@5.1.0':
@@ -16163,8 +15971,6 @@ snapshots:
     dependencies:
       solid-js: 1.9.9
 
-  '@standard-schema/spec@1.1.0': {}
-
   '@svgr/babel-plugin-add-jsx-attribute@8.0.0(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
@@ -16344,19 +16150,6 @@ snapshots:
       tailwindcss: 4.2.1
       vite: 7.1.12(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.31.1)(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
 
-  '@tanstack/db-ivm@0.1.18(typescript@5.9.3)':
-    dependencies:
-      fractional-indexing: 3.2.0
-      sorted-btree: 1.8.1
-      typescript: 5.9.3
-
-  '@tanstack/db@0.6.2(typescript@5.9.3)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@tanstack/db-ivm': 0.1.18(typescript@5.9.3)
-      '@tanstack/pacer-lite': 0.2.1
-      typescript: 5.9.3
-
   '@tanstack/devtools-client@0.0.3':
     dependencies:
       '@tanstack/devtools-event-client': 0.3.5
@@ -16420,24 +16213,7 @@ snapshots:
 
   '@tanstack/history@1.133.28': {}
 
-  '@tanstack/pacer-lite@0.2.1': {}
-
   '@tanstack/query-core@5.90.16': {}
-
-  '@tanstack/query-db-collection@1.0.33(@tanstack/query-core@5.90.16)(typescript@5.9.3)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@tanstack/db': 0.6.2(typescript@5.9.3)
-      '@tanstack/query-core': 5.90.16
-      typescript: 5.9.3
-
-  '@tanstack/react-db@0.1.80(react@19.2.4)(typescript@5.9.3)':
-    dependencies:
-      '@tanstack/db': 0.6.2(typescript@5.9.3)
-      react: 19.2.4
-      use-sync-external-store: 1.6.0(react@19.2.4)
-    transitivePeerDependencies:
-      - typescript
 
   '@tanstack/react-devtools@0.7.11(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(csstype@3.2.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.9)':
     dependencies:
@@ -16498,12 +16274,6 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       use-sync-external-store: 1.6.0(react@19.2.4)
-
-  '@tanstack/react-virtual@3.13.23(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@tanstack/virtual-core': 3.13.23
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
 
   '@tanstack/router-core@1.133.28':
     dependencies:
@@ -16588,8 +16358,6 @@ snapshots:
       - supports-color
 
   '@tanstack/store@0.7.7': {}
-
-  '@tanstack/virtual-core@3.13.23': {}
 
   '@tanstack/virtual-file-routes@1.133.19': {}
 
@@ -19459,8 +19227,6 @@ snapshots:
   forwarded@0.2.0: {}
 
   fraction.js@5.3.4: {}
-
-  fractional-indexing@3.2.0: {}
 
   fresh@0.5.2: {}
 
@@ -23092,8 +22858,6 @@ snapshots:
 
   powershell-utils@0.1.0: {}
 
-  preact@10.12.1: {}
-
   preact@10.29.0: {}
 
   prebuild-install@7.1.3:
@@ -24493,8 +24257,6 @@ snapshots:
       react-dom: 19.2.4(react@19.2.4)
 
   sort-css-media-queries@2.2.0: {}
-
-  sorted-btree@1.8.1: {}
 
   source-map-js@1.2.1: {}
 
