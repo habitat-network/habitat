@@ -7,10 +7,16 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/r3labs/sse/v2"
 )
+
+type PearClient interface {
+	SubscribeSpaces(ctx context.Context, cursor uint64, onEvent func(events.Event)) error
+	ResolveCallerOrg(ctx context.Context, bearerToken string) (syntax.DID, error)
+}
 
 // pearClient talks to a pear instance on behalf of the search server: it
 // authenticates the indexing stream with the instance-wide M2M token, and
@@ -22,7 +28,7 @@ type pearClient struct {
 	m2mToken   string
 }
 
-func newPearClient(host, m2mToken string) *pearClient {
+func newPearClient(host, m2mToken string) PearClient {
 	return &pearClient{
 		host:       host,
 		httpClient: &http.Client{},
@@ -63,7 +69,7 @@ func (c *pearClient) SubscribeSpaces(
 // ResolveCallerOrg calls pear's network.habitat.org.getMetadata using the
 // caller's own bearer token (forwarded as-is, not the M2M token) with no
 // orgId param, which resolves to the caller's own org membership.
-func (c *pearClient) ResolveCallerOrg(ctx context.Context, callerBearerToken string) (string, error) {
+func (c *pearClient) ResolveCallerOrg(ctx context.Context, callerBearerToken string) (syntax.DID, error) {
 	req, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, c.host+"/xrpc/network.habitat.org.getMetadata", nil,
 	)
@@ -86,5 +92,5 @@ func (c *pearClient) ResolveCallerOrg(ctx context.Context, callerBearerToken str
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return "", fmt.Errorf("decode getMetadata response: %w", err)
 	}
-	return out.OrgId, nil
+	return syntax.DID(out.OrgId), nil
 }

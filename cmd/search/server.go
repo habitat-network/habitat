@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -10,19 +9,13 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 )
 
-// OrgResolver is the subset of pearClient the HTTP handler depends on,
-// broken out for testability.
-type OrgResolver interface {
-	ResolveCallerOrg(ctx context.Context, bearerToken string) (string, error)
-}
-
 type Server struct {
-	index    Index
-	resolver OrgResolver
+	index      Index
+	pearClient PearClient
 }
 
-func NewServer(index Index, resolver OrgResolver) *Server {
-	return &Server{index: index, resolver: resolver}
+func NewServer(index Index, pearClient PearClient) *Server {
+	return &Server{index: index, pearClient: pearClient}
 }
 
 func (s *Server) HandleQuery(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +31,7 @@ func (s *Server) HandleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgDID, err := s.resolver.ResolveCallerOrg(r.Context(), bearer)
+	orgDID, err := s.pearClient.ResolveCallerOrg(r.Context(), bearer)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -65,9 +58,9 @@ func (s *Server) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	out := habitat.NetworkHabitatSearchQueryOutput{Cursor: result.NextCursor}
 	for _, res := range result.Results {
 		out.Results = append(out.Results, habitat.NetworkHabitatSearchQueryResultView{
-			Uri:        res.URI,
-			SpaceUri:   res.SpaceURI,
-			RecordType: res.RecordType,
+			Uri:        res.URI.String(),
+			SpaceUri:   res.SpaceURI.String(),
+			RecordType: res.Collection.String(),
 			Snippet:    res.Snippet,
 			// Lexicon "rank" is an integer (AT Protocol has no float
 			// primitive); scale the float64 rank to preserve precision.

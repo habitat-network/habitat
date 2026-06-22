@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -14,7 +16,7 @@ type searchDocument struct {
 	URI        string    `gorm:"column:uri;primaryKey"`
 	SpaceURI   string    `gorm:"column:space_uri;index"`
 	OrgDID     string    `gorm:"column:org_did;index"`
-	RecordType string    `gorm:"column:record_type"`
+	Collection string    `gorm:"column:collection"`
 	Content    string    `gorm:"column:content"`
 	UpdatedAt  time.Time `gorm:"column:updated_at"`
 }
@@ -49,10 +51,10 @@ func newPostgresFTSIndex(db *gorm.DB) (*postgresFTSIndex, error) {
 
 func (idx *postgresFTSIndex) Upsert(ctx context.Context, doc Document) error {
 	row := searchDocument{
-		URI:        doc.URI,
-		SpaceURI:   doc.SpaceURI,
-		OrgDID:     doc.OrgDID,
-		RecordType: doc.RecordType,
+		URI:        doc.URI.String(),
+		SpaceURI:   doc.SpaceURI.String(),
+		OrgDID:     doc.OrgDID.String(),
+		Collection: doc.Collection.String(),
 		Content:    doc.Content,
 		UpdatedAt:  doc.UpdatedAt,
 	}
@@ -62,14 +64,14 @@ func (idx *postgresFTSIndex) Upsert(ctx context.Context, doc Document) error {
 	}).Create(&row).Error
 }
 
-func (idx *postgresFTSIndex) Delete(ctx context.Context, uri string) error {
-	return idx.db.WithContext(ctx).Delete(&searchDocument{}, "uri = ?", uri).Error
+func (idx *postgresFTSIndex) Delete(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
+	return idx.db.WithContext(ctx).Delete(&searchDocument{}, "uri = ?", uri.String()).Error
 }
 
 type ftsRow struct {
 	URI        string
 	SpaceURI   string
-	RecordType string
+	Collection string
 	Snippet    string
 	Rank       float64
 }
@@ -90,14 +92,14 @@ func (idx *postgresFTSIndex) Query(ctx context.Context, params QueryParams) (Que
 
 	var rows []ftsRow
 	err := idx.db.WithContext(ctx).Raw(`
-		SELECT uri, space_uri, record_type,
+		SELECT uri, space_uri, collection,
 		       ts_rank(tsv, query) AS rank,
 		       ts_headline('english', content, query) AS snippet
 		FROM search_documents, websearch_to_tsquery('english', ?) query
 		WHERE org_did = ? AND tsv @@ query
 		ORDER BY rank DESC, uri ASC
 		LIMIT ? OFFSET ?
-	`, params.QueryText, params.OrgDID, limit, offset).Scan(&rows).Error
+	`, params.QueryText, params.OrgDID.String(), limit, offset).Scan(&rows).Error
 	if err != nil {
 		return QueryResult{}, fmt.Errorf("query search_documents: %w", err)
 	}
@@ -105,9 +107,9 @@ func (idx *postgresFTSIndex) Query(ctx context.Context, params QueryParams) (Que
 	results := make([]Result, len(rows))
 	for i, row := range rows {
 		results[i] = Result{
-			URI:        row.URI,
-			SpaceURI:   row.SpaceURI,
-			RecordType: row.RecordType,
+			URI:        habitat_syntax.SpaceRecordURI(row.URI),
+			SpaceURI:   habitat_syntax.SpaceURI(row.SpaceURI),
+			Collection: syntax.NSID(row.Collection),
 			Snippet:    row.Snippet,
 			Rank:       row.Rank,
 		}

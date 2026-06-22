@@ -32,7 +32,7 @@ func TestPearClient_ResolveCallerOrg_ForwardsCallerToken(t *testing.T) {
 	client := newPearClient(server.URL, "m2m-secret")
 	orgDID, err := client.ResolveCallerOrg(context.Background(), "callers-own-token")
 	require.NoError(t, err)
-	require.Equal(t, "did:plc:org1", orgDID)
+	require.Equal(t, "did:plc:org1", orgDID.String())
 	require.Equal(t, "Bearer callers-own-token", gotAuth)
 	require.Equal(t, "oauth", gotMethod)
 }

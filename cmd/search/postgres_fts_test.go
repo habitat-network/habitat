@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -40,12 +43,12 @@ func setupPostgresFTSIndex(t *testing.T) *postgresFTSIndex {
 	return index
 }
 
-func doc(uri, orgDID, content string) Document {
+func doc(uri habitat_syntax.SpaceRecordURI, orgDID syntax.DID, content string) Document {
 	return Document{
 		URI:        uri,
-		SpaceURI:   "ats://" + orgDID + "/app.space/skey1",
+		SpaceURI:   habitat_syntax.SpaceURI("ats://" + orgDID.String() + "/app.space/skey1"),
 		OrgDID:     orgDID,
-		RecordType: "app.note",
+		Collection: "network.habitat.note",
 		Content:    content,
 		UpdatedAt:  time.Now(),
 	}
@@ -56,12 +59,12 @@ func TestPostgresFTSIndex_UpsertAndQuery(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, index.Upsert(ctx, doc(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1",
+		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 		"did:plc:org1",
 		"the quarterly budget review notes",
 	)))
 	require.NoError(t, index.Upsert(ctx, doc(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey2",
+		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey2",
 		"did:plc:org1",
 		"unrelated grocery list",
 	)))
@@ -69,7 +72,11 @@ func TestPostgresFTSIndex_UpsertAndQuery(t *testing.T) {
 	result, err := index.Query(ctx, QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 10})
 	require.NoError(t, err)
 	require.Len(t, result.Results, 1)
-	require.Equal(t, "ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1", result.Results[0].URI)
+	require.Equal(
+		t,
+		habitat_syntax.SpaceRecordURI("ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1"),
+		result.Results[0].URI,
+	)
 }
 
 func TestPostgresFTSIndex_QueryFiltersByOrg(t *testing.T) {
@@ -77,7 +84,7 @@ func TestPostgresFTSIndex_QueryFiltersByOrg(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, index.Upsert(ctx, doc(
-		"ats://did:plc:org2/app.space/skey1/did:plc:user1/app.note/rkey1",
+		"ats://did:plc:org2/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 		"did:plc:org2",
 		"budget notes for org2",
 	)))
@@ -91,7 +98,7 @@ func TestPostgresFTSIndex_Delete(t *testing.T) {
 	index := setupPostgresFTSIndex(t)
 	ctx := context.Background()
 
-	d := doc("ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1", "did:plc:org1", "budget notes")
+	d := doc("ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1", "did:plc:org1", "budget notes")
 	require.NoError(t, index.Upsert(ctx, d))
 	require.NoError(t, index.Delete(ctx, d.URI))
 
@@ -106,7 +113,7 @@ func TestPostgresFTSIndex_QueryRespectsLimitAndCursor(t *testing.T) {
 
 	for i := range 3 {
 		require.NoError(t, index.Upsert(ctx, doc(
-			"ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey"+string(rune('a'+i)),
+			habitat_syntax.ConstructSpaceRecordURI(habitat_syntax.ConstructSpaceURI("did:plc:org1", "app.space", "skey1"), "did:plc:user1", "network.habitat.note", syntax.RecordKey(fmt.Sprintf("rkey-%d", i))),
 			"did:plc:org1",
 			"budget notes page",
 		)))

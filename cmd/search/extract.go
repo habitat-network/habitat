@@ -27,15 +27,3 @@ func walkStrings(v any, sb *strings.Builder) {
 		}
 	}
 }
-
-// ParseRecordType extracts the NSID collection segment from a space record
-// URI of the form "{spaceURI}/{repo}/{collection}/{rkey}", e.g.
-// "ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1" ->
-// "app.note". Returns "" if the URI doesn't have enough segments.
-func ParseRecordType(recordURI string) string {
-	parts := strings.Split(recordURI, "/")
-	if len(parts) < 2 {
-		return ""
-	}
-	return parts[len(parts)-2]
-}

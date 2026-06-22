@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/events"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
@@ -20,13 +21,19 @@ func openIndexerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-// fakeEventSource lets tests publish events synchronously without a real
-// HTTP/SSE connection.
-type fakeEventSource struct {
-	events []events.Event
+// fakePearClient is a test double for PearClient: SubscribeSpaces replays a
+// fixed list of events synchronously (no real HTTP/SSE connection), and
+// ResolveCallerOrg returns a canned org DID or error. Shared by indexer and
+// server tests so there's a single mock to maintain.
+type fakePearClient struct {
+	events     []events.Event
+	orgDID     syntax.DID
+	resolveErr error
 }
 
-func (f *fakeEventSource) SubscribeSpaces(
+var _ PearClient = (*fakePearClient)(nil)
+
+func (f *fakePearClient) SubscribeSpaces(
 	ctx context.Context,
 	cursor uint64,
 	onEvent func(events.Event),
@@ -41,6 +48,13 @@ func (f *fakeEventSource) SubscribeSpaces(
 	return ctx.Err()
 }
 
+func (f *fakePearClient) ResolveCallerOrg(ctx context.Context, bearerToken string) (syntax.DID, error) {
+	if f.resolveErr != nil {
+		return "", f.resolveErr
+	}
+	return f.orgDID, nil
+}
+
 // fakeIndex is an in-memory Index for testing the indexer in isolation.
 type fakeIndex struct {
 	upserted []Document
@@ -52,8 +66,8 @@ func (f *fakeIndex) Upsert(ctx context.Context, doc Document) error {
 	return nil
 }
 
-func (f *fakeIndex) Delete(ctx context.Context, uri string) error {
-	f.deleted = append(f.deleted, uri)
+func (f *fakeIndex) Delete(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
+	f.deleted = append(f.deleted, uri.String())
 	return nil
 }
 
@@ -66,9 +80,9 @@ func TestIndexer_UpsertsCreateAndUpdateEvents(t *testing.T) {
 	index := &fakeIndex{}
 	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:org1/app.space/skey1")
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1",
+		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
-	source := &fakeEventSource{events: []events.Event{
+	source := &fakePearClient{events: []events.Event{
 		{
 			Seq:   1,
 			Type:  "space",
@@ -87,9 +101,9 @@ func TestIndexer_UpsertsCreateAndUpdateEvents(t *testing.T) {
 	_ = indexer.Run(ctx)
 
 	require.Len(t, index.upserted, 1)
-	require.Equal(t, recordURI.String(), index.upserted[0].URI)
-	require.Equal(t, "did:plc:org1", index.upserted[0].OrgDID)
-	require.Equal(t, "app.note", index.upserted[0].RecordType)
+	require.Equal(t, recordURI, index.upserted[0].URI)
+	require.Equal(t, syntax.DID("did:plc:org1"), index.upserted[0].OrgDID)
+	require.Equal(t, syntax.NSID("network.habitat.note"), index.upserted[0].Collection)
 	require.Contains(t, index.upserted[0].Content, "Budget")
 }
 
@@ -98,9 +112,9 @@ func TestIndexer_DeletesOnDeleteAction(t *testing.T) {
 	index := &fakeIndex{}
 	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:org1/app.space/skey1")
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1",
+		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
-	source := &fakeEventSource{events: []events.Event{
+	source := &fakePearClient{events: []events.Event{
 		{
 			Seq:   1,
 			Type:  "space",
@@ -124,7 +138,7 @@ func TestIndexer_PersistsCursorAcrossRuns(t *testing.T) {
 	index := &fakeIndex{}
 	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:org1/app.space/skey1")
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1",
+		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	allEvents := []events.Event{
 		{Seq: 1, Type: "space", Space: spaceURI, Ops: []events.EventOps{
@@ -132,7 +146,7 @@ func TestIndexer_PersistsCursorAcrossRuns(t *testing.T) {
 		}},
 	}
 
-	indexer, err := NewIndexer(db, index, &fakeEventSource{events: allEvents})
+	indexer, err := NewIndexer(db, index, &fakePearClient{events: allEvents})
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	_ = indexer.Run(ctx)
@@ -141,7 +155,7 @@ func TestIndexer_PersistsCursorAcrossRuns(t *testing.T) {
 
 	// A second run with the same already-seen event should not re-index it,
 	// since the persisted cursor is now >= 1.
-	indexer2, err := NewIndexer(db, index, &fakeEventSource{events: allEvents})
+	indexer2, err := NewIndexer(db, index, &fakePearClient{events: allEvents})
 	require.NoError(t, err)
 	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
 	_ = indexer2.Run(ctx2)

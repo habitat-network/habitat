@@ -35,16 +35,3 @@ func contains(haystack, needle string) bool {
 	}
 	return false
 }
-
-func TestParseRecordType_ParsesCollectionSegment(t *testing.T) {
-	uri := "ats://did:plc:org1/app.space/skey1/did:plc:user1/app.note/rkey1"
-	if got := ParseRecordType(uri); got != "app.note" {
-		t.Errorf("ParseRecordType(%q) = %q, want %q", uri, got, "app.note")
-	}
-}
-
-func TestParseRecordType_ShortURIReturnsEmpty(t *testing.T) {
-	if got := ParseRecordType("not-a-uri"); got != "" {
-		t.Errorf("ParseRecordType(short) = %q, want empty string", got)
-	}
-}
