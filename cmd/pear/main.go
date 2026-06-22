@@ -447,6 +447,17 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
+	searchHost := cmd.String(fSearchHost)
+	if searchHost != "" {
+		searchProxy, err := forwarding.NewSearchProxy(searchHost)
+		if err != nil {
+			slog.Error("unable to set up search proxy", "err", err, "search_host", searchHost)
+			os.Exit(1)
+		}
+		mux.PathPrefix("/xrpc/network.habitat.search.").Handler(searchProxy)
+		slog.Info("search proxy enabled", "search_host", searchHost)
+	}
+
 	pdsForwarding := forwarding.NewPDSForwarding(
 		pdsCredStore,
 		oauthServer,

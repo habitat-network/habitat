@@ -18,10 +18,10 @@ const id = 'network.habitat.admin.updateSettings'
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** This instance's display name. */
-  instanceName: string
-  /** 'open' or 'invite_only'. */
-  orgCreationPolicy: string
+  /** This instance's display name. Omit to leave unchanged. */
+  instanceName?: string
+  /** 'open' or 'invite_only'. Omit to leave unchanged. */
+  orgCreationPolicy?: string
 }
 
 export interface OutputSchema {

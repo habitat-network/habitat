@@ -1,0 +1,7 @@
+tasks:
+  build:
+    deps:
+    - root:build
+  dev:
+    env:
+      SEARCH_PORT: '8091'
