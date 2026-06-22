@@ -118,6 +118,35 @@ func TestListSpaces_FilterByType(t *testing.T) {
 	require.Equal(t, groupType, spaces[0].Type)
 }
 
+func TestListSpaces_NilOwnerFilterSpansAllOrgs(t *testing.T) {
+	s := newTestStore(t)
+
+	orgA := syntax.DID("did:plc:org-a")
+	orgB := syntax.DID("did:plc:org-b")
+	member := syntax.DID("did:plc:cross-org-member")
+
+	spaceA, err := s.CreateSpace(t.Context(), orgA, member, groupType, "space-a")
+	require.NoError(t, err)
+	spaceB, err := s.CreateSpace(t.Context(), orgB, member, groupType, "space-b")
+	require.NoError(t, err)
+
+	// With no owner filter, the member sees spaces across every org they
+	// belong to, not just one.
+	spaces, err := s.ListSpaces(t.Context(), member, nil, nil)
+	require.NoError(t, err)
+	uris := make([]habitat_syntax.SpaceURI, len(spaces))
+	for i, sp := range spaces {
+		uris[i] = sp.URI
+	}
+	require.ElementsMatch(t, []habitat_syntax.SpaceURI{spaceA, spaceB}, uris)
+
+	// Filtering by a specific org owner restricts the results to that org.
+	spaces, err = s.ListSpaces(t.Context(), member, &orgA, nil)
+	require.NoError(t, err)
+	require.Len(t, spaces, 1)
+	require.Equal(t, spaceA, spaces[0].URI)
+}
+
 func TestGetMembers(t *testing.T) {
 	s := newTestStore(t)
 
