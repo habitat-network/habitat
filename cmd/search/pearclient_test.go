@@ -56,7 +56,11 @@ func TestPearClient_SubscribeSpaces_DecodesSpaceEvents(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher := w.(http.Flusher)
-		_, _ = w.Write([]byte("id: 1\nevent: space\ndata: {\"seq\":1,\"type\":\"space\",\"space\":\"ats://did:plc:org1/app.space/skey1\"}\n\n"))
+		_, _ = w.Write(
+			[]byte(
+				"id: 1\nevent: space\ndata: {\"seq\":1,\"type\":\"space\",\"space\":\"ats://did:plc:org1/app.space/skey1\"}\n\n",
+			),
+		)
 		flusher.Flush()
 	}))
 	defer server.Close()

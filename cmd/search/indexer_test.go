@@ -48,7 +48,10 @@ func (f *fakePearClient) SubscribeSpaces(
 	return ctx.Err()
 }
 
-func (f *fakePearClient) ResolveCallerOrg(ctx context.Context, bearerToken string) (syntax.DID, error) {
+func (f *fakePearClient) ResolveCallerOrg(
+	ctx context.Context,
+	bearerToken string,
+) (syntax.DID, error) {
 	if f.resolveErr != nil {
 		return "", f.resolveErr
 	}
@@ -160,5 +163,10 @@ func TestIndexer_PersistsCursorAcrossRuns(t *testing.T) {
 	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
 	_ = indexer2.Run(ctx2)
 	cancel2()
-	require.Len(t, index.upserted, 1, "event already at or before the persisted cursor should not be re-indexed")
+	require.Len(
+		t,
+		index.upserted,
+		1,
+		"event already at or before the persisted cursor should not be re-indexed",
+	)
 }

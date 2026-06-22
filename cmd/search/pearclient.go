@@ -69,7 +69,10 @@ func (c *pearClient) SubscribeSpaces(
 // ResolveCallerOrg calls pear's network.habitat.org.getMetadata using the
 // caller's own bearer token (forwarded as-is, not the M2M token) with no
 // orgId param, which resolves to the caller's own org membership.
-func (c *pearClient) ResolveCallerOrg(ctx context.Context, callerBearerToken string) (syntax.DID, error) {
+func (c *pearClient) ResolveCallerOrg(
+	ctx context.Context,
+	callerBearerToken string,
+) (syntax.DID, error) {
 	req, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, c.host+"/xrpc/network.habitat.org.getMetadata", nil,
 	)

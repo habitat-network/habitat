@@ -69,12 +69,17 @@ func TestPostgresFTSIndex_UpsertAndQuery(t *testing.T) {
 		"unrelated grocery list",
 	)))
 
-	result, err := index.Query(ctx, QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 10})
+	result, err := index.Query(
+		ctx,
+		QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 10},
+	)
 	require.NoError(t, err)
 	require.Len(t, result.Results, 1)
 	require.Equal(
 		t,
-		habitat_syntax.SpaceRecordURI("ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1"),
+		habitat_syntax.SpaceRecordURI(
+			"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		),
 		result.Results[0].URI,
 	)
 }
@@ -89,7 +94,10 @@ func TestPostgresFTSIndex_QueryFiltersByOrg(t *testing.T) {
 		"budget notes for org2",
 	)))
 
-	result, err := index.Query(ctx, QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 10})
+	result, err := index.Query(
+		ctx,
+		QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 10},
+	)
 	require.NoError(t, err)
 	require.Empty(t, result.Results)
 }
@@ -98,11 +106,18 @@ func TestPostgresFTSIndex_Delete(t *testing.T) {
 	index := setupPostgresFTSIndex(t)
 	ctx := context.Background()
 
-	d := doc("ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1", "did:plc:org1", "budget notes")
+	d := doc(
+		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"did:plc:org1",
+		"budget notes",
+	)
 	require.NoError(t, index.Upsert(ctx, d))
 	require.NoError(t, index.Delete(ctx, d.URI))
 
-	result, err := index.Query(ctx, QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 10})
+	result, err := index.Query(
+		ctx,
+		QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 10},
+	)
 	require.NoError(t, err)
 	require.Empty(t, result.Results)
 }
@@ -113,13 +128,21 @@ func TestPostgresFTSIndex_QueryRespectsLimitAndCursor(t *testing.T) {
 
 	for i := range 3 {
 		require.NoError(t, index.Upsert(ctx, doc(
-			habitat_syntax.ConstructSpaceRecordURI(habitat_syntax.ConstructSpaceURI("did:plc:org1", "app.space", "skey1"), "did:plc:user1", "network.habitat.note", syntax.RecordKey(fmt.Sprintf("rkey-%d", i))),
+			habitat_syntax.ConstructSpaceRecordURI(
+				habitat_syntax.ConstructSpaceURI("did:plc:org1", "app.space", "skey1"),
+				"did:plc:user1",
+				"network.habitat.note",
+				syntax.RecordKey(fmt.Sprintf("rkey-%d", i)),
+			),
 			"did:plc:org1",
 			"budget notes page",
 		)))
 	}
 
-	first, err := index.Query(ctx, QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 2})
+	first, err := index.Query(
+		ctx,
+		QueryParams{OrgDID: "did:plc:org1", QueryText: "budget", Limit: 2},
+	)
 	require.NoError(t, err)
 	require.Len(t, first.Results, 2)
 	require.NotEmpty(t, first.NextCursor)
