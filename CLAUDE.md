@@ -18,7 +18,7 @@ Habitat is building a data ownership layer for organizations, built with AT Prot
 **Go binaries (`cmd/`)**
 - `pear` — the main application server (auth, routing, permissions, AT Protocol repo ops, OAuth provider/broker)
 - `sap` — standalone sync state tracker: crawls org members' repos and subscribes to their AT Proto event firehose to discover and resync `network.habitat.space` records
-- `calendarServer` — Google Calendar integration for the `typescript/apps/calendar` app backend
+- `calendarServer` — Google Calendar integration backend; orphaned since the `typescript/apps/calendar` frontend was removed (#417)
 - `pwtool` — manual debugging helper for the argon2id password hashing used by `internal/org`
 - `keygen`, `didgen`, `lexgen` — utilities for key, DID, and lexicon (Go bindings) generation
 
@@ -71,9 +71,9 @@ Shared/infra:
 - `internal/` — shared design system, UI components, auth utilities
 - `api/` — generated AT Protocol client bindings from `lexicons/` via `@atproto/lex-cli` (do not edit manually)
 - `xrpc-openapi-gen` — generates an OpenAPI spec from `lexicons/` for `api-docs`
-- `apps/calendar` — calendar demo app (own `CLAUDE.md` — backend is `cmd/pear` + `cmd/calendarServer`)
 - `apps/docs` — collaborative document-editing demo app
-- `apps/greensky` — Bluesky-style social feed demo app
+
+`apps/calendar` and `apps/greensky` (calendar and Bluesky-style social feed demo apps) were removed as unused/out-of-date (#417). `cmd/calendarServer` (Google Calendar backend) still exists but is currently orphaned — nothing depends on it.
 
 **Other top-level dirs**
 - `lexicons/` — all lexicon + XRPC endpoint definitions (AT Protocol schemas); source of truth for both `api/habitat` (Go, via `lexgen`) and `typescript/api` (TS, via `@atproto/lex-cli`)
@@ -86,7 +86,7 @@ Shared/infra:
 
 ## Local development domains
 
-`Caddyfile` reverse-proxies `*.local.habitat.network` subdomains to each app's dev port (frontend, docs, calendar, calendar-server, greensky, pear, sap) with locally-trusted TLS. `pear:dev` also runs `ngrok` to expose the local server publicly under `NGROK_DOMAIN`, which is required for PDS OAuth redirect flows.
+`Caddyfile` reverse-proxies `*.local.habitat.network` subdomains to each app's dev port (frontend, docs, pear, sap) with locally-trusted TLS. `pear:dev` also runs `ngrok` to expose the local server publicly under `NGROK_DOMAIN`, which is required for PDS OAuth redirect flows.
 
 ## Commands
 
@@ -94,7 +94,7 @@ Tool versions are managed by [Proto](https://moonrepo.dev/proto) via `.prototool
 
 ```bash
 # Development
-moon :dev-all           # start all apps in dev (frontend + backend, calendar, greensky, docs)
+moon :dev-all           # start all apps in dev (frontend + backend, docs)
 moon frontend:dev       # frontend only (habitat management plane) + pear backend
 moon pear:dev           # Pear server with Air hot reload (+ ngrok, + Caddy)
 moon sap:dev            # sap sync service in dev
