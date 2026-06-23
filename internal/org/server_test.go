@@ -46,13 +46,12 @@ func (f *fakeInstancePolicy) MarkInviteUsed(ctx context.Context, token string) e
 
 func newTestServer(
 	t *testing.T,
-	adminDID syntax.DID,
 	policy instance.PolicyStore,
-) (*Server, syntax.DID) {
+) (*Server, syntax.DID, syntax.DID) {
 	t.Helper()
 	storeImpl := newTestStore(t)
 
-	orgIdIdent, _, err := storeImpl.CreateOrg(
+	orgIdIdent, adminIdent, err := storeImpl.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -63,27 +62,20 @@ func newTestServer(
 	)
 	require.NoError(t, err)
 
-	require.NoError(t, storeImpl.db.Create(&member{
-		OrgID:   orgIdIdent.DID,
-		Did:     adminDID,
-		Role:    AdminRole,
-		LoginID: adminDID.String(),
-	}).Error)
-
 	srv, err := NewServer(
 		storeImpl,
-		authn.NewStubAuthnForTest(adminDID),
+		authn.NewStubAuthnForTest(adminIdent.DID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		policy,
 	)
 	require.NoError(t, err)
-	return srv, orgIdIdent.DID
+	return srv, orgIdIdent.DID, adminIdent.DID
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
-	srv, orgId := newTestServer(t, adminDID, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Admin issues an invite token
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
@@ -132,7 +124,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	require.NoError(t, err)
 	members, err := testOrg.GetMembers(context.Background())
 	require.NoError(t, err)
-	require.Len(t, members, 3)
+	require.Len(t, members, 2)
 	require.Contains(t, members, adminDID, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
 }
@@ -141,7 +133,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 //  1. orgID in query params + an org-signed token in the Authorization header
 //  2. a regular authenticated caller (no orgID), resolved to their org
 func TestGetMetadataViaSignedToken(t *testing.T) {
-	srv, orgId := newTestServer(t, adminDID, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Mint an org-signed token to authenticate the request.
 	org, err := srv.store.GetOrg(context.Background(), orgId)
@@ -172,7 +164,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 }
 
 func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
-	srv, orgId := newTestServer(t, adminDID, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -186,7 +178,7 @@ func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
 }
 
 func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
-	srv, orgId := newTestServer(t, adminDID, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// No orgID query param: the caller is resolved to their org via the
 	// stub authn method configured in newTestServer (adminDID).
