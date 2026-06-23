@@ -80,7 +80,7 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 	if err != nil {
 		return nil, err
 	}
-	return &client{*metadata}, nil
+	return &client{metadata}, nil
 }
 
 // fetchClientMetadata fetches and decodes the client metadata document
