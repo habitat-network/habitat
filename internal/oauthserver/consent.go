@@ -1,8 +1,7 @@
 package oauthserver
 
 import (
-	"embed"
-	"html/template"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -20,6 +19,11 @@ const (
 	// in sync between session creation and invalidation, since a Set-Cookie
 	// only clears a cookie with a matching path.
 	consentPath = "/oauth/consent"
+	// consentUIPath is the embedded consent page UI (see internal/webui and
+	// typescript/apps/pear-pages) that HandleConsent redirects the browser to.
+	// It fetches the pending request's data from ServeConsentData and posts
+	// the admin's decision back to consentPath.
+	consentUIPath = "/ui/oauth/consent"
 
 	consentFormKey = "form"
 	consentDidKey  = "did"
@@ -37,18 +41,14 @@ type consentFlash struct {
 	Did  syntax.DID
 }
 
-//go:embed consent.html
-var consentTemplateFS embed.FS
-
-var consentTemplates = template.Must(template.ParseFS(consentTemplateFS, "consent.html"))
-
-// consentPageData is rendered into consent.html.
-type consentPageData struct {
-	ClientName string
-	ClientUri  string
-	LogoUri    string
-	Scopes     []string
-	OrgDID     string
+// consentData is the JSON payload ServeConsentData returns to the consent
+// page UI.
+type consentData struct {
+	ClientName string   `json:"clientName"`
+	ClientUri  string   `json:"clientUri"`
+	LogoUri    string   `json:"logoUri"`
+	Scopes     []string `json:"scopes"`
+	OrgHandle  string   `json:"orgHandle"`
 }
 
 // beginConsent stores the pending authorization request in a signed cookie
@@ -96,13 +96,8 @@ func (o *OAuthServer) beginConsent(
 	http.Redirect(w, r, consentPath, http.StatusSeeOther)
 }
 
-// lookupConsent reads the consent cookie session off r. If pop is true, the
-// session is invalidated so it can only be used once.
-func (o *OAuthServer) lookupConsent(
-	r *http.Request,
-	w http.ResponseWriter,
-	pop bool,
-) (*consentFlash, error) {
+// lookupConsent reads the consent cookie session off r without mutating it.
+func (o *OAuthServer) lookupConsent(r *http.Request) (*consentFlash, error) {
 	session, err := o.sessionStore.Get(r, consentSessionName)
 	if err != nil {
 		return nil, err
@@ -118,27 +113,38 @@ func (o *OAuthServer) lookupConsent(
 	}
 	did, _ := session.Values[consentDidKey].(string)
 
-	if pop {
-		clear(session.Values)
-		// Get() loads Options from the store's defaults rather than whatever
-		// was set in beginConsent (Options aren't part of the encoded
-		// cookie), so Path must be set again here: a Set-Cookie only clears
-		// a cookie when its path matches the one it was created with.
-		session.Options.Path = consentPath
-		session.Options.MaxAge = -1
-		if err := session.Save(r, w); err != nil {
-			return nil, err
-		}
-	}
-
 	return &consentFlash{Form: form, Did: syntax.DID(did)}, nil
 }
 
-// HandleConsent renders the consent page for a pending org DID authorization
-// request, showing the requesting client's metadata and requested scopes.
+// invalidateConsentSession clears the consent cookie session so it can't be
+// used again, e.g. once the admin's decision has been read off it.
+func (o *OAuthServer) invalidateConsentSession(r *http.Request, w http.ResponseWriter) error {
+	session, err := o.sessionStore.Get(r, consentSessionName)
+	if err != nil {
+		return err
+	}
+	clear(session.Values)
+	// Get() loads Options from the store's defaults rather than whatever was
+	// set in beginConsent (Options aren't part of the encoded cookie), so
+	// Path must be set again here: a Set-Cookie only clears a cookie when its
+	// path matches the one it was created with.
+	session.Options.Path = consentPath
+	session.Options.MaxAge = -1
+	return session.Save(r, w)
+}
+
+// HandleConsent redirects the browser to the embedded consent page UI for a
+// pending org DID authorization request.
 func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, consentUIPath, http.StatusSeeOther)
+}
+
+// ServeConsentData returns the pending authorization request's client
+// metadata, requested scopes, and org handle as JSON, for the consent page UI
+// to render.
+func (o *OAuthServer) ServeConsentData(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	cf, err := o.lookupConsent(r, w, false)
+	cf, err := o.lookupConsent(r)
 	if err != nil {
 		utils.LogAndHTTPError(
 			ctx,
@@ -169,16 +175,27 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	}
 	c := fositeClient.(*client)
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	err = consentTemplates.ExecuteTemplate(w, "consent.html", consentPageData{
+	id, err := o.directory.LookupDID(ctx, cf.Did)
+	if err != nil {
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to resolve org handle",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(consentData{
 		ClientName: c.ClientName,
 		ClientUri:  c.ClientUri,
 		LogoUri:    c.LogoUri,
 		Scopes:     authRequest.GetRequestedScopes(),
-		OrgDID:     cf.Did.String(),
-	})
-	if err != nil {
-		slog.ErrorContext(ctx, "rendering consent page", "err", err)
+		OrgHandle:  id.Handle.String(),
+	}); err != nil {
+		slog.ErrorContext(ctx, "encoding consent data", "err", err)
 	}
 }
 
@@ -186,7 +203,7 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 // consent page. An authorization code is only issued on accept.
 func (o *OAuthServer) HandleConsentDecision(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	cf, err := o.lookupConsent(r, w, true)
+	cf, err := o.lookupConsent(r)
 	if err != nil {
 		utils.LogAndHTTPError(
 			ctx,
@@ -194,6 +211,18 @@ func (o *OAuthServer) HandleConsentDecision(w http.ResponseWriter, r *http.Reque
 			err,
 			"no consent state found for session",
 			http.StatusBadRequest,
+		)
+		return
+	}
+	// Invalidate the session as soon as it's been read so it can't be
+	// replayed even if the rest of this handler fails partway through.
+	if err := o.invalidateConsentSession(r, w); err != nil {
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to invalidate consent session",
+			http.StatusInternalServerError,
 		)
 		return
 	}

@@ -57,7 +57,6 @@ func setupOrgConsentFixture(t *testing.T) *orgConsentFixture {
 	passwordProvider, err := login.NewPasswordProvider(
 		hiveDB,
 		orgConsentPearDomain,
-		"frontend."+orgConsentMemberDomain,
 		[]byte("test-signing-secret-for-org-consent"),
 		h,
 	)
@@ -107,6 +106,8 @@ func setupOrgConsentFixture(t *testing.T) *orgConsentFixture {
 				oauthServer.HandleConsent(w, r)
 			case r.URL.Path == "/oauth/consent" && r.Method == http.MethodPost:
 				oauthServer.HandleConsentDecision(w, r)
+			case r.URL.Path == "/oauth/consent/data" && r.Method == http.MethodGet:
+				oauthServer.ServeConsentData(w, r)
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -224,10 +225,21 @@ func (fx *orgConsentFixture) driveToConsentPage(t *testing.T) (*http.Client, str
 
 	consentResp, err := httpClient.Get(fx.flowServer.URL + "/oauth/consent")
 	require.NoError(t, err)
-	body, err := io.ReadAll(consentResp.Body)
-	require.NoError(t, err)
 	require.NoError(t, consentResp.Body.Close())
-	require.Equal(t, http.StatusOK, consentResp.StatusCode)
+	require.Equal(t, http.StatusSeeOther, consentResp.StatusCode)
+	require.Equal(
+		t,
+		"/ui/oauth/consent",
+		consentResp.Header.Get("Location"),
+		"the consent endpoint should redirect to the embedded consent page UI",
+	)
+
+	dataResp, err := httpClient.Get(fx.flowServer.URL + "/oauth/consent/data")
+	require.NoError(t, err)
+	body, err := io.ReadAll(dataResp.Body)
+	require.NoError(t, err)
+	require.NoError(t, dataResp.Body.Close())
+	require.Equal(t, http.StatusOK, dataResp.StatusCode)
 
 	return httpClient, string(body)
 }
@@ -242,7 +254,7 @@ func TestOAuthServerOrgDIDRequiresConsent(t *testing.T) {
 	t.Run("consent page shows client metadata and allow issues a code", func(t *testing.T) {
 		httpClient, body := fx.driveToConsentPage(t)
 		require.Contains(t, body, fx.clientMetadata.ClientName)
-		require.Contains(t, body, string(fx.orgIdentity.DID))
+		require.Contains(t, body, fx.orgIdentity.Handle.String())
 
 		resp, err := httpClient.PostForm(
 			fx.flowServer.URL+"/oauth/consent",
