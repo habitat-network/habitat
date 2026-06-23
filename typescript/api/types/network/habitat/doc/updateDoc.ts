@@ -13,20 +13,22 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.admin.updateSettings'
+const id = 'network.habitat.doc.updateDoc'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** This instance's display name. Omit to leave unchanged. */
-  instanceName?: string
-  /** 'open' or 'invite_only'. Omit to leave unchanged. */
-  orgCreationPolicy?: string
+  /** The record key identifying the document to update. */
+  docId: string
+  /** Base64-encoded Yjs update to merge into the document. */
+  update: string
 }
 
 export interface OutputSchema {
-  instanceName: string
-  orgCreationPolicy: string
+  /** URI of the updated document record. */
+  uri: string
+  /** CID of the updated record. */
+  cid?: string
 }
 
 export interface CallOptions {

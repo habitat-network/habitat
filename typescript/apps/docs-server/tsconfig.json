@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.options.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*", "../../globals.d.ts"],
+  "references": [
+    {
+      "path": "../../api"
+    }
+  ]
+}

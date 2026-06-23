@@ -13,20 +13,20 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.admin.updateSettings'
+const id = 'network.habitat.doc.createDoc'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** This instance's display name. Omit to leave unchanged. */
-  instanceName?: string
-  /** 'open' or 'invite_only'. Omit to leave unchanged. */
-  orgCreationPolicy?: string
+  /** The initial name of the document. */
+  name: string
 }
 
 export interface OutputSchema {
-  instanceName: string
-  orgCreationPolicy: string
+  /** URI of the created document record. */
+  uri: string
+  /** The record key identifying the document, used in subsequent updateDoc calls. */
+  docId: string
 }
 
 export interface CallOptions {

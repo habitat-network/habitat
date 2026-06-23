@@ -38,12 +38,15 @@ import type {
   NetworkHabitatSpaceAddMember,
   NetworkHabitatSpaceDeleteRecord,
   NetworkHabitatSpaceGetMembers,
+  NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpaceRemoveMember,
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatInstanceDescribeInstance,
+  NetworkHabitatDocCreateDoc,
+  NetworkHabitatDocUpdateDoc,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -138,6 +141,10 @@ type QueryEndpoints = {
   "network.habitat.space.getMembers": Query<
     NetworkHabitatSpaceGetMembers.QueryParams,
     NetworkHabitatSpaceGetMembers.OutputSchema
+  >;
+  "network.habitat.space.getRecord": Query<
+    NetworkHabitatSpaceGetRecord.QueryParams,
+    NetworkHabitatSpaceGetRecord.OutputSchema
   >;
   "network.habitat.space.listRecords": Query<
     NetworkHabitatSpaceListRecords.QueryParams,
@@ -257,6 +264,16 @@ type ProcedureEndpoints = {
   "network.habitat.space.putRecord": Procedure<
     NetworkHabitatSpacePutRecord.InputSchema,
     NetworkHabitatSpacePutRecord.OutputSchema
+  >;
+  // Implemented by the docs server; reaches it via pear service proxying when
+  // called with an Atproto-Proxy header (see options.headers).
+  "network.habitat.doc.createDoc": Procedure<
+    NetworkHabitatDocCreateDoc.InputSchema,
+    NetworkHabitatDocCreateDoc.OutputSchema
+  >;
+  "network.habitat.doc.updateDoc": Procedure<
+    NetworkHabitatDocUpdateDoc.InputSchema,
+    NetworkHabitatDocUpdateDoc.OutputSchema
   >;
 };
 

@@ -1,0 +1,9 @@
+layer: application
+language: typescript
+tasks:
+  dev:
+    env:
+      DOCS_SERVER_PORT: "2590"
+    deps:
+      - pear:dev
+      - root:caddy

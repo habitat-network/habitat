@@ -34,6 +34,8 @@ import * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 import * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
+import * as NetworkHabitatDocCreateDoc from './types/network/habitat/doc/createDoc.js'
+import * as NetworkHabitatDocUpdateDoc from './types/network/habitat/doc/updateDoc.js'
 import * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
@@ -101,6 +103,8 @@ export * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 export * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
+export * as NetworkHabitatDocCreateDoc from './types/network/habitat/doc/createDoc.js'
+export * as NetworkHabitatDocUpdateDoc from './types/network/habitat/doc/updateDoc.js'
 export * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
@@ -611,6 +615,7 @@ export class NetworkHabitatNS {
   photo: NetworkHabitatPhotoRecord
   admin: NetworkHabitatAdminNS
   clique: NetworkHabitatCliqueNS
+  doc: NetworkHabitatDocNS
   instance: NetworkHabitatInstanceNS
   internal: NetworkHabitatInternalNS
   org: NetworkHabitatOrgNS
@@ -623,6 +628,7 @@ export class NetworkHabitatNS {
     this._client = client
     this.admin = new NetworkHabitatAdminNS(client)
     this.clique = new NetworkHabitatCliqueNS(client)
+    this.doc = new NetworkHabitatDocNS(client)
     this.instance = new NetworkHabitatInstanceNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.org = new NetworkHabitatOrgNS(client)
@@ -752,6 +758,38 @@ export class NetworkHabitatCliqueNS {
   ): Promise<NetworkHabitatCliqueRemoveMembers.Response> {
     return this._client.call(
       'network.habitat.clique.removeMembers',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatDocNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  createDoc(
+    data?: NetworkHabitatDocCreateDoc.InputSchema,
+    opts?: NetworkHabitatDocCreateDoc.CallOptions,
+  ): Promise<NetworkHabitatDocCreateDoc.Response> {
+    return this._client.call(
+      'network.habitat.doc.createDoc',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  updateDoc(
+    data?: NetworkHabitatDocUpdateDoc.InputSchema,
+    opts?: NetworkHabitatDocUpdateDoc.CallOptions,
+  ): Promise<NetworkHabitatDocUpdateDoc.Response> {
+    return this._client.call(
+      'network.habitat.doc.updateDoc',
       opts?.qp,
       data,
       opts,

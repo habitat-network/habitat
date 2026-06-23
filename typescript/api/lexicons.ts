@@ -946,15 +946,16 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['instanceName', 'orgCreationPolicy'],
             properties: {
               instanceName: {
                 type: 'string',
-                description: "This instance's display name.",
+                description:
+                  "This instance's display name. Omit to leave unchanged.",
               },
               orgCreationPolicy: {
                 type: 'string',
-                description: "'open' or 'invite_only'.",
+                description:
+                  "'open' or 'invite_only'. Omit to leave unchanged.",
               },
             },
           },
@@ -1162,6 +1163,96 @@ export const schemaDict = {
                   type: 'string',
                   format: 'did',
                 },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocCreateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.doc.createDoc',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Create a new collaborative document. Implemented by the docs server, which writes the canonical record into the org's docs space using the org credential.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['name'],
+            properties: {
+              name: {
+                type: 'string',
+                description: 'The initial name of the document.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri', 'docId'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the created document record.',
+              },
+              docId: {
+                type: 'string',
+                description:
+                  'The record key identifying the document, used in subsequent updateDoc calls.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocUpdateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.doc.updateDoc',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Apply a CRDT update to a collaborative document. Implemented by the docs server, which merges the update into the canonical document and writes it back using the org credential.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['docId', 'update'],
+            properties: {
+              docId: {
+                type: 'string',
+                description:
+                  'The record key identifying the document to update.',
+              },
+              update: {
+                type: 'string',
+                description:
+                  'Base64-encoded Yjs update to merge into the document.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the updated document record.',
+              },
+              cid: {
+                type: 'string',
+                format: 'cid',
+                description: 'CID of the updated record.',
               },
             },
           },
@@ -3362,6 +3453,8 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
+  NetworkHabitatDocCreateDoc: 'network.habitat.doc.createDoc',
+  NetworkHabitatDocUpdateDoc: 'network.habitat.doc.updateDoc',
   NetworkHabitatDocs: 'network.habitat.docs',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInstanceDescribeInstance:

@@ -1,0 +1,10 @@
+layer: application
+tasks:
+  dev:
+    env:
+      DEVTOOLS_PORT: "42073"
+      SERVER_PORT: "5176"
+    deps:
+      - pear:dev
+      - root:caddy
+      - docs-server:dev
