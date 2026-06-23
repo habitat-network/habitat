@@ -4,6 +4,9 @@ tasks:
   dev:
     env:
       DOCS_SERVER_PORT: "2590"
+      DOCS_SERVER_DOMAIN: "docs-server.local.habitat.network"
+      DOCS_SERVER_ORG_HANDLE: "google.pear.local.habitat.network"
+      DOCS_SERVER_PEAR_HOST: "pear.local.habitat.network"
     deps:
       - pear:dev
       - root:caddy
