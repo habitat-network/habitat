@@ -4,40 +4,76 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-type Method interface {
-	CanHandle(r *http.Request) bool
-	Validate(w http.ResponseWriter, r *http.Request, scopes ...string) (syntax.DID, bool)
-	ValidateRaw(ctx context.Context, token string, scopes ...string) (syntax.DID, bool, error)
+type CredentialType int
+
+const (
+	InstanceCredential CredentialType = iota
+	OrgCredential
+	UserCredential
+)
+
+type CredentialInfo struct {
+	Subject syntax.DID
+	Type    CredentialType
 }
 
-func Validate(
-	w http.ResponseWriter,
-	r *http.Request,
-	authMethod ...Method,
-) (syntax.DID, bool) {
-	for _, method := range authMethod {
+type Method interface {
+	CanHandle(r *http.Request) bool
+	Validate(w http.ResponseWriter, r *http.Request, scopes ...string) (*CredentialInfo, bool)
+	ValidateRaw(ctx context.Context, token string, scopes ...string) (*CredentialInfo, bool, error)
+}
+
+type Validator struct {
+	authMethods          []Method
+	supportedCredentials []CredentialType
+}
+
+func NewValidator(authMethods ...Method) *Validator {
+	return &Validator{authMethods: authMethods}
+}
+
+func (v *Validator) WithSupportedCredentials(supportedCredentials ...CredentialType) *Validator {
+	v.supportedCredentials = supportedCredentials
+	return v
+}
+
+func (v *Validator) WithRequiredSubject() *Validator {
+	v.supportedCredentials = []CredentialType{UserCredential, OrgCredential}
+	return v
+}
+
+func (v *Validator) Validate(w http.ResponseWriter, r *http.Request) (*CredentialInfo, bool) {
+	for _, method := range v.authMethods {
 		if method.CanHandle(r) {
-			return method.Validate(w, r)
+			credInfo, ok := method.Validate(w, r)
+			if !ok {
+				return nil, false
+			}
+			if len(v.supportedCredentials) > 0 &&
+				!slices.Contains(v.supportedCredentials, credInfo.Type) {
+				return nil, false
+			}
+			return credInfo, true
 		}
 	}
 	w.WriteHeader(http.StatusUnauthorized)
-	return "", false
+	return nil, false
 }
 
-func ValidateRaw(
+func (v *Validator) ValidateRaw(
 	ctx context.Context,
 	token string,
 	/* TODO: take in scopes here */
-	authMethod ...Method,
-) (syntax.DID, bool, error) {
+) (*CredentialInfo, bool, error) {
 	var err error
-	var did syntax.DID
+	var did *CredentialInfo
 	var ok bool
-	for _, method := range authMethod {
+	for _, method := range v.authMethods {
 		did, ok, err = method.ValidateRaw(ctx, token /* TODO: scopes */)
 		// Allow first pass through
 		if ok && err == nil {

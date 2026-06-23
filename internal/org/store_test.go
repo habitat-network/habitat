@@ -80,7 +80,7 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	org, err := s.GetOrgForDID(t.Context(), adminId.DID)
+	org, _, err := s.GetOrgForDID(t.Context(), adminId.DID)
 	require.NoError(t, err)
 
 	var gotOrgID syntax.DID
@@ -94,7 +94,7 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	s := newTestStore(t)
 	unknown := syntax.DID("did:plc:unknown")
-	org, err := s.GetOrgForDID(t.Context(), unknown)
+	org, _, err := s.GetOrgForDID(t.Context(), unknown)
 	require.NoError(t, err)
 
 	ok, err := org.IsMember(t.Context(), unknown)
@@ -160,7 +160,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	org, err := s.GetOrgForDID(t.Context(), adminId1.DID)
+	org, _, err := s.GetOrgForDID(t.Context(), adminId1.DID)
 	require.NoError(t, err)
 	var gotID1 syntax.DID
 	switch o := org.(type) {
@@ -169,7 +169,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	}
 	require.Equal(t, orgId1.DID, gotID1)
 
-	org, err = s.GetOrgForDID(t.Context(), adminId2.DID)
+	org, _, err = s.GetOrgForDID(t.Context(), adminId2.DID)
 	require.NoError(t, err)
 	var gotID2 syntax.DID
 	switch o := org.(type) {

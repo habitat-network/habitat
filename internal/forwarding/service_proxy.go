@@ -66,7 +66,9 @@ func NewServiceProxy(
 
 func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader string) {
 	// Validate the caller's OAuth session before acting on their behalf.
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(s.oauth).
+		WithSupportedCredentials(authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -127,7 +129,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
 	jwt, err := s.hive.SignServiceAuth(
 		r.Context(),
-		callerDID,
+		credInfo.Subject,
 		targetDID.String(),
 		60*time.Second,
 		&nsid,
