@@ -447,7 +447,6 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	passwordProvider, err := login.NewPasswordProvider(
 		hiveDB,
 		pearDomain,
-		"frontend."+memberDomain,
 		[]byte("test-signing-secret-for-org-00000"),
 		dummyDir,
 	)

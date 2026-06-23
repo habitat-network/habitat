@@ -20,8 +20,12 @@ import (
 	"github.com/ory/fosite/storage"
 	"github.com/ory/fosite/token/jwt"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gorm"
 )
+
+var tracer = otel.Tracer("github.com/habitat-network/habitat/internal/oauthserver")
 
 type store struct {
 	memoryStore            *storage.MemoryStore
@@ -76,6 +80,9 @@ func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 
 // GetClient implements fosite.Storage.
 func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error) {
+	ctx, span := tracer.Start(ctx, "GetClient")
+	defer span.End()
+	span.SetAttributes(attribute.String("client_id", id))
 	metadata, err := s.fetchClientMetadata(ctx, id)
 	if err != nil {
 		return nil, err
@@ -90,11 +97,11 @@ func (s *store) fetchClientMetadata(
 	ctx context.Context,
 	id string,
 ) (*pdsclient.ClientMetadata, error) {
-	// TODO: consider caching
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
+	// TODO: consider caching
 	cl := http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
 	resp, err := cl.Do(req)
 	if err != nil {
@@ -214,11 +221,15 @@ func (s *store) CreateAuthorizeCodeSession(
 // GetAuthorizeCodeSession implements oauth2.CoreStorage.
 func (s *store) GetAuthorizeCodeSession(
 	ctx context.Context,
-	code string,
+	signature string,
 	session fosite.Session,
 ) (request fosite.Requester, err error) {
+	ctx, span := tracer.Start(ctx, "GetAuthorizeCodeSession")
+	defer span.End()
+	span.SetAttributes(attribute.String("auth_signature", signature))
+
 	var data authSession
-	err = encrypt.DecryptCBOR(code, s.strategy.encryptionKey, &data)
+	err = encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
@@ -255,7 +266,7 @@ func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) 
 
 // GetPKCERequestSession implements pkce.PKCERequestStorage.
 func (s *store) GetPKCERequestSession(
-	_ context.Context,
+	ctx context.Context,
 	signature string,
 	session fosite.Session,
 ) (fosite.Requester, error) {
@@ -307,6 +318,14 @@ func (s *store) CreateRefreshTokenSession(
 	accessSignature string,
 	request fosite.Requester,
 ) error {
+	ctx, span := tracer.Start(ctx, "CreateRefreshTokenSession")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("refresh_signature", signature),
+		attribute.String("access_signature", accessSignature),
+		attribute.String("client_id", request.GetClient().GetID()),
+	)
+
 	session := request.GetSession().(*oauth2.JWTSession)
 	oauthSession := &OAuthSession{
 		Signature: signature,
@@ -329,6 +348,9 @@ func (s *store) CreateRefreshTokenSession(
 
 // DeleteRefreshTokenSession implements oauth2.CoreStorage.
 func (s *store) DeleteRefreshTokenSession(ctx context.Context, signature string) error {
+	ctx, span := tracer.Start(ctx, "DeleteRefreshTokenSession")
+	defer span.End()
+	span.SetAttributes(attribute.String("refresh_signature", signature))
 	return s.db.WithContext(ctx).Delete(&OAuthSession{}, "signature = ?", signature).Error
 }
 
@@ -338,6 +360,10 @@ func (s *store) GetRefreshTokenSession(
 	signature string,
 	session fosite.Session,
 ) (fosite.Requester, error) {
+	ctx, span := tracer.Start(ctx, "GetRefreshTokenSession")
+	defer span.End()
+	span.SetAttributes(attribute.String("refresh_signature", signature))
+
 	var oauthSession OAuthSession
 
 	err := s.db.WithContext(ctx).First(&oauthSession, "signature = ?", signature).Error
@@ -377,7 +403,12 @@ func (s *store) RotateRefreshToken(
 	requestID string,
 	refreshTokenSignature string,
 ) (err error) {
-	// Revoke the old refresh token by deleting it
+	ctx, span := tracer.Start(ctx, "RotateRefreshToken")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("request_id", requestID),
+		attribute.String("refresh_signature", refreshTokenSignature),
+	)
 	return s.DeleteRefreshTokenSession(ctx, refreshTokenSignature)
 }
 
