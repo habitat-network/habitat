@@ -15,7 +15,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 export default defineConfig({
   base: "/ui/",
   server: {
-    port: process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT, 10) : 6010,
+    port: 6010,
     host: true,
     allowedHosts: [".ts.net", ".local.habitat.network"],
   },

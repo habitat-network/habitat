@@ -19,7 +19,8 @@ tasks:
       HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
       # Reverse-proxy /ui/ to the pear-pages dev server instead of serving the
       # embedded build, so UI changes are picked up live.
-      HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
+      HABITAT_UI_DEV_PROXY: 'http://localhost:6011'
+      HABITAT_ADMIN_PASSWORD: 'password'
     deps:
     - root:caddy
     - ngrok
