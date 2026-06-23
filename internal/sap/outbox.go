@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/events"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -87,12 +88,12 @@ type Outbox interface {
 }
 
 type outboxImpl struct {
-	db       *gorm.DB
-	notifyCh chan struct{}
+	db     *gorm.DB
+	notify *utils.PollNotifier
 }
 
-func newOutbox(db *gorm.DB, notifyCh chan struct{}) *outboxImpl {
-	return &outboxImpl{db: db, notifyCh: notifyCh}
+func newOutbox(db *gorm.DB, notify *utils.PollNotifier) *outboxImpl {
+	return &outboxImpl{db: db, notify: notify}
 }
 
 // Poll implements [Outbox].
@@ -126,14 +127,5 @@ func (o *outboxImpl) Poll(ctx context.Context, limit int) ([]OutboxMessage, erro
 
 // Watch implements [Outbox].
 func (o *outboxImpl) Watch() <-chan struct{} {
-	return o.notifyCh
-}
-
-// notifyOutbox signals ch that new outbox rows may be available, without
-// blocking if a notification is already pending.
-func notifyOutbox(ch chan struct{}) {
-	select {
-	case ch <- struct{}{}:
-	default:
-	}
+	return o.notify.Listen()
 }
