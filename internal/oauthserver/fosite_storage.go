@@ -170,10 +170,6 @@ func (s *store) GetPKCERequestSession(
 	signature string,
 	session fosite.Session,
 ) (fosite.Requester, error) {
-	ctx, span := tracer.Start(ctx, "GetPKCERequestSession")
-	defer span.End()
-	span.SetAttributes(attribute.String("auth_signature", signature))
-
 	var data authSession
 	err := encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
 	if err != nil {
