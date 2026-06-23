@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/sync"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -214,7 +215,7 @@ func setupSubscriber(
 	t.Cleanup(func() { srv.Close() })
 
 	orgManager := newOrgManager(db, "", nil, pdsclient.NewDummyDirectory("https://pds.example.com"))
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), make(chan struct{}, 1))
+	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
 	subscriber = newSubscriber(db, orgManager, resyncBuf)
 
 	go func() {

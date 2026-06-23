@@ -7,6 +7,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/events"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -43,8 +44,8 @@ func TestOutbox_PollOrdersByIDAndRespectsLimit(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), make(chan struct{}, 1))
-	out := newOutbox(db, make(chan struct{}, 1))
+	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
+	out := newOutbox(db, utils.NewPollNotifier())
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
@@ -69,8 +70,8 @@ func TestOutbox_AckPreventsRedelivery(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), make(chan struct{}, 1))
-	out := newOutbox(db, make(chan struct{}, 1))
+	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
+	out := newOutbox(db, utils.NewPollNotifier())
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
@@ -95,8 +96,8 @@ func TestOutbox_PollRedeliversUnackedMessages(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), make(chan struct{}, 1))
-	out := newOutbox(db, make(chan struct{}, 1))
+	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
+	out := newOutbox(db, utils.NewPollNotifier())
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
@@ -120,9 +121,9 @@ func TestOutbox_WatchNotifiesOnNewMessage(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
-	outboxNotifyCh := make(chan struct{}, 1)
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), outboxNotifyCh)
-	out := newOutbox(db, outboxNotifyCh)
+	outboxNotif := utils.NewPollNotifier()
+	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), outboxNotif)
+	out := newOutbox(db, outboxNotif)
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
