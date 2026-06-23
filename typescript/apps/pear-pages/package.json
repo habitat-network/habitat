@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node scripts/copy-to-embed.mjs",
+    "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run"
   },
