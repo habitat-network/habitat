@@ -202,11 +202,14 @@ func (s *store) CreateSpace(
 	}
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&space{
+		if err := tx.Create(&space{
 			Owner: org,
 			Type:  spaceType,
 			Skey:  skey,
 		}).Error; err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return ErrSpaceAlreadyExists
+			}
 			return err
 		}
 

@@ -84,7 +84,7 @@ func TestValidateSession_TamperedCookieFails(t *testing.T) {
 func TestNewStore_SessionCookieOptions(t *testing.T) {
 	s := newTestStore(t)
 
-	require.Equal(t, "/admin", s.sessions.Options.Path)
+	require.Equal(t, "/", s.sessions.Options.Path)
 	require.Equal(t, int(sessionDuration.Seconds()), s.sessions.Options.MaxAge)
 	require.True(t, s.sessions.Options.HttpOnly)
 }

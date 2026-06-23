@@ -17,7 +17,8 @@ import (
 func newTestStore(t *testing.T) Store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		TranslateError: true,
+		Logger:         logger.Default.LogMode(logger.Info),
 	})
 	require.NoError(t, err)
 	fga, err := fgastore.NewMemory(t.Context())
