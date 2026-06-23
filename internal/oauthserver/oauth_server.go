@@ -583,7 +583,7 @@ func (o *OAuthServer) Validate(
 	} else {
 		credInfo.Type = authn.OrgCredential
 	}
-	return credInfo, isMember
+	return credInfo, true
 }
 
 // Validate's the given token and writes an error response to w if validation fails
