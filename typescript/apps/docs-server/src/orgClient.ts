@@ -1,6 +1,12 @@
 import fs from "node:fs/promises";
 import * as client from "openid-client";
-import { decodeJwt, exportJWK, importJWK, generateKeyPair, type JWK } from "jose";
+import {
+  decodeJwt,
+  exportJWK,
+  importJWK,
+  generateKeyPair,
+  type JWK,
+} from "jose";
 import type { DerivedConfig } from "./config";
 
 const KID = "docs-server";
@@ -73,7 +79,9 @@ export class OrgClient {
       token_endpoint_auth_signing_alg: "ES256",
       application_type: "web",
       dpop_bound_access_tokens: false,
-      jwks: { keys: [{ ...this.publicJwk, kid: KID, use: "sig", alg: "ES256" }] },
+      jwks: {
+        keys: [{ ...this.publicJwk, kid: KID, use: "sig", alg: "ES256" }],
+      },
     };
   }
 

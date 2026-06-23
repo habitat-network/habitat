@@ -6,7 +6,14 @@ import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
 import { docQueryOptions, pushUpdate } from "@/queries/docs";
 import { XRPCError } from "internal";
-import { Button, Popover, PopoverContent, PopoverTitle, PopoverTrigger, Spinner } from "internal/components/ui";
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+  Spinner,
+} from "internal/components/ui";
 import { HelpDialog } from "@/components/HelpDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { CheckIcon } from "lucide-react";

@@ -90,10 +90,7 @@ export const Route = createFileRoute("/_requireAuth")({
                         <SidebarMenuButton
                           isActive={currentDocId === doc.docId}
                           render={
-                            <Link
-                              to="/$uri"
-                              params={{ uri: doc.docId }}
-                            />
+                            <Link to="/$uri" params={{ uri: doc.docId }} />
                           }
                         >
                           <FileTextIcon />

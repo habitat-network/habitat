@@ -31,14 +31,14 @@ can resolve the forward target via standard did:web resolution.
 
 Set these in `dev.env` (gitignored):
 
-| Variable | Description |
-| --- | --- |
-| `DOCS_SERVER_DOMAIN` | Public domain / did:web host, e.g. `docs-server.local.habitat.network`. |
-| `DOCS_SERVER_ORG_HANDLE` | The org this server holds a credential for. |
-| `DOCS_SERVER_PEAR_HOST` | Base URL of the org's pear, e.g. `https://pear.local.habitat.network`. |
-| `DOCS_SERVER_PORT` | HTTP port (default `2590`). |
-| `DOCS_SERVER_DATA_DIR` | Where the credential + signing key are persisted (default `.docs-server`). |
-| `DOCS_SERVER_SPACE_SKEY` | Space key for the docs space (default `docs`). |
+| Variable                 | Description                                                                |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `DOCS_SERVER_DOMAIN`     | Public domain / did:web host, e.g. `docs-server.local.habitat.network`.    |
+| `DOCS_SERVER_ORG_HANDLE` | The org this server holds a credential for.                                |
+| `DOCS_SERVER_PEAR_HOST`  | Base URL of the org's pear, e.g. `https://pear.local.habitat.network`.     |
+| `DOCS_SERVER_PORT`       | HTTP port (default `2590`).                                                |
+| `DOCS_SERVER_DATA_DIR`   | Where the credential + signing key are persisted (default `.docs-server`). |
+| `DOCS_SERVER_SPACE_SKEY` | Space key for the docs space (default `docs`).                             |
 
 The frontend (`docsv2`) needs `DOCS_SERVER_DID` (`did:web:<DOCS_SERVER_DOMAIN>`)
 at build time so it can set the `Atproto-Proxy` header.

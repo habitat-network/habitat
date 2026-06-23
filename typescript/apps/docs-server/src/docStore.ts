@@ -48,7 +48,10 @@ export class DocStore {
     memberDid: string,
   ): Promise<{ uri: string; cid?: string }> {
     const cached = await this.load(docId);
-    Y.applyUpdateV2(cached.ydoc, new Uint8Array(Buffer.from(updateB64, "base64")));
+    Y.applyUpdateV2(
+      cached.ydoc,
+      new Uint8Array(Buffer.from(updateB64, "base64")),
+    );
     const result = await this.pear.putRecord(
       encodeRecord(cached.name, cached.ydoc),
       docId,

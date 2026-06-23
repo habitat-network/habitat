@@ -76,11 +76,15 @@ export class PearClient {
     if (existing) {
       return existing.uri;
     }
-    const created = await this.call<NetworkHabitatSpaceCreateSpace.OutputSchema>(
-      "network.habitat.space.createSpace",
-      "POST",
-      { type: this.config.spaceType, skey: this.config.spaceSkey } satisfies NetworkHabitatSpaceCreateSpace.InputSchema,
-    );
+    const created =
+      await this.call<NetworkHabitatSpaceCreateSpace.OutputSchema>(
+        "network.habitat.space.createSpace",
+        "POST",
+        {
+          type: this.config.spaceType,
+          skey: this.config.spaceSkey,
+        } satisfies NetworkHabitatSpaceCreateSpace.InputSchema,
+      );
     return created.uri;
   }
 

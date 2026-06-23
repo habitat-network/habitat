@@ -49,10 +49,12 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
         { space: space.uri, repo: space.orgDid, collection: DOCS_COLLECTION },
         { authManager },
       );
-      return records.map((r): DocSummary => ({
-        docId: r.rkey,
-        name: (r.value as { name?: string }).name || "Untitled",
-      }));
+      return records.map(
+        (r): DocSummary => ({
+          docId: r.rkey,
+          name: (r.value as { name?: string }).name || "Untitled",
+        }),
+      );
     },
   });
 

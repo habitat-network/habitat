@@ -98,9 +98,7 @@ function didWebDocUrl(did: string): string {
 }
 
 function decodeJson<T>(b64url: string): T {
-  return JSON.parse(
-    Buffer.from(b64url, "base64url").toString("utf8"),
-  ) as T;
+  return JSON.parse(Buffer.from(b64url, "base64url").toString("utf8")) as T;
 }
 
 function base64UrlToBytes(b64url: string): Uint8Array {

@@ -69,11 +69,10 @@ export function createApp(
       "network.habitat.doc.createDoc",
       verifier,
     );
-    const input = (await c.req.json()) as NetworkHabitatDocCreateDoc.InputSchema;
-    const output: NetworkHabitatDocCreateDoc.OutputSchema = await docs.createDoc(
-      input.name,
-      caller,
-    );
+    const input =
+      (await c.req.json()) as NetworkHabitatDocCreateDoc.InputSchema;
+    const output: NetworkHabitatDocCreateDoc.OutputSchema =
+      await docs.createDoc(input.name, caller);
     return c.json(output);
   });
 
@@ -83,12 +82,10 @@ export function createApp(
       "network.habitat.doc.updateDoc",
       verifier,
     );
-    const input = (await c.req.json()) as NetworkHabitatDocUpdateDoc.InputSchema;
-    const output: NetworkHabitatDocUpdateDoc.OutputSchema = await docs.applyUpdate(
-      input.docId,
-      input.update,
-      caller,
-    );
+    const input =
+      (await c.req.json()) as NetworkHabitatDocUpdateDoc.InputSchema;
+    const output: NetworkHabitatDocUpdateDoc.OutputSchema =
+      await docs.applyUpdate(input.docId, input.update, caller);
     return c.json(output);
   });
 
