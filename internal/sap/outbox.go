@@ -1,8 +1,10 @@
 package sap
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
@@ -55,4 +57,83 @@ func writeOplogRecords(
 		}
 	}
 	return nil
+}
+
+// OutboxMessage is a single event delivered from the outbox. Ack must be
+// called once the message has been durably processed; until then it will
+// be redelivered by Poll.
+type OutboxMessage struct {
+	ID    uint
+	URI   habitat_syntax.SpaceRecordURI
+	Value json.RawMessage
+
+	ack func(ctx context.Context) error
+}
+
+// Ack marks the message as processed so it is not redelivered by Poll.
+func (m OutboxMessage) Ack(ctx context.Context) error {
+	return m.ack(ctx)
+}
+
+// Outbox exposes durable, ordered delivery of repo events to consumers.
+// Messages are redelivered by Poll until acknowledged.
+type Outbox interface {
+	// Poll returns up to limit unacknowledged messages in delivery order.
+	Poll(ctx context.Context, limit int) ([]OutboxMessage, error)
+	// Watch returns a channel that is notified when new messages may be
+	// available to poll. It is a single shared hint, not a per-caller
+	// fan-out: only one consumer should be draining it at a time.
+	Watch() <-chan struct{}
+}
+
+type outboxImpl struct {
+	db       *gorm.DB
+	notifyCh chan struct{}
+}
+
+func newOutbox(db *gorm.DB, notifyCh chan struct{}) *outboxImpl {
+	return &outboxImpl{db: db, notifyCh: notifyCh}
+}
+
+// Poll implements [Outbox].
+func (o *outboxImpl) Poll(ctx context.Context, limit int) ([]OutboxMessage, error) {
+	var rows []outbox
+	if err := o.db.WithContext(ctx).
+		Where("acked_at IS NULL").
+		Order("id ASC").
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("poll outbox: %w", err)
+	}
+
+	msgs := make([]OutboxMessage, len(rows))
+	for i, row := range rows {
+		id := row.ID
+		msgs[i] = OutboxMessage{
+			ID:    id,
+			URI:   row.URI,
+			Value: json.RawMessage(row.Value),
+			ack: func(ctx context.Context) error {
+				return o.db.WithContext(ctx).
+					Model(&outbox{}).
+					Where("id = ?", id).
+					Update("acked_at", time.Now()).Error
+			},
+		}
+	}
+	return msgs, nil
+}
+
+// Watch implements [Outbox].
+func (o *outboxImpl) Watch() <-chan struct{} {
+	return o.notifyCh
+}
+
+// notifyOutbox signals ch that new outbox rows may be available, without
+// blocking if a notification is already pending.
+func notifyOutbox(ch chan struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
 }
