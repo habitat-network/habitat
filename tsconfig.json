@@ -21,6 +21,9 @@
       "path": "./typescript/apps/greensky"
     },
     {
+      "path": "./typescript/apps/pear-pages"
+    },
+    {
       "path": "./typescript/internal"
     }
   ]
