@@ -37,8 +37,8 @@ func TestServeLoginPage(t *testing.T) {
 	rec := httptest.NewRecorder()
 	server.ServeLoginPage(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), "<form")
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	require.Equal(t, "/ui/admin/login", rec.Header().Get("Location"))
 }
 
 func TestHandleLogin_Success(t *testing.T) {
@@ -55,7 +55,7 @@ func TestHandleLogin_Success(t *testing.T) {
 	server.HandleLogin(rec, req)
 
 	require.Equal(t, http.StatusSeeOther, rec.Code)
-	require.Equal(t, "/admin", rec.Header().Get("Location"))
+	require.Equal(t, "/ui/admin", rec.Header().Get("Location"))
 
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
@@ -77,7 +77,8 @@ func TestHandleLogin_WrongPassword(t *testing.T) {
 	rec := httptest.NewRecorder()
 	server.HandleLogin(rec, req)
 
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	require.Contains(t, rec.Header().Get("Location"), "/ui/admin/login?error=")
 	require.Empty(t, rec.Result().Cookies())
 }
 
@@ -118,7 +119,7 @@ func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 	server.HandleLogout(rec, req)
 
 	require.Equal(t, http.StatusSeeOther, rec.Code)
-	require.Equal(t, "/admin/login", rec.Header().Get("Location"))
+	require.Equal(t, "/ui/admin/login", rec.Header().Get("Location"))
 
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)
@@ -131,19 +132,7 @@ func TestHandleLogout_ClearsSessionAndCookie(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestServeAdminHome(t *testing.T) {
-	server, store, _ := newTestServer(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	req.AddCookie(sessionCookie(t, store))
-	rec := httptest.NewRecorder()
-	server.ServeAdminHome(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), "Instance settings")
-}
-
-func TestServeAdminHome_RedirectsWithoutSession(t *testing.T) {
+func TestServeAdminHome_RedirectsToEmbeddedPage(t *testing.T) {
 	server, _, _ := newTestServer(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
@@ -151,7 +140,33 @@ func TestServeAdminHome_RedirectsWithoutSession(t *testing.T) {
 	server.ServeAdminHome(rec, req)
 
 	require.Equal(t, http.StatusSeeOther, rec.Code)
-	require.Equal(t, "/admin/login", rec.Header().Get("Location"))
+	require.Equal(t, "/ui/admin", rec.Header().Get("Location"))
+}
+
+func TestServeConfig_RequiresSession(t *testing.T) {
+	server, _, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
+	rec := httptest.NewRecorder()
+	server.ServeConfig(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestServeConfig_ReturnsFrontendDomain(t *testing.T) {
+	server, store, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
+	req.AddCookie(sessionCookie(t, store))
+	rec := httptest.NewRecorder()
+	server.ServeConfig(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var out struct {
+		FrontendDomain string `json:"frontendDomain"`
+	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
+	require.Equal(t, "https://frontend.example", out.FrontendDomain)
 }
 
 func TestGetSettings_RequiresSession(t *testing.T) {

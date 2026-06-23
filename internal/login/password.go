@@ -27,11 +27,10 @@ var _ db.Store[*PasswordLoginProvider] = (*PasswordLoginProvider)(nil)
 
 // PasswordLoginProvider wraps Store and implements login.Provider for habitat-hosted member identities.
 type PasswordLoginProvider struct {
-	db             *gorm.DB
-	pearDomain     string
-	frontendDomain string
-	signingSecret  []byte
-	dir            identity.Directory
+	db            *gorm.DB
+	pearDomain    string
+	signingSecret []byte
+	dir           identity.Directory
 }
 
 type passwordEntry struct {
@@ -42,7 +41,6 @@ type passwordEntry struct {
 func NewPasswordProvider(
 	db *gorm.DB,
 	pearDomain string,
-	frontendDomain string,
 	signingSecret []byte,
 	dir identity.Directory,
 ) (*PasswordLoginProvider, error) {
@@ -51,11 +49,10 @@ func NewPasswordProvider(
 		return nil, err
 	}
 	return &PasswordLoginProvider{
-		db:             db,
-		pearDomain:     pearDomain,
-		frontendDomain: frontendDomain,
-		signingSecret:  signingSecret,
-		dir:            dir,
+		db:            db,
+		pearDomain:    pearDomain,
+		signingSecret: signingSecret,
+		dir:           dir,
 	}, nil
 }
 
@@ -65,7 +62,9 @@ func (p *PasswordLoginProvider) Authorize(
 	_ context.Context,
 	loginHint string,
 ) (string, []byte, error) {
-	redirect := "https://" + p.frontendDomain + "/login/habitat?handle=" + url.QueryEscape(
+	// The member login page is served by pear itself as a pre-rendered page
+	// embedded under /ui/ (see internal/webui and typescript/apps/pear-pages).
+	redirect := "https://" + p.pearDomain + "/ui/login/habitat?handle=" + url.QueryEscape(
 		loginHint,
 	)
 	return redirect, nil, nil
@@ -177,11 +176,10 @@ func (p *PasswordLoginProvider) AddLoginEntry(did syntax.DID, password string) e
 // WithTx implements [db.Store].
 func (p *PasswordLoginProvider) WithTx(tx *gorm.DB) *PasswordLoginProvider {
 	return &PasswordLoginProvider{
-		db:             tx,
-		dir:            p.dir,
-		signingSecret:  p.signingSecret,
-		frontendDomain: p.frontendDomain,
-		pearDomain:     p.pearDomain,
+		db:            tx,
+		dir:           p.dir,
+		signingSecret: p.signingSecret,
+		pearDomain:    p.pearDomain,
 	}
 }
 
