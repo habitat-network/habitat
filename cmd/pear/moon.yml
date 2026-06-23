@@ -2,6 +2,9 @@ tasks:
   build:
     deps:
     - root:build
+    # Builds and embeds the pre-rendered /ui/ pages (member login, instance
+    # admin) into the pear binary via internal/webui/dist.
+    - pear-pages:build
   dev:
     args:
       - --
@@ -14,9 +17,13 @@ tasks:
       HABITAT_DOMAIN: pear.local.habitat.network
       HABITAT_PRETTY_LOGS: 'true'
       HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
+      # Reverse-proxy /ui/ to the pear-pages dev server instead of serving the
+      # embedded build, so UI changes are picked up live.
+      HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
     deps:
     - root:caddy
     - ngrok
+    - pear-pages:dev
   ngrok:
     command: ngrok
     args:

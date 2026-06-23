@@ -1,0 +1,13 @@
+layer: application
+tasks:
+  build:
+    deps:
+      - typescript/internal:build
+    options:
+      mergeDeps: replace
+  dev:
+    env:
+      SERVER_PORT: "6010"
+    options:
+      persistent: true
+      runInCI: false

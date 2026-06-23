@@ -28,7 +28,6 @@ func newTestOrg(t *testing.T) *orgImpl {
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		"",
-		"",
 		encrypt.TestKey,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
