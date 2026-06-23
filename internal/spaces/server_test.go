@@ -21,7 +21,7 @@ import (
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true})
 	require.NoError(t, err)
 	ctx := t.Context()
 	fga, err := fgastore.NewMemory(ctx)

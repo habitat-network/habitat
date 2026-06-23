@@ -881,6 +881,102 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatAdminGetSettings: {
+    lexicon: 1,
+    id: 'network.habitat.admin.getSettings',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['instanceName', 'orgCreationPolicy'],
+            properties: {
+              instanceName: {
+                type: 'string',
+                description: "This instance's display name.",
+              },
+              orgCreationPolicy: {
+                type: 'string',
+                description: "'open' or 'invite_only'.",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatAdminIssueInvite: {
+    lexicon: 1,
+    id: 'network.habitat.admin.issueInvite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Issue a single-use invite token for creating an org on this instance. Requires an authenticated instance admin session.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+                description:
+                  'Signed, single-use invite token to embed in an org-creation link.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatAdminUpdateSettings: {
+    lexicon: 1,
+    id: 'network.habitat.admin.updateSettings',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Update this instance's admin-configurable settings. Requires an authenticated instance admin session.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['instanceName', 'orgCreationPolicy'],
+            properties: {
+              instanceName: {
+                type: 'string',
+                description: "This instance's display name.",
+              },
+              orgCreationPolicy: {
+                type: 'string',
+                description: "'open' or 'invite_only'.",
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['instanceName', 'orgCreationPolicy'],
+            properties: {
+              instanceName: {
+                type: 'string',
+              },
+              orgCreationPolicy: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatClique: {
     lexicon: 1,
     id: 'network.habitat.clique',
@@ -1134,6 +1230,35 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatInstanceDescribeInstance: {
+    lexicon: 1,
+    id: 'network.habitat.instance.describeInstance',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Get public info about this instance. Modeled on com.atproto.server.describeServer. No authentication required.',
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['name', 'inviteRequired'],
+            properties: {
+              name: {
+                type: 'string',
+                description: "This instance's manager-configured display name.",
+              },
+              inviteRequired: {
+                type: 'boolean',
+                description:
+                  'Whether creating an org on this instance requires an invite token.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatInternalNotifyOfUpdate: {
     lexicon: 1,
     id: 'network.habitat.internal.notifyOfUpdate',
@@ -1318,6 +1443,11 @@ export const schemaDict = {
                 type: 'string',
                 description:
                   "Provider-specific identifier (public ATProto DID for 'atproto', email for 'google'). Ignored for 'password'.",
+              },
+              invite_token: {
+                type: 'string',
+                description:
+                  "Single-use invite token from an instance admin, required when the instance's org creation policy is invite_only.",
               },
             },
           },
@@ -3223,6 +3353,9 @@ export const ids = {
   CommunityLexiconLocationFsq: 'community.lexicon.location.fsq',
   CommunityLexiconLocationGeo: 'community.lexicon.location.geo',
   CommunityLexiconLocationHthree: 'community.lexicon.location.hthree',
+  NetworkHabitatAdminGetSettings: 'network.habitat.admin.getSettings',
+  NetworkHabitatAdminIssueInvite: 'network.habitat.admin.issueInvite',
+  NetworkHabitatAdminUpdateSettings: 'network.habitat.admin.updateSettings',
   NetworkHabitatClique: 'network.habitat.clique',
   NetworkHabitatCliqueAddMembers: 'network.habitat.clique.addMembers',
   NetworkHabitatCliqueCreateClique: 'network.habitat.clique.createClique',
@@ -3231,6 +3364,8 @@ export const ids = {
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
   NetworkHabitatDocs: 'network.habitat.docs',
   NetworkHabitatGrantee: 'network.habitat.grantee',
+  NetworkHabitatInstanceDescribeInstance:
+    'network.habitat.instance.describeInstance',
   NetworkHabitatInternalNotifyOfUpdate:
     'network.habitat.internal.notifyOfUpdate',
   NetworkHabitatListConnectedApps: 'network.habitat.listConnectedApps',

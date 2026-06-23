@@ -47,7 +47,7 @@ func TestCrawler(t *testing.T) {
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
 	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	resyncBuf := newResyncBuffer(db, resyncNotifCh, outboxNotifCh)
 	sub := newSubscriber(db, orgManager, resyncBuf)
 	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotif)
 
