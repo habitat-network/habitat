@@ -26,6 +26,10 @@ frontend/out/
 *.tsbuildinfo
 dist/
 
+# Keep the embed dir for the pear UI so `//go:embed` always compiles; its built
+# contents are ignored via internal/webui/dist/.gitignore.
+!internal/webui/dist/
+
 # Ignore custom node config
 config/habitat.dev.yml
 
