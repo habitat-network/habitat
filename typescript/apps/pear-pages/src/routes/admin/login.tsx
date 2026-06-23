@@ -1,9 +1,4 @@
-import {
-  Button,
-  Field,
-  FieldLabel,
-  Input,
-} from "internal/components/ui";
+import { Button, Field, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 
 // Instance admin login page (migrated from internal/instance/login.html).

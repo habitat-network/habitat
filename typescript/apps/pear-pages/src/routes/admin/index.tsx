@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
-import {
-  Button,
-  Field,
-  FieldLabel,
-  Input,
-} from "internal/components/ui";
+import { Button, Field, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 // Instance admin settings page (migrated from internal/instance/home.html).
@@ -39,7 +34,8 @@ export const Route = createFileRoute("/admin/")({
 });
 
 function AdminHomePage() {
-  const { instanceName, orgCreationPolicy, frontendDomain } = Route.useLoaderData();
+  const { instanceName, orgCreationPolicy, frontendDomain } =
+    Route.useLoaderData();
   const [success, setSuccess] = useState("");
   const [inviteLink, setInviteLink] = useState("");
 
@@ -83,13 +79,13 @@ function AdminHomePage() {
       {success && <p className="mb-4 text-sm text-green-700">{success}</p>}
 
       <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))}>
-        <fieldset disabled={saveMutation.isPending} className="flex flex-col gap-4">
+        <fieldset
+          disabled={saveMutation.isPending}
+          className="flex flex-col gap-4"
+        >
           <Field>
             <FieldLabel htmlFor="instanceName">Instance name</FieldLabel>
-            <Input
-              id="instanceName"
-              {...register("instanceName")}
-            />
+            <Input id="instanceName" {...register("instanceName")} />
           </Field>
 
           <Field>
@@ -118,7 +114,9 @@ function AdminHomePage() {
             onClick={() => inviteMutation.mutate()}
             disabled={inviteMutation.isPending}
           >
-            {inviteMutation.isPending ? "Generating..." : "Generate invite link"}
+            {inviteMutation.isPending
+              ? "Generating..."
+              : "Generate invite link"}
           </Button>
           {inviteLink && <Input readOnly value={inviteLink} />}
         </div>
