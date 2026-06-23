@@ -54,7 +54,7 @@ func TestResyncBuffer_AppendAndDrain(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1))
+	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), make(chan struct{}, 1))
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
@@ -106,7 +106,7 @@ func TestResyncBuffer_DrainSkipsAlreadyCovered(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1))
+	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), make(chan struct{}, 1))
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
@@ -163,7 +163,7 @@ func TestResyncBuffer_DrainDesyncsOnFutureSince(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
-	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1))
+	resyncBuf := newResyncBuffer(db, make(chan struct{}, 1), make(chan struct{}, 1))
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")

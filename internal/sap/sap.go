@@ -19,10 +19,13 @@ type Sap interface {
 	Start(ctx context.Context) error
 	AddOrg(ctx context.Context, orgIdenitifier string) (redirectURL string, err error)
 	ListOrgs(ctx context.Context) ([]syntax.DID, error)
+	// Outbox exposes durable, ordered delivery of repo events to library consumers.
+	Outbox
 }
 
 type sapImpl struct {
 	*orgManager
+	Outbox
 	db         *gorm.DB
 	pathPrefix string
 	sub        *subscriber
@@ -49,6 +52,7 @@ func NewSap(config SapConfig) (Sap, error) {
 	}
 
 	resyncNotifCh := make(chan struct{}, 1)
+	outboxNotifyCh := make(chan struct{}, 1)
 
 	dir := config.Directory
 	if dir == nil {
@@ -56,14 +60,23 @@ func NewSap(config SapConfig) (Sap, error) {
 	}
 
 	o := newOrgManager(config.DB, config.PublicDomain, secret, dir)
-	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh)
+	resyncBuf := newResyncBuffer(config.DB, resyncNotifCh, outboxNotifyCh)
 	sub := newSubscriber(config.DB, o, resyncBuf)
-	resyncer := newResyncer(config.DB, o, resyncBuf, resyncNotifCh, config.ResyncParallelism)
+	resyncer := newResyncer(
+		config.DB,
+		o,
+		resyncBuf,
+		resyncNotifCh,
+		outboxNotifyCh,
+		config.ResyncParallelism,
+	)
 	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotifCh)
+	outbox := newOutbox(config.DB, outboxNotifyCh)
 
 	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
 		orgManager: o,
+		Outbox:     outbox,
 		db:         config.DB,
 		pathPrefix: pathPrefix,
 		sub:        sub,

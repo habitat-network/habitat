@@ -578,14 +578,17 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 	postgresUrl := cmd.String(fPgUrl)
 	if postgresUrl != "" {
-		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{TranslateError: true})
 		if err != nil {
 			slog.Error("unable to open postgres db backing pear server")
 		}
 		slog.Info("connected to postgres database")
 	} else {
 		dbPath := cmd.String(fDb)
-		db, err = gorm.Open(sqlite.Open(dbPath + "?_journal_mode=WAL"))
+		db, err = gorm.Open(
+			sqlite.Open(dbPath+"?_journal_mode=WAL"),
+			&gorm.Config{TranslateError: true},
+		)
 		if err != nil {
 			slog.Error("unable to open sqlite file backing pear server")
 		}
