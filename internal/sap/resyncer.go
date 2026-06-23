@@ -25,12 +25,13 @@ type resyncJob struct {
 
 // resyncer schedules resync workers to backfill repos
 type resyncer struct {
-	db          *gorm.DB
-	orgManager  *orgManager
-	resyncBuf   *resyncBuffer
-	parallelism int
-	notify      chan struct{}
-	jobs        chan resyncJob
+	db             *gorm.DB
+	orgManager     *orgManager
+	resyncBuf      *resyncBuffer
+	parallelism    int
+	notify         chan struct{}
+	outboxNotifyCh chan struct{}
+	jobs           chan resyncJob
 }
 
 func newResyncer(
@@ -38,18 +39,20 @@ func newResyncer(
 	orgManager *orgManager,
 	resyncBuf *resyncBuffer,
 	resyncNotifCh chan struct{},
+	outboxNotifyCh chan struct{},
 	parallelism int,
 ) *resyncer {
 	if parallelism <= 0 {
 		parallelism = 5
 	}
 	return &resyncer{
-		db:          db,
-		orgManager:  orgManager,
-		resyncBuf:   resyncBuf,
-		parallelism: parallelism,
-		notify:      resyncNotifCh,
-		jobs:        make(chan resyncJob),
+		db:             db,
+		orgManager:     orgManager,
+		resyncBuf:      resyncBuf,
+		parallelism:    parallelism,
+		notify:         resyncNotifCh,
+		outboxNotifyCh: outboxNotifyCh,
+		jobs:           make(chan resyncJob),
 	}
 }
 
@@ -254,6 +257,7 @@ func (r *resyncer) syncRepo(
 			if err != nil {
 				return r.handleSyncError(ctx, space, repoDID, err)
 			}
+			notifyOutbox(r.outboxNotifyCh)
 			if output.Cursor != "" {
 				since = output.Cursor
 			}
