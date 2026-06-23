@@ -101,7 +101,9 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Or regular authn via authenticated credInfo.Subject
-		credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+		credInfo, ok := authn.NewValidator(s.auth).
+			WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+			Validate(w, r)
 		if !ok {
 			return
 		}
@@ -263,7 +265,9 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+	credInfo, ok := authn.NewValidator(s.auth).
+		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -325,7 +329,9 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+	credInfo, ok := authn.NewValidator(s.auth).
+		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -387,7 +393,9 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+	credInfo, ok := authn.NewValidator(s.auth).
+		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -440,7 +448,9 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+	credInfo, ok := authn.NewValidator(s.auth).
+		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -494,7 +504,9 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+	credInfo, ok := authn.NewValidator(s.auth).
+		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -551,7 +563,9 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+	credInfo, ok := authn.NewValidator(s.auth).
+		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
@@ -621,7 +635,9 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.auth).WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).Validate(w, r)
+	credInfo, ok := authn.NewValidator(s.auth).
+		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
+		Validate(w, r)
 	if !ok {
 		return
 	}
