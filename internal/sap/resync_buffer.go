@@ -17,20 +17,22 @@ import (
 // if the resyncer is in progress, then events are persisted in the buffer to be drained
 // at the end of the resync.
 type resyncBuffer struct {
-	db            *gorm.DB
-	resyncNotifCh chan struct{}
+	db             *gorm.DB
+	resyncNotifCh  chan struct{}
+	outboxNotifyCh chan struct{}
 }
 
 var _ db.Store[*resyncBuffer] = (*resyncBuffer)(nil)
 
-func newResyncBuffer(db *gorm.DB, resyncNotifCh chan struct{}) *resyncBuffer {
-	return &resyncBuffer{db: db, resyncNotifCh: resyncNotifCh}
+func newResyncBuffer(db *gorm.DB, resyncNotifCh, outboxNotifyCh chan struct{}) *resyncBuffer {
+	return &resyncBuffer{db: db, resyncNotifCh: resyncNotifCh, outboxNotifyCh: outboxNotifyCh}
 }
 
 func (rb *resyncBuffer) WithTx(tx *gorm.DB) *resyncBuffer {
 	return &resyncBuffer{
-		db:            tx,
-		resyncNotifCh: rb.resyncNotifCh,
+		db:             tx,
+		resyncNotifCh:  rb.resyncNotifCh,
+		outboxNotifyCh: rb.outboxNotifyCh,
 	}
 }
 
@@ -92,7 +94,11 @@ func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error 
 		Error; err != nil {
 		return err
 	}
-	return writeEventOps(rb.db, event.Ops)
+	if err := writeEventOps(rb.db, event.Ops); err != nil {
+		return err
+	}
+	notifyOutbox(rb.outboxNotifyCh)
+	return nil
 }
 
 func (rb *resyncBuffer) drainRepo(
@@ -151,6 +157,7 @@ func (rb *resyncBuffer) drainRepo(
 		}); err != nil {
 			return err
 		}
+		notifyOutbox(rb.outboxNotifyCh)
 	}
 	return nil
 }
