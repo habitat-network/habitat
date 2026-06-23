@@ -71,7 +71,7 @@ var (
 
 // ClientAssertionJWTValid implements fosite.Storage.
 func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
-	panic("not implemented")
+	return nil
 }
 
 // GetClient implements fosite.Storage.

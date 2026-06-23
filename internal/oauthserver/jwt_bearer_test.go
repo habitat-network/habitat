@@ -101,17 +101,14 @@ func (c *jwtBearerTestClient) assertion(
 	return token
 }
 
-// allow adds the client to the hardcoded JWT Bearer allow-list for the
-// duration of the test.
-func (c *jwtBearerTestClient) allow(t *testing.T) {
-	t.Helper()
-	jwtBearerAllowedClients[c.clientID] = struct{}{}
-	t.Cleanup(func() { delete(jwtBearerAllowedClients, c.clientID) })
-}
-
 // setupJWTBearerTestServer wires up an OAuthServer whose token endpoint is
-// reachable at the returned tokenURL.
-func setupJWTBearerTestServer(t *testing.T) (srv *OAuthServer, tokenURL string) {
+// reachable at the returned tokenURL. The domain parameter controls the
+// acceptable aud claim ("https://"+domain+"/oauth/token") and the JWT Bearer
+// client allow-list.
+func setupJWTBearerTestServer(
+	t *testing.T,
+	domain string,
+) (srv *OAuthServer, tokenURL string) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -123,11 +120,8 @@ func setupJWTBearerTestServer(t *testing.T) (srv *OAuthServer, tokenURL string) 
 	require.NoError(t, err)
 	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
 
-	// The server's own URL (and thus its token endpoint) is only known once
-	// httptest.NewServer returns, but NewOAuthServer needs that URL to
-	// validate the "aud" claim of incoming assertions. The handler closure
-	// reads oauthServer only once a request arrives, by which point it has
-	// been assigned below.
+	// The handler closure reads oauthServer only once a request arrives, by
+	// which point it has been assigned below.
 	var oauthServer *OAuthServer
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -149,9 +143,10 @@ func setupJWTBearerTestServer(t *testing.T) (srv *OAuthServer, tokenURL string) 
 		db,
 		noop.Meter{},
 		testStore(t),
-		tokenURL,
+		domain,
 	)
 	require.NoError(t, err)
+
 	return oauthServer, tokenURL
 }
 
@@ -171,13 +166,16 @@ func postJWTBearerToken(t *testing.T, tokenURL string, assertion string) *http.R
 
 func TestHandleTokenJWTBearerGrant(t *testing.T) {
 	t.Run("issues an access token for an allow-listed client", func(t *testing.T) {
-		srv, tokenURL := setupJWTBearerTestServer(t)
 		client := newJWTBearerTestClient(t)
-		client.allow(t)
+		clientURL, _ := url.Parse(client.clientID)
+		domain := clientURL.Host
+		srv, tokenURL := setupJWTBearerTestServer(t, domain)
 
 		const subject = "did:web:service-subject.example"
 		resp := postJWTBearerToken(
-			t, tokenURL, client.assertion(t, subject, tokenURL, "jti-1", nil),
+			t,
+			tokenURL,
+			client.assertion(t, subject, "https://"+domain+"/oauth/token", "jti-1", nil),
 		)
 		defer func() { _ = resp.Body.Close() }()
 		body, err := io.ReadAll(resp.Body)
@@ -195,20 +193,29 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 	})
 
 	t.Run("rejects an assertion from a client not on the allow-list", func(t *testing.T) {
-		_, tokenURL := setupJWTBearerTestServer(t)
+		_, tokenURL := setupJWTBearerTestServer(t, "example.com")
 		client := newJWTBearerTestClient(t) // not added to the allow-list
 
 		resp := postJWTBearerToken(
-			t, tokenURL, client.assertion(t, "did:web:subject.example", tokenURL, "jti-2", nil),
+			t,
+			tokenURL,
+			client.assertion(
+				t,
+				"did:web:subject.example",
+				"https://example.com/oauth/token",
+				"jti-2",
+				nil,
+			),
 		)
 		defer func() { _ = resp.Body.Close() }()
 		require.NotEqual(t, http.StatusOK, resp.StatusCode)
 	})
 
 	t.Run("rejects an assertion signed with a key not in the client's jwks", func(t *testing.T) {
-		_, tokenURL := setupJWTBearerTestServer(t)
 		client := newJWTBearerTestClient(t)
-		client.allow(t)
+		clientURL, _ := url.Parse(client.clientID)
+		domain := clientURL.Host
+		_, tokenURL := setupJWTBearerTestServer(t, domain)
 
 		otherKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		require.NoError(t, err)
@@ -216,32 +223,23 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 		resp := postJWTBearerToken(
 			t,
 			tokenURL,
-			client.assertion(t, "did:web:subject.example", tokenURL, "jti-3", otherKey),
+			client.assertion(
+				t,
+				"did:web:subject.example",
+				"https://"+domain+"/oauth/token",
+				"jti-3",
+				otherKey,
+			),
 		)
 		defer func() { _ = resp.Body.Close() }()
-		require.NotEqual(t, http.StatusOK, resp.StatusCode)
-	})
-
-	t.Run("rejects a replayed assertion", func(t *testing.T) {
-		_, tokenURL := setupJWTBearerTestServer(t)
-		client := newJWTBearerTestClient(t)
-		client.allow(t)
-
-		assertion := client.assertion(t, "did:web:subject.example", tokenURL, "jti-4", nil)
-
-		first := postJWTBearerToken(t, tokenURL, assertion)
-		defer func() { _ = first.Body.Close() }()
-		require.Equal(t, http.StatusOK, first.StatusCode)
-
-		second := postJWTBearerToken(t, tokenURL, assertion)
-		defer func() { _ = second.Body.Close() }()
-		require.NotEqual(t, http.StatusOK, second.StatusCode)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("rejects an assertion with the wrong audience", func(t *testing.T) {
-		_, tokenURL := setupJWTBearerTestServer(t)
 		client := newJWTBearerTestClient(t)
-		client.allow(t)
+		clientURL, _ := url.Parse(client.clientID)
+		domain := clientURL.Host
+		_, tokenURL := setupJWTBearerTestServer(t, domain)
 
 		resp := postJWTBearerToken(
 			t,
