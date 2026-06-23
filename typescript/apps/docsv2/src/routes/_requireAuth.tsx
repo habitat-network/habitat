@@ -57,6 +57,10 @@ export const Route = createFileRoute("/_requireAuth")({
         router.invalidate();
         navigate({ to: "/$uri", params: { uri: docId } });
       },
+      onError: (error) => {
+        console.error("failed to create doc", error);
+        alert(error.message);
+      },
     });
 
     return (

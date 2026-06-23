@@ -25,7 +25,7 @@ export const docsSpaceQueryOptions = (authManager: AuthManager) =>
       );
       const space = spaces[0];
       if (!space) {
-        return undefined;
+        return null;
       }
       return { uri: space.uri, orgDid: space.uri.split("/")[2] };
     },
