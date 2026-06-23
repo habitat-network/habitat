@@ -1,87 +1,78 @@
-import { Button, Input } from "internal/components/ui";
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { useMutation } from "@tanstack/react-query";
+import {
+  Button,
+  Field,
+  FieldLabel,
+  Input,
+} from "internal/components/ui";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 // Instance admin settings page (migrated from internal/instance/home.html).
 // Served same-origin under /ui/admin; all data is fetched from pear at runtime
 // using the admin session cookie. If the session is missing the API calls
 // return 401 and we send the admin to the login page.
+type Settings = { instanceName: string; orgCreationPolicy: string };
+type LoaderData = Settings & { frontendDomain: string };
+type FormValues = { instanceName: string; orgCreationPolicy: string };
+
 export const Route = createFileRoute("/admin/")({
+  loader: async (): Promise<LoaderData> => {
+    const [configRes, settingsRes] = await Promise.all([
+      fetch("/admin/config"),
+      fetch("/xrpc/network.habitat.admin.getSettings"),
+    ]);
+
+    if (settingsRes.status === 401) {
+      throw redirect({ to: "/admin/login", search: { error: "" } });
+    }
+    if (!configRes.ok || !settingsRes.ok) {
+      throw new Error("Failed to load settings");
+    }
+
+    const config = (await configRes.json()) as { frontendDomain: string };
+    const settings = (await settingsRes.json()) as Settings;
+    return { ...settings, ...config };
+  },
   component: AdminHomePage,
 });
 
-type Settings = { instanceName: string; orgCreationPolicy: string };
-
 function AdminHomePage() {
-  const [instanceName, setInstanceName] = useState("");
-  const [policy, setPolicy] = useState("open");
-  const [frontendDomain, setFrontendDomain] = useState("");
-  const [inviteLink, setInviteLink] = useState("");
-  const [error, setError] = useState("");
+  const { instanceName, orgCreationPolicy, frontendDomain } = Route.useLoaderData();
   const [success, setSuccess] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
 
-  function show(setter: (v: string) => void, msg: string) {
-    setError("");
-    setSuccess("");
-    setter(msg);
-  }
+  const { register, handleSubmit } = useForm<FormValues>({
+    defaultValues: { instanceName, orgCreationPolicy },
+  });
 
-  useEffect(() => {
-    void fetch("/admin/config")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("config"))))
-      .then((data: { frontendDomain: string }) =>
-        setFrontendDomain(data.frontendDomain),
-      )
-      .catch(() => undefined);
-
-    void fetch("/xrpc/network.habitat.admin.getSettings")
-      .then((r) => {
-        if (r.status === 401) {
-          window.location.href = "/ui/admin/login";
-          return Promise.reject(new Error("unauthenticated"));
-        }
-        if (!r.ok) return Promise.reject(new Error("load failed"));
-        return r.json();
-      })
-      .then((data: Settings) => {
-        setInstanceName(data.instanceName || "");
-        setPolicy(data.orgCreationPolicy);
-      })
-      .catch((err: Error) => {
-        if (err.message !== "unauthenticated") show(setError, "failed to load settings");
+  const saveMutation = useMutation({
+    mutationFn: async (data: FormValues) => {
+      const res = await fetch("/xrpc/network.habitat.admin.updateSettings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(data),
       });
-  }, []);
+      if (!res.ok) throw new Error("Failed to save settings");
+    },
+    onSuccess: () => setSuccess("Successfully saved settings"),
+  });
 
-  const onSave = () => {
-    void fetch("/xrpc/network.habitat.admin.updateSettings", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ instanceName, orgCreationPolicy: policy }),
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("save failed");
-        return r.json();
-      })
-      .then((data: Settings) => {
-        setPolicy(data.orgCreationPolicy);
-        show(setSuccess, "Successfully saved settings");
-      })
-      .catch(() => show(setError, "failed to save settings"));
-  };
+  const inviteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/xrpc/network.habitat.admin.issueInvite", {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Failed to generate invite link");
+      const data = (await res.json()) as { token: string };
+      setInviteLink(
+        "https://" + frontendDomain + "/org/create?token=" + data.token,
+      );
+    },
+  });
 
-  const onGenerateInvite = () => {
-    void fetch("/xrpc/network.habitat.admin.issueInvite", { method: "POST" })
-      .then((r) => {
-        if (!r.ok) throw new Error("issue failed");
-        return r.json();
-      })
-      .then((data: { token: string }) => {
-        setInviteLink(
-          "https://" + frontendDomain + "/org/create?token=" + data.token,
-        );
-      })
-      .catch(() => show(setError, "failed to generate invite link"));
-  };
+  const error = saveMutation.error?.message || inviteMutation.error?.message;
 
   return (
     <main className="w-80 rounded-[0.625rem] border border-border bg-card p-8 shadow-sm">
@@ -91,37 +82,43 @@ function AdminHomePage() {
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
       {success && <p className="mb-4 text-sm text-green-700">{success}</p>}
 
-      <label htmlFor="instanceName" className="mb-1.5 block text-sm font-medium">
-        Instance name
-      </label>
-      <Input
-        id="instanceName"
-        className="mb-4"
-        value={instanceName}
-        onChange={(e) => setInstanceName(e.target.value)}
-      />
+      <form onSubmit={handleSubmit((data) => saveMutation.mutate(data))}>
+        <fieldset disabled={saveMutation.isPending} className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor="instanceName">Instance name</FieldLabel>
+            <Input
+              id="instanceName"
+              {...register("instanceName")}
+            />
+          </Field>
 
-      <label htmlFor="policy" className="mb-1.5 block text-sm font-medium">
-        Org creation
-      </label>
-      <select
-        id="policy"
-        className="mb-4 w-full rounded-lg border border-border bg-background p-2 text-sm"
-        value={policy}
-        onChange={(e) => setPolicy(e.target.value)}
-      >
-        <option value="open">Open</option>
-        <option value="invite_only">Invite only</option>
-      </select>
+          <Field>
+            <FieldLabel htmlFor="policy">Org creation</FieldLabel>
+            <select
+              id="policy"
+              className="w-full rounded-lg border border-border bg-background p-2 text-sm"
+              {...register("orgCreationPolicy")}
+            >
+              <option value="open">Open</option>
+              <option value="invite_only">Invite only</option>
+            </select>
+          </Field>
 
-      <Button className="w-full" onClick={onSave}>
-        Save settings
-      </Button>
+          <Button type="submit">
+            {saveMutation.isPending ? "Saving..." : "Save settings"}
+          </Button>
+        </fieldset>
+      </form>
 
-      {policy === "invite_only" && (
+      {orgCreationPolicy === "invite_only" && (
         <div className="mt-4 flex flex-col gap-2">
-          <Button variant="secondary" type="button" onClick={onGenerateInvite}>
-            Generate invite link
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => inviteMutation.mutate()}
+            disabled={inviteMutation.isPending}
+          >
+            {inviteMutation.isPending ? "Generating..." : "Generate invite link"}
           </Button>
           {inviteLink && <Input readOnly value={inviteLink} />}
         </div>

@@ -2,16 +2,11 @@ import { defineConfig } from "vite";
 import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 
-// pear-pages produces the static pages that `pear` embeds and serves under the
-// `/ui/` path (member login, instance admin login/settings). Everything is
-// pre-rendered to static HTML at build time so the Go binary can embed the
-// output and serve it without a Node runtime.
-//
-// `base` is `/ui/` so that asset URLs in the generated HTML resolve under the
-// path pear mounts the app at. The dev server is reverse-proxied to by
-// `pear:dev` (see HABITAT_UI_DEV_PROXY) so it must serve on the same base.
+// pear-pages produces static pages that `pear` embeds and serves under /ui/.
+// The app is a standard TanStack Router SPA using Vite. The output goes to
+// `dist/` (see scripts/copy-to-embed.mjs) which the Go binary embeds.
 export default defineConfig({
   base: "/ui/",
   server: {
@@ -20,22 +15,9 @@ export default defineConfig({
     allowedHosts: [".ts.net", ".local.habitat.network"],
   },
   plugins: [
+    tanstackRouter(),
     viteTsConfigPaths({ projects: ["./tsconfig.json"] }),
     tailwindcss(),
-    tanstackStart({
-      // Pre-render every page to static HTML so the output is a fully static
-      // site that pear can embed. `crawlLinks` follows in-app links and the
-      // explicit `pages` list guarantees the standalone routes are emitted.
-      prerender: {
-        enabled: true,
-        crawlLinks: true,
-      },
-      pages: [
-        { path: "/login/habitat" },
-        { path: "/admin/login" },
-        { path: "/admin" },
-      ],
-    }),
     viteReact(),
   ],
 });

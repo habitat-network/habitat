@@ -9,8 +9,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
-    "@tanstack/react-start": "^1.132.5",
+    "@tanstack/router-plugin": "catalog:",
     "internal": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",
