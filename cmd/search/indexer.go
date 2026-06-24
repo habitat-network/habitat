@@ -45,7 +45,7 @@ func (ix *Indexer) Run(ctx context.Context) error {
 				slog.ErrorContext(ctx, "failed to index message", "err", err, "uri", msg.URI)
 				continue
 			}
-			if err := msg.Ack(ctx); err != nil {
+			if err := ix.outbox.Ack(ctx, msg.ID); err != nil {
 				slog.ErrorContext(ctx, "failed to ack outbox message", "err", err, "uri", msg.URI)
 			}
 		}

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 // until the test cancels the context.
 type fakeOutbox struct {
 	pending []sap.OutboxMessage
+	acked   []uint
 	watchCh chan struct{}
 }
 
@@ -31,6 +31,11 @@ func (f *fakeOutbox) Poll(ctx context.Context, limit int) ([]sap.OutboxMessage, 
 	msgs := f.pending
 	f.pending = nil
 	return msgs, nil
+}
+
+func (f *fakeOutbox) Ack(ctx context.Context, id uint) error {
+	f.acked = append(f.acked, id)
+	return nil
 }
 
 func (f *fakeOutbox) Watch() <-chan struct{} {
@@ -69,17 +74,8 @@ func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
 		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	index := &fakeIndex{}
-	var acked atomic.Bool
 	outbox := newFakeOutbox([]sap.OutboxMessage{
-		sap.NewOutboxMessageForTesting(
-			1,
-			recordURI,
-			mustMarshal(t, map[string]any{"title": "Budget"}),
-			func(ctx context.Context) error {
-				acked.Store(true)
-				return nil
-			},
-		),
+		{ID: 1, URI: recordURI, Value: mustMarshal(t, map[string]any{"title": "Budget"})},
 	})
 
 	indexer := NewIndexer(index, outbox)
@@ -97,7 +93,7 @@ func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
 	require.Equal(t, "did:plc:org1", index.upserted[0].OrgDID.String())
 	require.Equal(t, "network.habitat.note", index.upserted[0].Collection.String())
 	require.Contains(t, index.upserted[0].Content, "Budget")
-	require.True(t, acked.Load(), "message should be acked after a successful upsert")
+	require.Equal(t, []uint{1}, outbox.acked, "message should be acked after a successful upsert")
 }
 
 func TestIndexer_DeletesOnNullValue(t *testing.T) {
@@ -106,9 +102,7 @@ func TestIndexer_DeletesOnNullValue(t *testing.T) {
 	)
 	index := &fakeIndex{}
 	outbox := newFakeOutbox([]sap.OutboxMessage{
-		sap.NewOutboxMessageForTesting(1, recordURI, json.RawMessage("null"),
-			func(ctx context.Context) error { return nil },
-		),
+		{ID: 1, URI: recordURI, Value: json.RawMessage("null")},
 	})
 
 	indexer := NewIndexer(index, outbox)
@@ -124,16 +118,10 @@ func TestIndexer_DoesNotAckOnHandleFailure(t *testing.T) {
 		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
 	index := &fakeIndex{}
-	var acked atomic.Bool
 	// Malformed JSON: handleMessage fails to unmarshal it, so it must be
 	// left unacked for redelivery on the next Poll.
 	outbox := newFakeOutbox([]sap.OutboxMessage{
-		sap.NewOutboxMessageForTesting(1, recordURI, json.RawMessage("not-json"),
-			func(ctx context.Context) error {
-				acked.Store(true)
-				return nil
-			},
-		),
+		{ID: 1, URI: recordURI, Value: json.RawMessage("not-json")},
 	})
 
 	indexer := NewIndexer(index, outbox)
@@ -142,5 +130,5 @@ func TestIndexer_DoesNotAckOnHandleFailure(t *testing.T) {
 	_ = indexer.Run(ctx)
 
 	require.Empty(t, index.upserted)
-	require.False(t, acked.Load(), "message should not be acked when indexing fails")
+	require.Empty(t, outbox.acked, "message should not be acked when indexing fails")
 }
