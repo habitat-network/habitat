@@ -3,7 +3,6 @@ package org
 import (
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
@@ -26,7 +25,13 @@ func newTestStore(t *testing.T) *storeImpl {
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
 	require.NoError(t, err)
-	store, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com", passwordProvider)
+	store, err := NewStore(
+		db,
+		h,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+		"pear.example.com",
+		passwordProvider,
+	)
 	require.NoError(t, err)
 	return store.(*storeImpl)
 }
@@ -93,12 +98,13 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 
 func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	s := newTestStore(t)
-	unknown := syntax.DID("did:plc:unknown")
-	org, _, err := s.GetOrgForDID(t.Context(), unknown)
+	// Not a member of any org and not hive-managed; the dummy directory
+	// resolves it with no "habitat" service, so it falls through to the
+	// everyone org.
+	external := syntax.DID("did:plc:unknown")
+	org, _, err := s.GetOrgForDID(t.Context(), external)
 	require.NoError(t, err)
-
-	ok, err := org.IsMember(t.Context(), unknown)
-	require.NoError(t, err)
+	_, ok := org.(*everyoneOrg)
 	require.True(t, ok)
 }
 
