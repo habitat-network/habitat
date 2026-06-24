@@ -33,18 +33,32 @@ type Validator struct {
 	supportedCredentials []CredentialType
 }
 
-func NewValidator(authMethods ...Method) *Validator {
-	return &Validator{authMethods: authMethods}
-}
+type ValidatorOption func(*Validator)
 
-func (v *Validator) WithSupportedCredentials(supportedCredentials ...CredentialType) *Validator {
-	v.supportedCredentials = supportedCredentials
+func NewValidator(options ...ValidatorOption) *Validator {
+	v := &Validator{}
+	for _, option := range options {
+		option(v)
+	}
 	return v
 }
 
-func (v *Validator) WithRequiredSubject() *Validator {
-	v.supportedCredentials = []CredentialType{UserCredential, OrgCredential}
-	return v
+func WithAuthMethods(authMethods ...Method) ValidatorOption {
+	return func(v *Validator) {
+		v.authMethods = authMethods
+	}
+}
+
+func WithSupportedCredentials(supportedCredentials ...CredentialType) ValidatorOption {
+	return func(v *Validator) {
+		v.supportedCredentials = supportedCredentials
+	}
+}
+
+func WithRequiredSubject() ValidatorOption {
+	return func(v *Validator) {
+		v.supportedCredentials = []CredentialType{UserCredential, OrgCredential}
+	}
 }
 
 func (v *Validator) Validate(w http.ResponseWriter, r *http.Request) (*CredentialInfo, bool) {

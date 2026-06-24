@@ -66,9 +66,10 @@ func NewServiceProxy(
 
 func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader string) {
 	// Validate the caller's OAuth session before acting on their behalf.
-	credInfo, ok := authn.NewValidator(s.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}

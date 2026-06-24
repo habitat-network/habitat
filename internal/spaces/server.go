@@ -61,9 +61,10 @@ func (s *Server) authorize(
 }
 
 func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -127,9 +128,10 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -191,9 +193,10 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -259,9 +262,10 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -324,9 +328,10 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -392,7 +397,10 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).WithRequiredSubject().Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -485,7 +493,9 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -567,7 +577,9 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -663,7 +675,9 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -746,7 +760,10 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).WithRequiredSubject().Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -810,7 +827,10 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).WithRequiredSubject().Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}

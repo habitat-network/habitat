@@ -32,9 +32,10 @@ func NewServer(store Store, oauth authn.Method, serviceAuth authn.Method) *Serve
 }
 
 func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -85,9 +86,10 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -140,9 +142,10 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -195,9 +198,10 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -264,9 +268,10 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth, s.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential, authn.OrgCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}

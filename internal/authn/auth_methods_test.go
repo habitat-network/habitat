@@ -17,26 +17,27 @@ func TestValidate(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")
 	credInfo, ok := NewValidator(
-		&testAuthMethod{expectedHeader: "foo"},
-		&testAuthMethod{expectedHeader: "bar"},
-	).WithSupportedCredentials(supportedCreds...).Validate(w, r)
+		WithAuthMethods(&testAuthMethod{expectedHeader: "foo"}, &testAuthMethod{expectedHeader: "bar"}),
+		WithSupportedCredentials(supportedCreds...),
+	).Validate(w, r)
 	require.True(t, ok)
 	require.Equal(t, syntax.DID("did:web:test"), credInfo.Subject)
 
 	w = httptest.NewRecorder()
 	r.Header.Set("Authorization", "bar")
 	_, ok = NewValidator(
-		&testAuthMethod{expectedHeader: "foo"},
-		&testAuthMethod{expectedHeader: "bar", fail: true},
-	).WithSupportedCredentials(supportedCreds...).Validate(w, r)
+		WithAuthMethods(&testAuthMethod{expectedHeader: "foo"}, &testAuthMethod{expectedHeader: "bar", fail: true}),
+		WithSupportedCredentials(supportedCreds...),
+	).Validate(w, r)
 	require.False(t, ok)
 	require.Equal(t, w.Result().StatusCode, http.StatusUnauthorized)
 
 	w = httptest.NewRecorder()
 	r.Header.Set("Authorization", "foo")
 	_, ok = NewValidator(
-		&testAuthMethod{expectedHeader: "bar"},
-	).WithSupportedCredentials(supportedCreds...).Validate(w, r)
+		WithAuthMethods(&testAuthMethod{expectedHeader: "bar"}),
+		WithSupportedCredentials(supportedCreds...),
+	).Validate(w, r)
 	require.False(t, ok)
 	require.Equal(t, w.Result().StatusCode, http.StatusUnauthorized)
 }
@@ -84,8 +85,7 @@ func TestValidateRaw(t *testing.T) {
 
 	// First method handles it successfully.
 	credInfo, ok, err := NewValidator(
-		&testAuthMethod{expectedHeader: "foo"},
-		&testAuthMethod{expectedHeader: "bar"},
+		WithAuthMethods(&testAuthMethod{expectedHeader: "foo"}, &testAuthMethod{expectedHeader: "bar"}),
 	).ValidateRaw(ctx, "foo")
 	require.True(t, ok)
 	require.NoError(t, err)
@@ -93,15 +93,14 @@ func TestValidateRaw(t *testing.T) {
 
 	// Matching method fails.
 	_, ok, err = NewValidator(
-		&testAuthMethod{expectedHeader: "foo"},
-		&testAuthMethod{expectedHeader: "bar", fail: true},
+		WithAuthMethods(&testAuthMethod{expectedHeader: "foo"}, &testAuthMethod{expectedHeader: "bar", fail: true}),
 	).ValidateRaw(ctx, "bar")
 	require.False(t, ok)
 	require.Error(t, err)
 
 	// No method matches the token.
 	_, ok, err = NewValidator(
-		&testAuthMethod{expectedHeader: "bar"},
+		WithAuthMethods(&testAuthMethod{expectedHeader: "bar"}),
 	).ValidateRaw(ctx, "foo")
 	require.False(t, ok)
 	require.Error(t, err)

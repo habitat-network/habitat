@@ -59,9 +59,10 @@ var didCtx = []string{
 // auth JWTs. Downstream services verify the token by resolving the DID and
 // fetching the same signing key, with no changes needed on their end.
 func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.oauth).
-		WithSupportedCredentials(authn.OrgCredential, authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -136,7 +137,9 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	// Must present valid oauth credential for this org to read identities
-	credInfo, ok := authn.NewValidator(s.oauth).Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -200,7 +203,9 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
 func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 	// Must present valid oauth credential for this org to read identities
-	credInfo, ok := authn.NewValidator(s.oauth).Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}

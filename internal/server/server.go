@@ -63,9 +63,10 @@ func NewServer(
 
 // PutRecord puts a private record (see s.inner.putRecord)
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -154,9 +155,10 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 
 // CreateRecord creates a new record
 func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -251,9 +253,10 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth, s.authMethods.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth, s.authMethods.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -361,9 +364,10 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -421,9 +425,10 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -467,8 +472,9 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	credInfo, ok := authn.NewValidator(
-		s.authMethods.oauth, /* TODO: add service auth here when we support fwding blob reqs */
-	).WithSupportedCredentials(authn.UserCredential).Validate(w, r)
+		authn.WithAuthMethods(s.authMethods.oauth), /* TODO: add service auth here when we support fwding blob reqs */
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -520,9 +526,10 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth, s.authMethods.serviceAuth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth, s.authMethods.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -649,9 +656,10 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -707,9 +715,10 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 // However, this is currently only used in the UI to show all the permissions a particular user has granted to other people, as a way of
 // inspecting and easily adding / removing permission grants on your data. We should rename this and/or also make it generic.
 func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -759,9 +768,10 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -798,9 +808,10 @@ func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemovePermission(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(s.authMethods.oauth).
-		WithSupportedCredentials(authn.UserCredential).
-		Validate(w, r)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.authMethods.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
