@@ -4058,6 +4058,133 @@
         }
       }
     },
+    "/network.habitat.search.query": {
+      "get": {
+        "tags": [
+          "network.habitat.search"
+        ],
+        "summary": "network.habitat.search.query",
+        "description": "Full-text search over records the caller's org has indexed.",
+        "operationId": "network.habitat.search.query",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "The search query text.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The search query text."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "results"
+                  ],
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.search.query.resultView"
+                      }
+                    },
+                    "cursor": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.addMember": {
       "post": {
         "tags": [
@@ -5797,6 +5924,36 @@
           }
         }
       },
+      "network.habitat.search.query.resultView": {
+        "type": "object",
+        "required": [
+          "uri",
+          "spaceUri",
+          "recordType"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "URI of the matched record."
+          },
+          "spaceUri": {
+            "type": "string",
+            "description": "URI of the space the record belongs to."
+          },
+          "recordType": {
+            "type": "string",
+            "description": "The NSID of the record type.",
+            "format": "nsid"
+          },
+          "snippet": {
+            "type": "string",
+            "description": "A highlighted excerpt of the matching content."
+          },
+          "rank": {
+            "type": "integer"
+          }
+        }
+      },
       "network.habitat.space.getMembers.member": {
         "type": "object",
         "required": [
@@ -5943,6 +6100,9 @@
     },
     {
       "name": "network.habitat.repo"
+    },
+    {
+      "name": "network.habitat.search"
     },
     {
       "name": "network.habitat.space"

@@ -19,7 +19,7 @@ export const Route = createFileRoute("/login/habitat")({
   component: HabitatLoginPage,
 });
 
-type FormValues = { handle: string; password: string };
+type FormValues = { handle?: string; password: string };
 
 type LoginMemberOutput = { callbackURL: string };
 
@@ -60,14 +60,17 @@ function HabitatLoginPage() {
       )}
       <form onSubmit={handleSubmit(onSubmit)}>
         <fieldset disabled={isSubmitting} className="flex flex-col gap-4">
-          {!handle && <Field>
-            <FieldLabel>Handle</FieldLabel>
-            <Input
-              placeholder="handle"
-              {...register("handle", { required: true })}
-            />
-            <FieldError errors={[errors.password]} />
-          </Field>}<Field>
+          {!handle && (
+            <Field>
+              <FieldLabel>Handle</FieldLabel>
+              <Input
+                placeholder="handle"
+                {...register("handle", { required: true })}
+              />
+              <FieldError errors={[errors.password]} />
+            </Field>
+          )}
+          <Field>
             <FieldLabel>Password</FieldLabel>
             <Input
               type="password"

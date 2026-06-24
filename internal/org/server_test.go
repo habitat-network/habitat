@@ -46,13 +46,12 @@ func (f *fakeInstancePolicy) MarkInviteUsed(ctx context.Context, token string) e
 
 func newTestServer(
 	t *testing.T,
-	adminDID syntax.DID,
 	policy instance.PolicyStore,
-) (*Server, syntax.DID) {
+) (*Server, syntax.DID, syntax.DID) {
 	t.Helper()
 	storeImpl := newTestStore(t)
 
-	orgIdIdent, _, err := storeImpl.CreateOrg(
+	orgIdIdent, adminIdent, err := storeImpl.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -63,26 +62,20 @@ func newTestServer(
 	)
 	require.NoError(t, err)
 
-	scoped, err := storeImpl.GetOrg(context.Background(), orgIdIdent.DID)
-	require.NoError(t, err)
-	st := scoped.(*orgImpl)
-	require.NoError(t, st.addMemberTx(context.Background(), st.db, adminDID))
-	require.NoError(t, st.AddAdmin(context.Background(), adminDID))
-
 	srv, err := NewServer(
 		storeImpl,
-		authn.NewStubAuthnForTest(adminDID),
+		authn.NewStubAuthnForTest(adminIdent.DID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
 		policy,
 	)
 	require.NoError(t, err)
-	return srv, orgIdIdent.DID
+	return srv, orgIdIdent.DID, adminIdent.DID
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
-	srv, orgId := newTestServer(t, did1, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Admin issues an invite token
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
@@ -131,8 +124,8 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	require.NoError(t, err)
 	members, err := testOrg.GetMembers(context.Background())
 	require.NoError(t, err)
-	require.Len(t, members, 3)
-	require.Contains(t, members, did1, "contains the admin")
+	require.Len(t, members, 2)
+	require.Contains(t, members, adminDID, "contains the admin")
 	require.Contains(t, members, newMemberDID, "contains the new member")
 }
 
@@ -140,14 +133,14 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 //  1. orgID in query params + an org-signed token in the Authorization header
 //  2. a regular authenticated caller (no orgID), resolved to their org
 func TestGetMetadataViaSignedToken(t *testing.T) {
-	srv, orgId := newTestServer(t, did1, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Mint an org-signed token to authenticate the request.
 	org, err := srv.store.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	token, err := org.IssueIdentityToken(
 		context.Background(),
-		did1,
+		adminDID,
 		true,
 		time.Now().Add(time.Hour),
 	)
@@ -171,7 +164,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 }
 
 func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
-	srv, orgId := newTestServer(t, did1, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -185,10 +178,10 @@ func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
 }
 
 func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
-	srv, orgId := newTestServer(t, did1, &fakeInstancePolicy{policy: "open"})
+	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// No orgID query param: the caller is resolved to their org via the
-	// stub authn method configured in newTestServer (did1).
+	// stub authn method configured in newTestServer (adminDID).
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/xrpc/network.habitat.org.getMetadata",
@@ -306,7 +299,7 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(did1),
+		authn.NewStubAuthnForTest(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -335,7 +328,7 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(did1),
+		authn.NewStubAuthnForTest(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -364,7 +357,7 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(did1),
+		authn.NewStubAuthnForTest(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -395,7 +388,7 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 	policy := &fakeInstancePolicy{policy: "invite_only"}
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(did1),
+		authn.NewStubAuthnForTest(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -429,7 +422,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 	store := newTestStore(t)
 	srv, err := NewServer(
 		store,
-		authn.NewStubAuthnForTest(did1),
+		authn.NewStubAuthnForTest(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -489,7 +482,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(did1),
+		authn.NewStubAuthnForTest(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),

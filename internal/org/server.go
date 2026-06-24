@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
-
-	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -56,7 +55,7 @@ func NewServer(
 
 // IsMember checks if the given DID is a member of any org on this instance.
 func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) {
-	_, err := s.store.GetOrgForDID(ctx, member)
+	_, _, err := s.store.GetOrgForDID(ctx, member)
 	if err != nil {
 		return false, err
 	}
@@ -100,13 +99,13 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Or regular authn via authenticated caller
-		caller, ok := authn.Validate(w, r, s.auth)
+		// Or regular authn via authenticated credInfo.Subject
+		credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.auth)).Validate(w, r)
 		if !ok {
 			return
 		}
 
-		org, err = s.store.GetOrgForDID(r.Context(), caller)
+		org, _, err = s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 		if errors.Is(err, ErrMemberNotFound) {
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -263,12 +262,15 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.auth),
+		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -325,12 +327,15 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.auth),
+		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -387,12 +392,15 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.auth),
+		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -417,7 +425,7 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err = org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -440,12 +448,15 @@ func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.auth),
+		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -470,7 +481,7 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err = org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -494,12 +505,15 @@ func (s *Server) RemoveAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.auth),
+		authn.WithSupportedCredentials(authn.OrgCredential, authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -523,7 +537,7 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err = org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -551,12 +565,15 @@ func (s *Server) DowngradeAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.auth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -575,7 +592,7 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err = org.IsAdmin(r.Context(), caller)
+	ok, err = org.IsAdmin(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -621,12 +638,15 @@ func (s *Server) RemoveMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
-	caller, ok := authn.Validate(w, r, s.auth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.auth),
+		authn.WithSupportedCredentials(authn.UserCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	org, err := s.store.GetOrgForDID(r.Context(), caller)
+	org, _, err := s.store.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -639,7 +659,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// authz: calelr must be admin
-	if ok, err := org.IsAdmin(r.Context(), caller); !ok {
+	if ok, err := org.IsAdmin(r.Context(), credInfo.Subject); !ok {
 		utils.LogAndHTTPError(r.Context(), w, err, "not authorized", http.StatusUnauthorized)
 		return
 	} else if err != nil {
@@ -670,7 +690,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		expiresAt = parsed
 	}
 
-	token, err := org.IssueIdentityToken(r.Context(), caller, req.Reusable, expiresAt)
+	token, err := org.IssueIdentityToken(r.Context(), credInfo.Subject, req.Reusable, expiresAt)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

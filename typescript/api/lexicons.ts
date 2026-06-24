@@ -2718,6 +2718,83 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSearchQuery: {
+    lexicon: 1,
+    id: 'network.habitat.search.query',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Full-text search over records the caller's org has indexed.",
+        parameters: {
+          type: 'params',
+          properties: {
+            q: {
+              type: 'string',
+              description: 'The search query text.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 25,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+          required: ['q'],
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['results'],
+            properties: {
+              results: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.search.query#resultView',
+                },
+              },
+              cursor: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+      resultView: {
+        type: 'object',
+        required: ['uri', 'spaceUri', 'recordType'],
+        properties: {
+          uri: {
+            type: 'string',
+            description: 'URI of the matched record.',
+          },
+          spaceUri: {
+            type: 'string',
+            description: 'URI of the space the record belongs to.',
+          },
+          recordType: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record type.',
+          },
+          snippet: {
+            type: 'string',
+            description: 'A highlighted excerpt of the matching content.',
+          },
+          rank: {
+            type: 'integer',
+            description:
+              'Relevance score scaled by 1,000,000, higher is more relevant.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpaceAddMember: {
     lexicon: 1,
     id: 'network.habitat.space.addMember',
@@ -3490,6 +3567,7 @@ export const ids = {
   NetworkHabitatRepoListRecords: 'network.habitat.repo.listRecords',
   NetworkHabitatRepoPutRecord: 'network.habitat.repo.putRecord',
   NetworkHabitatRepoUploadBlob: 'network.habitat.repo.uploadBlob',
+  NetworkHabitatSearchQuery: 'network.habitat.search.query',
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',

@@ -207,7 +207,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
 	defaultDir := identity.DefaultDirectory()
-	hiveDir := habitat_identity.NewWrappedDirectory(defaultDir, hive)
+	// hive is the base directory (tried first) since it resolves DIDs under our
+	// own domain locally; falling back to defaultDir's network resolution first
+	// would make this server make an outbound HTTP request back to itself for
+	// any locally-hosted DID.
+	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
@@ -444,7 +448,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
-
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	pdsForwarding := forwarding.NewPDSForwarding(
@@ -459,11 +462,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc(
 		"/xrpc/com.atproto.server.getServiceAuth",
 		func(w http.ResponseWriter, r *http.Request) {
-			callerDID, ok := oauthServer.Validate(w, r)
+			credInfo, ok := oauthServer.Validate(w, r)
 			if !ok {
 				return
 			}
-			id, err := hiveDir.LookupDID(r.Context(), callerDID)
+			id, err := hiveDir.LookupDID(r.Context(), credInfo.Subject)
 			if err != nil {
 				utils.LogAndHTTPError(
 					r.Context(),

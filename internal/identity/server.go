@@ -47,13 +47,11 @@ type didDocWithContext struct {
 	identity.DIDDocument
 }
 
-var (
-	didCtx = []string{
-		"https://www.w3.org/ns/did/v1",
-		"https://w3id.org/security/multikey/v1",
-		"https://w3id.org/security/suites/secp256k1-2019/v1",
-	}
-)
+var didCtx = []string{
+	"https://www.w3.org/ns/did/v1",
+	"https://w3id.org/security/multikey/v1",
+	"https://w3id.org/security/suites/secp256k1-2019/v1",
+}
 
 // GetServiceAuth implements com.atproto.server.getServiceAuth for habitat-hosted
 // identities. Habitat owns the signing key registered in the identity's did:web
@@ -61,7 +59,10 @@ var (
 // auth JWTs. Downstream services verify the token by resolving the DID and
 // fetching the same signing key, with no changes needed on their end.
 func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -107,7 +108,7 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 		lxm = &parsed
 	}
 
-	token, err := s.hive.SignServiceAuth(r.Context(), callerDID, aud, ttl, lxm)
+	token, err := s.hive.SignServiceAuth(r.Context(), credInfo.Subject, aud, ttl, lxm)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -136,11 +137,14 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	// Must present valid oauth credential for this org to read identities
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
-	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
+
+	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -152,13 +156,15 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get the requested DID
 	did, err := syntax.ParseDID("did:web:" + effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	targetOrg, err := s.orgStore.GetOrgForDID(r.Context(), did)
+	// Get the org of the DID
+	targetOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), did)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -170,11 +176,13 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if did != targetOrg.DID() &&
-		callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
-		// authz: oauth credential must be for the same org
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
+	// If the requested DID is an org DID, allow, otherwise check auth
+	if did != targetOrg.DID() {
+		if callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
+			// authz: oauth credential must be for the same org
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	ident, err := s.hive.LookupDID(r.Context(), did)
@@ -200,11 +208,13 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
 func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 	// Must present valid oauth credential for this org to read identities
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
-	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
+	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -233,7 +243,7 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetOrg, err := s.orgStore.GetOrgForDID(r.Context(), ident.DID)
+	targetOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), ident.DID)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

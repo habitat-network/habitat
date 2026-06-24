@@ -26,7 +26,7 @@ type Member struct {
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
 	GetOrg(ctx context.Context, orgID syntax.DID) (Org, error)
-	GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error)
+	GetOrgForDID(ctx context.Context, did syntax.DID) (o Org, isMember bool, err error)
 	CreateOrg(
 		ctx context.Context,
 		name string,
@@ -101,29 +101,34 @@ func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (Org, error) {
 // GetOrgForDID returns the org the given DID belongs to.
 // First checks the member table. If the DID isn't in any org, checks if
 // it's managed by our hive. Otherwise returns the everyone org for external DIDs.
-func (s *storeImpl) GetOrgForDID(ctx context.Context, did syntax.DID) (Org, error) {
-	var m member
-	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err == nil {
-		return s.GetOrg(ctx, m.OrgID)
+func (s *storeImpl) GetOrgForDID(
+	ctx context.Context,
+	did syntax.DID,
+) (Org, bool /* isMember */, error) {
+	if o, err := s.GetOrg(ctx, did); err == nil {
+		return o, false, nil
 	}
 
-	// An org's own identity acts on behalf of that org (e.g. a service holding
-	// the org credential), so treat the org DID as belonging to itself.
-	if org, err := s.GetOrg(ctx, did); err == nil {
-		return org, nil
+	var m member
+	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err == nil {
+		o, err := s.GetOrg(ctx, m.OrgID)
+		if err != nil {
+			return nil, false, err
+		}
+		return o, true, nil
 	}
 
 	id, err := s.dir.LookupDID(ctx, did)
 	if err != nil {
-		return s.everyone, nil
+		return s.everyone, false, nil
 	}
 
 	svc, hasHabitat := id.Services["habitat"]
 	if hasHabitat && svc.URL == "https://"+s.pearDomain {
-		return nil, ErrMemberNotFound
+		return nil, false, ErrMemberNotFound
 	}
 
-	return s.everyone, nil
+	return s.everyone, true, nil
 }
 
 // CreateOrg creates a new org with a bootstrap admin member and returns the generated org ID and the admin identity.

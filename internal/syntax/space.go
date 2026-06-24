@@ -95,6 +95,16 @@ func (s SpaceURI) String() string {
 
 type SpaceRecordURI string
 
+var spaceRecordURIRegex = regexp.MustCompile(
+	`^ats:\/\/[a-zA-Z0-9._:%-]+\/[a-zA-Z0-9-.]+\/[a-zA-Z0-9_~.:-]{1,512}` +
+		`\/(?P<repo>[a-zA-Z0-9._:%-]+)\/(?P<collection>[a-zA-Z0-9-.]+)\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512})$`,
+)
+
+var spaceRecordURIPartsRegex = regexp.MustCompile(
+	`^ats:\/\/(?P<did>[a-zA-Z0-9._:%-]+)\/(?P<type>[a-zA-Z0-9-.]+)\/(?P<skey>[a-zA-Z0-9_~.:-]{1,512})` +
+		`\/(?P<repo>[a-zA-Z0-9._:%-]+)\/(?P<collection>[a-zA-Z0-9-.]+)\/(?P<rkey>[a-zA-Z0-9_~.:-]{1,512})$`,
+)
+
 func ConstructSpaceRecordURI(
 	spaceUri SpaceURI,
 	repo syntax.DID,
@@ -106,4 +116,41 @@ func ConstructSpaceRecordURI(
 
 func (s SpaceRecordURI) String() string {
 	return string(s)
+}
+
+// Collection extracts the NSID of the record's collection from the URI,
+// i.e. "{spaceURI}/{repo}/{collection}/{rkey}" -> {collection}. Returns ""
+// if the URI doesn't match the expected format.
+func (s SpaceRecordURI) Collection() syntax.NSID {
+	parts := spaceRecordURIRegex.FindStringSubmatch(string(s))
+	if len(parts) < 4 {
+		return ""
+	}
+	nsid, err := syntax.ParseNSID(parts[2])
+	if err != nil {
+		return ""
+	}
+	return nsid
+}
+
+// SpaceURI extracts the SpaceURI prefix of a SpaceRecordURI, i.e.
+// "{spaceURI}/{repo}/{collection}/{rkey}" -> {spaceURI}. Returns "" if the
+// URI doesn't match the expected format.
+func (s SpaceRecordURI) SpaceURI() SpaceURI {
+	parts := spaceRecordURIPartsRegex.FindStringSubmatch(string(s))
+	if len(parts) < 7 {
+		return ""
+	}
+	spaceURI, err := ParseSpaceURI(fmt.Sprintf("ats://%s/%s/%s", parts[1], parts[2], parts[3]))
+	if err != nil {
+		return ""
+	}
+	return spaceURI
+}
+
+// SpaceOwner extracts the DID of the owning space's owner from a
+// SpaceRecordURI, equivalent to s.SpaceURI().SpaceOwner(). Returns "" if
+// the URI doesn't match the expected format.
+func (s SpaceRecordURI) SpaceOwner() syntax.DID {
+	return s.SpaceURI().SpaceOwner()
 }
