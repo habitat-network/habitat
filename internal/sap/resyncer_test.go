@@ -107,11 +107,11 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	db := openTestDB(t)
-	resyncNotifCh := make(chan struct{}, 1)
-	outboxNotifCh := make(chan struct{}, 1)
+	resyncNotif := utils.NewPollNotifier()
+	outboxNotif := utils.NewPollNotifier()
 	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotifCh, outboxNotifCh)
-	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotifCh, outboxNotifCh, 1)
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotif, outboxNotif, 1)
 
 	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",
