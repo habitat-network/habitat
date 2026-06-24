@@ -134,55 +134,16 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// For now, DIDs and handles are public. Eventually, we can make them private behind an
+// auth boundary, to not leak info about who is in an org.
+
 // Serve DID Doc ( satisfy /{did}/.well-known/did.json )
 func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
-	// Must present valid oauth credential for this org to read identities
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-
-	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"looking up caller org",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
 	// Get the requested DID
 	did, err := syntax.ParseDID("did:web:" + effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
-	}
-
-	// Get the org of the DID
-	targetOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), did)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"looking up caller org",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	// If the requested DID is an org DID, allow, otherwise check auth
-	if did != targetOrg.DID() {
-		if callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
-			// authz: oauth credential must be for the same org
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
 	}
 
 	ident, err := s.hive.LookupDID(r.Context(), did)
@@ -207,25 +168,6 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 
 // Serve handle DID ( satisfy /{handle}/.well-known/atproto-did )
 func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
-	// Must present valid oauth credential for this org to read identities
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth),
-	).Validate(w, r)
-	if !ok {
-		return
-	}
-	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"looking up caller org",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
 	handle, err := syntax.ParseHandle(effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -240,24 +182,6 @@ func (s *Server) ServeHandle(w http.ResponseWriter, r *http.Request) {
 			"internal error",
 			http.StatusInternalServerError,
 		) // don't leak whether the DID exists or not
-		return
-	}
-
-	targetOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), ident.DID)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"looking up caller org",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	// authz: oauth credential must be for the same org
-	if callerOrg.DID() != targetOrg.DID() {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
