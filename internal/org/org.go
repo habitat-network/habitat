@@ -138,19 +138,6 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return nil
 }
 
-func (s *orgImpl) addMemberTx(
-	ctx context.Context,
-	tx *gorm.DB,
-	did syntax.DID,
-) error {
-	return tx.WithContext(ctx).Create(&member{
-		OrgID:   s.orgID,
-		Did:     did,
-		Role:    MemberRole,
-		LoginID: did.String(),
-	}).Error
-}
-
 // BootstrapAdmin implements Store.
 /*
 func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error {
@@ -338,7 +325,12 @@ func (s *orgImpl) CreateNewMemberIdentity(
 		if err := s.passwordProvider.WithTx(tx).AddLoginEntry(id.DID, password); err != nil {
 			return fmt.Errorf("add login entry: %w", err)
 		}
-		return s.addMemberTx(ctx, tx, id.DID)
+		return tx.Create(&member{
+			OrgID:   s.orgID,
+			Did:     newID.DID,
+			Role:    MemberRole,
+			LoginID: loginID,
+		}).Error
 	})
 	if err != nil {
 		return nil, err
