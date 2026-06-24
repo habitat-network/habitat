@@ -120,7 +120,7 @@ func (s *storeImpl) GetOrgForDID(
 
 	id, err := s.dir.LookupDID(ctx, did)
 	if err != nil {
-		return s.everyone, false, nil
+		return nil, false, err
 	}
 
 	svc, hasHabitat := id.Services["habitat"]
