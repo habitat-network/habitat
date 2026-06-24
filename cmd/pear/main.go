@@ -459,11 +459,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc(
 		"/xrpc/com.atproto.server.getServiceAuth",
 		func(w http.ResponseWriter, r *http.Request) {
-			callerDID, ok := oauthServer.Validate(w, r)
+			credInfo, ok := oauthServer.Validate(w, r)
 			if !ok {
 				return
 			}
-			id, err := hiveDir.LookupDID(r.Context(), callerDID)
+			id, err := hiveDir.LookupDID(r.Context(), credInfo.Subject)
 			if err != nil {
 				utils.LogAndHTTPError(
 					r.Context(),

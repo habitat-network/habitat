@@ -101,12 +101,12 @@ func (s *Server) serveDid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleConnectGoogle(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := s.authMethod.Validate(w, r)
+	credInfo, ok := s.authMethod.Validate(w, r)
 	if !ok {
 		return
 	}
 
-	_, err := s.store.GetSessionByDID(callerDID.String())
+	_, err := s.store.GetSessionByDID(credInfo.Subject.String())
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Printf("Error getting session by DID: %v", err)
 		writeError(
@@ -119,7 +119,7 @@ func (s *Server) handleConnectGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		_, err = s.store.CreateSession(callerDID.String())
+		_, err = s.store.CreateSession(credInfo.Subject.String())
 		if err != nil {
 			log.Printf("Error creating session: %v", err)
 			writeError(
@@ -132,7 +132,7 @@ func (s *Server) handleConnectGoogle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	authURL := s.google.AuthCodeURL(callerDID.String())
+	authURL := s.google.AuthCodeURL(credInfo.Subject.String())
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(struct {
@@ -192,12 +192,12 @@ func (s *Server) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getSessionByAuth(w http.ResponseWriter, r *http.Request) (*Session, bool) {
-	callerDID, ok := s.authMethod.Validate(w, r)
+	credInfo, ok := s.authMethod.Validate(w, r)
 	if !ok {
 		return nil, false
 	}
 
-	session, err := s.store.GetSessionByDID(callerDID.String())
+	session, err := s.store.GetSessionByDID(credInfo.Subject.String())
 	if err != nil {
 		return nil, false
 	}
