@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -73,9 +74,9 @@ type Store interface {
 
 type storeImpl struct {
 	db            *gorm.DB
-	seqCh         chan struct{}
+	seqNotif      *utils.PollNotifier
 	subscribersMu *sync.RWMutex
-	subscribers   map[chan struct{}]struct{}
+	subscribers   map[*utils.PollNotifier]struct{}
 }
 
 func NewStore(db *gorm.DB) (Store, error) {
@@ -83,12 +84,12 @@ func NewStore(db *gorm.DB) (Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	seqCh := make(chan struct{}, 1)
-	seqCh <- struct{}{} // initial notification
+	seqNotif := utils.NewPollNotifier()
+	seqNotif.Notify() // initial notification
 	return &storeImpl{
 		db:            db,
-		seqCh:         seqCh,
-		subscribers:   map[chan struct{}]struct{}{},
+		seqNotif:      seqNotif,
+		subscribers:   map[*utils.PollNotifier]struct{}{},
 		subscribersMu: new(sync.RWMutex),
 	}, nil
 }
@@ -124,13 +125,7 @@ func (s *storeImpl) AppendSpaceEvent(
 // NotifyEvent implements [Store].
 func (s *storeImpl) NotifyEvent(ctx context.Context) {
 	slog.DebugContext(ctx, "notifying sequencer")
-	// notify sequencer
-	select {
-	case s.seqCh <- struct{}{}:
-	default:
-		slog.DebugContext(ctx, "sequencer already notified")
-		// sequencer already notified. this event will be picked up during next sequencer run
-	}
+	s.seqNotif.Notify()
 }
 
 // StartSequencer implements [Store].
@@ -145,11 +140,12 @@ func (s *storeImpl) StartSequencer(ctx context.Context) error {
 	if lastSequencedEvent.Seq != nil {
 		nextSeq = *lastSequencedEvent.Seq + 1
 	}
+	notify := s.seqNotif.Listen()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-s.seqCh:
+		case <-notify:
 			slog.DebugContext(ctx, "sequencing events")
 			var entries []eventEntry
 			if err := s.db.Model(&eventEntry{}).
@@ -168,12 +164,8 @@ func (s *storeImpl) StartSequencer(ctx context.Context) error {
 				nextSeq++
 			}
 			s.subscribersMu.RLock()
-			for ch := range s.subscribers {
-				select {
-				case ch <- struct{}{}:
-				default:
-					// subscriber already notified
-				}
+			for notif := range s.subscribers {
+				notif.Notify()
 			}
 			s.subscribersMu.RUnlock()
 		}
@@ -182,26 +174,26 @@ func (s *storeImpl) StartSequencer(ctx context.Context) error {
 
 // Subscribe implements [Store].
 func (s *storeImpl) Subscribe(ctx context.Context, since uint64) <-chan Event {
-	notificationCh := make(chan struct{}, 1)
+	notif := utils.NewPollNotifier()
 	s.subscribersMu.Lock()
-	s.subscribers[notificationCh] = struct{}{}
+	s.subscribers[notif] = struct{}{}
 	s.subscribersMu.Unlock()
 
-	// send an initial notification
-	notificationCh <- struct{}{}
+	notif.Notify() // initial notification
 
 	lastSent := since
 
 	ch := make(chan Event)
 	go func() {
+		notifyCh := notif.Listen()
 		for {
 			select {
 			case <-ctx.Done():
 				s.subscribersMu.Lock()
-				delete(s.subscribers, notificationCh)
+				delete(s.subscribers, notif)
 				s.subscribersMu.Unlock()
 				return
-			case <-notificationCh:
+			case <-notifyCh:
 				slog.DebugContext(ctx, "notifying subscriber")
 				events, err := s.GetEvents(ctx, lastSent)
 				if err != nil {
@@ -255,7 +247,7 @@ func (s *storeImpl) GetEvents(
 func (s *storeImpl) WithTx(tx *gorm.DB) Store {
 	return &storeImpl{
 		db:            tx,
-		seqCh:         s.seqCh,
+		seqNotif:      s.seqNotif,
 		subscribers:   s.subscribers,
 		subscribersMu: s.subscribersMu,
 	}

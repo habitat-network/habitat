@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -43,12 +44,12 @@ func TestCrawler(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	db := openTestDB(t)
-	resyncNotifCh := make(chan struct{}, 1)
-	outboxNotifCh := make(chan struct{}, 1)
+	resyncNotif := utils.NewPollNotifier()
+	outboxNotif := utils.NewPollNotifier()
 	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotifCh, outboxNotifCh)
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
+	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotif)
 
 	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",
@@ -107,12 +108,12 @@ func TestCrawler_Error(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	db := openTestDB(t)
-	resyncNotifCh := make(chan struct{}, 1)
-	outboxNotifCh := make(chan struct{}, 1)
+	resyncNotif := utils.NewPollNotifier()
+	outboxNotif := utils.NewPollNotifier()
 	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotifCh, outboxNotifCh)
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotifCh)
+	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotif)
 
 	require.NoError(t, db.Create(&managedOrg{
 		DID:         "did:plc:testorg",
