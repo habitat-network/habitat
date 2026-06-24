@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getProfile } from "internal";
 
-export const Route = createFileRoute("/_requireAuth/_forwarding-test")({
+export const Route = createFileRoute("/_requireAuth/forwarding-test")({
   async loader({ context }) {
     const authInfo = context.authManager.getAuthInfo();
     const data = await getProfile(authInfo?.did ?? "");

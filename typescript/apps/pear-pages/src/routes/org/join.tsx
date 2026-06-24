@@ -24,7 +24,7 @@ async function fetchOrgMetadata(
   orgId: string,
   token: string,
 ): Promise<NetworkHabitatOrgGetMetadata.OutputSchema> {
-  const url = `https://${__HABITAT_DOMAIN__}/xrpc/network.habitat.org.getMetadata?orgId=${encodeURIComponent(orgId)}`;
+  const url = `/xrpc/network.habitat.org.getMetadata?orgId=${encodeURIComponent(orgId)}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -81,7 +81,7 @@ function JoinPage() {
           password: loginMethod === "password" ? values.password : undefined,
           loginID: loginMethod !== "password" ? values.loginID : undefined,
         },
-        { unauthenticated: true, domain: __HABITAT_DOMAIN__ },
+        { unauthenticated: true, domain: window.location.host },
       );
       setResult({ handle: res.handle, did: res.did });
     } catch (err) {

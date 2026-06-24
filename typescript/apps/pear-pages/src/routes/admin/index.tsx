@@ -55,7 +55,7 @@ function AdminHomePage() {
       if (!res.ok) throw new Error("Failed to generate invite link");
       const data = (await res.json()) as { token: string };
       setInviteLink(
-        "https://" + window.location.host + "/org/create?token=" + data.token,
+        window.location.origin + "/ui/org/create?token=" + data.token,
       );
     },
   });
