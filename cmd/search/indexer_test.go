@@ -71,7 +71,10 @@ func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
 	index := &fakeIndex{}
 	var acked atomic.Bool
 	outbox := newFakeOutbox([]sap.OutboxMessage{
-		sap.NewOutboxMessageForTesting(1, recordURI, mustMarshal(t, map[string]any{"title": "Budget"}),
+		sap.NewOutboxMessageForTesting(
+			1,
+			recordURI,
+			mustMarshal(t, map[string]any{"title": "Budget"}),
 			func(ctx context.Context) error {
 				acked.Store(true)
 				return nil

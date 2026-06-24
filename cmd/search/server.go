@@ -27,7 +27,10 @@ func NewServer(host string, index Index) *Server {
 	}
 }
 
-func (s *Server) resolveCallerOrg(ctx context.Context, callerBearerToken string) (syntax.DID, error) {
+func (s *Server) resolveCallerOrg(
+	ctx context.Context,
+	callerBearerToken string,
+) (syntax.DID, error) {
 	req, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, s.pearHost+"/xrpc/network.habitat.org.getMetadata", nil,
 	)

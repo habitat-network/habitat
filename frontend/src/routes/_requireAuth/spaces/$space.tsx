@@ -275,7 +275,7 @@ function CreateRecordDialog({
     reset: resetMutation,
   } = useMutation({
     async mutationFn({ collection, recordJson }: CreateRecordForm) {
-      let record: { [x: string]: unknown; };
+      let record: { [x: string]: unknown };
       try {
         record = JSON.parse(recordJson);
       } catch {
@@ -336,16 +336,10 @@ function CreateRecordDialog({
             />
             <FieldError errors={[form.formState.errors.recordJson]} />
           </Field>
-          {createError && (
-            <FieldError>{createError.message}</FieldError>
-          )}
+          {createError && <FieldError>{createError.message}</FieldError>}
         </form>
         <DialogFooter>
-          <Button
-            type="submit"
-            form="create-record-form"
-            disabled={isPending}
-          >
+          <Button type="submit" form="create-record-form" disabled={isPending}>
             Create
           </Button>
         </DialogFooter>

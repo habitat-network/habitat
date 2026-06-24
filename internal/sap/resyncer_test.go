@@ -122,7 +122,10 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
 	repoDID := syntax.DID("did:plc:member1")
-	require.NoError(t, db.Create(&managedRepo{Space: space, DID: repoDID, State: RepoStatePending}).Error)
+	require.NoError(
+		t,
+		db.Create(&managedRepo{Space: space, DID: repoDID, State: RepoStatePending}).Error,
+	)
 
 	// No notification is sent on resyncNotifCh: the repo was left pending by
 	// a prior process lifetime (e.g. a crash, or the dispatcher dropping its

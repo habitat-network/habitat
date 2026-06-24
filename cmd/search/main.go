@@ -74,7 +74,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to add org: %w", err)
 		}
-		fmt.Println("add org via url: %s", url)
+		fmt.Printf("add org via url: %s\n", url)
 	}
 
 	server := NewServer(cmd.String(fPearHost), index)
