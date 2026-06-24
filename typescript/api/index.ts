@@ -64,6 +64,7 @@ import * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRe
 import * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 import * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
+import * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
@@ -131,6 +132,7 @@ export * as NetworkHabitatRepoGetRecord from './types/network/habitat/repo/getRe
 export * as NetworkHabitatRepoListRecords from './types/network/habitat/repo/listRecords.js'
 export * as NetworkHabitatRepoPutRecord from './types/network/habitat/repo/putRecord.js'
 export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uploadBlob.js'
+export * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
@@ -617,6 +619,7 @@ export class NetworkHabitatNS {
   permissions: NetworkHabitatPermissionsNS
   render: NetworkHabitatRenderNS
   repo: NetworkHabitatRepoNS
+  search: NetworkHabitatSearchNS
   space: NetworkHabitatSpaceNS
 
   constructor(client: XrpcClient) {
@@ -629,6 +632,7 @@ export class NetworkHabitatNS {
     this.permissions = new NetworkHabitatPermissionsNS(client)
     this.render = new NetworkHabitatRenderNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
+    this.search = new NetworkHabitatSearchNS(client)
     this.space = new NetworkHabitatSpaceNS(client)
     this.docs = new NetworkHabitatDocsRecord(client)
     this.photo = new NetworkHabitatPhotoRecord(client)
@@ -1180,6 +1184,26 @@ export class NetworkHabitatRepoNS {
       'network.habitat.repo.uploadBlob',
       opts?.qp,
       data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatSearchNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  query(
+    params?: NetworkHabitatSearchQuery.QueryParams,
+    opts?: NetworkHabitatSearchQuery.CallOptions,
+  ): Promise<NetworkHabitatSearchQuery.Response> {
+    return this._client.call(
+      'network.habitat.search.query',
+      params,
+      undefined,
       opts,
     )
   }

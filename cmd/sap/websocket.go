@@ -87,11 +87,10 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case id := <-acks:
-			msg, ok := pending[id]
-			if !ok {
+			if _, ok := pending[id]; !ok {
 				continue
 			}
-			if err := msg.Ack(ctx); err != nil {
+			if err := s.sap.Ack(ctx, id); err != nil {
 				slog.ErrorContext(ctx, "ack outbox message", "id", id, "err", err)
 				continue
 			}

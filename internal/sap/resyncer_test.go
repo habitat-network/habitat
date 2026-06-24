@@ -88,6 +88,57 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	require.Equal(t, syntax.TID(rev2), repo.Rev)
 }
 
+func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
+	t.Parallel()
+	clock := syntax.NewTIDClock(0)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/network.habitat.space.getRepoOplog", r.URL.Path)
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetRepoOplogOutput{
+			Records: []habitat.NetworkHabitatSpaceGetRepoOplogRecord{
+				{
+					Rev:        clock.Next().String(),
+					Collection: "network.habitat.note",
+					Rkey:       "k1",
+					Value:      map[string]any{"text": "hello"},
+				},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	db := openTestDB(t)
+	resyncNotif := utils.NewPollNotifier()
+	outboxNotif := utils.NewPollNotifier()
+	orgManager := newOrgManager(db, "", nil, nil)
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotif, outboxNotif, 1)
+
+	require.NoError(t, db.Create(&managedOrg{
+		DID:         "did:plc:testorg",
+		Host:        srv.URL,
+		AccessToken: "token",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}).Error)
+
+	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
+	repoDID := syntax.DID("did:plc:member1")
+	require.NoError(
+		t,
+		db.Create(&managedRepo{Space: space, DID: repoDID, State: RepoStatePending}).Error,
+	)
+
+	// No notification is sent on resyncNotifCh: the repo was left pending by
+	// a prior process lifetime (e.g. a crash, or the dispatcher dropping its
+	// one notification on an error), and run() must sweep for it on its own.
+	go func() { resyncer.run(t.Context()) }()
+
+	require.Eventually(t, func() bool {
+		var repo managedRepo
+		require.NoError(t, db.Where("space = ? AND did = ?", space, repoDID).First(&repo).Error)
+		return repo.State == RepoStateActive
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
 func TestResyncer_Dispatcher(t *testing.T) {
 	t.Parallel()
 	clock := syntax.NewTIDClock(0)

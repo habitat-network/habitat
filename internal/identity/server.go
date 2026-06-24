@@ -143,6 +143,7 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
 	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -155,12 +156,14 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get the requested DID
 	did, err := syntax.ParseDID("did:web:" + effectiveHost(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
+	// Get the org of the DID
 	targetOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), did)
 	if err != nil {
 		utils.LogAndHTTPError(
@@ -173,11 +176,13 @@ func (s *Server) ServeDIDDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if did != targetOrg.DID() &&
-		callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
-		// authz: oauth credential must be for the same org
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
+	// If the requested DID is an org DID, allow, otherwise check auth
+	if did != targetOrg.DID() {
+		if callerOrg.DID() != targetOrg.DID() { // if caller is looking up an org, then no auth
+			// authz: oauth credential must be for the same org
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	ident, err := s.hive.LookupDID(r.Context(), did)

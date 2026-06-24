@@ -108,6 +108,7 @@ func (s *storeImpl) GetOrgForDID(
 	if o, err := s.GetOrg(ctx, did); err == nil {
 		return o, false, nil
 	}
+
 	var m member
 	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err == nil {
 		o, err := s.GetOrg(ctx, m.OrgID)
