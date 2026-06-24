@@ -54,6 +54,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/lmittmann/tint"
 	"github.com/urfave/cli/v3"
 
@@ -221,7 +222,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		cmd.String(fDomain),
-		cmd.String(fFrontendDomain),
 		oauthSecret,
 		hiveDir,
 	)
@@ -393,6 +393,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
 	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
+	mux.HandleFunc("/admin/config", instanceAdminServer.ServeConfig).Methods("GET")
 	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
 	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
 	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)
@@ -491,6 +492,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		},
 	)
 
+	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
+	if err != nil {
+		slog.Error("unable to setup embedded UI handler", "err", err)
+		os.Exit(1)
+	}
+	mux.PathPrefix("/ui/").Handler(uiHandler)
+
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
 	startupSpan.End()
@@ -577,14 +585,17 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 	postgresUrl := cmd.String(fPgUrl)
 	if postgresUrl != "" {
-		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{TranslateError: true})
 		if err != nil {
 			slog.Error("unable to open postgres db backing pear server")
 		}
 		slog.Info("connected to postgres database")
 	} else {
 		dbPath := cmd.String(fDb)
-		db, err = gorm.Open(sqlite.Open(dbPath + "?_journal_mode=WAL"))
+		db, err = gorm.Open(
+			sqlite.Open(dbPath+"?_journal_mode=WAL"),
+			&gorm.Config{TranslateError: true},
+		)
 		if err != nil {
 			slog.Error("unable to open sqlite file backing pear server")
 		}

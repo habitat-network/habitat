@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -29,7 +30,8 @@ type resyncer struct {
 	orgManager  *orgManager
 	resyncBuf   *resyncBuffer
 	parallelism int
-	notify      chan struct{}
+	resyncNotif *utils.PollNotifier
+	outboxNotif *utils.PollNotifier
 	jobs        chan resyncJob
 }
 
@@ -37,7 +39,8 @@ func newResyncer(
 	db *gorm.DB,
 	orgManager *orgManager,
 	resyncBuf *resyncBuffer,
-	resyncNotifCh chan struct{},
+	resyncNotif *utils.PollNotifier,
+	outboxNotif *utils.PollNotifier,
 	parallelism int,
 ) *resyncer {
 	if parallelism <= 0 {
@@ -48,7 +51,8 @@ func newResyncer(
 		orgManager:  orgManager,
 		resyncBuf:   resyncBuf,
 		parallelism: parallelism,
-		notify:      resyncNotifCh,
+		resyncNotif: resyncNotif,
+		outboxNotif: outboxNotif,
 		jobs:        make(chan resyncJob),
 	}
 }
@@ -63,11 +67,12 @@ func (r *resyncer) run(ctx context.Context) {
 
 func (r *resyncer) runDispatcher(ctx context.Context) {
 	slog.InfoContext(ctx, "resync dispatcher started")
+	notify := r.resyncNotif.Listen()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-r.notify:
+		case <-notify:
 			slog.InfoContext(ctx, "dispatcher received notification")
 			r.dispatch(ctx)
 		}
@@ -254,6 +259,7 @@ func (r *resyncer) syncRepo(
 			if err != nil {
 				return r.handleSyncError(ctx, space, repoDID, err)
 			}
+			r.outboxNotif.Notify()
 			if output.Cursor != "" {
 				since = output.Cursor
 			}

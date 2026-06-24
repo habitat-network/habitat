@@ -68,6 +68,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/health", server.handleHealth)
 	mux.HandleFunc("/org/add", server.handleAddOrg)
 	mux.HandleFunc("/org/list", server.handleListOrgs)
+	mux.HandleFunc("/channel", server.handleOutboxChannel)
 	mux.Handle("/oauth-callback", s)
 	mux.Handle("/client-metadata.json", s)
 

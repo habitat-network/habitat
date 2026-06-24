@@ -12,9 +12,6 @@
       "path": "./typescript/api"
     },
     {
-      "path": "./typescript/apps/calendar"
-    },
-    {
       "path": "./typescript/apps/docs"
     },
     {
@@ -24,7 +21,7 @@
       "path": "./typescript/apps/docsv2"
     },
     {
-      "path": "./typescript/apps/greensky"
+      "path": "./typescript/apps/pear-pages"
     },
     {
       "path": "./typescript/internal"

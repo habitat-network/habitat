@@ -1,11 +1,10 @@
 package instance
 
 import (
-	"embed"
 	"encoding/json"
 	"errors"
-	"html/template"
 	"net/http"
+	"net/url"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -13,11 +12,11 @@ import (
 	"log/slog"
 )
 
-//go:embed login.html home.html style.css
-var templateFS embed.FS
-
-var templates = template.Must(
-	template.ParseFS(templateFS, "login.html", "home.html", "style.css"),
+// Paths of the instance admin pages, served as pre-rendered static pages by the
+// pear-pages app embedded under /ui/ (see internal/webui).
+const (
+	adminLoginPath = "/ui/admin/login"
+	adminHomePath  = "/ui/admin"
 )
 
 // Server serves the instance admin login/logout flow, the admin settings
@@ -31,19 +30,21 @@ func NewServer(store AdminStore, frontendDomain string) *Server {
 	return &Server{store: store, frontendDomain: frontendDomain}
 }
 
+// ServeLoginPage redirects to the embedded admin login page under /ui/.
 func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
-	s.renderLogin(r, w, "")
+	http.Redirect(w, r, adminLoginPath, http.StatusSeeOther)
 }
 
-func (s *Server) renderLogin(r *http.Request, w http.ResponseWriter, errMsg string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(
-		w,
-		"login.html",
-		struct{ Error string }{errMsg},
-	); err != nil {
-		slog.ErrorContext(r.Context(), "rendering instance admin login page", "err", err)
+// ServeConfig returns instance configuration the admin page needs at runtime
+// (e.g. the frontend domain used to build invite links). Gated by the admin
+// session.
+func (s *Server) ServeConfig(w http.ResponseWriter, r *http.Request) {
+	if !s.requireSessionAPI(w, r) {
+		return
 	}
+	writeJSON(w, struct {
+		FrontendDomain string `json:"frontendDomain"`
+	}{s.frontendDomain})
 }
 
 func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -60,8 +61,12 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		s.renderLogin(r, w, "invalid password")
+		http.Redirect(
+			w,
+			r,
+			adminLoginPath+"?error="+url.QueryEscape("invalid password"),
+			http.StatusSeeOther,
+		)
 		return
 	}
 
@@ -70,30 +75,14 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, adminHomePath, http.StatusSeeOther)
 }
 
 func (s *Server) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteSession(w, r); err != nil {
 		slog.ErrorContext(r.Context(), "deleting instance admin session", "err", err)
 	}
-	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-}
-
-// requireSessionPage reports whether the request carries a valid instance
-// admin session, redirecting to the login page and returning false if not.
-func (s *Server) requireSessionPage(w http.ResponseWriter, r *http.Request) bool {
-	ok, err := s.store.ValidateSession(r)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "validating instance admin session", "err", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return false
-	}
-	if !ok {
-		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-		return false
-	}
-	return true
+	http.Redirect(w, r, adminLoginPath, http.StatusSeeOther)
 }
 
 // requireSessionAPI reports whether the request carries a valid instance
@@ -123,15 +112,11 @@ func (s *Server) requireSessionAPI(w http.ResponseWriter, r *http.Request) bool 
 	return true
 }
 
+// ServeAdminHome redirects to the embedded admin settings page under /ui/. The
+// page itself fetches settings via the session-gated admin APIs and redirects
+// to the login page if the session is missing.
 func (s *Server) ServeAdminHome(w http.ResponseWriter, r *http.Request) {
-	if !s.requireSessionPage(w, r) {
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	data := struct{ FrontendDomain string }{s.frontendDomain}
-	if err := templates.ExecuteTemplate(w, "home.html", data); err != nil {
-		slog.ErrorContext(r.Context(), "rendering instance admin home page", "err", err)
-	}
+	http.Redirect(w, r, adminHomePath, http.StatusSeeOther)
 }
 
 func (s *Server) GetSettings(w http.ResponseWriter, r *http.Request) {

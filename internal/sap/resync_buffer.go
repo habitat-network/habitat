@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -17,20 +18,22 @@ import (
 // if the resyncer is in progress, then events are persisted in the buffer to be drained
 // at the end of the resync.
 type resyncBuffer struct {
-	db            *gorm.DB
-	resyncNotifCh chan struct{}
+	db          *gorm.DB
+	resyncNotif *utils.PollNotifier
+	outboxNotif *utils.PollNotifier
 }
 
 var _ db.Store[*resyncBuffer] = (*resyncBuffer)(nil)
 
-func newResyncBuffer(db *gorm.DB, resyncNotifCh chan struct{}) *resyncBuffer {
-	return &resyncBuffer{db: db, resyncNotifCh: resyncNotifCh}
+func newResyncBuffer(db *gorm.DB, resyncNotif, outboxNotif *utils.PollNotifier) *resyncBuffer {
+	return &resyncBuffer{db: db, resyncNotif: resyncNotif, outboxNotif: outboxNotif}
 }
 
 func (rb *resyncBuffer) WithTx(tx *gorm.DB) *resyncBuffer {
 	return &resyncBuffer{
-		db:            tx,
-		resyncNotifCh: rb.resyncNotifCh,
+		db:          tx,
+		resyncNotif: rb.resyncNotif,
+		outboxNotif: rb.outboxNotif,
 	}
 }
 
@@ -79,7 +82,7 @@ func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error 
 				Where("space = ? AND did = ?", event.Space, event.Repo).
 				Update("state", RepoStateDesynced).Error
 			if err == nil {
-				rb.notify()
+				rb.resyncNotif.Notify()
 			}
 			return err
 		}
@@ -92,7 +95,11 @@ func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error 
 		Error; err != nil {
 		return err
 	}
-	return writeEventOps(rb.db, event.Ops)
+	if err := writeEventOps(rb.db, event.Ops); err != nil {
+		return err
+	}
+	rb.outboxNotif.Notify()
+	return nil
 }
 
 func (rb *resyncBuffer) drainRepo(
@@ -131,7 +138,7 @@ func (rb *resyncBuffer) drainRepo(
 						return mErr
 					}
 					slog.WarnContext(ctx, "missed events", "space", repo.Space, "did", repo.DID)
-					rb.notify()
+					rb.resyncNotif.Notify()
 				}
 				return tx.Where("space = ? AND did = ?", repo.Space, repo.DID).
 					Delete(&bufferedEvent{}).Error
@@ -151,6 +158,7 @@ func (rb *resyncBuffer) drainRepo(
 		}); err != nil {
 			return err
 		}
+		rb.outboxNotif.Notify()
 	}
 	return nil
 }
@@ -206,7 +214,7 @@ func (rb *resyncBuffer) handleSpaceEvent(
 		if err := rb.db.Create(&repo).Error; err != nil {
 			return err
 		}
-		rb.notify()
+		rb.resyncNotif.Notify()
 	}
 
 	if rb.shouldBuffer(org, &repo, event) {
@@ -214,11 +222,4 @@ func (rb *resyncBuffer) handleSpaceEvent(
 	}
 
 	return rb.applyEvent(event, &repo)
-}
-
-func (rb *resyncBuffer) notify() {
-	select {
-	case rb.resyncNotifCh <- struct{}{}:
-	default:
-	}
 }
