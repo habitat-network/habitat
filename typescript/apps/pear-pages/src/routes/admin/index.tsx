@@ -9,32 +9,24 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 // using the admin session cookie. If the session is missing the API calls
 // return 401 and we send the admin to the login page.
 type Settings = { instanceName: string; orgCreationPolicy: string };
-type LoaderData = Settings & { frontendDomain: string };
+type LoaderData = Settings
 type FormValues = { instanceName: string; orgCreationPolicy: string };
 
 export const Route = createFileRoute("/admin/")({
   loader: async (): Promise<LoaderData> => {
-    const [configRes, settingsRes] = await Promise.all([
-      fetch("/admin/config"),
-      fetch("/xrpc/network.habitat.admin.getSettings"),
-    ]);
+    const settingsRes = await fetch("/xrpc/network.habitat.admin.getSettings")
 
     if (settingsRes.status === 401) {
       throw redirect({ to: "/admin/login", search: { error: "" } });
     }
-    if (!configRes.ok || !settingsRes.ok) {
-      throw new Error("Failed to load settings");
-    }
-
-    const config = (await configRes.json()) as { frontendDomain: string };
     const settings = (await settingsRes.json()) as Settings;
-    return { ...settings, ...config };
+    return { ...settings };
   },
   component: AdminHomePage,
 });
 
 function AdminHomePage() {
-  const { instanceName, orgCreationPolicy, frontendDomain } =
+  const { instanceName, orgCreationPolicy } =
     Route.useLoaderData();
   const [success, setSuccess] = useState("");
   const [inviteLink, setInviteLink] = useState("");
@@ -63,7 +55,7 @@ function AdminHomePage() {
       if (!res.ok) throw new Error("Failed to generate invite link");
       const data = (await res.json()) as { token: string };
       setInviteLink(
-        "https://" + frontendDomain + "/org/create?token=" + data.token,
+        "https://" + window.location.host + "/org/create?token=" + data.token,
       );
     },
   });

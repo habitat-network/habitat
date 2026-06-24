@@ -120,7 +120,7 @@ golangci-lint run       # Go linting
 
 **Environment** — in `dev.env` (gitignored):
 - `HABITAT_PGURL` — PostgreSQL connection string (defaults to a local SQLite file otherwise)
-- `HABITAT_DOMAIN`, `HABITAT_FRONTEND_DOMAIN`, `DOMAIN` — service domains
+- `HABITAT_DOMAIN`, `DOMAIN` — service domains
 - `NGROK_DOMAIN` — public domain ngrok assigns for `pear:dev`, needed for PDS OAuth
 - `SAP_SECRET` — signing secret for the `sap` service
 - `HABITAT_OAUTH_SERVER_SECRET`, `HABITAT_OAUTH_CLIENT_SECRET`, `HABITAT_PDS_CRED_ENCRYPT_KEY` — OAuth/encryption secrets (generate with `cmd/keygen`)

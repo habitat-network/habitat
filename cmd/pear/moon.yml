@@ -16,7 +16,6 @@ tasks:
       HABITAT_SERVICE_NAME: "habitat_local"
       HABITAT_DOMAIN: pear.local.habitat.network
       HABITAT_PRETTY_LOGS: 'true'
-      HABITAT_FRONTEND_DOMAIN: frontend.local.habitat.network
       # Reverse-proxy /ui/ to the pear-pages dev server instead of serving the
       # embedded build, so UI changes are picked up live.
       HABITAT_UI_DEV_PROXY: 'http://localhost:6010'
@@ -26,14 +25,8 @@ tasks:
     - ngrok
     - pear-pages:dev
   ngrok:
-    command: ngrok
-    args:
-      - http
-      - "8000"
-      - --url
-      - https://${NGROK_DOMAIN}
-      - --log
-      - stdout
+    # we ngrok for authing with the public pds. if it's not installed, just skip. pds auth won't work
+    script: 'command -v ngrok >/dev/null 2>&1 && exec ngrok http "8000" --url "https://${NGROK_DOMAIN}" --log stdout || echo "[ngrok] not installed, skipping tunnel" >&2'
     preset: server
     options:
       envFile:

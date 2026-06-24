@@ -151,7 +151,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	instanceAdminServer := instance.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
+	instanceAdminServer := instance.NewServer(instanceAdminStore)
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -397,7 +397,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
 	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
-	mux.HandleFunc("/admin/config", instanceAdminServer.ServeConfig).Methods("GET")
 	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
 	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
 	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)

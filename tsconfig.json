@@ -12,9 +12,24 @@
       "path": "./typescript/api"
     },
     {
+      "path": "./typescript/apps/calendar"
+    },
+    {
       "path": "./typescript/apps/docs"
     },
     {
+<<<<<<< Updated upstream
+=======
+      "path": "./typescript/apps/docs-server"
+    },
+    {
+      "path": "./typescript/apps/docsv2"
+    },
+    {
+      "path": "./typescript/apps/greensky"
+    },
+    {
+>>>>>>> Stashed changes
       "path": "./typescript/apps/pear-pages"
     },
     {
