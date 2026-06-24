@@ -95,6 +95,12 @@ func TestLookupDID_NotFound(t *testing.T) {
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
+func TestLookupDID_PLC(t *testing.T) {
+	h := newTestHive(t, "example.com", "pear.example.com")
+	_, err := h.LookupDID(t.Context(), syntax.DID("did:plc:abc123"))
+	require.ErrorIs(t, err, identity.ErrDIDNotFound)
+}
+
 func TestSignServiceAuth(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
