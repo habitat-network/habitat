@@ -43,6 +43,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/sync"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -187,6 +188,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux := mux.NewRouter()
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
+	mux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			span := trace.SpanFromContext(r.Context())
+			span.SetAttributes(attribute.String("http.request.header.referer", r.Referer()))
+			next.ServeHTTP(w, r)
+		})
+	})
 	mux.Use(corsMiddleware)
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
