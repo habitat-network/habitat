@@ -28,7 +28,6 @@ var (
 	fPdsOauthClientUri  = "pds_oauth_client_uri"
 	fAdminPassword      = "admin_password"
 	fUiDevProxy         = "ui_dev_proxy"
-	fSearchHost         = "search_host"
 )
 
 var profiles []string
@@ -127,11 +126,6 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fUiDevProxy,
 				Usage:   "If set, reverse-proxy the embedded /ui/ pages to this URL (the pear-pages dev server) instead of serving the embedded build. Used in development.",
 				Sources: getSources(fUiDevProxy),
-			},
-			&cli.StringFlag{
-				Name:    fSearchHost,
-				Usage:   "Base URL of the search server to proxy network.habitat.search.* requests to. If unset, search requests are not served.",
-				Sources: getSources(fSearchHost),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
