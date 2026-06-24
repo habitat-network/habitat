@@ -1,5 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createDoc, docsListQueryOptions } from "@/queries/docs";
+import {
+  createDoc,
+  docsListQueryOptions,
+  docsSpaceQueryOptions,
+} from "@/queries/docs";
 import {
   createFileRoute,
   Link,
@@ -52,7 +56,11 @@ export const Route = createFileRoute("/_requireAuth")({
 
     const { mutate: create, isPending } = useMutation({
       mutationFn: (name: string) => createDoc(authManager, name),
-      onSuccess: ({ docId }) => {
+      onSuccess: async ({ docId }) => {
+        // The first doc also creates the docs space and adds this member to it,
+        // so invalidate the cached (previously empty) space lookup before the
+        // editor route loads, or it would fail to find the space.
+        await queryClient.invalidateQueries(docsSpaceQueryOptions(authManager));
         queryClient.invalidateQueries(docsListQueryOptions(authManager));
         router.invalidate();
         navigate({ to: "/$uri", params: { uri: docId } });

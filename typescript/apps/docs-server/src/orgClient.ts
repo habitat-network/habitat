@@ -1,15 +1,7 @@
 import fs from "node:fs/promises";
 import * as client from "openid-client";
-import {
-  decodeJwt,
-  exportJWK,
-  importJWK,
-  generateKeyPair,
-  type JWK,
-} from "jose";
+import { decodeJwt } from "jose";
 import type { DerivedConfig } from "./config";
-
-const KID = "docs-server";
 
 interface Credential {
   accessToken: string;
@@ -19,31 +11,28 @@ interface Credential {
 }
 
 // OrgClient holds the org's OAuth credential and makes authenticated XRPC calls
-// to pear on the org's behalf. It mirrors internal/sap/org_manager.go: a
-// confidential OAuth client (private_key_jwt) that completes an authorization
-// code flow once, then auto-refreshes the access token. Every request carries
+// to pear on the org's behalf. It mirrors internal/sap/org_manager.go: a public
+// PKCE OAuth client (pear's OAuth server does not support confidential
+// client_assertion auth) that completes an authorization code flow once, then
+// auto-refreshes the access token. Every request carries
 // `Authorization: Bearer <token>` and `Habitat-Auth-Method: oauth`.
 export class OrgClient {
   private config: DerivedConfig;
   private oauthConfig: client.Configuration;
-  private publicJwk: JWK;
   private credential: Credential | undefined;
   private refreshing: Promise<void> | undefined;
 
   private constructor(
     config: DerivedConfig,
     oauthConfig: client.Configuration,
-    publicJwk: JWK,
     credential: Credential | undefined,
   ) {
     this.config = config;
     this.oauthConfig = oauthConfig;
-    this.publicJwk = publicJwk;
     this.credential = credential;
   }
 
   static async create(config: DerivedConfig): Promise<OrgClient> {
-    const { privateKey, publicJwk } = await loadOrCreateKey(config.keyPath);
     const oauthConfig = new client.Configuration(
       {
         issuer: `${config.pearHost}/oauth/authorize`,
@@ -52,14 +41,11 @@ export class OrgClient {
       },
       config.clientId,
       undefined,
-      client.PrivateKeyJwt(privateKey, {
-        [client.modifyAssertion]: (header) => {
-          header.kid = KID;
-        },
-      }),
+      // Public client: authenticate with PKCE only, no client secret/assertion.
+      client.None(),
     );
     const credential = await loadCredential(config.credentialPath);
-    return new OrgClient(config, oauthConfig, publicJwk, credential);
+    return new OrgClient(config, oauthConfig, credential);
   }
 
   isAuthorized(): boolean {
@@ -67,7 +53,7 @@ export class OrgClient {
   }
 
   // clientMetadata is served at /client-metadata.json so pear can fetch it to
-  // learn this confidential client's redirect URI and public signing key.
+  // learn this client's redirect URI and (public, PKCE-only) auth method.
   clientMetadata() {
     return {
       client_id: this.config.clientId,
@@ -75,13 +61,9 @@ export class OrgClient {
       redirect_uris: [this.config.redirectUri],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      token_endpoint_auth_method: "private_key_jwt",
-      token_endpoint_auth_signing_alg: "ES256",
+      token_endpoint_auth_method: "none",
       application_type: "web",
       dpop_bound_access_tokens: false,
-      jwks: {
-        keys: [{ ...this.publicJwk, kid: KID, use: "sig", alg: "ES256" }],
-      },
     };
   }
 
@@ -197,24 +179,4 @@ async function loadCredential(
   } catch {
     return undefined;
   }
-}
-
-async function loadOrCreateKey(
-  keyPath: string,
-): Promise<{ privateKey: CryptoKey; publicJwk: JWK }> {
-  let privateJwk: JWK;
-  try {
-    privateJwk = JSON.parse(await fs.readFile(keyPath, "utf8")) as JWK;
-  } catch {
-    const { privateKey } = await generateKeyPair("ES256", {
-      extractable: true,
-    });
-    privateJwk = await exportJWK(privateKey);
-    await fs.mkdir(keyPath.replace(/\/[^/]*$/, ""), { recursive: true });
-    await fs.writeFile(keyPath, JSON.stringify(privateJwk), "utf8");
-  }
-  const privateKey = (await importJWK(privateJwk, "ES256")) as CryptoKey;
-  // Strip private fields to derive the public JWK published in client metadata.
-  const { d: _d, ...publicJwk } = privateJwk;
-  return { privateKey, publicJwk };
 }

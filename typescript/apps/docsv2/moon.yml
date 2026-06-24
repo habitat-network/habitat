@@ -4,6 +4,9 @@ tasks:
     env:
       DEVTOOLS_PORT: "42073"
       SERVER_PORT: "5176"
+      # DID of the docs server; injected as the __DOCS_SERVER_DID__ Vite define so
+      # the frontend can target it via the Atproto-Proxy header.
+      DOCS_SERVER_DID: "did:web:docs-server.local.habitat.network"
     deps:
       - pear:dev
       - root:caddy

@@ -25,7 +25,6 @@ export interface DerivedConfig extends Config {
   clientId: string;
   redirectUri: string;
   credentialPath: string;
-  keyPath: string;
 }
 
 function required(name: string): string {
@@ -39,7 +38,12 @@ function required(name: string): string {
 export function loadConfig(): DerivedConfig {
   const domain = required("DOCS_SERVER_DOMAIN");
   const orgHandle = required("DOCS_SERVER_ORG_HANDLE");
-  const pearHost = required("DOCS_SERVER_PEAR_HOST").replace(/\/$/, "");
+  // Tolerate DOCS_SERVER_PEAR_HOST being set with or without a scheme; all pear
+  // URLs are built by concatenation, so a bare host would otherwise be invalid.
+  const rawPearHost = required("DOCS_SERVER_PEAR_HOST").replace(/\/$/, "");
+  const pearHost = /^https?:\/\//.test(rawPearHost)
+    ? rawPearHost
+    : `https://${rawPearHost}`;
   const dataDir = process.env.DOCS_SERVER_DATA_DIR ?? ".docs-server";
   const config: Config = {
     domain,
@@ -58,6 +62,5 @@ export function loadConfig(): DerivedConfig {
     clientId: `https://${domain}/client-metadata.json`,
     redirectUri: `https://${domain}/oauth-callback`,
     credentialPath: path.join(dataDir, "credential.json"),
-    keyPath: path.join(dataDir, "signing-key.jwk"),
   };
 }

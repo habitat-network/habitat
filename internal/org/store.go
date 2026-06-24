@@ -107,6 +107,12 @@ func (s *storeImpl) GetOrgForDID(ctx context.Context, did syntax.DID) (Org, erro
 		return s.GetOrg(ctx, m.OrgID)
 	}
 
+	// An org's own identity acts on behalf of that org (e.g. a service holding
+	// the org credential), so treat the org DID as belonging to itself.
+	if org, err := s.GetOrg(ctx, did); err == nil {
+		return org, nil
+	}
+
 	id, err := s.dir.LookupDID(ctx, did)
 	if err != nil {
 		return s.everyone, nil

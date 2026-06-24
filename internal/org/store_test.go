@@ -91,6 +91,31 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 	require.Equal(t, orgId.DID, gotOrgID)
 }
 
+func TestStore_GetOrgForDID_OrgSelf(t *testing.T) {
+	s := newTestStore(t)
+	orgId, _, err := s.CreateOrg(
+		t.Context(),
+		"test-org",
+		"admin",
+		"password",
+		"password",
+		"",
+		"",
+	)
+	require.NoError(t, err)
+
+	// An org's own DID resolves to itself, so it can act on its own behalf.
+	org, err := s.GetOrgForDID(t.Context(), orgId.DID)
+	require.NoError(t, err)
+
+	var gotOrgID syntax.DID
+	switch o := org.(type) {
+	case *orgImpl:
+		gotOrgID = o.orgID
+	}
+	require.Equal(t, orgId.DID, gotOrgID)
+}
+
 func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	s := newTestStore(t)
 	unknown := syntax.DID("did:plc:unknown")
