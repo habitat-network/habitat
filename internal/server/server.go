@@ -472,7 +472,9 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 // TODO: implement permissions over getBlob
 func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.authMethods.oauth), /* TODO: add service auth here when we support fwding blob reqs */
+		authn.WithAuthMethods(
+			s.authMethods.oauth,
+		), /* TODO: add service auth here when we support fwding blob reqs */
 		authn.WithSupportedCredentials(authn.UserCredential),
 	).Validate(w, r)
 	if !ok {
