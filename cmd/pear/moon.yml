@@ -26,14 +26,8 @@ tasks:
     - ngrok
     - pear-pages:dev
   ngrok:
-    command: ngrok
-    args:
-      - http
-      - "8000"
-      - --url
-      - https://${NGROK_DOMAIN}
-      - --log
-      - stdout
+    # we ngrok for authing with the public pds. if it's not installed, just skip. pds auth won't work
+    script: 'command -v ngrok >/dev/null 2>&1 && exec ngrok http "8000" --url "https://${NGROK_DOMAIN}" --log stdout || echo "[ngrok] not installed, skipping tunnel" >&2'
     preset: server
     options:
       envFile:
