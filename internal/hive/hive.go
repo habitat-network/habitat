@@ -122,7 +122,7 @@ func (h *hive) LookupDID(ctx context.Context, did syntax.DID) (*identity.Identit
 	content := strings.TrimPrefix(did.String(), "did:web:")
 	opaqueID, found := strings.CutSuffix(content, "."+h.memberDomain)
 	if !found {
-		return nil, identity.ErrHandleNotFound
+		return nil, identity.ErrDIDNotFound
 	}
 	return h.store.getIdentityByID(ctx, opaqueID)
 }
