@@ -20,14 +20,14 @@ func TestStubAuthn(t *testing.T) {
 		require.True(t, stub.CanHandle(r))
 
 		w := httptest.NewRecorder()
-		did, ok := stub.Validate(w, r)
+		credInfo, ok := stub.Validate(w, r)
 		require.True(t, ok)
-		require.Equal(t, testDID, did)
+		require.Equal(t, testDID, credInfo.Subject)
 
-		did, ok, err := stub.ValidateRaw(context.Background(), "any-token")
+		credInfo, ok, err := stub.ValidateRaw(context.Background(), "any-token")
 		require.NoError(t, err)
 		require.True(t, ok)
-		require.Equal(t, testDID, did)
+		require.Equal(t, testDID, credInfo.Subject)
 	})
 
 	t.Run("failed stub", func(t *testing.T) {
@@ -37,15 +37,15 @@ func TestStubAuthn(t *testing.T) {
 		require.True(t, stub.CanHandle(r))
 
 		w := httptest.NewRecorder()
-		did, ok := stub.Validate(w, r)
+		credInfo, ok := stub.Validate(w, r)
 		require.False(t, ok)
-		require.Empty(t, did)
+		require.Nil(t, credInfo)
 		require.Equal(t, http.StatusUnauthorized, w.Code)
 
-		did, ok, err := stub.ValidateRaw(context.Background(), "any-token")
+		credInfo, ok, err := stub.ValidateRaw(context.Background(), "any-token")
 		require.NoError(t, err)
 		require.False(t, ok)
-		require.Empty(t, did)
+		require.Nil(t, credInfo)
 	})
 }
 
@@ -54,9 +54,9 @@ func TestStubAuthn_Validate(t *testing.T) {
 		stub := NewStubAuthnFailedForTest()
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
-		did, ok := stub.Validate(w, r)
+		credInfo, ok := stub.Validate(w, r)
 		require.False(t, ok)
-		require.Empty(t, did)
+		require.Nil(t, credInfo)
 		require.Equal(t, http.StatusUnauthorized, w.Code)
 		require.Contains(t, w.Body.String(), http.StatusText(http.StatusUnauthorized))
 	})

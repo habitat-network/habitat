@@ -564,31 +564,38 @@ func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (syntax.DID, bool) {
+) (*authn.CredentialInfo, bool) {
 	token := fosite.AccessTokenFromRequest(r)
-	did, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
+	credInfo, ok, err := o.ValidateRaw(r.Context(), token, scopes...)
 	if err != nil || !ok {
-		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, w, err)
+		// TODO: we should delegate the response to o.provider.WriteIntrospectionError(ctx, err)
 		// Unfortunately that was returning a 200 http response, so we write our own error here.
 		utils.WriteHTTPError(
 			w,
 			fmt.Errorf("unable to validate oauth token: %w", err),
 			http.StatusUnauthorized,
 		)
-		return "", false
+		return nil, false
 	}
 
-	_, err = o.orgStore.GetOrgForDID(r.Context(), did)
+	_, isMember, err := o.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.WriteHTTPError(
 			w,
 			fmt.Errorf("not a member of this organization"),
 			http.StatusUnauthorized,
 		)
-		return "", false
+		return nil, false
 	}
 
-	return did, true
+	if credInfo.Subject == "" {
+		credInfo.Type = authn.InstanceCredential
+	} else if isMember {
+		credInfo.Type = authn.UserCredential
+	} else {
+		credInfo.Type = authn.OrgCredential
+	}
+	return credInfo, true
 }
 
 // Validate's the given token and writes an error response to w if validation fails
@@ -596,7 +603,7 @@ func (o *OAuthServer) ValidateRaw(
 	ctx context.Context,
 	token string,
 	scopes ...string,
-) (syntax.DID, bool, error) {
+) (*authn.CredentialInfo, bool, error) {
 	_, ar, err := o.provider.IntrospectToken(
 		ctx,
 		token,
@@ -605,30 +612,30 @@ func (o *OAuthServer) ValidateRaw(
 		scopes...,
 	)
 	if err != nil {
-		return "", false, fmt.Errorf("invalid or expired token: %w", err)
+		return nil, false, fmt.Errorf("invalid or expired token: %w", err)
 	}
 	// Get the DID from the session subject (stored in JWT)
 	session := ar.GetSession().(*oauth2.JWTSession)
 	if session.JWTClaims == nil {
-		return "", false, fmt.Errorf("JWT claims not found")
+		return nil, false, fmt.Errorf("JWT claims not found")
 	}
 
 	did := session.JWTClaims.Subject
 	if did == "" {
-		return "", false, fmt.Errorf("DID not found in JWT")
+		return nil, false, fmt.Errorf("DID not found in JWT")
 	}
-	return syntax.DID(did), true, nil
+	return &authn.CredentialInfo{Subject: syntax.DID(did)}, true, nil
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := o.Validate(w, r)
+	credInfo, ok := o.Validate(w, r)
 	if !ok {
 		return
 	}
 
 	var rows []ConnectedApp
 	err := o.storage.db.WithContext(r.Context()).
-		Where("subject = ?", callerDID).
+		Where("subject = ?", credInfo.Subject).
 		Find(&rows).Error
 	if err != nil {
 		utils.LogAndHTTPError(
