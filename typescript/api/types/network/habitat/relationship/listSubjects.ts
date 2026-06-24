@@ -13,27 +13,24 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.admin.updateSettings'
+const id = 'network.habitat.relationship.listSubjects'
 
-export type QueryParams = {}
-
-export interface InputSchema {
-  /** This instance's display name. Omit to leave unchanged. */
-  instanceName?: string
-  /** 'open' or 'invite_only'. Omit to leave unchanged. */
-  orgCreationPolicy?: string
+export type QueryParams = {
+  /** URI of the space. */
+  space: string
+  /** The role to expand. */
+  relation: 'owner' | 'manager' | 'writer' | 'reader'
 }
+export type InputSchema = undefined
 
 export interface OutputSchema {
-  instanceName: string
-  orgCreationPolicy: string
+  /** DIDs of users holding the role on the space. */
+  dids: string[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {

@@ -13,27 +13,21 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.admin.updateSettings'
+const id = 'network.habitat.relationship.listGroups'
 
-export type QueryParams = {}
-
-export interface InputSchema {
-  /** This instance's display name. Omit to leave unchanged. */
-  instanceName?: string
-  /** 'open' or 'invite_only'. Omit to leave unchanged. */
-  orgCreationPolicy?: string
+export type QueryParams = {
+  /** URI of the space whose groups to list. */
+  space: string
 }
+export type InputSchema = undefined
 
 export interface OutputSchema {
-  instanceName: string
-  orgCreationPolicy: string
+  groups: GroupView[]
 }
 
 export interface CallOptions {
   signal?: AbortSignal
   headers?: HeadersMap
-  qp?: QueryParams
-  encoding?: 'application/json'
 }
 
 export interface Response {
@@ -44,4 +38,23 @@ export interface Response {
 
 export function toKnownErr(e: any) {
   return e
+}
+
+export interface GroupView {
+  $type?: 'network.habitat.relationship.listGroups#groupView'
+  /** URI of the group record. */
+  uri: string
+  name: string
+  description?: string
+  createdAt?: string
+}
+
+const hashGroupView = 'groupView'
+
+export function isGroupView<V>(v: V) {
+  return is$typed(v, id, hashGroupView)
+}
+
+export function validateGroupView<V>(v: V) {
+  return validate<GroupView & V>(v, id, hashGroupView)
 }

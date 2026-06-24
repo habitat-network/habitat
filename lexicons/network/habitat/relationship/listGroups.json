@@ -1,0 +1,64 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.listGroups",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the groups defined in a space. Caller must have the reader role on the space.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "space"
+                ],
+                "properties": {
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the space whose groups to list."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "groups"
+                    ],
+                    "properties": {
+                        "groups": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "#groupView"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "groupView": {
+            "type": "object",
+            "required": [
+                "uri",
+                "name"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "URI of the group record."
+                },
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "datetime"
+                }
+            }
+        }
+    }
+}

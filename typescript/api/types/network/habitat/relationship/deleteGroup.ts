@@ -13,20 +13,13 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.admin.updateSettings'
+const id = 'network.habitat.relationship.deleteGroup'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** This instance's display name. Omit to leave unchanged. */
-  instanceName?: string
-  /** 'open' or 'invite_only'. Omit to leave unchanged. */
-  orgCreationPolicy?: string
-}
-
-export interface OutputSchema {
-  instanceName: string
-  orgCreationPolicy: string
+  /** URI of the group record to delete. */
+  uri: string
 }
 
 export interface CallOptions {
@@ -39,9 +32,18 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
-  data: OutputSchema
+}
+
+export class GroupNotFoundError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
 }
 
 export function toKnownErr(e: any) {
+  if (e instanceof XRPCError) {
+    if (e.error === 'GroupNotFound') return new GroupNotFoundError(e)
+  }
+
   return e
 }

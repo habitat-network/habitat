@@ -1,0 +1,75 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.writeTuple",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the governing space (the object space, or the group object's space).",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "subject",
+                        "relation",
+                        "object"
+                    ],
+                    "properties": {
+                        "subject": {
+                            "type": "union",
+                            "refs": [
+                                "network.habitat.relationship.defs#userSubject",
+                                "network.habitat.relationship.defs#groupSubject",
+                                "network.habitat.relationship.defs#spaceRoleSubject",
+                                "network.habitat.relationship.defs#orgRoleSubject"
+                            ]
+                        },
+                        "relation": {
+                            "type": "string",
+                            "knownValues": [
+                                "owner",
+                                "manager",
+                                "writer",
+                                "reader",
+                                "member"
+                            ],
+                            "description": "Role granted on a space (owner|manager|writer|reader), or 'member' when the object is a group."
+                        },
+                        "object": {
+                            "type": "union",
+                            "refs": [
+                                "network.habitat.relationship.defs#spaceObject",
+                                "network.habitat.relationship.defs#groupObject"
+                            ]
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the written tuple record."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "SpaceNotFound",
+                    "description": "The governing space does not exist."
+                },
+                {
+                    "name": "InvalidTuple",
+                    "description": "The subject, relation, and object combination is not valid (e.g. relation 'member' on a space object)."
+                }
+            ]
+        }
+    }
+}

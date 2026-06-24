@@ -1,0 +1,31 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.group",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A named group of subjects usable as a grantee in relationship tuples. Membership is expressed via network.habitat.relationship.tuple records (relation 'member', object = this group). Owned by the org repo within the space it governs.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 256
+                    },
+                    "description": {
+                        "type": "string",
+                        "maxLength": 2048
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

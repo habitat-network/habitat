@@ -13,20 +13,20 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.admin.updateSettings'
+const id = 'network.habitat.relationship.createGroup'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** This instance's display name. Omit to leave unchanged. */
-  instanceName?: string
-  /** 'open' or 'invite_only'. Omit to leave unchanged. */
-  orgCreationPolicy?: string
+  /** URI of the space the group belongs to. */
+  space: string
+  name: string
+  description?: string
 }
 
 export interface OutputSchema {
-  instanceName: string
-  orgCreationPolicy: string
+  /** URI of the created group record. */
+  uri: string
 }
 
 export interface CallOptions {
@@ -42,6 +42,16 @@ export interface Response {
   data: OutputSchema
 }
 
+export class SpaceNotFoundError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
 export function toKnownErr(e: any) {
+  if (e instanceof XRPCError) {
+    if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
+  }
+
   return e
 }

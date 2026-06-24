@@ -1,0 +1,55 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.check",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Check whether a user holds a role on a space, resolving through groups, nested groups, org/space-role usersets, and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "did",
+                    "relation",
+                    "space"
+                ],
+                "properties": {
+                    "did": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "DID of the user to check."
+                    },
+                    "relation": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "writer",
+                            "reader"
+                        ],
+                        "description": "The role to check for on the space."
+                    },
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the space."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "allowed"
+                    ],
+                    "properties": {
+                        "allowed": {
+                            "type": "boolean",
+                            "description": "Whether the user holds the role on the space."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
