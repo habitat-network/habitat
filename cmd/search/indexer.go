@@ -2,89 +2,78 @@ package main
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/habitat-network/habitat/internal/events"
-	"gorm.io/gorm"
+	"github.com/habitat-network/habitat/internal/sap"
 )
 
-type searchCursor struct {
-	ID      uint `gorm:"primaryKey"`
-	LastSeq uint64
-}
+const indexerBatchSize = 50
 
-func (searchCursor) TableName() string { return "search_cursor" }
-
+// Indexer drains a sap.Outbox and feeds an Index, so the search index
+// tracks every record sap has synced for the org (backfill and live
+// updates alike, since both flow through the same outbox).
 type Indexer struct {
-	db     *gorm.DB
 	index  Index
-	source PearClient
+	outbox sap.Outbox
 }
 
-func NewIndexer(db *gorm.DB, index Index, source PearClient) (*Indexer, error) {
-	if err := db.AutoMigrate(&searchCursor{}); err != nil {
-		return nil, fmt.Errorf("migrate search_cursor: %w", err)
-	}
-	return &Indexer{db: db, index: index, source: source}, nil
+func NewIndexer(index Index, outbox sap.Outbox) *Indexer {
+	return &Indexer{index: index, outbox: outbox}
 }
 
-func (ix *Indexer) lastSeq(ctx context.Context) (uint64, error) {
-	var cur searchCursor
-	err := ix.db.WithContext(ctx).First(&cur, "id = ?", 1).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	return cur.LastSeq, nil
-}
-
-func (ix *Indexer) saveSeq(ctx context.Context, seq uint64) error {
-	return ix.db.WithContext(ctx).Save(&searchCursor{ID: 1, LastSeq: seq}).Error
-}
-
-// Run connects to the event source and indexes every event, resuming from
-// the last persisted cursor. Blocks until ctx is canceled.
+// Run drains the outbox until ctx is canceled, blocking on outbox.Watch()
+// whenever there are no pending messages.
 func (ix *Indexer) Run(ctx context.Context) error {
-	since, err := ix.lastSeq(ctx)
-	if err != nil {
-		return fmt.Errorf("load cursor: %w", err)
-	}
-	return ix.source.SubscribeSpaces(ctx, since, func(event events.Event) {
-		if err := ix.handleEvent(ctx, event); err != nil {
-			slog.ErrorContext(ctx, "failed to index event", "err", err, "seq", event.Seq)
-			return
+	for {
+		msgs, err := ix.outbox.Poll(ctx, indexerBatchSize)
+		if err != nil {
+			return fmt.Errorf("poll outbox: %w", err)
 		}
-		if err := ix.saveSeq(ctx, event.Seq); err != nil {
-			slog.ErrorContext(ctx, "failed to save cursor", "err", err, "seq", event.Seq)
-		}
-	})
-}
-
-func (ix *Indexer) handleEvent(ctx context.Context, event events.Event) error {
-	orgDID := event.Space.SpaceOwner()
-	for _, op := range event.Ops {
-		if op.Action == "delete" {
-			if err := ix.index.Delete(ctx, op.Uri); err != nil {
-				return err
+		if len(msgs) == 0 {
+			select {
+			case <-ix.outbox.Watch():
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 			continue
 		}
-		doc := Document{
-			URI:        op.Uri,
-			SpaceURI:   event.Space,
-			OrgDID:     orgDID,
-			Collection: op.Uri.Collection(),
-			Content:    ExtractContent(op.Value),
-			UpdatedAt:  time.Now(),
-		}
-		if err := ix.index.Upsert(ctx, doc); err != nil {
-			return err
+		for _, msg := range msgs {
+			if err := ix.handleMessage(ctx, msg); err != nil {
+				slog.ErrorContext(ctx, "failed to index message", "err", err, "uri", msg.URI)
+				continue
+			}
+			if err := msg.Ack(ctx); err != nil {
+				slog.ErrorContext(ctx, "failed to ack outbox message", "err", err, "uri", msg.URI)
+			}
 		}
 	}
-	return nil
+}
+
+func (ix *Indexer) handleMessage(ctx context.Context, msg sap.OutboxMessage) error {
+	if isDeleted(msg.Value) {
+		return ix.index.Delete(ctx, msg.URI)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(msg.Value, &value); err != nil {
+		return fmt.Errorf("unmarshal record value: %w", err)
+	}
+	doc := Document{
+		URI:        msg.URI,
+		SpaceURI:   msg.URI.SpaceURI(),
+		OrgDID:     msg.URI.SpaceOwner(),
+		Collection: msg.URI.Collection(),
+		Content:    ExtractContent(value),
+		UpdatedAt:  time.Now(),
+	}
+	return ix.index.Upsert(ctx, doc)
+}
+
+// isDeleted reports whether an outbox message's value represents a
+// deletion: sap's writeEventOps marshals a nil record value (set on delete
+// ops) to JSON "null".
+func isDeleted(value json.RawMessage) bool {
+	return len(value) == 0 || string(value) == "null"
 }

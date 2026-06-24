@@ -76,6 +76,19 @@ func (m OutboxMessage) Ack(ctx context.Context) error {
 	return m.ack(ctx)
 }
 
+// NewOutboxMessageForTesting constructs an OutboxMessage for tests of code
+// outside this package that consumes Outbox — OutboxMessage's ack field is
+// unexported, so it can't otherwise be built with a working Ack from
+// another package.
+func NewOutboxMessageForTesting(
+	id uint,
+	uri habitat_syntax.SpaceRecordURI,
+	value json.RawMessage,
+	ack func(ctx context.Context) error,
+) OutboxMessage {
+	return OutboxMessage{ID: id, URI: uri, Value: value, ack: ack}
+}
+
 // Outbox exposes durable, ordered delivery of repo events to consumers.
 // Messages are redelivered by Poll until acknowledged.
 type Outbox interface {

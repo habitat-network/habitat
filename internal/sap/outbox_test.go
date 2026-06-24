@@ -1,6 +1,8 @@
 package sap
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -138,4 +140,20 @@ func TestOutbox_WatchNotifiesOnNewMessage(t *testing.T) {
 	default:
 		t.Fatal("expected outbox watch channel to be notified after a new message was written")
 	}
+}
+
+func TestNewOutboxMessageForTesting_AckInvokesProvidedFunc(t *testing.T) {
+	var called bool
+	msg := NewOutboxMessageForTesting(
+		1,
+		habitat_syntax.SpaceRecordURI("ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1"),
+		json.RawMessage(`{"title":"hello"}`),
+		func(ctx context.Context) error {
+			called = true
+			return nil
+		},
+	)
+	require.Equal(t, uint(1), msg.ID)
+	require.NoError(t, msg.Ack(t.Context()))
+	require.True(t, called)
 }

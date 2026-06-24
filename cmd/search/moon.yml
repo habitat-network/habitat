@@ -3,5 +3,12 @@ tasks:
     deps:
     - root:build
   dev:
+    deps:
+      - root:caddy
+      - infra:dev
+      - pear:dev
     env:
       SEARCH_PORT: '8091'
+      SEARCH_SECRET: 'z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX'
+      SEARCH_PGURL: 'postgres://habitat:habitat@localhost:5432/habitat?sslmode=disable'
+      SEARCH_PEAR_HOST: 'https://pear.local.habitat.network'

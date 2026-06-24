@@ -62,6 +62,10 @@ func (r *resyncer) run(ctx context.Context) {
 	for i := 0; i < r.parallelism; i++ {
 		go r.runWorker(ctx, i)
 	}
+	// Sweep for repos left pending/desynced/error by a prior process
+	// lifetime: nothing else will notify the dispatcher about them, since
+	// notifications only fire on new discovery or new live events.
+	r.dispatch(ctx)
 	<-ctx.Done()
 }
 
@@ -85,8 +89,8 @@ func (r *resyncer) dispatch(ctx context.Context) {
 	for {
 		rows, err := r.db.WithContext(ctx).Raw(`
 			UPDATE managed_repos SET state = 'resyncing'
-			WHERE rowid IN (
-				SELECT rowid FROM managed_repos
+			WHERE (space, did) IN (
+				SELECT space, did FROM managed_repos
 				WHERE state IN ('pending', 'desynced', 'error') AND (retry_after = 0 OR retry_after < ?)
 				ORDER BY
 					CASE state
@@ -94,7 +98,7 @@ func (r *resyncer) dispatch(ctx context.Context) {
 						WHEN 'desynced' THEN 2
 						WHEN 'error' THEN 3
 					END,
-					rowid
+					space, did
 				LIMIT ?
 			)
 			RETURNING space, did

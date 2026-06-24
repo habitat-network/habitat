@@ -2,60 +2,39 @@ package main
 
 import (
 	"context"
-	"path/filepath"
+	"encoding/json"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/internal/sap"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
-func openIndexerTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "test.db")), &gorm.Config{})
-	require.NoError(t, err)
-	return db
+// fakeOutbox is an in-memory test double for sap.Outbox: Poll returns a
+// fixed batch once, then returns empty and the indexer blocks on Watch
+// until the test cancels the context.
+type fakeOutbox struct {
+	pending []sap.OutboxMessage
+	watchCh chan struct{}
 }
 
-// fakePearClient is a test double for PearClient: SubscribeSpaces replays a
-// fixed list of events synchronously (no real HTTP/SSE connection), and
-// ResolveCallerOrg returns a canned org DID or error. Shared by indexer and
-// server tests so there's a single mock to maintain.
-type fakePearClient struct {
-	events     []events.Event
-	orgDID     syntax.DID
-	resolveErr error
+func newFakeOutbox(msgs []sap.OutboxMessage) *fakeOutbox {
+	return &fakeOutbox{pending: msgs, watchCh: make(chan struct{})}
 }
 
-var _ PearClient = (*fakePearClient)(nil)
-
-func (f *fakePearClient) SubscribeSpaces(
-	ctx context.Context,
-	cursor uint64,
-	onEvent func(events.Event),
-) error {
-	for _, e := range f.events {
-		if e.Seq <= cursor {
-			continue
-		}
-		onEvent(e)
+func (f *fakeOutbox) Poll(ctx context.Context, limit int) ([]sap.OutboxMessage, error) {
+	if len(f.pending) == 0 {
+		return nil, nil
 	}
-	<-ctx.Done()
-	return ctx.Err()
+	msgs := f.pending
+	f.pending = nil
+	return msgs, nil
 }
 
-func (f *fakePearClient) ResolveCallerOrg(
-	ctx context.Context,
-	bearerToken string,
-) (syntax.DID, error) {
-	if f.resolveErr != nil {
-		return "", f.resolveErr
-	}
-	return f.orgDID, nil
+func (f *fakeOutbox) Watch() <-chan struct{} {
+	return f.watchCh
 }
 
 // fakeIndex is an in-memory Index for testing the indexer in isolation.
@@ -78,95 +57,87 @@ func (f *fakeIndex) Query(ctx context.Context, params QueryParams) (QueryResult,
 	return QueryResult{}, nil
 }
 
-func TestIndexer_UpsertsCreateAndUpdateEvents(t *testing.T) {
-	db := openIndexerTestDB(t)
-	index := &fakeIndex{}
-	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:org1/app.space/skey1")
-	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
-	)
-	source := &fakePearClient{events: []events.Event{
-		{
-			Seq:   1,
-			Type:  "space",
-			Space: spaceURI,
-			Ops: []events.EventOps{
-				{Action: "create", Uri: recordURI, Value: map[string]any{"title": "Budget"}},
-			},
-		},
-	}}
-
-	indexer, err := NewIndexer(db, index, source)
+func mustMarshal(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
 	require.NoError(t, err)
+	return b
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+func TestIndexer_UpsertsMessageWithValue(t *testing.T) {
+	recordURI := habitat_syntax.SpaceRecordURI(
+		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+	)
+	index := &fakeIndex{}
+	var acked atomic.Bool
+	outbox := newFakeOutbox([]sap.OutboxMessage{
+		sap.NewOutboxMessageForTesting(1, recordURI, mustMarshal(t, map[string]any{"title": "Budget"}),
+			func(ctx context.Context) error {
+				acked.Store(true)
+				return nil
+			},
+		),
+	})
+
+	indexer := NewIndexer(index, outbox)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	_ = indexer.Run(ctx)
 
 	require.Len(t, index.upserted, 1)
 	require.Equal(t, recordURI, index.upserted[0].URI)
-	require.Equal(t, syntax.DID("did:plc:org1"), index.upserted[0].OrgDID)
-	require.Equal(t, syntax.NSID("network.habitat.note"), index.upserted[0].Collection)
+	require.Equal(
+		t,
+		habitat_syntax.SpaceURI("ats://did:plc:org1/network.habitat.space/skey1"),
+		index.upserted[0].SpaceURI,
+	)
+	require.Equal(t, "did:plc:org1", index.upserted[0].OrgDID.String())
+	require.Equal(t, "network.habitat.note", index.upserted[0].Collection.String())
 	require.Contains(t, index.upserted[0].Content, "Budget")
+	require.True(t, acked.Load(), "message should be acked after a successful upsert")
 }
 
-func TestIndexer_DeletesOnDeleteAction(t *testing.T) {
-	db := openIndexerTestDB(t)
-	index := &fakeIndex{}
-	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:org1/app.space/skey1")
+func TestIndexer_DeletesOnNullValue(t *testing.T) {
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
-	source := &fakePearClient{events: []events.Event{
-		{
-			Seq:   1,
-			Type:  "space",
-			Space: spaceURI,
-			Ops:   []events.EventOps{{Action: "delete", Uri: recordURI}},
-		},
-	}}
+	index := &fakeIndex{}
+	outbox := newFakeOutbox([]sap.OutboxMessage{
+		sap.NewOutboxMessageForTesting(1, recordURI, json.RawMessage("null"),
+			func(ctx context.Context) error { return nil },
+		),
+	})
 
-	indexer, err := NewIndexer(db, index, source)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	indexer := NewIndexer(index, outbox)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	_ = indexer.Run(ctx)
 
 	require.Equal(t, []string{recordURI.String()}, index.deleted)
 }
 
-func TestIndexer_PersistsCursorAcrossRuns(t *testing.T) {
-	db := openIndexerTestDB(t)
-	index := &fakeIndex{}
-	spaceURI := habitat_syntax.SpaceURI("ats://did:plc:org1/app.space/skey1")
+func TestIndexer_DoesNotAckOnHandleFailure(t *testing.T) {
 	recordURI := habitat_syntax.SpaceRecordURI(
-		"ats://did:plc:org1/app.space/skey1/did:plc:user1/network.habitat.note/rkey1",
+		"ats://did:plc:org1/network.habitat.space/skey1/did:plc:user1/network.habitat.note/rkey1",
 	)
-	allEvents := []events.Event{
-		{Seq: 1, Type: "space", Space: spaceURI, Ops: []events.EventOps{
-			{Action: "create", Uri: recordURI, Value: map[string]any{"title": "first"}},
-		}},
-	}
+	index := &fakeIndex{}
+	var acked atomic.Bool
+	// Malformed JSON: handleMessage fails to unmarshal it, so it must be
+	// left unacked for redelivery on the next Poll.
+	outbox := newFakeOutbox([]sap.OutboxMessage{
+		sap.NewOutboxMessageForTesting(1, recordURI, json.RawMessage("not-json"),
+			func(ctx context.Context) error {
+				acked.Store(true)
+				return nil
+			},
+		),
+	})
 
-	indexer, err := NewIndexer(db, index, &fakePearClient{events: allEvents})
-	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	indexer := NewIndexer(index, outbox)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
 	_ = indexer.Run(ctx)
-	cancel()
-	require.Len(t, index.upserted, 1)
 
-	// A second run with the same already-seen event should not re-index it,
-	// since the persisted cursor is now >= 1.
-	indexer2, err := NewIndexer(db, index, &fakePearClient{events: allEvents})
-	require.NoError(t, err)
-	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
-	_ = indexer2.Run(ctx2)
-	cancel2()
-	require.Len(
-		t,
-		index.upserted,
-		1,
-		"event already at or before the persisted cursor should not be re-indexed",
-	)
+	require.Empty(t, index.upserted)
+	require.False(t, acked.Load(), "message should not be acked when indexing fails")
 }

@@ -6,7 +6,9 @@ var (
 	fPort     = "port"
 	fDB       = "db"
 	fPearHost = "pear-host"
-	fM2MToken = "m2m-token"
+	fDomain   = "domain"
+	fSecret   = "secret"
+	fLogLevel = "log-level"
 )
 
 func getFlags() []cli.Flag {
@@ -30,10 +32,22 @@ func getFlags() []cli.Flag {
 			Sources:  cli.NewValueSourceChain(cli.EnvVar("SEARCH_PEAR_HOST")),
 		},
 		&cli.StringFlag{
-			Name:     fM2MToken,
-			Usage:    "Instance-wide M2M bearer token for authenticating to pear",
+			Name:    fDomain,
+			Usage:   "Publicly-accessible domain of this search instance (for sap's OAuth callback)",
+			Value:   "search.local.habitat.network",
+			Sources: cli.NewValueSourceChain(cli.EnvVar("SEARCH_DOMAIN")),
+		},
+		&cli.StringFlag{
+			Name:     fSecret,
+			Usage:    "Secret used in sap's OAuth client-metadata signing",
 			Required: true,
-			Sources:  cli.NewValueSourceChain(cli.EnvVar("SEARCH_M2M_TOKEN")),
+			Sources:  cli.NewValueSourceChain(cli.EnvVar("SEARCH_SECRET")),
+		},
+		&cli.StringFlag{
+			Name:    fLogLevel,
+			Usage:   "Log level (debug, info, warn, error)",
+			Value:   "info",
+			Sources: cli.NewValueSourceChain(cli.EnvVar("SEARCH_LOG_LEVEL")),
 		},
 	}
 }

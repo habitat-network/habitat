@@ -37,8 +37,7 @@ func TestServer_HandleQuery_FiltersByResolvedOrg(t *testing.T) {
 			Rank:       0.5,
 		}},
 	}}
-	pear := &fakePearClient{orgDID: "did:plc:org1"}
-	server := NewServer(index, pear)
+	server := NewServer("pear.example.com", index)
 
 	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.search.query?q=budget", nil)
 	req.Header.Set("Authorization", "Bearer caller-token")
@@ -58,7 +57,7 @@ func TestServer_HandleQuery_FiltersByResolvedOrg(t *testing.T) {
 }
 
 func TestServer_HandleQuery_MissingAuthorizationIs401(t *testing.T) {
-	server := NewServer(&stubIndex{}, &fakePearClient{orgDID: "did:plc:org1"})
+	server := NewServer("pear.example.com", &stubIndex{})
 
 	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.search.query?q=budget", nil)
 	rec := httptest.NewRecorder()
@@ -69,7 +68,7 @@ func TestServer_HandleQuery_MissingAuthorizationIs401(t *testing.T) {
 }
 
 func TestServer_HandleQuery_MissingQIs400(t *testing.T) {
-	server := NewServer(&stubIndex{}, &fakePearClient{orgDID: "did:plc:org1"})
+	server := NewServer("pear.example.com", &stubIndex{})
 
 	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.search.query", nil)
 	req.Header.Set("Authorization", "Bearer caller-token")
@@ -81,7 +80,7 @@ func TestServer_HandleQuery_MissingQIs400(t *testing.T) {
 }
 
 func TestServer_HandleQuery_ResolverErrorIs401(t *testing.T) {
-	server := NewServer(&stubIndex{}, &fakePearClient{resolveErr: context.DeadlineExceeded})
+	server := NewServer("pear.example.com", &stubIndex{})
 
 	req := httptest.NewRequest(http.MethodGet, "/xrpc/network.habitat.search.query?q=budget", nil)
 	req.Header.Set("Authorization", "Bearer caller-token")
@@ -90,4 +89,39 @@ func TestServer_HandleQuery_ResolverErrorIs401(t *testing.T) {
 	server.HandleQuery(rec, req)
 
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestPearClient_ResolveCallerOrg_ForwardsCallerToken(t *testing.T) {
+	var gotAuth, gotMethod string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotMethod = r.Header.Get("Habitat-Auth-Method")
+		require.Equal(t, "/xrpc/network.habitat.org.getMetadata", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatOrgGetMetadataOutput{
+			OrgId:           "did:plc:org1",
+			LoginMethod:     "password",
+			HandleSubdomain: "org1",
+		})
+	}))
+	defer server.Close()
+
+	s := NewServer("pear.example.com", &stubIndex{})
+	orgDID, err := s.resolveCallerOrg(context.Background(), "callers-own-token")
+
+	require.NoError(t, err)
+	require.Equal(t, "did:plc:org1", orgDID.String())
+	require.Equal(t, "Bearer callers-own-token", gotAuth)
+	require.Equal(t, "oauth", gotMethod)
+}
+
+func TestPearClient_ResolveCallerOrg_NonOKStatusIsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	s := NewServer("pear.example.com", &stubIndex{})
+	_, err := s.resolveCallerOrg(context.Background(), "callers-own-token")
+	require.Error(t, err)
 }
