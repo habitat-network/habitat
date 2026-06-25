@@ -1,6 +1,6 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.doc.listDocs",
+    "id": "network.habitat.docs.listDocs",
     "defs": {
         "main": {
             "type": "query",

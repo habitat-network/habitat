@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type {
-  NetworkHabitatDocCreateDoc,
-  NetworkHabitatDocUpdateDoc,
-  NetworkHabitatDocListDocs,
+  NetworkHabitatDocsCreateDoc,
+  NetworkHabitatDocsUpdateDoc,
+  NetworkHabitatDocsListDocs,
 } from "api";
 import type { DerivedConfig } from "./config";
 import type { OrgClient } from "./orgClient";
@@ -22,7 +22,7 @@ export function createApp(
   const pendingAuth = new Map<string, string>();
 
   // did:web document. pear resolves did:web:<domain> here and reads the #docs
-  // service endpoint to forward network.habitat.doc.* calls to this server.
+  // service endpoint to forward network.habitat.docs.* calls to this server.
   app.get("/.well-known/did.json", (c) =>
     c.json({
       "@context": ["https://www.w3.org/ns/did/v1"],
@@ -64,41 +64,41 @@ export function createApp(
     return c.text("Docs server authorized. You can close this tab.");
   });
 
-  app.post("/xrpc/network.habitat.doc.createDoc", async (c) => {
+  app.post("/xrpc/network.habitat.docs.createDoc", async (c) => {
     const caller = await authorize(
       c.req.header("Authorization"),
-      "network.habitat.doc.createDoc",
+      "network.habitat.docs.createDoc",
       verifier,
     );
     const input =
-      (await c.req.json()) as NetworkHabitatDocCreateDoc.InputSchema;
-    const output: NetworkHabitatDocCreateDoc.OutputSchema =
+      (await c.req.json()) as NetworkHabitatDocsCreateDoc.InputSchema;
+    const output: NetworkHabitatDocsCreateDoc.OutputSchema =
       await docs.createDoc(input.name, caller);
     return c.json(output);
   });
 
-  app.post("/xrpc/network.habitat.doc.updateDoc", async (c) => {
+  app.post("/xrpc/network.habitat.docs.updateDoc", async (c) => {
     const caller = await authorize(
       c.req.header("Authorization"),
-      "network.habitat.doc.updateDoc",
+      "network.habitat.docs.updateDoc",
       verifier,
     );
     const input =
-      (await c.req.json()) as NetworkHabitatDocUpdateDoc.InputSchema;
-    const output: NetworkHabitatDocUpdateDoc.OutputSchema =
+      (await c.req.json()) as NetworkHabitatDocsUpdateDoc.InputSchema;
+    const output: NetworkHabitatDocsUpdateDoc.OutputSchema =
       await docs.applyUpdate(input.docId, input.update, caller);
     return c.json(output);
   });
 
   // listDocs returns every doc in the org (no per-caller filtering). The caller
   // is still authenticated via service auth before listing.
-  app.get("/xrpc/network.habitat.doc.listDocs", async (c) => {
+  app.get("/xrpc/network.habitat.docs.listDocs", async (c) => {
     await authorize(
       c.req.header("Authorization"),
-      "network.habitat.doc.listDocs",
+      "network.habitat.docs.listDocs",
       verifier,
     );
-    const output: NetworkHabitatDocListDocs.OutputSchema = {
+    const output: NetworkHabitatDocsListDocs.OutputSchema = {
       docs: await docs.listDocs(),
     };
     return c.json(output);

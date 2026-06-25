@@ -848,14 +848,14 @@
         }
       }
     },
-    "/network.habitat.doc.createDoc": {
+    "/network.habitat.docs.createDoc": {
       "post": {
         "tags": [
-          "network.habitat.doc"
+          "network.habitat.docs"
         ],
-        "summary": "network.habitat.doc.createDoc",
+        "summary": "network.habitat.docs.createDoc",
         "description": "Create a new collaborative document. Implemented by the docs server, which writes the canonical record into the org's docs space using the org credential.",
-        "operationId": "network.habitat.doc.createDoc",
+        "operationId": "network.habitat.docs.createDoc",
         "security": [
           {
             "Bearer": []
@@ -963,14 +963,14 @@
         }
       }
     },
-    "/network.habitat.doc.listDocs": {
+    "/network.habitat.docs.listDocs": {
       "get": {
         "tags": [
-          "network.habitat.doc"
+          "network.habitat.docs"
         ],
-        "summary": "network.habitat.doc.listDocs",
+        "summary": "network.habitat.docs.listDocs",
         "description": "List all documents in the org, with titles. Implemented by the docs server, which lists the doc spaces from pear using the org credential and reads each space's markdown 'self' record for the title.",
-        "operationId": "network.habitat.doc.listDocs",
+        "operationId": "network.habitat.docs.listDocs",
         "security": [
           {
             "Bearer": []
@@ -990,7 +990,7 @@
                     "docs": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/network.habitat.doc.listDocs.docView"
+                        "$ref": "#/components/schemas/network.habitat.docs.listDocs.docView"
                       }
                     }
                   }
@@ -1056,14 +1056,14 @@
         }
       }
     },
-    "/network.habitat.doc.updateDoc": {
+    "/network.habitat.docs.updateDoc": {
       "post": {
         "tags": [
-          "network.habitat.doc"
+          "network.habitat.docs"
         ],
-        "summary": "network.habitat.doc.updateDoc",
+        "summary": "network.habitat.docs.updateDoc",
         "description": "Apply a CRDT update to a collaborative document. Implemented by the docs server, which merges the update into the canonical document and writes it back using the org credential.",
-        "operationId": "network.habitat.doc.updateDoc",
+        "operationId": "network.habitat.docs.updateDoc",
         "security": [
           {
             "Bearer": []
@@ -5683,7 +5683,19 @@
         "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
         "properties": {}
       },
-      "network.habitat.doc.listDocs.docView": {
+      "network.habitat.docs.crdt": {
+        "type": "object",
+        "required": [
+          "blob"
+        ],
+        "properties": {
+          "blob": {
+            "type": "string",
+            "description": "Base64-encoded Yjs state update representing the document content."
+          }
+        }
+      },
+      "network.habitat.docs.listDocs.docView": {
         "type": "object",
         "required": [
           "docId",
@@ -5702,18 +5714,6 @@
           "title": {
             "type": "string",
             "description": "The document title, from its markdown 'self' record."
-          }
-        }
-      },
-      "network.habitat.docs.crdt": {
-        "type": "object",
-        "required": [
-          "blob"
-        ],
-        "properties": {
-          "blob": {
-            "type": "string",
-            "description": "Base64-encoded Yjs state update representing the document content."
           }
         }
       },
@@ -6189,9 +6189,6 @@
     },
     {
       "name": "network.habitat.clique"
-    },
-    {
-      "name": "network.habitat.doc"
     },
     {
       "name": "network.habitat.docs"

@@ -13,7 +13,7 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.doc.listDocs'
+const id = 'network.habitat.docs.listDocs'
 
 export type QueryParams = {}
 export type InputSchema = undefined
@@ -38,7 +38,7 @@ export function toKnownErr(e: any) {
 }
 
 export interface DocView {
-  $type?: 'network.habitat.doc.listDocs#docView'
+  $type?: 'network.habitat.docs.listDocs#docView'
   /** The doc's space key, used as the document identifier in updateDoc and routing. */
   docId: string
   /** URI of the doc's space. */

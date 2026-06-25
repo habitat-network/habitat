@@ -34,11 +34,11 @@ import * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 import * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
-import * as NetworkHabitatDocCreateDoc from './types/network/habitat/doc/createDoc.js'
-import * as NetworkHabitatDocListDocs from './types/network/habitat/doc/listDocs.js'
-import * as NetworkHabitatDocUpdateDoc from './types/network/habitat/doc/updateDoc.js'
 import * as NetworkHabitatDocsCrdt from './types/network/habitat/docs/crdt.js'
+import * as NetworkHabitatDocsCreateDoc from './types/network/habitat/docs/createDoc.js'
+import * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDocs.js'
 import * as NetworkHabitatDocsMarkdown from './types/network/habitat/docs/markdown.js'
+import * as NetworkHabitatDocsUpdateDoc from './types/network/habitat/docs/updateDoc.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
@@ -106,11 +106,11 @@ export * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 export * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
-export * as NetworkHabitatDocCreateDoc from './types/network/habitat/doc/createDoc.js'
-export * as NetworkHabitatDocListDocs from './types/network/habitat/doc/listDocs.js'
-export * as NetworkHabitatDocUpdateDoc from './types/network/habitat/doc/updateDoc.js'
 export * as NetworkHabitatDocsCrdt from './types/network/habitat/docs/crdt.js'
+export * as NetworkHabitatDocsCreateDoc from './types/network/habitat/docs/createDoc.js'
+export * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDocs.js'
 export * as NetworkHabitatDocsMarkdown from './types/network/habitat/docs/markdown.js'
+export * as NetworkHabitatDocsUpdateDoc from './types/network/habitat/docs/updateDoc.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
@@ -620,7 +620,6 @@ export class NetworkHabitatNS {
   photo: NetworkHabitatPhotoRecord
   admin: NetworkHabitatAdminNS
   clique: NetworkHabitatCliqueNS
-  doc: NetworkHabitatDocNS
   docs: NetworkHabitatDocsNS
   instance: NetworkHabitatInstanceNS
   internal: NetworkHabitatInternalNS
@@ -635,7 +634,6 @@ export class NetworkHabitatNS {
     this._client = client
     this.admin = new NetworkHabitatAdminNS(client)
     this.clique = new NetworkHabitatCliqueNS(client)
-    this.doc = new NetworkHabitatDocNS(client)
     this.docs = new NetworkHabitatDocsNS(client)
     this.instance = new NetworkHabitatInstanceNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
@@ -773,50 +771,6 @@ export class NetworkHabitatCliqueNS {
   }
 }
 
-export class NetworkHabitatDocNS {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  createDoc(
-    data?: NetworkHabitatDocCreateDoc.InputSchema,
-    opts?: NetworkHabitatDocCreateDoc.CallOptions,
-  ): Promise<NetworkHabitatDocCreateDoc.Response> {
-    return this._client.call(
-      'network.habitat.doc.createDoc',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
-
-  listDocs(
-    params?: NetworkHabitatDocListDocs.QueryParams,
-    opts?: NetworkHabitatDocListDocs.CallOptions,
-  ): Promise<NetworkHabitatDocListDocs.Response> {
-    return this._client.call(
-      'network.habitat.doc.listDocs',
-      params,
-      undefined,
-      opts,
-    )
-  }
-
-  updateDoc(
-    data?: NetworkHabitatDocUpdateDoc.InputSchema,
-    opts?: NetworkHabitatDocUpdateDoc.CallOptions,
-  ): Promise<NetworkHabitatDocUpdateDoc.Response> {
-    return this._client.call(
-      'network.habitat.doc.updateDoc',
-      opts?.qp,
-      data,
-      opts,
-    )
-  }
-}
-
 export class NetworkHabitatDocsNS {
   _client: XrpcClient
   crdt: NetworkHabitatDocsCrdtRecord
@@ -826,6 +780,42 @@ export class NetworkHabitatDocsNS {
     this._client = client
     this.crdt = new NetworkHabitatDocsCrdtRecord(client)
     this.markdown = new NetworkHabitatDocsMarkdownRecord(client)
+  }
+
+  createDoc(
+    data?: NetworkHabitatDocsCreateDoc.InputSchema,
+    opts?: NetworkHabitatDocsCreateDoc.CallOptions,
+  ): Promise<NetworkHabitatDocsCreateDoc.Response> {
+    return this._client.call(
+      'network.habitat.docs.createDoc',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  listDocs(
+    params?: NetworkHabitatDocsListDocs.QueryParams,
+    opts?: NetworkHabitatDocsListDocs.CallOptions,
+  ): Promise<NetworkHabitatDocsListDocs.Response> {
+    return this._client.call(
+      'network.habitat.docs.listDocs',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  updateDoc(
+    data?: NetworkHabitatDocsUpdateDoc.InputSchema,
+    opts?: NetworkHabitatDocsUpdateDoc.CallOptions,
+  ): Promise<NetworkHabitatDocsUpdateDoc.Response> {
+    return this._client.call(
+      'network.habitat.docs.updateDoc',
+      opts?.qp,
+      data,
+      opts,
+    )
   }
 }
 

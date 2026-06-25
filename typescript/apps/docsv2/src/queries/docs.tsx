@@ -6,7 +6,7 @@ const SELF = "self";
 
 // docsProxyHeaders targets the docs server via pear service proxying: pear
 // validates the caller's OAuth session, signs a service-auth JWT, and forwards
-// the network.habitat.doc.* call to the docs server's #docs service endpoint.
+// the network.habitat.docs.* call to the docs server's #docs service endpoint.
 export function docsProxyHeaders(): Headers {
   return new Headers({ "Atproto-Proxy": `${__DOCS_SERVER_DID__}#docs` });
 }
@@ -24,7 +24,7 @@ export const docsListQueryOptions = (authManager: AuthManager) =>
     queryKey: ["docs"],
     queryFn: async (): Promise<DocSummary[]> => {
       const { docs } = await query(
-        "network.habitat.doc.listDocs",
+        "network.habitat.docs.listDocs",
         {},
         { authManager, headers: docsProxyHeaders() },
       );
@@ -61,7 +61,7 @@ export const docQueryOptions = (docId: string, authManager: AuthManager) =>
 
 export function createDoc(authManager: AuthManager, name: string) {
   return procedure(
-    "network.habitat.doc.createDoc",
+    "network.habitat.docs.createDoc",
     { name },
     { authManager, headers: docsProxyHeaders() },
   );
@@ -75,7 +75,7 @@ export function pushUpdate(
   update: string,
 ) {
   return procedure(
-    "network.habitat.doc.updateDoc",
+    "network.habitat.docs.updateDoc",
     { docId, update },
     { authManager, headers: docsProxyHeaders() },
   );

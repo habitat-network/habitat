@@ -1170,9 +1170,32 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatDocCreateDoc: {
+  NetworkHabitatDocsCrdt: {
     lexicon: 1,
-    id: 'network.habitat.doc.createDoc',
+    id: 'network.habitat.docs.crdt',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "The CRDT (Yjs) state of a collaborative document. Each document is its own space; this record holds the canonical document state under the literal key 'self'.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['blob'],
+          properties: {
+            blob: {
+              type: 'string',
+              description:
+                'Base64-encoded Yjs state update representing the document content.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsCreateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.docs.createDoc',
     defs: {
       main: {
         type: 'procedure',
@@ -1212,9 +1235,9 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatDocListDocs: {
+  NetworkHabitatDocsListDocs: {
     lexicon: 1,
-    id: 'network.habitat.doc.listDocs',
+    id: 'network.habitat.docs.listDocs',
     defs: {
       main: {
         type: 'query',
@@ -1230,7 +1253,7 @@ export const schemaDict = {
                 type: 'array',
                 items: {
                   type: 'ref',
-                  ref: 'lex:network.habitat.doc.listDocs#docView',
+                  ref: 'lex:network.habitat.docs.listDocs#docView',
                 },
               },
             },
@@ -1258,9 +1281,36 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatDocUpdateDoc: {
+  NetworkHabitatDocsMarkdown: {
     lexicon: 1,
-    id: 'network.habitat.doc.updateDoc',
+    id: 'network.habitat.docs.markdown',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "The rendered markdown of a collaborative document, derived from its CRDT state by the docs server. One per doc space, under the literal key 'self'.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['title', 'content'],
+          properties: {
+            title: {
+              type: 'string',
+              description:
+                'The document title, derived from the first heading or line.',
+            },
+            content: {
+              type: 'string',
+              description: 'The rendered markdown content of the document.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsUpdateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.docs.updateDoc',
     defs: {
       main: {
         type: 'procedure',
@@ -1300,56 +1350,6 @@ export const schemaDict = {
                 format: 'cid',
                 description: 'CID of the updated record.',
               },
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatDocsCrdt: {
-    lexicon: 1,
-    id: 'network.habitat.docs.crdt',
-    defs: {
-      main: {
-        type: 'record',
-        description:
-          "The CRDT (Yjs) state of a collaborative document. Each document is its own space; this record holds the canonical document state under the literal key 'self'.",
-        key: 'literal:self',
-        record: {
-          type: 'object',
-          required: ['blob'],
-          properties: {
-            blob: {
-              type: 'string',
-              description:
-                'Base64-encoded Yjs state update representing the document content.',
-            },
-          },
-        },
-      },
-    },
-  },
-  NetworkHabitatDocsMarkdown: {
-    lexicon: 1,
-    id: 'network.habitat.docs.markdown',
-    defs: {
-      main: {
-        type: 'record',
-        description:
-          "The rendered markdown of a collaborative document, derived from its CRDT state by the docs server. One per doc space, under the literal key 'self'.",
-        key: 'literal:self',
-        record: {
-          type: 'object',
-          required: ['title', 'content'],
-          properties: {
-            title: {
-              type: 'string',
-              description:
-                'The document title, derived from the first heading or line.',
-            },
-            content: {
-              type: 'string',
-              description: 'The rendered markdown content of the document.',
             },
           },
         },
@@ -3593,11 +3593,11 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
-  NetworkHabitatDocCreateDoc: 'network.habitat.doc.createDoc',
-  NetworkHabitatDocListDocs: 'network.habitat.doc.listDocs',
-  NetworkHabitatDocUpdateDoc: 'network.habitat.doc.updateDoc',
   NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
+  NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
+  NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',
   NetworkHabitatDocsMarkdown: 'network.habitat.docs.markdown',
+  NetworkHabitatDocsUpdateDoc: 'network.habitat.docs.updateDoc',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInstanceDescribeInstance:
     'network.habitat.instance.describeInstance',

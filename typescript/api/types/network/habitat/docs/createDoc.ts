@@ -13,22 +13,20 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.doc.updateDoc'
+const id = 'network.habitat.docs.createDoc'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** The record key identifying the document to update. */
-  docId: string
-  /** Base64-encoded Yjs update to merge into the document. */
-  update: string
+  /** The initial name of the document. */
+  name: string
 }
 
 export interface OutputSchema {
-  /** URI of the updated document record. */
+  /** URI of the created document record. */
   uri: string
-  /** CID of the updated record. */
-  cid?: string
+  /** The record key identifying the document, used in subsequent updateDoc calls. */
+  docId: string
 }
 
 export interface CallOptions {

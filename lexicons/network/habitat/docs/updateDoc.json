@@ -1,6 +1,6 @@
 {
     "lexicon": 1,
-    "id": "network.habitat.doc.updateDoc",
+    "id": "network.habitat.docs.updateDoc",
     "defs": {
         "main": {
             "type": "procedure",

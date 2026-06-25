@@ -45,9 +45,9 @@ import type {
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatInstanceDescribeInstance,
-  NetworkHabitatDocCreateDoc,
-  NetworkHabitatDocUpdateDoc,
-  NetworkHabitatDocListDocs,
+  NetworkHabitatDocsCreateDoc,
+  NetworkHabitatDocsUpdateDoc,
+  NetworkHabitatDocsListDocs,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -73,9 +73,9 @@ type UnauthedQuery<
 type QueryEndpoints = {
   // Implemented by the docs server; reached via pear service proxying when
   // called with an Atproto-Proxy header.
-  "network.habitat.doc.listDocs": Query<
-    NetworkHabitatDocListDocs.QueryParams,
-    NetworkHabitatDocListDocs.OutputSchema
+  "network.habitat.docs.listDocs": Query<
+    NetworkHabitatDocsListDocs.QueryParams,
+    NetworkHabitatDocsListDocs.OutputSchema
   >;
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,
@@ -274,13 +274,13 @@ type ProcedureEndpoints = {
   >;
   // Implemented by the docs server; reaches it via pear service proxying when
   // called with an Atproto-Proxy header (see options.headers).
-  "network.habitat.doc.createDoc": Procedure<
-    NetworkHabitatDocCreateDoc.InputSchema,
-    NetworkHabitatDocCreateDoc.OutputSchema
+  "network.habitat.docs.createDoc": Procedure<
+    NetworkHabitatDocsCreateDoc.InputSchema,
+    NetworkHabitatDocsCreateDoc.OutputSchema
   >;
-  "network.habitat.doc.updateDoc": Procedure<
-    NetworkHabitatDocUpdateDoc.InputSchema,
-    NetworkHabitatDocUpdateDoc.OutputSchema
+  "network.habitat.docs.updateDoc": Procedure<
+    NetworkHabitatDocsUpdateDoc.InputSchema,
+    NetworkHabitatDocsUpdateDoc.OutputSchema
   >;
 };
 
