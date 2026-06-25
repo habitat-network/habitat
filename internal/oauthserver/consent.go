@@ -168,6 +168,7 @@ func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := url.Values{}
+	params.Set("clientId", cf.Form.Get("client_id"))
 	params.Set("clientName", c.ClientName)
 	params.Set("clientUri", c.ClientUri)
 	params.Set("logoUri", c.LogoUri)

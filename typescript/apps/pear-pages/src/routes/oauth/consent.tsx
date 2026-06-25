@@ -10,6 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 // (an authorization code, or an error, sent to the client's redirect URI).
 export const Route = createFileRoute("/oauth/consent")({
   validateSearch: (search: Record<string, unknown>) => ({
+    clientId: String(search.clientId ?? ""),
     clientName: String(search.clientName ?? ""),
     clientUri: String(search.clientUri ?? ""),
     logoUri: String(search.logoUri ?? ""),
@@ -20,7 +21,8 @@ export const Route = createFileRoute("/oauth/consent")({
 });
 
 function ConsentPage() {
-  const { clientName, clientUri, logoUri, scope, orgHandle } = Route.useSearch();
+  const { clientId, clientName, clientUri, logoUri, scope, orgHandle } =
+    Route.useSearch();
   const scopes = scope.split(/\s+/).filter(Boolean);
 
   return (
@@ -33,8 +35,8 @@ function ConsentPage() {
             className="size-10 rounded-lg object-contain"
           />
         )}
-        <h1 className="text-lg font-semibold">
-          {clientName || clientUri || "An application"}
+        <h1 className="text-lg font-semibold break-all">
+          {clientName || clientUri || clientId || "An application"}
         </h1>
       </div>
       <p className="mb-6 text-sm text-muted-foreground break-all">
