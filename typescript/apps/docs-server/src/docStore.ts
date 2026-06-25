@@ -41,20 +41,20 @@ export class DocStore {
   async applyUpdate(
     docId: string,
     updateB64: string,
-    memberDid: string,
+    _: string, // memberDid - not doing attribution yet 
   ): Promise<{ uri: string; cid?: string }> {
     const orgDid = await this.pear.orgDid();
     const spaceUri = this.pear.spaceUri(docId, orgDid);
     const ydoc = await this.load(docId, spaceUri);
     Y.applyUpdateV2(ydoc, new Uint8Array(Buffer.from(updateB64, "base64")));
     const result = await this.writeRecords(spaceUri, ydoc);
-    await this.pear.addMember(spaceUri, memberDid, "write");
     return result;
   }
 
   // listDocs returns every doc in the org, with titles read from each space's
   // markdown "self" record. Spaces without a markdown record (e.g. legacy) are
   // skipped.
+  // TODO will be replaced by sap
   async listDocs(): Promise<DocView[]> {
     const spaces = await this.pear.listSpaces();
     const docs = await Promise.all(
@@ -95,6 +95,7 @@ export class DocStore {
   ): Promise<{ uri: string; cid?: string }> {
     const rendered = renderDoc(ydoc);
     const title = nameOverride ?? rendered.title;
+    // TODO this should be a blob
     const crdt = await this.pear.putRecord(spaceUri, CRDT_COLLECTION, SELF, {
       blob: Buffer.from(Y.encodeStateAsUpdateV2(ydoc)).toString("base64"),
     });
