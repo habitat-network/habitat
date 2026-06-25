@@ -1,10 +1,18 @@
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
-import { query, procedure } from "internal";
+import { query, procedure, type AuthManager } from "internal";
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
   Field,
+  FieldError,
   FieldLabel,
   Input,
   Table,
@@ -13,6 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
   ToggleGroup,
   ToggleGroupItem,
 } from "internal/components/ui";
@@ -113,21 +122,11 @@ function SpaceRecords() {
       <p className="text-sm text-muted-foreground mb-4">
         {records.length} record{records.length !== 1 ? "s" : ""}
       </p>
-      <Button
-        onClick={async () => {
-          await procedure(
-            "network.habitat.space.putRecord",
-            {
-              space,
-              collection: "test.record.collection",
-              record: { key: "value" },
-            },
-            { authManager },
-          );
-        }}
-      >
-        Create test record
-      </Button>
+      <CreateRecordDialog
+        space={space}
+        authManager={authManager}
+        onCreated={() => router.invalidate()}
+      />
       <Table>
         <TableHeader>
           <TableRow>
@@ -246,5 +245,105 @@ function SpaceRecords() {
         </Button>
       </form>
     </>
+  );
+}
+
+interface CreateRecordForm {
+  collection: string;
+  recordJson: string;
+}
+
+function CreateRecordDialog({
+  space,
+  authManager,
+  onCreated,
+}: {
+  space: string;
+  authManager: AuthManager;
+  onCreated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const form = useForm<CreateRecordForm>({
+    defaultValues: { collection: "", recordJson: "{\n  \n}" },
+  });
+
+  const {
+    mutate: createRecord,
+    isPending,
+    error: createError,
+    reset: resetMutation,
+  } = useMutation({
+    async mutationFn({ collection, recordJson }: CreateRecordForm) {
+      let record: { [x: string]: unknown };
+      try {
+        record = JSON.parse(recordJson);
+      } catch {
+        throw new Error("Record must be valid JSON");
+      }
+      await procedure(
+        "network.habitat.space.putRecord",
+        { space, collection, record },
+        { authManager },
+      );
+    },
+    onSuccess() {
+      form.reset();
+      setOpen(false);
+      onCreated();
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          form.reset();
+          resetMutation();
+        }
+      }}
+    >
+      <DialogTrigger render={<Button>Create record</Button>} />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create record</DialogTitle>
+        </DialogHeader>
+        <form
+          id="create-record-form"
+          onSubmit={form.handleSubmit((data) => createRecord(data))}
+          className="flex flex-col gap-4"
+        >
+          <Field>
+            <FieldLabel>Collection</FieldLabel>
+            <Input
+              {...form.register("collection", {
+                required: "Collection is required",
+              })}
+              placeholder="network.habitat.example.thing"
+            />
+            <FieldError errors={[form.formState.errors.collection]} />
+          </Field>
+          <Field>
+            <FieldLabel>Record (JSON)</FieldLabel>
+            <Textarea
+              {...form.register("recordJson", {
+                required: "Record is required",
+              })}
+              rows={10}
+              className="font-mono"
+            />
+            <FieldError errors={[form.formState.errors.recordJson]} />
+          </Field>
+          {createError && <FieldError>{createError.message}</FieldError>}
+        </form>
+        <DialogFooter>
+          <Button type="submit" form="create-record-form" disabled={isPending}>
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

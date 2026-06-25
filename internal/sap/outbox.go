@@ -10,6 +10,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/events"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -60,19 +61,12 @@ func writeOplogRecords(
 }
 
 // OutboxMessage is a single event delivered from the outbox. Ack must be
-// called once the message has been durably processed; until then it will
-// be redelivered by Poll.
+// called with the message's ID once it has been durably processed; until
+// then it will be redelivered by Poll.
 type OutboxMessage struct {
 	ID    uint
 	URI   habitat_syntax.SpaceRecordURI
 	Value json.RawMessage
-
-	ack func(ctx context.Context) error
-}
-
-// Ack marks the message as processed so it is not redelivered by Poll.
-func (m OutboxMessage) Ack(ctx context.Context) error {
-	return m.ack(ctx)
 }
 
 // Outbox exposes durable, ordered delivery of repo events to consumers.
@@ -80,6 +74,9 @@ func (m OutboxMessage) Ack(ctx context.Context) error {
 type Outbox interface {
 	// Poll returns up to limit unacknowledged messages in delivery order.
 	Poll(ctx context.Context, limit int) ([]OutboxMessage, error)
+	// Ack marks the message with the given ID as processed so it is not
+	// redelivered by Poll.
+	Ack(ctx context.Context, id uint) error
 	// Watch returns a channel that is notified when new messages may be
 	// available to poll. It is a single shared hint, not a per-caller
 	// fan-out: only one consumer should be draining it at a time.
@@ -87,12 +84,12 @@ type Outbox interface {
 }
 
 type outboxImpl struct {
-	db       *gorm.DB
-	notifyCh chan struct{}
+	db     *gorm.DB
+	notify *utils.PollNotifier
 }
 
-func newOutbox(db *gorm.DB, notifyCh chan struct{}) *outboxImpl {
-	return &outboxImpl{db: db, notifyCh: notifyCh}
+func newOutbox(db *gorm.DB, notify *utils.PollNotifier) *outboxImpl {
+	return &outboxImpl{db: db, notify: notify}
 }
 
 // Poll implements [Outbox].
@@ -108,32 +105,24 @@ func (o *outboxImpl) Poll(ctx context.Context, limit int) ([]OutboxMessage, erro
 
 	msgs := make([]OutboxMessage, len(rows))
 	for i, row := range rows {
-		id := row.ID
 		msgs[i] = OutboxMessage{
-			ID:    id,
+			ID:    row.ID,
 			URI:   row.URI,
 			Value: json.RawMessage(row.Value),
-			ack: func(ctx context.Context) error {
-				return o.db.WithContext(ctx).
-					Model(&outbox{}).
-					Where("id = ?", id).
-					Update("acked_at", time.Now()).Error
-			},
 		}
 	}
 	return msgs, nil
 }
 
-// Watch implements [Outbox].
-func (o *outboxImpl) Watch() <-chan struct{} {
-	return o.notifyCh
+// Ack implements [Outbox].
+func (o *outboxImpl) Ack(ctx context.Context, id uint) error {
+	return o.db.WithContext(ctx).
+		Model(&outbox{}).
+		Where("id = ?", id).
+		Update("acked_at", time.Now()).Error
 }
 
-// notifyOutbox signals ch that new outbox rows may be available, without
-// blocking if a notification is already pending.
-func notifyOutbox(ch chan struct{}) {
-	select {
-	case ch <- struct{}{}:
-	default:
-	}
+// Watch implements [Outbox].
+func (o *outboxImpl) Watch() <-chan struct{} {
+	return o.notify.Listen()
 }

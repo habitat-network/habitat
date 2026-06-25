@@ -43,6 +43,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/sync"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -187,6 +188,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux := mux.NewRouter()
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
+	mux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			span := trace.SpanFromContext(r.Context())
+			span.SetAttributes(attribute.String("http.request.header.referer", r.Referer()))
+			next.ServeHTTP(w, r)
+		})
+	})
 	mux.Use(corsMiddleware)
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
@@ -207,7 +215,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
 	defaultDir := identity.DefaultDirectory()
-	hiveDir := habitat_identity.NewWrappedDirectory(defaultDir, hive)
+	// hive is the base directory (tried first) since it resolves DIDs under our
+	// own domain locally; falling back to defaultDir's network resolution first
+	// would make this server make an outbound HTTP request back to itself for
+	// any locally-hosted DID.
+	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
@@ -447,7 +459,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
-
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	pdsForwarding := forwarding.NewPDSForwarding(
@@ -462,11 +473,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc(
 		"/xrpc/com.atproto.server.getServiceAuth",
 		func(w http.ResponseWriter, r *http.Request) {
-			callerDID, ok := oauthServer.Validate(w, r)
+			credInfo, ok := oauthServer.Validate(w, r)
 			if !ok {
 				return
 			}
-			id, err := hiveDir.LookupDID(r.Context(), callerDID)
+			id, err := hiveDir.LookupDID(r.Context(), credInfo.Subject)
 			if err != nil {
 				utils.LogAndHTTPError(
 					r.Context(),

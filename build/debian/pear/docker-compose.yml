@@ -34,5 +34,33 @@ services:
       HABITAT_OAUTH_SERVER_SECRET: ${HABITAT_OAUTH_SERVER_SECRET:-}
       HABITAT_OAUTH_CLIENT_SECRET: ${HABITAT_OAUTH_CLIENT_SECRET:-}
 
+      # Optional: base URL of the search server (see the "search" service
+      # below). If unset, pear does not proxy network.habitat.search.* requests.
+      SEARCH_HOST: http://search:8091
+
+      # Shared instance-wide M2M token, also given to the search container below.
+      SEARCH_M2M_TOKEN: ${SEARCH_M2M_TOKEN}
+
+  search-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: search
+      POSTGRES_PASSWORD: ${SEARCH_PGPASSWORD:-search}
+      POSTGRES_DB: search
+    volumes:
+      - search_postgres_data:/var/lib/postgresql/data
+
+  search:
+    image: ghcr.io/habitat-network/search:${SEARCH_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - search-postgres
+    environment:
+      SEARCH_PGURL: postgres://search:${SEARCH_PGPASSWORD:-search}@search-postgres:5432/search?sslmode=disable
+      SEARCH_PEAR_HOST: https://${HABITAT_DOMAIN}
+      SEARCH_M2M_TOKEN: ${SEARCH_M2M_TOKEN}
+
 volumes:
   pear_data:
+  search_postgres_data:

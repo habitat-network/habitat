@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -31,42 +32,48 @@ func newTestOrg(t *testing.T) *orgImpl {
 		encrypt.TestKey,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
+	require.NoError(t, err)
 	s := &orgImpl{
 		orgID:            "test-org",
 		hive:             h,
 		db:               db,
 		signingSecret:    testSigningSecret,
 		passwordProvider: passwordProvider,
+		handleSubdomain:  "testorg",
+		method:           LoginMethodPassword,
+		name:             "Test Org",
 	}
-	require.NoError(t, err)
-	s.handleSubdomain = "testorg"
-	s.method = LoginMethodPassword
-	s.name = "Test Org"
 	return s
 }
 
-var (
-	did1 = syntax.DID("did:plc:alice111")
-	did2 = syntax.DID("did:plc:bob2222")
-)
+var adminDID = syntax.DID("did:plc:alice111")
 
 const (
 	testPasswordHash = "testhash"
 	testPassword     = "test-password-123"
 )
 
+func addMember(t *testing.T, s *orgImpl, handle string) *identity.Identity {
+	t.Helper()
+	token, err := s.IssueIdentityToken(
+		t.Context(),
+		adminDID,
+		true,
+		time.Now().Add(time.Hour),
+	)
+	require.NoError(t, err)
+	id, err := s.CreateNewMemberIdentity(t.Context(), token, handle, testPasswordHash, "")
+	require.NoError(t, err)
+	return id
+}
+
 func TestIsMember(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	ok, err := s.IsMember(ctx, did1)
-	require.NoError(t, err)
-	require.False(t, ok)
+	id := addMember(t, s, "alice")
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
-
-	ok, err = s.IsMember(ctx, did1)
-
+	ok, err := s.IsMember(ctx, id.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 }
@@ -75,19 +82,19 @@ func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
-	require.NoError(t, s.AddAdmin(ctx, did1))
+	id := addMember(t, s, "alice")
+	require.NoError(t, s.AddAdmin(ctx, id.DID))
 
 	admins, err := s.GetAdmins(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []syntax.DID{did1}, admins)
+	require.Equal(t, []syntax.DID{id.DID}, admins)
 }
 
 func TestAddAdmin_NotMember(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	err := s.AddAdmin(ctx, did1)
+	err := s.AddAdmin(ctx, adminDID)
 	require.ErrorIs(t, err, ErrNotMember)
 }
 
@@ -95,10 +102,10 @@ func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
-	require.NoError(t, s.AddAdmin(ctx, did1))
+	id := addMember(t, s, "alice")
+	require.NoError(t, s.AddAdmin(ctx, id.DID))
 
-	err := s.RemoveAdmin(ctx, did1)
+	err := s.RemoveAdmin(ctx, id.DID)
 	require.ErrorIs(t, err, ErrLastAdmin)
 }
 
@@ -106,16 +113,16 @@ func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
-	require.NoError(t, s.addMemberTx(ctx, s.db, did2))
-	require.NoError(t, s.AddAdmin(ctx, did1))
-	require.NoError(t, s.AddAdmin(ctx, did2))
+	id1 := addMember(t, s, "alice")
+	id2 := addMember(t, s, "bob")
+	require.NoError(t, s.AddAdmin(ctx, id1.DID))
+	require.NoError(t, s.AddAdmin(ctx, id2.DID))
 
-	require.NoError(t, s.RemoveAdmin(ctx, did2))
+	require.NoError(t, s.RemoveAdmin(ctx, id2.DID))
 
 	admins, err := s.GetAdmins(ctx)
 	require.NoError(t, err)
-	require.Equal(t, []syntax.DID{did1}, admins)
+	require.Equal(t, []syntax.DID{id1.DID}, admins)
 }
 
 func TestGetMembers(t *testing.T) {
@@ -126,27 +133,27 @@ func TestGetMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, members)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
-	require.NoError(t, s.addMemberTx(ctx, s.db, did2))
+	id1 := addMember(t, s, "alice")
+	id2 := addMember(t, s, "bob")
 
 	members, err = s.GetMembers(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []syntax.DID{did1, did2}, members)
+	require.ElementsMatch(t, []syntax.DID{id1.DID, id2.DID}, members)
 }
 
 func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	require.NoError(t, s.addMemberTx(ctx, s.db, did1))
-	require.NoError(t, s.addMemberTx(ctx, s.db, did2))
-	require.NoError(t, s.RemoveMembers(ctx, []syntax.DID{did2}))
+	id1 := addMember(t, s, "alice")
+	id2 := addMember(t, s, "bob")
+	require.NoError(t, s.RemoveMembers(ctx, []syntax.DID{id2.DID}))
 
-	ok, err := s.IsMember(ctx, did1)
+	ok, err := s.IsMember(ctx, id1.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	ok, err = s.IsMember(ctx, did2)
+	ok, err = s.IsMember(ctx, id2.DID)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -155,7 +162,7 @@ func TestGenerateAndUseIdentityToken(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	token, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
@@ -171,7 +178,7 @@ func TestIdentityToken_CannotReuse(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	token, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	token, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
 	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
@@ -184,9 +191,9 @@ func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	token1, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	token1, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
-	token2, err := s.IssueIdentityToken(ctx, did1, false, time.Now().Add(time.Hour))
+	token2, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
 	_, err = s.CreateNewMemberIdentity(ctx, token1, "alice", testPasswordHash, "")
@@ -199,7 +206,7 @@ func TestIdentityToken_Reusable(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	token, err := s.IssueIdentityToken(ctx, did1, true, time.Now().Add(time.Hour))
+	token, err := s.IssueIdentityToken(ctx, adminDID, true, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
 	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
@@ -214,6 +221,6 @@ func TestIssueIdentityToken_ExpiryTooLate(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
 
-	_, err := s.IssueIdentityToken(ctx, did1, false, time.Now().AddDate(0, 1, 1))
+	_, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().AddDate(0, 1, 1))
 	require.ErrorIs(t, err, ErrInvalidTokenExpiry)
 }

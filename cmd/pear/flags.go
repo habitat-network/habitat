@@ -29,6 +29,7 @@ var (
 	fAdminPassword      = "admin_password"
 	fUiDevProxy         = "ui_dev_proxy"
 )
+
 var profiles []string
 
 func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
