@@ -133,6 +133,36 @@ func (s SpaceRecordURI) Collection() syntax.NSID {
 	return nsid
 }
 
+// Repo extracts the DID of the record's authoring repo from the URI, i.e.
+// "{spaceURI}/{repo}/{collection}/{rkey}" -> {repo}. Returns "" if the URI
+// doesn't match the expected format.
+func (s SpaceRecordURI) Repo() syntax.DID {
+	parts := spaceRecordURIRegex.FindStringSubmatch(string(s))
+	if len(parts) < 4 {
+		return ""
+	}
+	did, err := syntax.ParseDID(parts[1])
+	if err != nil {
+		return ""
+	}
+	return did
+}
+
+// Rkey extracts the record key from the URI, i.e.
+// "{spaceURI}/{repo}/{collection}/{rkey}" -> {rkey}. Returns "" if the URI
+// doesn't match the expected format.
+func (s SpaceRecordURI) Rkey() syntax.RecordKey {
+	parts := spaceRecordURIRegex.FindStringSubmatch(string(s))
+	if len(parts) < 4 {
+		return ""
+	}
+	rkey, err := syntax.ParseRecordKey(parts[3])
+	if err != nil {
+		return ""
+	}
+	return rkey
+}
+
 // SpaceURI extracts the SpaceURI prefix of a SpaceRecordURI, i.e.
 // "{spaceURI}/{repo}/{collection}/{rkey}" -> {spaceURI}. Returns "" if the
 // URI doesn't match the expected format.

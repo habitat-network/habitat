@@ -97,6 +97,28 @@ func TestConstructSpaceRecordURI(t *testing.T) {
 	require.Equal(t, "network.habitat.note", uri.Collection().String())
 }
 
+func TestSpaceRecordURI_RepoAndRkey(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		uri := SpaceRecordURI(
+			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Equal(t, "did:plc:repo456", uri.Repo().String())
+		require.Equal(t, "rkey789", uri.Rkey().String())
+	})
+
+	t.Run("invalid format returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI("not-a-record-uri")
+		require.Empty(t, uri.Repo())
+		require.Empty(t, uri.Rkey())
+	})
+
+	t.Run("space URI without record returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI("ats://did:plc:abc123/network.habitat.space/my-space")
+		require.Empty(t, uri.Repo())
+		require.Empty(t, uri.Rkey())
+	})
+}
+
 func TestSpaceRecordURI_Collection(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		uri := SpaceRecordURI(

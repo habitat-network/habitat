@@ -51,6 +51,11 @@ export default function habitatAppPlugin(options?: {
               ? `'${habitatDomain}'`
               : "undefined",
             __HASH_ROUTING__: hashRouting ? "true" : "false",
+            // DID of the greensky server, used as the Atproto-Proxy target so
+            // pear forwards network.habitat.greensky.* calls to it.
+            __GREENSKY_SERVER_DID__: process.env.GREENSKY_SERVER_DID
+              ? `'${process.env.GREENSKY_SERVER_DID}'`
+              : "undefined",
           },
           base: domain ? `https://${domain}/` : "/",
           server: {

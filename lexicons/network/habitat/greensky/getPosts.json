@@ -1,0 +1,87 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.greensky.getPosts",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "Get the authenticated user's root posts, newest first, each with its replies. Implemented by the greensky server; reached via pear service proxying, which scopes results to the calling user.",
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "threads"
+                    ],
+                    "properties": {
+                        "threads": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "#threadView"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "threadView": {
+            "type": "object",
+            "required": [
+                "post",
+                "replies"
+            ],
+            "properties": {
+                "post": {
+                    "type": "ref",
+                    "ref": "#postView"
+                },
+                "replies": {
+                    "type": "array",
+                    "description": "Replies to the root post, oldest first.",
+                    "items": {
+                        "type": "ref",
+                        "ref": "#postView"
+                    }
+                }
+            }
+        },
+        "postView": {
+            "type": "object",
+            "required": [
+                "uri",
+                "spaceUri",
+                "author",
+                "text",
+                "createdAt"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "Record URI of the post."
+                },
+                "spaceUri": {
+                    "type": "string",
+                    "description": "URI of the space (thread) the post belongs to. Replies are written into this same space."
+                },
+                "author": {
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the post author."
+                },
+                "text": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "datetime",
+                    "description": "Client-declared creation timestamp."
+                },
+                "indexedAt": {
+                    "type": "string",
+                    "format": "datetime",
+                    "description": "When the greensky server ingested this post from sap."
+                }
+            }
+        }
+    }
+}

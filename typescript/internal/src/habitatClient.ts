@@ -44,6 +44,7 @@ import type {
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatInstanceDescribeInstance,
+  NetworkHabitatGreenskyGetPosts,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -150,6 +151,12 @@ type QueryEndpoints = {
   "network.habitat.instance.describeInstance": UnauthedQuery<
     NetworkHabitatInstanceDescribeInstance.QueryParams,
     NetworkHabitatInstanceDescribeInstance.OutputSchema
+  >;
+  // Implemented by the greensky server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.greensky.getPosts": Query<
+    NetworkHabitatGreenskyGetPosts.QueryParams,
+    NetworkHabitatGreenskyGetPosts.OutputSchema
   >;
 };
 

@@ -1,0 +1,11 @@
+layer: application
+tasks:
+  dev:
+    env:
+      DOMAIN: greensky.local.habitat.network
+      HABITAT_DOMAIN: pear.local.habitat.network
+      SERVER_PORT: "6020"
+      DEVTOOLS_PORT: "42074"
+      # DID of the greensky server; injected as the __GREENSKY_SERVER_DID__ Vite
+      # define so the frontend can target it via the Atproto-Proxy header.
+      GREENSKY_SERVER_DID: "did:web:greensky-server.local.habitat.network"

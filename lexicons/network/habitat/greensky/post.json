@@ -1,0 +1,53 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.greensky.post",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A Greensky discussion-forum post. A root post lives alone in its own space; replies live in the same space as the root post they belong to, so they inherit the root's permissions.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "text",
+                    "createdAt"
+                ],
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "maxLength": 3000,
+                        "maxGraphemes": 300,
+                        "description": "The primary post content."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime",
+                        "description": "Client-declared timestamp when this post was originally created."
+                    },
+                    "reply": {
+                        "type": "ref",
+                        "ref": "#replyRef",
+                        "description": "If present, this post is a reply to another post in the same space."
+                    }
+                }
+            }
+        },
+        "replyRef": {
+            "type": "object",
+            "required": [
+                "root",
+                "parent"
+            ],
+            "properties": {
+                "root": {
+                    "type": "string",
+                    "description": "Record URI of the thread's root post."
+                },
+                "parent": {
+                    "type": "string",
+                    "description": "Record URI of the post being replied to."
+                }
+            }
+        }
+    }
+}

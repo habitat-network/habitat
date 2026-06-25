@@ -33,3 +33,13 @@ search.local.habitat.network {
     reverse_proxy 127.0.0.1:8091
     tls internal
 }
+
+greensky.local.habitat.network {
+    reverse_proxy 127.0.0.1:6020
+    tls internal
+}
+
+greensky-server.local.habitat.network {
+    reverse_proxy 127.0.0.1:2600
+    tls internal
+}

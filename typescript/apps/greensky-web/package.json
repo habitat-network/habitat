@@ -1,0 +1,35 @@
+{
+  "name": "greensky-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "tsc --build --force && vite build",
+    "serve": "vite preview"
+  },
+  "dependencies": {
+    "@atproto/api": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "internal": "workspace:*",
+    "lucide-react": "^0.468.0",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "tailwindcss": "^4.2.1",
+    "vite-tsconfig-paths": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/devtools-vite": "catalog:",
+    "@tanstack/react-devtools": "catalog:",
+    "@tanstack/react-router-devtools": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

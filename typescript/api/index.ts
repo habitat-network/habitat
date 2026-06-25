@@ -36,6 +36,8 @@ import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/is
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 import * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
+import * as NetworkHabitatGreenskyGetPosts from './types/network/habitat/greensky/getPosts.js'
+import * as NetworkHabitatGreenskyPost from './types/network/habitat/greensky/post.js'
 import * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -104,6 +106,8 @@ export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/is
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
 export * as NetworkHabitatDocs from './types/network/habitat/docs.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
+export * as NetworkHabitatGreenskyGetPosts from './types/network/habitat/greensky/getPosts.js'
+export * as NetworkHabitatGreenskyPost from './types/network/habitat/greensky/post.js'
 export * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -613,6 +617,7 @@ export class NetworkHabitatNS {
   photo: NetworkHabitatPhotoRecord
   admin: NetworkHabitatAdminNS
   clique: NetworkHabitatCliqueNS
+  greensky: NetworkHabitatGreenskyNS
   instance: NetworkHabitatInstanceNS
   internal: NetworkHabitatInternalNS
   org: NetworkHabitatOrgNS
@@ -626,6 +631,7 @@ export class NetworkHabitatNS {
     this._client = client
     this.admin = new NetworkHabitatAdminNS(client)
     this.clique = new NetworkHabitatCliqueNS(client)
+    this.greensky = new NetworkHabitatGreenskyNS(client)
     this.instance = new NetworkHabitatInstanceNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.org = new NetworkHabitatOrgNS(client)
@@ -759,6 +765,111 @@ export class NetworkHabitatCliqueNS {
       opts?.qp,
       data,
       opts,
+    )
+  }
+}
+
+export class NetworkHabitatGreenskyNS {
+  _client: XrpcClient
+  post: NetworkHabitatGreenskyPostRecord
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.post = new NetworkHabitatGreenskyPostRecord(client)
+  }
+
+  getPosts(
+    params?: NetworkHabitatGreenskyGetPosts.QueryParams,
+    opts?: NetworkHabitatGreenskyGetPosts.CallOptions,
+  ): Promise<NetworkHabitatGreenskyGetPosts.Response> {
+    return this._client.call(
+      'network.habitat.greensky.getPosts',
+      params,
+      undefined,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatGreenskyPostRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatGreenskyPost.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.greensky.post',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: NetworkHabitatGreenskyPost.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.greensky.post',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatGreenskyPost.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.greensky.post'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatGreenskyPost.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.greensky.post'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.greensky.post', ...params },
+      { headers },
     )
   }
 }

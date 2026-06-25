@@ -1,0 +1,19 @@
+tasks:
+  build:
+    deps:
+      - root:build
+  # `moon run greensky:dev` brings up the whole stack: pear (+ caddy), the
+  # greensky frontend, and this server (which embeds sap to ingest events).
+  dev:
+    deps:
+      - root:caddy
+      - pear:dev
+      - greensky-web:dev
+    env:
+      GREENSKY_PORT: "2600"
+      GREENSKY_DOMAIN: "greensky-server.local.habitat.network"
+      GREENSKY_PEAR_HOST: "https://pear.local.habitat.network"
+      GREENSKY_DB: "sqlite://greensky.db"
+      GREENSKY_SECRET: "z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX"
+      GREENSKY_INSECURE_TLS: "true"
+      GREENSKY_LOG_LEVEL: "info"

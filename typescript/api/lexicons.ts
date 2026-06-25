@@ -1231,6 +1231,135 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatGreenskyGetPosts: {
+    lexicon: 1,
+    id: 'network.habitat.greensky.getPosts',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "Get the authenticated user's root posts, newest first, each with its replies. Implemented by the greensky server; reached via pear service proxying, which scopes results to the calling user.",
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['threads'],
+            properties: {
+              threads: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.greensky.getPosts#threadView',
+                },
+              },
+            },
+          },
+        },
+      },
+      threadView: {
+        type: 'object',
+        required: ['post', 'replies'],
+        properties: {
+          post: {
+            type: 'ref',
+            ref: 'lex:network.habitat.greensky.getPosts#postView',
+          },
+          replies: {
+            type: 'array',
+            description: 'Replies to the root post, oldest first.',
+            items: {
+              type: 'ref',
+              ref: 'lex:network.habitat.greensky.getPosts#postView',
+            },
+          },
+        },
+      },
+      postView: {
+        type: 'object',
+        required: ['uri', 'spaceUri', 'author', 'text', 'createdAt'],
+        properties: {
+          uri: {
+            type: 'string',
+            description: 'Record URI of the post.',
+          },
+          spaceUri: {
+            type: 'string',
+            description:
+              'URI of the space (thread) the post belongs to. Replies are written into this same space.',
+          },
+          author: {
+            type: 'string',
+            format: 'did',
+            description: 'DID of the post author.',
+          },
+          text: {
+            type: 'string',
+          },
+          createdAt: {
+            type: 'string',
+            format: 'datetime',
+            description: 'Client-declared creation timestamp.',
+          },
+          indexedAt: {
+            type: 'string',
+            format: 'datetime',
+            description:
+              'When the greensky server ingested this post from sap.',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGreenskyPost: {
+    lexicon: 1,
+    id: 'network.habitat.greensky.post',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A Greensky discussion-forum post. A root post lives alone in its own space; replies live in the same space as the root post they belong to, so they inherit the root's permissions.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['text', 'createdAt'],
+          properties: {
+            text: {
+              type: 'string',
+              maxLength: 3000,
+              maxGraphemes: 300,
+              description: 'The primary post content.',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+              description:
+                'Client-declared timestamp when this post was originally created.',
+            },
+            reply: {
+              type: 'ref',
+              ref: 'lex:network.habitat.greensky.post#replyRef',
+              description:
+                'If present, this post is a reply to another post in the same space.',
+            },
+          },
+        },
+      },
+      replyRef: {
+        type: 'object',
+        required: ['root', 'parent'],
+        properties: {
+          root: {
+            type: 'string',
+            description: "Record URI of the thread's root post.",
+          },
+          parent: {
+            type: 'string',
+            description: 'Record URI of the post being replied to.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatInstanceDescribeInstance: {
     lexicon: 1,
     id: 'network.habitat.instance.describeInstance',
@@ -3442,6 +3571,8 @@ export const ids = {
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
   NetworkHabitatDocs: 'network.habitat.docs',
   NetworkHabitatGrantee: 'network.habitat.grantee',
+  NetworkHabitatGreenskyGetPosts: 'network.habitat.greensky.getPosts',
+  NetworkHabitatGreenskyPost: 'network.habitat.greensky.post',
   NetworkHabitatInstanceDescribeInstance:
     'network.habitat.instance.describeInstance',
   NetworkHabitatInternalNotifyOfUpdate:
