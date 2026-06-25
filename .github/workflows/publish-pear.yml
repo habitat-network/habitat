@@ -11,7 +11,7 @@ jobs:
   publish:
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -46,3 +46,9 @@ jobs:
           platforms: linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Attach docker-compose.yml to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.ref_name }} build/debian/pear/docker-compose.yml
