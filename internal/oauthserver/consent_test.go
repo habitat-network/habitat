@@ -3,7 +3,6 @@ package oauthserver
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -106,8 +105,6 @@ func setupOrgConsentFixture(t *testing.T) *orgConsentFixture {
 				oauthServer.HandleConsent(w, r)
 			case r.URL.Path == "/oauth/consent" && r.Method == http.MethodPost:
 				oauthServer.HandleConsentDecision(w, r)
-			case r.URL.Path == "/oauth/consent/data" && r.Method == http.MethodGet:
-				oauthServer.ServeConsentData(w, r)
 			default:
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -177,10 +174,11 @@ func (fx *orgConsentFixture) adminLogin(t *testing.T) string {
 }
 
 // driveToConsentPage runs the org-DID authorize flow, through the admin's
-// login, up to and including loading the consent page. It returns the HTTP
-// client used (with cookies and redirect-stopping in place, so it can be
-// reused to post the final decision) and the rendered consent page body.
-func (fx *orgConsentFixture) driveToConsentPage(t *testing.T) (*http.Client, string) {
+// login, up to and including the redirect to the consent page UI. It returns
+// the HTTP client used (with cookies and redirect-stopping in place, so it can
+// be reused to post the final decision) and the query params HandleConsent
+// passed to the consent page UI.
+func (fx *orgConsentFixture) driveToConsentPage(t *testing.T) (*http.Client, url.Values) {
 	t.Helper()
 
 	jar, err := cookiejar.New(nil)
@@ -227,21 +225,17 @@ func (fx *orgConsentFixture) driveToConsentPage(t *testing.T) (*http.Client, str
 	require.NoError(t, err)
 	require.NoError(t, consentResp.Body.Close())
 	require.Equal(t, http.StatusSeeOther, consentResp.StatusCode)
+
+	loc, err := url.Parse(consentResp.Header.Get("Location"))
+	require.NoError(t, err)
 	require.Equal(
 		t,
 		"/ui/oauth/consent",
-		consentResp.Header.Get("Location"),
+		loc.Path,
 		"the consent endpoint should redirect to the embedded consent page UI",
 	)
 
-	dataResp, err := httpClient.Get(fx.flowServer.URL + "/oauth/consent/data")
-	require.NoError(t, err)
-	body, err := io.ReadAll(dataResp.Body)
-	require.NoError(t, err)
-	require.NoError(t, dataResp.Body.Close())
-	require.Equal(t, http.StatusOK, dataResp.StatusCode)
-
-	return httpClient, string(body)
+	return httpClient, loc.Query()
 }
 
 // TestOAuthServerOrgDIDRequiresConsent drives the org-DID OAuth flow through
@@ -251,10 +245,10 @@ func (fx *orgConsentFixture) driveToConsentPage(t *testing.T) (*http.Client, str
 func TestOAuthServerOrgDIDRequiresConsent(t *testing.T) {
 	fx := setupOrgConsentFixture(t)
 
-	t.Run("consent page shows client metadata and allow issues a code", func(t *testing.T) {
-		httpClient, body := fx.driveToConsentPage(t)
-		require.Contains(t, body, fx.clientMetadata.ClientName)
-		require.Contains(t, body, fx.orgIdentity.Handle.String())
+	t.Run("consent redirect carries client metadata and allow issues a code", func(t *testing.T) {
+		httpClient, params := fx.driveToConsentPage(t)
+		require.Equal(t, fx.clientMetadata.ClientName, params.Get("clientName"))
+		require.Equal(t, fx.orgIdentity.Handle.String(), params.Get("orgHandle"))
 
 		resp, err := httpClient.PostForm(
 			fx.flowServer.URL+"/oauth/consent",

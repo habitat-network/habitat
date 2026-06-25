@@ -1,8 +1,6 @@
 package oauthserver
 
 import (
-	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -21,8 +19,9 @@ const (
 	consentPath = "/oauth/consent"
 	// consentUIPath is the embedded consent page UI (see internal/webui and
 	// typescript/apps/pear-pages) that HandleConsent redirects the browser to.
-	// It fetches the pending request's data from ServeConsentData and posts
-	// the admin's decision back to consentPath.
+	// HandleConsent passes the request-specific details (client ID, scopes,
+	// org handle) as query params; the UI fetches the client's public metadata
+	// document itself, and posts the admin's decision back to consentPath.
 	consentUIPath = "/ui/oauth/consent"
 
 	consentFormKey = "form"
@@ -39,16 +38,6 @@ const (
 type consentFlash struct {
 	Form url.Values
 	Did  syntax.DID
-}
-
-// consentData is the JSON payload ServeConsentData returns to the consent
-// page UI.
-type consentData struct {
-	ClientName string   `json:"clientName"`
-	ClientUri  string   `json:"clientUri"`
-	LogoUri    string   `json:"logoUri"`
-	Scopes     []string `json:"scopes"`
-	OrgHandle  string   `json:"orgHandle"`
 }
 
 // beginConsent stores the pending authorization request in a signed cookie
@@ -134,15 +123,12 @@ func (o *OAuthServer) invalidateConsentSession(r *http.Request, w http.ResponseW
 }
 
 // HandleConsent redirects the browser to the embedded consent page UI for a
-// pending org DID authorization request.
+// pending org DID authorization request, passing everything the UI renders
+// (the requesting client's name/uri/logo, the requested scopes, and the org
+// handle) as query params. The client's metadata is fetched server-side so
+// the UI doesn't have to make a cross-origin request for the client's public
+// metadata document.
 func (o *OAuthServer) HandleConsent(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, consentUIPath, http.StatusSeeOther)
-}
-
-// ServeConsentData returns the pending authorization request's client
-// metadata, requested scopes, and org handle as JSON, for the consent page UI
-// to render.
-func (o *OAuthServer) ServeConsentData(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	cf, err := o.lookupConsent(r)
 	if err != nil {
@@ -156,13 +142,7 @@ func (o *OAuthServer) ServeConsentData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authRequest, err := o.recreateAuthorizeRequest(ctx, cf.Form)
-	if err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "failed to recreate request", http.StatusBadRequest)
-		return
-	}
-
-	fositeClient, err := o.storage.GetClient(ctx, authRequest.GetClient().GetID())
+	fositeClient, err := o.storage.GetClient(ctx, cf.Form.Get("client_id"))
 	if err != nil {
 		utils.LogAndHTTPError(
 			ctx,
@@ -187,16 +167,13 @@ func (o *OAuthServer) ServeConsentData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(consentData{
-		ClientName: c.ClientName,
-		ClientUri:  c.ClientUri,
-		LogoUri:    c.LogoUri,
-		Scopes:     authRequest.GetRequestedScopes(),
-		OrgHandle:  id.Handle.String(),
-	}); err != nil {
-		slog.ErrorContext(ctx, "encoding consent data", "err", err)
-	}
+	params := url.Values{}
+	params.Set("clientName", c.ClientName)
+	params.Set("clientUri", c.ClientUri)
+	params.Set("logoUri", c.LogoUri)
+	params.Set("scope", cf.Form.Get("scope"))
+	params.Set("orgHandle", id.Handle.String())
+	http.Redirect(w, r, consentUIPath+"?"+params.Encode(), http.StatusSeeOther)
 }
 
 // HandleConsentDecision processes the admin's accept/deny decision from the

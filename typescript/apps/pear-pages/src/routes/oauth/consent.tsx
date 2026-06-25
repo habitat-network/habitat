@@ -1,34 +1,27 @@
 import { Button } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
 
-// Org admin OAuth consent page (migrated from internal/oauthserver/consent.html).
-// pear redirects here once an org-DID OAuth login requires explicit admin
-// approval. Client metadata and requested scopes are fetched from
-// /oauth/consent/data (scoped to the same consent session cookie as this
-// page's form post), and the decision is posted back to /oauth/consent,
-// which pear redirects accordingly (an authorization code, or an error, sent
-// to the client's redirect URI).
-type ConsentData = {
-  clientName: string;
-  clientUri: string;
-  logoUri: string;
-  // null when the request carries no scopes (Go encodes an empty slice as null).
-  scopes: string[] | null;
-  orgHandle: string;
-};
-
+// Org admin OAuth consent page. pear redirects here once an org-DID OAuth
+// login requires explicit admin approval, passing everything this page renders
+// as query params: the requesting client's name/uri/logo, the requested
+// scopes, and the org handle. (pear fetches the client's public metadata
+// server-side so this page doesn't have to make a cross-origin request.) The
+// decision is posted back to /oauth/consent, which pear redirects accordingly
+// (an authorization code, or an error, sent to the client's redirect URI).
 export const Route = createFileRoute("/oauth/consent")({
-  loader: async (): Promise<ConsentData> => {
-    const res = await fetch("/oauth/consent/data");
-    if (!res.ok) throw new Error("Failed to load consent request");
-    return res.json();
-  },
+  validateSearch: (search: Record<string, unknown>) => ({
+    clientName: String(search.clientName ?? ""),
+    clientUri: String(search.clientUri ?? ""),
+    logoUri: String(search.logoUri ?? ""),
+    scope: String(search.scope ?? ""),
+    orgHandle: String(search.orgHandle ?? ""),
+  }),
   component: ConsentPage,
 });
 
 function ConsentPage() {
-  const { clientName, clientUri, logoUri, scopes, orgHandle } =
-    Route.useLoaderData();
+  const { clientName, clientUri, logoUri, scope, orgHandle } = Route.useSearch();
+  const scopes = scope.split(/\s+/).filter(Boolean);
 
   return (
     <main className="w-96 rounded-[0.625rem] border border-border bg-card p-8 shadow-sm">
@@ -47,12 +40,12 @@ function ConsentPage() {
       <p className="mb-6 text-sm text-muted-foreground break-all">
         wants to access your organization ({orgHandle})
       </p>
-      {scopes && scopes.length > 0 && (
+      {scopes.length > 0 && (
         <div className="mb-6 rounded-lg bg-muted p-3 text-sm">
           <p className="mb-2 font-medium">This will allow access to:</p>
           <ul className="list-disc pl-5">
-            {scopes.map((scope) => (
-              <li key={scope}>{scope}</li>
+            {scopes.map((s) => (
+              <li key={s}>{s}</li>
             ))}
           </ul>
         </div>

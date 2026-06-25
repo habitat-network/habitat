@@ -422,7 +422,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsent).Methods("GET")
 	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsentDecision).Methods("POST")
-	mux.HandleFunc("/oauth/consent/data", oauthServer.ServeConsentData).Methods("GET")
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 
