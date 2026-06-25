@@ -56,3 +56,4 @@ cmd/pear/repo.db
 **/*.db
 **/*-shm
 **/*-wal
+.playwright-mcp/
