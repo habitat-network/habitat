@@ -81,7 +81,7 @@ function InviteSection({
     mutationFn: () => issueInviteToken(authManager),
     onSuccess: ({ token }) => {
       setInviteUrl(
-        `${window.location.origin}/org/join?token=${token}&orgId=${orgId}`,
+        `${window.location.origin}/ui/org/join?token=${token}&orgId=${orgId}`,
       );
     },
   });

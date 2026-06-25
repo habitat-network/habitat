@@ -593,6 +593,9 @@ importers:
       '@tanstack/router-plugin':
         specifier: 'catalog:'
         version: 1.168.18(@tanstack/react-router@1.170.16(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(vite@7.1.12(@types/node@22.19.3)(jiti@2.7.0)(lightningcss@1.32.0)(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2))(webpack@5.105.4)
+      api:
+        specifier: workspace:*
+        version: link:../../api
       internal:
         specifier: workspace:*
         version: link:../../internal

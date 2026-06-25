@@ -3,13 +3,12 @@ package instance
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/utils"
-
-	"log/slog"
 )
 
 // Paths of the instance admin pages, served as pre-rendered static pages by the
@@ -22,29 +21,16 @@ const (
 // Server serves the instance admin login/logout flow, the admin settings
 // page, and gates access to instance admin routes via session cookies.
 type Server struct {
-	store          AdminStore
-	frontendDomain string
+	store AdminStore
 }
 
-func NewServer(store AdminStore, frontendDomain string) *Server {
-	return &Server{store: store, frontendDomain: frontendDomain}
+func NewServer(store AdminStore) *Server {
+	return &Server{store: store}
 }
 
 // ServeLoginPage redirects to the embedded admin login page under /ui/.
 func (s *Server) ServeLoginPage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, adminLoginPath, http.StatusSeeOther)
-}
-
-// ServeConfig returns instance configuration the admin page needs at runtime
-// (e.g. the frontend domain used to build invite links). Gated by the admin
-// session.
-func (s *Server) ServeConfig(w http.ResponseWriter, r *http.Request) {
-	if !s.requireSessionAPI(w, r) {
-		return
-	}
-	writeJSON(w, struct {
-		FrontendDomain string `json:"frontendDomain"`
-	}{s.frontendDomain})
 }
 
 func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {

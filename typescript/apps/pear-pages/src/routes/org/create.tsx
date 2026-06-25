@@ -7,7 +7,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "internal/components/ui";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { procedure, query, SingleHandleCombobox } from "internal";
 import { NetworkHabitatOrgCreate } from "api";
@@ -63,7 +63,6 @@ function PasswordInput(props: React.ComponentProps<typeof Input>) {
 }
 
 function CreateOrgPage() {
-  const navigate = useNavigate();
   const { token } = Route.useSearch();
   const invite = token ? decodeInviteToken(token) : null;
 
@@ -132,7 +131,7 @@ function CreateOrgPage() {
     ? invite.domain
     : useCustomInstance
       ? customDomain
-      : __HABITAT_DOMAIN__;
+      : window.location.host;
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -153,10 +152,7 @@ function CreateOrgPage() {
         body,
         { unauthenticated: true, domain: targetDomain },
       );
-      await navigate({
-        to: "/oauth-login",
-        search: { handle: admin_handle },
-      });
+      window.location.href = "/oauth-login?handle=" + encodeURIComponent(admin_handle);
     } catch (err) {
       setError("root", {
         message: err instanceof Error ? err.message : "Unknown error",

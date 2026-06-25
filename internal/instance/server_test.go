@@ -148,25 +148,9 @@ func TestServeConfig_RequiresSession(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
 	rec := httptest.NewRecorder()
-	server.ServeConfig(rec, req)
+	server.GetSettings(rec, req)
 
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
-}
-
-func TestServeConfig_ReturnsFrontendDomain(t *testing.T) {
-	server, store, _ := newTestServer(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
-	req.AddCookie(sessionCookie(t, store))
-	rec := httptest.NewRecorder()
-	server.ServeConfig(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	var out struct {
-		FrontendDomain string `json:"frontendDomain"`
-	}
-	require.NoError(t, json.NewDecoder(rec.Body).Decode(&out))
-	require.Equal(t, "https://frontend.example", out.FrontendDomain)
 }
 
 func TestGetSettings_RequiresSession(t *testing.T) {

@@ -12,7 +12,7 @@ tasks:
     deps:
       - pear:dev
       - root:caddy
-      - search:dev
+      # - search:dev
   docker-build:
     deps:
       - target: build
