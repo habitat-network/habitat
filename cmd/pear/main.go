@@ -256,7 +256,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	loginRouter := &org.LoginRouter{
 		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
 		Password: passwordProvider,
-		OrgStore: orgStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)
@@ -420,6 +419,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
 	mux.HandleFunc("/oauth/token", oauthServer.HandleToken)
+	mux.HandleFunc("/oauth/consent", oauthServer.HandleConsentDecision).Methods("POST")
 	mux.HandleFunc("/xrpc/network.habitat.listConnectedApps", oauthServer.ListConnectedApps)
 	mux.HandleFunc("/xrpc/network.habitat.org.loginMember", passwordProvider.HandlePasswordLogin)
 

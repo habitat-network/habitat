@@ -32,19 +32,31 @@ const (
 	// this is the cookie name.
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
+	// sessionPath scopes the flash cookie to the callback endpoint that
+	// consumes it. It must stay in sync between session creation and
+	// invalidation, since a Set-Cookie only clears a cookie with a matching
+	// path.
+	sessionPath = "/oauth-callback"
+
+	// flashMaxAge bounds how long an in-progress authorize flow may take
+	// before its flash cookie expires.
+	flashMaxAge = 10 * time.Minute
 )
 
-func init() {
-	gob.Register(authRequestFlash{})
-}
-
-// authRequestFlash stores the authorization request state in a session flash.
-// This data is temporarily stored during the OAuth authorization flow to preserve
-// request context across redirects.
+// authRequestFlash holds the authorization request state carried, as a
+// one-shot flash, in the signed cookie session set by HandleAuthorize and
+// consumed by HandleCallback, preserving request context across the redirect
+// to the user's PDS and back.
 type authRequestFlash struct {
 	Form          url.Values // Original authorization request form data
 	ProviderState []byte     // Opaque provider-specific state
 	Did           syntax.DID // DID of the user
+}
+
+func init() {
+	// Flash values are gob-encoded into the session cookie, so the concrete
+	// type stored via AddFlash must be registered.
+	gob.Register(authRequestFlash{})
 }
 
 type metrics struct {
@@ -171,7 +183,10 @@ type OAuthServer struct {
 	// Org store for membership lookups
 	orgStore org.Store
 
-	// Session store for OAuth flash data across redirects
+	// sessionStore carries short-lived OAuth flow state across redirects (the
+	// pending authorize request between Authorize and Callback, and again
+	// between Callback and the consent page for org DID logins) in signed,
+	// encrypted cookies rather than server-side memory.
 	sessionStore sessions.Store
 }
 
@@ -219,18 +234,6 @@ func NewOAuthServer(
 		return nil, err
 	}
 
-	if loginRouter.OrgStore == nil {
-		loginRouter.OrgStore = orgStore
-	}
-
-	cookieStore := sessions.NewCookieStore(secret)
-	cookieStore.Options = &sessions.Options{
-		Path:     "/oauth-callback",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	}
-
 	return &OAuthServer{
 		metrics: oauthMetrics,
 		provider: compose.Compose(
@@ -242,8 +245,11 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		loginRouter:  loginRouter,
-		sessionStore: cookieStore,
+		loginRouter: loginRouter,
+		// secret doubles as both the cookie authentication and encryption
+		// key: it's already reused for several purposes in newStrategy, and
+		// these cookies hold nothing beyond the lifetime of one OAuth flow.
+		sessionStore: sessions.NewCookieStore(secret, secret),
 		directory:    directory,
 		storage:      storage,
 		orgStore:     orgStore,
@@ -311,7 +317,41 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
+	// GetOrgForDID distinguishes an org DID (isMember false: an admin must
+	// authenticate on the org's behalf) from a member DID (isMember true: the
+	// member authenticates as themselves, identified to the provider by their
+	// own login hint).
+	targetOrg, isMember, err := o.orgStore.GetOrgForDID(ctx, id.DID)
+	if err != nil {
+		o.metrics.authorizeErr(ctx, err, "lookup_org")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to look up organization",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	loginHint := ""
+	if isMember {
+		member, err := o.orgStore.GetMember(ctx, id.DID)
+		if err != nil {
+			o.metrics.authorizeErr(ctx, err, "lookup_member")
+			utils.LogAndHTTPError(
+				ctx,
+				w,
+				err,
+				"failed to look up member",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		loginHint = member.LoginID
+	}
+
+	redirect, providerState, err := o.loginRouter.Authorize(ctx, targetOrg, loginHint)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
 		utils.LogAndHTTPError(
@@ -336,12 +376,19 @@ func (o *OAuthServer) HandleAuthorize(
 		)
 		return
 	}
-	session.AddFlash(&authRequestFlash{
+	session.Options = &sessions.Options{
+		Path:     sessionPath,
+		MaxAge:   int(flashMaxAge.Seconds()),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	}
+	session.AddFlash(authRequestFlash{
 		Form:          requester.GetRequestForm(),
 		ProviderState: providerState,
 		Did:           id.DID,
 	})
-	if err := o.sessionStore.Save(r, w, session); err != nil {
+	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
 		utils.LogAndHTTPError(
 			ctx,
@@ -377,70 +424,20 @@ func (o *OAuthServer) HandleCallback(
 	r *http.Request,
 ) {
 	ctx := r.Context()
-	session, err := o.sessionStore.Get(r, sessionName)
+	arf, err := o.popFlash(r, w)
 	if err != nil {
-		o.metrics.callbackErr(ctx, err, "get_session")
+		o.metrics.callbackErr(ctx, err, "no_flash")
 		utils.LogAndHTTPError(
 			ctx,
 			w,
 			err,
-			"failed to get session",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	flashes := session.Flashes()
-	if len(flashes) == 0 {
-		o.metrics.callbackErr(ctx, nil, "no_flash")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			nil,
 			"no state found for session",
 			http.StatusBadRequest,
 		)
 		return
 	}
-	arf, ok := flashes[0].(authRequestFlash)
-	if !ok {
-		o.metrics.callbackErr(ctx, nil, "invalid_flash_type")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			nil,
-			"invalid session data",
-			http.StatusBadRequest,
-		)
-		return
-	}
 
-	session.Options.MaxAge = -1
-	if err := o.sessionStore.Save(r, w, session); err != nil {
-		o.metrics.callbackErr(ctx, err, "delete_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to clear session",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
-	if err != nil {
-		o.metrics.callbackErr(ctx, err, "recreate_req")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to recreate request",
-			http.StatusBadRequest,
-		)
-		return
-	}
-	authRequest, err := o.provider.NewAuthorizeRequest(ctx, recreatedRequest)
+	authRequest, err := o.recreateAuthorizeRequest(ctx, arf.Form)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
 		utils.LogAndHTTPError(
@@ -453,13 +450,31 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	if err := o.loginRouter.Exchange(
+	// GetOrgForDID distinguishes an org DID (isMember false: an admin must
+	// have completed the login, and the request requires explicit consent)
+	// from a member DID (isMember true: the member must have completed the
+	// login themselves).
+	targetOrg, isMember, err := o.orgStore.GetOrgForDID(ctx, arf.Did)
+	if err != nil {
+		o.metrics.callbackErr(ctx, err, "lookup_org")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to look up organization",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	loginID, err := o.loginRouter.Exchange(
 		ctx,
-		arf.Did,
+		targetOrg,
 		r.URL.Query().Get("code"),
 		r.URL.Query().Get("iss"),
 		arf.ProviderState,
-	); err != nil {
+	)
+	if err != nil {
 		o.metrics.callbackErr(ctx, err, "complete_login")
 		utils.LogAndHTTPError(
 			ctx,
@@ -468,6 +483,23 @@ func (o *OAuthServer) HandleCallback(
 			"failed to complete login",
 			http.StatusInternalServerError,
 		)
+		return
+	}
+
+	if err := o.verifyExchangedLogin(ctx, arf.Did, isMember, loginID); err != nil {
+		o.metrics.callbackErr(ctx, err, "verify_login")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to verify login",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	if !isMember {
+		o.beginConsent(w, r, arf.Form, arf.Did)
 		return
 	}
 
@@ -489,6 +521,86 @@ func (o *OAuthServer) HandleCallback(
 	}
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
+}
+
+// verifyExchangedLogin checks that loginID — the identity the login provider
+// asserted completed the OAuth flow — is who was expected to log in for did:
+// an admin of the org for an org-DID login (isMember false), or did's own
+// registered member for a member-DID login (isMember true).
+func (o *OAuthServer) verifyExchangedLogin(
+	ctx context.Context,
+	did syntax.DID,
+	isMember bool,
+	loginID string,
+) error {
+	if !isMember {
+		member, err := o.orgStore.GetMemberByLoginID(ctx, loginID)
+		if err != nil {
+			return fmt.Errorf("failed to get member by login id: %w", err)
+		}
+		if member.Role != org.AdminRole {
+			return fmt.Errorf("not an admin")
+		}
+		return nil
+	}
+
+	member, err := o.orgStore.GetMember(ctx, did)
+	if err != nil {
+		return fmt.Errorf("failed to get member: %w", err)
+	}
+	if member.LoginID != loginID {
+		return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
+	}
+	return nil
+}
+
+// popFlash reads the flash cookie session set by HandleAuthorize and
+// invalidates it, so it can't be replayed even if the rest of the callback
+// fails partway through.
+func (o *OAuthServer) popFlash(
+	r *http.Request,
+	w http.ResponseWriter,
+) (*authRequestFlash, error) {
+	session, err := o.sessionStore.Get(r, sessionName)
+	if err != nil {
+		return nil, err
+	}
+
+	flashes := session.Flashes()
+	if len(flashes) == 0 {
+		return nil, http.ErrNoCookie
+	}
+	arf, ok := flashes[0].(authRequestFlash)
+	if !ok {
+		return nil, http.ErrNoCookie
+	}
+
+	// Flashes() drops the value from the session; deleting the cookie too keeps
+	// a spent flash cookie from lingering in the browser. Get() loads Options
+	// from the store's defaults rather than whatever HandleAuthorize set
+	// (Options aren't part of the encoded cookie), so Path must be set again
+	// here: a Set-Cookie only clears a cookie when its path matches the original.
+	session.Options.Path = sessionPath
+	session.Options.MaxAge = -1
+	if err := session.Save(r, w); err != nil {
+		return nil, err
+	}
+
+	return &arf, nil
+}
+
+// recreateAuthorizeRequest rebuilds a fosite authorize request from the
+// original request form data, e.g. data preserved in a flash across a
+// redirect.
+func (o *OAuthServer) recreateAuthorizeRequest(
+	ctx context.Context,
+	form url.Values,
+) (fosite.AuthorizeRequester, error) {
+	req, err := http.NewRequest(http.MethodGet, "/?"+form.Encode(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("recreate request: %w", err)
+	}
+	return o.provider.NewAuthorizeRequest(ctx, req)
 }
 
 // HandleToken processes OAuth 2.0 token requests from the client.
