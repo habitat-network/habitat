@@ -17,10 +17,7 @@ const id = 'network.habitat.docs.createDoc'
 
 export type QueryParams = {}
 
-export interface InputSchema {
-  /** The initial name of the document. */
-  name: string
-}
+export interface InputSchema {}
 
 export interface OutputSchema {
   /** URI of the created document record. */

@@ -4,7 +4,6 @@ package habitat
 
 // NetworkHabitatDocsCreateDocInput represents the input for network.habitat.docs.createDoc
 type NetworkHabitatDocsCreateDocInput struct {
-	Name string `json:"name"`
 }
 
 // NetworkHabitatDocsCreateDocOutput represents the output for network.habitat.docs.createDoc

@@ -47,7 +47,7 @@ export const Route = createFileRoute("/_requireAuth")({
     });
 
     const { mutate: create, isPending } = useMutation({
-      mutationFn: (name: string) => createDoc(authManager, name),
+      mutationFn: () => createDoc(authManager),
       onSuccess: async ({ docId }) => {
         // Refresh the list so the editor route can resolve the new doc's space
         // URI from it before navigating.
@@ -70,7 +70,7 @@ export const Route = createFileRoute("/_requireAuth")({
             <SidebarGroup>
               <SidebarMenuButton
                 variant="outline"
-                onClick={() => create("Untitled")}
+                onClick={() => create()}
                 disabled={isPending}
               >
                 <PlusIcon />

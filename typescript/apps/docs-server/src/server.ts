@@ -70,10 +70,8 @@ export function createApp(
       "network.habitat.docs.createDoc",
       verifier,
     );
-    const input =
-      (await c.req.json()) as NetworkHabitatDocsCreateDoc.InputSchema;
     const output: NetworkHabitatDocsCreateDoc.OutputSchema =
-      await docs.createDoc(input.name, caller);
+      await docs.createDoc(caller);
     return c.json(output);
   });
 

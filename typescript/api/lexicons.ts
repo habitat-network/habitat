@@ -1205,13 +1205,7 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['name'],
-            properties: {
-              name: {
-                type: 'string',
-                description: 'The initial name of the document.',
-              },
-            },
+            properties: {},
           },
         },
         output: {

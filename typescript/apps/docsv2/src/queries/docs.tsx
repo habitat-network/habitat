@@ -59,10 +59,10 @@ export const docQueryOptions = (docId: string, authManager: AuthManager) =>
     },
   });
 
-export function createDoc(authManager: AuthManager, name: string) {
+export function createDoc(authManager: AuthManager) {
   return procedure(
     "network.habitat.docs.createDoc",
-    { name },
+    {},
     { authManager, headers: docsProxyHeaders() },
   );
 }
