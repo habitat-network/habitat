@@ -25,9 +25,7 @@ export class DocStore {
 
   // createDoc creates a new doc space, seeds its records, and grants the
   // creating member write access so they can read it back directly.
-  async createDoc(
-    memberDid: string,
-  ): Promise<{ uri: string; docId: string }> {
+  async createDoc(memberDid: string): Promise<{ uri: string; docId: string }> {
     const space = await this.pear.createSpace();
     const ydoc = new Y.Doc();
     await this.writeRecords(space.uri, ydoc);
@@ -40,7 +38,7 @@ export class DocStore {
   async applyUpdate(
     docId: string,
     updateB64: string,
-    _: string, // memberDid - not doing attribution yet 
+    _: string, // memberDid - not doing attribution yet
   ): Promise<{ uri: string; cid?: string }> {
     const orgDid = await this.pear.orgDid();
     const spaceUri = this.pear.spaceUri(docId, orgDid);

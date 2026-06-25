@@ -136,7 +136,10 @@ interface DeltaAttributes {
 
 function renderText(text: Y.XmlText): string {
   let out = "";
-  for (const op of text.toDelta() as { insert?: unknown; attributes?: DeltaAttributes }[]) {
+  for (const op of text.toDelta() as {
+    insert?: unknown;
+    attributes?: DeltaAttributes;
+  }[]) {
     if (typeof op.insert !== "string") {
       continue;
     }
@@ -167,7 +170,8 @@ function plainText(el: Y.XmlElement): string {
 }
 
 function clampLevel(level: unknown): number {
-  const n = typeof level === "number" ? level : parseInt(String(level ?? 1), 10);
+  const n =
+    typeof level === "number" ? level : parseInt(String(level ?? 1), 10);
   if (Number.isNaN(n)) {
     return 1;
   }
