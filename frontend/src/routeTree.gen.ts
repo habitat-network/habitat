@@ -21,7 +21,6 @@ import { Route as OrgCreateRouteImport } from './routes/org/create'
 import { Route as LoginHabitatRouteImport } from './routes/login/habitat'
 import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAuth/permissions'
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
-import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/_forwarding-test'
 import { Route as RequireAuthSpacesIndexRouteImport } from './routes/_requireAuth/spaces/index'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthPearTestIndexRouteImport } from './routes/_requireAuth/pear-test/index'
@@ -96,11 +95,6 @@ const RequireAuthDataRoute = RequireAuthDataRouteImport.update({
   path: '/data',
   getParentRoute: () => RequireAuthRoute,
 } as any)
-const RequireAuthForwardingTestRoute =
-  RequireAuthForwardingTestRouteImport.update({
-    id: '/_forwarding-test',
-    getParentRoute: () => RequireAuthRoute,
-  } as any)
 const RequireAuthSpacesIndexRoute = RequireAuthSpacesIndexRouteImport.update({
   id: '/spaces/',
   path: '/spaces/',
@@ -183,6 +177,7 @@ const RequireAuthPermissionsLexiconsCollectionRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof RequireAuthIndexRoute
   '/devtools': typeof DevtoolsRoute
   '/explore': typeof ExploreRoute
   '/login': typeof LoginRouteWithChildren
@@ -193,18 +188,17 @@ export interface FileRoutesByFullPath {
   '/login/habitat': typeof LoginHabitatRoute
   '/org/create': typeof OrgCreateRoute
   '/org/join': typeof OrgJoinRoute
-  '/': typeof RequireAuthIndexRoute
   '/collections/$collection': typeof RequireAuthCollectionsCollectionRoute
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/spaces/$space': typeof RequireAuthSpacesSpaceRoute
-  '/blob-test': typeof RequireAuthBlobTestIndexRoute
-  '/collections': typeof RequireAuthCollectionsIndexRoute
-  '/org': typeof RequireAuthOrgIndexRoute
-  '/pear-test': typeof RequireAuthPearTestIndexRoute
+  '/blob-test/': typeof RequireAuthBlobTestIndexRoute
+  '/collections/': typeof RequireAuthCollectionsIndexRoute
+  '/org/': typeof RequireAuthOrgIndexRoute
+  '/pear-test/': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
-  '/spaces': typeof RequireAuthSpacesIndexRoute
+  '/spaces/': typeof RequireAuthSpacesIndexRoute
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
@@ -242,7 +236,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRouteWithChildren
   '/oauth-login': typeof OauthLoginRoute
   '/onboard': typeof OnboardRoute
-  '/_requireAuth/_forwarding-test': typeof RequireAuthForwardingTestRoute
   '/_requireAuth/data': typeof RequireAuthDataRoute
   '/_requireAuth/permissions': typeof RequireAuthPermissionsRouteWithChildren
   '/login/habitat': typeof LoginHabitatRoute
@@ -267,6 +260,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/devtools'
     | '/explore'
     | '/login'
@@ -277,18 +271,17 @@ export interface FileRouteTypes {
     | '/login/habitat'
     | '/org/create'
     | '/org/join'
-    | '/'
     | '/collections/$collection'
     | '/pear-test/view'
     | '/permissions/lexicons'
     | '/permissions/people'
     | '/spaces/$space'
-    | '/blob-test'
-    | '/collections'
-    | '/org'
-    | '/pear-test'
+    | '/blob-test/'
+    | '/collections/'
+    | '/org/'
+    | '/pear-test/'
     | '/permissions/'
-    | '/spaces'
+    | '/spaces/'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/permissions/lexicons/'
@@ -325,7 +318,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/oauth-login'
     | '/onboard'
-    | '/_requireAuth/_forwarding-test'
     | '/_requireAuth/data'
     | '/_requireAuth/permissions'
     | '/login/habitat'
@@ -399,7 +391,7 @@ declare module '@tanstack/react-router' {
     '/_requireAuth': {
       id: '/_requireAuth'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof RequireAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -445,17 +437,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthDataRouteImport
       parentRoute: typeof RequireAuthRoute
     }
-    '/_requireAuth/_forwarding-test': {
-      id: '/_requireAuth/_forwarding-test'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof RequireAuthForwardingTestRouteImport
-      parentRoute: typeof RequireAuthRoute
-    }
     '/_requireAuth/spaces/': {
       id: '/_requireAuth/spaces/'
       path: '/spaces'
-      fullPath: '/spaces'
+      fullPath: '/spaces/'
       preLoaderRoute: typeof RequireAuthSpacesIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
@@ -469,28 +454,28 @@ declare module '@tanstack/react-router' {
     '/_requireAuth/pear-test/': {
       id: '/_requireAuth/pear-test/'
       path: '/pear-test'
-      fullPath: '/pear-test'
+      fullPath: '/pear-test/'
       preLoaderRoute: typeof RequireAuthPearTestIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/org/': {
       id: '/_requireAuth/org/'
       path: '/org'
-      fullPath: '/org'
+      fullPath: '/org/'
       preLoaderRoute: typeof RequireAuthOrgIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/collections/': {
       id: '/_requireAuth/collections/'
       path: '/collections'
-      fullPath: '/collections'
+      fullPath: '/collections/'
       preLoaderRoute: typeof RequireAuthCollectionsIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
     '/_requireAuth/blob-test/': {
       id: '/_requireAuth/blob-test/'
       path: '/blob-test'
-      fullPath: '/blob-test'
+      fullPath: '/blob-test/'
       preLoaderRoute: typeof RequireAuthBlobTestIndexRouteImport
       parentRoute: typeof RequireAuthRoute
     }
@@ -606,7 +591,6 @@ const RequireAuthPermissionsRouteWithChildren =
   )
 
 interface RequireAuthRouteChildren {
-  RequireAuthForwardingTestRoute: typeof RequireAuthForwardingTestRoute
   RequireAuthDataRoute: typeof RequireAuthDataRoute
   RequireAuthPermissionsRoute: typeof RequireAuthPermissionsRouteWithChildren
   RequireAuthIndexRoute: typeof RequireAuthIndexRoute
@@ -621,7 +605,6 @@ interface RequireAuthRouteChildren {
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
-  RequireAuthForwardingTestRoute: RequireAuthForwardingTestRoute,
   RequireAuthDataRoute: RequireAuthDataRoute,
   RequireAuthPermissionsRoute: RequireAuthPermissionsRouteWithChildren,
   RequireAuthIndexRoute: RequireAuthIndexRoute,
