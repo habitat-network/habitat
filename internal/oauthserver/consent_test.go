@@ -101,8 +101,6 @@ func setupOrgConsentFixture(t *testing.T) *orgConsentFixture {
 				oauthServer.HandleCallback(w, r)
 			case r.URL.Path == "/token":
 				oauthServer.HandleToken(w, r)
-			case r.URL.Path == "/oauth/consent" && r.Method == http.MethodGet:
-				oauthServer.HandleConsent(w, r)
 			case r.URL.Path == "/oauth/consent" && r.Method == http.MethodPost:
 				oauthServer.HandleConsentDecision(w, r)
 			default:
@@ -176,7 +174,7 @@ func (fx *orgConsentFixture) adminLogin(t *testing.T) string {
 // driveToConsentPage runs the org-DID authorize flow, through the admin's
 // login, up to and including the redirect to the consent page UI. It returns
 // the HTTP client used (with cookies and redirect-stopping in place, so it can
-// be reused to post the final decision) and the query params HandleConsent
+// be reused to post the final decision) and the query params the callback
 // passed to the consent page UI.
 func (fx *orgConsentFixture) driveToConsentPage(t *testing.T) (*http.Client, url.Values) {
 	t.Helper()
@@ -214,25 +212,14 @@ func (fx *orgConsentFixture) driveToConsentPage(t *testing.T) (*http.Client, url
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	require.Equal(
-		t,
-		"/oauth/consent",
-		resp.Header.Get("Location"),
-		"org DID login should redirect to the consent page rather than issuing a code",
-	)
 
-	consentResp, err := httpClient.Get(fx.flowServer.URL + "/oauth/consent")
-	require.NoError(t, err)
-	require.NoError(t, consentResp.Body.Close())
-	require.Equal(t, http.StatusSeeOther, consentResp.StatusCode)
-
-	loc, err := url.Parse(consentResp.Header.Get("Location"))
+	loc, err := url.Parse(resp.Header.Get("Location"))
 	require.NoError(t, err)
 	require.Equal(
 		t,
 		"/ui/oauth/consent",
 		loc.Path,
-		"the consent endpoint should redirect to the embedded consent page UI",
+		"org DID login should redirect to the consent page UI rather than issuing a code",
 	)
 
 	return httpClient, loc.Query()
