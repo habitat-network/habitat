@@ -8,10 +8,11 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { procedure } from "internal";
+import { z } from "zod";
 
 export const Route = createFileRoute("/login/habitat")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    handle: String(search.handle ?? ""),
+  validateSearch: z.object({
+    handle: z.string().default(""),
   }),
   component: HabitatLoginPage,
 });

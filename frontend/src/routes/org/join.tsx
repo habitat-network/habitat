@@ -6,6 +6,7 @@ import {
   Input,
 } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { useState } from "react";
 import { procedure, SingleHandleCombobox, XRPCError } from "internal";
@@ -13,9 +14,9 @@ import { useQuery } from "@tanstack/react-query";
 import { NetworkHabitatOrgGetMetadata } from "api";
 
 export const Route = createFileRoute("/org/join")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    token: String(search.token ?? ""),
-    orgId: String(search.orgId ?? ""),
+  validateSearch: z.object({
+    token: z.string().default(""),
+    orgId: z.string().default(""),
   }),
   component: JoinPage,
 });
