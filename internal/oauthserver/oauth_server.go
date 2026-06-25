@@ -4,6 +4,7 @@ package oauthserver
 
 import (
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,19 +38,15 @@ const (
 	// path.
 	sessionPath = "/oauth-callback"
 
-	flashFormKey            = "form"
-	flashProviderStateKey   = "provider_state"
-	flashDidKey             = "did"
-	flashRequiresConsentKey = "requires_consent"
-
 	// flashMaxAge bounds how long an in-progress authorize flow may take
 	// before its flash cookie expires.
 	flashMaxAge = 10 * time.Minute
 )
 
-// authRequestFlash holds the authorization request state decoded from the
-// signed cookie session set by HandleAuthorize and consumed by HandleCallback,
-// preserving request context across the redirect to the user's PDS and back.
+// authRequestFlash holds the authorization request state carried, as a
+// one-shot flash, in the signed cookie session set by HandleAuthorize and
+// consumed by HandleCallback, preserving request context across the redirect
+// to the user's PDS and back.
 type authRequestFlash struct {
 	Form          url.Values // Original authorization request form data
 	ProviderState []byte     // Opaque provider-specific state
@@ -60,6 +57,12 @@ type authRequestFlash struct {
 	// admin must explicitly consent to the client's request before an
 	// authorization code is issued.
 	RequiresConsent bool
+}
+
+func init() {
+	// Flash values are gob-encoded into the session cookie, so the concrete
+	// type stored via AddFlash must be registered.
+	gob.Register(authRequestFlash{})
 }
 
 type metrics struct {
@@ -373,10 +376,12 @@ func (o *OAuthServer) HandleAuthorize(
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	}
-	session.Values[flashFormKey] = requester.GetRequestForm().Encode()
-	session.Values[flashProviderStateKey] = providerState
-	session.Values[flashDidKey] = string(id.DID)
-	session.Values[flashRequiresConsentKey] = requiresConsent
+	session.AddFlash(authRequestFlash{
+		Form:            requester.GetRequestForm(),
+		ProviderState:   providerState,
+		Did:             id.DID,
+		RequiresConsent: requiresConsent,
+	})
 	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
 		utils.LogAndHTTPError(
@@ -494,35 +499,27 @@ func (o *OAuthServer) popFlash(
 		return nil, err
 	}
 
-	formStr, ok := session.Values[flashFormKey].(string)
+	flashes := session.Flashes()
+	if len(flashes) == 0 {
+		return nil, http.ErrNoCookie
+	}
+	arf, ok := flashes[0].(authRequestFlash)
 	if !ok {
 		return nil, http.ErrNoCookie
 	}
-	form, err := url.ParseQuery(formStr)
-	if err != nil {
-		return nil, err
-	}
-	providerState, _ := session.Values[flashProviderStateKey].([]byte)
-	did, _ := session.Values[flashDidKey].(string)
-	requiresConsent, _ := session.Values[flashRequiresConsentKey].(bool)
 
-	clear(session.Values)
-	// Get() loads Options from the store's defaults rather than whatever was
-	// set in HandleAuthorize (Options aren't part of the encoded cookie), so
-	// Path must be set again here: a Set-Cookie only clears a cookie when its
-	// path matches the one it was created with.
+	// Flashes() drops the value from the session; deleting the cookie too keeps
+	// a spent flash cookie from lingering in the browser. Get() loads Options
+	// from the store's defaults rather than whatever HandleAuthorize set
+	// (Options aren't part of the encoded cookie), so Path must be set again
+	// here: a Set-Cookie only clears a cookie when its path matches the original.
 	session.Options.Path = sessionPath
 	session.Options.MaxAge = -1
 	if err := session.Save(r, w); err != nil {
 		return nil, err
 	}
 
-	return &authRequestFlash{
-		Form:            form,
-		ProviderState:   providerState,
-		Did:             syntax.DID(did),
-		RequiresConsent: requiresConsent,
-	}, nil
+	return &arf, nil
 }
 
 // recreateAuthorizeRequest rebuilds a fosite authorize request from the
