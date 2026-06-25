@@ -38,12 +38,16 @@ import type {
   NetworkHabitatSpaceAddMember,
   NetworkHabitatSpaceDeleteRecord,
   NetworkHabitatSpaceGetMembers,
+  NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpaceRemoveMember,
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatInstanceDescribeInstance,
+  NetworkHabitatDocsCreateDoc,
+  NetworkHabitatDocsUpdateDoc,
+  NetworkHabitatDocsListDocs,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -67,6 +71,12 @@ type UnauthedQuery<
 };
 
 type QueryEndpoints = {
+  // Implemented by the docs server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.docs.listDocs": Query<
+    NetworkHabitatDocsListDocs.QueryParams,
+    NetworkHabitatDocsListDocs.OutputSchema
+  >;
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,
     ComAtprotoRepoListRecords.OutputSchema
@@ -138,6 +148,10 @@ type QueryEndpoints = {
   "network.habitat.space.getMembers": Query<
     NetworkHabitatSpaceGetMembers.QueryParams,
     NetworkHabitatSpaceGetMembers.OutputSchema
+  >;
+  "network.habitat.space.getRecord": Query<
+    NetworkHabitatSpaceGetRecord.QueryParams,
+    NetworkHabitatSpaceGetRecord.OutputSchema
   >;
   "network.habitat.space.listRecords": Query<
     NetworkHabitatSpaceListRecords.QueryParams,
@@ -257,6 +271,16 @@ type ProcedureEndpoints = {
   "network.habitat.space.putRecord": Procedure<
     NetworkHabitatSpacePutRecord.InputSchema,
     NetworkHabitatSpacePutRecord.OutputSchema
+  >;
+  // Implemented by the docs server; reaches it via pear service proxying when
+  // called with an Atproto-Proxy header (see options.headers).
+  "network.habitat.docs.createDoc": Procedure<
+    NetworkHabitatDocsCreateDoc.InputSchema,
+    NetworkHabitatDocsCreateDoc.OutputSchema
+  >;
+  "network.habitat.docs.updateDoc": Procedure<
+    NetworkHabitatDocsUpdateDoc.InputSchema,
+    NetworkHabitatDocsUpdateDoc.OutputSchema
   >;
 };
 

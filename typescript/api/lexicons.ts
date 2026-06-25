@@ -1170,33 +1170,180 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatDocs: {
+  NetworkHabitatDocsCrdt: {
     lexicon: 1,
-    id: 'network.habitat.docs',
+    id: 'network.habitat.docs.crdt',
     defs: {
       main: {
         type: 'record',
-        description: 'A collaborative document.',
-        key: 'tid',
+        description:
+          "The CRDT (Yjs) state of a collaborative document. Each document is its own space; this record holds the canonical document state under the literal key 'self'.",
+        key: 'literal:self',
         record: {
           type: 'object',
-          required: ['name', 'blob'],
+          required: ['blob'],
           properties: {
-            name: {
-              type: 'string',
-              description:
-                'The name of the document, derived from the first heading.',
-            },
             blob: {
               type: 'string',
               description:
                 'Base64-encoded Yjs state update representing the document content.',
             },
-            editorClique: {
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsCreateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.docs.createDoc',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Create a new collaborative document. Implemented by the docs server, which writes the canonical record into the org's docs space using the org credential.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri', 'docId'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the created document record.',
+              },
+              docId: {
+                type: 'string',
+                description:
+                  'The record key identifying the document, used in subsequent updateDoc calls.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsListDocs: {
+    lexicon: 1,
+    id: 'network.habitat.docs.listDocs',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List all documents in the org, with titles. Implemented by the docs server, which lists the doc spaces from pear using the org credential and reads each space's markdown 'self' record for the title.",
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['docs'],
+            properties: {
+              docs: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.docs.listDocs#docView',
+                },
+              },
+            },
+          },
+        },
+      },
+      docView: {
+        type: 'object',
+        required: ['docId', 'uri', 'title'],
+        properties: {
+          docId: {
+            type: 'string',
+            description:
+              "The doc's space key, used as the document identifier in updateDoc and routing.",
+          },
+          uri: {
+            type: 'string',
+            description: "URI of the doc's space.",
+          },
+          title: {
+            type: 'string',
+            description: "The document title, from its markdown 'self' record.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsMarkdown: {
+    lexicon: 1,
+    id: 'network.habitat.docs.markdown',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "The rendered markdown of a collaborative document, derived from its CRDT state by the docs server. One per doc space, under the literal key 'self'.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['title', 'content'],
+          properties: {
+            title: {
               type: 'string',
-              format: 'uri',
               description:
-                'URI of the clique whose members may edit this document.',
+                'The document title, derived from the first heading or line.',
+            },
+            content: {
+              type: 'string',
+              description: 'The rendered markdown content of the document.',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsUpdateDoc: {
+    lexicon: 1,
+    id: 'network.habitat.docs.updateDoc',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Apply a CRDT update to a collaborative document. Implemented by the docs server, which merges the update into the canonical document and writes it back using the org credential.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['docId', 'update'],
+            properties: {
+              docId: {
+                type: 'string',
+                description:
+                  'The record key identifying the document to update.',
+              },
+              update: {
+                type: 'string',
+                description:
+                  'Base64-encoded Yjs update to merge into the document.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the updated document record.',
+              },
+              cid: {
+                type: 'string',
+                format: 'cid',
+                description: 'CID of the updated record.',
+              },
             },
           },
         },
@@ -3440,7 +3587,11 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
-  NetworkHabitatDocs: 'network.habitat.docs',
+  NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
+  NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
+  NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',
+  NetworkHabitatDocsMarkdown: 'network.habitat.docs.markdown',
+  NetworkHabitatDocsUpdateDoc: 'network.habitat.docs.updateDoc',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInstanceDescribeInstance:
     'network.habitat.instance.describeInstance',
