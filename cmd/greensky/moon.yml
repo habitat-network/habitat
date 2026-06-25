@@ -8,7 +8,6 @@ tasks:
     deps:
       - root:caddy
       - pear:dev
-      - greensky-web:dev
     env:
       GREENSKY_PORT: "2600"
       GREENSKY_DOMAIN: "greensky-server.local.habitat.network"

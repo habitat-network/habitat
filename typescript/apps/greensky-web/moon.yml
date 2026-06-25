@@ -1,6 +1,10 @@
 layer: application
 tasks:
   dev:
+    deps:
+      - root:caddy
+      - pear:dev
+      - greensky:dev
     env:
       DOMAIN: greensky.local.habitat.network
       HABITAT_DOMAIN: pear.local.habitat.network
