@@ -5,6 +5,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -14,6 +15,10 @@ import (
 )
 
 func newTestStore(t *testing.T) *storeImpl {
+	return newTestStoreWithFGA(t, nil)
+}
+
+func newTestStoreWithFGA(t *testing.T, fga fgastore.Store) *storeImpl {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -27,7 +32,14 @@ func newTestStore(t *testing.T) *storeImpl {
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
 	require.NoError(t, err)
-	store, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com", passwordProvider)
+	store, err := NewStore(
+		db,
+		h,
+		identity.DefaultDirectory(),
+		"pear.example.com",
+		passwordProvider,
+		fga,
+	)
 	require.NoError(t, err)
 	return store.(*storeImpl)
 }

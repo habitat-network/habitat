@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
@@ -49,17 +50,24 @@ type storeImpl struct {
 	pearDomain       string
 	everyone         Org
 	passwordProvider *login.PasswordLoginProvider
+	fga              fgastore.Store
 }
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
+// fga may be nil, in which case org membership is not mirrored into the
+// relationship graph (used by tests that don't exercise relationship checks).
 func NewStore(
 	db *gorm.DB,
 	hve hive.Hive,
 	dir identity.Directory,
 	pearDomain string,
 	passwordProvider *login.PasswordLoginProvider,
+	fga fgastore.Store,
 ) (Store, error) {
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
+		return nil, err
+	}
+	if err := backfillFGA(context.Background(), db, fga); err != nil {
 		return nil, err
 	}
 	return &storeImpl{
@@ -69,6 +77,7 @@ func NewStore(
 		pearDomain:       pearDomain,
 		everyone:         NewEveryoneOrg(),
 		passwordProvider: passwordProvider,
+		fga:              fga,
 	}, nil
 }
 
@@ -86,6 +95,7 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		method:           org.LoginMethod,
 		passwordProvider: s.passwordProvider,
 		name:             org.Name,
+		fga:              s.fga,
 	}, nil
 }
 
@@ -185,6 +195,11 @@ func (s *storeImpl) CreateOrg(
 		}).Error
 	})
 	if err != nil {
+		return nil, nil, err
+	}
+
+	// Mirror the bootstrap admin into the relationship graph.
+	if err := setOrgRoleFGA(ctx, s.fga, orgId.DID, id.DID, AdminRole); err != nil {
 		return nil, nil, err
 	}
 

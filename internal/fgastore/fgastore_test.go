@@ -124,6 +124,68 @@ func TestCheck_SpaceOwnerGrantsCanWrite(t *testing.T) {
 	require.True(t, ok, "space owner should have can_write via ComputedUserset")
 }
 
+func TestCheck_GroupMemberGrantsSpaceRole(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	// alice is a member of group g1, and g1's members are writers of space sB.
+	require.NoError(t, f.Write(ctx, "user:alice", RelationGroupMember, "group:g1"))
+	require.NoError(t, f.Write(ctx, "group:g1#member", RelationSpaceWriter, "space:sB"))
+
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:sB")
+	require.NoError(t, err)
+	require.True(t, ok, "group member should inherit the group's space role")
+
+	ok, err = f.Check(ctx, "user:alice", RelationSpaceReader, "space:sB")
+	require.NoError(t, err)
+	require.True(t, ok, "writer should imply reader for the group member")
+}
+
+func TestCheck_NestedGroupsGrantSpaceRole(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	// alice ∈ inner, inner's members ∈ outer, outer's members read space sC.
+	require.NoError(t, f.Write(ctx, "user:alice", RelationGroupMember, "group:inner"))
+	require.NoError(t, f.Write(ctx, "group:inner#member", RelationGroupMember, "group:outer"))
+	require.NoError(t, f.Write(ctx, "group:outer#member", RelationSpaceReader, "space:sC"))
+
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceReader, "space:sC")
+	require.NoError(t, err)
+	require.True(t, ok, "nested group membership should resolve transitively")
+}
+
+func TestCheck_CrossSpaceRoleInheritance(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	// alice writes space sA, and sA's writers may write sB.
+	require.NoError(t, f.Write(ctx, "user:alice", RelationSpaceWriter, "space:sA"))
+	require.NoError(t, f.Write(ctx, "space:sA#can_write", RelationSpaceWriter, "space:sB"))
+
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:sB")
+	require.NoError(t, err)
+	require.True(t, ok, "writers of sA should inherit write on sB")
+}
+
+func TestCheck_OrgRoleGrantsSpaceRole(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	// Every member of org o1 may read space sD; admins are members via the union.
+	require.NoError(t, f.Write(ctx, "user:alice", RelationMember, "organization:o1"))
+	require.NoError(t, f.Write(ctx, "user:bob", RelationAdmin, "organization:o1"))
+	require.NoError(t, f.Write(ctx, "organization:o1#member", RelationSpaceReader, "space:sD"))
+
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceReader, "space:sD")
+	require.NoError(t, err)
+	require.True(t, ok, "org member should inherit the org's space role")
+
+	ok, err = f.Check(ctx, "user:bob", RelationSpaceReader, "space:sD")
+	require.NoError(t, err)
+	require.True(t, ok, "org admin should inherit via member union")
+}
+
 func TestListObjects_ReturnsReadableSpaces(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)

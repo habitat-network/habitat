@@ -49,6 +49,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -235,6 +236,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		hiveDir,
 		domain,
 		passwordProvider,
+		fgaStore,
 	)
 	if err != nil {
 		slog.Error("unable to setup org store", "err", err)
@@ -306,6 +308,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthServer,
 		serviceAuth,
 		orgStore,
+	)
+
+	relationshipServer := relationship.NewServer(
+		relationship.NewStore(spacesStore, fgaStore),
+		fgaStore,
+		oauthServer,
+		serviceAuth,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -443,6 +452,16 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
+
+	mux.HandleFunc("/xrpc/network.habitat.relationship.writeTuple", relationshipServer.WriteTuple)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteTuple", relationshipServer.DeleteTuple)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listSubjects", relationshipServer.ListSubjects)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listObjects", relationshipServer.ListObjects)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.createGroup", relationshipServer.CreateGroup)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.deleteGroup", relationshipServer.DeleteGroup)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listGroups", relationshipServer.ListGroups)
 
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 

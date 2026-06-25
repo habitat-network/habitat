@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -106,4 +107,44 @@ func ConstructSpaceRecordURI(
 
 func (s SpaceRecordURI) String() string {
 	return string(s)
+}
+
+// ParseSpaceRecordURI parses a SpaceRecordURI of the form
+// "ats://did/type/skey/repo/collection/rkey" back into its components.
+func ParseSpaceRecordURI(
+	raw string,
+) (uri SpaceRecordURI, space SpaceURI, repo syntax.DID, collection syntax.NSID, rkey syntax.RecordKey, err error) {
+	rest, ok := strings.CutPrefix(raw, "ats://")
+	if !ok {
+		err = errors.New("invalid space record URI: missing ats:// scheme")
+		return
+	}
+	// did/type/skey/repo/collection/rkey — none of the components contain "/".
+	parts := strings.Split(rest, "/")
+	if len(parts) != 6 {
+		err = errors.New("invalid space record URI: expected 6 path segments")
+		return
+	}
+	space, err = ParseSpaceURI(fmt.Sprintf("ats://%s/%s/%s", parts[0], parts[1], parts[2]))
+	if err != nil {
+		err = fmt.Errorf("invalid space record URI space: %w", err)
+		return
+	}
+	repo, err = syntax.ParseDID(parts[3])
+	if err != nil {
+		err = fmt.Errorf("invalid space record URI repo: %w", err)
+		return
+	}
+	collection, err = syntax.ParseNSID(parts[4])
+	if err != nil {
+		err = fmt.Errorf("invalid space record URI collection: %w", err)
+		return
+	}
+	rkey, err = syntax.ParseRecordKey(parts[5])
+	if err != nil {
+		err = fmt.Errorf("invalid space record URI rkey: %w", err)
+		return
+	}
+	uri = SpaceRecordURI(raw)
+	return
 }

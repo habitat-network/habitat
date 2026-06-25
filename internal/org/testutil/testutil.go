@@ -3,6 +3,7 @@ package testutil
 import (
 	"testing"
 
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
@@ -14,6 +15,12 @@ import (
 )
 
 func NewTestStore(t *testing.T) org.Store {
+	return NewTestStoreWithFGA(t, nil)
+}
+
+// NewTestStoreWithFGA builds a test org store wired to the given fga store (which
+// may be nil to skip relationship-graph mirroring).
+func NewTestStoreWithFGA(t *testing.T, fga fgastore.Store) org.Store {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
@@ -33,6 +40,7 @@ func NewTestStore(t *testing.T) org.Store {
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 		"pear.example.com",
 		passwordProvider,
+		fga,
 	)
 	require.NoError(t, err)
 	return store

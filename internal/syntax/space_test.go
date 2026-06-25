@@ -60,6 +60,38 @@ func TestParseSpaceURI(t *testing.T) {
 	})
 }
 
+func TestParseSpaceRecordURI(t *testing.T) {
+	t.Run("round trip", func(t *testing.T) {
+		space := ConstructSpaceURI("did:plc:abc123", "network.habitat.space", "my-space")
+		want := ConstructSpaceRecordURI(
+			space,
+			"did:plc:owner",
+			"network.habitat.relationship.tuple",
+			"rkey1",
+		)
+
+		uri, gotSpace, repo, collection, rkey, err := ParseSpaceRecordURI(want.String())
+		require.NoError(t, err)
+		require.Equal(t, want, uri)
+		require.Equal(t, space, gotSpace)
+		require.Equal(t, "did:plc:owner", repo.String())
+		require.Equal(t, "network.habitat.relationship.tuple", collection.String())
+		require.Equal(t, "rkey1", rkey.String())
+	})
+
+	t.Run("wrong scheme", func(t *testing.T) {
+		_, _, _, _, _, err := ParseSpaceRecordURI(
+			"https://did:plc:abc/type/skey/did:plc:owner/coll/rkey",
+		)
+		require.Error(t, err)
+	})
+
+	t.Run("too few segments", func(t *testing.T) {
+		_, _, _, _, _, err := ParseSpaceRecordURI("ats://did:plc:abc/type/skey/did:plc:owner")
+		require.Error(t, err)
+	})
+}
+
 func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 	uri := SpaceURI("not-a-space-uri")
 	require.Empty(t, uri.SpaceOwner())

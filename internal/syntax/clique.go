@@ -11,6 +11,9 @@ import (
 
 const (
 	ReservedCliqueNSID = "network.habitat.clique"
+	// Reserved collections managed only through the relationship XRPC endpoints.
+	ReservedRelationshipTupleNSID = "network.habitat.relationship.tuple"
+	ReservedRelationshipGroupNSID = "network.habitat.relationship.group"
 )
 
 var CliqueRefRegex = regexp.MustCompile(

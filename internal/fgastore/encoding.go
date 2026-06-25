@@ -25,6 +25,35 @@ func MemberUserString(did syntax.DID) string {
 	return "user:" + url.QueryEscape(did.String())
 }
 
+// OrgObjectKey returns the FGA object key for an organization.
+func OrgObjectKey(org syntax.DID) string {
+	return "organization:" + url.QueryEscape(org.String())
+}
+
+// GroupObjectKey returns the FGA object key for a group, keyed by the group
+// record's SpaceRecordURI.
+func GroupObjectKey(uri habitat_syntax.SpaceRecordURI) string {
+	return "group:" + url.QueryEscape(uri.String())
+}
+
+// GroupMemberUserString returns the FGA userset string for "all members of a
+// group", used when a group is the subject of a relationship tuple.
+func GroupMemberUserString(uri habitat_syntax.SpaceRecordURI) string {
+	return GroupObjectKey(uri) + "#" + RelationGroupMember
+}
+
+// SpaceRoleUserString returns the FGA userset string for "all holders of a role
+// on a space", used for cross-space inheritance.
+func SpaceRoleUserString(uri habitat_syntax.SpaceURI, fgaRelation string) string {
+	return SpaceObjectKey(uri) + "#" + fgaRelation
+}
+
+// OrgRoleUserString returns the FGA userset string for "all holders of a role in
+// an org" (admin or member), used to assign a whole org to a space role.
+func OrgRoleUserString(org syntax.DID, fgaRelation string) string {
+	return OrgObjectKey(org) + "#" + fgaRelation
+}
+
 // MemberUserToDID extracts a DID from an FGA user string.
 func MemberUserToDID(user string) (syntax.DID, error) {
 	if !strings.HasPrefix(user, "user:") {
@@ -47,4 +76,16 @@ func ParseSpaceObjectKey(key string) (habitat_syntax.SpaceURI, error) {
 		return "", fmt.Errorf("parse space object key: %w", err)
 	}
 	return habitat_syntax.ParseSpaceURI(raw)
+}
+
+// ParseGroupObjectKey parses an FGA group object key back into a SpaceRecordURI.
+func ParseGroupObjectKey(key string) (habitat_syntax.SpaceRecordURI, error) {
+	if !strings.HasPrefix(key, "group:") {
+		return "", fmt.Errorf("invalid group object key: %s", key)
+	}
+	raw, err := url.QueryUnescape(strings.TrimPrefix(key, "group:"))
+	if err != nil {
+		return "", fmt.Errorf("parse group object key: %w", err)
+	}
+	return habitat_syntax.SpaceRecordURI(raw), nil
 }

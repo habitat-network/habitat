@@ -244,6 +244,7 @@ func setupPear(
 		orgHive,
 		server.URL,
 		nil,
+		nil,
 	)
 	require.NoError(t, err)
 

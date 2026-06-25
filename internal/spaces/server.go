@@ -60,6 +60,18 @@ func (s *Server) authorize(
 	)
 }
 
+// isReservedCollection reports whether a collection may only be managed through
+// its dedicated XRPC endpoints rather than the generic space record path.
+func isReservedCollection(collection syntax.NSID) bool {
+	switch collection.String() {
+	case habitat_syntax.ReservedRelationshipTupleNSID,
+		habitat_syntax.ReservedRelationshipGroupNSID:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	callerDID, ok := authn.Validate(w, r, s.oauth)
 	if !ok {
@@ -420,6 +432,14 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
 		return
 	}
+	if isReservedCollection(collection) {
+		http.Error(
+			w,
+			"collection is reserved and must be managed via its dedicated endpoints",
+			http.StatusForbidden,
+		)
+		return
+	}
 
 	var rkey syntax.RecordKey
 	if input.Rkey != "" {
@@ -763,6 +783,14 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	collection, err := syntax.ParseNSID(input.Collection)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+		return
+	}
+	if isReservedCollection(collection) {
+		http.Error(
+			w,
+			"collection is reserved and must be managed via its dedicated endpoints",
+			http.StatusForbidden,
+		)
 		return
 	}
 

@@ -35,7 +35,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	// Create the org store and seed an org
 	dir := identity.DefaultDirectory()
-	orgStore, err := org.NewStore(db, h, dir, "pear.example.com", nil)
+	orgStore, err := org.NewStore(db, h, dir, "pear.example.com", nil, nil)
 	require.NoError(t, err)
 
 	orgIdIdent, _, err := orgStore.CreateOrg(

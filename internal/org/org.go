@@ -14,6 +14,7 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
@@ -96,6 +97,7 @@ type orgImpl struct {
 	handleSubdomain  string
 	method           loginMethod
 	passwordProvider *login.PasswordLoginProvider
+	fga              fgastore.Store
 }
 
 var _ Org = &orgImpl{}
@@ -135,7 +137,7 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	if result.RowsAffected == 0 {
 		return ErrNotMember
 	}
-	return nil
+	return setOrgRoleFGA(ctx, s.fga, s.orgID, admin, AdminRole)
 }
 
 func (s *orgImpl) addMemberTx(
@@ -197,11 +199,14 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return s.db.WithContext(ctx).
+	if err := s.db.WithContext(ctx).
 		Model(&member{}).
 		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
 		Update("role", MemberRole).
-		Error
+		Error; err != nil {
+		return err
+	}
+	return setOrgRoleFGA(ctx, s.fga, s.orgID, admin, MemberRole)
 }
 
 func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
@@ -216,17 +221,36 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	return s.db.WithContext(ctx).
+	if err := s.db.WithContext(ctx).
 		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
 		Delete(&member{}).
-		Error
+		Error; err != nil {
+		return err
+	}
+	return removeOrgRoleFGA(ctx, s.fga, s.orgID, admin)
 }
 
 func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error {
-	return s.db.WithContext(ctx).
+	// Only plain members (not admins) are removable here; capture exactly which
+	// rows are affected so we only retract those DIDs from the relationship graph.
+	var removed []member
+	if err := s.db.WithContext(ctx).
+		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, members, MemberRole).
+		Find(&removed).Error; err != nil {
+		return err
+	}
+	if err := s.db.WithContext(ctx).
 		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, members, MemberRole).
 		Delete(&member{}).
-		Error
+		Error; err != nil {
+		return err
+	}
+	for _, m := range removed {
+		if err := removeOrgRoleFGA(ctx, s.fga, s.orgID, m.Did); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *orgImpl) IsAdmin(ctx context.Context, did syntax.DID) (bool, error) {
@@ -343,6 +367,9 @@ func (s *orgImpl) CreateNewMemberIdentity(
 	if err != nil {
 		return nil, err
 	}
+	if err := setOrgRoleFGA(ctx, s.fga, s.orgID, id.DID, MemberRole); err != nil {
+		return nil, err
+	}
 	return id, nil
 }
 
@@ -354,5 +381,6 @@ func (s *orgImpl) WithTx(tx *gorm.DB) Org {
 		db:              tx,
 		signingSecret:   s.signingSecret,
 		handleSubdomain: s.handleSubdomain,
+		fga:             s.fga,
 	}
 }
