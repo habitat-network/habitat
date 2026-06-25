@@ -84,7 +84,7 @@ func setupOrgConsentFixture(t *testing.T) *orgConsentFixture {
 
 	oauthServer, err := NewOAuthServer(
 		secret,
-		&org.LoginRouter{Password: passwordProvider, OrgStore: orgStore},
+		&org.LoginRouter{Password: passwordProvider},
 		h, // the OAuth server resolves the org/admin handles via hive
 		oauthDB,
 		noop.Meter{},

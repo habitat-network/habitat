@@ -256,7 +256,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	loginRouter := &org.LoginRouter{
 		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),
 		Password: passwordProvider,
-		OrgStore: orgStore,
 	}
 	googleClientID := cmd.String(fGoogleClientID)
 	googleClientSecret := cmd.String(fGoogleClientSecret)

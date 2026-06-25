@@ -2,18 +2,19 @@ package org
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/login"
 )
 
+// LoginRouter dispatches login flows to the provider configured for an org's
+// login method. It has no knowledge of org/member state: callers resolve the
+// target org (e.g. via Store.GetOrgForDID) and verify the provider-asserted
+// login ID returned by Exchange against the expected member or admin.
 type LoginRouter struct {
 	Pds      login.Provider
 	Google   login.Provider
 	Password login.Provider
-	OrgStore Store
 }
 
 func (r *LoginRouter) getProvider(org Org) login.Provider {
@@ -28,79 +29,34 @@ func (r *LoginRouter) getProvider(org Org) login.Provider {
 	return nil
 }
 
+// Authorize starts a login flow for targetOrg. loginHint identifies which
+// member's credential is expected; pass "" for an org-DID login, where any
+// admin may complete the flow.
 func (r *LoginRouter) Authorize(
 	ctx context.Context,
-	did syntax.DID,
+	targetOrg Org,
+	loginHint string,
 ) (string, []byte, error) {
-	// org login (requires admin credential)
-	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
-	if err == nil {
-		provider := r.getProvider(fetchedOrg)
-		if provider == nil {
-			return "", nil, fmt.Errorf("unsupported login provider for %s", did)
-		}
-		return provider.Authorize(ctx, "" /* loginHint (empty because any admin will work) */)
-	} else if !errors.Is(err, ErrOrgNotFound) {
-		return "", nil, fmt.Errorf("failed to get org: %w", err)
-	}
-
-	// member login
-	member, err := r.OrgStore.GetMember(ctx, did)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get member: %w", err)
-	}
-	provider := r.getProvider(member.Org)
+	provider := r.getProvider(targetOrg)
 	if provider == nil {
-		return "", nil, fmt.Errorf("unsupported login provider for %s", did)
+		return "", nil, fmt.Errorf("unsupported login provider for org %s", targetOrg.DID())
 	}
-	return provider.Authorize(ctx, member.LoginID)
+	return provider.Authorize(ctx, loginHint)
 }
 
+// Exchange completes a login flow for targetOrg and returns the
+// provider-asserted login ID for the caller to verify against the expected
+// member or admin.
 func (r *LoginRouter) Exchange(
 	ctx context.Context,
-	did syntax.DID,
+	targetOrg Org,
 	code string,
 	issuer string,
 	state []byte,
-) error {
-	// org login (requires admin)
-	fetchedOrg, err := r.OrgStore.GetOrg(ctx, did)
-	if err == nil {
-		provider := r.getProvider(fetchedOrg)
-		if provider == nil {
-			return fmt.Errorf("unsupported login provider for %s", did)
-		}
-		loginID, err := provider.Exchange(ctx, code, issuer, state)
-		if err != nil {
-			return fmt.Errorf("failed to exchange code: %w", err)
-		}
-		member, err := r.OrgStore.GetMemberByLoginID(ctx, loginID)
-		if err != nil {
-			return fmt.Errorf("failed to get member by login id: %w", err)
-		}
-		if member.Role != AdminRole {
-			return fmt.Errorf("not an admin")
-		}
-		return nil
-	} else if !errors.Is(err, ErrOrgNotFound) {
-		return fmt.Errorf("failed to get org: %w", err)
-	}
-
-	// member login
-	member, err := r.OrgStore.GetMember(ctx, did)
-	if err != nil {
-		return fmt.Errorf("failed to get member: %w", err)
-	}
-	provider := r.getProvider(member.Org)
+) (loginID string, err error) {
+	provider := r.getProvider(targetOrg)
 	if provider == nil {
-		return fmt.Errorf("unsupported login provider for %s", did)
+		return "", fmt.Errorf("unsupported login provider for org %s", targetOrg.DID())
 	}
-	loginID, err := provider.Exchange(ctx, code, issuer, state)
-	if err != nil {
-		return fmt.Errorf("failed to exchange code: %w", err)
-	}
-	if member.LoginID != loginID {
-		return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
-	}
-	return nil
+	return provider.Exchange(ctx, code, issuer, state)
 }

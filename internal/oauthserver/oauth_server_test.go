@@ -62,8 +62,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	oauthSrv, err := NewOAuthServer(
 		secret,
 		&org.LoginRouter{
-			Pds:      login.NewPDSProvider(oauthClient, credStore, nil),
-			OrgStore: testStore(t),
+			Pds: login.NewPDSProvider(oauthClient, credStore, nil),
 		},
 		pdsclient.NewDummyDirectory("http://pds.url"),
 		db,
@@ -485,8 +484,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	oauthServer, err := NewOAuthServer(
 		bytes,
 		&org.LoginRouter{
-			Pds:      login.NewPDSProvider(oauthClient, credStore, dummyDir),
-			OrgStore: orgStore,
+			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
 		},
 		h, // the OAuth server resolves handles/DIDs via hive, not a public directory
 		db,
