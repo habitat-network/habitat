@@ -12,7 +12,8 @@ type ConsentData = {
   clientName: string;
   clientUri: string;
   logoUri: string;
-  scopes: string[];
+  // null when the request carries no scopes (Go encodes an empty slice as null).
+  scopes: string[] | null;
   orgHandle: string;
 };
 
@@ -39,12 +40,14 @@ function ConsentPage() {
             className="size-10 rounded-lg object-contain"
           />
         )}
-        <h1 className="text-lg font-semibold">{clientName || clientUri}</h1>
+        <h1 className="text-lg font-semibold">
+          {clientName || clientUri || "An application"}
+        </h1>
       </div>
       <p className="mb-6 text-sm text-muted-foreground break-all">
         wants to access your organization ({orgHandle})
       </p>
-      {scopes.length > 0 && (
+      {scopes && scopes.length > 0 && (
         <div className="mb-6 rounded-lg bg-muted p-3 text-sm">
           <p className="mb-2 font-medium">This will allow access to:</p>
           <ul className="list-disc pl-5">
