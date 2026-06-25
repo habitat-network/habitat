@@ -14,7 +14,6 @@ services:
     environment:
       # Required: the publicly accessible domain for this server (no https:// prefix)
       HABITAT_DOMAIN: ${HABITAT_DOMAIN}
-      HABITAT_FRONTEND_DOMAIN: ${HABITAT_FRONTEND_DOMAIN}
 
       # Optional: path to the SQLite database file (default: /data/repo.db)
       # The /data directory is a persistent volume — do not change this unless you
@@ -34,13 +33,6 @@ services:
       HABITAT_PDS_CRED_ENCRYPT_KEY: ${HABITAT_PDS_CRED_ENCRYPT_KEY:-}
       HABITAT_OAUTH_SERVER_SECRET: ${HABITAT_OAUTH_SERVER_SECRET:-}
       HABITAT_OAUTH_CLIENT_SECRET: ${HABITAT_OAUTH_CLIENT_SECRET:-}
-
-      # Optional: base URL of the search server (see the "search" service
-      # below). If unset, pear does not proxy network.habitat.search.* requests.
-      SEARCH_HOST: http://search:8091
-
-      # Shared instance-wide M2M token, also given to the search container below.
-      SEARCH_M2M_TOKEN: ${SEARCH_M2M_TOKEN}
 
 volumes:
   pear_data:
