@@ -47,6 +47,7 @@ import type {
   NetworkHabitatInstanceDescribeInstance,
   NetworkHabitatDocCreateDoc,
   NetworkHabitatDocUpdateDoc,
+  NetworkHabitatDocListDocs,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -70,6 +71,12 @@ type UnauthedQuery<
 };
 
 type QueryEndpoints = {
+  // Implemented by the docs server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.doc.listDocs": Query<
+    NetworkHabitatDocListDocs.QueryParams,
+    NetworkHabitatDocListDocs.OutputSchema
+  >;
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,
     ComAtprotoRepoListRecords.OutputSchema

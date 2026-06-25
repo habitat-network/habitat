@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type {
   NetworkHabitatDocCreateDoc,
   NetworkHabitatDocUpdateDoc,
+  NetworkHabitatDocListDocs,
 } from "api";
 import type { DerivedConfig } from "./config";
 import type { OrgClient } from "./orgClient";
@@ -86,6 +87,20 @@ export function createApp(
       (await c.req.json()) as NetworkHabitatDocUpdateDoc.InputSchema;
     const output: NetworkHabitatDocUpdateDoc.OutputSchema =
       await docs.applyUpdate(input.docId, input.update, caller);
+    return c.json(output);
+  });
+
+  // listDocs returns every doc in the org (no per-caller filtering). The caller
+  // is still authenticated via service auth before listing.
+  app.get("/xrpc/network.habitat.doc.listDocs", async (c) => {
+    await authorize(
+      c.req.header("Authorization"),
+      "network.habitat.doc.listDocs",
+      verifier,
+    );
+    const output: NetworkHabitatDocListDocs.OutputSchema = {
+      docs: await docs.listDocs(),
+    };
     return c.json(output);
   });
 

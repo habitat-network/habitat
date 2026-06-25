@@ -963,6 +963,99 @@
         }
       }
     },
+    "/network.habitat.doc.listDocs": {
+      "get": {
+        "tags": [
+          "network.habitat.doc"
+        ],
+        "summary": "network.habitat.doc.listDocs",
+        "description": "List all documents in the org, with titles. Implemented by the docs server, which lists the doc spaces from pear using the org credential and reads each space's markdown 'self' record for the title.",
+        "operationId": "network.habitat.doc.listDocs",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "docs"
+                  ],
+                  "properties": {
+                    "docs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.doc.listDocs.docView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.doc.updateDoc": {
       "post": {
         "tags": [
@@ -5590,25 +5683,54 @@
         "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
         "properties": {}
       },
-      "network.habitat.docs": {
+      "network.habitat.doc.listDocs.docView": {
         "type": "object",
         "required": [
-          "name",
+          "docId",
+          "uri",
+          "title"
+        ],
+        "properties": {
+          "docId": {
+            "type": "string",
+            "description": "The doc's space key, used as the document identifier in updateDoc and routing."
+          },
+          "uri": {
+            "type": "string",
+            "description": "URI of the doc's space."
+          },
+          "title": {
+            "type": "string",
+            "description": "The document title, from its markdown 'self' record."
+          }
+        }
+      },
+      "network.habitat.docs.crdt": {
+        "type": "object",
+        "required": [
           "blob"
         ],
         "properties": {
-          "name": {
-            "type": "string",
-            "description": "The name of the document, derived from the first heading."
-          },
           "blob": {
             "type": "string",
             "description": "Base64-encoded Yjs state update representing the document content."
-          },
-          "editorClique": {
+          }
+        }
+      },
+      "network.habitat.docs.markdown": {
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "properties": {
+          "title": {
             "type": "string",
-            "description": "URI of the clique whose members may edit this document.",
-            "format": "uri"
+            "description": "The document title, derived from the first heading or line."
+          },
+          "content": {
+            "type": "string",
+            "description": "The rendered markdown content of the document."
           }
         }
       },

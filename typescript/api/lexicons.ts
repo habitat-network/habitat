@@ -1212,6 +1212,52 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatDocListDocs: {
+    lexicon: 1,
+    id: 'network.habitat.doc.listDocs',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List all documents in the org, with titles. Implemented by the docs server, which lists the doc spaces from pear using the org credential and reads each space's markdown 'self' record for the title.",
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['docs'],
+            properties: {
+              docs: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.doc.listDocs#docView',
+                },
+              },
+            },
+          },
+        },
+      },
+      docView: {
+        type: 'object',
+        required: ['docId', 'uri', 'title'],
+        properties: {
+          docId: {
+            type: 'string',
+            description:
+              "The doc's space key, used as the document identifier in updateDoc and routing.",
+          },
+          uri: {
+            type: 'string',
+            description: "URI of the doc's space.",
+          },
+          title: {
+            type: 'string',
+            description: "The document title, from its markdown 'self' record.",
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatDocUpdateDoc: {
     lexicon: 1,
     id: 'network.habitat.doc.updateDoc',
@@ -1260,33 +1306,50 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatDocs: {
+  NetworkHabitatDocsCrdt: {
     lexicon: 1,
-    id: 'network.habitat.docs',
+    id: 'network.habitat.docs.crdt',
     defs: {
       main: {
         type: 'record',
-        description: 'A collaborative document.',
-        key: 'tid',
+        description:
+          "The CRDT (Yjs) state of a collaborative document. Each document is its own space; this record holds the canonical document state under the literal key 'self'.",
+        key: 'literal:self',
         record: {
           type: 'object',
-          required: ['name', 'blob'],
+          required: ['blob'],
           properties: {
-            name: {
-              type: 'string',
-              description:
-                'The name of the document, derived from the first heading.',
-            },
             blob: {
               type: 'string',
               description:
                 'Base64-encoded Yjs state update representing the document content.',
             },
-            editorClique: {
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatDocsMarkdown: {
+    lexicon: 1,
+    id: 'network.habitat.docs.markdown',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "The rendered markdown of a collaborative document, derived from its CRDT state by the docs server. One per doc space, under the literal key 'self'.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['title', 'content'],
+          properties: {
+            title: {
               type: 'string',
-              format: 'uri',
               description:
-                'URI of the clique whose members may edit this document.',
+                'The document title, derived from the first heading or line.',
+            },
+            content: {
+              type: 'string',
+              description: 'The rendered markdown content of the document.',
             },
           },
         },
@@ -3531,8 +3594,10 @@ export const ids = {
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
   NetworkHabitatDocCreateDoc: 'network.habitat.doc.createDoc',
+  NetworkHabitatDocListDocs: 'network.habitat.doc.listDocs',
   NetworkHabitatDocUpdateDoc: 'network.habitat.doc.updateDoc',
-  NetworkHabitatDocs: 'network.habitat.docs',
+  NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
+  NetworkHabitatDocsMarkdown: 'network.habitat.docs.markdown',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatInstanceDescribeInstance:
     'network.habitat.instance.describeInstance',

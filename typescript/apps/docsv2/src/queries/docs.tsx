@@ -1,8 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { AuthManager, procedure, query } from "internal";
 
-const DOCS_COLLECTION = "network.habitat.docs";
-const DOCS_SPACE_TYPE = "network.habitat.docs";
+const CRDT_COLLECTION = "network.habitat.docs.crdt";
+const SELF = "self";
 
 // docsProxyHeaders targets the docs server via pear service proxying: pear
 // validates the caller's OAuth session, signs a service-auth JWT, and forwards
@@ -11,72 +11,51 @@ export function docsProxyHeaders(): Headers {
   return new Headers({ "Atproto-Proxy": `${__DOCS_SERVER_DID__}#docs` });
 }
 
-// The org's docs space. Its URI encodes the owner (org) DID as the second path
-// segment: ats://<orgDid>/<type>/<skey>.
-export const docsSpaceQueryOptions = (authManager: AuthManager) =>
-  queryOptions({
-    queryKey: ["docsSpace"],
-    staleTime: 1000 * 60 * 5,
-    queryFn: async () => {
-      const { spaces } = await query(
-        "network.habitat.space.listSpaces",
-        { type: DOCS_SPACE_TYPE },
-        { authManager },
-      );
-      const space = spaces[0];
-      if (!space) {
-        return null;
-      }
-      return { uri: space.uri, orgDid: space.uri.split("/")[2] };
-    },
-  });
-
 export interface DocSummary {
   docId: string;
-  name: string;
+  uri: string;
+  title: string;
 }
 
+// The sidebar list comes entirely from the docs server's listDocs endpoint,
+// which enumerates the org's doc spaces and reads each one's markdown title.
 export const docsListQueryOptions = (authManager: AuthManager) =>
   queryOptions({
     queryKey: ["docs"],
-    queryFn: async ({ client }): Promise<DocSummary[]> => {
-      const space = await client.fetchQuery(docsSpaceQueryOptions(authManager));
-      if (!space) {
-        return [];
-      }
-      const { records } = await query(
-        "network.habitat.space.listRecords",
-        { space: space.uri, repo: space.orgDid, collection: DOCS_COLLECTION },
-        { authManager },
+    queryFn: async (): Promise<DocSummary[]> => {
+      const { docs } = await query(
+        "network.habitat.doc.listDocs",
+        {},
+        { authManager, headers: docsProxyHeaders() },
       );
-      return records.map(
-        (r): DocSummary => ({
-          docId: r.rkey,
-          name: (r.value as { name?: string }).name || "Untitled",
-        }),
-      );
+      return docs;
     },
   });
 
+// Read a doc's canonical CRDT state directly from its space (the member was
+// granted read access when the doc was created/updated). The space URI comes
+// from the docs list; its second path segment is the owning org DID.
 export const docQueryOptions = (docId: string, authManager: AuthManager) =>
   queryOptions({
     queryKey: ["doc", docId],
     queryFn: async ({ client }) => {
-      const space = await client.fetchQuery(docsSpaceQueryOptions(authManager));
-      if (!space) {
-        throw new Error("docs space not found");
+      const docs = await client.fetchQuery(docsListQueryOptions(authManager));
+      const doc = docs.find((d) => d.docId === docId);
+      if (!doc) {
+        throw new Error(`doc not found: ${docId}`);
       }
+      const orgDid = doc.uri.split("/")[2];
       const record = await query(
         "network.habitat.space.getRecord",
         {
-          space: space.uri,
-          repo: space.orgDid,
-          collection: DOCS_COLLECTION,
-          rkey: docId,
+          space: doc.uri,
+          repo: orgDid,
+          collection: CRDT_COLLECTION,
+          rkey: SELF,
         },
         { authManager },
       );
-      return record.value as { name: string; blob?: string };
+      return record.value as { blob?: string };
     },
   });
 

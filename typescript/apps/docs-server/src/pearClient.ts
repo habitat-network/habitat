@@ -7,17 +7,31 @@ import type {
 import type { DerivedConfig } from "./config";
 import type { OrgClient } from "./orgClient";
 
+export interface SpaceRef {
+  uri: string;
+  skey: string;
+}
+
 // PearClient wraps the network.habitat.space XRPC endpoints, calling them with
-// the org credential. The docs server is the sole writer of the canonical doc
-// record, so all writes go through here.
+// the org credential. Each document is its own space (owned by the org); the
+// docs server is the sole writer of the canonical records inside it.
 export class PearClient {
   private config: DerivedConfig;
   private org: OrgClient;
-  private spaceUriPromise: Promise<string> | undefined;
 
   constructor(config: DerivedConfig, org: OrgClient) {
     this.config = config;
     this.org = org;
+  }
+
+  orgDid(): Promise<string> {
+    return this.org.orgDid();
+  }
+
+  // spaceUri reconstructs a doc's space URI from its skey. Space URIs are
+  // ats://<orgDid>/<type>/<skey>.
+  spaceUri(skey: string, orgDid: string): string {
+    return `ats://${orgDid}/${this.config.spaceType}/${skey}`;
   }
 
   private async call<T>(
@@ -50,93 +64,76 @@ export class PearClient {
     return (await res.json()) as T;
   }
 
-  // ensureSpace returns the URI of the org's docs space, creating it on first
-  // use. The result is cached for the process lifetime.
-  ensureSpace(): Promise<string> {
-    if (!this.spaceUriPromise) {
-      this.spaceUriPromise = this.resolveSpace().catch((err) => {
-        // Reset so a transient failure can be retried on the next call.
-        this.spaceUriPromise = undefined;
-        throw err;
-      });
-    }
-    return this.spaceUriPromise;
-  }
-
-  private async resolveSpace(): Promise<string> {
-    const orgDid = await this.org.orgDid();
-    const listed = await this.call<NetworkHabitatSpaceListSpaces.OutputSchema>(
-      "network.habitat.space.listSpaces",
-      "GET",
-      { type: this.config.spaceType, did: orgDid },
-    );
-    const existing = listed.spaces.find(
-      (s) => s.skey === this.config.spaceSkey,
-    );
-    if (existing) {
-      return existing.uri;
-    }
+  // createSpace creates a new space for a document. pear generates the skey.
+  async createSpace(): Promise<SpaceRef> {
     const created =
       await this.call<NetworkHabitatSpaceCreateSpace.OutputSchema>(
         "network.habitat.space.createSpace",
         "POST",
         {
           type: this.config.spaceType,
-          skey: this.config.spaceSkey,
         } satisfies NetworkHabitatSpaceCreateSpace.InputSchema,
       );
-    return created.uri;
+    return { uri: created.uri, skey: skeyOf(created.uri) };
   }
 
-  // putRecord writes a doc record. When rkey is omitted (doc creation) pear
-  // generates a TID and returns it in the record URI; doc keys must be valid
-  // TIDs, so letting pear mint them avoids implementing a TID generator here.
+  // listSpaces returns every doc space the org owns.
+  async listSpaces(): Promise<SpaceRef[]> {
+    const orgDid = await this.org.orgDid();
+    const listed = await this.call<NetworkHabitatSpaceListSpaces.OutputSchema>(
+      "network.habitat.space.listSpaces",
+      "GET",
+      { type: this.config.spaceType, did: orgDid },
+    );
+    return listed.spaces.map((s) => ({
+      uri: s.uri,
+      skey: s.skey || skeyOf(s.uri),
+    }));
+  }
+
   async putRecord(
+    space: string,
+    collection: string,
+    rkey: string,
     record: Record<string, unknown>,
-    rkey?: string,
   ): Promise<NetworkHabitatSpacePutRecord.OutputSchema> {
-    const space = await this.ensureSpace();
-    const input: NetworkHabitatSpacePutRecord.InputSchema = {
-      space,
-      collection: "network.habitat.docs",
-      record,
-    };
-    if (rkey !== undefined) {
-      input.rkey = rkey;
-    }
     return this.call<NetworkHabitatSpacePutRecord.OutputSchema>(
       "network.habitat.space.putRecord",
       "POST",
-      input,
+      {
+        space,
+        collection,
+        rkey,
+        record,
+      } satisfies NetworkHabitatSpacePutRecord.InputSchema,
     );
   }
 
   async getRecord(
+    space: string,
+    collection: string,
     rkey: string,
   ): Promise<NetworkHabitatSpaceGetRecord.OutputSchema | undefined> {
-    const space = await this.ensureSpace();
     const orgDid = await this.org.orgDid();
     try {
       return await this.call<NetworkHabitatSpaceGetRecord.OutputSchema>(
         "network.habitat.space.getRecord",
         "GET",
-        {
-          space,
-          repo: orgDid,
-          collection: "network.habitat.docs",
-          rkey,
-        },
+        { space, repo: orgDid, collection, rkey },
       );
     } catch {
-      // Record not found (or not yet replicated) — treat as a fresh doc.
+      // Record not found (or not yet replicated).
       return undefined;
     }
   }
 
-  // addMember grants a member access to the docs space so they can read the
-  // canonical record directly via their own OAuth session.
-  async addMember(did: string, access: "read" | "write"): Promise<void> {
-    const space = await this.ensureSpace();
+  // addMember grants a member access to a doc's space so they can read the
+  // canonical records directly via their own OAuth session.
+  async addMember(
+    space: string,
+    did: string,
+    access: "read" | "write",
+  ): Promise<void> {
     try {
       await this.call<unknown>("network.habitat.space.addMember", "POST", {
         space,
@@ -144,7 +141,15 @@ export class PearClient {
         access,
       });
     } catch {
-      // Already a member, or a benign race — safe to ignore for create/update.
+      // Already a member, or a benign race — safe to ignore.
     }
   }
+}
+
+function skeyOf(uri: string): string {
+  const skey = uri.split("/").pop();
+  if (!skey) {
+    throw new Error(`unexpected space URI: ${uri}`);
+  }
+  return skey;
 }

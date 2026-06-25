@@ -14,9 +14,9 @@ export interface Config {
   // Directory where the OAuth credential and signing key are persisted so the
   // server doesn't need re-authorization on every restart.
   dataDir: string;
-  // Space type + key the canonical doc records are written into.
+  // Space type each doc's space is created under. Each document gets its own
+  // space of this type.
   spaceType: string;
-  spaceSkey: string;
 }
 
 export interface DerivedConfig extends Config {
@@ -52,7 +52,6 @@ export function loadConfig(): DerivedConfig {
     port: parseInt(process.env.DOCS_SERVER_PORT ?? "2590", 10),
     dataDir,
     spaceType: process.env.DOCS_SERVER_SPACE_TYPE ?? "network.habitat.docs",
-    spaceSkey: process.env.DOCS_SERVER_SPACE_SKEY ?? "docs",
   };
   const serviceId = "docs";
   return {

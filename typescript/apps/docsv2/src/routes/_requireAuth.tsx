@@ -1,9 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  createDoc,
-  docsListQueryOptions,
-  docsSpaceQueryOptions,
-} from "@/queries/docs";
+import { createDoc, docsListQueryOptions } from "@/queries/docs";
 import {
   createFileRoute,
   Link,
@@ -22,7 +18,6 @@ import {
   SidebarMenuButton,
 } from "internal";
 import { FileTextIcon, PlusIcon } from "lucide-react";
-import { profileQueryOptions } from "@/queries/profile";
 
 export const Route = createFileRoute("/_requireAuth")({
   async beforeLoad({ context }) {
@@ -33,16 +28,13 @@ export const Route = createFileRoute("/_requireAuth")({
   },
   async loader({ context }) {
     const did = context.authManager.getAuthInfo()!.did;
-    const profile = await context.queryClient.fetchQuery(
-      profileQueryOptions(did, context.authManager),
-    );
     await context.queryClient.prefetchQuery(
       docsListQueryOptions(context.authManager),
     );
-    return { profile, did };
+    return { did };
   },
   component() {
-    const { profile } = Route.useLoaderData();
+    const { did } = Route.useLoaderData();
     const { authManager, queryClient } = Route.useRouteContext();
     const { data: docs } = useQuery(docsListQueryOptions(authManager));
     const router = useRouter();
@@ -57,23 +49,20 @@ export const Route = createFileRoute("/_requireAuth")({
     const { mutate: create, isPending } = useMutation({
       mutationFn: (name: string) => createDoc(authManager, name),
       onSuccess: async ({ docId }) => {
-        // The first doc also creates the docs space and adds this member to it,
-        // so invalidate the cached (previously empty) space lookup before the
-        // editor route loads, or it would fail to find the space.
-        await queryClient.invalidateQueries(docsSpaceQueryOptions(authManager));
-        queryClient.invalidateQueries(docsListQueryOptions(authManager));
+        // Refresh the list so the editor route can resolve the new doc's space
+        // URI from it before navigating.
+        await queryClient.invalidateQueries(docsListQueryOptions(authManager));
         router.invalidate();
         navigate({ to: "/$uri", params: { uri: docId } });
       },
       onError: (error) => {
         console.error("failed to create doc", error);
-        alert(error.message);
       },
     });
 
     return (
       <AppLayout
-        actor={profile}
+        actor={{ did }}
         onSignOut={() => authManager.logout()}
         title="Habitat Docs"
         sidebar={
@@ -102,7 +91,7 @@ export const Route = createFileRoute("/_requireAuth")({
                           }
                         >
                           <FileTextIcon />
-                          <span>{doc.name}</span>
+                          <span>{doc.title}</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     ))}
