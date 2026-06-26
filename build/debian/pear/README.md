@@ -18,7 +18,6 @@ curl -LO https://github.com/habitat-network/habitat/releases/latest/download/doc
 
 ```bash
 HABITAT_DOMAIN=pear.example.com
-HABITAT_FRONTEND_DOMAIN=habitat.network
 HABITAT_ADMIN_PASSWORD=<your password for instance-wide config here>
 ```
 
