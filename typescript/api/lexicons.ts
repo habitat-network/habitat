@@ -1378,6 +1378,36 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatGroupProfile: {
+    lexicon: 1,
+    id: 'network.habitat.group.profile',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's self record, holding its display name and description. Group membership is expressed as roles on the group-space (any role implies membership), and the group is used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'reader'.",
+        key: 'literal:self',
+        record: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: {
+              type: 'string',
+              maxLength: 256,
+            },
+            description: {
+              type: 'string',
+              maxLength: 2048,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatInstanceDescribeInstance: {
     lexicon: 1,
     id: 'network.habitat.instance.describeInstance',
@@ -2144,6 +2174,394 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  NetworkHabitatRelationshipCheck: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.check',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+        parameters: {
+          type: 'params',
+          required: ['did', 'relation', 'space'],
+          properties: {
+            did: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the user to check.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to check for on the space.',
+            },
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['allowed'],
+            properties: {
+              allowed: {
+                type: 'boolean',
+                description: 'Whether the user holds the role on the space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipDefs: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.defs',
+    defs: {
+      spaceObject: {
+        type: 'object',
+        description:
+          'A space that a role is granted on. Groups are modeled as spaces (type network.habitat.group), so a group is referenced as a spaceObject too.',
+        required: ['space'],
+        properties: {
+          space: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space.',
+          },
+        },
+      },
+      userSubject: {
+        type: 'object',
+        description: 'An individual user, identified by DID.',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+      spaceRoleSubject: {
+        type: 'object',
+        description:
+          "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way.",
+        required: ['space', 'role'],
+        properties: {
+          space: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space (or group-space).',
+          },
+          role: {
+            type: 'string',
+            enum: ['owner', 'manager', 'writer', 'reader'],
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipDeleteTuple: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.deleteTuple',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Delete a relationship tuple by its record URI. Caller must have the manager role on the tuple's governing space.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the tuple record to delete.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'TupleNotFound',
+            description: 'No tuple record exists at the given URI.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatRelationshipListObjects: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.listObjects',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.',
+        parameters: {
+          type: 'params',
+          required: ['did', 'relation'],
+          properties: {
+            did: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the user.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to query for.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['spaces'],
+            properties: {
+              spaces: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'uri',
+                },
+                description: 'URIs of spaces where the user holds the role.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipListSubjects: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.listSubjects',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.',
+        parameters: {
+          type: 'params',
+          required: ['space', 'relation'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the space.',
+            },
+            relation: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description: 'The role to expand.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['dids'],
+            properties: {
+              dids: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  format: 'did',
+                },
+                description: 'DIDs of users holding the role on the space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipListTuples: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.listTuples',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List relationship tuples governing a space, optionally filtered by object, subject, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.',
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the governing space whose tuples to list.',
+            },
+            object: {
+              type: 'string',
+              format: 'uri',
+              description:
+                'Optional. Restrict to tuples whose object is this space or group URI.',
+            },
+            subjectDid: {
+              type: 'string',
+              format: 'did',
+              description:
+                'Optional. Restrict to tuples whose subject is this user DID.',
+            },
+            relation: {
+              type: 'string',
+              description: 'Optional. Restrict to tuples with this relation.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['tuples'],
+            properties: {
+              tuples: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.relationship.listTuples#tupleView',
+                },
+              },
+            },
+          },
+        },
+      },
+      tupleView: {
+        type: 'object',
+        required: ['uri', 'subject', 'relation', 'object'],
+        properties: {
+          uri: {
+            type: 'string',
+            description: 'URI of the tuple record.',
+          },
+          subject: {
+            type: 'union',
+            refs: [
+              'lex:network.habitat.relationship.defs#userSubject',
+              'lex:network.habitat.relationship.defs#spaceRoleSubject',
+            ],
+          },
+          relation: {
+            type: 'string',
+          },
+          object: {
+            type: 'ref',
+            ref: 'lex:network.habitat.relationship.defs#spaceObject',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipTuple: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.tuple',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          'A relationship tuple (subject, relation, object) defining one access-control relationship. The object is always a space; groups are spaces too, so granting a role on a group-space is just an ordinary tuple. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.',
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['subject', 'relation', 'object'],
+          properties: {
+            subject: {
+              type: 'union',
+              refs: [
+                'lex:network.habitat.relationship.defs#userSubject',
+                'lex:network.habitat.relationship.defs#spaceRoleSubject',
+              ],
+            },
+            relation: {
+              type: 'string',
+              knownValues: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'Role granted on the object space (owner|manager|writer|reader).',
+            },
+            object: {
+              type: 'ref',
+              ref: 'lex:network.habitat.relationship.defs#spaceObject',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatRelationshipWriteTuple: {
+    lexicon: 1,
+    id: 'network.habitat.relationship.writeTuple',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the object space.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['subject', 'relation', 'object'],
+            properties: {
+              subject: {
+                type: 'union',
+                refs: [
+                  'lex:network.habitat.relationship.defs#userSubject',
+                  'lex:network.habitat.relationship.defs#spaceRoleSubject',
+                ],
+              },
+              relation: {
+                type: 'string',
+                knownValues: ['owner', 'manager', 'writer', 'reader'],
+                description:
+                  'Role granted on the object space (owner|manager|writer|reader).',
+              },
+              object: {
+                type: 'ref',
+                ref: 'lex:network.habitat.relationship.defs#spaceObject',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the written tuple record.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+            description: 'The object space does not exist.',
+          },
+          {
+            name: 'InvalidTuple',
+            description:
+              'The subject, relation, and object combination is not valid.',
+          },
+        ],
       },
     },
   },
@@ -3593,6 +4011,7 @@ export const ids = {
   NetworkHabitatDocsMarkdown: 'network.habitat.docs.markdown',
   NetworkHabitatDocsUpdateDoc: 'network.habitat.docs.updateDoc',
   NetworkHabitatGrantee: 'network.habitat.grantee',
+  NetworkHabitatGroupProfile: 'network.habitat.group.profile',
   NetworkHabitatInstanceDescribeInstance:
     'network.habitat.instance.describeInstance',
   NetworkHabitatInternalNotifyOfUpdate:
@@ -3617,6 +4036,19 @@ export const ids = {
   NetworkHabitatPermissionsRemovePermission:
     'network.habitat.permissions.removePermission',
   NetworkHabitatPhoto: 'network.habitat.photo',
+  NetworkHabitatRelationshipCheck: 'network.habitat.relationship.check',
+  NetworkHabitatRelationshipDefs: 'network.habitat.relationship.defs',
+  NetworkHabitatRelationshipDeleteTuple:
+    'network.habitat.relationship.deleteTuple',
+  NetworkHabitatRelationshipListObjects:
+    'network.habitat.relationship.listObjects',
+  NetworkHabitatRelationshipListSubjects:
+    'network.habitat.relationship.listSubjects',
+  NetworkHabitatRelationshipListTuples:
+    'network.habitat.relationship.listTuples',
+  NetworkHabitatRelationshipTuple: 'network.habitat.relationship.tuple',
+  NetworkHabitatRelationshipWriteTuple:
+    'network.habitat.relationship.writeTuple',
   NetworkHabitatRenderSchema: 'network.habitat.render.schema',
   NetworkHabitatRepoCreateRecord: 'network.habitat.repo.createRecord',
   NetworkHabitatRepoDeleteRecord: 'network.habitat.repo.deleteRecord',

@@ -1,0 +1,31 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.group.profile",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's self record, holding its display name and description. Group membership is expressed as roles on the group-space (any role implies membership), and the group is used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'reader'.",
+            "key": "literal:self",
+            "record": {
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 256
+                    },
+                    "description": {
+                        "type": "string",
+                        "maxLength": 2048
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    }
+                }
+            }
+        }
+    }
+}

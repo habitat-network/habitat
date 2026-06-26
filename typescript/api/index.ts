@@ -40,6 +40,7 @@ import * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDo
 import * as NetworkHabitatDocsMarkdown from './types/network/habitat/docs/markdown.js'
 import * as NetworkHabitatDocsUpdateDoc from './types/network/habitat/docs/updateDoc.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
+import * as NetworkHabitatGroupProfile from './types/network/habitat/group/profile.js'
 import * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -59,6 +60,14 @@ import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 import * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 import * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 import * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+import * as NetworkHabitatRelationshipCheck from './types/network/habitat/relationship/check.js'
+import * as NetworkHabitatRelationshipDefs from './types/network/habitat/relationship/defs.js'
+import * as NetworkHabitatRelationshipDeleteTuple from './types/network/habitat/relationship/deleteTuple.js'
+import * as NetworkHabitatRelationshipListObjects from './types/network/habitat/relationship/listObjects.js'
+import * as NetworkHabitatRelationshipListSubjects from './types/network/habitat/relationship/listSubjects.js'
+import * as NetworkHabitatRelationshipListTuples from './types/network/habitat/relationship/listTuples.js'
+import * as NetworkHabitatRelationshipTuple from './types/network/habitat/relationship/tuple.js'
+import * as NetworkHabitatRelationshipWriteTuple from './types/network/habitat/relationship/writeTuple.js'
 import * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 import * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 import * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
@@ -112,6 +121,7 @@ export * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDo
 export * as NetworkHabitatDocsMarkdown from './types/network/habitat/docs/markdown.js'
 export * as NetworkHabitatDocsUpdateDoc from './types/network/habitat/docs/updateDoc.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
+export * as NetworkHabitatGroupProfile from './types/network/habitat/group/profile.js'
 export * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -131,6 +141,14 @@ export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat
 export * as NetworkHabitatPermissionsListPermissions from './types/network/habitat/permissions/listPermissions.js'
 export * as NetworkHabitatPermissionsRemovePermission from './types/network/habitat/permissions/removePermission.js'
 export * as NetworkHabitatPhoto from './types/network/habitat/photo.js'
+export * as NetworkHabitatRelationshipCheck from './types/network/habitat/relationship/check.js'
+export * as NetworkHabitatRelationshipDefs from './types/network/habitat/relationship/defs.js'
+export * as NetworkHabitatRelationshipDeleteTuple from './types/network/habitat/relationship/deleteTuple.js'
+export * as NetworkHabitatRelationshipListObjects from './types/network/habitat/relationship/listObjects.js'
+export * as NetworkHabitatRelationshipListSubjects from './types/network/habitat/relationship/listSubjects.js'
+export * as NetworkHabitatRelationshipListTuples from './types/network/habitat/relationship/listTuples.js'
+export * as NetworkHabitatRelationshipTuple from './types/network/habitat/relationship/tuple.js'
+export * as NetworkHabitatRelationshipWriteTuple from './types/network/habitat/relationship/writeTuple.js'
 export * as NetworkHabitatRenderSchema from './types/network/habitat/render/schema.js'
 export * as NetworkHabitatRepoCreateRecord from './types/network/habitat/repo/createRecord.js'
 export * as NetworkHabitatRepoDeleteRecord from './types/network/habitat/repo/deleteRecord.js'
@@ -621,10 +639,12 @@ export class NetworkHabitatNS {
   admin: NetworkHabitatAdminNS
   clique: NetworkHabitatCliqueNS
   docs: NetworkHabitatDocsNS
+  group: NetworkHabitatGroupNS
   instance: NetworkHabitatInstanceNS
   internal: NetworkHabitatInternalNS
   org: NetworkHabitatOrgNS
   permissions: NetworkHabitatPermissionsNS
+  relationship: NetworkHabitatRelationshipNS
   render: NetworkHabitatRenderNS
   repo: NetworkHabitatRepoNS
   search: NetworkHabitatSearchNS
@@ -635,10 +655,12 @@ export class NetworkHabitatNS {
     this.admin = new NetworkHabitatAdminNS(client)
     this.clique = new NetworkHabitatCliqueNS(client)
     this.docs = new NetworkHabitatDocsNS(client)
+    this.group = new NetworkHabitatGroupNS(client)
     this.instance = new NetworkHabitatInstanceNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.org = new NetworkHabitatOrgNS(client)
     this.permissions = new NetworkHabitatPermissionsNS(client)
+    this.relationship = new NetworkHabitatRelationshipNS(client)
     this.render = new NetworkHabitatRenderNS(client)
     this.repo = new NetworkHabitatRepoNS(client)
     this.search = new NetworkHabitatSearchNS(client)
@@ -995,6 +1017,104 @@ export class NetworkHabitatDocsMarkdownRecord {
   }
 }
 
+export class NetworkHabitatGroupNS {
+  _client: XrpcClient
+  profile: NetworkHabitatGroupProfileRecord
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.profile = new NetworkHabitatGroupProfileRecord(client)
+  }
+}
+
+export class NetworkHabitatGroupProfileRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatGroupProfile.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.group.profile',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: NetworkHabitatGroupProfile.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.group.profile',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatGroupProfile.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.group.profile'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      {
+        collection,
+        rkey: 'self',
+        ...params,
+        record: { ...record, $type: collection },
+      },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatGroupProfile.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.group.profile'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.group.profile', ...params },
+      { headers },
+    )
+  }
+}
+
 export class NetworkHabitatInstanceNS {
   _client: XrpcClient
 
@@ -1222,6 +1342,169 @@ export class NetworkHabitatPermissionsNS {
       opts?.qp,
       data,
       opts,
+    )
+  }
+}
+
+export class NetworkHabitatRelationshipNS {
+  _client: XrpcClient
+  tuple: NetworkHabitatRelationshipTupleRecord
+
+  constructor(client: XrpcClient) {
+    this._client = client
+    this.tuple = new NetworkHabitatRelationshipTupleRecord(client)
+  }
+
+  check(
+    params?: NetworkHabitatRelationshipCheck.QueryParams,
+    opts?: NetworkHabitatRelationshipCheck.CallOptions,
+  ): Promise<NetworkHabitatRelationshipCheck.Response> {
+    return this._client.call(
+      'network.habitat.relationship.check',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  deleteTuple(
+    data?: NetworkHabitatRelationshipDeleteTuple.InputSchema,
+    opts?: NetworkHabitatRelationshipDeleteTuple.CallOptions,
+  ): Promise<NetworkHabitatRelationshipDeleteTuple.Response> {
+    return this._client
+      .call('network.habitat.relationship.deleteTuple', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatRelationshipDeleteTuple.toKnownErr(e)
+      })
+  }
+
+  listObjects(
+    params?: NetworkHabitatRelationshipListObjects.QueryParams,
+    opts?: NetworkHabitatRelationshipListObjects.CallOptions,
+  ): Promise<NetworkHabitatRelationshipListObjects.Response> {
+    return this._client.call(
+      'network.habitat.relationship.listObjects',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  listSubjects(
+    params?: NetworkHabitatRelationshipListSubjects.QueryParams,
+    opts?: NetworkHabitatRelationshipListSubjects.CallOptions,
+  ): Promise<NetworkHabitatRelationshipListSubjects.Response> {
+    return this._client.call(
+      'network.habitat.relationship.listSubjects',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  listTuples(
+    params?: NetworkHabitatRelationshipListTuples.QueryParams,
+    opts?: NetworkHabitatRelationshipListTuples.CallOptions,
+  ): Promise<NetworkHabitatRelationshipListTuples.Response> {
+    return this._client.call(
+      'network.habitat.relationship.listTuples',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  writeTuple(
+    data?: NetworkHabitatRelationshipWriteTuple.InputSchema,
+    opts?: NetworkHabitatRelationshipWriteTuple.CallOptions,
+  ): Promise<NetworkHabitatRelationshipWriteTuple.Response> {
+    return this._client
+      .call('network.habitat.relationship.writeTuple', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatRelationshipWriteTuple.toKnownErr(e)
+      })
+  }
+}
+
+export class NetworkHabitatRelationshipTupleRecord {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  async list(
+    params: OmitKey<ComAtprotoRepoListRecords.QueryParams, 'collection'>,
+  ): Promise<{
+    cursor?: string
+    records: { uri: string; value: NetworkHabitatRelationshipTuple.Record }[]
+  }> {
+    const res = await this._client.call('com.atproto.repo.listRecords', {
+      collection: 'network.habitat.relationship.tuple',
+      ...params,
+    })
+    return res.data
+  }
+
+  async get(
+    params: OmitKey<ComAtprotoRepoGetRecord.QueryParams, 'collection'>,
+  ): Promise<{
+    uri: string
+    cid: string
+    value: NetworkHabitatRelationshipTuple.Record
+  }> {
+    const res = await this._client.call('com.atproto.repo.getRecord', {
+      collection: 'network.habitat.relationship.tuple',
+      ...params,
+    })
+    return res.data
+  }
+
+  async create(
+    params: OmitKey<
+      ComAtprotoRepoCreateRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatRelationshipTuple.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.relationship.tuple'
+    const res = await this._client.call(
+      'com.atproto.repo.createRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async put(
+    params: OmitKey<
+      ComAtprotoRepoPutRecord.InputSchema,
+      'collection' | 'record'
+    >,
+    record: Un$Typed<NetworkHabitatRelationshipTuple.Record>,
+    headers?: Record<string, string>,
+  ): Promise<{ uri: string; cid: string }> {
+    const collection = 'network.habitat.relationship.tuple'
+    const res = await this._client.call(
+      'com.atproto.repo.putRecord',
+      undefined,
+      { collection, ...params, record: { ...record, $type: collection } },
+      { encoding: 'application/json', headers },
+    )
+    return res.data
+  }
+
+  async delete(
+    params: OmitKey<ComAtprotoRepoDeleteRecord.InputSchema, 'collection'>,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    await this._client.call(
+      'com.atproto.repo.deleteRecord',
+      undefined,
+      { collection: 'network.habitat.relationship.tuple', ...params },
+      { headers },
     )
   }
 }

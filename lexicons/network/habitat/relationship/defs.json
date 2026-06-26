@@ -1,0 +1,57 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.defs",
+    "defs": {
+        "spaceObject": {
+            "type": "object",
+            "description": "A space that a role is granted on. Groups are modeled as spaces (type network.habitat.group), so a group is referenced as a spaceObject too.",
+            "required": [
+                "space"
+            ],
+            "properties": {
+                "space": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space."
+                }
+            }
+        },
+        "userSubject": {
+            "type": "object",
+            "description": "An individual user, identified by DID.",
+            "required": [
+                "did"
+            ],
+            "properties": {
+                "did": {
+                    "type": "string",
+                    "format": "did"
+                }
+            }
+        },
+        "spaceRoleSubject": {
+            "type": "object",
+            "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way.",
+            "required": [
+                "space",
+                "role"
+            ],
+            "properties": {
+                "space": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space (or group-space)."
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "owner",
+                        "manager",
+                        "writer",
+                        "reader"
+                    ]
+                }
+            }
+        }
+    }
+}

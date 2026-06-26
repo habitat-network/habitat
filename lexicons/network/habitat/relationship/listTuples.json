@@ -1,0 +1,84 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.listTuples",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List relationship tuples governing a space, optionally filtered by object, subject, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "space"
+                ],
+                "properties": {
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the governing space whose tuples to list."
+                    },
+                    "object": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Optional. Restrict to tuples whose object is this space or group URI."
+                    },
+                    "subjectDid": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "Optional. Restrict to tuples whose subject is this user DID."
+                    },
+                    "relation": {
+                        "type": "string",
+                        "description": "Optional. Restrict to tuples with this relation."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "tuples"
+                    ],
+                    "properties": {
+                        "tuples": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "#tupleView"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "tupleView": {
+            "type": "object",
+            "required": [
+                "uri",
+                "subject",
+                "relation",
+                "object"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "description": "URI of the tuple record."
+                },
+                "subject": {
+                    "type": "union",
+                    "refs": [
+                        "network.habitat.relationship.defs#userSubject",
+                        "network.habitat.relationship.defs#spaceRoleSubject"
+                    ]
+                },
+                "relation": {
+                    "type": "string"
+                },
+                "object": {
+                    "type": "ref",
+                    "ref": "network.habitat.relationship.defs#spaceObject"
+                }
+            }
+        }
+    }
+}
