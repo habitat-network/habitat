@@ -70,6 +70,7 @@ export const Route = createFileRoute("/_requireAuth")({
             <SidebarGroup>
               <SidebarMenuButton
                 variant="outline"
+                className="bg-sidebar-primary/10 hover:bg-sidebar-primary/20 border-sidebar-primary/30 text-sidebar-primary font-medium"
                 onClick={() => create()}
                 disabled={isPending}
               >
