@@ -247,6 +247,7 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
+	domain := strings.TrimPrefix(server.URL, "https://")
 	oauthServer, err := oauthserver.NewOAuthServer(
 		encrypt.TestKey,
 		&org.LoginRouter{
@@ -256,6 +257,7 @@ func setupPear(
 		db,
 		metricnoop.Meter{},
 		orgStore,
+		domain,
 	)
 	require.NoError(t, err)
 

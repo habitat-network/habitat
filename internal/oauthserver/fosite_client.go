@@ -8,7 +8,7 @@ import (
 )
 
 type client struct {
-	pdsclient.ClientMetadata
+	*pdsclient.ClientMetadata
 }
 
 var _ fosite.Client = (*client)(nil)
