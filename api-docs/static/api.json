@@ -2769,7 +2769,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.check",
-        "description": "Check whether a user holds a role on a space, resolving through groups, nested groups, org/space-role usersets, and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
+        "description": "Check whether a user holds a role on a space, resolving through org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
         "operationId": "network.habitat.relationship.check",
         "security": [
           {
@@ -2852,226 +2852,6 @@
                         },
                         {
                           "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.relationship.createGroup": {
-      "post": {
-        "tags": [
-          "network.habitat.relationship"
-        ],
-        "summary": "network.habitat.relationship.createGroup",
-        "description": "Create a group within a space. The group record is owned by the org repo within the space. Membership is managed separately via writeTuple/deleteTuple. Caller must have the manager role on the space.",
-        "operationId": "network.habitat.relationship.createGroup",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "space",
-                  "name"
-                ],
-                "properties": {
-                  "space": {
-                    "type": "string",
-                    "description": "URI of the space the group belongs to.",
-                    "format": "uri"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 256
-                  },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 2048
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "uri"
-                  ],
-                  "properties": {
-                    "uri": {
-                      "type": "string",
-                      "description": "URI of the created group record."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "SpaceNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/network.habitat.relationship.deleteGroup": {
-      "post": {
-        "tags": [
-          "network.habitat.relationship"
-        ],
-        "summary": "network.habitat.relationship.deleteGroup",
-        "description": "Delete a group by its record URI, along with the membership tuples and tuples that reference it as a subject. Caller must have the manager role on the group's space.",
-        "operationId": "network.habitat.relationship.deleteGroup",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "uri"
-                ],
-                "properties": {
-                  "uri": {
-                    "type": "string",
-                    "description": "URI of the group record to delete."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "GroupNotFound"
                         }
                       ]
                     },
@@ -3205,119 +2985,13 @@
         }
       }
     },
-    "/network.habitat.relationship.listGroups": {
-      "get": {
-        "tags": [
-          "network.habitat.relationship"
-        ],
-        "summary": "network.habitat.relationship.listGroups",
-        "description": "List the groups defined in a space. Caller must have the reader role on the space.",
-        "operationId": "network.habitat.relationship.listGroups",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "space",
-            "in": "query",
-            "description": "URI of the space whose groups to list.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "URI of the space whose groups to list.",
-              "format": "uri"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "groups"
-                  ],
-                  "properties": {
-                    "groups": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.relationship.listGroups.groupView"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.relationship.listObjects": {
       "get": {
         "tags": [
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.listObjects",
-        "description": "List the spaces on which a user holds a role, expanding groups, nested groups, org/space-role usersets, and built-in role implications. Returns only spaces the caller has the reader role on.",
+        "description": "List the spaces on which a user holds a role, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
         "operationId": "network.habitat.relationship.listObjects",
         "security": [
           {
@@ -3434,7 +3108,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.listSubjects",
-        "description": "List the user DIDs that hold a role on a space, expanding groups, nested groups, org/space-role usersets, and built-in role implications. Caller must have the reader role on the space.",
+        "description": "List the user DIDs that hold a role on a space, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
         "operationId": "network.habitat.relationship.listSubjects",
         "security": [
           {
@@ -3689,7 +3363,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.writeTuple",
-        "description": "Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the governing space (the object space, or the group object's space).",
+        "description": "Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the object space.",
         "operationId": "network.habitat.relationship.writeTuple",
         "security": [
           {
@@ -3714,9 +3388,6 @@
                         "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
                       },
                       {
-                        "$ref": "#/components/schemas/network.habitat.relationship.defs.groupSubject"
-                      },
-                      {
                         "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
                       },
                       {
@@ -3726,24 +3397,16 @@
                   },
                   "relation": {
                     "type": "string",
-                    "description": "Role granted on a space (owner|manager|writer|reader), or 'member' when the object is a group.",
+                    "description": "Role granted on the object space (owner|manager|writer|reader).",
                     "enum": [
                       "owner",
                       "manager",
                       "writer",
-                      "reader",
-                      "member"
+                      "reader"
                     ]
                   },
                   "object": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
-                      },
-                      {
-                        "$ref": "#/components/schemas/network.habitat.relationship.defs.groupObject"
-                      }
-                    ]
+                    "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
                   }
                 }
               }
@@ -6346,6 +6009,26 @@
           }
         }
       },
+      "network.habitat.group.profile": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.listConnectedApps.app": {
         "type": "object",
         "required": [
@@ -6459,7 +6142,7 @@
       },
       "network.habitat.relationship.defs.spaceObject": {
         "type": "object",
-        "description": "A space that a role is granted on.",
+        "description": "A space that a role is granted on. Groups are modeled as spaces (type network.habitat.group), so a group is referenced as a spaceObject too.",
         "required": [
           "space"
         ],
@@ -6467,20 +6150,6 @@
           "space": {
             "type": "string",
             "description": "URI of the space.",
-            "format": "uri"
-          }
-        }
-      },
-      "network.habitat.relationship.defs.groupObject": {
-        "type": "object",
-        "description": "A group that a member is added to.",
-        "required": [
-          "group"
-        ],
-        "properties": {
-          "group": {
-            "type": "string",
-            "description": "URI of the network.habitat.relationship.group record.",
             "format": "uri"
           }
         }
@@ -6498,23 +6167,9 @@
           }
         }
       },
-      "network.habitat.relationship.defs.groupSubject": {
-        "type": "object",
-        "description": "All members of a group (a userset). References a network.habitat.relationship.group record.",
-        "required": [
-          "group"
-        ],
-        "properties": {
-          "group": {
-            "type": "string",
-            "description": "URI of the network.habitat.relationship.group record.",
-            "format": "uri"
-          }
-        }
-      },
       "network.habitat.relationship.defs.spaceRoleSubject": {
         "type": "object",
-        "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB.",
+        "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group.",
         "required": [
           "space",
           "role"
@@ -6522,7 +6177,7 @@
         "properties": {
           "space": {
             "type": "string",
-            "description": "URI of the space.",
+            "description": "URI of the space (or group-space).",
             "format": "uri"
           },
           "role": {
@@ -6548,49 +6203,6 @@
           }
         }
       },
-      "network.habitat.relationship.group": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 256
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 2048
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "network.habitat.relationship.listGroups.groupView": {
-        "type": "object",
-        "required": [
-          "uri",
-          "name"
-        ],
-        "properties": {
-          "uri": {
-            "type": "string",
-            "description": "URI of the group record."
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "network.habitat.relationship.listTuples.tupleView": {
         "type": "object",
         "required": [
@@ -6610,9 +6222,6 @@
                 "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
               },
               {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.groupSubject"
-              },
-              {
                 "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
               },
               {
@@ -6624,14 +6233,7 @@
             "type": "string"
           },
           "object": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
-              },
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.groupObject"
-              }
-            ]
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
           }
         }
       },
@@ -6649,9 +6251,6 @@
                 "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
               },
               {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.groupSubject"
-              },
-              {
                 "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
               },
               {
@@ -6661,24 +6260,16 @@
           },
           "relation": {
             "type": "string",
-            "description": "Role granted on a space (owner|manager|writer|reader), or 'member' when the object is a group.",
+            "description": "Role granted on the object space (owner|manager|writer|reader).",
             "enum": [
               "owner",
               "manager",
               "writer",
-              "reader",
-              "member"
+              "reader"
             ]
           },
           "object": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
-              },
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.groupObject"
-              }
-            ]
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
           },
           "createdAt": {
             "type": "string",
@@ -6981,6 +6572,9 @@
     },
     {
       "name": "network.habitat.grantee"
+    },
+    {
+      "name": "network.habitat.group"
     },
     {
       "name": "network.habitat.instance"

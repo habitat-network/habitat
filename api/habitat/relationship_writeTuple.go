@@ -4,9 +4,9 @@ package habitat
 
 // NetworkHabitatRelationshipWriteTupleInput represents the input for network.habitat.relationship.writeTuple
 type NetworkHabitatRelationshipWriteTupleInput struct {
-	Object   interface{} `json:"object"`
-	Relation string      `json:"relation"`
-	Subject  interface{} `json:"subject"`
+	Object   NetworkHabitatRelationshipDefsSpaceObject `json:"object"`
+	Relation string                                    `json:"relation"`
+	Subject  interface{}                               `json:"subject"`
 }
 
 // NetworkHabitatRelationshipWriteTupleOutput represents the output for network.habitat.relationship.writeTuple

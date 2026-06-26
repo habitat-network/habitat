@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "record",
-            "description": "A relationship tuple (subject, relation, object) defining one access-control relationship. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
+            "description": "A relationship tuple (subject, relation, object) defining one access-control relationship. The object is always a space; groups are spaces too, so granting a role on a group-space is just an ordinary tuple. Owned by the org repo within the space it governs so authorized app users can manage it and other apps can read the permission structure.",
             "key": "tid",
             "record": {
                 "type": "object",
@@ -18,7 +18,6 @@
                         "type": "union",
                         "refs": [
                             "network.habitat.relationship.defs#userSubject",
-                            "network.habitat.relationship.defs#groupSubject",
                             "network.habitat.relationship.defs#spaceRoleSubject",
                             "network.habitat.relationship.defs#orgRoleSubject"
                         ]
@@ -29,17 +28,13 @@
                             "owner",
                             "manager",
                             "writer",
-                            "reader",
-                            "member"
+                            "reader"
                         ],
-                        "description": "Role granted on a space (owner|manager|writer|reader), or 'member' when the object is a group."
+                        "description": "Role granted on the object space (owner|manager|writer|reader)."
                     },
                     "object": {
-                        "type": "union",
-                        "refs": [
-                            "network.habitat.relationship.defs#spaceObject",
-                            "network.habitat.relationship.defs#groupObject"
-                        ]
+                        "type": "ref",
+                        "ref": "network.habitat.relationship.defs#spaceObject"
                     },
                     "createdAt": {
                         "type": "string",

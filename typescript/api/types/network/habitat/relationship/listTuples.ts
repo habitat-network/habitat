@@ -53,15 +53,11 @@ export interface TupleView {
   uri: string
   subject:
     | $Typed<NetworkHabitatRelationshipDefs.UserSubject>
-    | $Typed<NetworkHabitatRelationshipDefs.GroupSubject>
     | $Typed<NetworkHabitatRelationshipDefs.SpaceRoleSubject>
     | $Typed<NetworkHabitatRelationshipDefs.OrgRoleSubject>
     | { $type: string }
   relation: string
-  object:
-    | $Typed<NetworkHabitatRelationshipDefs.SpaceObject>
-    | $Typed<NetworkHabitatRelationshipDefs.GroupObject>
-    | { $type: string }
+  object: NetworkHabitatRelationshipDefs.SpaceObject
 }
 
 const hashTupleView = 'tupleView'

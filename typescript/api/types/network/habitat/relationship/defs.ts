@@ -14,7 +14,7 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.relationship.defs'
 
-/** A space that a role is granted on. */
+/** A space that a role is granted on. Groups are modeled as spaces (type network.habitat.group), so a group is referenced as a spaceObject too. */
 export interface SpaceObject {
   $type?: 'network.habitat.relationship.defs#spaceObject'
   /** URI of the space. */
@@ -29,23 +29,6 @@ export function isSpaceObject<V>(v: V) {
 
 export function validateSpaceObject<V>(v: V) {
   return validate<SpaceObject & V>(v, id, hashSpaceObject)
-}
-
-/** A group that a member is added to. */
-export interface GroupObject {
-  $type?: 'network.habitat.relationship.defs#groupObject'
-  /** URI of the network.habitat.relationship.group record. */
-  group: string
-}
-
-const hashGroupObject = 'groupObject'
-
-export function isGroupObject<V>(v: V) {
-  return is$typed(v, id, hashGroupObject)
-}
-
-export function validateGroupObject<V>(v: V) {
-  return validate<GroupObject & V>(v, id, hashGroupObject)
 }
 
 /** An individual user, identified by DID. */
@@ -64,27 +47,10 @@ export function validateUserSubject<V>(v: V) {
   return validate<UserSubject & V>(v, id, hashUserSubject)
 }
 
-/** All members of a group (a userset). References a network.habitat.relationship.group record. */
-export interface GroupSubject {
-  $type?: 'network.habitat.relationship.defs#groupSubject'
-  /** URI of the network.habitat.relationship.group record. */
-  group: string
-}
-
-const hashGroupSubject = 'groupSubject'
-
-export function isGroupSubject<V>(v: V) {
-  return is$typed(v, id, hashGroupSubject)
-}
-
-export function validateGroupSubject<V>(v: V) {
-  return validate<GroupSubject & V>(v, id, hashGroupSubject)
-}
-
-/** All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. */
+/** All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. */
 export interface SpaceRoleSubject {
   $type?: 'network.habitat.relationship.defs#spaceRoleSubject'
-  /** URI of the space. */
+  /** URI of the space (or group-space). */
   space: string
   role: 'owner' | 'manager' | 'writer' | 'reader'
 }

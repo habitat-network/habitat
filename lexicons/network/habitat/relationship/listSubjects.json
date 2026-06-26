@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "query",
-            "description": "List the user DIDs that hold a role on a space, expanding groups, nested groups, org/space-role usersets, and built-in role implications. Caller must have the reader role on the space.",
+            "description": "List the user DIDs that hold a role on a space, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
             "parameters": {
                 "type": "params",
                 "required": [

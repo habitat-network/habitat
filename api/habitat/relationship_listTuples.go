@@ -17,8 +17,8 @@ type NetworkHabitatRelationshipListTuplesOutput struct {
 
 // NetworkHabitatRelationshipListTuplesTupleView represents a tupleView object
 type NetworkHabitatRelationshipListTuplesTupleView struct {
-	Object   interface{} `json:"object"`
-	Relation string      `json:"relation"`
-	Subject  interface{} `json:"subject"`
-	Uri      string      `json:"uri"`
+	Object   NetworkHabitatRelationshipDefsSpaceObject `json:"object"`
+	Relation string                                    `json:"relation"`
+	Subject  interface{}                               `json:"subject"`
+	Uri      string                                    `json:"uri"`
 }

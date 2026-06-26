@@ -68,7 +68,6 @@
                     "type": "union",
                     "refs": [
                         "network.habitat.relationship.defs#userSubject",
-                        "network.habitat.relationship.defs#groupSubject",
                         "network.habitat.relationship.defs#spaceRoleSubject",
                         "network.habitat.relationship.defs#orgRoleSubject"
                     ]
@@ -77,11 +76,8 @@
                     "type": "string"
                 },
                 "object": {
-                    "type": "union",
-                    "refs": [
-                        "network.habitat.relationship.defs#spaceObject",
-                        "network.habitat.relationship.defs#groupObject"
-                    ]
+                    "type": "ref",
+                    "ref": "network.habitat.relationship.defs#spaceObject"
                 }
             }
         }

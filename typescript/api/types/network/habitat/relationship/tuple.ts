@@ -19,16 +19,12 @@ export interface Main {
   $type: 'network.habitat.relationship.tuple'
   subject:
     | $Typed<NetworkHabitatRelationshipDefs.UserSubject>
-    | $Typed<NetworkHabitatRelationshipDefs.GroupSubject>
     | $Typed<NetworkHabitatRelationshipDefs.SpaceRoleSubject>
     | $Typed<NetworkHabitatRelationshipDefs.OrgRoleSubject>
     | { $type: string }
-  /** Role granted on a space (owner|manager|writer|reader), or 'member' when the object is a group. */
-  relation: 'owner' | 'manager' | 'writer' | 'reader' | 'member' | (string & {})
-  object:
-    | $Typed<NetworkHabitatRelationshipDefs.SpaceObject>
-    | $Typed<NetworkHabitatRelationshipDefs.GroupObject>
-    | { $type: string }
+  /** Role granted on the object space (owner|manager|writer|reader). */
+  relation: 'owner' | 'manager' | 'writer' | 'reader' | (string & {})
+  object: NetworkHabitatRelationshipDefs.SpaceObject
   createdAt?: string
   [k: string]: unknown
 }
