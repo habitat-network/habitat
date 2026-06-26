@@ -4,7 +4,11 @@
 
 **Goal:** Implement the backend for the `network.habitat.relationship.*` lexicons (already landed), letting apps manage access-control relationships as AT Protocol records owned by the org repo within the space they govern. OpenFGA stays an internal implementation detail; the app-facing surface is tuples over spaces and a fixed role vocabulary.
 
-**Groups are spaces.** There is no separate group concept in the auth model. A "group" is a space of type `network.habitat.group` whose metadata lives in a `network.habitat.group.profile` record inside that space. Membership in a group is just a role on the group-space (any role implies membership; the bottom role `reader` captures "everyone in the group"). A group is used as a grantee elsewhere via a `spaceRoleSubject` that references the group-space (typically with `role: reader`). Group lifecycle reuses the existing `space.*` endpoints (`createSpace` with `type=network.habitat.group`, `deleteSpace`, `listSpaces?type=network.habitat.group`), and the profile record is written via the generic `space.putRecord`/`space.getRecord`. This removes the `group` FGA type, the `member` relation, and the `createGroup`/`deleteGroup`/`listGroups` XRPC — nothing is lost, because every former group capability maps onto space roles and the cross-space `spaceRoleSubject` userset.
+**Groups are spaces, and so are orgs' member/admin sets.** There is no separate group concept in the auth model, and no separate org concept either. A "group" is a space of type `network.habitat.group` whose metadata lives in a `network.habitat.group.profile` record inside that space. Membership in a group is just a role on the group-space (any role implies membership; the bottom role `reader` captures "everyone in the group"). A group is used as a grantee elsewhere via a `spaceRoleSubject` that references the group-space (typically with `role: reader`). Group lifecycle reuses the existing `space.*` endpoints (`createSpace` with `type=network.habitat.group`, `deleteSpace`, `listSpaces?type=network.habitat.group`), and the profile record is written via the generic `space.putRecord`/`space.getRecord`.
+
+An org's members and admins are modeled the same way — as group-spaces (e.g. a "members" group-space and an "admins" group-space per org, with the admins group-space nested as a member of the members group-space to preserve `admin ⇒ member`). So "all members/admins of an org" is referenced via `spaceRoleSubject` over those group-spaces, not a dedicated subject kind.
+
+This removes the `group` FGA type, the `member` relation, the `organization` FGA type/userset wiring, and the `orgRoleSubject` lexicon def and `createGroup`/`deleteGroup`/`listGroups` XRPC — nothing is lost, because every former group/org-grantee capability maps onto space roles and the cross-space `spaceRoleSubject` userset. (The `organization` FGA type was already dormant: org membership is stored in the GORM-backed `internal/org` package, and nothing wrote org tuples into FGA, so `orgRoleSubject` never resolved to anything anyway.)
 
 **Architecture:** A new `internal/relationship` package exposes a `Store` that mirrors relationship tuples into both (a) AT Protocol records in the governing space (via `internal/spaces`, written with `repo = space owner DID` so they are org-owned and app-readable) and (b) the `internal/fgastore` OpenFGA graph (for `Check`/expand). A single role-translation function is the only place app role names (`owner`/`manager`/`writer`/`reader`) map to FGA relation names. `internal/relationship/server.go` registers XRPC handlers in `cmd/pear/main.go` alongside the existing `space.*` routes.
 
@@ -27,9 +31,8 @@
 |------------------------------------------|---------------------------------------|
 | `userSubject{did}`                       | `user:<esc did>`                      |
 | `spaceRoleSubject{space,role}`           | `space:<esc spaceURI>#<fga relation>` |
-| `orgRoleSubject{org,role}`               | `organization:<esc orgDID>#<role>`    |
 
-(A group used as a grantee is just `spaceRoleSubject{space: <group-space URI>, role: reader}` → `space:<esc>#can_read`.)
+(A group used as a grantee — including an org's members/admins group-space — is just `spaceRoleSubject{space: <group-space URI>, role: reader}` → `space:<esc>#can_read`.)
 
 ---
 
@@ -37,24 +40,24 @@
 
 **Files:** Modify `internal/fgastore/model.go`; test `internal/fgastore/fgastore_test.go`.
 
-- [ ] **1.1** Expand `DirectlyRelatedUserTypes` so usersets are accepted on the space relations (`owner`, `can_read`, `can_write`, `can_manage_members`). Each accepts: `{Type: user}`, `{Type: space, Relation: <each space relation>}`, `{Type: organization, Relation: admin}`, `{Type: organization, Relation: member}`.
+- [ ] **1.1** Expand `DirectlyRelatedUserTypes` so usersets are accepted on the space relations (`owner`, `can_read`, `can_write`, `can_manage_members`). Each accepts: `{Type: user}` and `{Type: space, Relation: <each space relation>}`.
   - Use `&openfgav1.RelationReference{Type: ..., RelationOrWildcard: &openfgav1.RelationReference_Relation{Relation: ...}}` for userset references.
-  - The cross-space userset references are what make groups-as-spaces work: a group-space granted a role on another space, and nested groups (a group-space granted a role on another group-space), both resolve through these.
-- [ ] **1.2** Keep the existing computed-union implications (`owner ⇒ manager ⇒ writer ⇒ reader`; `writer ⇒ reader`). The model stays **static** — fixed vocabulary, no dynamic-model machinery. **No `group` type and no `member` relation** — groups are spaces.
-- [ ] **1.3** Tests: `Check` resolves (a) direct membership of a group-space (user is `can_read` on the group-space), (b) nested groups (group-space A's readers granted `can_read` on group-space B), (c) cross-space role inheritance (`space:A#can_write` granted `can_write` on `space:B`), (d) whole-org assignment (`organization:O#member` granted `can_read` on a space; confirm org admins inherit via the existing `member` union).
+  - The cross-space userset references are what make groups-as-spaces work: a group-space granted a role on another space, and nested groups (a group-space granted a role on another group-space), both resolve through these. Org members/admins are group-spaces too, so they need no special casing.
+- [ ] **1.2** Keep the existing computed-union implications (`owner ⇒ manager ⇒ writer ⇒ reader`; `writer ⇒ reader`). The model stays **static** — fixed vocabulary, no dynamic-model machinery. The model needs only `user` and `space` types: **no `group` type, no `member` relation** (groups are spaces) and **no `organization` type/userset wiring** (org member/admin sets are group-spaces). The dormant `organization` type can be removed from `model.go` as part of this task since nothing populates or references it.
+- [ ] **1.3** Tests: `Check` resolves (a) direct membership of a group-space (user is `can_read` on the group-space), (b) nested groups (group-space A's readers granted `can_read` on group-space B), (c) cross-space role inheritance (`space:A#can_write` granted `can_write` on `space:B`), (d) whole-org assignment via a group-space (an org "members" group-space granted `can_read` on a space; confirm admins inherit by nesting the "admins" group-space inside the "members" group-space).
 
 ### Task 2: fgastore — userset encoding helpers
 
 **Files:** Modify `internal/fgastore/encoding.go`; test `internal/fgastore/encoding_test.go`.
 
-- [ ] **2.1** Add userset encoders for the three subject kinds in the table above. Reuse the existing `MemberUserString` for `user:`, the existing `SpaceObjectKey` for the space portion of `spaceRoleSubject` (append `#<fga relation>`), and the existing organization-object encoding for the org case (mirror however `organization:` keys are already built for org membership tuples). There is no separate group key — a group is a space, so it uses `SpaceObjectKey`.
+- [ ] **2.1** Add userset encoders for the two subject kinds in the table above. Reuse the existing `MemberUserString` for `user:`, and the existing `SpaceObjectKey` for the space portion of `spaceRoleSubject` (append `#<fga relation>`). There is no separate group or org key — a group (and an org's member/admin set) is a space, so it uses `SpaceObjectKey`.
 - [ ] **2.2** Add parse/inverse helpers as needed for `listTuples`/`listSubjects` round-tripping, plus round-trip tests.
 
 ### Task 3: relationship store
 
 **Files:** Create `internal/relationship/relationship.go`, `internal/relationship/store.go`; test `internal/relationship/store_test.go`. Reuse `internal/spaces` (`PutRecord`/`ListRecords`/`DeleteRecord`, `ownerContextualTuple`), `internal/fgastore` (`Write`/`Delete`/`Check`/`ListUsers`/`ListObjects`/`Read`).
 
-- [ ] **3.1** Define typed app-facing types: `Role` (typedef string with consts `RoleOwner/Manager/Writer/Reader`), `Subject` (discriminated interface with `userSubject`/`spaceRoleSubject`/`orgRoleSubject` implementations, `isSubject()`), `Object` (just a space). Parse/serialize against the generated `interface{}` union fields (mirror `internal/permissions/grantee.go` `ParseGranteesFromInterface` / `ConstructInterfaceFromGrantees`).
+- [ ] **3.1** Define typed app-facing types: `Role` (typedef string with consts `RoleOwner/Manager/Writer/Reader`), `Subject` (discriminated interface with `userSubject`/`spaceRoleSubject` implementations, `isSubject()`), `Object` (just a space). Parse/serialize against the generated `interface{}` union fields (mirror `internal/permissions/grantee.go` `ParseGranteesFromInterface` / `ConstructInterfaceFromGrantees`).
 - [ ] **3.2** `roleToFGARelation(role)` and inverse — the single translation point. Validate the role is one of the four space roles → return a sentinel `ErrInvalidTuple` otherwise.
 - [ ] **3.3** `governingSpace(object) SpaceURI` — the object is always a space, so this is the space itself.
 - [ ] **3.4** `WriteTuple(ctx, subject, relation, object)`: resolve governing space; `spaces.PutRecord(space, space.SpaceOwner(), "network.habitat.relationship.tuple", tid, value)` so the record is **org-owned**; then `fgastore.Write(encodedSubject, fgaRelation, encodedObject)`. Return the record URI. Idempotent on the FGA side.
@@ -87,7 +90,7 @@
 
 - [ ] **5.1** `go build ./...` and `go test ./internal/fgastore/... ./internal/relationship/...`.
 - [ ] **5.2** `golangci-lint run` on the new package.
-- [ ] **5.3** Walk the worked examples from the plan against a live `Check`: org members → reader, a group-space's readers → writer of another space, nested group-spaces, and `spaceA writers ⇒ writers of spaceB`.
+- [ ] **5.3** Walk the worked examples from the plan against a live `Check`: an org members group-space → reader of a space, a group-space's readers → writer of another space, nested group-spaces (admins inside members), and `spaceA writers ⇒ writers of spaceB`.
 - [ ] **5.4** Confirm tuple records appear in the governing space under the org DID's repo (readable via `space.listRecords`), and group-spaces appear via `space.listSpaces?type=network.habitat.group` with their profile readable via `space.getRecord` — proving interoperable visibility to other apps.
 
 ### Notes / risks

@@ -2184,7 +2184,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'Check whether a user holds a role on a space, resolving through org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+          'Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
         parameters: {
           type: 'params',
           required: ['did', 'relation', 'space'],
@@ -2253,7 +2253,7 @@ export const schemaDict = {
       spaceRoleSubject: {
         type: 'object',
         description:
-          "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group.",
+          "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way.",
         required: ['space', 'role'],
         properties: {
           space: {
@@ -2264,23 +2264,6 @@ export const schemaDict = {
           role: {
             type: 'string',
             enum: ['owner', 'manager', 'writer', 'reader'],
-          },
-        },
-      },
-      orgRoleSubject: {
-        type: 'object',
-        description:
-          "All subjects holding a role in an org (a userset). Enables assigning a whole org's members or admins to a space role.",
-        required: ['org', 'role'],
-        properties: {
-          org: {
-            type: 'string',
-            format: 'did',
-            description: 'DID of the org.',
-          },
-          role: {
-            type: 'string',
-            enum: ['admin', 'member'],
           },
         },
       },
@@ -2323,7 +2306,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List the spaces on which a user holds a role, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.',
+          'List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.',
         parameters: {
           type: 'params',
           required: ['did', 'relation'],
@@ -2367,7 +2350,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List the user DIDs that hold a role on a space, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.',
+          'List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.',
         parameters: {
           type: 'params',
           required: ['space', 'relation'],
@@ -2469,7 +2452,6 @@ export const schemaDict = {
             refs: [
               'lex:network.habitat.relationship.defs#userSubject',
               'lex:network.habitat.relationship.defs#spaceRoleSubject',
-              'lex:network.habitat.relationship.defs#orgRoleSubject',
             ],
           },
           relation: {
@@ -2501,7 +2483,6 @@ export const schemaDict = {
               refs: [
                 'lex:network.habitat.relationship.defs#userSubject',
                 'lex:network.habitat.relationship.defs#spaceRoleSubject',
-                'lex:network.habitat.relationship.defs#orgRoleSubject',
               ],
             },
             relation: {
@@ -2542,7 +2523,6 @@ export const schemaDict = {
                 refs: [
                   'lex:network.habitat.relationship.defs#userSubject',
                   'lex:network.habitat.relationship.defs#spaceRoleSubject',
-                  'lex:network.habitat.relationship.defs#orgRoleSubject',
                 ],
               },
               relation: {

@@ -54,7 +54,6 @@ export interface TupleView {
   subject:
     | $Typed<NetworkHabitatRelationshipDefs.UserSubject>
     | $Typed<NetworkHabitatRelationshipDefs.SpaceRoleSubject>
-    | $Typed<NetworkHabitatRelationshipDefs.OrgRoleSubject>
     | { $type: string }
   relation: string
   object: NetworkHabitatRelationshipDefs.SpaceObject

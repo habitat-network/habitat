@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "query",
-            "description": "List the spaces on which a user holds a role, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
+            "description": "List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
             "parameters": {
                 "type": "params",
                 "required": [

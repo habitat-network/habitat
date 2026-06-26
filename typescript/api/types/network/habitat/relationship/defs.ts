@@ -47,7 +47,7 @@ export function validateUserSubject<V>(v: V) {
   return validate<UserSubject & V>(v, id, hashUserSubject)
 }
 
-/** All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. */
+/** All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way. */
 export interface SpaceRoleSubject {
   $type?: 'network.habitat.relationship.defs#spaceRoleSubject'
   /** URI of the space (or group-space). */
@@ -63,22 +63,4 @@ export function isSpaceRoleSubject<V>(v: V) {
 
 export function validateSpaceRoleSubject<V>(v: V) {
   return validate<SpaceRoleSubject & V>(v, id, hashSpaceRoleSubject)
-}
-
-/** All subjects holding a role in an org (a userset). Enables assigning a whole org's members or admins to a space role. */
-export interface OrgRoleSubject {
-  $type?: 'network.habitat.relationship.defs#orgRoleSubject'
-  /** DID of the org. */
-  org: string
-  role: 'admin' | 'member'
-}
-
-const hashOrgRoleSubject = 'orgRoleSubject'
-
-export function isOrgRoleSubject<V>(v: V) {
-  return is$typed(v, id, hashOrgRoleSubject)
-}
-
-export function validateOrgRoleSubject<V>(v: V) {
-  return validate<OrgRoleSubject & V>(v, id, hashOrgRoleSubject)
 }

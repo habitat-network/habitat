@@ -20,7 +20,6 @@ export interface Main {
   subject:
     | $Typed<NetworkHabitatRelationshipDefs.UserSubject>
     | $Typed<NetworkHabitatRelationshipDefs.SpaceRoleSubject>
-    | $Typed<NetworkHabitatRelationshipDefs.OrgRoleSubject>
     | { $type: string }
   /** Role granted on the object space (owner|manager|writer|reader). */
   relation: 'owner' | 'manager' | 'writer' | 'reader' | (string & {})

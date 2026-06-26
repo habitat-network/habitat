@@ -18,8 +18,7 @@
                         "type": "union",
                         "refs": [
                             "network.habitat.relationship.defs#userSubject",
-                            "network.habitat.relationship.defs#spaceRoleSubject",
-                            "network.habitat.relationship.defs#orgRoleSubject"
+                            "network.habitat.relationship.defs#spaceRoleSubject"
                         ]
                     },
                     "relation": {

@@ -3089,7 +3089,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.check",
-        "description": "Check whether a user holds a role on a space, resolving through org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
+        "description": "Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
         "operationId": "network.habitat.relationship.check",
         "security": [
           {
@@ -3311,7 +3311,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.listObjects",
-        "description": "List the spaces on which a user holds a role, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
+        "description": "List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
         "operationId": "network.habitat.relationship.listObjects",
         "security": [
           {
@@ -3428,7 +3428,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.listSubjects",
-        "description": "List the user DIDs that hold a role on a space, expanding org/space-role usersets (groups are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
+        "description": "List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
         "operationId": "network.habitat.relationship.listSubjects",
         "security": [
           {
@@ -3709,9 +3709,6 @@
                       },
                       {
                         "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
-                      },
-                      {
-                        "$ref": "#/components/schemas/network.habitat.relationship.defs.orgRoleSubject"
                       }
                     ]
                   },
@@ -6645,7 +6642,7 @@
       },
       "network.habitat.relationship.defs.spaceRoleSubject": {
         "type": "object",
-        "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group.",
+        "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way.",
         "required": [
           "space",
           "role"
@@ -6655,24 +6652,6 @@
             "type": "string",
             "description": "URI of the space (or group-space).",
             "format": "uri"
-          },
-          "role": {
-            "type": "string"
-          }
-        }
-      },
-      "network.habitat.relationship.defs.orgRoleSubject": {
-        "type": "object",
-        "description": "All subjects holding a role in an org (a userset). Enables assigning a whole org's members or admins to a space role.",
-        "required": [
-          "org",
-          "role"
-        ],
-        "properties": {
-          "org": {
-            "type": "string",
-            "description": "DID of the org.",
-            "format": "did"
           },
           "role": {
             "type": "string"
@@ -6699,9 +6678,6 @@
               },
               {
                 "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
-              },
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.orgRoleSubject"
               }
             ]
           },
@@ -6728,9 +6704,6 @@
               },
               {
                 "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
-              },
-              {
-                "$ref": "#/components/schemas/network.habitat.relationship.defs.orgRoleSubject"
               }
             ]
           },

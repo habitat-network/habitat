@@ -31,7 +31,7 @@
         },
         "spaceRoleSubject": {
             "type": "object",
-            "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group.",
+            "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way.",
             "required": [
                 "space",
                 "role"
@@ -49,28 +49,6 @@
                         "manager",
                         "writer",
                         "reader"
-                    ]
-                }
-            }
-        },
-        "orgRoleSubject": {
-            "type": "object",
-            "description": "All subjects holding a role in an org (a userset). Enables assigning a whole org's members or admins to a space role.",
-            "required": [
-                "org",
-                "role"
-            ],
-            "properties": {
-                "org": {
-                    "type": "string",
-                    "format": "did",
-                    "description": "DID of the org."
-                },
-                "role": {
-                    "type": "string",
-                    "enum": [
-                        "admin",
-                        "member"
                     ]
                 }
             }
