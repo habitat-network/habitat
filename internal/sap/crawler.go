@@ -11,17 +11,18 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 // crawler lists spaces and their members to discover repos once an org is added
 type crawler struct {
-	db            *gorm.DB
-	orgManager    *orgManager
-	resyncBuf     *resyncBuffer
-	sub           *subscriber
-	resyncNotifCh chan struct{}
+	db          *gorm.DB
+	orgManager  *orgManager
+	resyncBuf   *resyncBuffer
+	sub         *subscriber
+	resyncNotif *utils.PollNotifier
 }
 
 func newCrawler(
@@ -29,14 +30,14 @@ func newCrawler(
 	orgManager *orgManager,
 	resyncBuf *resyncBuffer,
 	sub *subscriber,
-	resyncNotifCh chan struct{},
+	resyncNotif *utils.PollNotifier,
 ) *crawler {
 	return &crawler{
-		db:            db,
-		orgManager:    orgManager,
-		resyncBuf:     resyncBuf,
-		sub:           sub,
-		resyncNotifCh: resyncNotifCh,
+		db:          db,
+		orgManager:  orgManager,
+		resyncBuf:   resyncBuf,
+		sub:         sub,
+		resyncNotif: resyncNotif,
 	}
 }
 
@@ -202,9 +203,6 @@ func (c *crawler) enumerateSpaceMembers(
 		"members",
 		len(getMembersOutput.Members),
 	)
-	select {
-	case c.resyncNotifCh <- struct{}{}:
-	default:
-	}
+	c.resyncNotif.Notify()
 	return nil
 }

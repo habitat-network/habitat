@@ -848,6 +848,326 @@
         }
       }
     },
+    "/network.habitat.docs.createDoc": {
+      "post": {
+        "tags": [
+          "network.habitat.docs"
+        ],
+        "summary": "network.habitat.docs.createDoc",
+        "description": "Create a new collaborative document. Implemented by the docs server, which writes the canonical record into the org's docs space using the org credential.",
+        "operationId": "network.habitat.docs.createDoc",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri",
+                    "docId"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the created document record."
+                    },
+                    "docId": {
+                      "type": "string",
+                      "description": "The record key identifying the document, used in subsequent updateDoc calls."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.docs.listDocs": {
+      "get": {
+        "tags": [
+          "network.habitat.docs"
+        ],
+        "summary": "network.habitat.docs.listDocs",
+        "description": "List all documents in the org, with titles. Implemented by the docs server, which lists the doc spaces from pear using the org credential and reads each space's markdown 'self' record for the title.",
+        "operationId": "network.habitat.docs.listDocs",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "docs"
+                  ],
+                  "properties": {
+                    "docs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.docs.listDocs.docView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.docs.updateDoc": {
+      "post": {
+        "tags": [
+          "network.habitat.docs"
+        ],
+        "summary": "network.habitat.docs.updateDoc",
+        "description": "Apply a CRDT update to a collaborative document. Implemented by the docs server, which merges the update into the canonical document and writes it back using the org credential.",
+        "operationId": "network.habitat.docs.updateDoc",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "docId",
+                  "update"
+                ],
+                "properties": {
+                  "docId": {
+                    "type": "string",
+                    "description": "The record key identifying the document to update."
+                  },
+                  "update": {
+                    "type": "string",
+                    "description": "Base64-encoded Yjs update to merge into the document."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the updated document record."
+                    },
+                    "cid": {
+                      "type": "string",
+                      "description": "CID of the updated record.",
+                      "format": "cid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.instance.describeInstance": {
       "get": {
         "tags": [
@@ -4557,6 +4877,133 @@
         }
       }
     },
+    "/network.habitat.search.query": {
+      "get": {
+        "tags": [
+          "network.habitat.search"
+        ],
+        "summary": "network.habitat.search.query",
+        "description": "Full-text search over records the caller's org has indexed.",
+        "operationId": "network.habitat.search.query",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "The search query text.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The search query text."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "results"
+                  ],
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.search.query.resultView"
+                      }
+                    },
+                    "cursor": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.addMember": {
       "post": {
         "tags": [
@@ -5962,25 +6409,54 @@
         "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
         "properties": {}
       },
-      "network.habitat.docs": {
+      "network.habitat.docs.crdt": {
         "type": "object",
         "required": [
-          "name",
           "blob"
         ],
         "properties": {
-          "name": {
-            "type": "string",
-            "description": "The name of the document, derived from the first heading."
-          },
           "blob": {
             "type": "string",
             "description": "Base64-encoded Yjs state update representing the document content."
-          },
-          "editorClique": {
+          }
+        }
+      },
+      "network.habitat.docs.listDocs.docView": {
+        "type": "object",
+        "required": [
+          "docId",
+          "uri",
+          "title"
+        ],
+        "properties": {
+          "docId": {
             "type": "string",
-            "description": "URI of the clique whose members may edit this document.",
-            "format": "uri"
+            "description": "The doc's space key, used as the document identifier in updateDoc and routing."
+          },
+          "uri": {
+            "type": "string",
+            "description": "URI of the doc's space."
+          },
+          "title": {
+            "type": "string",
+            "description": "The document title, from its markdown 'self' record."
+          }
+        }
+      },
+      "network.habitat.docs.markdown": {
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The document title, derived from the first heading or line."
+          },
+          "content": {
+            "type": "string",
+            "description": "The rendered markdown content of the document."
           }
         }
       },
@@ -6453,6 +6929,36 @@
           }
         }
       },
+      "network.habitat.search.query.resultView": {
+        "type": "object",
+        "required": [
+          "uri",
+          "spaceUri",
+          "recordType"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "URI of the matched record."
+          },
+          "spaceUri": {
+            "type": "string",
+            "description": "URI of the space the record belongs to."
+          },
+          "recordType": {
+            "type": "string",
+            "description": "The NSID of the record type.",
+            "format": "nsid"
+          },
+          "snippet": {
+            "type": "string",
+            "description": "A highlighted excerpt of the matching content."
+          },
+          "rank": {
+            "type": "integer"
+          }
+        }
+      },
       "network.habitat.space.getMembers.member": {
         "type": "object",
         "required": [
@@ -6602,6 +7108,9 @@
     },
     {
       "name": "network.habitat.repo"
+    },
+    {
+      "name": "network.habitat.search"
     },
     {
       "name": "network.habitat.space"

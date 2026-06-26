@@ -43,6 +43,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/sync"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -54,6 +55,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/lmittmann/tint"
 	"github.com/urfave/cli/v3"
 
@@ -150,7 +152,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	instanceAdminServer := instance.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
+	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -186,6 +188,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux := mux.NewRouter()
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
+	mux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			span := trace.SpanFromContext(r.Context())
+			span.SetAttributes(attribute.String("http.request.header.referer", r.Referer()))
+			next.ServeHTTP(w, r)
+		})
+	})
 	mux.Use(corsMiddleware)
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
@@ -206,7 +215,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
 	defaultDir := identity.DefaultDirectory()
-	hiveDir := habitat_identity.NewWrappedDirectory(defaultDir, hive)
+	// hive is the base directory (tried first) since it resolves DIDs under our
+	// own domain locally; falling back to defaultDir's network resolution first
+	// would make this server make an outbound HTTP request back to itself for
+	// any locally-hosted DID.
+	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
@@ -221,7 +234,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		cmd.String(fDomain),
-		cmd.String(fFrontendDomain),
 		oauthSecret,
 		hiveDir,
 	)
@@ -393,6 +405,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
 	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
+	mux.HandleFunc("/admin/config", instanceAdminServer.ServeConfig).Methods("GET")
 	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
 	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
 	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)
@@ -443,7 +456,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
-
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	pdsForwarding := forwarding.NewPDSForwarding(
@@ -458,11 +470,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc(
 		"/xrpc/com.atproto.server.getServiceAuth",
 		func(w http.ResponseWriter, r *http.Request) {
-			callerDID, ok := oauthServer.Validate(w, r)
+			credInfo, ok := oauthServer.Validate(w, r)
 			if !ok {
 				return
 			}
-			id, err := hiveDir.LookupDID(r.Context(), callerDID)
+			id, err := hiveDir.LookupDID(r.Context(), credInfo.Subject)
 			if err != nil {
 				utils.LogAndHTTPError(
 					r.Context(),
@@ -490,6 +502,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 			)
 		},
 	)
+
+	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
+	if err != nil {
+		slog.Error("unable to setup embedded UI handler", "err", err)
+		os.Exit(1)
+	}
+	mux.PathPrefix("/ui/").Handler(uiHandler)
 
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
@@ -577,14 +596,17 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 	postgresUrl := cmd.String(fPgUrl)
 	if postgresUrl != "" {
-		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{TranslateError: true})
 		if err != nil {
 			slog.Error("unable to open postgres db backing pear server")
 		}
 		slog.Info("connected to postgres database")
 	} else {
 		dbPath := cmd.String(fDb)
-		db, err = gorm.Open(sqlite.Open(dbPath + "?_journal_mode=WAL"))
+		db, err = gorm.Open(
+			sqlite.Open(dbPath+"?_journal_mode=WAL"),
+			&gorm.Config{TranslateError: true},
+		)
 		if err != nil {
 			slog.Error("unable to open sqlite file backing pear server")
 		}

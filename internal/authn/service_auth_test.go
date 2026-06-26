@@ -31,10 +31,10 @@ func TestServiceAuthValidate(t *testing.T) {
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set("Authorization", "Bearer "+token)
 
-	resultDid, ok := serviceAuth.Validate(w, r)
+	credInfo, ok := serviceAuth.Validate(w, r)
 
 	require.True(t, ok)
-	require.Equal(t, syntax.DID("did:plc:test"), resultDid)
+	require.Equal(t, syntax.DID("did:plc:test"), credInfo.Subject)
 }
 
 func TestServiceAuthValidate_InvalidToken(t *testing.T) {

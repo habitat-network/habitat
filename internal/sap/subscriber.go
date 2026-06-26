@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -57,6 +58,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	client := sse.NewClient(org.Host + "/xrpc/network.habitat.sync.subscribeSpaces")
 	client.Connection = s.orgManager.GetClient(ctx, org.DID)
 	client.LastEventID.Store([]byte(org.SubscribeCursor))
+	lastGoodCursor := []byte(org.SubscribeCursor)
 	subscribeCtx, cancel := context.WithCancel(ctx)
 	sub := &subscription{
 		client: client,
@@ -80,7 +82,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 			err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				if err := tx.Model(&managedOrg{}).
 					Where("did = ?", org.DID).
-					Update("subscribe_cursor", spaceEvent.Seq).
+					Update("subscribe_cursor", strconv.FormatUint(spaceEvent.Seq, 10)).
 					Error; err != nil {
 					return err
 				}
@@ -92,8 +94,14 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 			})
 			if err != nil {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)
+				// The sse client already advanced LastEventID past this event
+				// before invoking this handler. Roll it back to the last
+				// successfully committed cursor so a reconnect replays the
+				// unacked event instead of skipping it.
+				client.LastEventID.Store(lastGoodCursor)
 				return
 			}
+			lastGoodCursor = []byte(strconv.FormatUint(spaceEvent.Seq, 10))
 		default:
 			slog.WarnContext(subscribeCtx, "unknown event type", "event", event.Event)
 		}

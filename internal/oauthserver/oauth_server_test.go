@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
@@ -297,9 +299,9 @@ func TestOAuthServerE2E(t *testing.T) {
 			oauthServer.HandleToken(w, r)
 			return
 		case "/resource":
-			did, ok := oauthServer.Validate(w, r)
+			credInfo, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
-			require.Equal(t, syntax.DID("did:web:example.did.com"), did)
+			require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
 		default:
 			t.Errorf("unknown server path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -443,7 +445,6 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	passwordProvider, err := login.NewPasswordProvider(
 		hiveDB,
 		pearDomain,
-		"frontend."+memberDomain,
 		[]byte("test-signing-secret-for-org-00000"),
 		dummyDir,
 	)
@@ -507,9 +508,9 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 			oauthServer.HandleToken(w, r)
 			return
 		case "/resource":
-			did, ok := oauthServer.Validate(w, r)
+			credInfo, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
-			require.Equal(t, member.DID, did)
+			require.Equal(t, member.DID, credInfo.Subject)
 		default:
 			t.Errorf("unknown server path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -717,8 +718,12 @@ type testIsMemberStore struct {
 	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
 }
 
-func (s *testIsMemberStore) GetOrgForDID(ctx context.Context, did syntax.DID) (org.Org, error) {
-	return s.fn(ctx, did)
+func (s *testIsMemberStore) GetOrgForDID(
+	ctx context.Context,
+	did syntax.DID,
+) (org.Org, bool, error) {
+	o, err := s.fn(ctx, did)
+	return o, false, err
 }
 
 // acquireAccessToken drives the full authorization code flow and returns the
@@ -842,10 +847,10 @@ func TestValidate(t *testing.T) {
 
 	// callValidate issues a GET against a minimal HTTP server wrapping srv.Validate
 	// and returns the HTTP status code together with Validate's return values.
-	callValidate := func(srv *OAuthServer, bearerToken string) (status int, did syntax.DID, ok bool) {
+	callValidate := func(srv *OAuthServer, bearerToken string) (status int, did *authn.CredentialInfo, ok bool) {
 		var (
 			mu     sync.Mutex
-			retDID syntax.DID
+			retDID *authn.CredentialInfo
 			retOK  bool
 		)
 		httpSrv := httptest.NewServer(
@@ -905,10 +910,10 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("valid token for member returns DID and ok with 200", func(t *testing.T) {
-		status, did, ok := callValidate(newSrv(testStore(t)), validToken)
+		status, credInfo, ok := callValidate(newSrv(testStore(t)), validToken)
 		require.True(t, ok)
 		require.Equal(t, http.StatusOK, status)
-		require.Equal(t, syntax.DID("did:web:example.did.com"), did)
+		require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
 	})
 }
 
@@ -958,9 +963,9 @@ func TestValidateWithScopeChecking(t *testing.T) {
 	t.Run("valid token returns DID and ok", func(t *testing.T) {
 		srv := newSrv(testStore(t))
 		token := acquireAccessToken(t, srv, clientMetadata)
-		did, ok, err := srv.ValidateRaw(t.Context(), token)
+		credInfo, ok, err := srv.ValidateRaw(t.Context(), token)
 		require.NoError(t, err)
 		require.True(t, ok)
-		require.Equal(t, syntax.DID("did:web:example.did.com"), did)
+		require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
 	})
 }

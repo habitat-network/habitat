@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -29,7 +30,8 @@ type resyncer struct {
 	orgManager  *orgManager
 	resyncBuf   *resyncBuffer
 	parallelism int
-	notify      chan struct{}
+	resyncNotif *utils.PollNotifier
+	outboxNotif *utils.PollNotifier
 	jobs        chan resyncJob
 }
 
@@ -37,7 +39,8 @@ func newResyncer(
 	db *gorm.DB,
 	orgManager *orgManager,
 	resyncBuf *resyncBuffer,
-	resyncNotifCh chan struct{},
+	resyncNotif *utils.PollNotifier,
+	outboxNotif *utils.PollNotifier,
 	parallelism int,
 ) *resyncer {
 	if parallelism <= 0 {
@@ -48,7 +51,8 @@ func newResyncer(
 		orgManager:  orgManager,
 		resyncBuf:   resyncBuf,
 		parallelism: parallelism,
-		notify:      resyncNotifCh,
+		resyncNotif: resyncNotif,
+		outboxNotif: outboxNotif,
 		jobs:        make(chan resyncJob),
 	}
 }
@@ -58,16 +62,21 @@ func (r *resyncer) run(ctx context.Context) {
 	for i := 0; i < r.parallelism; i++ {
 		go r.runWorker(ctx, i)
 	}
+	// Sweep for repos left pending/desynced/error by a prior process
+	// lifetime: nothing else will notify the dispatcher about them, since
+	// notifications only fire on new discovery or new live events.
+	r.dispatch(ctx)
 	<-ctx.Done()
 }
 
 func (r *resyncer) runDispatcher(ctx context.Context) {
 	slog.InfoContext(ctx, "resync dispatcher started")
+	notify := r.resyncNotif.Listen()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-r.notify:
+		case <-notify:
 			slog.InfoContext(ctx, "dispatcher received notification")
 			r.dispatch(ctx)
 		}
@@ -80,8 +89,8 @@ func (r *resyncer) dispatch(ctx context.Context) {
 	for {
 		rows, err := r.db.WithContext(ctx).Raw(`
 			UPDATE managed_repos SET state = 'resyncing'
-			WHERE rowid IN (
-				SELECT rowid FROM managed_repos
+			WHERE (space, did) IN (
+				SELECT space, did FROM managed_repos
 				WHERE state IN ('pending', 'desynced', 'error') AND (retry_after = 0 OR retry_after < ?)
 				ORDER BY
 					CASE state
@@ -89,7 +98,7 @@ func (r *resyncer) dispatch(ctx context.Context) {
 						WHEN 'desynced' THEN 2
 						WHEN 'error' THEN 3
 					END,
-					rowid
+					space, did
 				LIMIT ?
 			)
 			RETURNING space, did
@@ -254,6 +263,7 @@ func (r *resyncer) syncRepo(
 			if err != nil {
 				return r.handleSyncError(ctx, space, repoDID, err)
 			}
+			r.outboxNotif.Notify()
 			if output.Cursor != "" {
 				since = output.Cursor
 			}

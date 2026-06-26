@@ -20,14 +20,15 @@ var (
 	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
 	fOauthServerSecret  = "oauth_server_secret"
 	fOauthClientSecret  = "oauth_client_secret"
-	fFrontendDomain     = "frontend_domain"
 	fHiveDomain         = "hive_domain"
 	fGoogleClientID     = "google_client_id"
 	fGoogleClientSecret = "google_client_secret"
 	fPrettyLogs         = "pretty_logs"
 	fPdsOauthClientUri  = "pds_oauth_client_uri"
 	fAdminPassword      = "admin_password"
+	fUiDevProxy         = "ui_dev_proxy"
 )
+
 var profiles []string
 
 func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
@@ -85,12 +86,6 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Sources:  getSources(fOauthClientSecret),
 			},
 			&cli.StringFlag{
-				Name:     fFrontendDomain,
-				Usage:    "The publicly available domain at which the habitat frontend can be found",
-				Required: true,
-				Sources:  getSources(fFrontendDomain),
-			},
-			&cli.StringFlag{
 				Name:    fHiveDomain,
 				Usage:   "The domain at which the hive hosts identities",
 				Sources: getSources(fHiveDomain),
@@ -119,6 +114,11 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fAdminPassword,
 				Usage:   "Preset password for the instance admin account; if unset, a random password is generated on every boot and printed once. Not persisted - kept in memory only",
 				Sources: getSources(fAdminPassword),
+			},
+			&cli.StringFlag{
+				Name:    fUiDevProxy,
+				Usage:   "If set, reverse-proxy the embedded /ui/ pages to this URL (the pear-pages dev server) instead of serving the embedded build. Used in development.",
+				Sources: getSources(fUiDevProxy),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{
