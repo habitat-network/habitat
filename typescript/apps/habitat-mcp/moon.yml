@@ -1,0 +1,14 @@
+layer: application
+tasks:
+  build:
+    command: pnpm build
+    inputs:
+      - src/**/*
+      - tsconfig.json
+    outputs:
+      - dist/**/*
+  test:
+    command: pnpm test
+    inputs:
+      - src/**/*
+      - tsconfig.json
