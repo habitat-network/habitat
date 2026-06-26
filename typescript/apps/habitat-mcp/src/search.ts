@@ -19,7 +19,7 @@ export async function searchHabitat(
   baseUrl: string,
   params: SearchParams
 ): Promise<string> {
-  const url = new URL(`${baseUrl}/xrpc/network.habitat.search.query`);
+  const url = new URL("/xrpc/network.habitat.search.query", baseUrl);
   url.searchParams.set("q", params.q);
   if (params.limit !== undefined) url.searchParams.set("limit", String(params.limit));
   if (params.cursor !== undefined) url.searchParams.set("cursor", params.cursor);
@@ -30,6 +30,9 @@ export async function searchHabitat(
   }
 
   const data = (await resp.json()) as SearchOutput;
+  if (!Array.isArray(data.results)) {
+    throw new Error("Unexpected response shape: missing results array");
+  }
   return formatResults(params.q, data);
 }
 

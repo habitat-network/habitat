@@ -7,6 +7,10 @@ tasks:
       - tsconfig.json
     outputs:
       - dist/**/*
+  dev:
+    command: node dist/index.js
+    deps:
+      - ~:build
   test:
     command: pnpm test
     inputs:
