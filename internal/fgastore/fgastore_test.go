@@ -586,3 +586,42 @@ func TestEncodingHelpers_ReturnErrorsForInvalidInput(t *testing.T) {
 	_, err = ParseSpaceObjectKey("space:not-a-space-uri")
 	require.Error(t, err)
 }
+
+func TestCheck_SpaceUsersetCrossSpaceInheritance(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	// alice is a writer of space A.
+	require.NoError(t, f.Write(ctx, "user:alice", RelationSpaceWriter, "space:A"))
+	// all writers of A are writers of B (cross-space userset).
+	require.NoError(
+		t,
+		f.Write(ctx, "space:A#"+RelationSpaceWriter, RelationSpaceWriter, "space:B"),
+	)
+
+	ok, err := f.Check(ctx, "user:alice", RelationSpaceWriter, "space:B")
+	require.NoError(t, err)
+	require.True(t, ok, "writer of A should be writer of B")
+
+	// and by implication a reader of B.
+	ok, err = f.Check(ctx, "user:alice", RelationSpaceReader, "space:B")
+	require.NoError(t, err)
+	require.True(t, ok, "writer of B should imply reader of B")
+}
+
+func TestCheck_NestedGroupSpaces(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	// bob is a member (reader) of group-space A.
+	require.NoError(t, f.Write(ctx, "user:bob", RelationSpaceReader, "space:groupA"))
+	// group A's members are members of group B (nested groups).
+	require.NoError(
+		t,
+		f.Write(ctx, "space:groupA#"+RelationSpaceReader, RelationSpaceReader, "space:groupB"),
+	)
+
+	ok, err := f.Check(ctx, "user:bob", RelationSpaceReader, "space:groupB")
+	require.NoError(t, err)
+	require.True(t, ok, "member of nested group A should be a member of group B")
+}
