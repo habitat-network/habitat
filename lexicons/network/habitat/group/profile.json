@@ -4,7 +4,7 @@
     "defs": {
         "main": {
             "type": "record",
-            "description": "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's self record, holding its display name and description. Group membership is expressed as roles on the group-space (any role implies membership), and the group is used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'reader'.",
+            "description": "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's metadata record, holding its display name and description. Group membership is expressed as roles on the group-space (at least writer role implies membership), and the group can be used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'writer'.",
             "key": "literal:self",
             "record": {
                 "type": "object",
