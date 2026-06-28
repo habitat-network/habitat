@@ -96,7 +96,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         editorProps: {
           attributes: {
             class:
-              "prose max-w-none min-h-full px-[max(2rem,calc(50%-20rem))] py-8 outline-none",
+              "prose max-w-none min-h-full px-[max(2rem,calc(50%-22.5rem))] py-10 outline-none selection:bg-[#d4edda]",
           },
         },
         onUpdate: handleUpdate,
@@ -106,7 +106,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
 
     return (
       <div className="flex flex-col-reverse h-full">
-        <div className="flex-1 flex flex-col items-center">
+        <div className="flex-1 flex flex-col items-center [&_.ProseMirror]:focus-visible:outline-2 [&_.ProseMirror]:focus-visible:outline-offset-[-1px] [&_.ProseMirror]:focus-visible:outline-ring/40">
           <EditorContent className="w-full flex-1" editor={editor} />
         </div>
         <PageHeader>
