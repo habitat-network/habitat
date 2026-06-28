@@ -78,6 +78,19 @@ func TestIsMember(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestCreateNewMemberIdentityPasswordLoginIDIsDID(t *testing.T) {
+	// A password member authenticates with a password keyed to their minted DID,
+	// so their stored LoginID must be that DID. If it isn't, login fails at code
+	// exchange with a "login id mismatch".
+	s := newTestOrg(t)
+
+	id := addMember(t, s, "alice")
+
+	var m member
+	require.NoError(t, s.db.Where("did = ?", id.DID).First(&m).Error)
+	require.Equal(t, id.DID.String(), m.LoginID)
+}
+
 func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
 	s := newTestOrg(t)
