@@ -6,6 +6,7 @@ import {
   Input,
 } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { useForm } from "react-hook-form";
 
 // Member password login page. pear redirects here (from the password login
@@ -13,8 +14,8 @@ import { useForm } from "react-hook-form";
 // page is served same-origin by pear under /ui/, so it calls the loginMember
 // XRPC endpoint directly and follows the returned OAuth callback URL.
 export const Route = createFileRoute("/login/habitat")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    handle: String(search.handle ?? ""),
+  validateSearch: z.object({
+    handle: z.string().default(""),
   }),
   component: HabitatLoginPage,
 });

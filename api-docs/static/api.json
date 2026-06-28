@@ -867,15 +867,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "The initial name of the document."
-                  }
-                }
+                "properties": {}
               }
             }
           }
@@ -3055,6 +3047,747 @@
                         },
                         {
                           "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.check": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.check",
+        "description": "Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
+        "operationId": "network.habitat.relationship.check",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "did",
+            "in": "query",
+            "description": "DID of the user to check.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the user to check.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "The role to check for on the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The role to check for on the space."
+            }
+          },
+          {
+            "name": "space",
+            "in": "query",
+            "description": "URI of the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the space.",
+              "format": "uri"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "allowed"
+                  ],
+                  "properties": {
+                    "allowed": {
+                      "type": "boolean",
+                      "description": "Whether the user holds the role on the space."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.deleteTuple": {
+      "post": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.deleteTuple",
+        "description": "Delete a relationship tuple by its record URI. Caller must have the manager role on the tuple's governing space.",
+        "operationId": "network.habitat.relationship.deleteTuple",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "uri"
+                ],
+                "properties": {
+                  "uri": {
+                    "type": "string",
+                    "description": "URI of the tuple record to delete."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "TupleNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.listObjects": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.listObjects",
+        "description": "List the spaces on which a user holds a role, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Returns only spaces the caller has the reader role on.",
+        "operationId": "network.habitat.relationship.listObjects",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "did",
+            "in": "query",
+            "description": "DID of the user.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "DID of the user.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "The role to query for.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The role to query for."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "spaces"
+                  ],
+                  "properties": {
+                    "spaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.listSubjects": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.listSubjects",
+        "description": "List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
+        "operationId": "network.habitat.relationship.listSubjects",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "URI of the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the space.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "The role to expand.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The role to expand."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "dids"
+                  ],
+                  "properties": {
+                    "dids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "did"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.listTuples": {
+      "get": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.listTuples",
+        "description": "List relationship tuples governing a space, optionally filtered by object, subject, subject type, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.",
+        "operationId": "network.habitat.relationship.listTuples",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "URI of the governing space whose tuples to list.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the governing space whose tuples to list.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "object",
+            "in": "query",
+            "description": "Optional. Restrict to tuples whose object is this space or group URI.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to tuples whose object is this space or group URI.",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "subjectDid",
+            "in": "query",
+            "description": "Optional. Restrict to tuples whose subject is this user DID.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to tuples whose subject is this user DID.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "subjectType",
+            "in": "query",
+            "description": "Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject)."
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "Optional. Restrict to tuples with this relation.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to tuples with this relation."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "tuples"
+                  ],
+                  "properties": {
+                    "tuples": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.relationship.listTuples.tupleView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.relationship.writeTuple": {
+      "post": {
+        "tags": [
+          "network.habitat.relationship"
+        ],
+        "summary": "network.habitat.relationship.writeTuple",
+        "description": "Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the object space.",
+        "operationId": "network.habitat.relationship.writeTuple",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "relation",
+                  "object"
+                ],
+                "properties": {
+                  "subject": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
+                      },
+                      {
+                        "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
+                      }
+                    ]
+                  },
+                  "relation": {
+                    "type": "string",
+                    "description": "Role granted on the object space (owner|manager|writer|reader).",
+                    "enum": [
+                      "owner",
+                      "manager",
+                      "writer",
+                      "reader"
+                    ]
+                  },
+                  "object": {
+                    "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the written tuple record."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "InvalidTuple"
                         }
                       ]
                     },
@@ -5759,6 +6492,26 @@
           }
         }
       },
+      "network.habitat.group.profile": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "network.habitat.listConnectedApps.app": {
         "type": "object",
         "required": [
@@ -5863,6 +6616,119 @@
           "ref": {
             "type": "string",
             "format": "binary"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.relationship.defs.spaceObject": {
+        "type": "object",
+        "description": "A space that a role is granted on.",
+        "required": [
+          "space"
+        ],
+        "properties": {
+          "space": {
+            "type": "string",
+            "description": "URI of the space.",
+            "format": "uri"
+          }
+        }
+      },
+      "network.habitat.relationship.defs.userSubject": {
+        "type": "object",
+        "description": "An individual user, identified by DID.",
+        "required": [
+          "did"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          }
+        }
+      },
+      "network.habitat.relationship.defs.spaceRoleSubject": {
+        "type": "object",
+        "description": "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB.",
+        "required": [
+          "space",
+          "role"
+        ],
+        "properties": {
+          "space": {
+            "type": "string",
+            "description": "URI of the space (or group-space).",
+            "format": "uri"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "network.habitat.relationship.listTuples.tupleView": {
+        "type": "object",
+        "required": [
+          "uri",
+          "subject",
+          "relation",
+          "object"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "URI of the tuple record."
+          },
+          "subject": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
+              },
+              {
+                "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
+              }
+            ]
+          },
+          "relation": {
+            "type": "string"
+          },
+          "object": {
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
+          }
+        }
+      },
+      "network.habitat.relationship.tuple": {
+        "type": "object",
+        "required": [
+          "subject",
+          "relation",
+          "object"
+        ],
+        "properties": {
+          "subject": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/network.habitat.relationship.defs.userSubject"
+              },
+              {
+                "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceRoleSubject"
+              }
+            ]
+          },
+          "relation": {
+            "type": "string",
+            "description": "Role granted on the object space (owner|manager|writer|reader).",
+            "enum": [
+              "owner",
+              "manager",
+              "writer",
+              "reader"
+            ]
+          },
+          "object": {
+            "$ref": "#/components/schemas/network.habitat.relationship.defs.spaceObject"
           },
           "createdAt": {
             "type": "string",
@@ -6197,6 +7063,9 @@
       "name": "network.habitat.grantee"
     },
     {
+      "name": "network.habitat.group"
+    },
+    {
       "name": "network.habitat.instance"
     },
     {
@@ -6213,6 +7082,9 @@
     },
     {
       "name": "network.habitat.photo"
+    },
+    {
+      "name": "network.habitat.relationship"
     },
     {
       "name": "network.habitat.render"

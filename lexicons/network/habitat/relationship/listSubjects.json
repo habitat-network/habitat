@@ -1,0 +1,53 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.listSubjects",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the user DIDs that hold a role on a space, expanding space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications. Caller must have the reader role on the space.",
+            "parameters": {
+                "type": "params",
+                "required": [
+                    "space",
+                    "relation"
+                ],
+                "properties": {
+                    "space": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the space."
+                    },
+                    "relation": {
+                        "type": "string",
+                        "enum": [
+                            "owner",
+                            "manager",
+                            "writer",
+                            "reader"
+                        ],
+                        "description": "The role to expand."
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "dids"
+                    ],
+                    "properties": {
+                        "dids": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "did"
+                            },
+                            "description": "DIDs of users holding the role on the space."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
