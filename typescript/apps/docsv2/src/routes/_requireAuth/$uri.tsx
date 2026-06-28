@@ -4,7 +4,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
-import { docQueryOptions, pushUpdate } from "@/queries/docs";
+import {
+  docQueryOptions,
+  docsListQueryOptions,
+  pushUpdate,
+} from "@/queries/docs";
+import { ShareDialog } from "@/components/ShareDialog";
 import { XRPCError } from "internal";
 import {
   Button,
@@ -57,11 +62,17 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
       Y.applyUpdateV2(ydoc, base64ToBytes(value.blob));
     }
 
-    return { ydoc, docId };
+    // The doc's space URI (needed to share access) comes from the docs list.
+    const docs = await context.queryClient.fetchQuery(
+      docsListQueryOptions(context.authManager),
+    );
+    const space = docs.find((d) => d.docId === docId)?.uri;
+
+    return { ydoc, docId, space };
   },
   preloadStaleTime: 1000 * 60 * 60,
   component() {
-    const { ydoc, docId } = Route.useLoaderData();
+    const { ydoc, docId, space } = Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
     const [dirty, setDirty] = useState(false);
 
@@ -124,6 +135,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
                 <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
               </PopoverContent>
             </Popover>
+            {space && <ShareDialog space={space} authManager={authManager} />}
           </div>
           <HelpDialog />
         </PageHeader>

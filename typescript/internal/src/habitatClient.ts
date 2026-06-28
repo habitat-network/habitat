@@ -48,6 +48,8 @@ import type {
   NetworkHabitatDocsCreateDoc,
   NetworkHabitatDocsUpdateDoc,
   NetworkHabitatDocsListDocs,
+  NetworkHabitatRelationshipListSubjects,
+  NetworkHabitatRelationshipWriteTuple,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -160,6 +162,10 @@ type QueryEndpoints = {
   "network.habitat.space.listSpaces": Query<
     NetworkHabitatSpaceListSpaces.QueryParams,
     NetworkHabitatSpaceListSpaces.OutputSchema
+  >;
+  "network.habitat.relationship.listSubjects": Query<
+    NetworkHabitatRelationshipListSubjects.QueryParams,
+    NetworkHabitatRelationshipListSubjects.OutputSchema
   >;
   "network.habitat.instance.describeInstance": UnauthedQuery<
     NetworkHabitatInstanceDescribeInstance.QueryParams,
@@ -281,6 +287,10 @@ type ProcedureEndpoints = {
   "network.habitat.docs.updateDoc": Procedure<
     NetworkHabitatDocsUpdateDoc.InputSchema,
     NetworkHabitatDocsUpdateDoc.OutputSchema
+  >;
+  "network.habitat.relationship.writeTuple": Procedure<
+    NetworkHabitatRelationshipWriteTuple.InputSchema,
+    NetworkHabitatRelationshipWriteTuple.OutputSchema
   >;
 };
 

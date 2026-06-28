@@ -88,16 +88,16 @@ export function createApp(
     return c.json(output);
   });
 
-  // listDocs returns every doc in the org (no per-caller filtering). The caller
-  // is still authenticated via service auth before listing.
+  // listDocs returns only the docs the caller has read access to, decided from
+  // the crawled permission snapshot. The caller is the service-auth issuer.
   app.get("/xrpc/network.habitat.docs.listDocs", async (c) => {
-    await authorize(
+    const caller = await authorize(
       c.req.header("Authorization"),
       "network.habitat.docs.listDocs",
       verifier,
     );
     const output: NetworkHabitatDocsListDocs.OutputSchema = {
-      docs: await docs.listDocs(),
+      docs: await docs.listDocs(caller),
     };
     return c.json(output);
   });

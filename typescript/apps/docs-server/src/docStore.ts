@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import type { PearClient } from "./pearClient";
+import type { PermissionStore } from "./permissionStore";
 import { renderDoc } from "./render";
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
@@ -17,20 +18,26 @@ export interface DocView {
 // writes a CRDT record and a rendered-markdown record, both keyed "self".
 export class DocStore {
   private pear: PearClient;
+  private permissions: PermissionStore;
   private docs = new Map<string, Y.Doc>();
 
-  constructor(pear: PearClient) {
+  constructor(pear: PearClient, permissions: PermissionStore) {
     this.pear = pear;
+    this.permissions = permissions;
   }
 
   // createDoc creates a new doc space, seeds its records, and grants the
-  // creating member write access so they can read it back directly.
+  // creating member the manager role so they can both read it back directly and
+  // share it with others (granting roles requires the manager role).
   async createDoc(memberDid: string): Promise<{ uri: string; docId: string }> {
     const space = await this.pear.createSpace();
     const ydoc = new Y.Doc();
     await this.writeRecords(space.uri, ydoc);
-    await this.pear.addMember(space.uri, memberDid, "write");
+    await this.pear.grantRole(space.uri, memberDid, "manager");
     this.docs.set(space.skey, ydoc);
+    // Reflect the new doc's reader set immediately so the creator sees it
+    // without waiting for the next periodic crawl.
+    await this.crawl();
     return { uri: space.uri, docId: space.skey };
   }
 
@@ -48,14 +55,23 @@ export class DocStore {
     return result;
   }
 
-  // listDocs returns every doc in the org, with titles read from each space's
-  // markdown "self" record. Spaces without a markdown record (e.g. legacy) are
-  // skipped.
+  // listDocs returns the docs the caller is permitted to read, with titles read
+  // from each space's markdown "self" record. Permission is decided from the
+  // persisted permission snapshot (crawled from pear's relationship graph), so
+  // a caller only sees docs they actually have read access to. Spaces without a
+  // markdown record (e.g. legacy) are skipped.
   // TODO will be replaced by sap
-  async listDocs(): Promise<DocView[]> {
+  async listDocs(callerDid: string): Promise<DocView[]> {
+    // Refresh the persisted permission snapshot first so grants made directly
+    // against pear (e.g. via the share UI) are reflected without waiting for the
+    // next periodic crawl.
+    await this.crawl();
     const spaces = await this.pear.listSpaces();
     const docs = await Promise.all(
       spaces.map(async (s): Promise<DocView | undefined> => {
+        if (!this.permissions.canRead(s.skey, callerDid)) {
+          return undefined;
+        }
         const md = await this.pear.getRecord(s.uri, MARKDOWN_COLLECTION, SELF);
         if (!md) {
           return undefined;
@@ -65,6 +81,22 @@ export class DocStore {
       }),
     );
     return docs.filter((d): d is DocView => d !== undefined);
+  }
+
+  // crawl walks every doc space and records its flattened reader set (from
+  // pear's relationship graph) into the persisted permission store. Run at
+  // startup, on an interval, and after a doc is created or shared so listDocs
+  // filtering stays current.
+  async crawl(): Promise<void> {
+    const spaces = await this.pear.listSpaces();
+    const snapshot = new Map<string, string[]>();
+    await Promise.all(
+      spaces.map(async (s) => {
+        const readers = await this.pear.listReaders(s.uri);
+        snapshot.set(s.skey, readers);
+      }),
+    );
+    await this.permissions.replace(snapshot);
   }
 
   private async load(docId: string, spaceUri: string): Promise<Y.Doc> {

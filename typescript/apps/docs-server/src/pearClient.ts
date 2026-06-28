@@ -3,6 +3,8 @@ import type {
   NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatSpaceGetRecord,
+  NetworkHabitatRelationshipListSubjects,
+  NetworkHabitatRelationshipWriteTuple,
 } from "api";
 import type { DerivedConfig } from "./config";
 import type { OrgClient } from "./orgClient";
@@ -11,6 +13,11 @@ export interface SpaceRef {
   uri: string;
   skey: string;
 }
+
+// Role is a space role grantable via relationship tuples. Higher roles imply
+// lower ones (owner > manager > writer > reader), so "reader" expands to
+// everyone with read access.
+export type Role = "owner" | "manager" | "writer" | "reader";
 
 // PearClient wraps the network.habitat.space XRPC endpoints, calling them with
 // the org credential. Each document is its own space (owned by the org); the
@@ -143,6 +150,39 @@ export class PearClient {
     } catch {
       // Already a member, or a benign race — safe to ignore.
     }
+  }
+
+  // grantRole grants a user the given role on a space via a relationship tuple.
+  // Unlike addMember (read|write only) this can grant the manager role, which
+  // the doc creator needs so they can share the doc with others. Idempotent on
+  // the server side.
+  async grantRole(space: string, did: string, role: Role): Promise<void> {
+    await this.call<NetworkHabitatRelationshipWriteTuple.OutputSchema>(
+      "network.habitat.relationship.writeTuple",
+      "POST",
+      {
+        subject: {
+          $type: "network.habitat.relationship.defs#userSubject",
+          did,
+        },
+        relation: role,
+        object: { space },
+      } satisfies NetworkHabitatRelationshipWriteTuple.InputSchema,
+    );
+  }
+
+  // listReaders returns the flattened set of user DIDs that can read a space,
+  // expanding usersets (e.g. org member/admin groups) and role implications.
+  // Requires the org credential to hold the reader role on the space (the org
+  // owns the doc spaces, so it always does).
+  async listReaders(space: string): Promise<string[]> {
+    const out =
+      await this.call<NetworkHabitatRelationshipListSubjects.OutputSchema>(
+        "network.habitat.relationship.listSubjects",
+        "GET",
+        { space, relation: "reader" },
+      );
+    return out.dids;
   }
 }
 
