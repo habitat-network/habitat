@@ -321,7 +321,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		orgStore,
 	)
 
-	relationshipStore := relationship.NewStore(spacesStore, fgaStore)
+	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
 		relationshipStore,
 		fgaStore,

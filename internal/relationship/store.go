@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
+	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -36,14 +37,16 @@ type ListTuplesFilter struct {
 }
 
 // Store mirrors relationship tuples into the governing space's AT Protocol
-// records (org-owned) and the OpenFGA graph.
+// records (org-owned) and the OpenFGA graph. The two writes are wrapped in a DB
+// transaction (via spaces.Store.WithTx) so an FGA failure rolls back the record.
 type Store struct {
+	db     *gorm.DB
 	spaces spaces.Store
 	fga    fgastore.Store
 }
 
-func NewStore(spacesStore spaces.Store, fga fgastore.Store) *Store {
-	return &Store{spaces: spacesStore, fga: fga}
+func NewStore(database *gorm.DB, spacesStore spaces.Store, fga fgastore.Store) *Store {
+	return &Store{db: database, spaces: spacesStore, fga: fga}
 }
 
 // ownerContextualTuple makes the space owner (the org) a recognized owner of
@@ -95,26 +98,34 @@ func (s *Store) WriteTuple(
 		"object":    objectToInterface(object),
 		"createdAt": time.Now().UTC().Format(time.RFC3339),
 	}
-	uri, _, err := s.spaces.PutRecord(
-		ctx,
-		object,
-		object.SpaceOwner(),
-		tupleCollection,
-		"",
-		value,
-	)
-	if err != nil {
-		return "", err
-	}
 
-	if err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-		Writes: &openfgav1.WriteRequestWrites{
-			TupleKeys: []*openfgav1.TupleKey{
-				tuple.NewTupleKey(fgastore.SpaceObjectKey(object), fgaRelation, fgaUser),
+	// Write the org-owned record and the FGA tuple in one transaction: the FGA
+	// write runs last inside the closure, so if it fails the record is rolled
+	// back, keeping the two stores in sync.
+	var uri habitat_syntax.SpaceRecordURI
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var perr error
+		uri, _, perr = s.spaces.WithTx(tx).PutRecord(
+			ctx,
+			object,
+			object.SpaceOwner(),
+			tupleCollection,
+			"",
+			value,
+		)
+		if perr != nil {
+			return perr
+		}
+		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Writes: &openfgav1.WriteRequestWrites{
+				TupleKeys: []*openfgav1.TupleKey{
+					tuple.NewTupleKey(fgastore.SpaceObjectKey(object), fgaRelation, fgaUser),
+				},
+				OnDuplicate: "ignore",
 			},
-			OnDuplicate: "ignore",
-		},
-	}); err != nil {
+		})
+	})
+	if err != nil {
 		return "", err
 	}
 	return uri, nil
@@ -150,20 +161,24 @@ func (s *Store) DeleteTuple(ctx context.Context, uri habitat_syntax.SpaceRecordU
 		return err
 	}
 
-	if err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
-		Deletes: &openfgav1.WriteRequestDeletes{
-			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-				tuple.TupleKeyToTupleKeyWithoutCondition(
-					tuple.NewTupleKey(fgastore.SpaceObjectKey(object), fgaRelation, fgaUser),
-				),
+	// Delete the record and the FGA tuple in one transaction: the record delete
+	// runs first, so if the FGA delete fails the record delete is rolled back.
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.spaces.WithTx(tx).
+			DeleteRecord(ctx, space, collection, rkey.String()); err != nil {
+			return err
+		}
+		return s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+					tuple.TupleKeyToTupleKeyWithoutCondition(
+						tuple.NewTupleKey(fgastore.SpaceObjectKey(object), fgaRelation, fgaUser),
+					),
+				},
+				OnMissing: "ignore",
 			},
-			OnMissing: "ignore",
-		},
-	}); err != nil {
-		return err
-	}
-
-	return s.spaces.DeleteRecord(ctx, space, collection, rkey.String())
+		})
+	})
 }
 
 // ListTuples returns the tuples governing a space, applying optional filters.

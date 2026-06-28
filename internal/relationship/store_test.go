@@ -1,9 +1,12 @@
 package relationship
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -34,7 +37,7 @@ func newTestStore(t *testing.T) (*Store, spaces.Store) {
 	require.NoError(t, err)
 	sp, err := spaces.NewStore(db, fga, eventStore)
 	require.NoError(t, err)
-	return NewStore(sp, fga), sp
+	return NewStore(db, sp, fga), sp
 }
 
 // newSpace creates a space owned by org and returns its URI.
@@ -283,6 +286,51 @@ func TestListObjects(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, writers, spaceB)
 	require.NotContains(t, writers, spaceA)
+}
+
+// flakyFGA wraps a real FGA store but can be told to fail mutating WriteRaw
+// calls, to exercise transaction rollback.
+type flakyFGA struct {
+	fgastore.Store
+	failWrites bool
+}
+
+func (f *flakyFGA) WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) error {
+	if f.failWrites {
+		return errors.New("simulated fga failure")
+	}
+	return f.Store.WriteRaw(ctx, req)
+}
+
+func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true})
+	require.NoError(t, err)
+	mem, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = mem.Close() })
+	fga := &flakyFGA{Store: mem}
+	eventStore, err := events.NewStore(db)
+	require.NoError(t, err)
+	sp, err := spaces.NewStore(db, fga, eventStore)
+	require.NoError(t, err)
+	rel := NewStore(db, sp, fga)
+
+	// CreateSpace uses fga.Write (not WriteRaw), so it succeeds.
+	space := newSpace(t, sp, docsType, "doc")
+
+	fga.failWrites = true
+	_, err = rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleReader, space)
+	require.Error(t, err)
+
+	// The FGA write failed, so the tuple record must have been rolled back.
+	fga.failWrites = false
+	tuples, err := rel.ListTuples(t.Context(), space, ListTuplesFilter{})
+	require.NoError(t, err)
+	require.Empty(t, tuples)
+
+	allowed, err := rel.Check(t.Context(), alice, RoleReader, space)
+	require.NoError(t, err)
+	require.False(t, allowed)
 }
 
 func TestInvalidRole_QueryMethods(t *testing.T) {
