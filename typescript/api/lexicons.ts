@@ -1385,7 +1385,7 @@ export const schemaDict = {
       main: {
         type: 'record',
         description:
-          "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's self record, holding its display name and description. Group membership is expressed as roles on the group-space (any role implies membership), and the group is used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'reader'.",
+          "Metadata for a group. A group is a space of type `network.habitat.group`; this profile record is the group-space's metadata record, holding its display name and description. Group membership is expressed as roles on the group-space (at least writer role implies membership), and the group can be used as a grantee elsewhere via a network.habitat.relationship.defs#spaceRoleSubject that references the group-space with role 'writer'.",
         key: 'literal:self',
         record: {
           type: 'object',
@@ -2228,8 +2228,7 @@ export const schemaDict = {
     defs: {
       spaceObject: {
         type: 'object',
-        description:
-          'A space that a role is granted on. Groups are modeled as spaces (type network.habitat.group), so a group is referenced as a spaceObject too.',
+        description: 'A space that a role is granted on.',
         required: ['space'],
         properties: {
           space: {
@@ -2253,7 +2252,7 @@ export const schemaDict = {
       spaceRoleSubject: {
         type: 'object',
         description:
-          "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way.",
+          "All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB.",
         required: ['space', 'role'],
         properties: {
           space: {

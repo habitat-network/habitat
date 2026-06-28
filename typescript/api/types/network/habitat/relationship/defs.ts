@@ -14,7 +14,7 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.relationship.defs'
 
-/** A space that a role is granted on. Groups are modeled as spaces (type network.habitat.group), so a group is referenced as a spaceObject too. */
+/** A space that a role is granted on. */
 export interface SpaceObject {
   $type?: 'network.habitat.relationship.defs#spaceObject'
   /** URI of the space. */
@@ -47,7 +47,7 @@ export function validateUserSubject<V>(v: V) {
   return validate<UserSubject & V>(v, id, hashUserSubject)
 }
 
-/** All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. Because groups are spaces, group membership is expressed as this userset over a group-space, e.g. role 'reader' meaning all members of the group. Org members and admins are likewise modeled as group-spaces, so a whole org's members/admins are referenced the same way. */
+/** All subjects holding a role on a space (a userset). Enables cross-space inheritance, e.g. spaceA's writers as writers of spaceB. */
 export interface SpaceRoleSubject {
   $type?: 'network.habitat.relationship.defs#spaceRoleSubject'
   /** URI of the space (or group-space). */
