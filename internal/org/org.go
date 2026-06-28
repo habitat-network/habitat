@@ -322,14 +322,29 @@ func (s *orgImpl) CreateNewMemberIdentity(
 			return fmt.Errorf("mint identity: %w", err)
 		}
 		id = newID
-		if err := s.passwordProvider.WithTx(tx).AddLoginEntry(id.DID, password); err != nil {
-			return fmt.Errorf("add login entry: %w", err)
+
+		// Determine the member's LoginID based on the org's login method,
+		// mirroring CreateOrg. For password login the member authenticates with a
+		// password keyed to their freshly-minted DID, so that DID is their login
+		// id; for external login (atproto/google) the provided loginID identifies
+		// them. Storing the wrong value here makes login fail with a login id
+		// mismatch at code exchange.
+		var memberLoginID string
+		switch s.loginMethod(ctx) {
+		case LoginMethodPassword:
+			memberLoginID = newID.DID.String()
+			if err := s.passwordProvider.WithTx(tx).AddLoginEntry(newID.DID, password); err != nil {
+				return fmt.Errorf("add login entry: %w", err)
+			}
+		default:
+			memberLoginID = loginID
 		}
+
 		return tx.Create(&member{
 			OrgID:   s.orgID,
 			Did:     newID.DID,
 			Role:    MemberRole,
-			LoginID: loginID,
+			LoginID: memberLoginID,
 		}).Error
 	})
 	if err != nil {

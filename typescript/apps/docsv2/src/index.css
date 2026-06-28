@@ -7,18 +7,81 @@
 @import "internal/styles.css";
 
 :root {
-  --background: #f9fff2;
-  --foreground: #180c00;
-  --popover: #f9fff2;
-  --popover-foreground: #180c00;
-  --primary: #180c00;
-  --primary-foreground: #f9fff2;
-  --secondary-foreground: #180c00;
-  --accent-foreground: #180c00;
-  --sidebar: #d5ffd5;
-  --sidebar-accent: #adffad;
-  --sidebar-foreground: #180c00;
-  --sidebar-primary: #180c00;
-  --sidebar-primary-foreground: #f9fff2;
-  --sidebar-accent-foreground: #180c00;
+  --background: #f7faf5;
+  --foreground: #1a1a1a;
+  --popover: #f7faf5;
+  --popover-foreground: #1a1a1a;
+  --primary: #2d5a27;
+  --primary-foreground: #f7faf5;
+  --secondary: #e8f0e4;
+  --secondary-foreground: #1a1a1a;
+  --muted: #edf3e9;
+  --muted-foreground: #6b7280;
+  --accent: #d4e8d0;
+  --accent-foreground: #1a1a1a;
+  --border: #dce5d6;
+  --input: #dce5d6;
+  --ring: #4a7c42;
+  --sidebar: #edf5e9;
+  --sidebar-accent: #d4e8d0;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #2d5a27;
+  --sidebar-primary-foreground: #f7faf5;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #dce5d6;
+}
+
+@layer utilities {
+  .prose {
+    --tw-prose-body: #2d2d2d;
+    --tw-prose-headings: #1a1a1a;
+    --tw-prose-links: #2d5a27;
+    --tw-prose-bold: #1a1a1a;
+    --tw-prose-counters: #6b7280;
+    --tw-prose-bullets: #6b7280;
+    --tw-prose-hr: #dce5d6;
+    --tw-prose-quotes: #2d2d2d;
+    --tw-prose-quote-borders: #a3c9a0;
+    --tw-prose-captions: #6b7280;
+    --tw-prose-code: #2d5a27;
+    --tw-prose-pre-code: #e8f0e4;
+    --tw-prose-pre-bg: #1a1a1a;
+    --tw-prose-th-borders: #dce5d6;
+    --tw-prose-td-borders: #e8f0e4;
+  }
+
+  .prose h1 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .prose h2 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .prose h3 {
+    font-weight: 600;
+  }
+  .prose p {
+    line-height: 1.75;
+  }
+  .prose blockquote {
+    font-style: normal;
+    font-weight: 500;
+  }
+  .prose code {
+    font-weight: 500;
+    border-radius: 0.25rem;
+    padding: 0.125rem 0.25rem;
+    background: #edf3e9;
+  }
+  .prose pre code {
+    background: none;
+    padding: 0;
+  }
+  .prose img {
+    border-radius: 0.5rem;
+  }
+  .prose a {
+    text-underline-offset: 2px;
+  }
 }

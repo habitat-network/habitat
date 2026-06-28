@@ -1,25 +1,25 @@
 .collaboration-carets__caret {
-  border-left: 1px solid #0d0d0d;
-  border-right: 1px solid #0d0d0d;
-  margin-left: -1px;
-  margin-right: -1px;
+  border-left: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  margin-left: -2px;
+  margin-right: -2px;
   pointer-events: none;
   position: relative;
   word-break: normal;
 }
 
-/* Render the username above the caret */
 .collaboration-carets__label {
-  border-radius: 3px 3px 3px 0;
-  color: #0d0d0d;
-  font-size: 12px;
+  border-radius: 4px 4px 4px 0;
+  color: #fff;
+  font-size: 11px;
   font-style: normal;
   font-weight: 600;
-  left: -1px;
+  left: -2px;
   line-height: normal;
-  padding: 0.1rem 0.3rem;
+  padding: 0.1rem 0.35rem;
   position: absolute;
-  top: -1.4em;
+  top: -1.5em;
   user-select: none;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
