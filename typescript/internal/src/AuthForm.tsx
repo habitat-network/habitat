@@ -3,12 +3,7 @@ import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { useId } from "react";
 import { Button, Input } from "./components/ui";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "./components/ui/field";
-import { HabitatLogo } from "./components/HabitatLogo";
+import { Field, FieldGroup, FieldLabel } from "./components/ui/field";
 
 interface AuthFormData {
   handle?: string;
@@ -69,11 +64,7 @@ export default function AuthForm({
                 {error.message}
               </small>
             )}
-            <Button
-              aria-busy={isPending}
-              type="submit"
-              className="w-full"
-            >
+            <Button aria-busy={isPending} type="submit" className="w-full">
               Sign In
             </Button>
           </FieldGroup>
