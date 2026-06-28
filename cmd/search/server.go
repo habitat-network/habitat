@@ -97,7 +97,10 @@ func (s *Server) HandleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := habitat.NetworkHabitatSearchQueryOutput{Cursor: result.NextCursor}
+	out := habitat.NetworkHabitatSearchQueryOutput{
+		Cursor:  result.NextCursor,
+		Results: []habitat.NetworkHabitatSearchQueryResultView{},
+	}
 	for _, res := range result.Results {
 		out.Results = append(out.Results, habitat.NetworkHabitatSearchQueryResultView{
 			Uri:        res.URI.String(),

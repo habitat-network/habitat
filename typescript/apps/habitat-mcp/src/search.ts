@@ -19,6 +19,7 @@ export async function searchHabitat(
   baseUrl: string,
   params: SearchParams
 ): Promise<string> {
+  console.error("searching habitat", baseUrl, params)
   const url = new URL("/xrpc/network.habitat.search.query", baseUrl);
   url.searchParams.set("q", params.q);
   if (params.limit !== undefined) url.searchParams.set("limit", String(params.limit));
@@ -26,10 +27,15 @@ export async function searchHabitat(
 
   const resp = await fetch(url.toString());
   if (!resp.ok) {
+    console.error("resp is not ok", resp.status, resp.statusText)
     throw new Error(`Search request failed: ${resp.status} ${resp.statusText}`);
   }
+  console.error("debug: got these results", resp)
+
 
   const data = (await resp.json()) as SearchOutput;
+  console.error("debug: got data", data)
+
   if (!Array.isArray(data.results)) {
     throw new Error("Unexpected response shape: missing results array");
   }

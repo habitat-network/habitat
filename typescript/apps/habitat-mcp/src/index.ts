@@ -38,6 +38,7 @@ server.tool(
       const text = await searchHabitat(searchUrl, { q, limit, cursor });
       return { content: [{ type: "text", text }] };
     } catch (err) {
+      console.error("debug: full error", err)
       const message = err instanceof Error ? err.message : String(err);
       return { content: [{ type: "text", text: `Search failed: ${message}` }] };
     }
