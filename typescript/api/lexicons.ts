@@ -2393,7 +2393,7 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List relationship tuples governing a space, optionally filtered by object, subject, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.',
+          'List relationship tuples governing a space, optionally filtered by object, subject, subject type, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.',
         parameters: {
           type: 'params',
           required: ['space'],
@@ -2414,6 +2414,12 @@ export const schemaDict = {
               format: 'did',
               description:
                 'Optional. Restrict to tuples whose subject is this user DID.',
+            },
+            subjectType: {
+              type: 'string',
+              enum: ['user', 'space'],
+              description:
+                'Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject).',
             },
             relation: {
               type: 'string',

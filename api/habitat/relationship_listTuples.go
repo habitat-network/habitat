@@ -4,10 +4,11 @@ package habitat
 
 // NetworkHabitatRelationshipListTuplesParams represents the input parameters for network.habitat.relationship.listTuples
 type NetworkHabitatRelationshipListTuplesParams struct {
-	Object     string `json:"object,omitempty"`
-	Relation   string `json:"relation,omitempty"`
-	Space      string `json:"space"`
-	SubjectDid string `json:"subjectDid,omitempty"`
+	Object      string `json:"object,omitempty"`
+	Relation    string `json:"relation,omitempty"`
+	Space       string `json:"space"`
+	SubjectDid  string `json:"subjectDid,omitempty"`
+	SubjectType string `json:"subjectType,omitempty"`
 }
 
 // NetworkHabitatRelationshipListTuplesOutput represents the output for network.habitat.relationship.listTuples

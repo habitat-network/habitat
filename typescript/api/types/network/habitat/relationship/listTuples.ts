@@ -23,6 +23,8 @@ export type QueryParams = {
   object?: string
   /** Optional. Restrict to tuples whose subject is this user DID. */
   subjectDid?: string
+  /** Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject). */
+  subjectType?: 'user' | 'space'
   /** Optional. Restrict to tuples with this relation. */
   relation?: string
 }

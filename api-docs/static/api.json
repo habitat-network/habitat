@@ -3545,7 +3545,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.listTuples",
-        "description": "List relationship tuples governing a space, optionally filtered by object, subject, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.",
+        "description": "List relationship tuples governing a space, optionally filtered by object, subject, subject type, or relation. Caller must have the reader role on the space. This is the interoperable read surface other apps use to understand the permission structure.",
         "operationId": "network.habitat.relationship.listTuples",
         "security": [
           {
@@ -3584,6 +3584,16 @@
               "type": "string",
               "description": "Optional. Restrict to tuples whose subject is this user DID.",
               "format": "did"
+            }
+          },
+          {
+            "name": "subjectType",
+            "in": "query",
+            "description": "Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional. Restrict to tuples whose subject is a user (userSubject) or a space userset (spaceRoleSubject)."
             }
           },
           {
