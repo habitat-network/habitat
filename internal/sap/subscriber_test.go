@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/events"
-	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/sync"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -204,19 +205,30 @@ func setupSubscriber(
 			&dummySubscriber{ch: eventsCh},
 		).HandleSubscribeSpaces),
 	)
+	store, err := oauth_client.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauth_client.NewApp(&cfg, store)
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
+		AccessToken: "token",
+	}))
 	complete := crawlStateComplete
 	require.NoError(t, db.Save(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
-		AccessToken: "token",
-		ExpiresAt:   time.Now().Add(time.Hour),
-		CrawlState:  &complete,
+		DID:        "did:plc:testorg",
+		SessionID:  "sess1",
+		CrawlState: &complete,
 	}).Error)
 	t.Cleanup(func() { srv.Close() })
 
-	orgManager := newOrgManager(db, "", nil, pdsclient.NewDummyDirectory("https://pds.example.com"))
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
-	subscriber = newSubscriber(db, orgManager, resyncBuf)
+	subscriber = newSubscriber(db, oauthApp, resyncBuf)
 
 	go func() {
 		_ = subscriber.loadSubscriptions(t.Context())

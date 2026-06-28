@@ -1,18 +1,18 @@
 module github.com/habitat-network/habitat/cmd/calendar
 
-go 1.26
+go 1.26.3
 
 replace github.com/habitat-network/habitat => ../..
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
+	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
 	github.com/gorilla/mux v1.8.1
 	github.com/habitat-network/habitat v0.0.2-testing-9
 	github.com/urfave/cli/v3 v3.8.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.230.0
 	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.31.1
+	gorm.io/gorm v1.31.2
 )
 
 require (

@@ -10,7 +10,10 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/sqlite"
@@ -52,16 +55,41 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup database: %w", err)
 	}
 
+	secretStr := cmd.String(fSecret)
+	secret, err := atcrypto.ParsePrivateMultibase(secretStr)
+	if err != nil {
+		return fmt.Errorf("parse secret: %w", err)
+	}
+
+	domain := cmd.String(fDomain)
+	store, err := oauth_client.NewGormStore(db)
+	if err != nil {
+		return fmt.Errorf("create oauth store: %w", err)
+	}
+
+	config := oauth.NewPublicConfig(
+		"https://"+domain+"/client-metadata.json",
+		"https://"+domain+"/oauth-callback",
+		[]string{"atproto"},
+	)
+	if err := config.SetClientSecret(secret, "sap"); err != nil {
+		return fmt.Errorf("set client secret: %w", err)
+	}
+
+	oauthApp := oauth_client.NewApp(&config, store)
+
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:           db,
-		PublicDomain: cmd.String(fDomain),
-		Secret:       cmd.String(fSecret),
+		PublicDomain: domain,
+		Secret:       secretStr,
+		OAuthClient:  oauthApp,
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s)
+	orgs := sap.NewOrgManager(db, domain, secretStr)
+	server := NewSapServer(s, oauthApp, config, orgs)
 
 	mux := http.NewServeMux()
 
@@ -69,8 +97,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/org/add", server.handleAddOrg)
 	mux.HandleFunc("/org/list", server.handleListOrgs)
 	mux.HandleFunc("/channel", server.handleOutboxChannel)
-	mux.Handle("/oauth-callback", s)
-	mux.Handle("/client-metadata.json", s)
+	mux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
+	mux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
 
 	slog.InfoContext(ctx, "listening", "port", cmd.String(fPort))
 

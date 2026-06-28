@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestCrawler(t *testing.T) {
@@ -46,24 +46,41 @@ func TestCrawler(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotif)
 
-	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
+	store, err := oauth_client.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauth_client.NewApp(&cfg, store)
+
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	sub := newSubscriber(db, oauthApp, resyncBuf)
+	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
 		AccessToken: "did:plc:testorg",
-		ExpiresAt:   time.Now().Add(time.Hour),
+	}))
+	require.NoError(t, db.Create(&managedOrg{
+		DID:       "did:plc:testorg",
+		SessionID: "sess1",
 	}).Error)
 
-	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg2",
-		Host:        srv.URL,
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg2",
+		SessionID:   "sess2",
+		HostURL:     srv.URL,
 		AccessToken: "did:plc:testorg2",
-		ExpiresAt:   time.Now().Add(time.Hour),
-		CrawlState:  new(crawlStateRunning),
+	}))
+	require.NoError(t, db.Create(&managedOrg{
+		DID:        "did:plc:testorg2",
+		SessionID:  "sess2",
+		CrawlState: new(crawlStateRunning),
 	}).Error)
 
 	require.NoError(t, crawler.resumeIncompleteCrawls(t.Context()))
@@ -110,16 +127,29 @@ func TestCrawler_Error(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotif)
 
-	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
+	store, err := oauth_client.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauth_client.NewApp(&cfg, store)
+
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	sub := newSubscriber(db, oauthApp, resyncBuf)
+	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
 		AccessToken: "did:plc:testorg",
-		ExpiresAt:   time.Now().Add(time.Hour),
+	}))
+	require.NoError(t, db.Create(&managedOrg{
+		DID:       "did:plc:testorg",
+		SessionID: "sess1",
 	}).Error)
 
 	require.NoError(t, crawler.resumeIncompleteCrawls(t.Context()))
@@ -131,12 +161,4 @@ func TestCrawler_Error(t *testing.T) {
 	}, 1*time.Second, 10*time.Millisecond)
 
 	require.NotEmpty(t, org.ErrorMsg)
-}
-
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db?_journal_mode=WAL"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, autoMigrate(db))
-	return db
 }

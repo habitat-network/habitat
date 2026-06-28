@@ -15,6 +15,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/oauth_client"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -27,7 +28,7 @@ type resyncJob struct {
 // resyncer schedules resync workers to backfill repos
 type resyncer struct {
 	db          *gorm.DB
-	orgManager  *orgManager
+	oauthClient *oauth_client.App
 	resyncBuf   *resyncBuffer
 	parallelism int
 	resyncNotif *utils.PollNotifier
@@ -37,7 +38,7 @@ type resyncer struct {
 
 func newResyncer(
 	db *gorm.DB,
-	orgManager *orgManager,
+	oauthClient *oauth_client.App,
 	resyncBuf *resyncBuffer,
 	resyncNotif *utils.PollNotifier,
 	outboxNotif *utils.PollNotifier,
@@ -48,7 +49,7 @@ func newResyncer(
 	}
 	return &resyncer{
 		db:          db,
-		orgManager:  orgManager,
+		oauthClient: oauthClient,
 		resyncBuf:   resyncBuf,
 		parallelism: parallelism,
 		resyncNotif: resyncNotif,
@@ -185,7 +186,10 @@ func (r *resyncer) syncRepo(
 		since = repo.Rev.String()
 	}
 
-	client := r.orgManager.GetClient(ctx, org.DID)
+	client, err := r.oauthClient.GetClient(ctx, org.DID, org.SessionID)
+	if err != nil {
+		return fmt.Errorf("get oauth client: %w", err)
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -202,9 +206,12 @@ func (r *resyncer) syncRepo(
 		}
 		params.Set("limit", "1000")
 
-		resp, err := client.Get(
-			org.Host + "/xrpc/network.habitat.space.getRepoOplog?" + params.Encode(),
-		)
+		req, err := http.NewRequestWithContext(ctx, "GET",
+			"/xrpc/network.habitat.space.getRepoOplog?"+params.Encode(), nil)
+		if err != nil {
+			return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("create request: %w", err))
+		}
+		resp, err := client.Do(req)
 		if err != nil {
 			return r.handleSyncError(ctx, space, repoDID, err)
 		}

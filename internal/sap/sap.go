@@ -4,35 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"strings"
+	"log/slog"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/oauth_client"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
 type Sap interface {
-	http.Handler
 	Start(ctx context.Context) error
-	AddOrg(ctx context.Context, orgIdenitifier string) (redirectURL string, err error)
-	ListOrgs(ctx context.Context) ([]syntax.DID, error)
-	// Outbox exposes durable, ordered delivery of repo events to library consumers.
+	StartOrgSync(did syntax.DID)
 	Outbox
 }
 
 type sapImpl struct {
-	*orgManager
+	oauthClient *oauth_client.App
 	Outbox
-	db         *gorm.DB
-	pathPrefix string
-	sub        *subscriber
-	resyncBuf  *resyncBuffer
-	resyncer   *resyncer
-	crawler    *crawler
+	db        *gorm.DB
+	sub       *subscriber
+	resyncBuf *resyncBuffer
+	resyncer  *resyncer
+	crawler   *crawler
 }
 
 type SapConfig struct {
@@ -41,49 +36,38 @@ type SapConfig struct {
 	DB                *gorm.DB
 	ResyncParallelism int
 	Directory         identity.Directory
+	OAuthClient       *oauth_client.App
 }
 
 func NewSap(config SapConfig) (Sap, error) {
 	if err := autoMigrate(config.DB); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
-	secret, err := atcrypto.ParsePrivateMultibase(config.Secret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse secret: %w", err)
-	}
 
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
 
-	dir := config.Directory
-	if dir == nil {
-		dir = identity.DefaultDirectory()
-	}
-
-	o := newOrgManager(config.DB, config.PublicDomain, secret, dir)
 	resyncBuf := newResyncBuffer(config.DB, resyncNotif, outboxNotif)
-	sub := newSubscriber(config.DB, o, resyncBuf)
+	sub := newSubscriber(config.DB, config.OAuthClient, resyncBuf)
 	resyncer := newResyncer(
 		config.DB,
-		o,
+		config.OAuthClient,
 		resyncBuf,
 		resyncNotif,
 		outboxNotif,
 		config.ResyncParallelism,
 	)
-	crawler := newCrawler(config.DB, o, resyncBuf, sub, resyncNotif)
+	crawler := newCrawler(config.DB, config.OAuthClient, resyncBuf, sub, resyncNotif)
 	outbox := newOutbox(config.DB, outboxNotif)
 
-	_, pathPrefix, _ := strings.Cut(config.PublicDomain, "/")
 	return &sapImpl{
-		orgManager: o,
-		Outbox:     outbox,
-		db:         config.DB,
-		pathPrefix: pathPrefix,
-		sub:        sub,
-		resyncBuf:  resyncBuf,
-		resyncer:   resyncer,
-		crawler:    crawler,
+		oauthClient: config.OAuthClient,
+		Outbox:      outbox,
+		db:          config.DB,
+		sub:         sub,
+		resyncBuf:   resyncBuf,
+		resyncer:    resyncer,
+		crawler:     crawler,
 	}, nil
 }
 
@@ -106,12 +90,12 @@ func (s *sapImpl) Start(ctx context.Context) error {
 	return errors.Join(err, s.sub.closeSubscriptions())
 }
 
-func (s *sapImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	srv := &server{sap: s}
-	srv.ServeHTTP(w, r)
-}
-
-func (s *sapImpl) startOrgSync(org *managedOrg) {
-	go s.crawler.crawlOrg(context.Background(), org)
-	go s.sub.addSubscription(context.Background(), org)
+func (s *sapImpl) StartOrgSync(did syntax.DID) {
+	var org managedOrg
+	if err := s.db.Where("did = ?", did).First(&org).Error; err != nil {
+		slog.Error("org not found", "did", did, "err", err)
+		return
+	}
+	go s.crawler.crawlOrg(context.Background(), &org)
+	go s.sub.addSubscription(context.Background(), &org)
 }

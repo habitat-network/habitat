@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/gorilla/websocket"
 	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -20,16 +22,28 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, sap.Sap, *gorm.DB) {
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
 	require.NoError(t, err)
 
+	store, err := oauth_client.NewGormStore(db)
+	require.NoError(t, err)
+
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauth_client.NewApp(&cfg, store)
+
 	s, err := sap.NewSap(sap.SapConfig{
 		PublicDomain: "example.com",
 		Secret:       "z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX",
 		DB:           db,
+		OAuthClient:  oauthApp,
 	})
 	require.NoError(t, err)
 
-	srv := NewSapServer(s)
+	orgs := sap.NewOrgManager(db, "example.com", "z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX")
+	server := NewSapServer(s, oauthApp, cfg, orgs)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/channel", srv.handleOutboxChannel)
+	mux.HandleFunc("/channel", server.handleOutboxChannel)
 	httpServer := httptest.NewServer(mux)
 	t.Cleanup(httpServer.Close)
 

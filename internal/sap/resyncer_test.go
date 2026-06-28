@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm/clause"
 )
@@ -57,15 +59,26 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	orgManager := newOrgManager(db, "", nil, nil)
+	store, err := oauth_client.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauth_client.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotif, outboxNotif, 1)
+	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
 
-	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
 		AccessToken: "token",
-		ExpiresAt:   time.Now().Add(time.Hour),
+	}))
+	require.NoError(t, db.Create(&managedOrg{
+		DID:       "did:plc:testorg",
+		SessionID: "sess1",
 	}).Error)
 
 	space := habitat_syntax.SpaceURI(spaceURI)
@@ -109,15 +122,26 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	orgManager := newOrgManager(db, "", nil, nil)
+	store, err := oauth_client.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauth_client.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotif, outboxNotif, 1)
+	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
 
-	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
 		AccessToken: "token",
-		ExpiresAt:   time.Now().Add(time.Hour),
+	}))
+	require.NoError(t, db.Create(&managedOrg{
+		DID:       "did:plc:testorg",
+		SessionID: "sess1",
 	}).Error)
 
 	space := habitat_syntax.SpaceURI("ats://did:plc:testorg/network.habitat.space/my-space")
@@ -166,15 +190,26 @@ func TestResyncer_Dispatcher(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	orgManager := newOrgManager(db, "", nil, nil)
+	store, err := oauth_client.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauth_client.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	resyncer := newResyncer(db, orgManager, resyncBuf, resyncNotif, outboxNotif, 10)
+	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 10)
 
-	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
 		AccessToken: "token",
-		ExpiresAt:   time.Now().Add(time.Hour),
+	}))
+	require.NoError(t, db.Create(&managedOrg{
+		DID:       "did:plc:testorg",
+		SessionID: "sess1",
 	}).Error)
 
 	for i := range 10 {
