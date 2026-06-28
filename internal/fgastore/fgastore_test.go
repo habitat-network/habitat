@@ -614,7 +614,7 @@ func TestCheck_NestedGroupSpaces(t *testing.T) {
 	f := newTestSQLite(t)
 
 	// bob is a member (reader) of group-space A.
-	require.NoError(t, f.Write(ctx, "user:bob", RelationSpaceReader, "space:groupA"))
+	require.NoError(t, f.Write(ctx, "user:bob", RelationSpaceOwner, "space:groupA"))
 	// group A's members are members of group B (nested groups).
 	require.NoError(
 		t,
@@ -624,4 +624,15 @@ func TestCheck_NestedGroupSpaces(t *testing.T) {
 	ok, err := f.Check(ctx, "user:bob", RelationSpaceReader, "space:groupB")
 	require.NoError(t, err)
 	require.True(t, ok, "member of nested group A should be a member of group B")
+
+	require.NoError(t, f.Delete(
+		ctx,
+		"space:groupA#"+RelationSpaceReader,
+		RelationSpaceReader,
+		"space:groupB",
+	))
+
+	ok, err = f.Check(ctx, "user:bob", RelationSpaceReader, "space:groupB")
+	require.NoError(t, err)
+	require.False(t, ok, "member of nested group A should no longer be a member of group B")
 }

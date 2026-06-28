@@ -26,7 +26,7 @@ func MemberUserString(did syntax.DID) string {
 }
 
 // SpaceUsersetString returns the FGA userset string for all subjects holding
-// `relation` on the given space, e.g. "space:<esc>#can_read". This is how a
+// `relation` on the given space, e.g. "space:<spaceURI>#can_read". This is how a
 // space (including a group-space) is referenced as a grantee on another space.
 func SpaceUsersetString(uri habitat_syntax.SpaceURI, relation string) string {
 	return SpaceObjectKey(uri) + "#" + relation
