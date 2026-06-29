@@ -70,7 +70,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to list orgs: %w", err)
 	}
 	if !slices.Contains(orgs, hardcodedOrgDID) {
-		url, err := s.AddOrg(ctx, hardcodedOrgDID.String())
+		url, err := s.AddManagedOrg(ctx, hardcodedOrgDID.String())
 		if err != nil {
 			return fmt.Errorf("failed to add org: %w", err)
 		}

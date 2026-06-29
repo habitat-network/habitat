@@ -25,8 +25,6 @@ type Sap struct {
 }
 
 type SapConfig struct {
-	PublicDomain      string
-	Secret            string
 	DB                *gorm.DB
 	ResyncParallelism int
 	Directory         identity.Directory
@@ -53,7 +51,7 @@ func NewSap(config SapConfig) (*Sap, error) {
 	)
 	crawler := newCrawler(config.DB, config.OAuthClient, resyncBuf, sub, resyncNotif)
 	outbox := newOutbox(config.DB, outboxNotif)
-	orgManager := newOrgManager(config.DB, config.PublicDomain, config.Secret)
+	orgManager := newOrgManager(config.DB)
 
 	return &Sap{
 		orgManager:  orgManager,

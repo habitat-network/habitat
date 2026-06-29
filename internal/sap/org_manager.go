@@ -8,13 +8,11 @@ import (
 )
 
 type orgManager struct {
-	db           *gorm.DB
-	publicDomain string
-	secret       string
+	db *gorm.DB
 }
 
-func newOrgManager(db *gorm.DB, publicDomain, secret string) *orgManager {
-	return &orgManager{db: db, publicDomain: publicDomain, secret: secret}
+func newOrgManager(db *gorm.DB) *orgManager {
+	return &orgManager{db: db}
 }
 
 func (m *orgManager) AddManagedOrg(

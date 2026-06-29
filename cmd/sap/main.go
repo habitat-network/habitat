@@ -79,10 +79,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	oauthApp := oauthclient.NewApp(&config, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
-		DB:           db,
-		PublicDomain: domain,
-		Secret:       secretStr,
-		OAuthClient:  oauthApp,
+		DB:          db,
+		OAuthClient: oauthApp,
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)

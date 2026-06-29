@@ -14,7 +14,7 @@ func TestOrgManager_CreateAndGet(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, autoMigrate(db))
 
-	o := newOrgManager(db, "sap.domain", "secret")
+	o := newOrgManager(db)
 	_, err = o.AddManagedOrg(t.Context(), "did:plc:testorg", "session1")
 	require.NoError(t, err)
 
@@ -31,7 +31,7 @@ func TestOrgManager_ListOrgs(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, autoMigrate(db))
 
-	o := newOrgManager(db, "", "")
+	o := newOrgManager(db)
 	orgs, err := o.ListManagedOrgs(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, orgs)
