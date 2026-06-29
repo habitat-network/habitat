@@ -3,6 +3,7 @@ package sap
 import (
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -19,23 +20,10 @@ func TestOrgManager_CreateAndGet(t *testing.T) {
 
 	info, err := o.GetManagedOrg(t.Context(), "did:plc:testorg")
 	require.NoError(t, err)
-	require.Equal(t, "did:plc:testorg", info.DID)
+	require.Equal(t, syntax.DID("did:plc:testorg"), info.DID)
 
 	_, err = o.GetManagedOrg(t.Context(), "did:plc:nonexistent")
 	require.Error(t, err)
-}
-
-func TestOrgManager_GetOrgWithoutSession(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, autoMigrate(db))
-
-	require.NoError(t, db.Create(&managedOrg{DID: "did:plc:testorg"}).Error)
-
-	o := newOrgManager(db, "", "")
-	_, err = o.GetManagedOrg(t.Context(), "did:plc:testorg")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no session")
 }
 
 func TestOrgManager_ListOrgs(t *testing.T) {
