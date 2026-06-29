@@ -7,29 +7,40 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/gorilla/websocket"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func openOutboxTestServer(t *testing.T) (*httptest.Server, sap.Sap, *gorm.DB) {
+func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
 	require.NoError(t, err)
 
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauthclient.NewApp(&cfg, store)
+
 	s, err := sap.NewSap(sap.SapConfig{
-		PublicDomain: "example.com",
-		Secret:       "z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX",
-		DB:           db,
+		DB:          db,
+		OAuthClient: oauthApp,
 	})
 	require.NoError(t, err)
 
-	srv := NewSapServer(s)
+	server := NewSapServer(s, oauthApp)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/channel", srv.handleOutboxChannel)
+	mux.HandleFunc("/channel", server.handleOutboxChannel)
 	httpServer := httptest.NewServer(mux)
 	t.Cleanup(httpServer.Close)
 
@@ -93,7 +104,7 @@ func TestServer_OutboxChannelDeliversAndAcks(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond, "expected message to be acked")
 
 	// Once acked, the message must no longer be a candidate for delivery.
-	remaining, err := s.Poll(t.Context(), 10)
+	remaining, err := s.Outbox.Poll(t.Context(), 10)
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 }
