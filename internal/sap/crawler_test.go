@@ -1,6 +1,8 @@
 package sap
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -60,11 +63,21 @@ func TestCrawler(t *testing.T) {
 	sub := newSubscriber(db, oauthApp, resyncBuf)
 	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
 
+	makeToken := func(jti string) string {
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+		tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+			jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": jti},
+		).SignedString(key)
+		require.NoError(t, err)
+		return tok
+	}
+
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:  "did:plc:testorg",
 		SessionID:   "sess1",
 		HostURL:     srv.URL,
-		AccessToken: "did:plc:testorg",
+		AccessToken: makeToken("testorg"),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -75,7 +88,7 @@ func TestCrawler(t *testing.T) {
 		AccountDID:  "did:plc:testorg2",
 		SessionID:   "sess2",
 		HostURL:     srv.URL,
-		AccessToken: "did:plc:testorg2",
+		AccessToken: makeToken("testorg2"),
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:        "did:plc:testorg2",
@@ -141,11 +154,17 @@ func TestCrawler_Error(t *testing.T) {
 	sub := newSubscriber(db, oauthApp, resyncBuf)
 	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
 
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+		jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": "testorg"},
+	).SignedString(key)
+	require.NoError(t, err)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:  "did:plc:testorg",
 		SessionID:   "sess1",
 		HostURL:     srv.URL,
-		AccessToken: "did:plc:testorg",
+		AccessToken: tok,
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",

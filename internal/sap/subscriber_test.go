@@ -217,7 +217,7 @@ func setupSubscriber(
 		AccountDID:  "did:plc:testorg",
 		SessionID:   "sess1",
 		HostURL:     srv.URL,
-		AccessToken: "token",
+		AccessToken: testJWT(t),
 	}))
 	complete := crawlStateComplete
 	require.NoError(t, db.Save(&managedOrg{

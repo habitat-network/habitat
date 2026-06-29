@@ -70,11 +70,12 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
 
+	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:  "did:plc:testorg",
 		SessionID:   "sess1",
 		HostURL:     srv.URL,
-		AccessToken: "token",
+		AccessToken: tk,
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -133,11 +134,12 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
 
+	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:  "did:plc:testorg",
 		SessionID:   "sess1",
 		HostURL:     srv.URL,
-		AccessToken: "token",
+		AccessToken: tk,
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",
@@ -201,11 +203,12 @@ func TestResyncer_Dispatcher(t *testing.T) {
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 10)
 
+	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:  "did:plc:testorg",
 		SessionID:   "sess1",
 		HostURL:     srv.URL,
-		AccessToken: "token",
+		AccessToken: tk,
 	}))
 	require.NoError(t, db.Create(&managedOrg{
 		DID:       "did:plc:testorg",

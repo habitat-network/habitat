@@ -2,6 +2,7 @@ package oauthclient
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -37,14 +38,19 @@ func NewClient(
 	if err != nil {
 		return nil, err
 	}
+	expiry, err := getExpiry(sess.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("parse token expiry: %w", err)
+	}
 	return &http.Client{
 		Transport: &roundTripper{
-			sess:      sess,
-			store:     store,
-			config:    config,
-			did:       did,
-			sessionID: sessionID,
-			refreshG:  refreshG,
+			sess:        sess,
+			tokenExpiry: expiry,
+			store:       store,
+			config:      config,
+			did:         did,
+			sessionID:   sessionID,
+			refreshG:    refreshG,
 		},
 	}, nil
 }
@@ -82,35 +88,44 @@ var _ oauth2.TokenSource = (*tokenSource)(nil)
 
 // Token implements [oauth2.TokenSource].
 func (t *tokenSource) Token() (*oauth2.Token, error) {
-	token, err, _ := t.rt.refreshG.Do(t.rt.sessionID, func() (interface{}, error) {
-		refreshToken, err := internalConfig(
+	token, err, _ := t.rt.refreshG.Do(t.rt.sessionID, func() (any, error) {
+		refreshedToken, err := internalConfig(
 			t.rt.config,
 			t.rt.sess.HostURL,
 		).TokenSource(t.ctx, t.rt.getToken()).Token()
 		if err != nil {
 			return "", err
 		}
-		var claims jwt.MapClaims
-		if _, _, err := jwt.NewParser().
-			ParseUnverified(t.rt.sess.AccessToken, &claims); err != nil {
-			return nil, err
-		}
-		expiry, err := claims.GetExpirationTime()
-		if err != nil {
-			return nil, err
-		}
-		t.rt.tokenExpiry = expiry.Time
-		t.rt.sess.AccessToken = refreshToken.AccessToken
-		t.rt.sess.RefreshToken = refreshToken.RefreshToken
-		if refreshToken.AccessToken != t.rt.sess.AccessToken {
+
+		if refreshedToken.AccessToken != t.rt.sess.AccessToken {
+			expiry, err := getExpiry(refreshedToken.AccessToken)
+			if err != nil {
+				return "", fmt.Errorf("parse token expiry: %w", err)
+			}
+			t.rt.tokenExpiry = expiry
+			t.rt.sess.AccessToken = refreshedToken.AccessToken
+			t.rt.sess.RefreshToken = refreshedToken.RefreshToken
 			if err := t.rt.store.SaveSession(t.ctx, *t.rt.sess); err != nil {
 				return "", err
 			}
 		}
-		return refreshToken, nil
+		return refreshedToken, nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return token.(*oauth2.Token), nil
+}
+
+// getExpiry parses the expiry from a JWT access token.
+func getExpiry(accessToken string) (time.Time, error) {
+	var claims jwt.MapClaims
+	if _, _, err := jwt.NewParser().ParseUnverified(accessToken, &claims); err != nil {
+		return time.Time{}, err
+	}
+	exp, err := claims.GetExpirationTime()
+	if err != nil {
+		return time.Time{}, err
+	}
+	return exp.Time, nil
 }
