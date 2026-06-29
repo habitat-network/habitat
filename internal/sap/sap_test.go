@@ -27,19 +27,15 @@ func TestSap_Start(t *testing.T) {
 	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	s, err := NewSap(SapConfig{
-		PublicDomain: "https://example.com",
-		Secret:       "z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX",
-		DB:           db,
-		OAuthClient:  oauthApp,
+		DB:          db,
+		OAuthClient: oauthApp,
 	})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		require.ErrorIs(t, s.Start(ctx), context.Canceled)
-	}()
+	})
 
 	cancel()
 
