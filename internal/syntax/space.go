@@ -8,6 +8,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+// ReservedRelationshipTupleNSID is the collection for relationship tuple
+// records. Like network.habitat.clique, it is managed exclusively through its
+// dedicated XRPC endpoints (network.habitat.relationship.*) and must not be
+// writable via the generic record-write path, so the FGA graph and the AT
+// Protocol records it mirrors stay in sync.
+const ReservedRelationshipTupleNSID = "network.habitat.relationship.tuple"
+
 type SpaceKey string
 
 func NewSkey(tid syntax.TID) SpaceKey {
@@ -153,4 +160,34 @@ func (s SpaceRecordURI) SpaceURI() SpaceURI {
 // the URI doesn't match the expected format.
 func (s SpaceRecordURI) SpaceOwner() syntax.DID {
 	return s.SpaceURI().SpaceOwner()
+}
+
+// Repo extracts the DID of the repo that owns the record from the URI,
+// i.e. "{spaceURI}/{repo}/{collection}/{rkey}" -> {repo}. Returns "" if the
+// URI doesn't match the expected format.
+func (s SpaceRecordURI) Repo() syntax.DID {
+	parts := spaceRecordURIPartsRegex.FindStringSubmatch(string(s))
+	if len(parts) < 7 {
+		return ""
+	}
+	did, err := syntax.ParseDID(parts[4])
+	if err != nil {
+		return ""
+	}
+	return did
+}
+
+// Rkey extracts the record key from the URI, i.e.
+// "{spaceURI}/{repo}/{collection}/{rkey}" -> {rkey}. Returns "" if the URI
+// doesn't match the expected format.
+func (s SpaceRecordURI) Rkey() syntax.RecordKey {
+	parts := spaceRecordURIPartsRegex.FindStringSubmatch(string(s))
+	if len(parts) < 7 {
+		return ""
+	}
+	rkey, err := syntax.ParseRecordKey(parts[6])
+	if err != nil {
+		return ""
+	}
+	return rkey
 }
