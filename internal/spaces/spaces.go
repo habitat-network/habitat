@@ -13,6 +13,7 @@ import (
 	"github.com/openfga/openfga/pkg/tuple"
 	"gorm.io/gorm"
 
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -150,6 +151,12 @@ type Store interface {
 		since string,
 		limit int,
 	) ([]Record, error)
+
+	// WithTx returns a copy of the store scoped to the given transaction, so its
+	// DB writes participate in a caller-managed transaction. FGA writes are not
+	// transactional with the DB, but callers run them inside the same closure so
+	// a DB rollback follows an FGA failure.
+	db.Store[Store]
 }
 
 var (
@@ -179,6 +186,16 @@ func NewStore(db *gorm.DB, fga fgastore.Store, eventStore events.Store) (*store,
 	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0), eventStore: eventStore}, nil
 }
 
+// WithTx implements [Store], returning a store whose DB operations run on tx.
+func (s *store) WithTx(tx *gorm.DB) Store {
+	return &store{
+		db:         tx,
+		fga:        s.fga,
+		clock:      s.clock,
+		eventStore: s.eventStore,
+	}
+}
+
 // ownerContextualTuple returns a Tuple representing the owner relationship,
 // for use as a contextual tuple in FGA queries.  This is how we make the
 // owner a recognized member of the space without storing the owner in FGA.
@@ -202,18 +219,14 @@ func (s *store) CreateSpace(
 	}
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var existing space
-		if err := tx.Where("owner = ? AND skey = ?", org, skey).First(&existing).Error; err == nil {
-			return ErrSpaceAlreadyExists
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-
 		if err := tx.Create(&space{
 			Owner: org,
 			Type:  spaceType,
 			Skey:  skey,
 		}).Error; err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return ErrSpaceAlreadyExists
+			}
 			return err
 		}
 
@@ -237,27 +250,31 @@ func (s *store) ListSpaces(
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
 ) ([]SpaceView, error) {
-	fgaObjects, err := s.fga.ListObjects(
-		ctx,
-		fgastore.MemberUserString(member),
-		"can_read",
-		"space",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list fga spaces: %w", err)
+	var conditions *gorm.DB
+	if member == "" {
+		conditions = s.db
+	} else {
+		// If member is the org itself, include all the org's spaces. This initial condition
+		// is always false for user members since they are never owners of a space.
+		conditions = s.db.Where("owner = ?", member)
+		fgaObjects, err := s.fga.ListObjects(
+			ctx,
+			fgastore.MemberUserString(member),
+			"can_read",
+			"space",
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list fga spaces: %w", err)
+		}
+		for _, key := range fgaObjects {
+			uri, err := fgastore.ParseSpaceObjectKey(key)
+			if err != nil {
+				return nil, fmt.Errorf("parse space object key: %w", err)
+			}
+			conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey())
+		}
 	}
 
-	// A member always has access to spaces they own in the DB (the DB owner field).
-	// This mirrors the authorize/Check behavior where ownerContextualTuple grants
-	// implicit access, which ListObjects in FGA cannot use without knowing URIs upfront.
-	conditions := s.db.Where("owner = ?", member)
-	for _, key := range fgaObjects {
-		uri, err := fgastore.ParseSpaceObjectKey(key)
-		if err != nil {
-			return nil, fmt.Errorf("parse space object key: %w", err)
-		}
-		conditions = conditions.Or("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey())
-	}
 	query := s.db.WithContext(ctx).Model(&space{}).Where(conditions).Distinct()
 	if filterOwner != nil {
 		query = query.Where("owner = ?", *filterOwner)

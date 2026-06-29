@@ -15,19 +15,17 @@ docs.local.habitat.network {
 	tls internal
 }
 
-calendar.local.habitat.network {
-    reverse_proxy 127.0.0.1:5173
-    tls internal
+docsv2.local.habitat.network {
+	reverse_proxy 127.0.0.1:5176
+	tls internal
 }
 
-calendar-server.local.habitat.network {
-    reverse_proxy 127.0.0.1:8801
-    tls internal
-}
-
-greensky.local.habitat.network {
-    reverse_proxy 127.0.0.1:5174
-    tls internal
+# Docs server: holds the org credential, persists canonical docs via pear, and
+# serves its did:web doc so pear can resolve did:web:docs-server.local.habitat.network
+# and forward network.habitat.doc.* calls to it.
+docs-server.local.habitat.network {
+	reverse_proxy 127.0.0.1:2590
+	tls internal
 }
 
 *.*.pear.local.habitat.network,
@@ -41,5 +39,10 @@ pear.local.habitat.network {
 
 sap.local.habitat.network {
     reverse_proxy 127.0.0.1:2580
+    tls internal
+}
+
+search.local.habitat.network {
+    reverse_proxy 127.0.0.1:8091
     tls internal
 }

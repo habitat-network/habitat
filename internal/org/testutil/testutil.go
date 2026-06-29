@@ -22,7 +22,6 @@ func NewTestStore(t *testing.T) org.Store {
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		"pear.example.com",
-		"frontend.example.com",
 		[]byte("test-signing-secret-for-org-00000"),
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)

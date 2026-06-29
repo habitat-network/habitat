@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/r3labs/sse/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -24,10 +26,10 @@ type subscription struct {
 var _ db.Store[*subscriber] = (*subscriber)(nil)
 
 type subscriber struct {
-	db         *gorm.DB
-	orgManager *orgManager
-	resyncBuf  *resyncBuffer
-	metrics    *metrics
+	db          *gorm.DB
+	oauthClient *oauthclient.App
+	resyncBuf   *resyncBuffer
+	metrics     *metrics
 
 	subscriptionsMu sync.RWMutex
 	subscriptions   map[syntax.DID]*subscription
@@ -36,7 +38,7 @@ type subscriber struct {
 func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
 	return &subscriber{
 		db:            tx,
-		orgManager:    s.orgManager,
+		oauthClient:   s.oauthClient,
 		resyncBuf:     s.resyncBuf,
 		metrics:       s.metrics,
 		subscriptions: s.subscriptions,
@@ -45,13 +47,13 @@ func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
 
 func newSubscriber(
 	db *gorm.DB,
-	orgManager *orgManager,
+	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
 	metrics *metrics,
 ) *subscriber {
 	return &subscriber{
 		db:            db,
-		orgManager:    orgManager,
+		oauthClient:   oauthClient,
 		resyncBuf:     resyncBuf,
 		metrics:       metrics,
 		subscriptions: map[syntax.DID]*subscription{},
@@ -68,16 +70,24 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 		span.End()
 	}()
 
-	client := sse.NewClient(org.Host + "/xrpc/network.habitat.sync.subscribeSpaces")
-	client.Connection = s.orgManager.GetClient(ctx, org.DID)
+	httpClient, err := s.oauthClient.GetClient(ctx, org.DID, org.SessionID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get oauth client", "org", org.DID, "err", err)
+		span.RecordError(err)
+		s.metrics.subscriptionError(ctx)
+		return
+	}
+	client := sse.NewClient("/xrpc/network.habitat.sync.subscribeSpaces")
+	client.Connection = httpClient
 	client.LastEventID.Store([]byte(org.SubscribeCursor))
+	lastGoodCursor := []byte(org.SubscribeCursor)
 	subscribeCtx, cancel := context.WithCancel(ctx)
 	sub := &subscription{
 		client: client,
 		cancel: cancel,
 	}
 
-	err := client.SubscribeRawWithContext(subscribeCtx, func(event *sse.Event) {
+	err = client.SubscribeRawWithContext(subscribeCtx, func(event *sse.Event) {
 		eventCtx, eventSpan := s.metrics.tracer.Start(subscribeCtx, "sap.subscriber.handle_event",
 			trace.WithAttributes(attribute.String("sap.org", org.DID.String())))
 		defer eventSpan.End()
@@ -100,7 +110,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 			err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				if err := tx.Model(&managedOrg{}).
 					Where("did = ?", org.DID).
-					Update("subscribe_cursor", spaceEvent.Seq).
+					Update("subscribe_cursor", strconv.FormatUint(spaceEvent.Seq, 10)).
 					Error; err != nil {
 					return err
 				}
@@ -114,9 +124,15 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)
 				eventSpan.RecordError(err)
 				s.metrics.eventProcessed(eventCtx, "error")
+				// The sse client already advanced LastEventID past this event
+				// before invoking this handler. Roll it back to the last
+				// successfully committed cursor so a reconnect replays the
+				// unacked event instead of skipping it.
+				client.LastEventID.Store(lastGoodCursor)
 				return
 			}
 			s.metrics.eventProcessed(eventCtx, "success")
+			lastGoodCursor = []byte(strconv.FormatUint(spaceEvent.Seq, 10))
 		default:
 			slog.WarnContext(subscribeCtx, "unknown event type", "event", event.Event)
 		}
@@ -167,7 +183,7 @@ func (s *subscriber) loadSubscriptions(ctx context.Context) error {
 	}
 	s.subscriptionsMu.RUnlock()
 	var orgs []managedOrg
-	query := s.db.Where("access_token != ''")
+	query := s.db
 	if len(activeSubs) > 0 {
 		query = query.Where("did NOT IN (?)", activeSubs)
 	}

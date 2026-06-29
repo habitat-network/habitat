@@ -3,7 +3,6 @@ package org
 import (
 	"testing"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
@@ -22,12 +21,17 @@ func newTestStore(t *testing.T) *storeImpl {
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		"pear.example.com",
-		"frontend.example.com",
 		[]byte("test-signing-secret-for-org-00000"),
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
 	require.NoError(t, err)
-	store, err := NewStore(db, h, identity.DefaultDirectory(), "pear.example.com", passwordProvider)
+	store, err := NewStore(
+		db,
+		h,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+		"pear.example.com",
+		passwordProvider,
+	)
 	require.NoError(t, err)
 	return store.(*storeImpl)
 }
@@ -81,7 +85,7 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	org, err := s.GetOrgForDID(t.Context(), adminId.DID)
+	org, _, err := s.GetOrgForDID(t.Context(), adminId.DID)
 	require.NoError(t, err)
 
 	var gotOrgID syntax.DID
@@ -94,12 +98,13 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 
 func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	s := newTestStore(t)
-	unknown := syntax.DID("did:plc:unknown")
-	org, err := s.GetOrgForDID(t.Context(), unknown)
+	// Not a member of any org and not hive-managed; the dummy directory
+	// resolves it with no "habitat" service, so it falls through to the
+	// everyone org.
+	external := syntax.DID("did:plc:unknown")
+	org, _, err := s.GetOrgForDID(t.Context(), external)
 	require.NoError(t, err)
-
-	ok, err := org.IsMember(t.Context(), unknown)
-	require.NoError(t, err)
+	_, ok := org.(*everyoneOrg)
 	require.True(t, ok)
 }
 
@@ -161,7 +166,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	org, err := s.GetOrgForDID(t.Context(), adminId1.DID)
+	org, _, err := s.GetOrgForDID(t.Context(), adminId1.DID)
 	require.NoError(t, err)
 	var gotID1 syntax.DID
 	switch o := org.(type) {
@@ -170,7 +175,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	}
 	require.Equal(t, orgId1.DID, gotID1)
 
-	org, err = s.GetOrgForDID(t.Context(), adminId2.DID)
+	org, _, err = s.GetOrgForDID(t.Context(), adminId2.DID)
 	require.NoError(t, err)
 	var gotID2 syntax.DID
 	switch o := org.(type) {

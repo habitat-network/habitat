@@ -38,11 +38,16 @@ import type {
   NetworkHabitatSpaceAddMember,
   NetworkHabitatSpaceDeleteRecord,
   NetworkHabitatSpaceGetMembers,
+  NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpaceRemoveMember,
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
+  NetworkHabitatInstanceDescribeInstance,
+  NetworkHabitatDocsCreateDoc,
+  NetworkHabitatDocsUpdateDoc,
+  NetworkHabitatDocsListDocs,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -56,7 +61,22 @@ type Query<
   unauthenticated?: false;
 };
 
+type UnauthedQuery<
+  Params extends Record<string, string | number | boolean | string[]>,
+  Output,
+> = {
+  params: Params;
+  output: Output;
+  unauthenticated: true;
+};
+
 type QueryEndpoints = {
+  // Implemented by the docs server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.docs.listDocs": Query<
+    NetworkHabitatDocsListDocs.QueryParams,
+    NetworkHabitatDocsListDocs.OutputSchema
+  >;
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,
     ComAtprotoRepoListRecords.OutputSchema
@@ -129,6 +149,10 @@ type QueryEndpoints = {
     NetworkHabitatSpaceGetMembers.QueryParams,
     NetworkHabitatSpaceGetMembers.OutputSchema
   >;
+  "network.habitat.space.getRecord": Query<
+    NetworkHabitatSpaceGetRecord.QueryParams,
+    NetworkHabitatSpaceGetRecord.OutputSchema
+  >;
   "network.habitat.space.listRecords": Query<
     NetworkHabitatSpaceListRecords.QueryParams,
     NetworkHabitatSpaceListRecords.OutputSchema
@@ -136,6 +160,10 @@ type QueryEndpoints = {
   "network.habitat.space.listSpaces": Query<
     NetworkHabitatSpaceListSpaces.QueryParams,
     NetworkHabitatSpaceListSpaces.OutputSchema
+  >;
+  "network.habitat.instance.describeInstance": UnauthedQuery<
+    NetworkHabitatInstanceDescribeInstance.QueryParams,
+    NetworkHabitatInstanceDescribeInstance.OutputSchema
   >;
 };
 
@@ -244,6 +272,16 @@ type ProcedureEndpoints = {
     NetworkHabitatSpacePutRecord.InputSchema,
     NetworkHabitatSpacePutRecord.OutputSchema
   >;
+  // Implemented by the docs server; reaches it via pear service proxying when
+  // called with an Atproto-Proxy header (see options.headers).
+  "network.habitat.docs.createDoc": Procedure<
+    NetworkHabitatDocsCreateDoc.InputSchema,
+    NetworkHabitatDocsCreateDoc.OutputSchema
+  >;
+  "network.habitat.docs.updateDoc": Procedure<
+    NetworkHabitatDocsUpdateDoc.InputSchema,
+    NetworkHabitatDocsUpdateDoc.OutputSchema
+  >;
 };
 
 interface AuthedOptions {
@@ -270,19 +308,22 @@ type ProcedureOptions<T extends keyof ProcedureEndpoints> =
 export class XRPCError extends Error {
   public status: number;
   public error: string;
-  public message: string;
-  constructor(status: number, response: { error: string; message: string }) {
+  constructor(status: number, response: { error: string }) {
     super(response.error);
     this.status = status;
     this.error = response.error;
-    this.message = response.message;
   }
 }
+
+type QueryOptions<T extends keyof QueryEndpoints> =
+  QueryEndpoints[T]["unauthenticated"] extends true
+    ? UnauthedOptions
+    : AuthedOptions;
 
 export const query = async <T extends keyof QueryEndpoints>(
   endpoint: T,
   params: QueryEndpoints[T]["params"],
-  options: AuthedOptions,
+  options: QueryOptions<T>,
 ): Promise<QueryEndpoints[T]["output"]> => {
   const queryParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -295,13 +336,16 @@ export const query = async <T extends keyof QueryEndpoints>(
       queryParams.set(key, value.toString());
     }
   }
-  const response = await options.authManager.fetch(
-    "/xrpc/" + endpoint + "?" + queryParams.toString(),
-    "GET",
-    null,
-    options.headers,
-    options.fetchOptions,
-  );
+  const path = "/xrpc/" + endpoint + "?" + queryParams.toString();
+  const response = options.unauthenticated
+    ? await fetch(`https://${(options as UnauthedOptions).domain}${path}`)
+    : await (options as AuthedOptions).authManager.fetch(
+        path,
+        "GET",
+        null,
+        options.headers,
+        (options as AuthedOptions).fetchOptions,
+      );
   try {
     const data = await response.json();
     if (!response.ok) {

@@ -11,38 +11,39 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-// crawler lists spaces and their members to discover repos once an org is added
 type crawler struct {
-	db            *gorm.DB
-	orgManager    *orgManager
-	resyncBuf     *resyncBuffer
-	sub           *subscriber
-	resyncNotifCh chan struct{}
-	metrics       *metrics
+	db          *gorm.DB
+	oauthClient *oauthclient.App
+	resyncBuf   *resyncBuffer
+	sub         *subscriber
+	resyncNotif *utils.PollNotifier
+	metrics     *metrics
 }
 
 func newCrawler(
 	db *gorm.DB,
-	orgManager *orgManager,
+	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
 	sub *subscriber,
-	resyncNotifCh chan struct{},
+	resyncNotif *utils.PollNotifier,
 	metrics *metrics,
 ) *crawler {
 	return &crawler{
-		db:            db,
-		orgManager:    orgManager,
-		resyncBuf:     resyncBuf,
-		sub:           sub,
-		resyncNotifCh: resyncNotifCh,
-		metrics:       metrics,
+		db:          db,
+		oauthClient: oauthClient,
+		resyncBuf:   resyncBuf,
+		sub:         sub,
+		resyncNotif: resyncNotif,
+		metrics:     metrics,
 	}
 }
 
@@ -52,8 +53,8 @@ func (c *crawler) resumeIncompleteCrawls(ctx context.Context) error {
 
 	var orgs []managedOrg
 	if err := c.db.WithContext(ctx).
-		Where("access_token != ''").
-		Where(c.db.Where("crawl_state = ?", crawlStateRunning).Or("crawl_state IS NULL")).
+		Where("crawl_state = ?", crawlStateRunning).
+		Or("crawl_state IS NULL").
 		Find(&orgs).Error; err != nil {
 		span.RecordError(err)
 		return fmt.Errorf("find incomplete crawls: %w", err)
@@ -126,7 +127,11 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 }
 
 func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
-	client := c.orgManager.GetClient(ctx, org.DID)
+	client, err := c.oauthClient.GetClient(ctx, org.DID, org.SessionID)
+	if err != nil {
+		return fmt.Errorf("resume session: %w", err)
+	}
+
 	cursor := org.CrawlCursor
 	for {
 		select {
@@ -140,9 +145,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 			params.Set("cursor", cursor)
 		}
 
-		resp, err := client.Get(
-			org.Host + "/xrpc/network.habitat.space.listSpaces?" + params.Encode(),
-		)
+		resp, err := client.Get("/xrpc/network.habitat.space.listSpaces?" + params.Encode())
 		if err != nil {
 			return fmt.Errorf("list spaces: %w", err)
 		}
@@ -165,7 +168,7 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 		}
 
 		for _, space := range listSpacesOutput.Spaces {
-			if err := c.enumerateSpaceMembers(ctx, client, org, space.Uri); err != nil {
+			if err := c.enumerateSpaceMembers(ctx, client, space.Uri); err != nil {
 				return fmt.Errorf("enumerate space members for %s: %w", space.Uri, err)
 			}
 		}
@@ -188,13 +191,10 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 func (c *crawler) enumerateSpaceMembers(
 	ctx context.Context,
 	client *http.Client,
-	org *managedOrg,
 	spaceURI string,
 ) error {
 	values := url.Values{"space": []string{spaceURI}}
-	resp, err := client.Get(
-		org.Host + "/xrpc/network.habitat.space.getMembers?" + values.Encode(),
-	)
+	resp, err := client.Get("/xrpc/network.habitat.space.getMembers?" + values.Encode())
 	if err != nil {
 		return err
 	}
@@ -228,9 +228,6 @@ func (c *crawler) enumerateSpaceMembers(
 		"members",
 		len(getMembersOutput.Members),
 	)
-	select {
-	case c.resyncNotifCh <- struct{}{}:
-	default:
-	}
+	c.resyncNotif.Notify()
 	return nil
 }

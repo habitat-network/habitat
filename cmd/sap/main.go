@@ -10,6 +10,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
@@ -22,7 +25,7 @@ import (
 
 func main() {
 	if err := run(os.Args); err != nil {
-		slog.Error("error running command", "err", err)
+		slog.ErrorContext(context.Background(), "error running command", "err", err)
 		os.Exit(1)
 	}
 }
@@ -60,26 +63,49 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup database: %w", err)
 	}
 
+	secretStr := cmd.String(fSecret)
+	secret, err := atcrypto.ParsePrivateMultibase(secretStr)
+	if err != nil {
+		return fmt.Errorf("parse secret: %w", err)
+	}
+
+	domain := cmd.String(fDomain)
+	store, err := oauthclient.NewGormStore(db)
+	if err != nil {
+		return fmt.Errorf("create oauth store: %w", err)
+	}
+
+	config := oauth.NewPublicConfig(
+		"https://"+domain+"/client-metadata.json",
+		"https://"+domain+"/oauth-callback",
+		[]string{"atproto"},
+	)
+	if err := config.SetClientSecret(secret, "sap"); err != nil {
+		return fmt.Errorf("set client secret: %w", err)
+	}
+
+	oauthApp := oauthclient.NewApp(&config, store)
+
 	s, err := sap.NewSap(sap.SapConfig{
-		DB:           db,
-		PublicDomain: cmd.String(fDomain),
-		Secret:       cmd.String(fSecret),
-		Meter:        otel.Meter("sap"),
-		Tracer:       otel.Tracer("sap"),
+		DB:          db,
+		OAuthClient: oauthApp,
+		Meter:       otel.Meter("sap"),
+		Tracer:      otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s)
+	server := NewSapServer(s, oauthApp)
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", server.handleHealth)
 	mux.HandleFunc("/org/add", server.handleAddOrg)
 	mux.HandleFunc("/org/list", server.handleListOrgs)
-	mux.Handle("/oauth-callback", s)
-	mux.Handle("/client-metadata.json", s)
+	mux.HandleFunc("/channel", server.handleOutboxChannel)
+	mux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
+	mux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
 
 	slog.InfoContext(ctx, "listening", "port", cmd.String(fPort))
 

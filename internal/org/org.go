@@ -138,19 +138,6 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 	return nil
 }
 
-func (s *orgImpl) addMemberTx(
-	ctx context.Context,
-	tx *gorm.DB,
-	did syntax.DID,
-) error {
-	return tx.WithContext(ctx).Create(&member{
-		OrgID:   s.orgID,
-		Did:     did,
-		Role:    MemberRole,
-		LoginID: did.String(),
-	}).Error
-}
-
 // BootstrapAdmin implements Store.
 /*
 func (s *store) bootstrapAdmin(ctx context.Context, bootstrapSecret string, admin syntax.DID) error {
@@ -335,10 +322,30 @@ func (s *orgImpl) CreateNewMemberIdentity(
 			return fmt.Errorf("mint identity: %w", err)
 		}
 		id = newID
-		if err := s.passwordProvider.WithTx(tx).AddLoginEntry(id.DID, password); err != nil {
-			return fmt.Errorf("add login entry: %w", err)
+
+		// Determine the member's LoginID based on the org's login method,
+		// mirroring CreateOrg. For password login the member authenticates with a
+		// password keyed to their freshly-minted DID, so that DID is their login
+		// id; for external login (atproto/google) the provided loginID identifies
+		// them. Storing the wrong value here makes login fail with a login id
+		// mismatch at code exchange.
+		var memberLoginID string
+		switch s.loginMethod(ctx) {
+		case LoginMethodPassword:
+			memberLoginID = newID.DID.String()
+			if err := s.passwordProvider.WithTx(tx).AddLoginEntry(newID.DID, password); err != nil {
+				return fmt.Errorf("add login entry: %w", err)
+			}
+		default:
+			memberLoginID = loginID
 		}
-		return s.addMemberTx(ctx, tx, id.DID)
+
+		return tx.Create(&member{
+			OrgID:   s.orgID,
+			Did:     newID.DID,
+			Role:    MemberRole,
+			LoginID: memberLoginID,
+		}).Error
 	})
 	if err != nil {
 		return nil, err

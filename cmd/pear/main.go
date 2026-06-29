@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/alexedwards/argon2id"
 	"github.com/pressly/goose/v3"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
@@ -36,22 +38,25 @@ import (
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
-	"github.com/habitat-network/habitat/internal/instanceadmin"
+	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/sync"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/lmittmann/tint"
 	"github.com/urfave/cli/v3"
 
@@ -135,30 +140,20 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
+	passwordHash, err := setupInstanceAdminPassword(cmd)
 	// Reuse the oauth server secret
-	instanceAdminStore, err := instanceadmin.NewStore(oauthSecret)
+	instanceAdminStore, err := instance.NewStore(
+		db.WithContext(startupCtx),
+		oauthSecret,
+		fDomain,
+		passwordHash,
+	)
 	if err != nil {
 		slog.Error("unable to setup instance admin store", "err", err)
 		os.Exit(1)
 	}
-	adminPassword, adminGenerated, err := instanceAdminStore.Bootstrap(
-		startupCtx,
-		cmd.String(fAdminPassword),
-	)
-	if err != nil {
-		slog.Error("unable to bootstrap instance admin", "err", err)
-		os.Exit(1)
-	}
-	if adminGenerated {
-		slog.Warn(
-			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
-			"username",
-			"admin",
-			"password",
-			adminPassword,
-		)
-	}
-	instanceAdminServer := instanceadmin.NewServer(instanceAdminStore)
+
+	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -194,6 +189,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux := mux.NewRouter()
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
+	mux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			span := trace.SpanFromContext(r.Context())
+			span.SetAttributes(attribute.String("http.request.header.referer", r.Referer()))
+			next.ServeHTTP(w, r)
+		})
+	})
 	mux.Use(corsMiddleware)
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
@@ -214,7 +216,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
 	defaultDir := identity.DefaultDirectory()
-	hiveDir := habitat_identity.NewWrappedDirectory(defaultDir, hive)
+	// hive is the base directory (tried first) since it resolves DIDs under our
+	// own domain locally; falling back to defaultDir's network resolution first
+	// would make this server make an outbound HTTP request back to itself for
+	// any locally-hosted DID.
+	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
@@ -229,7 +235,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	passwordProvider, err := login.NewPasswordProvider(
 		db,
 		cmd.String(fDomain),
-		cmd.String(fFrontendDomain),
 		oauthSecret,
 		hiveDir,
 	)
@@ -316,6 +321,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 		orgStore,
 	)
 
+	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
+	relationshipServer := relationship.NewServer(
+		relationshipStore,
+		fgaStore,
+		oauthServer,
+		serviceAuth,
+	)
+
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup repo", "err", err)
@@ -330,7 +343,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	pear := pear.NewPear(hiveDir, permissions, repo)
 	// Server for org management routes
-	orgServer, err := org.NewServer(orgStore, oauthServer, pear, domain, hiveDir)
+	orgServer, err := org.NewServer(
+		orgStore,
+		oauthServer,
+		pear,
+		domain,
+		hiveDir,
+		instanceAdminStore,
+	)
 	if err != nil {
 		slog.Error("unable to setup org server for domain", "err", err, "domain", domain)
 		os.Exit(1)
@@ -393,8 +413,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
 	mux.HandleFunc("/admin/login", instanceAdminServer.HandleLogin).Methods("POST")
 	mux.HandleFunc("/admin/logout", instanceAdminServer.HandleLogout).Methods("POST")
-	mux.HandleFunc("/admin", instanceAdminServer.RequireSession(instanceAdminServer.ServeAdminHome)).
-		Methods("GET")
+	mux.HandleFunc("/admin", instanceAdminServer.ServeAdminHome).Methods("GET")
+	mux.HandleFunc("/admin/config", instanceAdminServer.ServeConfig).Methods("GET")
+	mux.HandleFunc("/xrpc/network.habitat.admin.getSettings", instanceAdminServer.GetSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.updateSettings", instanceAdminServer.UpdateSettings)
+	mux.HandleFunc("/xrpc/network.habitat.admin.issueInvite", instanceAdminServer.IssueInvite)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.instance.describeInstance",
+		instanceAdminServer.DescribeInstance,
+	)
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
@@ -439,6 +466,24 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
 
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.writeTuple",
+		relationshipServer.WriteTuple,
+	)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.deleteTuple",
+		relationshipServer.DeleteTuple,
+	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.listSubjects",
+		relationshipServer.ListSubjects,
+	)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.listObjects",
+		relationshipServer.ListObjects,
+	)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	pdsForwarding := forwarding.NewPDSForwarding(
@@ -453,11 +498,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc(
 		"/xrpc/com.atproto.server.getServiceAuth",
 		func(w http.ResponseWriter, r *http.Request) {
-			callerDID, ok := oauthServer.Validate(w, r)
+			credInfo, ok := oauthServer.Validate(w, r)
 			if !ok {
 				return
 			}
-			id, err := hiveDir.LookupDID(r.Context(), callerDID)
+			id, err := hiveDir.LookupDID(r.Context(), credInfo.Subject)
 			if err != nil {
 				utils.LogAndHTTPError(
 					r.Context(),
@@ -485,6 +530,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 			)
 		},
 	)
+
+	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
+	if err != nil {
+		slog.Error("unable to setup embedded UI handler", "err", err)
+		os.Exit(1)
+	}
+	mux.PathPrefix("/ui/").Handler(uiHandler)
 
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
@@ -572,14 +624,17 @@ func setupDB(cmd *cli.Command) *gorm.DB {
 
 	postgresUrl := cmd.String(fPgUrl)
 	if postgresUrl != "" {
-		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{TranslateError: true})
 		if err != nil {
 			slog.Error("unable to open postgres db backing pear server")
 		}
 		slog.Info("connected to postgres database")
 	} else {
 		dbPath := cmd.String(fDb)
-		db, err = gorm.Open(sqlite.Open(dbPath + "?_journal_mode=WAL"))
+		db, err = gorm.Open(
+			sqlite.Open(dbPath+"?_journal_mode=WAL"),
+			&gorm.Config{TranslateError: true},
+		)
 		if err != nil {
 			slog.Error("unable to open sqlite file backing pear server")
 		}
@@ -642,4 +697,30 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func setupInstanceAdminPassword(cmd *cli.Command) (string, error) {
+	pass := cmd.String(fAdminPassword)
+
+	// Generate a password on startup if not given
+	generate := pass == ""
+	if generate {
+		b := make([]byte, 24)
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		pass = string(b)
+		slog.Warn(
+			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
+			"username",
+			"admin",
+			"password",
+			pass,
+		)
+	}
+	passwordHash, err := argon2id.CreateHash(pass, argon2id.DefaultParams)
+	if err != nil {
+		return "", err
+	}
+	return passwordHash, nil
 }

@@ -1,3 +1,21 @@
+#### PEAR-PAGES BUILD STAGE
+#### Builds the pear-pages SPA that pear embeds and serves under /ui/.
+
+FROM node:22-slim AS pear-pages-build
+WORKDIR /app
+
+RUN npm install -g pnpm@11.5.1
+
+# Install deps with frozen lockfile for reproducibility
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.options.json ./
+COPY typescript/ ./typescript/
+RUN pnpm install --frozen-lockfile
+
+# Build typescript/internal (pear-pages depends on it), then pear-pages itself.
+# --outDir mirrors what moon passes during local builds.
+RUN pnpm --filter internal build
+RUN pnpm --filter pear-pages exec vite build --outDir /app/internal/webui/dist
+
 #### BUILD STAGE
 #### Builds the Go binaries. Uses Debian-based Go image for CGO support (required by SQLite).
 
@@ -18,6 +36,9 @@ RUN go mod download
 
 # Copy the entire repository (needed for replace directives)
 COPY . /app/
+
+# Overwrite the empty dist placeholder with the real pear-pages build
+COPY --from=pear-pages-build /app/internal/webui/dist /app/internal/webui/dist
 
 # Build the pear server binary
 WORKDIR /app/cmd/pear

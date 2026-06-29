@@ -60,32 +60,39 @@ func (p *pdsServiceAuthMethod) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
-) (syntax.DID, bool) {
+) (*CredentialInfo, bool) {
 	token, err := jwt.ParseSigned(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 	if err != nil {
 		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
+		return nil, false
 	}
 
 	did, ok, err := p.validateInner(token)
 	if err != nil {
 		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
-		return "", false
+		return nil, false
 	}
-	return did, ok
+	if !ok {
+		return nil, false
+	}
+	return &CredentialInfo{Subject: did, Type: UserCredential}, true
 }
 
 func (p *pdsServiceAuthMethod) ValidateRaw(
 	ctx context.Context,
 	token string,
 	scopes ...string,
-) (syntax.DID, bool, error) {
+) (*CredentialInfo, bool, error) {
 	parsed, err := jwt.ParseSigned(token)
 	if err != nil {
-		return "", false, err
+		return nil, false, err
 	}
 
-	return p.validateInner(parsed)
+	did, ok, err := p.validateInner(parsed)
+	if !ok || err != nil {
+		return nil, ok, err
+	}
+	return &CredentialInfo{Subject: did, Type: UserCredential}, true, nil
 }
 
 type serviceJwtPayload struct {

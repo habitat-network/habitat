@@ -74,3 +74,85 @@ func TestSpaceURIAccessorsReturnEmptyForInvalidURI(t *testing.T) {
 	uri = SpaceURI("ats://did:plc:abc123/not_a_nsid/my-space")
 	require.Empty(t, uri.SpaceType())
 }
+
+func TestConstructSpaceRecordURI(t *testing.T) {
+	uri := ConstructSpaceRecordURI(
+		"ats://did:plc:abc123/network.habitat.space/my-space",
+		"did:plc:repo456",
+		"network.habitat.note",
+		"rkey789",
+	)
+	require.Equal(
+		t,
+		SpaceRecordURI(
+			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		),
+		uri,
+	)
+	require.Equal(
+		t,
+		"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		uri.String(),
+	)
+	require.Equal(t, "network.habitat.note", uri.Collection().String())
+}
+
+func TestSpaceRecordURI_Collection(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		uri := SpaceRecordURI(
+			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Equal(t, "network.habitat.note", uri.Collection().String())
+	})
+
+	t.Run("invalid format returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI("not-a-record-uri")
+		require.Empty(t, uri.Collection())
+	})
+
+	t.Run("invalid collection NSID returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI(
+			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/not_a_nsid/rkey789",
+		)
+		require.Empty(t, uri.Collection())
+	})
+
+	t.Run("missing trailing segments returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI("ats://did:plc:abc123/network.habitat.space/my-space")
+		require.Empty(t, uri.Collection())
+	})
+}
+
+func TestSpaceRecordURI_SpaceURI(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		uri := SpaceRecordURI(
+			"ats://did:plc:abc123/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Equal(
+			t,
+			SpaceURI("ats://did:plc:abc123/network.habitat.space/my-space"),
+			uri.SpaceURI(),
+		)
+		require.Equal(t, "did:plc:abc123", uri.SpaceOwner().String())
+	})
+
+	t.Run("invalid format returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI("not-a-record-uri")
+		require.Empty(t, uri.SpaceURI())
+		require.Empty(t, uri.SpaceOwner())
+	})
+
+	t.Run("missing trailing segments returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI("ats://did:plc:abc123/network.habitat.space/my-space")
+		require.Empty(t, uri.SpaceURI())
+		require.Empty(t, uri.SpaceOwner())
+	})
+
+	t.Run("invalid owner did returns empty", func(t *testing.T) {
+		uri := SpaceRecordURI(
+			"ats://not-a-did/network.habitat.space/my-space/did:plc:repo456/network.habitat.note/rkey789",
+		)
+		require.Empty(t, uri.SpaceURI())
+		require.Empty(t, uri.SpaceOwner())
+	})
+}

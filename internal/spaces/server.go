@@ -61,7 +61,10 @@ func (s *Server) authorize(
 }
 
 func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -88,7 +91,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		skey = parsedKey
 	}
 
-	callerOrg, err := s.orgStore.GetOrgForDID(r.Context(), callerDID)
+	callerOrg, _, err := s.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -100,7 +103,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri, err := s.store.CreateSpace(r.Context(), callerOrg.DID(), callerDID, spaceType, skey)
+	uri, err := s.store.CreateSpace(r.Context(), callerOrg.DID(), credInfo.Subject, spaceType, skey)
 	if errors.Is(err, ErrSpaceAlreadyExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
@@ -125,7 +128,10 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -155,7 +161,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		filterType = &t
 	}
 
-	spaces, err := s.store.ListSpaces(r.Context(), callerDID, filterOwner, filterType)
+	spaces, err := s.store.ListSpaces(r.Context(), credInfo.Subject, filterOwner, filterType)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "list spaces", http.StatusInternalServerError)
 		return
@@ -187,7 +193,10 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -212,7 +221,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 
 	authorized, err := s.authorize(
 		r.Context(),
-		callerDID,
+		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
 	)
@@ -253,7 +262,10 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -278,7 +290,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	authorized, err := s.authorize(
 		r.Context(),
-		callerDID,
+		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
 	)
@@ -316,7 +328,10 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -333,7 +348,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
+	isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -382,7 +397,10 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -399,7 +417,12 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceWriter)
+	authorized, err := s.authorize(
+		r.Context(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceWriter,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -418,6 +441,14 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	collection, err := syntax.ParseNSID(input.Collection)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+		return
+	}
+	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+		http.Error(
+			w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints",
+			http.StatusForbidden,
+		)
 		return
 	}
 
@@ -440,7 +471,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	recordUri, cid, err := s.store.PutRecord(
 		r.Context(),
 		spaceURI,
-		callerDID,
+		credInfo.Subject,
 		collection,
 		rkey,
 		value,
@@ -470,7 +501,9 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -486,23 +519,23 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
 		return
 	}
-
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check membership",
-			http.StatusInternalServerError,
-		)
-		return
+	if credInfo.Subject != "" {
+		isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"check membership",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		if !isMember {
+			http.Error(w, "not a member of this space", http.StatusForbidden)
+			return
+		}
 	}
-	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
-		return
-	}
-
 	collection, err := syntax.ParseNSID(params.Collection)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
@@ -515,7 +548,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := callerDID
+	owner := credInfo.Subject
 	if params.Repo != "" {
 		owner, err = syntax.ParseDID(params.Repo)
 		if err != nil {
@@ -552,7 +585,9 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -569,20 +604,22 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check membership",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
-		return
+	if credInfo.Subject != "" {
+		isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"check membership",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		if !isMember {
+			http.Error(w, "not a member of this space", http.StatusForbidden)
+			return
+		}
 	}
 
 	var filterCollection *syntax.NSID
@@ -610,7 +647,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		}
 		repo = parsedRepo
 	} else {
-		repo = callerDID
+		repo = credInfo.Subject
 	}
 
 	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
@@ -646,7 +683,9 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -669,20 +708,22 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, callerDID)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"check membership",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
-		return
+	if credInfo.Subject != "" {
+		isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"check membership",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		if !isMember {
+			http.Error(w, "not a member of this space", http.StatusForbidden)
+			return
+		}
 	}
 
 	limit := int(params.Limit)
@@ -727,7 +768,10 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -744,7 +788,12 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
+	authorized, err := s.authorize(
+		r.Context(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceOwner,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -763,6 +812,14 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	collection, err := syntax.ParseNSID(input.Collection)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+		return
+	}
+	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+		http.Error(
+			w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints",
+			http.StatusForbidden,
+		)
 		return
 	}
 
@@ -786,7 +843,10 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
-	callerDID, ok := authn.Validate(w, r, s.oauth, s.serviceAuth)
+	credInfo, ok := authn.NewValidator(
+		authn.WithAuthMethods(s.oauth, s.serviceAuth),
+		authn.WithRequiredSubject(),
+	).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -803,7 +863,12 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authorized, err := s.authorize(r.Context(), callerDID, spaceURI, fgastore.RelationSpaceOwner)
+	authorized, err := s.authorize(
+		r.Context(),
+		credInfo.Subject,
+		spaceURI,
+		fgastore.RelationSpaceOwner,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

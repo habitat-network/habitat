@@ -15,9 +15,9 @@ catalog:
   '@tanstack/devtools-vite': ^0.3.11
   '@tanstack/react-devtools': ^0.7.0
   '@tanstack/react-query': ^5.90.12
-  '@tanstack/react-router': ^1.132.0
-  '@tanstack/react-router-devtools': ^1.132.0
-  '@tanstack/router-plugin': ^1.132.0
+  '@tanstack/react-router': ^1.170.0
+  '@tanstack/react-router-devtools': ^1.167.0
+  '@tanstack/router-plugin': ^1.168.0
   '@testing-library/dom': ^10.4.0
   '@testing-library/react': ^16.2.0
   '@types/node': ^22.10.2
