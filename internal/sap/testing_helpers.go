@@ -30,3 +30,10 @@ func openTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, autoMigrate(db))
 	return db
 }
+
+func newTestMetrics(t *testing.T) *metrics {
+	t.Helper()
+	m, err := newMetrics(nil, nil)
+	require.NoError(t, err)
+	return m
+}
