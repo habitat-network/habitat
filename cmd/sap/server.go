@@ -7,26 +7,23 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/habitat-network/habitat/internal/oauth_client"
+	"github.com/habitat-network/habitat/internal/sap"
 )
 
 type server struct {
-	sap         sap.Sap
+	sap         *sap.Sap
 	oauthClient *oauth_client.App
-	orgs        *sap.OrgManager
 }
 
 func NewSapServer(
-	sapInstance sap.Sap,
+	sapInstance *sap.Sap,
 	oauthClient *oauth_client.App,
 	oauthConfig oauth.ClientConfig,
-	orgs *sap.OrgManager,
 ) *server {
 	return &server{
 		sap:         sapInstance,
 		oauthClient: oauthClient,
-		orgs:        orgs,
 	}
 }
 
@@ -65,7 +62,7 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
-	orgs, err := s.orgs.ListOrgs(r.Context())
+	orgs, err := s.sap.ListManagedOrgs(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -85,7 +82,7 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.orgs.CreateOrg(
+	if err := s.sap.AddManagedOrg(
 		r.Context(),
 		sessionData.AccountDID,
 		sessionData.SessionID,

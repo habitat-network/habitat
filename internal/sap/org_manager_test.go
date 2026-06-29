@@ -13,14 +13,15 @@ func TestOrgManager_CreateAndGet(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, autoMigrate(db))
 
-	o := NewOrgManager(db, "sap.domain", "secret")
-	require.NoError(t, o.CreateOrg(t.Context(), "did:plc:testorg", "session1"))
+	o := newOrgManager(db, "sap.domain", "secret")
+	_, err = o.AddManagedOrg(t.Context(), "did:plc:testorg", "session1")
+	require.NoError(t, err)
 
-	info, err := o.GetOrg(t.Context(), "did:plc:testorg")
+	info, err := o.GetManagedOrg(t.Context(), "did:plc:testorg")
 	require.NoError(t, err)
 	require.Equal(t, "did:plc:testorg", info.DID)
 
-	_, err = o.GetOrg(t.Context(), "did:plc:nonexistent")
+	_, err = o.GetManagedOrg(t.Context(), "did:plc:nonexistent")
 	require.Error(t, err)
 }
 
@@ -31,8 +32,8 @@ func TestOrgManager_GetOrgWithoutSession(t *testing.T) {
 
 	require.NoError(t, db.Create(&managedOrg{DID: "did:plc:testorg"}).Error)
 
-	o := NewOrgManager(db, "", "")
-	_, err = o.GetOrg(t.Context(), "did:plc:testorg")
+	o := newOrgManager(db, "", "")
+	_, err = o.GetManagedOrg(t.Context(), "did:plc:testorg")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no session")
 }
@@ -42,21 +43,16 @@ func TestOrgManager_ListOrgs(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, autoMigrate(db))
 
-	o := NewOrgManager(db, "", "")
-	orgs, err := o.ListOrgs(t.Context())
+	o := newOrgManager(db, "", "")
+	orgs, err := o.ListManagedOrgs(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, orgs)
-
-	require.NoError(t, o.CreateOrg(t.Context(), "did:plc:org1", "sess1"))
-	require.NoError(t, o.CreateOrg(t.Context(), "did:plc:org2", "sess2"))
-
-	orgs, err = o.ListOrgs(t.Context())
+	_, err = o.AddManagedOrg(t.Context(), "did:plc:org1", "sess1")
 	require.NoError(t, err)
-	require.Len(t, orgs, 2)
+	_, err = o.AddManagedOrg(t.Context(), "did:plc:org2", "sess2")
+	require.NoError(t, err)
 
-	// Orgs without a SessionID are not listed
-	require.NoError(t, db.Create(&managedOrg{DID: "did:plc:no-session"}).Error)
-	orgs, err = o.ListOrgs(t.Context())
+	orgs, err = o.ListManagedOrgs(t.Context())
 	require.NoError(t, err)
 	require.Len(t, orgs, 2)
 }

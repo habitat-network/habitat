@@ -12,8 +12,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/habitat-network/habitat/internal/oauth_client"
+	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/sqlite"
@@ -88,8 +88,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	orgs := sap.NewOrgManager(db, domain, secretStr)
-	server := NewSapServer(s, oauthApp, config, orgs)
+	server := NewSapServer(s, oauthApp, config)
 
 	mux := http.NewServeMux()
 

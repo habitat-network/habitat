@@ -4,30 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/oauth_client"
+	"github.com/habitat-network/habitat/internal/utils"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
-type Sap interface {
-	Start(ctx context.Context) error
-	StartOrgSync(did syntax.DID)
-	Outbox
-}
-
-type sapImpl struct {
+type Sap struct {
+	Outbox      Outbox
 	oauthClient *oauth_client.App
-	Outbox
-	db        *gorm.DB
-	sub       *subscriber
-	resyncBuf *resyncBuffer
-	resyncer  *resyncer
-	crawler   *crawler
+	db          *gorm.DB
+	sub         *subscriber
+	resyncBuf   *resyncBuffer
+	resyncer    *resyncer
+	crawler     *crawler
+	orgManager  *orgManager
 }
 
 type SapConfig struct {
@@ -39,7 +33,7 @@ type SapConfig struct {
 	OAuthClient       *oauth_client.App
 }
 
-func NewSap(config SapConfig) (Sap, error) {
+func NewSap(config SapConfig) (*Sap, error) {
 	if err := autoMigrate(config.DB); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
@@ -59,8 +53,10 @@ func NewSap(config SapConfig) (Sap, error) {
 	)
 	crawler := newCrawler(config.DB, config.OAuthClient, resyncBuf, sub, resyncNotif)
 	outbox := newOutbox(config.DB, outboxNotif)
+	orgManager := newOrgManager(config.DB, config.PublicDomain, config.Secret)
 
-	return &sapImpl{
+	return &Sap{
+		orgManager:  orgManager,
 		oauthClient: config.OAuthClient,
 		Outbox:      outbox,
 		db:          config.DB,
@@ -71,7 +67,7 @@ func NewSap(config SapConfig) (Sap, error) {
 	}, nil
 }
 
-func (s *sapImpl) Start(ctx context.Context) error {
+func (s *Sap) Start(ctx context.Context) error {
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		return s.sub.loadSubscriptions(ctx)
@@ -90,12 +86,16 @@ func (s *sapImpl) Start(ctx context.Context) error {
 	return errors.Join(err, s.sub.closeSubscriptions())
 }
 
-func (s *sapImpl) StartOrgSync(did syntax.DID) {
-	var org managedOrg
-	if err := s.db.Where("did = ?", did).First(&org).Error; err != nil {
-		slog.Error("org not found", "did", did, "err", err)
-		return
+func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID string) error {
+	org, err := s.orgManager.AddManagedOrg(ctx, did, sessionID)
+	if err != nil {
+		return err
 	}
-	go s.crawler.crawlOrg(context.Background(), &org)
-	go s.sub.addSubscription(context.Background(), &org)
+	go s.crawler.crawlOrg(context.Background(), org)
+	go s.sub.addSubscription(context.Background(), org)
+	return nil
+}
+
+func (s *Sap) ListManagedOrgs(ctx context.Context) ([]OrgInfo, error) {
+	return s.orgManager.ListManagedOrgs(ctx)
 }
