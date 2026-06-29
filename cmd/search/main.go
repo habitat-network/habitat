@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -13,8 +14,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/mux"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
@@ -56,34 +60,82 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to set up index: %w", err)
 	}
 
-	s, err := sap.NewSap(sap.SapConfig{
-		DB:           db,
-		PublicDomain: cmd.String(fDomain),
-		Secret:       cmd.String(fSecret),
-	})
+	secretStr := cmd.String(fSecret)
+	secret, err := atcrypto.ParsePrivateMultibase(secretStr)
 	if err != nil {
-		return fmt.Errorf("failed to set up sap: %w", err)
+		return fmt.Errorf("parse secret: %w", err)
 	}
 
+	domain := cmd.String(fDomain)
+	store, err := oauthclient.NewGormStore(db)
+	if err != nil {
+		return fmt.Errorf("create oauth store: %w", err)
+	}
+
+	config := oauth.NewPublicConfig(
+		"https://"+domain+"/client-metadata.json",
+		"https://"+domain+"/oauth-callback",
+		[]string{"atproto"},
+	)
+	if err := config.SetClientSecret(secret, "sap"); err != nil {
+		return fmt.Errorf("set client secret: %w", err)
+	}
+
+	oauthApp := oauthclient.NewApp(&config, store)
+
+	s, err := sap.NewSap(sap.SapConfig{
+		DB:          db,
+		OAuthClient: oauthApp,
+	})
+	if err != nil {
+		return fmt.Errorf("create sap: %w", err)
+	}
 	orgs, err := s.ListManagedOrgs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list orgs: %w", err)
 	}
 	if !slices.Contains(orgs, hardcodedOrgDID) {
-		url, err := s.AddManagedOrg(ctx, hardcodedOrgDID.String())
+		url, err := oauthApp.StartAuthFlow(ctx, hardcodedOrgDID.String())
 		if err != nil {
-			return fmt.Errorf("failed to add org: %w", err)
+			return fmt.Errorf("start auth flow: %w", err)
 		}
 		fmt.Printf("add org via url: %s\n", url)
 	}
 
 	server := NewServer(cmd.String(fPearHost), index)
-	indexer := NewIndexer(index, s)
+	indexer := NewIndexer(index, s.Outbox)
 
 	router := mux.NewRouter()
 	router.HandleFunc("/xrpc/network.habitat.search.query", server.HandleQuery).Methods("GET")
-	router.Handle("/oauth-callback", s)
-	router.Handle("/client-metadata.json", s)
+	router.Handle("/oauth-callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sessionData, err := oauthApp.ProcessCallback(r.Context(), r.URL.Query())
+		if err != nil {
+			http.Error(w, fmt.Sprintf("process callback: %s", err), http.StatusInternalServerError)
+			return
+		}
+		if err := s.AddManagedOrg(
+			r.Context(),
+			sessionData.AccountDID,
+			sessionData.SessionID,
+		); err != nil {
+			http.Error(w, fmt.Sprintf("save org: %s", err), http.StatusInternalServerError)
+			return
+		}
+		slog.InfoContext(r.Context(), "org oauth complete", "did", sessionData.AccountDID)
+		w.WriteHeader(http.StatusOK)
+	}))
+	router.Handle(
+		"/client-metadata.json",
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			enc := json.NewEncoder(w)
+			enc.SetEscapeHTML(false)
+			err = enc.Encode(oauthApp.Config.ClientMetadata())
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}),
+	)
 
 	port := cmd.Int(fPort)
 	addr := fmt.Sprintf(":%d", port)
