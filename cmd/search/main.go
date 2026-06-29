@@ -65,7 +65,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("failed to set up sap: %w", err)
 	}
 
-	orgs, err := s.ListOrgs(ctx)
+	orgs, err := s.ListManagedOrgs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list orgs: %w", err)
 	}

@@ -96,6 +96,6 @@ func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID strin
 	return nil
 }
 
-func (s *Sap) ListManagedOrgs(ctx context.Context) ([]OrgInfo, error) {
+func (s *Sap) ListManagedOrgs(ctx context.Context) ([]syntax.DID, error) {
 	return s.orgManager.ListManagedOrgs(ctx)
 }

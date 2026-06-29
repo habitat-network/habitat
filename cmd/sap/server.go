@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/habitat-network/habitat/internal/sap"
 )
@@ -67,7 +68,7 @@ func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if orgs == nil {
-		orgs = []sap.OrgInfo{}
+		orgs = []syntax.DID{}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"orgs": orgs})
@@ -91,7 +92,6 @@ func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	slog.InfoContext(r.Context(), "org oauth complete", "did", sessionData.AccountDID)
 	w.WriteHeader(http.StatusOK)
-	s.sap.StartOrgSync(sessionData.AccountDID)
 }
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
