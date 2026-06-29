@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/habitat-network/habitat/internal/sap"
 )
@@ -19,7 +18,6 @@ type server struct {
 func NewSapServer(
 	sapInstance *sap.Sap,
 	oauthClient *oauth_client.App,
-	oauthConfig oauth.ClientConfig,
 ) *server {
 	return &server{
 		sap:         sapInstance,

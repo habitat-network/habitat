@@ -88,7 +88,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	server := NewSapServer(s, oauthApp, config)
+	server := NewSapServer(s, oauthApp)
 
 	mux := http.NewServeMux()
 
