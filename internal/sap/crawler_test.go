@@ -10,7 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/oauth_client"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -47,14 +47,14 @@ func TestCrawler(t *testing.T) {
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
 
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
 		"https://example.com/client-metadata.json",
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth_client.NewApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, oauthApp, resyncBuf)
@@ -128,14 +128,14 @@ func TestCrawler_Error(t *testing.T) {
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
 
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
 		"https://example.com/client-metadata.json",
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth_client.NewApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	sub := newSubscriber(db, oauthApp, resyncBuf)

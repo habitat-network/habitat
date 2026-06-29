@@ -13,9 +13,9 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/habitat-network/habitat/internal/oauth_client"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -28,7 +28,7 @@ type resyncJob struct {
 // resyncer schedules resync workers to backfill repos
 type resyncer struct {
 	db          *gorm.DB
-	oauthClient *oauth_client.App
+	oauthClient *oauthclient.App
 	resyncBuf   *resyncBuffer
 	parallelism int
 	resyncNotif *utils.PollNotifier
@@ -38,7 +38,7 @@ type resyncer struct {
 
 func newResyncer(
 	db *gorm.DB,
-	oauthClient *oauth_client.App,
+	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
 	resyncNotif *utils.PollNotifier,
 	outboxNotif *utils.PollNotifier,

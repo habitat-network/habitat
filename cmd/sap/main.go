@@ -12,7 +12,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/habitat-network/habitat/internal/oauth_client"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
@@ -62,7 +62,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	domain := cmd.String(fDomain)
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	if err != nil {
 		return fmt.Errorf("create oauth store: %w", err)
 	}
@@ -76,7 +76,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("set client secret: %w", err)
 	}
 
-	oauthApp := oauth_client.NewApp(&config, store)
+	oauthApp := oauthclient.NewApp(&config, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:           db,

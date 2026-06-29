@@ -11,7 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
-	"github.com/habitat-network/habitat/internal/oauth_client"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/r3labs/sse/v2"
 	"gorm.io/gorm"
 )
@@ -25,7 +25,7 @@ var _ db.Store[*subscriber] = (*subscriber)(nil)
 
 type subscriber struct {
 	db          *gorm.DB
-	oauthClient *oauth_client.App
+	oauthClient *oauthclient.App
 	resyncBuf   *resyncBuffer
 
 	subscriptionsMu sync.RWMutex
@@ -43,7 +43,7 @@ func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
 
 func newSubscriber(
 	db *gorm.DB,
-	oauthClient *oauth_client.App,
+	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
 ) *subscriber {
 	return &subscriber{

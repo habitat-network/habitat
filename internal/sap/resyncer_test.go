@@ -11,9 +11,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm/clause"
 )
@@ -59,14 +59,14 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
 		"https://example.com/client-metadata.json",
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth_client.NewApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
 
@@ -122,14 +122,14 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
 		"https://example.com/client-metadata.json",
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth_client.NewApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
 
@@ -190,14 +190,14 @@ func TestResyncer_Dispatcher(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
 		"https://example.com/client-metadata.json",
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth_client.NewApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
 	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 10)
 

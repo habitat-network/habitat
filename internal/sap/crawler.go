@@ -10,16 +10,16 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/habitat-network/habitat/internal/oauth_client"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type crawler struct {
 	db          *gorm.DB
-	oauthClient *oauth_client.App
+	oauthClient *oauthclient.App
 	resyncBuf   *resyncBuffer
 	sub         *subscriber
 	resyncNotif *utils.PollNotifier
@@ -27,7 +27,7 @@ type crawler struct {
 
 func newCrawler(
 	db *gorm.DB,
-	oauthClient *oauth_client.App,
+	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
 	sub *subscriber,
 	resyncNotif *utils.PollNotifier,

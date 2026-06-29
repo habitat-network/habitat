@@ -7,7 +7,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/oauth_client"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
@@ -15,7 +15,7 @@ import (
 
 type Sap struct {
 	Outbox      Outbox
-	oauthClient *oauth_client.App
+	oauthClient *oauthclient.App
 	db          *gorm.DB
 	sub         *subscriber
 	resyncBuf   *resyncBuffer
@@ -30,7 +30,7 @@ type SapConfig struct {
 	DB                *gorm.DB
 	ResyncParallelism int
 	Directory         identity.Directory
-	OAuthClient       *oauth_client.App
+	OAuthClient       *oauthclient.App
 }
 
 func NewSap(config SapConfig) (*Sap, error) {

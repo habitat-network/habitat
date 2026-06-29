@@ -10,10 +10,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sync"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
-	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -205,14 +205,14 @@ func setupSubscriber(
 			&dummySubscriber{ch: eventsCh},
 		).HandleSubscribeSpaces),
 	)
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 	cfg := oauth.NewPublicConfig(
 		"https://example.com/client-metadata.json",
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth_client.NewApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:  "did:plc:testorg",
 		SessionID:   "sess1",

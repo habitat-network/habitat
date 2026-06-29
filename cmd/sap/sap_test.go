@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
-	"github.com/habitat-network/habitat/internal/oauth_client"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -16,7 +16,7 @@ func TestSap_Start(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/sap.db?_journal_mode=WAL"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := oauth_client.NewGormStore(db)
+	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 
 	cfg := oauth.NewPublicConfig(
@@ -24,7 +24,7 @@ func TestSap_Start(t *testing.T) {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
-	oauthApp := oauth_client.NewApp(&cfg, store)
+	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
 		PublicDomain: "example.com",

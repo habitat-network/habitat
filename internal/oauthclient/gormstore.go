@@ -1,4 +1,4 @@
-package oauth_client
+package oauthclient
 
 import (
 	"context"
@@ -13,9 +13,9 @@ import (
 
 // sessionRow stores oauth.ClientSessionData keyed by (did, session_id).
 type sessionRow struct {
-	DID       string    `gorm:"column:did;primaryKey;type:text"`
-	SessionID string    `gorm:"column:session_id;primaryKey;type:text"`
-	Data      []byte    `gorm:"column:data;type:blob"`
+	DID       string `gorm:"column:did;primaryKey;type:text"`
+	SessionID string `gorm:"column:session_id;primaryKey;type:text"`
+	Data      []byte `gorm:"column:data;type:blob"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -24,8 +24,8 @@ func (sessionRow) TableName() string { return "client_sessions" }
 
 // authRequestRow stores oauth.AuthRequestData keyed by state.
 type authRequestRow struct {
-	State     string    `gorm:"column:state;primaryKey;type:text"`
-	Data      []byte    `gorm:"column:data;type:blob"`
+	State     string `gorm:"column:state;primaryKey;type:text"`
+	Data      []byte `gorm:"column:data;type:blob"`
 	CreatedAt time.Time
 }
 
@@ -46,7 +46,11 @@ func NewGormStore(db *gorm.DB) (oauth.ClientAuthStore, error) {
 }
 
 // GetSession implements oauth.ClientAuthStore.
-func (s *gormStore) GetSession(ctx context.Context, did syntax.DID, sessionID string) (*oauth.ClientSessionData, error) {
+func (s *gormStore) GetSession(
+	ctx context.Context,
+	did syntax.DID,
+	sessionID string,
+) (*oauth.ClientSessionData, error) {
 	var row sessionRow
 	if err := s.db.WithContext(ctx).
 		Where("did = ? AND session_id = ?", did.String(), sessionID).
@@ -85,7 +89,10 @@ func (s *gormStore) DeleteSession(ctx context.Context, did syntax.DID, sessionID
 }
 
 // GetAuthRequestInfo implements oauth.ClientAuthStore.
-func (s *gormStore) GetAuthRequestInfo(ctx context.Context, state string) (*oauth.AuthRequestData, error) {
+func (s *gormStore) GetAuthRequestInfo(
+	ctx context.Context,
+	state string,
+) (*oauth.AuthRequestData, error) {
 	var row authRequestRow
 	if err := s.db.WithContext(ctx).
 		Where("state = ?", state).
