@@ -443,6 +443,14 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
 		return
 	}
+	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+		http.Error(
+			w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints",
+			http.StatusForbidden,
+		)
+		return
+	}
 
 	var rkey syntax.RecordKey
 	if input.Rkey != "" {
@@ -804,6 +812,14 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	collection, err := syntax.ParseNSID(input.Collection)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+		return
+	}
+	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
+		http.Error(
+			w,
+			"relationship tuples must be managed via network.habitat.relationship.* endpoints",
+			http.StatusForbidden,
+		)
 		return
 	}
 

@@ -13,6 +13,7 @@ import (
 	"github.com/openfga/openfga/pkg/tuple"
 	"gorm.io/gorm"
 
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -150,6 +151,12 @@ type Store interface {
 		since string,
 		limit int,
 	) ([]Record, error)
+
+	// WithTx returns a copy of the store scoped to the given transaction, so its
+	// DB writes participate in a caller-managed transaction. FGA writes are not
+	// transactional with the DB, but callers run them inside the same closure so
+	// a DB rollback follows an FGA failure.
+	db.Store[Store]
 }
 
 var (
@@ -177,6 +184,16 @@ func NewStore(db *gorm.DB, fga fgastore.Store, eventStore events.Store) (*store,
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0), eventStore: eventStore}, nil
+}
+
+// WithTx implements [Store], returning a store whose DB operations run on tx.
+func (s *store) WithTx(tx *gorm.DB) Store {
+	return &store{
+		db:         tx,
+		fga:        s.fga,
+		clock:      s.clock,
+		eventStore: s.eventStore,
+	}
 }
 
 // ownerContextualTuple returns a Tuple representing the owner relationship,
