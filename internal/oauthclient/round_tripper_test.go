@@ -22,13 +22,14 @@ func TestRoundTripper(t *testing.T) {
 	resourceServer := testResourceServer(t)
 
 	store := oauth.NewMemStore()
-	store.SaveSession(t.Context(), oauth.ClientSessionData{
+	err := store.SaveSession(t.Context(), oauth.ClientSessionData{
 		AccountDID:   "did:web:example.com",
 		SessionID:    "session",
 		AccessToken:  newJwtToken(t, "old", time.Now().Add(-time.Hour)), // expired
 		RefreshToken: "refresh-token",
 		HostURL:      oauthServer.URL,
 	})
+	require.NoError(t, err)
 
 	config := oauth.NewPublicConfig(
 		"https://example.com/client-metadata.json",
@@ -53,6 +54,7 @@ func TestRoundTripper(t *testing.T) {
 	for range 10 {
 		wg.Go(func() {
 			resp, err := client.Get(resourceServer.URL + "/xrpc/test.xrpc.endpoint")
+			defer func() { require.NoError(t, resp.Body.Close()) }()
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})

@@ -119,7 +119,7 @@ func TestSap(t *testing.T) {
 	})
 	mux.HandleFunc("/client-metadata.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(oauthApp.Config.ClientMetadata())
+		require.NoError(t, json.NewEncoder(w).Encode(oauthApp.Config.ClientMetadata()))
 	})
 
 	// 4. Start SAP sync worker loops
