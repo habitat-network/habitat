@@ -33,10 +33,8 @@ func openOutboxTestServer(t *testing.T) (*httptest.Server, *sap.Sap, *gorm.DB) {
 	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	s, err := sap.NewSap(sap.SapConfig{
-		PublicDomain: "example.com",
-		Secret:       "z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX",
-		DB:           db,
-		OAuthClient:  oauthApp,
+		DB:          db,
+		OAuthClient: oauthApp,
 	})
 	require.NoError(t, err)
 

@@ -23,12 +23,24 @@ type App struct {
 	refreshG singleflight.Group
 }
 
-func NewApp(config *oauth.ClientConfig, store oauth.ClientAuthStore) *App {
-	return &App{
+type Option func(*App)
+
+func WithDirectory(dir identity.Directory) Option {
+	return func(a *App) {
+		a.dir = dir
+	}
+}
+
+func NewApp(config *oauth.ClientConfig, store oauth.ClientAuthStore, opts ...Option) *App {
+	app := &App{
 		Config: config,
 		dir:    identity.DefaultDirectory(),
 		store:  store,
 	}
+	for _, opt := range opts {
+		opt(app)
+	}
+	return app
 }
 
 func (a *App) StartAuthFlow(ctx context.Context, identifier string) (string, error) {
