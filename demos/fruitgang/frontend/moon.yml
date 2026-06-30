@@ -3,6 +3,7 @@ tasks:
   dev:
     env:
       SERVER_PORT: "5178"
+      DEVTOOLS_PORT: "42073"
       DOMAIN: "fruitgang.local.habitat.network"
       HABITAT_DOMAIN: "pear.local.habitat.network"
       FRUITGANG_API: "https://fruitgang-api.local.habitat.network"

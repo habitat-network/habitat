@@ -53,7 +53,7 @@ home.local.habitat.network {
 }
 
 fruitgang.local.habitat.network {
-  reverse_proxy 127.0.0.1:5178
+  reverse_proxy 127.0.0.1:5179
   tls internal
 }
 
