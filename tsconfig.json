@@ -6,6 +6,9 @@
       "path": "./api-docs"
     },
     {
+      "path": "./demos/fruitgang/frontend"
+    },
+    {
       "path": "./frontend"
     },
     {

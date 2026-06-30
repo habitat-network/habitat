@@ -5,4 +5,5 @@ tasks:
     deps:
       - fruitgang-backend:dev
       - fruitgang-frontend:dev
+      - frontend:dev
     preset: server

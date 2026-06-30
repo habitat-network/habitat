@@ -13,7 +13,7 @@ The app lives at `demos/fruitgang/` with a Go backend and a TypeScript frontend 
 
 ## Lexicons
 
-All lexicons live under `lexicons/community/fruitgang/` and follow the AT Protocol lexicon format.
+All lexicons live under `demos/fruitgang/lexicons/community/fruitgang/` and follow the AT Protocol lexicon format.
 
 ### `community.fruitgang.member`
 Record (`key: tid`) — a member's Fruit Gang profile.
@@ -176,20 +176,20 @@ Reuses `AuthManager` from `internal` for OAuth login/logout. The `_app.tsx` layo
 
 ```css
 /* src/theme.css */
---strawberry:      #FF2D55;
---tangerine:       #FF9F0A;
---banana:          #FFD60A;
---lime:            #30D158;
---grape:           #BF5AF2;
---blueberry:       #0A84FF;
---cherry:          #FF375F;
---peach:           #FFB340;
+--strawberry:      #ff2d6f;
+--tangerine:       #fc6b04;
+--banana:          #ffef0acc;
+--lime:            #8ee71b;
+--grape:           #a256c8;
+--blueberry:       #3224b1;
+--cherry:          #f11616;
+--peach:           #ffc062;
 
 --bg:              #09090F;
 --surface:         #13131F;
 --surface-raised:  #1C1C2E;
 --text:            #F5F5F7;
---muted:           #6E6E80;
+--muted:           #9595b8;
 --border:          #2A2A40;
 ```
 
@@ -205,13 +205,6 @@ Both loaded from Google Fonts in `theme.css` via `@import`.
 **Fruit → color mapping (`src/fruits.ts`):**
 
 A single exported map: `FRUITS` keyed by lexicon token slug → `{ emoji, label, colorVar }` where `colorVar` is a CSS variable name (e.g. `--strawberry`). This is the only place fruit metadata lives; all UI components import from here.
-
-**Signature element:** Each member is assigned a fruit accent color via their `favoriteFruit` (looked up in `FRUITS`). That color appears as:
-- A `2px` ring + soft radial glow on their avatar
-- A left-border accent on their chat posts
-- A subtle tinted background on their member card
-
-Log entries animate in with a stagger: each repeated fruit emoji scales from `0.5` to `1` with a 60ms delay per emoji, giving the impression of fruit landing one by one.
 
 **Nav:** Top bar with `🍓 fruit gang` wordmark in Original Surfer (left), three tab pills (Members / Chats / Log) centered, user avatar (right). Active tab pill has a soft glow in the logged-in user's fruit accent color.
 
