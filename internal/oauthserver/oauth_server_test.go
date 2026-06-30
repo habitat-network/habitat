@@ -15,10 +15,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
-	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"

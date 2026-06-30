@@ -42,8 +42,6 @@ func isDuplicateError(err error) bool {
 	return errors.Is(err, gorm.ErrDuplicatedKey)
 }
 
-
-
 type inviteTokenClaims struct {
 	jwt.Claims
 	Reusable bool `json:"r"` // Small keys

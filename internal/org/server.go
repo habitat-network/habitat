@@ -63,7 +63,11 @@ func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) 
 	return true, nil
 }
 
-func (s *Server) validateOrgToken(ctx context.Context, orgID string, token string) (core.Org, error) {
+func (s *Server) validateOrgToken(
+	ctx context.Context,
+	orgID string,
+	token string,
+) (core.Org, error) {
 	org, err := s.store.GetOrg(ctx, syntax.DID(orgID))
 	if err != nil {
 		return nil, err
