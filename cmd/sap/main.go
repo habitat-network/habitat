@@ -93,8 +93,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	// their own port. The org and channel endpoints are served on a separate
 	// internal port so the user can restrict access to trusted services.
 	oauthMux := http.NewServeMux()
-	oauthMux.Handle("/oauth-callback", server.handleOAuthCallback)
-	oauthMux.Handle("/client-metadata.json", server.handleClientMetadata)
+	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
+	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
