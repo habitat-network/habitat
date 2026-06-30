@@ -13,6 +13,7 @@ tasks:
     options:
       envFile:
         - /dev.env
+      mergeArgs: replace
     preset: server
   build:
     command: go
