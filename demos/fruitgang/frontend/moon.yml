@@ -1,0 +1,11 @@
+layer: application
+tasks:
+  dev:
+    env:
+      SERVER_PORT: "5178"
+      DOMAIN: "fruitgang.local.habitat.network"
+      HABITAT_DOMAIN: "pear.local.habitat.network"
+      FRUITGANG_API: "https://fruitgang-api.local.habitat.network"
+    deps:
+      - fruitgang-backend:dev
+      - root:caddy

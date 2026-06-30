@@ -1,0 +1,4 @@
+declare const __DOMAIN__: string;
+declare const __HABITAT_DOMAIN__: string;
+declare const __HASH_ROUTING__: boolean;
+declare const __FRUITGANG_API__: string;
