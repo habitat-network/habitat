@@ -4,9 +4,10 @@ fileGroups:
     - 'go.mod'
     - 'go.sum'
   src:
-    - '**/*{!_test}.go'
+    - '**/*.go'
+    - '!**/*_test.go'
   test:
-    - '**/*_test.go'
+    - '**/*.go'
 tasks:
   format-check:
     command: noop
@@ -39,7 +40,6 @@ tasks:
       - ^:test
     inputs:
     - '@group(mod)'
-    - '@group(src)'
     - '@group(test)'
     command: go
     args:
