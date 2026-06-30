@@ -11,14 +11,12 @@ import (
 	"time"
 
 	jose "github.com/go-jose/go-jose/v3"
-	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
 	"github.com/ory/fosite/handler/rfc7523"
 	"github.com/ory/fosite/storage"
-	"github.com/ory/fosite/token/jwt"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -222,14 +220,13 @@ func (s *store) CreateAuthorizeCodeSession(
 func (s *store) GetAuthorizeCodeSession(
 	ctx context.Context,
 	signature string,
-	session fosite.Session,
+	_ fosite.Session,
 ) (request fosite.Requester, err error) {
 	ctx, span := tracer.Start(ctx, "GetAuthorizeCodeSession")
 	defer span.End()
 	span.SetAttributes(attribute.String("auth_signature", signature))
 
-	var data authSession
-	err = encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
+	data, err := decodeSession(signature, s.strategy.encryptionKey)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
@@ -239,7 +236,7 @@ func (s *store) GetAuthorizeCodeSession(
 	}
 	return &fosite.Request{
 		Client:         client,
-		Session:        newJWTSession(&data),
+		Session:        data,
 		RequestedScope: data.Scopes,
 	}, nil
 }
@@ -268,10 +265,9 @@ func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) 
 func (s *store) GetPKCERequestSession(
 	ctx context.Context,
 	signature string,
-	session fosite.Session,
+	_ fosite.Session,
 ) (fosite.Requester, error) {
-	var data authSession
-	err := encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
+	data, err := decodeSession(signature, s.strategy.encryptionKey)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
@@ -326,13 +322,13 @@ func (s *store) CreateRefreshTokenSession(
 		attribute.String("client_id", request.GetClient().GetID()),
 	)
 
-	session := request.GetSession().(*oauth2.JWTSession)
+	sess := request.GetSession().(*session)
 	oauthSession := &OAuthSession{
 		Signature: signature,
 		ClientID:  request.GetClient().GetID(),
-		Subject:   session.JWTClaims.Subject,
-		Scopes:    strings.Join(session.JWTClaims.Scope, " "),
-		ExpiresAt: session.GetExpiresAt(fosite.RefreshToken),
+		Subject:   sess.Subject,
+		Scopes:    strings.Join(sess.Scopes, " "),
+		ExpiresAt: sess.GetExpiresAt(fosite.RefreshToken),
 	}
 
 	err := s.db.WithContext(ctx).Create(oauthSession).Error
@@ -358,7 +354,7 @@ func (s *store) DeleteRefreshTokenSession(ctx context.Context, signature string)
 func (s *store) GetRefreshTokenSession(
 	ctx context.Context,
 	signature string,
-	session fosite.Session,
+	_ fosite.Session,
 ) (fosite.Requester, error) {
 	ctx, span := tracer.Start(ctx, "GetRefreshTokenSession")
 	defer span.End()
@@ -381,18 +377,14 @@ func (s *store) GetRefreshTokenSession(
 		scopes = strings.Split(oauthSession.Scopes, " ")
 	}
 
-	jwtSession := &oauth2.JWTSession{
-		JWTClaims: &jwt.JWTClaims{
-			Subject:   oauthSession.Subject,
-			ExpiresAt: oauthSession.ExpiresAt,
-			Scope:     scopes,
-		},
-		JWTHeader: &jwt.Headers{},
-	}
-
 	return &fosite.Request{
-		Client:         client,
-		Session:        jwtSession,
+		Client: client,
+		Session: &session{
+			Subject:               oauthSession.Subject,
+			ClientID:              oauthSession.ClientID,
+			Scopes:                scopes,
+			RefreshTokenExpiresAt: oauthSession.ExpiresAt,
+		},
 		RequestedScope: scopes,
 	}, nil
 }

@@ -521,7 +521,7 @@ func (o *OAuthServer) HandleCallback(
 func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	ctx := r.Context()
-	req, err := o.provider.NewAccessRequest(ctx, r, newJWTBearerSession())
+	req, err := o.provider.NewAccessRequest(ctx, r, newSession())
 	if err != nil {
 		logError(ctx, err)
 		o.provider.WriteAccessError(ctx, w, req, err)

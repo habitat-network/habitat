@@ -189,7 +189,7 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 		did, ok, err := srv.ValidateRaw(t.Context(), token.AccessToken)
 		require.NoError(t, err)
 		require.True(t, ok)
-		require.Equal(t, subject, did.String())
+		require.Equal(t, subject, did.Subject.String())
 	})
 
 	t.Run("rejects an assertion from a client not on the allow-list", func(t *testing.T) {
