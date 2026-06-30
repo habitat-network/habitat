@@ -285,6 +285,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
+		domain,
 	)
 	if err != nil {
 		slog.Error("unable to setup oauth server", "err", err)

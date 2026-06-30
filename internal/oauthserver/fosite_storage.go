@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/habitat-network/habitat/internal/encrypt"
+	jose "github.com/go-jose/go-jose/v3"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
+	"github.com/ory/fosite/handler/rfc7523"
 	"github.com/ory/fosite/storage"
-	"github.com/ory/fosite/token/jwt"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,9 +26,10 @@ import (
 var tracer = otel.Tracer("github.com/habitat-network/habitat/internal/oauthserver")
 
 type store struct {
-	memoryStore *storage.MemoryStore
-	strategy    *strategy
-	db          *gorm.DB
+	memoryStore            *storage.MemoryStore
+	strategy               *strategy
+	db                     *gorm.DB
+	jwtBearerClientDomains []string
 }
 
 type OAuthSession struct {
@@ -48,16 +49,17 @@ type ConnectedApp struct {
 	UpdatedAt time.Time
 }
 
-func newStore(strat *strategy, db *gorm.DB) (*store, error) {
+func newStore(strat *strategy, db *gorm.DB, jwtBearerClientDomains []string) (*store, error) {
 	err := db.AutoMigrate(&OAuthSession{}, &ConnectedApp{})
 	if err != nil {
 		return nil, err
 	}
 	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
-		memoryStore: storage.NewMemoryStore(),
-		strategy:    strat,
-		db:          db,
+		memoryStore:            storage.NewMemoryStore(),
+		strategy:               strat,
+		db:                     db,
+		jwtBearerClientDomains: jwtBearerClientDomains,
 	}, nil
 }
 
@@ -66,11 +68,12 @@ var (
 	_ oauth2.CoreStorage            = (*store)(nil)
 	_ oauth2.TokenRevocationStorage = (*store)(nil)
 	_ pkce.PKCERequestStorage       = (*store)(nil)
+	_ rfc7523.RFC7523KeyStorage     = (*store)(nil)
 )
 
 // ClientAssertionJWTValid implements fosite.Storage.
 func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {
-	panic("not implemented")
+	return nil
 }
 
 // GetClient implements fosite.Storage.
@@ -78,7 +81,20 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 	ctx, span := tracer.Start(ctx, "GetClient")
 	defer span.End()
 	span.SetAttributes(attribute.String("client_id", id))
+	metadata, err := s.fetchClientMetadata(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &client{metadata}, nil
+}
 
+// fetchClientMetadata fetches and decodes the client metadata document
+// published at id (the client's client_id URL). See
+// https://atproto.com/specs/oauth#client-id-metadata-document.
+func (s *store) fetchClientMetadata(
+	ctx context.Context,
+	id string,
+) (*pdsclient.ClientMetadata, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
@@ -100,7 +116,89 @@ func (s *store) GetClient(ctx context.Context, id string) (fosite.Client, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode client metadata: %w", err)
 	}
-	return &client{metadata}, nil
+	return &metadata, nil
+}
+
+// GetPublicKey implements rfc7523.RFC7523KeyStorage. issuer is the "iss"
+// claim of the JWT bearer assertion, expected to be a client ID (client
+// metadata URL) present in the hardcoded jwtBearerAllowedClients allow-list.
+func (s *store) GetPublicKey(
+	ctx context.Context,
+	issuer string,
+	subject string,
+	keyID string,
+) (*jose.JSONWebKey, error) {
+	keys, err := s.GetPublicKeys(ctx, issuer, subject)
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range keys.Keys {
+		if key.KeyID == keyID {
+			return &key, nil
+		}
+	}
+	return nil, fosite.ErrNotFound
+}
+
+// GetPublicKeys implements rfc7523.RFC7523KeyStorage.
+func (s *store) GetPublicKeys(
+	ctx context.Context,
+	issuer string,
+	_ string,
+) (*jose.JSONWebKeySet, error) {
+	if !s.isJWTBearerClientAllowed(issuer) {
+		return nil, fosite.ErrNotFound
+	}
+	metadata, err := s.fetchClientMetadata(ctx, issuer)
+	if err != nil {
+		return nil, err
+	}
+	if metadata.Jwks == nil || len(metadata.Jwks.Keys) == 0 {
+		return nil, fosite.ErrNotFound
+	}
+	return metadata.Jwks, nil
+}
+
+// GetPublicKeyScopes implements rfc7523.RFC7523KeyStorage.
+func (s *store) GetPublicKeyScopes(
+	ctx context.Context,
+	issuer string,
+	_ string,
+	_ string,
+) ([]string, error) {
+	if !s.isJWTBearerClientAllowed(issuer) {
+		return nil, fosite.ErrNotFound
+	}
+	cl, err := s.GetClient(ctx, issuer)
+	if err != nil {
+		return nil, err
+	}
+	return cl.GetScopes(), nil
+}
+
+func (s *store) isJWTBearerClientAllowed(clientID string) bool {
+	metadataURL, err := url.Parse(clientID)
+	if err != nil {
+		return false
+	}
+	// support any subdomains for now
+	// TODO: probably should support explicit wildcards
+	for _, domain := range s.jwtBearerClientDomains {
+		if strings.HasSuffix(metadataURL.Host, domain) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsJWTUsed implements rfc7523.RFC7523KeyStorage.
+func (s *store) IsJWTUsed(ctx context.Context, jti string) (bool, error) {
+	return false, nil
+}
+
+// MarkJWTUsedForTime implements rfc7523.RFC7523KeyStorage.
+func (s *store) MarkJWTUsedForTime(ctx context.Context, jti string, exp time.Time) error {
+	return nil
 }
 
 // SetClientAssertionJWT implements fosite.Storage.
@@ -122,14 +220,13 @@ func (s *store) CreateAuthorizeCodeSession(
 func (s *store) GetAuthorizeCodeSession(
 	ctx context.Context,
 	signature string,
-	session fosite.Session,
+	_ fosite.Session,
 ) (request fosite.Requester, err error) {
 	ctx, span := tracer.Start(ctx, "GetAuthorizeCodeSession")
 	defer span.End()
 	span.SetAttributes(attribute.String("auth_signature", signature))
 
-	var data authSession
-	err = encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
+	data, err := decodeSession(signature, s.strategy.encryptionKey)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
@@ -139,7 +236,7 @@ func (s *store) GetAuthorizeCodeSession(
 	}
 	return &fosite.Request{
 		Client:         client,
-		Session:        newJWTSession(&data),
+		Session:        data,
 		RequestedScope: data.Scopes,
 	}, nil
 }
@@ -168,10 +265,9 @@ func (s *store) DeletePKCERequestSession(ctx context.Context, signature string) 
 func (s *store) GetPKCERequestSession(
 	ctx context.Context,
 	signature string,
-	session fosite.Session,
+	_ fosite.Session,
 ) (fosite.Requester, error) {
-	var data authSession
-	err := encrypt.DecryptCBOR(signature, s.strategy.encryptionKey, &data)
+	data, err := decodeSession(signature, s.strategy.encryptionKey)
 	if err != nil {
 		return nil, errors.Join(fosite.ErrNotFound, err)
 	}
@@ -226,13 +322,13 @@ func (s *store) CreateRefreshTokenSession(
 		attribute.String("client_id", request.GetClient().GetID()),
 	)
 
-	session := request.GetSession().(*oauth2.JWTSession)
+	sess := request.GetSession().(*session)
 	oauthSession := &OAuthSession{
 		Signature: signature,
 		ClientID:  request.GetClient().GetID(),
-		Subject:   session.JWTClaims.Subject,
-		Scopes:    strings.Join(session.JWTClaims.Scope, " "),
-		ExpiresAt: session.GetExpiresAt(fosite.RefreshToken),
+		Subject:   sess.Subject,
+		Scopes:    strings.Join(sess.Scopes, " "),
+		ExpiresAt: sess.GetExpiresAt(fosite.RefreshToken),
 	}
 
 	err := s.db.WithContext(ctx).Create(oauthSession).Error
@@ -258,7 +354,7 @@ func (s *store) DeleteRefreshTokenSession(ctx context.Context, signature string)
 func (s *store) GetRefreshTokenSession(
 	ctx context.Context,
 	signature string,
-	session fosite.Session,
+	_ fosite.Session,
 ) (fosite.Requester, error) {
 	ctx, span := tracer.Start(ctx, "GetRefreshTokenSession")
 	defer span.End()
@@ -281,18 +377,14 @@ func (s *store) GetRefreshTokenSession(
 		scopes = strings.Split(oauthSession.Scopes, " ")
 	}
 
-	jwtSession := &oauth2.JWTSession{
-		JWTClaims: &jwt.JWTClaims{
-			Subject:   oauthSession.Subject,
-			ExpiresAt: oauthSession.ExpiresAt,
-			Scope:     scopes,
-		},
-		JWTHeader: &jwt.Headers{},
-	}
-
 	return &fosite.Request{
-		Client:         client,
-		Session:        jwtSession,
+		Client: client,
+		Session: &session{
+			Subject:               oauthSession.Subject,
+			ClientID:              oauthSession.ClientID,
+			Scopes:                scopes,
+			RefreshTokenExpiresAt: oauthSession.ExpiresAt,
+		},
 		RequestedScope: scopes,
 	}, nil
 }
