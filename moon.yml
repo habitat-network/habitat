@@ -1,10 +1,19 @@
 layer: library
 fileGroups:
-  src:
-    - internal/**/*{!_test}.go
-  test:
-    - internal/**/*_test.go
+  internal_src:
+    - internal/**/*.go
+    - '!internal/**/*_test.go'
+  internal_test:
+    - internal/**/*.go
 tasks:
+  build:
+    inputs:
+      - '@group(mod)'
+      - '@group(internal_src)'
+  test:
+    inputs:
+      - '@group(mod)'
+      - '@group(internal_test)'
   format-check:
     command: golangci-lint fmt -d
     inputs:
