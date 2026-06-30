@@ -234,6 +234,10 @@ func NewOAuthServer(
 		return nil, err
 	}
 
+	if loginRouter.OrgStore == nil {
+		loginRouter.OrgStore = orgStore
+	}
+
 	return &OAuthServer{
 		metrics: oauthMetrics,
 		provider: compose.Compose(
@@ -317,41 +321,7 @@ func (o *OAuthServer) HandleAuthorize(
 		return
 	}
 
-	// GetOrgForDID distinguishes an org DID (isMember false: an admin must
-	// authenticate on the org's behalf) from a member DID (isMember true: the
-	// member authenticates as themselves, identified to the provider by their
-	// own login hint).
-	targetOrg, isMember, err := o.orgStore.GetOrgForDID(ctx, id.DID)
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, "lookup_org")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to look up organization",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	loginHint := ""
-	if isMember {
-		member, err := o.orgStore.GetMember(ctx, id.DID)
-		if err != nil {
-			o.metrics.authorizeErr(ctx, err, "lookup_member")
-			utils.LogAndHTTPError(
-				ctx,
-				w,
-				err,
-				"failed to look up member",
-				http.StatusInternalServerError,
-			)
-			return
-		}
-		loginHint = member.LoginID
-	}
-
-	redirect, providerState, err := o.loginRouter.Authorize(ctx, targetOrg, loginHint)
+	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
 		utils.LogAndHTTPError(
@@ -450,26 +420,9 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	// GetOrgForDID distinguishes an org DID (isMember false: an admin must
-	// have completed the login, and the request requires explicit consent)
-	// from a member DID (isMember true: the member must have completed the
-	// login themselves).
-	targetOrg, isMember, err := o.orgStore.GetOrgForDID(ctx, arf.Did)
-	if err != nil {
-		o.metrics.callbackErr(ctx, err, "lookup_org")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to look up organization",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	loginID, err := o.loginRouter.Exchange(
+	member, err := o.loginRouter.Exchange(
 		ctx,
-		targetOrg,
+		arf.Did,
 		r.URL.Query().Get("code"),
 		r.URL.Query().Get("iss"),
 		arf.ProviderState,
@@ -486,19 +439,9 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	if err := o.verifyExchangedLogin(ctx, arf.Did, isMember, loginID); err != nil {
-		o.metrics.callbackErr(ctx, err, "verify_login")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to verify login",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	if !isMember {
+	// member.DID differs from arf.Did when an admin completed the login on
+	// the org's behalf (an org-DID login), which requires explicit consent.
+	if member.DID != arf.Did {
 		o.beginConsent(w, r, arf.Form, arf.Did)
 		return
 	}
@@ -521,37 +464,6 @@ func (o *OAuthServer) HandleCallback(
 	}
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
-}
-
-// verifyExchangedLogin checks that loginID — the identity the login provider
-// asserted completed the OAuth flow — is who was expected to log in for did:
-// an admin of the org for an org-DID login (isMember false), or did's own
-// registered member for a member-DID login (isMember true).
-func (o *OAuthServer) verifyExchangedLogin(
-	ctx context.Context,
-	did syntax.DID,
-	isMember bool,
-	loginID string,
-) error {
-	if !isMember {
-		member, err := o.orgStore.GetMemberByLoginID(ctx, loginID)
-		if err != nil {
-			return fmt.Errorf("failed to get member by login id: %w", err)
-		}
-		if member.Role != org.AdminRole {
-			return fmt.Errorf("not an admin")
-		}
-		return nil
-	}
-
-	member, err := o.orgStore.GetMember(ctx, did)
-	if err != nil {
-		return fmt.Errorf("failed to get member: %w", err)
-	}
-	if member.LoginID != loginID {
-		return fmt.Errorf("login id mismatch: %s != %s", member.LoginID, loginID)
-	}
-	return nil
 }
 
 // popFlash reads the flash cookie session set by HandleAuthorize and
