@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/login"
 )
 
@@ -16,8 +17,15 @@ type LoginRouter struct {
 	OrgStore Store
 }
 
-func (r *LoginRouter) getProvider(org Org) login.Provider {
-	switch org.loginMethod(context.Background() /* todo: fix context */) {
+func (r *LoginRouter) getProvider(org core.Org) login.Provider {
+	type loginMethodProvider interface {
+		loginMethod(ctx context.Context) loginMethod
+	}
+	p, ok := org.(loginMethodProvider)
+	if !ok {
+		return nil
+	}
+	switch p.loginMethod(context.Background() /* todo: fix context */) {
 	case LoginMethodGoogle:
 		return r.Google
 	case LoginMethodPassword:

@@ -566,23 +566,6 @@ func (o *OAuthServer) Validate(
 		return nil, false
 	}
 
-	_, isMember, err := o.orgStore.GetOrgForDID(r.Context(), credInfo.Subject)
-	if err != nil {
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("not a member of this organization"),
-			http.StatusUnauthorized,
-		)
-		return nil, false
-	}
-
-	if credInfo.Subject == "" {
-		credInfo.Type = authn.InstanceCredential
-	} else if isMember {
-		credInfo.Type = authn.UserCredential
-	} else {
-		credInfo.Type = authn.OrgCredential
-	}
 	return credInfo, true
 }
 
@@ -612,7 +595,25 @@ func (o *OAuthServer) ValidateRaw(
 	if did == "" {
 		return nil, false, fmt.Errorf("DID not found in JWT")
 	}
-	return &authn.CredentialInfo{Subject: syntax.DID(did)}, true, nil
+
+	credInfo := &authn.CredentialInfo{Subject: syntax.DID(did)}
+
+	if did == "" {
+		credInfo.Type = authn.InstanceCredential
+	} else {
+		org, isMember, err := o.orgStore.GetOrgForDID(ctx, syntax.DID(did))
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to get org for DID: %w", err)
+		}
+		credInfo.Org = org
+		if isMember {
+			credInfo.Type = authn.UserCredential
+		} else {
+			credInfo.Type = authn.OrgCredential
+		}
+	}
+
+	return credInfo, true, nil
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
