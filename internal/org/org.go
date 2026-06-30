@@ -54,7 +54,7 @@ type orgImpl struct {
 	db               *gorm.DB
 	signingSecret    []byte
 	handleSubdomain  string
-	method           loginMethod
+	method           core.LoginMethod
 	passwordProvider *login.PasswordLoginProvider
 }
 
@@ -70,14 +70,14 @@ func (s *orgImpl) GetMetadata(
 	domain string,
 ) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		LoginMethod:     string(s.loginMethod(ctx)),
+		LoginMethod:     string(s.LoginMethod(ctx)),
 		HandleSubdomain: s.handleSubdomain,
 		OrgId:           string(s.orgID),
 		Name:            s.name,
 	}
 }
 
-func (s *orgImpl) loginMethod(ctx context.Context) loginMethod {
+func (s *orgImpl) LoginMethod(ctx context.Context) core.LoginMethod {
 	var org organization
 	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
 		return "password" // safe default
@@ -290,8 +290,8 @@ func (s *orgImpl) CreateNewMemberIdentity(
 		// them. Storing the wrong value here makes login fail with a login id
 		// mismatch at code exchange.
 		var memberLoginID string
-		switch s.loginMethod(ctx) {
-		case LoginMethodPassword:
+		switch s.LoginMethod(ctx) {
+		case core.LoginMethodPassword:
 			memberLoginID = newID.DID.String()
 			if err := s.passwordProvider.WithTx(tx).AddLoginEntry(newID.DID, password); err != nil {
 				return fmt.Errorf("add login entry: %w", err)

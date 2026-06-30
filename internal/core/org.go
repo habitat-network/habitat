@@ -10,6 +10,14 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 )
 
+type LoginMethod string
+
+const (
+	LoginMethodAtproto  LoginMethod = "atproto"
+	LoginMethodGoogle   LoginMethod = "google"
+	LoginMethodPassword LoginMethod = "password"
+)
+
 // Org represents a single organization on a pear instance.
 type Org interface {
 	DID() syntax.DID
@@ -39,6 +47,8 @@ type Org interface {
 		loginID string,
 	) (*identity.Identity, error)
 	ValidateAdminSignedToken(ctx context.Context, token string) error
+
+	LoginMethod(ctx context.Context) LoginMethod
 
 	db.Store[Org]
 }

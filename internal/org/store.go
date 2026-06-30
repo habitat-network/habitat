@@ -159,7 +159,7 @@ func (s *storeImpl) CreateOrg(
 		if err := tx.Create(&organization{
 			ID:              mintedOrgId.DID,
 			Name:            name,
-			LoginMethod:     loginMethod(method),
+			LoginMethod:     core.LoginMethod(method),
 			SigningSecret:   signingSecret,
 			CreatedAt:       time.Now(),
 			HandleSubdomain: handleSubdomain,

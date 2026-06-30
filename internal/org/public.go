@@ -28,8 +28,8 @@ func (e *everyoneOrg) ValidateAdminSignedToken(ctx context.Context, token string
 	return ErrNotSupportedPublic
 }
 
-func (e *everyoneOrg) loginMethod(ctx context.Context) loginMethod {
-	return LoginMethodAtproto
+func (e *everyoneOrg) LoginMethod(ctx context.Context) core.LoginMethod {
+	return core.LoginMethodAtproto
 }
 
 // GetMetadata implements Org.

@@ -18,19 +18,12 @@ type LoginRouter struct {
 }
 
 func (r *LoginRouter) getProvider(org core.Org) login.Provider {
-	type loginMethodProvider interface {
-		loginMethod(ctx context.Context) loginMethod
-	}
-	p, ok := org.(loginMethodProvider)
-	if !ok {
-		return nil
-	}
-	switch p.loginMethod(context.Background() /* todo: fix context */) {
-	case LoginMethodGoogle:
+	switch org.LoginMethod(context.Background() /* todo: fix context */) {
+	case core.LoginMethodGoogle:
 		return r.Google
-	case LoginMethodPassword:
+	case core.LoginMethodPassword:
 		return r.Password
-	case LoginMethodAtproto:
+	case core.LoginMethodAtproto:
 		return r.Pds
 	}
 	return nil
