@@ -3,11 +3,12 @@ package main
 import "github.com/urfave/cli/v3"
 
 var (
-	fDb       = "db"
-	fPort     = "port"
-	fDomain   = "domain"
-	fLogLevel = "log-level"
-	fSecret   = "secret"
+	fDb           = "db"
+	fPort         = "port"
+	fInternalPort = "internal-port"
+	fDomain       = "domain"
+	fLogLevel     = "log-level"
+	fSecret       = "secret"
 )
 
 func getFlags() []cli.Flag {
@@ -20,9 +21,15 @@ func getFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:    fPort,
-			Usage:   "HTTP server address",
+			Usage:   "Public HTTP port serving the OAuth endpoints (callback, client metadata)",
 			Value:   "2580",
 			Sources: cli.EnvVars("SAP_PORT"),
+		},
+		&cli.StringFlag{
+			Name:    fInternalPort,
+			Usage:   "Internal HTTP port serving the org and channel endpoints",
+			Value:   "2581",
+			Sources: cli.EnvVars("SAP_INTERNAL_PORT"),
 		},
 		&cli.StringFlag{
 			Name:    fDomain,
