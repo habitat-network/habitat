@@ -8,14 +8,15 @@ import {
   ToggleGroupItem,
 } from "internal/components/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { procedure, query, SingleHandleCombobox } from "internal";
 import { NetworkHabitatOrgCreate } from "api";
 import { SetStateAction, useEffect, useState } from "react";
 
 export const Route = createFileRoute("/org/create")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    token: search.token ? String(search.token) : undefined,
+  validateSearch: z.object({
+    token: z.string().optional(),
   }),
   component: CreateOrgPage,
 });

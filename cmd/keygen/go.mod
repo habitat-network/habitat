@@ -1,6 +1,6 @@
 module github.com/habitat-network/habitat/cmd/keygen
 
-go 1.26
+go 1.26.3
 
 replace github.com/habitat-network/habitat => ../..
 

@@ -5,7 +5,7 @@ go 1.26.4
 replace github.com/habitat-network/habitat => ../..
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
+	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
 	github.com/gorilla/mux v1.8.1
 	github.com/habitat-network/habitat v0.0.2-testing-9
 	github.com/stretchr/testify v1.11.1
@@ -14,7 +14,7 @@ require (
 	github.com/urfave/cli/v3 v3.10.0
 	golang.org/x/sync v0.20.0
 	gorm.io/driver/postgres v1.6.0
-	gorm.io/gorm v1.31.1
+	gorm.io/gorm v1.31.2
 )
 
 require (
@@ -71,6 +71,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
+	github.com/mattn/go-sqlite3 v1.14.47 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect
@@ -124,8 +125,11 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260420184626-e10c466a9529 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )

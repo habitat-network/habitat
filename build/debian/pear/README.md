@@ -11,13 +11,14 @@
 **1. Download the compose file**
 
 ```bash
-curl -O https://raw.githubusercontent.com/habitat-network/habitat/master/build/debian/pear/docker-compose.yml
+curl -LO https://github.com/habitat-network/habitat/releases/latest/download/docker-compose.yml
 ```
 
 **2. Create a `.env` file in the same directory**
 
 ```bash
 HABITAT_DOMAIN=pear.example.com
+HABITAT_ADMIN_PASSWORD=<your password for instance-wide config here>
 ```
 
 That's the only required setting. See [Configuration](#configuration) for all options.

@@ -17,21 +17,11 @@ const (
 	crawlStateErrored  crawlState = "errored"
 )
 
-// managedOrg is the GORM model for organization auth and crawl state
 type managedOrg struct {
-	DID  syntax.DID `gorm:"column:did;primaryKey"`
-	Host string
-
-	// Pending auth
-	State        *string `gorm:"index"`
-	CodeVerifier *string
-
-	// Completed auth
-	AccessToken  string
-	RefreshToken string
-	ExpiresAt    time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	DID       syntax.DID `gorm:"column:did;primaryKey"`
+	SessionID string     // OAuth session ID, keys the oauth_client session store
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	ErrorMsg        string
 	CrawlState      *crawlState

@@ -50,6 +50,7 @@ import (
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -152,7 +153,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	instanceAdminServer := instance.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
+	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -319,6 +320,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 		orgStore,
 	)
 
+	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
+	relationshipServer := relationship.NewServer(
+		relationshipStore,
+		fgaStore,
+		oauthServer,
+		serviceAuth,
+	)
+
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
 	if err != nil {
 		slog.Error("unable to setup repo", "err", err)
@@ -456,6 +465,25 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
+
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.writeTuple",
+		relationshipServer.WriteTuple,
+	)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.deleteTuple",
+		relationshipServer.DeleteTuple,
+	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.listSubjects",
+		relationshipServer.ListSubjects,
+	)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.listObjects",
+		relationshipServer.ListObjects,
+	)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	pdsForwarding := forwarding.NewPDSForwarding(

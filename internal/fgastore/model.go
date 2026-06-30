@@ -16,6 +16,29 @@ const (
 	RelationSpaceMemberManager = "can_manage_members"
 )
 
+// spaceDirectlyRelatedUserTypes returns the set of user types that may be
+// granted a space relation directly. Besides individual users, each space
+// relation accepts space usersets (e.g. "space:A#can_read") so that a space —
+// including a group-space — can be used as a grantee on another space. This is
+// what powers groups-as-spaces, nested groups, and cross-space role
+// inheritance: the relationship store grants "all holders of role R on space A"
+// a role on space B by writing a space userset tuple.
+func spaceDirectlyRelatedUserTypes() []*openfgav1.RelationReference {
+	refs := []*openfgav1.RelationReference{{Type: TypeUser}}
+	for _, rel := range []string{
+		RelationSpaceOwner,
+		RelationSpaceReader,
+		RelationSpaceWriter,
+		RelationSpaceMemberManager,
+	} {
+		refs = append(refs, &openfgav1.RelationReference{
+			Type:               TypeSpace,
+			RelationOrWildcard: &openfgav1.RelationReference_Relation{Relation: rel},
+		})
+	}
+	return refs
+}
+
 func authModel() *openfgav1.AuthorizationModel {
 	return &openfgav1.AuthorizationModel{
 		SchemaVersion: "1.1",
@@ -112,24 +135,16 @@ func authModel() *openfgav1.AuthorizationModel {
 				Metadata: &openfgav1.Metadata{
 					Relations: map[string]*openfgav1.RelationMetadata{
 						RelationSpaceOwner: {
-							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: TypeUser},
-							},
+							DirectlyRelatedUserTypes: spaceDirectlyRelatedUserTypes(),
 						},
 						RelationSpaceReader: {
-							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: TypeUser},
-							},
+							DirectlyRelatedUserTypes: spaceDirectlyRelatedUserTypes(),
 						},
 						RelationSpaceWriter: {
-							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: TypeUser},
-							},
+							DirectlyRelatedUserTypes: spaceDirectlyRelatedUserTypes(),
 						},
 						RelationSpaceMemberManager: {
-							DirectlyRelatedUserTypes: []*openfgav1.RelationReference{
-								{Type: TypeUser},
-							},
+							DirectlyRelatedUserTypes: spaceDirectlyRelatedUserTypes(),
 						},
 					},
 				},

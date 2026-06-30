@@ -1,6 +1,8 @@
 package sap
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestCrawler(t *testing.T) {
@@ -46,24 +49,51 @@ func TestCrawler(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotif)
 
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauthclient.NewApp(&cfg, store)
+
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	sub := newSubscriber(db, oauthApp, resyncBuf)
+	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
+
+	makeToken := func(jti string) string {
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+		tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+			jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": jti},
+		).SignedString(key)
+		require.NoError(t, err)
+		return tok
+	}
+
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
+		AccessToken: makeToken("testorg"),
+	}))
 	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
-		AccessToken: "did:plc:testorg",
-		ExpiresAt:   time.Now().Add(time.Hour),
+		DID:       "did:plc:testorg",
+		SessionID: "sess1",
 	}).Error)
 
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg2",
+		SessionID:   "sess2",
+		HostURL:     srv.URL,
+		AccessToken: makeToken("testorg2"),
+	}))
 	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg2",
-		Host:        srv.URL,
-		AccessToken: "did:plc:testorg2",
-		ExpiresAt:   time.Now().Add(time.Hour),
-		CrawlState:  new(crawlStateRunning),
+		DID:        "did:plc:testorg2",
+		SessionID:  "sess2",
+		CrawlState: new(crawlStateRunning),
 	}).Error)
 
 	require.NoError(t, crawler.resumeIncompleteCrawls(t.Context()))
@@ -110,16 +140,35 @@ func TestCrawler_Error(t *testing.T) {
 	db := openTestDB(t)
 	resyncNotif := utils.NewPollNotifier()
 	outboxNotif := utils.NewPollNotifier()
-	orgManager := newOrgManager(db, "", nil, nil)
-	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	sub := newSubscriber(db, orgManager, resyncBuf)
-	crawler := newCrawler(db, orgManager, resyncBuf, sub, resyncNotif)
 
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauthclient.NewApp(&cfg, store)
+
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	sub := newSubscriber(db, oauthApp, resyncBuf)
+	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tok, err := jwt.NewWithClaims(jwt.SigningMethodPS256,
+		jwt.MapClaims{"exp": time.Now().Add(time.Hour).Unix(), "jti": "testorg"},
+	).SignedString(key)
+	require.NoError(t, err)
+	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+		AccountDID:  "did:plc:testorg",
+		SessionID:   "sess1",
+		HostURL:     srv.URL,
+		AccessToken: tok,
+	}))
 	require.NoError(t, db.Create(&managedOrg{
-		DID:         "did:plc:testorg",
-		Host:        srv.URL,
-		AccessToken: "did:plc:testorg",
-		ExpiresAt:   time.Now().Add(time.Hour),
+		DID:       "did:plc:testorg",
+		SessionID: "sess1",
 	}).Error)
 
 	require.NoError(t, crawler.resumeIncompleteCrawls(t.Context()))
@@ -131,12 +180,4 @@ func TestCrawler_Error(t *testing.T) {
 	}, 1*time.Second, 10*time.Millisecond)
 
 	require.NotEmpty(t, org.ErrorMsg)
-}
-
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db?_journal_mode=WAL"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, autoMigrate(db))
-	return db
 }

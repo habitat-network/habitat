@@ -1,6 +1,6 @@
 module github.com/habitat-network/habitat/integration
 
-go 1.26
+go 1.26.3
 
 replace github.com/habitat-network/habitat => ..
 
@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
+	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/habitat-network/habitat v0.0.0-00010101000000-000000000000
 	github.com/mdelapenya/tlscert v0.2.0
@@ -26,7 +26,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
 	golang.org/x/net v0.54.0
 	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.31.1
+	gorm.io/gorm v1.31.2
 )
 
 require (
