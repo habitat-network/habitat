@@ -1,0 +1,32 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.groups.listGroups",
+    "defs": {
+        "main": {
+            "type": "query",
+            "description": "List the groups visible to the calling user: groups they are a member of (directly or through inherited groups) and groups they can manage. Implemented by the home server and reached via pear service proxying.",
+            "parameters": {
+                "type": "params",
+                "properties": {}
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "groups"
+                    ],
+                    "properties": {
+                        "groups": {
+                            "type": "array",
+                            "items": {
+                                "type": "ref",
+                                "ref": "network.habitat.groups.defs#groupView"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

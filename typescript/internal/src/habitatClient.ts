@@ -48,6 +48,11 @@ import type {
   NetworkHabitatDocsCreateDoc,
   NetworkHabitatDocsUpdateDoc,
   NetworkHabitatDocsListDocs,
+  NetworkHabitatGroupsListGroups,
+  NetworkHabitatGroupsGetGroup,
+  NetworkHabitatGroupsCreateGroup,
+  NetworkHabitatGroupsUpdateGroup,
+  NetworkHabitatGroupsAddMember,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -76,6 +81,16 @@ type QueryEndpoints = {
   "network.habitat.docs.listDocs": Query<
     NetworkHabitatDocsListDocs.QueryParams,
     NetworkHabitatDocsListDocs.OutputSchema
+  >;
+  // Implemented by the home server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.groups.listGroups": Query<
+    NetworkHabitatGroupsListGroups.QueryParams,
+    NetworkHabitatGroupsListGroups.OutputSchema
+  >;
+  "network.habitat.groups.getGroup": Query<
+    NetworkHabitatGroupsGetGroup.QueryParams,
+    NetworkHabitatGroupsGetGroup.OutputSchema
   >;
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,
@@ -187,6 +202,19 @@ type ProcedureEndpoints = {
   "com.atproto.repo.createRecord": Procedure<
     ComAtprotoRepoCreateRecord.InputSchema,
     ComAtprotoRepoCreateRecord.OutputSchema
+  >;
+  // Implemented by the home server; reached via pear service proxying.
+  "network.habitat.groups.createGroup": Procedure<
+    NetworkHabitatGroupsCreateGroup.InputSchema,
+    NetworkHabitatGroupsCreateGroup.OutputSchema
+  >;
+  "network.habitat.groups.updateGroup": Procedure<
+    NetworkHabitatGroupsUpdateGroup.InputSchema,
+    NetworkHabitatGroupsUpdateGroup.OutputSchema
+  >;
+  "network.habitat.groups.addMember": Procedure<
+    NetworkHabitatGroupsAddMember.InputSchema,
+    NetworkHabitatGroupsAddMember.OutputSchema
   >;
   "network.habitat.repo.putRecord": Procedure<
     NetworkHabitatRepoPutRecord.InputSchema,

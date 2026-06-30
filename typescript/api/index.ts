@@ -41,6 +41,12 @@ import * as NetworkHabitatDocsMarkdown from './types/network/habitat/docs/markdo
 import * as NetworkHabitatDocsUpdateDoc from './types/network/habitat/docs/updateDoc.js'
 import * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 import * as NetworkHabitatGroupProfile from './types/network/habitat/group/profile.js'
+import * as NetworkHabitatGroupsAddMember from './types/network/habitat/groups/addMember.js'
+import * as NetworkHabitatGroupsCreateGroup from './types/network/habitat/groups/createGroup.js'
+import * as NetworkHabitatGroupsDefs from './types/network/habitat/groups/defs.js'
+import * as NetworkHabitatGroupsGetGroup from './types/network/habitat/groups/getGroup.js'
+import * as NetworkHabitatGroupsListGroups from './types/network/habitat/groups/listGroups.js'
+import * as NetworkHabitatGroupsUpdateGroup from './types/network/habitat/groups/updateGroup.js'
 import * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 import * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 import * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -122,6 +128,12 @@ export * as NetworkHabitatDocsMarkdown from './types/network/habitat/docs/markdo
 export * as NetworkHabitatDocsUpdateDoc from './types/network/habitat/docs/updateDoc.js'
 export * as NetworkHabitatGrantee from './types/network/habitat/grantee.js'
 export * as NetworkHabitatGroupProfile from './types/network/habitat/group/profile.js'
+export * as NetworkHabitatGroupsAddMember from './types/network/habitat/groups/addMember.js'
+export * as NetworkHabitatGroupsCreateGroup from './types/network/habitat/groups/createGroup.js'
+export * as NetworkHabitatGroupsDefs from './types/network/habitat/groups/defs.js'
+export * as NetworkHabitatGroupsGetGroup from './types/network/habitat/groups/getGroup.js'
+export * as NetworkHabitatGroupsListGroups from './types/network/habitat/groups/listGroups.js'
+export * as NetworkHabitatGroupsUpdateGroup from './types/network/habitat/groups/updateGroup.js'
 export * as NetworkHabitatInstanceDescribeInstance from './types/network/habitat/instance/describeInstance.js'
 export * as NetworkHabitatInternalNotifyOfUpdate from './types/network/habitat/internal/notifyOfUpdate.js'
 export * as NetworkHabitatListConnectedApps from './types/network/habitat/listConnectedApps.js'
@@ -640,6 +652,7 @@ export class NetworkHabitatNS {
   clique: NetworkHabitatCliqueNS
   docs: NetworkHabitatDocsNS
   group: NetworkHabitatGroupNS
+  groups: NetworkHabitatGroupsNS
   instance: NetworkHabitatInstanceNS
   internal: NetworkHabitatInternalNS
   org: NetworkHabitatOrgNS
@@ -656,6 +669,7 @@ export class NetworkHabitatNS {
     this.clique = new NetworkHabitatCliqueNS(client)
     this.docs = new NetworkHabitatDocsNS(client)
     this.group = new NetworkHabitatGroupNS(client)
+    this.groups = new NetworkHabitatGroupsNS(client)
     this.instance = new NetworkHabitatInstanceNS(client)
     this.internal = new NetworkHabitatInternalNS(client)
     this.org = new NetworkHabitatOrgNS(client)
@@ -1112,6 +1126,71 @@ export class NetworkHabitatGroupProfileRecord {
       { collection: 'network.habitat.group.profile', ...params },
       { headers },
     )
+  }
+}
+
+export class NetworkHabitatGroupsNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  addMember(
+    data?: NetworkHabitatGroupsAddMember.InputSchema,
+    opts?: NetworkHabitatGroupsAddMember.CallOptions,
+  ): Promise<NetworkHabitatGroupsAddMember.Response> {
+    return this._client
+      .call('network.habitat.groups.addMember', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatGroupsAddMember.toKnownErr(e)
+      })
+  }
+
+  createGroup(
+    data?: NetworkHabitatGroupsCreateGroup.InputSchema,
+    opts?: NetworkHabitatGroupsCreateGroup.CallOptions,
+  ): Promise<NetworkHabitatGroupsCreateGroup.Response> {
+    return this._client.call(
+      'network.habitat.groups.createGroup',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  getGroup(
+    params?: NetworkHabitatGroupsGetGroup.QueryParams,
+    opts?: NetworkHabitatGroupsGetGroup.CallOptions,
+  ): Promise<NetworkHabitatGroupsGetGroup.Response> {
+    return this._client
+      .call('network.habitat.groups.getGroup', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatGroupsGetGroup.toKnownErr(e)
+      })
+  }
+
+  listGroups(
+    params?: NetworkHabitatGroupsListGroups.QueryParams,
+    opts?: NetworkHabitatGroupsListGroups.CallOptions,
+  ): Promise<NetworkHabitatGroupsListGroups.Response> {
+    return this._client.call(
+      'network.habitat.groups.listGroups',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  updateGroup(
+    data?: NetworkHabitatGroupsUpdateGroup.InputSchema,
+    opts?: NetworkHabitatGroupsUpdateGroup.CallOptions,
+  ): Promise<NetworkHabitatGroupsUpdateGroup.Response> {
+    return this._client
+      .call('network.habitat.groups.updateGroup', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatGroupsUpdateGroup.toKnownErr(e)
+      })
   }
 }
 

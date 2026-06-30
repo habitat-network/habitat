@@ -23,6 +23,8 @@ import { Route as RequireAuthPermissionsRouteImport } from './routes/_requireAut
 import { Route as RequireAuthDataRouteImport } from './routes/_requireAuth/data'
 import { Route as RequireAuthForwardingTestRouteImport } from './routes/_requireAuth/_forwarding-test'
 import { Route as RequireAuthSpacesIndexRouteImport } from './routes/_requireAuth/spaces/index'
+import { Route as RequireAuthGroupsIndexRouteImport } from './routes/_requireAuth/groups/index'
+import { Route as RequireAuthGroupsGroupRouteImport } from './routes/_requireAuth/groups/$group'
 import { Route as RequireAuthPermissionsIndexRouteImport } from './routes/_requireAuth/permissions/index'
 import { Route as RequireAuthPearTestIndexRouteImport } from './routes/_requireAuth/pear-test/index'
 import { Route as RequireAuthOrgIndexRouteImport } from './routes/_requireAuth/org/index'
@@ -104,6 +106,16 @@ const RequireAuthForwardingTestRoute =
 const RequireAuthSpacesIndexRoute = RequireAuthSpacesIndexRouteImport.update({
   id: '/spaces/',
   path: '/spaces/',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+const RequireAuthGroupsIndexRoute = RequireAuthGroupsIndexRouteImport.update({
+  id: '/groups/',
+  path: '/groups/',
+  getParentRoute: () => RequireAuthRoute,
+} as any)
+const RequireAuthGroupsGroupRoute = RequireAuthGroupsGroupRouteImport.update({
+  id: '/groups/$group',
+  path: '/groups/$group',
   getParentRoute: () => RequireAuthRoute,
 } as any)
 const RequireAuthPermissionsIndexRoute =
@@ -199,12 +211,14 @@ export interface FileRoutesByFullPath {
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/spaces/$space': typeof RequireAuthSpacesSpaceRoute
+  '/groups/$group': typeof RequireAuthGroupsGroupRoute
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/collections': typeof RequireAuthCollectionsIndexRoute
   '/org': typeof RequireAuthOrgIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions/': typeof RequireAuthPermissionsIndexRoute
   '/spaces': typeof RequireAuthSpacesIndexRoute
+  '/groups': typeof RequireAuthGroupsIndexRoute
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/permissions/lexicons/': typeof RequireAuthPermissionsLexiconsIndexRoute
@@ -224,12 +238,14 @@ export interface FileRoutesByTo {
   '/pear-test/view': typeof RequireAuthPearTestViewRoute
   '/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/spaces/$space': typeof RequireAuthSpacesSpaceRoute
+  '/groups/$group': typeof RequireAuthGroupsGroupRoute
   '/blob-test': typeof RequireAuthBlobTestIndexRoute
   '/collections': typeof RequireAuthCollectionsIndexRoute
   '/org': typeof RequireAuthOrgIndexRoute
   '/pear-test': typeof RequireAuthPearTestIndexRoute
   '/permissions': typeof RequireAuthPermissionsIndexRoute
   '/spaces': typeof RequireAuthSpacesIndexRoute
+  '/groups': typeof RequireAuthGroupsIndexRoute
   '/permissions/lexicons/$collection': typeof RequireAuthPermissionsLexiconsCollectionRoute
   '/permissions/people/$did': typeof RequireAuthPermissionsPeopleDidRoute
   '/permissions/lexicons': typeof RequireAuthPermissionsLexiconsIndexRoute
@@ -254,6 +270,8 @@ export interface FileRoutesById {
   '/_requireAuth/permissions/lexicons': typeof RequireAuthPermissionsLexiconsRouteWithChildren
   '/_requireAuth/permissions/people': typeof RequireAuthPermissionsPeopleRouteWithChildren
   '/_requireAuth/spaces/$space': typeof RequireAuthSpacesSpaceRoute
+  '/_requireAuth/groups/$group': typeof RequireAuthGroupsGroupRoute
+  '/_requireAuth/groups/': typeof RequireAuthGroupsIndexRoute
   '/_requireAuth/blob-test/': typeof RequireAuthBlobTestIndexRoute
   '/_requireAuth/collections/': typeof RequireAuthCollectionsIndexRoute
   '/_requireAuth/org/': typeof RequireAuthOrgIndexRoute
@@ -283,12 +301,14 @@ export interface FileRouteTypes {
     | '/permissions/lexicons'
     | '/permissions/people'
     | '/spaces/$space'
+    | '/groups/$group'
     | '/blob-test'
     | '/collections'
     | '/org'
     | '/pear-test'
     | '/permissions/'
     | '/spaces'
+    | '/groups'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/permissions/lexicons/'
@@ -308,12 +328,14 @@ export interface FileRouteTypes {
     | '/pear-test/view'
     | '/permissions/people'
     | '/spaces/$space'
+    | '/groups/$group'
     | '/blob-test'
     | '/collections'
     | '/org'
     | '/pear-test'
     | '/permissions'
     | '/spaces'
+    | '/groups'
     | '/permissions/lexicons/$collection'
     | '/permissions/people/$did'
     | '/permissions/lexicons'
@@ -337,6 +359,8 @@ export interface FileRouteTypes {
     | '/_requireAuth/permissions/lexicons'
     | '/_requireAuth/permissions/people'
     | '/_requireAuth/spaces/$space'
+    | '/_requireAuth/groups/$group'
+    | '/_requireAuth/groups/'
     | '/_requireAuth/blob-test/'
     | '/_requireAuth/collections/'
     | '/_requireAuth/org/'
@@ -501,6 +525,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequireAuthSpacesSpaceRouteImport
       parentRoute: typeof RequireAuthRoute
     }
+    '/_requireAuth/groups/': {
+      id: '/_requireAuth/groups/'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof RequireAuthGroupsIndexRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
+    '/_requireAuth/groups/$group': {
+      id: '/_requireAuth/groups/$group'
+      path: '/groups/$group'
+      fullPath: '/groups/$group'
+      preLoaderRoute: typeof RequireAuthGroupsGroupRouteImport
+      parentRoute: typeof RequireAuthRoute
+    }
     '/_requireAuth/permissions/people': {
       id: '/_requireAuth/permissions/people'
       path: '/people'
@@ -613,11 +651,13 @@ interface RequireAuthRouteChildren {
   RequireAuthCollectionsCollectionRoute: typeof RequireAuthCollectionsCollectionRoute
   RequireAuthPearTestViewRoute: typeof RequireAuthPearTestViewRoute
   RequireAuthSpacesSpaceRoute: typeof RequireAuthSpacesSpaceRoute
+  RequireAuthGroupsGroupRoute: typeof RequireAuthGroupsGroupRoute
   RequireAuthBlobTestIndexRoute: typeof RequireAuthBlobTestIndexRoute
   RequireAuthCollectionsIndexRoute: typeof RequireAuthCollectionsIndexRoute
   RequireAuthOrgIndexRoute: typeof RequireAuthOrgIndexRoute
   RequireAuthPearTestIndexRoute: typeof RequireAuthPearTestIndexRoute
   RequireAuthSpacesIndexRoute: typeof RequireAuthSpacesIndexRoute
+  RequireAuthGroupsIndexRoute: typeof RequireAuthGroupsIndexRoute
 }
 
 const RequireAuthRouteChildren: RequireAuthRouteChildren = {
@@ -628,11 +668,13 @@ const RequireAuthRouteChildren: RequireAuthRouteChildren = {
   RequireAuthCollectionsCollectionRoute: RequireAuthCollectionsCollectionRoute,
   RequireAuthPearTestViewRoute: RequireAuthPearTestViewRoute,
   RequireAuthSpacesSpaceRoute: RequireAuthSpacesSpaceRoute,
+  RequireAuthGroupsGroupRoute: RequireAuthGroupsGroupRoute,
   RequireAuthBlobTestIndexRoute: RequireAuthBlobTestIndexRoute,
   RequireAuthCollectionsIndexRoute: RequireAuthCollectionsIndexRoute,
   RequireAuthOrgIndexRoute: RequireAuthOrgIndexRoute,
   RequireAuthPearTestIndexRoute: RequireAuthPearTestIndexRoute,
   RequireAuthSpacesIndexRoute: RequireAuthSpacesIndexRoute,
+  RequireAuthGroupsIndexRoute: RequireAuthGroupsIndexRoute,
 }
 
 const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
