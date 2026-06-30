@@ -2,6 +2,7 @@ ignoreScripts: true
 
 packages:
   - frontend
+  - demos/fruitgang/frontend
   - camera
   - typescript/internal
   - typescript/apps/*

@@ -10,6 +10,9 @@ projects:
     go/api: api
     xrpc-openapi-gen: typescript/xrpc-openapi-gen
     api-docs: api-docs
+    fruitgang: demos/fruitgang
+    fruitgang-backend: demos/fruitgang/backend
+    fruitgang-frontend: demos/fruitgang/frontend
   globs:
   - cmd/*
   - typescript/apps/*

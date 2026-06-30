@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "community.fruitgang.chatReply",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A flat reply to a community.fruitgang.chat record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "replyTo", "createdAt"],
+        "properties": {
+          "text": { "type": "string", "maxLength": 300 },
+          "replyTo": { "type": "string", "format": "at-uri" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

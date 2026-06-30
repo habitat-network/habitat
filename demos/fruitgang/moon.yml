@@ -1,0 +1,8 @@
+# demos/fruitgang/moon.yml
+tasks:
+  dev:
+    command: noop
+    deps:
+      - fruitgang-backend:dev
+      - fruitgang-frontend:dev
+    preset: server

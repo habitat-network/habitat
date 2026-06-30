@@ -51,3 +51,13 @@ home.local.habitat.network {
     reverse_proxy 127.0.0.1:2600
     tls internal
 }
+
+fruitgang.local.habitat.network {
+  reverse_proxy 127.0.0.1:5178
+  tls internal
+}
+
+fruitgang-api.local.habitat.network {
+  reverse_proxy 127.0.0.1:3100
+  tls internal
+}

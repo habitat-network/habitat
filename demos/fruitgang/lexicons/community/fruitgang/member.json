@@ -1,0 +1,68 @@
+{
+  "lexicon": 1,
+  "id": "community.fruitgang.member",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A Fruit Gang member profile.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["displayName", "createdAt"],
+        "properties": {
+          "displayName": { "type": "string", "maxLength": 64 },
+          "avatar": { "type": "blob" },
+          "funFact": { "type": "string", "maxLength": 280 },
+          "favoriteFruit": {
+            "type": "string",
+            "knownValues": [
+              "community.fruitgang.member#greenApple",
+              "community.fruitgang.member#redApple",
+              "community.fruitgang.member#pear",
+              "community.fruitgang.member#tangerine",
+              "community.fruitgang.member#lemon",
+              "community.fruitgang.member#lime",
+              "community.fruitgang.member#banana",
+              "community.fruitgang.member#watermelon",
+              "community.fruitgang.member#grapes",
+              "community.fruitgang.member#strawberry",
+              "community.fruitgang.member#blueberry",
+              "community.fruitgang.member#melon",
+              "community.fruitgang.member#cherries",
+              "community.fruitgang.member#peach",
+              "community.fruitgang.member#mango",
+              "community.fruitgang.member#pineapple",
+              "community.fruitgang.member#coconut",
+              "community.fruitgang.member#kiwi",
+              "community.fruitgang.member#tomato",
+              "community.fruitgang.member#olive",
+              "community.fruitgang.member#avocado"
+            ]
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "greenApple": { "type": "token" },
+    "redApple": { "type": "token" },
+    "pear": { "type": "token" },
+    "tangerine": { "type": "token" },
+    "lemon": { "type": "token" },
+    "lime": { "type": "token" },
+    "banana": { "type": "token" },
+    "watermelon": { "type": "token" },
+    "grapes": { "type": "token" },
+    "strawberry": { "type": "token" },
+    "blueberry": { "type": "token" },
+    "melon": { "type": "token" },
+    "cherries": { "type": "token" },
+    "peach": { "type": "token" },
+    "mango": { "type": "token" },
+    "pineapple": { "type": "token" },
+    "coconut": { "type": "token" },
+    "kiwi": { "type": "token" },
+    "tomato": { "type": "token" },
+    "olive": { "type": "token" },
+    "avocado": { "type": "token" }
+  }
+}
