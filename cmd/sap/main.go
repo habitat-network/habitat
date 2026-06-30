@@ -88,16 +88,24 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 
 	server := NewSapServer(s, oauthApp)
 
-	mux := http.NewServeMux()
+	// The OAuth endpoints (callback and client metadata) must be publicly
+	// reachable since the user's PDS redirects to them, so they are served on
+	// their own port. The org and channel endpoints are served on a separate
+	// internal port so the user can restrict access to trusted services.
+	oauthMux := http.NewServeMux()
+	oauthMux.Handle("/oauth-callback", s)
+	oauthMux.Handle("/client-metadata.json", s)
 
-	mux.HandleFunc("/health", server.handleHealth)
-	mux.HandleFunc("/org/add", server.handleAddOrg)
-	mux.HandleFunc("/org/list", server.handleListOrgs)
-	mux.HandleFunc("/channel", server.handleOutboxChannel)
-	mux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
-	mux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	internalMux := http.NewServeMux()
+	internalMux.HandleFunc("/health", server.handleHealth)
+	internalMux.HandleFunc("/org/add", server.handleAddOrg)
+	internalMux.HandleFunc("/org/list", server.handleListOrgs)
+	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
 
-	slog.InfoContext(ctx, "listening", "port", cmd.String(fPort))
+	slog.InfoContext(ctx, "listening",
+		"oauth_port", cmd.String(fPort),
+		"internal_port", cmd.String(fInternalPort),
+	)
 
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
@@ -106,17 +114,24 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 		return err
 	})
 	eg.Go(func() error {
-		srv := http.Server{
-			Addr:    fmt.Sprintf(":%s", cmd.String(fPort)),
-			Handler: mux,
-		}
-		go func() { _ = srv.ListenAndServe() }()
-		<-ctx.Done()
-		return srv.Shutdown(ctx)
+		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fPort)), oauthMux)
+	})
+	eg.Go(func() error {
+		return serve(ctx, fmt.Sprintf(":%s", cmd.String(fInternalPort)), internalMux)
 	})
 
 	err = eg.Wait()
 	return err
+}
+
+func serve(ctx context.Context, addr string, handler http.Handler) error {
+	srv := http.Server{
+		Addr:    addr,
+		Handler: handler,
+	}
+	go func() { _ = srv.ListenAndServe() }()
+	<-ctx.Done()
+	return srv.Shutdown(ctx)
 }
 
 func setupDatabase(dbURL string) (*gorm.DB, error) {
