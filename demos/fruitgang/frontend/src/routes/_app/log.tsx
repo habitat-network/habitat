@@ -37,8 +37,7 @@ function LogPage() {
 
   const { mutate: postLog, isPending: posting } = useMutation({
     mutationFn: async () => {
-      await procedure("network.habitat.repo.putRecord", {
-        repo: did,
+      await procedure("network.habitat.space.putRecord", {
         collection: "community.fruitgang.log",
         record: {
           fruit: `community.fruitgang.log#${selectedFruit}`,

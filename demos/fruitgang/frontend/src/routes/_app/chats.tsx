@@ -42,8 +42,7 @@ function ChatsPage() {
 
   const { mutate: postChat, isPending: posting } = useMutation({
     mutationFn: async (text: string) => {
-      await procedure("network.habitat.repo.putRecord", {
-        repo: did,
+      await procedure("network.habitat.space.putRecord", {
         collection: "community.fruitgang.chat",
         record: { text, createdAt: new Date().toISOString() },
       }, { authManager });
@@ -150,8 +149,7 @@ function ChatItem({
 
   const { mutate: postReply, isPending: replying } = useMutation({
     mutationFn: async (text: string) => {
-      await procedure("network.habitat.repo.putRecord", {
-        repo: currentDid,
+      await procedure("network.habitat.space.putRecord", {
         collection: "community.fruitgang.chatReply",
         record: { text, replyTo: chat.uri, createdAt: new Date().toISOString() },
       }, { authManager });

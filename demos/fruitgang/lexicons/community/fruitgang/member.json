@@ -5,7 +5,7 @@
     "main": {
       "type": "record",
       "description": "A Fruit Gang member profile.",
-      "key": "tid",
+      "key": "literal:self",
       "record": {
         "type": "object",
         "required": ["displayName", "createdAt"],

@@ -35,9 +35,9 @@ function MembersPage() {
 
   const { mutate: createProfile, isPending } = useMutation({
     mutationFn: async () => {
-      await procedure("network.habitat.repo.putRecord", {
-        repo: did,
+      await procedure("network.habitat.space.putRecord", {
         collection: "community.fruitgang.member",
+        rkey: "self",
         record: {
           displayName: form.displayName,
           funFact: form.funFact,
