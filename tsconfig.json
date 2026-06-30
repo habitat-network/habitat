@@ -15,6 +15,12 @@
       "path": "./typescript/apps/docs"
     },
     {
+      "path": "./typescript/apps/docs-server"
+    },
+    {
+      "path": "./typescript/apps/docsv2"
+    },
+    {
       "path": "./typescript/apps/pear-pages"
     },
     {

@@ -1,0 +1,12 @@
+tasks:
+  dev:
+    command: docker
+    args:
+      - compose
+      - -f
+      - docker-compose.yml
+      - up
+    preset: server
+    options:
+      cache: false
+      runInCI: false

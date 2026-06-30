@@ -1,13 +1,14 @@
 import { Button, Field, FieldLabel, Input } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 
 // Instance admin login page (migrated from internal/instance/login.html).
 // The form posts to pear's `/admin/login` handler, which validates the
 // password, creates a session cookie and redirects. On failure pear redirects
 // back here with an `error` search param.
 export const Route = createFileRoute("/admin/login")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    error: typeof search.error === "string" ? search.error : "",
+  validateSearch: z.object({
+    error: z.string().default(""),
   }),
   component: AdminLoginPage,
 });

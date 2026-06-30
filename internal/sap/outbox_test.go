@@ -85,7 +85,7 @@ func TestOutbox_AckPreventsRedelivery(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, msgs, 1)
 
-	require.NoError(t, msgs[0].Ack(t.Context()))
+	require.NoError(t, out.Ack(t.Context(), msgs[0].ID))
 
 	remaining, err := out.Poll(t.Context(), 10)
 	require.NoError(t, err)

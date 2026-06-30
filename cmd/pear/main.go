@@ -43,12 +43,14 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/sync"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
+	"github.com/habitat-network/habitat/internal/relationship"
 	"github.com/habitat-network/habitat/internal/repo"
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -151,7 +153,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 
-	instanceAdminServer := instance.NewServer(instanceAdminStore, cmd.String(fFrontendDomain))
+	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
@@ -187,6 +189,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux := mux.NewRouter()
 
 	mux.Use(otelmux.Middleware("habitat-server", otelmux.WithPublicEndpoint()))
+	mux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			span := trace.SpanFromContext(r.Context())
+			span.SetAttributes(attribute.String("http.request.header.referer", r.Referer()))
+			next.ServeHTTP(w, r)
+		})
+	})
 	mux.Use(corsMiddleware)
 	if cmd.Bool(fDebug) {
 		mux.Use(func(next http.Handler) http.Handler {
@@ -207,7 +216,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
 	defaultDir := identity.DefaultDirectory()
-	hiveDir := habitat_identity.NewWrappedDirectory(defaultDir, hive)
+	// hive is the base directory (tried first) since it resolves DIDs under our
+	// own domain locally; falling back to defaultDir's network resolution first
+	// would make this server make an outbound HTTP request back to itself for
+	// any locally-hosted DID.
+	hiveDir := habitat_identity.NewWrappedDirectory(hive, defaultDir)
 
 	pdsClientFactory, err := pdsclient.NewHttpClientFactory(
 		pdsCredStore,
@@ -307,6 +320,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 		oauthServer,
 		serviceAuth,
 		orgStore,
+	)
+
+	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
+	relationshipServer := relationship.NewServer(
+		relationshipStore,
+		fgaStore,
+		oauthServer,
+		serviceAuth,
 	)
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
@@ -446,6 +467,24 @@ func run(_ context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
 
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.writeTuple",
+		relationshipServer.WriteTuple,
+	)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.deleteTuple",
+		relationshipServer.DeleteTuple,
+	)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.listTuples", relationshipServer.ListTuples)
+	mux.HandleFunc("/xrpc/network.habitat.relationship.check", relationshipServer.Check)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.listSubjects",
+		relationshipServer.ListSubjects,
+	)
+	mux.HandleFunc(
+		"/xrpc/network.habitat.relationship.listObjects",
+		relationshipServer.ListObjects,
+	)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
 	pdsForwarding := forwarding.NewPDSForwarding(

@@ -1,0 +1,69 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.relationship.writeTuple",
+    "defs": {
+        "main": {
+            "type": "procedure",
+            "description": "Write a relationship tuple, creating it if it does not already exist. The tuple record is owned by the org repo within its governing space. Caller must have the manager role on the object space.",
+            "input": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "subject",
+                        "relation",
+                        "object"
+                    ],
+                    "properties": {
+                        "subject": {
+                            "type": "union",
+                            "refs": [
+                                "network.habitat.relationship.defs#userSubject",
+                                "network.habitat.relationship.defs#spaceRoleSubject"
+                            ]
+                        },
+                        "relation": {
+                            "type": "string",
+                            "knownValues": [
+                                "owner",
+                                "manager",
+                                "writer",
+                                "reader"
+                            ],
+                            "description": "Role granted on the object space (owner|manager|writer|reader)."
+                        },
+                        "object": {
+                            "type": "ref",
+                            "ref": "network.habitat.relationship.defs#spaceObject"
+                        }
+                    }
+                }
+            },
+            "output": {
+                "encoding": "application/json",
+                "schema": {
+                    "type": "object",
+                    "required": [
+                        "uri"
+                    ],
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "URI of the written tuple record."
+                        }
+                    }
+                }
+            },
+            "errors": [
+                {
+                    "name": "SpaceNotFound",
+                    "description": "The object space does not exist."
+                },
+                {
+                    "name": "InvalidTuple",
+                    "description": "The subject, relation, and object combination is not valid."
+                }
+            ]
+        }
+    }
+}

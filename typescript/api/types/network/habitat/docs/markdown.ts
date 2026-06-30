@@ -3,25 +3,23 @@
  */
 import { type ValidationResult, BlobRef } from '@atproto/lexicon'
 import { CID } from 'multiformats/cid'
-import { validate as _validate } from '../../../lexicons.js'
+import { validate as _validate } from '../../../../lexicons.js'
 import {
   type $Typed,
   is$typed as _is$typed,
   type OmitKey,
-} from '../../../util.js'
+} from '../../../../util.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.docs'
+const id = 'network.habitat.docs.markdown'
 
 export interface Main {
-  $type: 'network.habitat.docs'
-  /** The name of the document, derived from the first heading. */
-  name: string
-  /** Base64-encoded Yjs state update representing the document content. */
-  blob: string
-  /** URI of the clique whose members may edit this document. */
-  editorClique?: string
+  $type: 'network.habitat.docs.markdown'
+  /** The document title, derived from the first heading or line. */
+  title: string
+  /** The rendered markdown content of the document. */
+  content: string
   [k: string]: unknown
 }
 

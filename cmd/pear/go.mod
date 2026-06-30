@@ -1,12 +1,12 @@
 module github.com/habitat-network/habitat/cmd/pear
 
-go 1.26
+go 1.26.3
 
 replace github.com/habitat-network/habitat => ../..
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
-	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
+	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
 	github.com/gorilla/handlers v1.5.2
 	github.com/habitat-network/habitat v0.0.2-testing-9
 	github.com/lmittmann/tint v1.1.3
@@ -20,7 +20,7 @@ require (
 	google.golang.org/api v0.272.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.31.1
+	gorm.io/gorm v1.31.2
 	gorm.io/plugin/opentelemetry v0.1.16
 )
 
@@ -243,7 +243,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.20.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/trace v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect

@@ -108,6 +108,7 @@ func (s *storeImpl) GetOrgForDID(
 	if o, err := s.GetOrg(ctx, did); err == nil {
 		return o, false, nil
 	}
+
 	var m member
 	if err := s.db.WithContext(ctx).Where("did = ?", did).First(&m).Error; err == nil {
 		o, err := s.GetOrg(ctx, m.OrgID)
@@ -119,7 +120,7 @@ func (s *storeImpl) GetOrgForDID(
 
 	id, err := s.dir.LookupDID(ctx, did)
 	if err != nil {
-		return s.everyone, false, nil
+		return nil, false, err
 	}
 
 	svc, hasHabitat := id.Services["habitat"]

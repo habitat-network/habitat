@@ -5,13 +5,7 @@ import {
 } from "@tanstack/react-router";
 import { listPrivateRecords, query } from "internal";
 import { useMemo } from "react";
-
-interface SearchParams {
-  lexicon?: string;
-  isPrivate?: boolean;
-  repoDid?: string;
-  filter?: string;
-}
+import { z } from "zod";
 
 interface FilterCriteria {
   [key: string]: string;
@@ -36,14 +30,12 @@ const parseFilters = (text: string): FilterCriteria => {
 };
 
 export const Route = createFileRoute("/_requireAuth/data")({
-  validateSearch(search: Record<string, unknown>): SearchParams {
-    return {
-      lexicon: (search.lexicon as string) || undefined,
-      isPrivate: search.isPrivate === true || search.isPrivate === "true",
-      repoDid: (search.repoDid as string) || undefined,
-      filter: (search.filter as string) || undefined,
-    };
-  },
+  validateSearch: z.object({
+    lexicon: z.string().optional(),
+    isPrivate: z.boolean().optional(),
+    repoDid: z.string().optional(),
+    filter: z.string().optional(),
+  }),
   loaderDeps: ({ search }) => ({
     lexicon: search.lexicon,
     isPrivate: search.isPrivate,

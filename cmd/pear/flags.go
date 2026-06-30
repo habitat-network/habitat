@@ -20,7 +20,6 @@ var (
 	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
 	fOauthServerSecret  = "oauth_server_secret"
 	fOauthClientSecret  = "oauth_client_secret"
-	fFrontendDomain     = "frontend_domain"
 	fHiveDomain         = "hive_domain"
 	fGoogleClientID     = "google_client_id"
 	fGoogleClientSecret = "google_client_secret"
@@ -29,6 +28,7 @@ var (
 	fAdminPassword      = "admin_password"
 	fUiDevProxy         = "ui_dev_proxy"
 )
+
 var profiles []string
 
 func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
@@ -84,12 +84,6 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Usage:    "32-byte base64-encoded secret for the OAuth client. Can use cmd/keygen to generate",
 				Required: true,
 				Sources:  getSources(fOauthClientSecret),
-			},
-			&cli.StringFlag{
-				Name:     fFrontendDomain,
-				Usage:    "The publicly available domain at which the habitat frontend can be found",
-				Required: true,
-				Sources:  getSources(fFrontendDomain),
 			},
 			&cli.StringFlag{
 				Name:    fHiveDomain,

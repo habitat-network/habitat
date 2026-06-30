@@ -6,6 +6,7 @@ import {
   Input,
 } from "internal/components/ui";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { useForm } from "react-hook-form";
 
 // Member password login page. pear redirects here (from the password login
@@ -13,13 +14,13 @@ import { useForm } from "react-hook-form";
 // page is served same-origin by pear under /ui/, so it calls the loginMember
 // XRPC endpoint directly and follows the returned OAuth callback URL.
 export const Route = createFileRoute("/login/habitat")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    handle: String(search.handle ?? ""),
+  validateSearch: z.object({
+    handle: z.string().default(""),
   }),
   component: HabitatLoginPage,
 });
 
-type FormValues = { password: string };
+type FormValues = { handle?: string; password: string };
 
 type LoginMemberOutput = { callbackURL: string };
 
@@ -33,12 +34,12 @@ function HabitatLoginPage() {
     formState: { isSubmitting, errors },
   } = useForm<FormValues>();
 
-  const onSubmit = async ({ password }: FormValues) => {
+  const onSubmit = async ({ handle: formHandle, password }: FormValues) => {
     try {
       const res = await fetch("/xrpc/network.habitat.org.loginMember", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ handle, password }),
+        body: JSON.stringify({ handle: formHandle || handle, password }),
       });
       if (!res.ok) {
         throw new Error((await res.text()) || "Login failed");
@@ -60,6 +61,16 @@ function HabitatLoginPage() {
       )}
       <form onSubmit={handleSubmit(onSubmit)}>
         <fieldset disabled={isSubmitting} className="flex flex-col gap-4">
+          {!handle && (
+            <Field>
+              <FieldLabel>Handle</FieldLabel>
+              <Input
+                placeholder="handle"
+                {...register("handle", { required: true })}
+              />
+              <FieldError errors={[errors.password]} />
+            </Field>
+          )}
           <Field>
             <FieldLabel>Password</FieldLabel>
             <Input

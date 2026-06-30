@@ -32,7 +32,8 @@ const sidebars: SidebarsConfig = {
             item.label !== "network.habitat.repo" &&
             item.label !== "network.habitat.permissions" &&
             item.label !== "network.habitat.internal" &&
-            item.label !== "network.habitat.listConnectedApps")
+            item.label !== "network.habitat.listConnectedApps" &&
+            item.label !== "network.habitat.docs")
       ),
     },
   ],

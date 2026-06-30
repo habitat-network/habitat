@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Persisted org credential + signing key — never commit (contains secrets).
+.docs-server/

@@ -65,7 +65,7 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 	pending := map[uint]sap.OutboxMessage{}
 	for {
 		if len(pending) == 0 {
-			msgs, err := s.sap.Poll(ctx, outboxPollLimit)
+			msgs, err := s.sap.Outbox.Poll(ctx, outboxPollLimit)
 			if err != nil {
 				slog.ErrorContext(ctx, "poll outbox", "err", err)
 				return
@@ -87,16 +87,15 @@ func (s *server) handleOutboxChannel(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case id := <-acks:
-			msg, ok := pending[id]
-			if !ok {
+			if _, ok := pending[id]; !ok {
 				continue
 			}
-			if err := msg.Ack(ctx); err != nil {
+			if err := s.sap.Outbox.Ack(ctx, id); err != nil {
 				slog.ErrorContext(ctx, "ack outbox message", "id", id, "err", err)
 				continue
 			}
 			delete(pending, id)
-		case <-s.sap.Watch():
+		case <-s.sap.Outbox.Watch():
 		}
 	}
 }
