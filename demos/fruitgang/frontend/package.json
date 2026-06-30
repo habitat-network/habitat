@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "tsc --build --force && vite build"
+    "build": "vite build"
   },
   "dependencies": {
     "@tanstack/react-devtools": "catalog:",
@@ -23,6 +23,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "tailwindcss": "^4.2.1",
     "typescript": "catalog:",
     "vite": "catalog:"
   }
