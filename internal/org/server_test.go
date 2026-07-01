@@ -137,10 +137,9 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Mint an org-signed token to authenticate the request.
-	org, err := srv.store.GetOrg(context.Background(), orgId)
-	require.NoError(t, err)
-	token, err := org.IssueIdentityToken(
+	token, err := srv.store.IssueIdentityToken(
 		context.Background(),
+		orgId,
 		adminDID,
 		true,
 		time.Now().Add(time.Hour),

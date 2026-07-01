@@ -96,11 +96,9 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 		"subdomain",
 	)
 	require.NoError(t, err)
-	o, err := store.GetOrg(t.Context(), orgId.DID)
+	token, err := store.IssueIdentityToken(t.Context(), orgId.DID, adminId.DID, true, time.Now().Add(time.Hour))
 	require.NoError(t, err)
-	token, err := o.IssueIdentityToken(t.Context(), adminId.DID, true, time.Now().Add(time.Hour))
-	require.NoError(t, err)
-	memberId, err := o.CreateNewMemberIdentity(t.Context(), token, "alice", "", "")
+	memberId, err := store.CreateNewMemberIdentity(t.Context(), orgId.DID, token, "alice", "", "")
 	require.NoError(t, err)
 
 	router := LoginRouter{
