@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -96,4 +97,16 @@ func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID strin
 
 func (s *Sap) ListManagedOrgs(ctx context.Context) ([]syntax.DID, error) {
 	return s.orgManager.ListManagedOrgs(ctx)
+}
+
+// GetClient returns an HTTP client that authenticates as the given managed org
+// DID using the OAuth session sap tracks for it. Requests made with the
+// returned client are resolved against the org's Habitat (pear) host and carry
+// the org's access token.
+func (s *Sap) GetClient(ctx context.Context, did syntax.DID) (*http.Client, error) {
+	org, err := s.orgManager.GetManagedOrg(ctx, did)
+	if err != nil {
+		return nil, err
+	}
+	return s.oauthClient.GetClient(ctx, did, org.SessionID)
 }
