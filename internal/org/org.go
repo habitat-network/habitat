@@ -52,7 +52,7 @@ func (s *orgImpl) GetMetadata(
 	domain string,
 ) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		LoginMethod:     string(s.LoginMethod(ctx)),
+		LoginMethod:     string(s.method),
 		HandleSubdomain: s.handleSubdomain,
 		OrgId:           string(s.orgID),
 		Name:            s.name,
@@ -60,11 +60,7 @@ func (s *orgImpl) GetMetadata(
 }
 
 func (s *orgImpl) LoginMethod(ctx context.Context) core.LoginMethod {
-	var org organization
-	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
-		return "password" // safe default
-	}
-	return org.LoginMethod
+	return s.method
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
