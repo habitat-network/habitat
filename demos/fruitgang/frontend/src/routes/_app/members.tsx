@@ -20,6 +20,13 @@ async function fetchMembers(): Promise<MemberRecord[]> {
   return res.json();
 }
 
+async function fetchSpaceURI(): Promise<string | null> {
+  const res = await fetch(`${__FRUITGANG_API__}/getSpaceURI`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("fetch space URI failed");
+  return ((await res.json()) as { uri: string }).uri;
+}
+
 export const Route = createFileRoute("/_app/members")({
   component: MembersPage,
 });
@@ -29,6 +36,7 @@ function MembersPage() {
   const qc = useQueryClient();
   const did = authManager.getAuthInfo()?.did ?? "";
   const { data: members = [], isLoading } = useQuery({ queryKey: ["members"], queryFn: fetchMembers });
+  const { data: spaceURI } = useQuery({ queryKey: ["spaceURI"], queryFn: fetchSpaceURI, staleTime: 1000 * 60 * 5 });
 
   const hasMember = members.some((m) => m.did === did);
   const [form, setForm] = useState({ displayName: "", funFact: "", favoriteFruit: "strawberry" });
@@ -36,6 +44,7 @@ function MembersPage() {
   const { mutate: createProfile, isPending } = useMutation({
     mutationFn: async () => {
       await procedure("network.habitat.space.putRecord", {
+        space: spaceURI ?? undefined,
         collection: "community.fruitgang.member",
         rkey: "self",
         record: {

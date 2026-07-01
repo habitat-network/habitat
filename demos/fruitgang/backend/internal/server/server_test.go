@@ -92,3 +92,26 @@ func TestGetLogsReturnsData(t *testing.T) {
 	require.Len(t, body, 1)
 	require.EqualValues(t, 5, body[0]["count"])
 }
+
+func TestGetSpaceURINotConfigured(t *testing.T) {
+	h := newTestServer(t)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/getSpaceURI", nil))
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestGetSpaceURIReturnsURI(t *testing.T) {
+	db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	store, _ := index.NewStore(db)
+	const spaceURI = "at://did:plc:org/network.habitat.space/abc"
+	_ = store.SetDefaultSpace("did:plc:org", spaceURI)
+
+	h := server.New(store)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/getSpaceURI", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, spaceURI, body["uri"])
+}

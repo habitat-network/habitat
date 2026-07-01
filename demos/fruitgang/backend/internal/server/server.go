@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -97,6 +98,18 @@ func New(store *index.Store) http.Handler {
 			resp[i] = logResponse{URI: l.URI, AuthorDID: l.AuthorDID, Fruit: l.Fruit, Count: l.Count, CreatedAt: l.CreatedAt}
 		}
 		writeJSON(w, resp)
+	})
+	mux.HandleFunc("GET /getSpaceURI", func(w http.ResponseWriter, r *http.Request) {
+		uri, err := store.GetAnyDefaultSpaceURI()
+		if err != nil {
+			if errors.Is(err, index.ErrNoDefaultSpace) {
+				http.Error(w, "no default space configured", http.StatusNotFound)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"uri": uri})
 	})
 	return corsMiddleware(mux)
 }

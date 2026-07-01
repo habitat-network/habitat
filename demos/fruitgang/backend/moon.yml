@@ -28,3 +28,5 @@ tasks:
       - go.sum
     outputs:
       - /bin/fruitgang-backend
+    options:
+      mergeArgs: replace

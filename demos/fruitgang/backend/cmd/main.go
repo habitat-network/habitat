@@ -44,10 +44,11 @@ func run(args []string) error {
 }
 
 var (
-	fDB     = "db"
-	fPort   = "port"
-	fDomain = "domain"
-	fSecret = "secret"
+	fDB          = "db"
+	fPort        = "port"
+	fDomain      = "domain"
+	fSecret      = "secret"
+	fFrontendURL = "frontend-url"
 )
 
 func flags() []cli.Flag {
@@ -56,10 +57,12 @@ func flags() []cli.Flag {
 		&cli.StringFlag{Name: fPort, Value: "3100", Sources: cli.EnvVars("FG_PORT")},
 		&cli.StringFlag{Name: fDomain, Value: "fruitgang-api.local.habitat.network", Sources: cli.EnvVars("FG_DOMAIN")},
 		&cli.StringFlag{Name: fSecret, Value: "", Sources: cli.EnvVars("FG_SECRET")},
+		&cli.StringFlag{Name: fFrontendURL, Value: "https://fruitgang.local.habitat.network", Sources: cli.EnvVars("FG_FRONTEND_URL")},
 	}
 }
 
 func start(ctx context.Context, cmd *cli.Command) error {
+	fmt.Println("fdb", fDB)
 	db, err := openDB(cmd.String(fDB))
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
@@ -80,7 +83,7 @@ func start(ctx context.Context, cmd *cli.Command) error {
 	oauthCfg := oauth.NewPublicConfig(
 		"https://"+domain+"/client-metadata.json",
 		"https://"+domain+"/oauth-callback",
-		[]string{"atproto"},
+		[]string{"org:*"},
 	)
 
 	if secretStr != "" {
@@ -100,13 +103,20 @@ func start(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	mux := server.New(store)
+	fg := newFruitgangServer(s, oauthApp, store, cmd.String(fFrontendURL))
+
+	rootMux := http.NewServeMux()
+	rootMux.HandleFunc("GET /client-metadata.json", fg.handleClientMetadata)
+	rootMux.HandleFunc("POST /add-org", fg.handleAddOrg)
+	rootMux.HandleFunc("OPTIONS /add-org", fg.handleAddOrgCORSPreflight)
+	rootMux.HandleFunc("GET /oauth-callback", fg.handleOAuthCallback)
+	rootMux.Handle("/", server.New(store))
 
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error { return s.Start(ctx) })
 	eg.Go(func() error { return indexer.Run(ctx, s.Outbox, store) })
 	eg.Go(func() error {
-		srv := &http.Server{Addr: ":" + cmd.String(fPort), Handler: mux}
+		srv := &http.Server{Addr: ":" + cmd.String(fPort), Handler: rootMux}
 		go func() { _ = srv.ListenAndServe() }()
 		<-ctx.Done()
 		return srv.Shutdown(context.Background())

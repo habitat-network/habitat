@@ -19,6 +19,13 @@ const fetchMembers = async (): Promise<MemberRecord[]> => {
   return res.json();
 };
 
+const fetchSpaceURI = async (): Promise<string | null> => {
+  const res = await fetch(`${__FRUITGANG_API__}/getSpaceURI`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("fetch space URI failed");
+  return ((await res.json()) as { uri: string }).uri;
+};
+
 export const Route = createFileRoute("/_app/log")({
   component: LogPage,
 });
@@ -26,18 +33,19 @@ export const Route = createFileRoute("/_app/log")({
 function LogPage() {
   const { authManager } = Route.useRouteContext();
   const qc = useQueryClient();
-  const did = authManager.getAuthInfo()?.did ?? "";
 
   const [selectedFruit, setSelectedFruit] = useState("strawberry");
   const [count, setCount] = useState(1);
 
   const { data: logs = [], isLoading } = useQuery({ queryKey: ["logs"], queryFn: fetchLogs });
   const { data: members = [] } = useQuery({ queryKey: ["members"], queryFn: fetchMembers });
+  const { data: spaceURI } = useQuery({ queryKey: ["spaceURI"], queryFn: fetchSpaceURI, staleTime: 1000 * 60 * 5 });
   const memberMap = Object.fromEntries(members.map((m) => [m.did, m]));
 
   const { mutate: postLog, isPending: posting } = useMutation({
     mutationFn: async () => {
       await procedure("network.habitat.space.putRecord", {
+        space: spaceURI ?? undefined,
         collection: "community.fruitgang.log",
         record: {
           fruit: `community.fruitgang.log#${selectedFruit}`,

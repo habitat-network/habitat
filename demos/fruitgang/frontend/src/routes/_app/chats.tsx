@@ -25,6 +25,13 @@ const fetchMembers = async (): Promise<MemberRecord[]> => {
   return res.json();
 };
 
+const fetchSpaceURI = async (): Promise<string | null> => {
+  const res = await fetch(`${__FRUITGANG_API__}/getSpaceURI`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("fetch space URI failed");
+  return ((await res.json()) as { uri: string }).uri;
+};
+
 export const Route = createFileRoute("/_app/chats")({
   component: ChatsPage,
 });
@@ -38,11 +45,13 @@ function ChatsPage() {
 
   const { data: chats = [], isLoading } = useQuery({ queryKey: ["chats"], queryFn: fetchChats });
   const { data: members = [] } = useQuery({ queryKey: ["members"], queryFn: fetchMembers });
+  const { data: spaceURI } = useQuery({ queryKey: ["spaceURI"], queryFn: fetchSpaceURI, staleTime: 1000 * 60 * 5 });
   const memberMap = Object.fromEntries(members.map((m) => [m.did, m]));
 
   const { mutate: postChat, isPending: posting } = useMutation({
     mutationFn: async (text: string) => {
       await procedure("network.habitat.space.putRecord", {
+        space: spaceURI ?? undefined,
         collection: "community.fruitgang.chat",
         record: { text, createdAt: new Date().toISOString() },
       }, { authManager });
@@ -112,10 +121,12 @@ function ChatsPage() {
               key={chat.uri}
               chat={chat}
               member={memberMap[chat.authorDid]}
+              memberMap={memberMap}
               isExpanded={expandedUri === chat.uri}
               onExpand={() => setExpandedUri((u) => (u === chat.uri ? null : chat.uri))}
               authManager={authManager}
               currentDid={did}
+              spaceURI={spaceURI}
               onReplyPosted={() => qc.invalidateQueries({ queryKey: ["replies", chat.uri] })}
             />
           ))}
@@ -126,15 +137,17 @@ function ChatsPage() {
 }
 
 function ChatItem({
-  chat, member, isExpanded, onExpand, authManager, currentDid, onReplyPosted,
+  chat, member, memberMap, isExpanded, onExpand, authManager, currentDid, onReplyPosted, spaceURI,
 }: {
   chat: ChatRecord;
   member?: MemberRecord;
+  memberMap: Record<string, MemberRecord>;
   isExpanded: boolean;
   onExpand: () => void;
   authManager: any;
   currentDid: string;
   onReplyPosted: () => void;
+  spaceURI?: string | null;
 }) {
   const fruit = member?.favoriteFruit ? getFruit(member.favoriteFruit) : undefined;
   const accentColor = fruit ? `var(${fruit.colorVar})` : "var(--muted)";
@@ -150,6 +163,7 @@ function ChatItem({
   const { mutate: postReply, isPending: replying } = useMutation({
     mutationFn: async (text: string) => {
       await procedure("network.habitat.space.putRecord", {
+        space: spaceURI ?? undefined,
         collection: "community.fruitgang.chatReply",
         record: { text, replyTo: chat.uri, createdAt: new Date().toISOString() },
       }, { authManager });
@@ -186,12 +200,18 @@ function ChatItem({
 
       {isExpanded && (
         <div style={{ marginTop: "0.75rem", paddingLeft: "1rem", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {replies.map((r) => (
-            <div key={r.uri} style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-              <strong style={{ color: "var(--text)" }}>{r.authorDid.slice(0, 12)}…</strong>{" "}
-              {r.text}
-            </div>
-          ))}
+          {replies.map((r) => {
+              const replyMember = memberMap[r.authorDid];
+              const replyFruit = replyMember?.favoriteFruit ? getFruit(replyMember.favoriteFruit) : undefined;
+              return (
+                <div key={r.uri} style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+                  <strong style={{ color: "var(--text)" }}>
+                    {replyFruit?.emoji ?? "🍑"} {replyMember?.displayName ?? r.authorDid.slice(0, 12) + "…"}
+                  </strong>{" "}
+                  {r.text}
+                </div>
+              );
+            })}
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
             <input
               placeholder="reply…"

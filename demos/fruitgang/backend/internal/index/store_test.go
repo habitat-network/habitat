@@ -82,3 +82,31 @@ func TestUpsertAndGetLogs(t *testing.T) {
 	require.Len(t, logs, 1)
 	require.Equal(t, 3, logs[0].Count)
 }
+
+func TestSetAndGetDefaultSpace(t *testing.T) {
+	store := newTestStore(t)
+	const orgDID = "did:plc:org"
+	const spaceURI = "at://did:plc:org/network.habitat.space/abc123"
+
+	// Not found before set
+	_, err := store.GetDefaultSpaceURI(orgDID)
+	require.ErrorIs(t, err, index.ErrNoDefaultSpace)
+
+	require.NoError(t, store.SetDefaultSpace(orgDID, spaceURI))
+
+	got, err := store.GetDefaultSpaceURI(orgDID)
+	require.NoError(t, err)
+	require.Equal(t, spaceURI, got)
+}
+
+func TestSetDefaultSpaceIsIdempotent(t *testing.T) {
+	store := newTestStore(t)
+	const orgDID = "did:plc:org"
+
+	require.NoError(t, store.SetDefaultSpace(orgDID, "at://first"))
+	require.NoError(t, store.SetDefaultSpace(orgDID, "at://second"))
+
+	got, err := store.GetDefaultSpaceURI(orgDID)
+	require.NoError(t, err)
+	require.Equal(t, "at://second", got)
+}
