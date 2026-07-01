@@ -9,10 +9,14 @@ tasks:
     env:
       HABITAT_DOMAIN: pear.local.habitat.network
       DOMAIN: frontend.local.habitat.network
+      # DID of the home server; injected as the __HOME_SERVER_DID__ Vite define
+      # so the groups UI can target it via the Atproto-Proxy header.
+      HOME_SERVER_DID: did:web:home.local.habitat.network
     deps:
       - pear:dev
       - root:caddy
       - search:dev
+      - home:dev
   docker-build:
     deps:
       - target: build

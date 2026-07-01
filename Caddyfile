@@ -46,3 +46,8 @@ search.local.habitat.network {
     reverse_proxy 127.0.0.1:8091
     tls internal
 }
+
+home.local.habitat.network {
+    reverse_proxy 127.0.0.1:2600
+    tls internal
+}
