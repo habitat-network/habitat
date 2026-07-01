@@ -694,7 +694,13 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		expiresAt = parsed
 	}
 
-	token, err := s.store.IssueIdentityToken(r.Context(), org.DID(), credInfo.Subject, req.Reusable, expiresAt)
+	token, err := s.store.IssueIdentityToken(
+		r.Context(),
+		org.DID(),
+		credInfo.Subject,
+		req.Reusable,
+		expiresAt,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

@@ -80,7 +80,14 @@ func addMember(t *testing.T, store *storeImpl, org *orgImpl, handle string) *ide
 		time.Now().Add(time.Hour),
 	)
 	require.NoError(t, err)
-	id, err := store.CreateNewMemberIdentity(t.Context(), org.orgID, token, handle, testPasswordHash, "")
+	id, err := store.CreateNewMemberIdentity(
+		t.Context(),
+		org.orgID,
+		token,
+		handle,
+		testPasswordHash,
+		"",
+	)
 	require.NoError(t, err)
 	return id
 }
@@ -190,7 +197,13 @@ func TestGenerateAndUseIdentityToken(t *testing.T) {
 	ctx := context.Background()
 	store, org := newTestOrg(t)
 
-	token, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, false, time.Now().Add(time.Hour))
+	token, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
@@ -206,7 +219,13 @@ func TestIdentityToken_CannotReuse(t *testing.T) {
 	ctx := context.Background()
 	store, org := newTestOrg(t)
 
-	token, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, false, time.Now().Add(time.Hour))
+	token, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 
 	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
@@ -219,9 +238,21 @@ func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	ctx := context.Background()
 	store, org := newTestOrg(t)
 
-	token1, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, false, time.Now().Add(time.Hour))
+	token1, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
-	token2, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, false, time.Now().Add(time.Hour))
+	token2, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 
 	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token1, "alice", testPasswordHash, "")
@@ -234,7 +265,13 @@ func TestIdentityToken_Reusable(t *testing.T) {
 	ctx := context.Background()
 	store, org := newTestOrg(t)
 
-	token, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, true, time.Now().Add(time.Hour))
+	token, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		true,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 
 	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")

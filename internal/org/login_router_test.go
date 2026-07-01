@@ -96,7 +96,13 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 		"subdomain",
 	)
 	require.NoError(t, err)
-	token, err := store.IssueIdentityToken(t.Context(), orgId.DID, adminId.DID, true, time.Now().Add(time.Hour))
+	token, err := store.IssueIdentityToken(
+		t.Context(),
+		orgId.DID,
+		adminId.DID,
+		true,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 	memberId, err := store.CreateNewMemberIdentity(t.Context(), orgId.DID, token, "alice", "", "")
 	require.NoError(t, err)
