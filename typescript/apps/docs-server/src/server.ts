@@ -7,12 +7,14 @@ import type {
 import type { DerivedConfig } from "./config";
 import type { OrgClient } from "./orgClient";
 import type { DocStore } from "./docStore";
+import type { CrawlStore } from "./crawlStore";
 import { ServiceAuthError, ServiceAuthVerifier } from "./serviceAuth";
 
 export function createApp(
   config: DerivedConfig,
   org: OrgClient,
   docs: DocStore,
+  crawl: CrawlStore,
 ): Hono {
   const app = new Hono();
   const verifier = new ServiceAuthVerifier(config, org);
@@ -88,16 +90,17 @@ export function createApp(
     return c.json(output);
   });
 
-  // listDocs returns every doc in the org (no per-caller filtering). The caller
-  // is still authenticated via service auth before listing.
+  // listDocs returns only the docs the caller may read. The set is served from
+  // the crawl store, which the sap crawler keeps up to date: it records each
+  // doc and, via relationship.listSubjects, the members that hold read access.
   app.get("/xrpc/network.habitat.docs.listDocs", async (c) => {
-    await authorize(
+    const caller = await authorize(
       c.req.header("Authorization"),
       "network.habitat.docs.listDocs",
       verifier,
     );
     const output: NetworkHabitatDocsListDocs.OutputSchema = {
-      docs: await docs.listDocs(),
+      docs: crawl.listDocsForSubject(caller),
     };
     return c.json(output);
   });

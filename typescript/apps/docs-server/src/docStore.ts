@@ -6,12 +6,6 @@ const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";
 const SELF = "self";
 
-export interface DocView {
-  docId: string;
-  uri: string;
-  title: string;
-}
-
 // DocStore keeps each document's canonical Yjs state in memory so updates don't
 // refetch from pear on every edit. Each document is its own space; the store
 // writes a CRDT record and a rendered-markdown record, both keyed "self".
@@ -46,25 +40,6 @@ export class DocStore {
     Y.applyUpdateV2(ydoc, new Uint8Array(Buffer.from(updateB64, "base64")));
     const result = await this.writeRecords(spaceUri, ydoc);
     return result;
-  }
-
-  // listDocs returns every doc in the org, with titles read from each space's
-  // markdown "self" record. Spaces without a markdown record (e.g. legacy) are
-  // skipped.
-  // TODO will be replaced by sap
-  async listDocs(): Promise<DocView[]> {
-    const spaces = await this.pear.listSpaces();
-    const docs = await Promise.all(
-      spaces.map(async (s): Promise<DocView | undefined> => {
-        const md = await this.pear.getRecord(s.uri, MARKDOWN_COLLECTION, SELF);
-        if (!md) {
-          return undefined;
-        }
-        const title = (md.value as { title?: string }).title || "Untitled";
-        return { docId: s.skey, uri: s.uri, title };
-      }),
-    );
-    return docs.filter((d): d is DocView => d !== undefined);
   }
 
   private async load(docId: string, spaceUri: string): Promise<Y.Doc> {

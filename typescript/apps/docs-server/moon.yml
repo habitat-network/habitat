@@ -13,6 +13,10 @@ tasks:
       # root CA) so the Node server's HTTPS calls to pear and to member did:web
       # docs succeed in local dev.
       NODE_OPTIONS: "--use-system-ca"
+      # sap's internal port (2581) serves the /channel outbox websocket the
+      # crawler subscribes to. It is reached directly (not via Caddy/TLS).
+      DOCS_SERVER_SAP_URL: "ws://127.0.0.1:2581/channel"
     deps:
       - pear:dev
+      - sap:dev
       - root:caddy

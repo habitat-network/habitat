@@ -25,6 +25,12 @@ export interface DerivedConfig extends Config {
   clientId: string;
   redirectUri: string;
   credentialPath: string;
+  // Websocket URL of sap's internal outbox channel. The crawler subscribes here
+  // to discover the org's docs and acks each message it receives.
+  sapChannelUrl: string;
+  // Path to the sqlite database the crawler persists discovered docs and their
+  // per-doc reader DIDs to.
+  crawlDbPath: string;
 }
 
 function required(name: string): string {
@@ -61,5 +67,11 @@ export function loadConfig(): DerivedConfig {
     clientId: `https://${domain}/client-metadata.json`,
     redirectUri: `https://${domain}/oauth-callback`,
     credentialPath: path.join(dataDir, "credential.json"),
+    // sap's internal port serves the /channel outbox endpoint over plain ws
+    // (it is not publicly exposed via TLS). Defaults to the local-dev sap.
+    sapChannelUrl:
+      process.env.DOCS_SERVER_SAP_URL ?? "ws://127.0.0.1:2581/channel",
+    crawlDbPath:
+      process.env.DOCS_SERVER_CRAWL_DB ?? path.join(dataDir, "crawl.db"),
   };
 }

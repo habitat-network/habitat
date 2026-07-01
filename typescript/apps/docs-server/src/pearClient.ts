@@ -1,8 +1,8 @@
 import type {
   NetworkHabitatSpaceCreateSpace,
-  NetworkHabitatSpaceListSpaces,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatSpaceGetRecord,
+  NetworkHabitatRelationshipListSubjects,
 } from "api";
 import type { DerivedConfig } from "./config";
 import type { OrgClient } from "./orgClient";
@@ -77,18 +77,17 @@ export class PearClient {
     return { uri: created.uri, skey: skeyOf(created.uri) };
   }
 
-  // listSpaces returns every doc space the org owns.
-  async listSpaces(): Promise<SpaceRef[]> {
-    const orgDid = await this.org.orgDid();
-    const listed = await this.call<NetworkHabitatSpaceListSpaces.OutputSchema>(
-      "network.habitat.space.listSpaces",
-      "GET",
-      { type: this.config.spaceType, did: orgDid },
-    );
-    return listed.spaces.map((s) => ({
-      uri: s.uri,
-      skey: s.skey || skeyOf(s.uri),
-    }));
+  // listReaders returns the member DIDs that hold the reader role on a doc's
+  // space, expanding groups and role implications. Called with the org
+  // credential (the org owner always passes the reader check).
+  async listReaders(spaceUri: string): Promise<string[]> {
+    const out =
+      await this.call<NetworkHabitatRelationshipListSubjects.OutputSchema>(
+        "network.habitat.relationship.listSubjects",
+        "GET",
+        { space: spaceUri, relation: "reader" },
+      );
+    return out.dids;
   }
 
   async putRecord(

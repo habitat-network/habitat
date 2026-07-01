@@ -20,6 +20,13 @@ documents for one org.
   pear) before applying the update.
 - Keeps each document's Yjs state **in memory** so updates don't refetch on every
   edit. Merges with `Y.applyUpdateV2` and writes the full re-encoded state back.
+- Runs a **crawler** that subscribes to `cmd/sap`'s outbox channel over its
+  internal websocket port, acking every message it receives. When it sees a
+  doc's markdown record it persists the doc to a local **sqlite** table and calls
+  `network.habitat.relationship.listSubjects` (via pear, with the org credential)
+  to record which members may read it. `listDocs` is served from this store and
+  filtered to the caller, so a member only ever sees docs they have permission
+  to. Unacked messages are redelivered by sap on the next connection.
 
 ## DID
 
@@ -39,6 +46,8 @@ Set these in `dev.env` (gitignored):
 | `DOCS_SERVER_PORT`       | HTTP port (default `2590`).                                                |
 | `DOCS_SERVER_DATA_DIR`   | Where the credential + signing key are persisted (default `.docs-server`). |
 | `DOCS_SERVER_SPACE_SKEY` | Space key for the docs space (default `docs`).                             |
+| `DOCS_SERVER_SAP_URL`    | sap outbox channel websocket (default `ws://127.0.0.1:2581/channel`).      |
+| `DOCS_SERVER_CRAWL_DB`   | sqlite path for the crawl store (default `<DATA_DIR>/crawl.db`).           |
 
 The frontend (`docsv2`) needs `DOCS_SERVER_DID` (`did:web:<DOCS_SERVER_DOMAIN>`)
 at build time so it can set the `Atproto-Proxy` header.
