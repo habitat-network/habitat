@@ -99,19 +99,11 @@ func NewStore(
 }
 
 func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
-	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
-	if err != nil {
-		return nil, err
-	}
 	return &orgImpl{
-		orgID:            org.ID,
-		hive:             s.hive,
-		db:               s.db,
-		signingSecret:    signingSecret,
-		handleSubdomain:  org.HandleSubdomain,
-		method:           org.LoginMethod,
-		passwordProvider: s.passwordProvider,
-		name:             org.Name,
+		orgID:           org.ID,
+		db:              s.db,
+		handleSubdomain: org.HandleSubdomain,
+		name:            org.Name,
 	}, nil
 }
 
@@ -277,7 +269,11 @@ func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*Me
 	}, nil
 }
 
-func (s *storeImpl) ValidateAdminSignedToken(ctx context.Context, orgDID syntax.DID, token string) error {
+func (s *storeImpl) ValidateAdminSignedToken(
+	ctx context.Context,
+	orgDID syntax.DID,
+	token string,
+) error {
 	var org organization
 	if err := s.db.WithContext(ctx).Where("id = ?", orgDID).First(&org).Error; err != nil {
 		return ErrOrgNotFound

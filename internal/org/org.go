@@ -7,8 +7,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/core"
-	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
 )
 
@@ -35,14 +33,11 @@ func isDuplicateError(err error) bool {
 }
 
 type orgImpl struct {
-	orgID            syntax.DID
-	name             string
-	hive             hive.Hive
-	db               *gorm.DB
-	signingSecret    []byte
-	handleSubdomain  string
-	method           core.LoginMethod
-	passwordProvider *login.PasswordLoginProvider
+	orgID           syntax.DID
+	name            string
+	db              *gorm.DB
+	handleSubdomain string
+	method          core.LoginMethod
 }
 
 var _ core.Org = &orgImpl{}
@@ -191,9 +186,7 @@ func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 func (s *orgImpl) WithTx(tx *gorm.DB) core.Org {
 	return &orgImpl{
 		orgID:           s.orgID,
-		hive:            s.hive,
 		db:              tx,
-		signingSecret:   s.signingSecret,
 		handleSubdomain: s.handleSubdomain,
 	}
 }
