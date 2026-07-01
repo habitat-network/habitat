@@ -135,6 +135,37 @@ func (s *Store) ListTuples(ctx context.Context) ([]tupleRow, error) {
 	return rows, nil
 }
 
+// FindUserTuples returns the tuples granting did any role directly on space.
+func (s *Store) FindUserTuples(
+	ctx context.Context,
+	space habitat_syntax.SpaceURI,
+	did syntax.DID,
+) ([]tupleRow, error) {
+	var rows []tupleRow
+	err := s.db.WithContext(ctx).
+		Where(
+			"object_space = ? AND subject_kind = ? AND subject_did = ?",
+			space.String(), "user", did.String(),
+		).
+		Find(&rows).Error
+	return rows, err
+}
+
+// FindGroupTuples returns the tuples making space inherit subjectGroup's members.
+func (s *Store) FindGroupTuples(
+	ctx context.Context,
+	space, subjectGroup habitat_syntax.SpaceURI,
+) ([]tupleRow, error) {
+	var rows []tupleRow
+	err := s.db.WithContext(ctx).
+		Where(
+			"object_space = ? AND subject_kind = ? AND subject_group = ?",
+			space.String(), "group", subjectGroup.String(),
+		).
+		Find(&rows).Error
+	return rows, err
+}
+
 func (s *Store) SaveOrgSession(ctx context.Context, did syntax.DID, sessionID string) error {
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "did"}},

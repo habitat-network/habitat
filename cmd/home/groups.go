@@ -16,9 +16,13 @@ import (
 // ErrForbidden indicates the caller lacks permission to manage a group.
 var ErrForbidden = errors.New("not allowed to manage this group")
 
-// ErrInvalidSubject indicates an addMember call did not specify exactly one of
-// a user or a group subject.
+// ErrInvalidSubject indicates an addMember/deleteMember call did not specify
+// exactly one of a user or a group subject.
 var ErrInvalidSubject = errors.New("exactly one of subjectDid or subjectGroup must be provided")
+
+// ErrMemberNotFound indicates a deleteMember call named a subject that is not a
+// direct member of the group.
+var ErrMemberNotFound = errors.New("subject is not a direct member of this group")
 
 // GroupService implements the network.habitat.groups.* endpoints. It reads
 // group membership from the sap-fed index (Store) and performs writes against
@@ -206,6 +210,66 @@ func (g *GroupService) AddMember(
 	_ = g.store.UpsertTuple(ctx, row)
 
 	return habitat.NetworkHabitatGroupsAddMemberOutput{Uri: tupleURI.String()}, nil
+}
+
+func (g *GroupService) DeleteMember(
+	ctx context.Context,
+	caller syntax.DID,
+	in habitat.NetworkHabitatGroupsDeleteMemberInput,
+) error {
+	if (in.SubjectDid == "") == (in.SubjectGroup == "") {
+		return ErrInvalidSubject
+	}
+	space, err := habitat_syntax.ParseSpaceURI(in.Group)
+	if err != nil {
+		return fmt.Errorf("parse group uri: %w", err)
+	}
+	if _, err := g.store.GetGroup(ctx, space); err != nil {
+		return err
+	}
+
+	pear, _, err := g.orgPear(ctx)
+	if err != nil {
+		return err
+	}
+	if err := g.requireManage(ctx, pear, caller, space); err != nil {
+		return err
+	}
+
+	var tuples []tupleRow
+	if in.SubjectDid != "" {
+		did, err := syntax.ParseDID(in.SubjectDid)
+		if err != nil {
+			return fmt.Errorf("parse subject did: %w", err)
+		}
+		tuples, err = g.store.FindUserTuples(ctx, space, did)
+		if err != nil {
+			return err
+		}
+	} else {
+		subjectGroup, err := habitat_syntax.ParseSpaceURI(in.SubjectGroup)
+		if err != nil {
+			return fmt.Errorf("parse subject group: %w", err)
+		}
+		tuples, err = g.store.FindGroupTuples(ctx, space, subjectGroup)
+		if err != nil {
+			return err
+		}
+	}
+	if len(tuples) == 0 {
+		return ErrMemberNotFound
+	}
+
+	for _, t := range tuples {
+		uri := habitat_syntax.SpaceRecordURI(t.RecordURI)
+		if err := pear.deleteTuple(ctx, uri); err != nil {
+			return err
+		}
+		// Prune the index so the removal is visible immediately; sap will
+		// reconcile the same delete when the record syncs.
+		_ = g.store.DeleteTuple(ctx, uri)
+	}
+	return nil
 }
 
 // requireManage authorizes the caller to manage the space, using pear's

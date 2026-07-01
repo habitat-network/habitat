@@ -1611,6 +1611,63 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatGroupsDeleteMember: {
+    lexicon: 1,
+    id: 'network.habitat.groups.deleteMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove a member from a group. The member is either an individual user (subjectDid) or an inherited group (subjectGroup). The home server deletes the backing relationship tuple using the org credential. Caller must be able to manage the group.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['group'],
+            properties: {
+              group: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of the group-space to remove the member from.',
+              },
+              subjectDid: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'DID of the user to remove. Mutually exclusive with subjectGroup.',
+              },
+              subjectGroup: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of an inherited group-space to stop inheriting. Mutually exclusive with subjectDid.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+          {
+            name: 'Forbidden',
+            description: 'The caller is not allowed to manage this group.',
+          },
+          {
+            name: 'InvalidSubject',
+            description:
+              'Exactly one of subjectDid or subjectGroup must be provided.',
+          },
+          {
+            name: 'MemberNotFound',
+            description: 'The subject is not a direct member of the group.',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatGroupsGetGroup: {
     lexicon: 1,
     id: 'network.habitat.groups.getGroup',
@@ -4345,6 +4402,7 @@ export const ids = {
   NetworkHabitatGroupsAddMember: 'network.habitat.groups.addMember',
   NetworkHabitatGroupsCreateGroup: 'network.habitat.groups.createGroup',
   NetworkHabitatGroupsDefs: 'network.habitat.groups.defs',
+  NetworkHabitatGroupsDeleteMember: 'network.habitat.groups.deleteMember',
   NetworkHabitatGroupsGetGroup: 'network.habitat.groups.getGroup',
   NetworkHabitatGroupsListGroups: 'network.habitat.groups.listGroups',
   NetworkHabitatGroupsUpdateGroup: 'network.habitat.groups.updateGroup',

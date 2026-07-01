@@ -58,6 +58,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /xrpc/network.habitat.groups.createGroup", s.handleCreateGroup)
 	mux.HandleFunc("POST /xrpc/network.habitat.groups.updateGroup", s.handleUpdateGroup)
 	mux.HandleFunc("POST /xrpc/network.habitat.groups.addMember", s.handleAddMember)
+	mux.HandleFunc("POST /xrpc/network.habitat.groups.deleteMember", s.handleDeleteMember)
 }
 
 // handleDIDDoc serves the did:web document. pear resolves did:web:<domain> here
@@ -189,6 +190,23 @@ func (s *Server) handleAddMember(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, r, out)
 }
 
+func (s *Server) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
+	caller, ok := s.authCaller(w, r)
+	if !ok {
+		return
+	}
+	var in habitat.NetworkHabitatGroupsDeleteMemberInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	if err := s.groups.DeleteMember(r.Context(), caller, in); err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, map[string]any{})
+}
+
 // authCaller verifies the forwarded service-auth JWT pear signed on the
 // caller's behalf and returns the caller (issuer) DID.
 func (s *Server) authCaller(w http.ResponseWriter, r *http.Request) (syntax.DID, bool) {
@@ -207,6 +225,8 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 		writeXRPCError(w, http.StatusForbidden, "Forbidden", err.Error())
 	case errors.Is(err, ErrInvalidSubject):
 		writeXRPCError(w, http.StatusBadRequest, "InvalidSubject", err.Error())
+	case errors.Is(err, ErrMemberNotFound):
+		writeXRPCError(w, http.StatusNotFound, "MemberNotFound", err.Error())
 	case errors.Is(err, ErrNotAuthorized):
 		writeXRPCError(w, http.StatusServiceUnavailable, "NotAuthorized", err.Error())
 	default:

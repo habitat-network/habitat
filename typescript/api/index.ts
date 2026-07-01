@@ -44,6 +44,7 @@ import * as NetworkHabitatGroupProfile from './types/network/habitat/group/profi
 import * as NetworkHabitatGroupsAddMember from './types/network/habitat/groups/addMember.js'
 import * as NetworkHabitatGroupsCreateGroup from './types/network/habitat/groups/createGroup.js'
 import * as NetworkHabitatGroupsDefs from './types/network/habitat/groups/defs.js'
+import * as NetworkHabitatGroupsDeleteMember from './types/network/habitat/groups/deleteMember.js'
 import * as NetworkHabitatGroupsGetGroup from './types/network/habitat/groups/getGroup.js'
 import * as NetworkHabitatGroupsListGroups from './types/network/habitat/groups/listGroups.js'
 import * as NetworkHabitatGroupsUpdateGroup from './types/network/habitat/groups/updateGroup.js'
@@ -131,6 +132,7 @@ export * as NetworkHabitatGroupProfile from './types/network/habitat/group/profi
 export * as NetworkHabitatGroupsAddMember from './types/network/habitat/groups/addMember.js'
 export * as NetworkHabitatGroupsCreateGroup from './types/network/habitat/groups/createGroup.js'
 export * as NetworkHabitatGroupsDefs from './types/network/habitat/groups/defs.js'
+export * as NetworkHabitatGroupsDeleteMember from './types/network/habitat/groups/deleteMember.js'
 export * as NetworkHabitatGroupsGetGroup from './types/network/habitat/groups/getGroup.js'
 export * as NetworkHabitatGroupsListGroups from './types/network/habitat/groups/listGroups.js'
 export * as NetworkHabitatGroupsUpdateGroup from './types/network/habitat/groups/updateGroup.js'
@@ -1157,6 +1159,17 @@ export class NetworkHabitatGroupsNS {
       data,
       opts,
     )
+  }
+
+  deleteMember(
+    data?: NetworkHabitatGroupsDeleteMember.InputSchema,
+    opts?: NetworkHabitatGroupsDeleteMember.CallOptions,
+  ): Promise<NetworkHabitatGroupsDeleteMember.Response> {
+    return this._client
+      .call('network.habitat.groups.deleteMember', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatGroupsDeleteMember.toKnownErr(e)
+      })
   }
 
   getGroup(

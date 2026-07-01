@@ -153,6 +153,12 @@ func (p *pearClient) writeTuple(
 	return habitat_syntax.SpaceRecordURI(out.Uri), nil
 }
 
+// deleteTuple removes a relationship tuple by its record URI.
+func (p *pearClient) deleteTuple(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
+	return p.post(ctx, "network.habitat.relationship.deleteTuple",
+		habitat.NetworkHabitatRelationshipDeleteTupleInput{Uri: uri.String()}, nil)
+}
+
 // check reports whether did holds relation on space, resolved authoritatively
 // by pear's FGA (expanding usersets and role implications) with no index lag.
 func (p *pearClient) check(
