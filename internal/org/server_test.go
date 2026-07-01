@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -160,7 +161,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(core.LoginMethodPassword), out.LoginMethod)
 }
 
 func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
@@ -195,7 +196,7 @@ func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(core.LoginMethodPassword), out.LoginMethod)
 }
 
 func newCreateTestServer(t *testing.T) *Server {
