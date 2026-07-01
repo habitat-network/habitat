@@ -43,7 +43,7 @@ function ChatsPage() {
   const [newText, setNewText] = useState("");
   const [expandedUri, setExpandedUri] = useState<string | null>(null);
 
-  const { data: chats = [], isLoading } = useQuery({ queryKey: ["chats"], queryFn: fetchChats });
+  const { data: chats = [], isLoading } = useQuery({ queryKey: ["chats"], queryFn: fetchChats, refetchInterval: 4000 });
   const { data: members = [] } = useQuery({ queryKey: ["members"], queryFn: fetchMembers });
   const { data: spaceURI } = useQuery({ queryKey: ["spaceURI"], queryFn: fetchSpaceURI, staleTime: 1000 * 60 * 5 });
   const memberMap = Object.fromEntries(members.map((m) => [m.did, m]));
@@ -61,19 +61,16 @@ function ChatsPage() {
 
   return (
     <div>
-      <h2 style={{ fontFamily: "var(--font-display)", fontSize: "2rem", color: "var(--text)", marginBottom: "1.5rem" }}>
+      <h2 style={{ fontFamily: "var(--font-display)", fontSize: "2rem", color: "var(--strawberry)", marginBottom: "1.5rem" }}>
         fruit chats 🍒
       </h2>
 
       <div style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-card)",
-        padding: "1rem",
         marginBottom: "1.5rem",
         display: "flex",
         gap: "0.75rem",
         alignItems: "flex-end",
+        paddingBottom: "0.75rem",
       }}>
         <textarea
           placeholder="say something fruity…"
@@ -83,11 +80,10 @@ function ChatsPage() {
           rows={2}
           style={{
             flex: 1, resize: "none",
-            background: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-input)",
-            color: "var(--text)",
-            padding: "0.6rem 0.9rem",
+            background: "transparent",
+            border: "none",
+            color: "var(--cherry)",
+            padding: "0.25rem 0",
             fontFamily: "var(--font-body)",
             fontSize: "0.9rem",
             outline: "none",
@@ -97,7 +93,7 @@ function ChatsPage() {
           onClick={() => newText.trim() && postChat(newText.trim())}
           disabled={posting || !newText.trim()}
           style={{
-            background: "var(--tangerine)",
+            background: "var(--peach)",
             border: "none",
             borderRadius: "var(--radius-pill)",
             color: "#000",
@@ -158,6 +154,7 @@ function ChatItem({
     queryKey: ["replies", chat.uri],
     queryFn: () => fetchReplies(chat.uri),
     enabled: isExpanded,
+    refetchInterval: isExpanded ? 4000 : false,
   });
 
   const { mutate: postReply, isPending: replying } = useMutation({
@@ -201,17 +198,17 @@ function ChatItem({
       {isExpanded && (
         <div style={{ marginTop: "0.75rem", paddingLeft: "1rem", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {replies.map((r) => {
-              const replyMember = memberMap[r.authorDid];
-              const replyFruit = replyMember?.favoriteFruit ? getFruit(replyMember.favoriteFruit) : undefined;
-              return (
-                <div key={r.uri} style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-                  <strong style={{ color: "var(--text)" }}>
-                    {replyFruit?.emoji ?? "🍑"} {replyMember?.displayName ?? r.authorDid.slice(0, 12) + "…"}
-                  </strong>{" "}
-                  {r.text}
-                </div>
-              );
-            })}
+            const replyMember = memberMap[r.authorDid];
+            const replyFruit = replyMember?.favoriteFruit ? getFruit(replyMember.favoriteFruit) : undefined;
+            return (
+              <div key={r.uri} style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+                <strong style={{ color: "var(--text)" }}>
+                  {replyFruit?.emoji ?? "🍑"} {replyMember?.displayName ?? r.authorDid.slice(0, 12) + "…"}
+                </strong>{" "}
+                {r.text}
+              </div>
+            );
+          })}
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
             <input
               placeholder="reply…"
@@ -220,11 +217,11 @@ function ChatItem({
               onChange={(e) => setReplyText(e.target.value)}
               style={{
                 flex: 1,
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-input)",
+                background: "transparent",
+                border: "none",
+                borderBottom: "1px solid var(--border)",
                 color: "var(--text)",
-                padding: "0.4rem 0.75rem",
+                padding: "0.25rem 0",
                 fontFamily: "var(--font-body)",
                 fontSize: "0.85rem",
                 outline: "none",

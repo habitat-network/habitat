@@ -173,7 +173,7 @@ function PendingApproval({ authManager }: { authManager: any }) {
           onChange={(e) => setHandle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleApprove()}
           style={{
-            background: "var(--surface-raised)",
+            background: "transparent",
             border: "1px solid var(--border)",
             borderRadius: "var(--radius-input)",
             color: "var(--text)",
@@ -235,15 +235,11 @@ function NavTab({ to, label, accentColor }: { to: string; label: string; accentC
         <span style={{
           display: "inline-block",
           padding: "0.35rem 1rem",
-          borderRadius: "var(--radius-pill)",
           fontFamily: "var(--font-body)",
           fontWeight: 600,
           fontSize: "0.9rem",
           color: isActive ? "var(--text)" : "var(--muted)",
-          background: isActive ? "var(--surface-raised)" : "transparent",
-          boxShadow: isActive ? `0 0 12px 2px ${accentColor}55` : "none",
-          border: isActive ? `1px solid ${accentColor}88` : "1px solid transparent",
-          transition: "all 0.2s ease",
+          borderBottom: isActive ? `2px solid ${accentColor}` : "2px solid transparent",
         }}>
           {label}
         </span>

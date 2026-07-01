@@ -15,7 +15,6 @@
   /* Surfaces */
   --color-bg: #09090f;
   --color-surface: #13131f;
-  --color-surface-raised: #1c1c2e;
   --color-border: #2a2a40;
 
   /* Text */
@@ -27,39 +26,39 @@
   --font-body: 'Quicksand', sans-serif;
 
   /* Radii */
-  --radius-card: 20px;
-  --radius-pill: 9999px;
-  --radius-input: 12px;
+  --radius-card: 4px;
+  --radius-pill: 4px;
+  --radius-input: 3px;
 }
 
 /* CSS custom properties (accessible as var(--strawberry) in inline styles) */
 :root {
   --strawberry: #ff2d6f;
-  --tangerine: #fc6b04;
+  --tangerine: #FF6A37;
   --banana: #ffef0a;
   --lime: #8ee71b;
   --grape: #a256c8;
   --blueberry: #3224b1;
-  --cherry: #f11616;
+  --cherry: #ae2e35;
   --peach: #ffc062;
 
-  --bg: #09090f;
-  --surface: #13131f;
-  --surface-raised: #1c1c2e;
+  --bg: #2D5644;
+  --surface: #FF6A37;
   --border: #2a2a40;
 
-  --text: #f5f5f7;
-  --muted: #9595b8;
+  --text: #1c1c2e;
+  --muted: #3224b1;
 
   --font-display: 'Original Surfer', cursive;
   --font-body: 'Quicksand', sans-serif;
 
-  --radius-card: 20px;
-  --radius-pill: 9999px;
-  --radius-input: 12px;
+  --radius-card: 4px;
+  --radius-pill: 4px;
+  --radius-input: 3px;
 }
 
-html, body {
+html,
+body {
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-body);

@@ -134,19 +134,18 @@ function MemberCard({ member }: { member: MemberRecord }) {
     <div style={{
       background: "var(--surface)",
       border: `1px solid var(--border)`,
+      borderTop: `3px solid ${accentColor}`,
       borderRadius: "var(--radius-card)",
       padding: "1.25rem",
       display: "flex",
       flexDirection: "column",
       gap: "0.5rem",
-      boxShadow: `0 0 0 1px ${accentColor}22`,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
         <div style={{
-          width: 48, height: 48, borderRadius: "50%",
-          background: "var(--surface-raised)",
+          width: 48, height: 48,
+          background: "var(--bg)",
           border: `2px solid ${accentColor}`,
-          boxShadow: `0 0 10px ${accentColor}66`,
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: "1.5rem",
           flexShrink: 0,
@@ -177,7 +176,7 @@ function MemberCard({ member }: { member: MemberRecord }) {
 }
 
 const inputStyle: React.CSSProperties = {
-  background: "var(--surface-raised)",
+  background: "var(--bg)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-input)",
   color: "var(--text)",
