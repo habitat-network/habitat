@@ -184,5 +184,7 @@ func (s *orgImpl) WithTx(tx *gorm.DB) core.Org {
 		orgID:           s.orgID,
 		db:              tx,
 		handleSubdomain: s.handleSubdomain,
+		name:            s.name,
+		method:          s.method,
 	}
 }

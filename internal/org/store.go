@@ -104,6 +104,7 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		db:              s.db,
 		handleSubdomain: org.HandleSubdomain,
 		name:            org.Name,
+		method:          org.LoginMethod,
 	}, nil
 }
 
