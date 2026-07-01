@@ -101,6 +101,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/org/add", server.handleAddOrg)
 	internalMux.HandleFunc("/org/list", server.handleListOrgs)
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
+	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
 	slog.InfoContext(ctx, "listening",
 		"oauth_port", cmd.String(fPort),
