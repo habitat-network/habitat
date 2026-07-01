@@ -18,6 +18,8 @@ import {
 import { CollectionMetadata } from "api/types/network/habitat/repo/describeRepo";
 import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
+import Avatar from "boring-avatars";
+
 
 import { Search } from "lucide-react";
 
@@ -74,7 +76,7 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
       </CardHeader>
       <CardContent>
         <ItemGroup className="grid grid-cols-3">
-          {apps.map((app) => (
+          {apps.filter((app) => Boolean(app.clientUri)).map((app) => (
             <Item
               key={app.clientID}
               render={<Link to={app.clientUri} />}
@@ -87,10 +89,10 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
                     alt={app.name}
                     className="w-12 h-12 object-contain mx-auto"
                   />
-                ) : null}
+                ) : <Avatar className="mx-auto" name={app.clientID} variant="sunset" square />}
               </ItemHeader>
               <ItemTitle className="text-xs text-center truncate w-full px-1">
-                {app.name}
+                {app.name || app.clientID || app.clientUri}
               </ItemTitle>
             </Item>
           ))}

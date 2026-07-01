@@ -24,6 +24,7 @@ catalog:
   '@types/react': ^19.2.14
   '@types/react-dom': ^19.2.3
   '@vitejs/plugin-react': 5.1.2
+  boring-avatars: ^2.0.4
   idb: ^8.0.0
   jsdom: ^27.0.0
   react: ^19.2.3

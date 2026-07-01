@@ -1,5 +1,6 @@
 import { Actor } from "@/types/Actor";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
+import BoringAvatar from 'boring-avatars';
 
 export interface UserAvatarProps {
   actor: Actor;
@@ -14,17 +15,16 @@ export function UserAvatar({
   className,
   link = false,
 }: UserAvatarProps) {
-  const { displayName, handle } = actor;
+  const { displayName, handle, did } = actor;
   // Generate alt text from displayName or handle
   const alt = displayName || (handle ? `@${handle}` : "User");
-
-  // Generate fallback from displayName or handle
-  const fallbackText = (displayName || handle || "?")[0]?.toUpperCase();
 
   const avatar = (
     <Avatar size={size} className={className}>
       <AvatarImage src={actor.avatar} alt={alt} />
-      <AvatarFallback>{fallbackText}</AvatarFallback>
+      <AvatarFallback>
+        <BoringAvatar name={did} variant="beam" />
+      </AvatarFallback>
     </Avatar>
   );
 
