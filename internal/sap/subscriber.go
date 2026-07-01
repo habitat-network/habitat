@@ -194,7 +194,7 @@ func (s *subscriber) loadSubscriptions(ctx context.Context) error {
 	}
 	span.SetAttributes(attribute.Int("sap.subscriptions_loaded", len(orgs)))
 	for _, o := range orgs {
-		go s.addSubscription(ctx, &o)
+		go s.addSubscription(inheritCancelDetachSpan(ctx), &o)
 	}
 	slog.InfoContext(ctx, "loaded subscriptions", "count", len(orgs))
 	return nil

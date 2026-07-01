@@ -190,3 +190,30 @@ func (m *metrics) resyncJobFinished(ctx context.Context, start time.Time, status
 func (m *metrics) dispatchFinished(ctx context.Context, start time.Time) {
 	m.dispatchDuration.Record(ctx, time.Since(start).Seconds())
 }
+
+// detachSpan returns a context that carries the trace span from ctx as a
+// remote parent but is not bound to ctx's cancellation or deadline. Use
+// this when spawning fire-and-forget goroutines that should appear in the
+// same trace but will outlive the calling span and need no parent
+// cancellation (e.g. goroutines previously started with context.Background).
+func detachSpan(ctx context.Context) context.Context {
+	return trace.ContextWithRemoteSpanContext(
+		context.Background(),
+		trace.SpanContextFromContext(ctx),
+	)
+}
+
+// inheritCancelDetachSpan returns a context that inherits cancellation from
+// ctx but starts a fresh trace scope: the active local span is stripped and
+// re-attached as a remote parent, so the goroutine's tracer.Start creates a
+// new root span linked to the calling span rather than a child of it. Use
+// this for long-lived goroutines (subscriptions, crawls) that must be
+// cancelled with ctx but should not show as children of a span that ends
+// immediately after spawning them.
+func inheritCancelDetachSpan(ctx context.Context) context.Context {
+	spanCtx := trace.SpanContextFromContext(ctx)
+	return trace.ContextWithRemoteSpanContext(
+		trace.ContextWithSpan(ctx, tracenoop.Span{}),
+		spanCtx,
+	)
+}

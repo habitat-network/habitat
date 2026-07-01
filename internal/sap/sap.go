@@ -101,8 +101,8 @@ func (s *Sap) AddManagedOrg(ctx context.Context, did syntax.DID, sessionID strin
 	if err != nil {
 		return err
 	}
-	go s.crawler.crawlOrg(context.Background(), org)
-	go s.sub.addSubscription(context.Background(), org)
+	go s.crawler.crawlOrg(detachSpan(ctx), org)
+	go s.sub.addSubscription(detachSpan(ctx), org)
 	return nil
 }
 

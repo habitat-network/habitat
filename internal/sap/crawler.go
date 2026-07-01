@@ -61,7 +61,7 @@ func (c *crawler) resumeIncompleteCrawls(ctx context.Context) error {
 	}
 	span.SetAttributes(attribute.Int("sap.crawls_resumed", len(orgs)))
 	for i := range orgs {
-		go c.crawlOrg(ctx, &orgs[i])
+		go c.crawlOrg(inheritCancelDetachSpan(ctx), &orgs[i])
 	}
 	return nil
 }
