@@ -34,9 +34,11 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
         </ul>
         {profile ? (
           <ul className="flex items-center gap-2">
-            {import.meta.env.DEV && <Button variant="ghost" render={<Link to="/devtools" />}>
-              Devtools
-            </Button>}
+            {import.meta.env.DEV && (
+              <Button variant="ghost" render={<Link to="/devtools" />}>
+                Devtools
+              </Button>
+            )}
             <UserAvatar actor={profile} />
             <li>
               <Button onClick={onLogout}>Logout</Button>
