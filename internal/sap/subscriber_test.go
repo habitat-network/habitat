@@ -228,7 +228,7 @@ func setupSubscriber(
 	t.Cleanup(func() { srv.Close() })
 
 	resyncBuf := newResyncBuffer(db, utils.NewPollNotifier(), utils.NewPollNotifier())
-	subscriber = newSubscriber(db, oauthApp, resyncBuf)
+	subscriber = newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))
 
 	go func() {
 		_ = subscriber.loadSubscriptions(t.Context())
