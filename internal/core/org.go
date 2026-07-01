@@ -2,9 +2,7 @@ package core
 
 import (
 	"context"
-	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/db"
@@ -32,21 +30,6 @@ type Org interface {
 	IsMember(ctx context.Context, did syntax.DID) (bool, error)
 
 	GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput
-
-	IssueIdentityToken(
-		ctx context.Context,
-		caller syntax.DID,
-		reusable bool,
-		expiresAt time.Time,
-	) (token string, err error)
-	CreateNewMemberIdentity(
-		ctx context.Context,
-		token string,
-		internalHandle string,
-		password string,
-		loginID string,
-	) (*identity.Identity, error)
-	ValidateAdminSignedToken(ctx context.Context, token string) error
 
 	LoginMethod(ctx context.Context) LoginMethod
 

@@ -2,22 +2,12 @@ package org
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
-	"fmt"
-	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/core"
-	"github.com/habitat-network/habitat/internal/hive"
-	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type Role string
@@ -42,20 +32,12 @@ func isDuplicateError(err error) bool {
 	return errors.Is(err, gorm.ErrDuplicatedKey)
 }
 
-type inviteTokenClaims struct {
-	jwt.Claims
-	Reusable bool `json:"r"` // Small keys
-}
-
 type orgImpl struct {
-	orgID            syntax.DID
-	name             string
-	hive             hive.Hive
-	db               *gorm.DB
-	signingSecret    []byte
-	handleSubdomain  string
-	method           core.LoginMethod
-	passwordProvider *login.PasswordLoginProvider
+	orgID           syntax.DID
+	name            string
+	db              *gorm.DB
+	handleSubdomain string
+	method          core.LoginMethod
 }
 
 var _ core.Org = &orgImpl{}
@@ -70,7 +52,7 @@ func (s *orgImpl) GetMetadata(
 	domain string,
 ) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		LoginMethod:     string(s.LoginMethod(ctx)),
+		LoginMethod:     string(s.method),
 		HandleSubdomain: s.handleSubdomain,
 		OrgId:           string(s.orgID),
 		Name:            s.name,
@@ -78,11 +60,7 @@ func (s *orgImpl) GetMetadata(
 }
 
 func (s *orgImpl) LoginMethod(ctx context.Context) core.LoginMethod {
-	var org organization
-	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
-		return "password" // safe default
-	}
-	return org.LoginMethod
+	return s.method
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
@@ -200,126 +178,13 @@ func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 	return err == nil, err
 }
 
-func (s *orgImpl) ValidateAdminSignedToken(ctx context.Context, token string) error {
-	parsed, err := jwt.ParseSigned(token)
-	if err != nil {
-		return ErrInvalidToken
-	}
-
-	var claims inviteTokenClaims
-	if err := parsed.Claims(s.signingSecret, &claims); err != nil {
-		return ErrInvalidToken
-	}
-
-	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
-		return ErrInvalidToken
-	}
-
-	if !claims.Reusable {
-		result := s.db.WithContext(ctx).
-			Clauses(clause.OnConflict{DoNothing: true}).
-			Create(&spentToken{OrgID: s.orgID, JTI: claims.ID, ConsumedAt: time.Now()})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return ErrInvalidToken
-		}
-	}
-	return nil
-}
-
-// IssueIdentityToken implements Org.
-func (s *orgImpl) IssueIdentityToken(
-	ctx context.Context,
-	caller syntax.DID,
-	reusable bool,
-	expiresAt time.Time,
-) (string, error) {
-	if expiresAt.After(time.Now().AddDate(0, 1, 0)) {
-		return "", ErrInvalidTokenExpiry
-	}
-
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	jti := base64.RawURLEncoding.EncodeToString(b)
-
-	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: s.signingSecret}, nil)
-	if err != nil {
-		return "", err
-	}
-
-	claims := inviteTokenClaims{
-		Claims: jwt.Claims{
-			ID:     jti,
-			Issuer: caller.String(),
-			Expiry: jwt.NewNumericDate(expiresAt),
-		},
-		Reusable: reusable,
-	}
-	return jwt.Signed(sig).Claims(claims).CompactSerialize()
-}
-
-// CreateNewMemberIdentity implements Org.
-func (s *orgImpl) CreateNewMemberIdentity(
-	ctx context.Context,
-	token string,
-	internalHandle string,
-	password string,
-	loginID string,
-) (*identity.Identity, error) {
-	if err := s.ValidateAdminSignedToken(ctx, token); err != nil {
-		return nil, err
-	}
-
-	var id *identity.Identity
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// If token is valid, call into hive to mint the new identity and serve it
-		newID, err := s.hive.WithTx(tx).MintIdentity(ctx, internalHandle, s.handleSubdomain)
-		if err != nil {
-			return fmt.Errorf("mint identity: %w", err)
-		}
-		id = newID
-
-		// Determine the member's LoginID based on the org's login method,
-		// mirroring CreateOrg. For password login the member authenticates with a
-		// password keyed to their freshly-minted DID, so that DID is their login
-		// id; for external login (atproto/google) the provided loginID identifies
-		// them. Storing the wrong value here makes login fail with a login id
-		// mismatch at code exchange.
-		var memberLoginID string
-		switch s.LoginMethod(ctx) {
-		case core.LoginMethodPassword:
-			memberLoginID = newID.DID.String()
-			if err := s.passwordProvider.WithTx(tx).AddLoginEntry(newID.DID, password); err != nil {
-				return fmt.Errorf("add login entry: %w", err)
-			}
-		default:
-			memberLoginID = loginID
-		}
-
-		return tx.Create(&member{
-			OrgID:   s.orgID,
-			Did:     newID.DID,
-			Role:    MemberRole,
-			LoginID: memberLoginID,
-		}).Error
-	})
-	if err != nil {
-		return nil, err
-	}
-	return id, nil
-}
-
 // WithTx implements [Org].
 func (s *orgImpl) WithTx(tx *gorm.DB) core.Org {
 	return &orgImpl{
 		orgID:           s.orgID,
-		hive:            s.hive,
 		db:              tx,
-		signingSecret:   s.signingSecret,
 		handleSubdomain: s.handleSubdomain,
+		name:            s.name,
+		method:          s.method,
 	}
 }
