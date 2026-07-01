@@ -5,27 +5,33 @@ import type {
   NetworkHabitatRelationshipListSubjects,
 } from "api";
 import type { DerivedConfig } from "./config";
-import type { OrgClient } from "./orgClient";
+
+// habitatDIDHeader names the DID sap should authenticate the proxied request
+// as. sap looks up the OAuth session it tracks for this org DID and attaches
+// the access token (and Habitat-Auth-Method header) before forwarding to pear.
+const habitatDIDHeader = "Habitat-Did";
 
 export interface SpaceRef {
   uri: string;
   skey: string;
 }
 
-// PearClient wraps the network.habitat.space XRPC endpoints, calling them with
-// the org credential. Each document is its own space (owned by the org); the
-// docs server is the sole writer of the canonical records inside it.
+// PearClient wraps the network.habitat.space XRPC endpoints. Rather than
+// holding its own org credential, it routes every call through sap's proxy
+// (POST /proxy/<nsid>) with the org DID in the Habitat-Did header; sap
+// authenticates the request as the org. Each document is its own space (owned
+// by the org); the docs server is the sole writer of its canonical records.
 export class PearClient {
   private config: DerivedConfig;
-  private org: OrgClient;
+  private orgDidStr: string;
 
-  constructor(config: DerivedConfig, org: OrgClient) {
+  constructor(config: DerivedConfig, orgDid: string) {
     this.config = config;
-    this.org = org;
+    this.orgDidStr = orgDid;
   }
 
-  orgDid(): Promise<string> {
-    return this.org.orgDid();
+  orgDid(): string {
+    return this.orgDidStr;
   }
 
   // spaceUri reconstructs a doc's space URI from its skey. Space URIs are
@@ -39,9 +45,12 @@ export class PearClient {
     method: "GET" | "POST",
     payload: object,
   ): Promise<T> {
-    const base = `${this.config.pearHost}/xrpc/${nsid}`;
+    const base = `${this.config.sapProxyUrl}/${nsid}`;
     let url = base;
     let body: string | undefined;
+    const headers: Record<string, string> = {
+      [habitatDIDHeader]: this.orgDidStr,
+    };
     if (method === "GET") {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(payload)) {
@@ -50,13 +59,9 @@ export class PearClient {
       url = `${base}?${qs.toString()}`;
     } else {
       body = JSON.stringify(payload);
+      headers["content-type"] = "application/json";
     }
-    const res = await this.org.orgFetch(url, {
-      method,
-      body,
-      headers:
-        method === "POST" ? { "content-type": "application/json" } : undefined,
-    });
+    const res = await fetch(url, { method, body, headers });
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`${nsid} failed (${res.status}): ${text}`);
@@ -78,8 +83,8 @@ export class PearClient {
   }
 
   // listReaders returns the member DIDs that hold the reader role on a doc's
-  // space, expanding groups and role implications. Called with the org
-  // credential (the org owner always passes the reader check).
+  // space, expanding groups and role implications. sap proxies this as the org
+  // (the org owner always passes the reader check).
   async listReaders(spaceUri: string): Promise<string[]> {
     const out =
       await this.call<NetworkHabitatRelationshipListSubjects.OutputSchema>(
@@ -113,12 +118,11 @@ export class PearClient {
     collection: string,
     rkey: string,
   ): Promise<NetworkHabitatSpaceGetRecord.OutputSchema | undefined> {
-    const orgDid = await this.org.orgDid();
     try {
       return await this.call<NetworkHabitatSpaceGetRecord.OutputSchema>(
         "network.habitat.space.getRecord",
         "GET",
-        { space, repo: orgDid, collection, rkey },
+        { space, repo: this.orgDidStr, collection, rkey },
       );
     } catch {
       // Record not found (or not yet replicated).
@@ -143,6 +147,18 @@ export class PearClient {
       // Already a member, or a benign race — safe to ignore.
     }
   }
+}
+
+// resolveOrgDid maps the configured org handle to its DID via the public
+// atproto-did well-known endpoint (served by pear/identity, no auth). The org
+// DID is opaque (did:web:<random>.<domain>), so it must be resolved rather than
+// derived from the handle.
+export async function resolveOrgDid(handle: string): Promise<string> {
+  const res = await fetch(`https://${handle}/.well-known/atproto-did`);
+  if (!res.ok) {
+    throw new Error(`resolve org handle ${handle}: ${res.status}`);
+  }
+  return (await res.text()).trim();
 }
 
 function skeyOf(uri: string): string {

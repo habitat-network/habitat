@@ -5,10 +5,12 @@ documents for one org.
 
 ## Architecture
 
-- Holds an **org credential** (OAuth, the same flow as `internal/sap/org_manager.go`):
-  a confidential client (`private_key_jwt`) that completes an authorization-code
-  flow once and then auto-refreshes. Every request to pear carries
-  `Authorization: Bearer <token>` + `Habitat-Auth-Method: oauth`.
+- Makes authenticated pear calls **through `cmd/sap`**, which holds the org's
+  OAuth session. Every XRPC call is sent to sap's proxy (`POST /proxy/<nsid>`)
+  with the org DID in a `Habitat-Did` header; sap attaches the org's access
+  token and `Habitat-Auth-Method: oauth` before forwarding to pear. The docs
+  server holds no credential of its own — it only resolves the configured org
+  handle to its DID at startup (a public lookup).
 - Is the **sole writer** of the canonical doc record. It writes
   `network.habitat.docs` records into an org-owned space via
   `network.habitat.space.putRecord`.
@@ -16,17 +18,17 @@ documents for one org.
   call `network.habitat.doc.createDoc` / `network.habitat.doc.updateDoc` with an
   `Atproto-Proxy: did:web:<docs-domain>#docs` header; pear validates the caller,
   signs a service-auth JWT, and forwards the request here. The server fully
-  verifies that JWT (`@atproto/crypto`, resolving the caller's DID doc through
-  pear) before applying the update.
+  verifies that JWT (`@atproto/crypto`, resolving the caller's public DID doc)
+  before applying the update.
 - Keeps each document's Yjs state **in memory** so updates don't refetch on every
   edit. Merges with `Y.applyUpdateV2` and writes the full re-encoded state back.
-- Runs a **crawler** that subscribes to `cmd/sap`'s outbox channel over its
-  internal websocket port, acking every message it receives. When it sees a
-  doc's markdown record it persists the doc to a local **sqlite** table and calls
-  `network.habitat.relationship.listSubjects` (via pear, with the org credential)
-  to record which members may read it. `listDocs` is served from this store and
-  filtered to the caller, so a member only ever sees docs they have permission
-  to. Unacked messages are redelivered by sap on the next connection.
+- Runs a **crawler** that subscribes to sap's outbox channel over its internal
+  websocket port, acking every message it receives. When it sees a doc's
+  markdown record it persists the doc to a local **sqlite** table and calls
+  `network.habitat.relationship.listSubjects` (proxied through sap) to record
+  which members may read it. `listDocs` is served from this store and filtered
+  to the caller, so a member only ever sees docs they have permission to. Unacked
+  messages are redelivered by sap on the next connection.
 
 ## DID
 
@@ -38,22 +40,22 @@ can resolve the forward target via standard did:web resolution.
 
 Set these in `dev.env` (gitignored):
 
-| Variable                 | Description                                                                |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `DOCS_SERVER_DOMAIN`     | Public domain / did:web host, e.g. `docs-server.local.habitat.network`.    |
-| `DOCS_SERVER_ORG_HANDLE` | The org this server holds a credential for.                                |
-| `DOCS_SERVER_PEAR_HOST`  | Base URL of the org's pear, e.g. `https://pear.local.habitat.network`.     |
-| `DOCS_SERVER_PORT`       | HTTP port (default `2590`).                                                |
-| `DOCS_SERVER_DATA_DIR`   | Where the credential + signing key are persisted (default `.docs-server`). |
-| `DOCS_SERVER_SPACE_SKEY` | Space key for the docs space (default `docs`).                             |
-| `DOCS_SERVER_SAP_URL`    | sap outbox channel websocket (default `ws://127.0.0.1:2581/channel`).      |
-| `DOCS_SERVER_CRAWL_DB`   | sqlite path for the crawl store (default `<DATA_DIR>/crawl.db`).           |
+| Variable                 | Description                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `DOCS_SERVER_DOMAIN`     | Public domain / did:web host, e.g. `docs-server.local.habitat.network`.      |
+| `DOCS_SERVER_ORG_HANDLE` | The org this server acts on behalf of; resolved to the org DID at startup.   |
+| `DOCS_SERVER_PORT`       | HTTP port (default `2590`).                                                  |
+| `DOCS_SERVER_DATA_DIR`   | Where the crawl database is persisted (default `.docs-server`).              |
+| `DOCS_SERVER_SPACE_TYPE` | Space type each doc space is created under (default `network.habitat.docs`). |
+| `DOCS_SERVER_SAP_URL`    | Base URL of sap's internal port (default `http://127.0.0.1:2581`).           |
+| `DOCS_SERVER_CRAWL_DB`   | sqlite path for the crawl store (default `<DATA_DIR>/crawl.db`).             |
 
 The frontend (`docsv2`) needs `DOCS_SERVER_DID` (`did:web:<DOCS_SERVER_DOMAIN>`)
 at build time so it can set the `Atproto-Proxy` header.
 
-## One-time bootstrap
+## Setup
 
-Start the server, then visit `https://<DOCS_SERVER_DOMAIN>/oauth/login` as an org
-admin to grant the org credential. The access/refresh tokens are persisted to
-`DOCS_SERVER_DATA_DIR` so restarts don't require re-authorization.
+The org must be added to sap (`POST /org/add`) and have completed sap's OAuth
+flow so sap tracks a session for it. Once sap can proxy for the org DID, the
+docs server needs no separate authorization — it resolves the org handle to its
+DID at startup and routes all authenticated calls through sap.

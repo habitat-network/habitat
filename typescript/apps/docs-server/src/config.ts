@@ -6,13 +6,12 @@ export interface Config {
   // Public domain the docs server is reachable at. Also its did:web host, so
   // the DID is did:web:<domain> and pear can resolve the #docs service endpoint.
   domain: string;
-  // The org this server holds a credential for (e.g. "acme.local.habitat.network").
+  // The org this server acts on behalf of (e.g. "acme.local.habitat.network").
+  // Resolved to the org DID at startup; that DID is sent to sap so it proxies
+  // requests using the org's tracked session.
   orgHandle: string;
-  // Base URL of the org's pear instance, used for OAuth and XRPC calls.
-  pearHost: string;
   port: number;
-  // Directory where the OAuth credential and signing key are persisted so the
-  // server doesn't need re-authorization on every restart.
+  // Directory where the crawl database is persisted.
   dataDir: string;
   // Space type each doc's space is created under. Each document gets its own
   // space of this type.
@@ -22,9 +21,9 @@ export interface Config {
 export interface DerivedConfig extends Config {
   did: string;
   serviceId: string;
-  clientId: string;
-  redirectUri: string;
-  credentialPath: string;
+  // Base URL of sap's proxy endpoint (<base>/proxy). All authenticated pear
+  // XRPC calls are routed here; sap attaches the org's OAuth token.
+  sapProxyUrl: string;
   // Websocket URL of sap's internal outbox channel. The crawler subscribes here
   // to discover the org's docs and acks each message it receives.
   sapChannelUrl: string;
@@ -44,17 +43,16 @@ function required(name: string): string {
 export function loadConfig(): DerivedConfig {
   const domain = required("DOCS_SERVER_DOMAIN");
   const orgHandle = required("DOCS_SERVER_ORG_HANDLE");
-  // Tolerate DOCS_SERVER_PEAR_HOST being set with or without a scheme; all pear
-  // URLs are built by concatenation, so a bare host would otherwise be invalid.
-  const rawPearHost = required("DOCS_SERVER_PEAR_HOST").replace(/\/$/, "");
-  const pearHost = /^https?:\/\//.test(rawPearHost)
-    ? rawPearHost
-    : `https://${rawPearHost}`;
   const dataDir = process.env.DOCS_SERVER_DATA_DIR ?? ".docs-server";
+  // sap's internal port serves both the /proxy (http) and /channel (ws)
+  // endpoints and is not publicly exposed via TLS. Defaults to the local-dev
+  // sap. The channel websocket URL is derived by swapping the scheme.
+  const sapUrl = (
+    process.env.DOCS_SERVER_SAP_URL ?? "http://127.0.0.1:2581"
+  ).replace(/\/$/, "");
   const config: Config = {
     domain,
     orgHandle,
-    pearHost,
     port: parseInt(process.env.DOCS_SERVER_PORT ?? "2590", 10),
     dataDir,
     spaceType: process.env.DOCS_SERVER_SPACE_TYPE ?? "network.habitat.docs",
@@ -64,13 +62,8 @@ export function loadConfig(): DerivedConfig {
     ...config,
     serviceId,
     did: `did:web:${domain}`,
-    clientId: `https://${domain}/client-metadata.json`,
-    redirectUri: `https://${domain}/oauth-callback`,
-    credentialPath: path.join(dataDir, "credential.json"),
-    // sap's internal port serves the /channel outbox endpoint over plain ws
-    // (it is not publicly exposed via TLS). Defaults to the local-dev sap.
-    sapChannelUrl:
-      process.env.DOCS_SERVER_SAP_URL ?? "ws://127.0.0.1:2581/channel",
+    sapProxyUrl: `${sapUrl}/proxy`,
+    sapChannelUrl: `${sapUrl.replace(/^http/, "ws")}/channel`,
     crawlDbPath:
       process.env.DOCS_SERVER_CRAWL_DB ?? path.join(dataDir, "crawl.db"),
   };

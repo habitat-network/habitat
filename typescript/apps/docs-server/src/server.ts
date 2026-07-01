@@ -5,23 +5,17 @@ import type {
   NetworkHabitatDocsListDocs,
 } from "api";
 import type { DerivedConfig } from "./config";
-import type { OrgClient } from "./orgClient";
 import type { DocStore } from "./docStore";
 import type { CrawlStore } from "./crawlStore";
 import { ServiceAuthError, ServiceAuthVerifier } from "./serviceAuth";
 
 export function createApp(
   config: DerivedConfig,
-  org: OrgClient,
   docs: DocStore,
   crawl: CrawlStore,
 ): Hono {
   const app = new Hono();
-  const verifier = new ServiceAuthVerifier(config, org);
-
-  // Pending OAuth flows: state -> PKCE verifier. In-memory is fine; the
-  // bootstrap is a one-time interactive step.
-  const pendingAuth = new Map<string, string>();
+  const verifier = new ServiceAuthVerifier(config);
 
   // did:web document. pear resolves did:web:<domain> here and reads the #docs
   // service endpoint to forward network.habitat.docs.* calls to this server.
@@ -38,33 +32,6 @@ export function createApp(
       ],
     }),
   );
-
-  // Confidential OAuth client metadata, fetched by pear during the org auth flow.
-  app.get("/client-metadata.json", (c) => c.json(org.clientMetadata()));
-
-  // One-time org credential bootstrap: an org admin opens this to authorize the
-  // docs server, then is redirected back to /oauth-callback.
-  app.get("/oauth/login", async (c) => {
-    const { url, state, verifier } = await org.beginAuth();
-    pendingAuth.set(state, verifier);
-    return c.redirect(url);
-  });
-
-  app.get("/oauth-callback", async (c) => {
-    const url = new URL(c.req.url);
-    const state = url.searchParams.get("state");
-    if (!state || !pendingAuth.has(state)) {
-      return c.text("unknown or expired auth state", 400);
-    }
-    const pkceVerifier = pendingAuth.get(state)!;
-    pendingAuth.delete(state);
-    try {
-      await org.completeAuth(url, state, pkceVerifier);
-    } catch (err) {
-      return c.text(`failed to complete authorization: ${String(err)}`, 502);
-    }
-    return c.text("Docs server authorized. You can close this tab.");
-  });
 
   app.post("/xrpc/network.habitat.docs.createDoc", async (c) => {
     const caller = await authorize(
