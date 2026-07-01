@@ -20,7 +20,6 @@ import { CollectionCard } from "@/components/CollectionCard";
 import { App } from "api/types/network/habitat/listConnectedApps";
 import Avatar from "boring-avatars";
 
-
 import { Search } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth/")({
@@ -76,26 +75,35 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
       </CardHeader>
       <CardContent>
         <ItemGroup className="grid grid-cols-3">
-          {apps.filter((app) => Boolean(app.clientUri)).map((app) => (
-            <Item
-              key={app.clientID}
-              render={<Link to={app.clientUri} />}
-              variant="muted"
-            >
-              <ItemHeader className="rounded bg-background p-2">
-                {app.logoUri ? (
-                  <img
-                    src={app.logoUri}
-                    alt={app.name}
-                    className="w-12 h-12 object-contain mx-auto"
-                  />
-                ) : <Avatar className="mx-auto" name={app.clientID} variant="sunset" square />}
-              </ItemHeader>
-              <ItemTitle className="text-xs text-center truncate w-full px-1">
-                {app.name || app.clientID || app.clientUri}
-              </ItemTitle>
-            </Item>
-          ))}
+          {apps
+            .filter((app) => Boolean(app.clientUri))
+            .map((app) => (
+              <Item
+                key={app.clientID}
+                render={<Link to={app.clientUri} />}
+                variant="muted"
+              >
+                <ItemHeader className="rounded bg-background p-2">
+                  {app.logoUri ? (
+                    <img
+                      src={app.logoUri}
+                      alt={app.name}
+                      className="w-12 h-12 object-contain mx-auto"
+                    />
+                  ) : (
+                    <Avatar
+                      className="mx-auto"
+                      name={app.clientID}
+                      variant="sunset"
+                      square
+                    />
+                  )}
+                </ItemHeader>
+                <ItemTitle className="text-xs text-center truncate w-full px-1">
+                  {app.name || app.clientID || app.clientUri}
+                </ItemTitle>
+              </Item>
+            ))}
         </ItemGroup>
       </CardContent>
     </Card>

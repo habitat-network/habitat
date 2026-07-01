@@ -1,6 +1,6 @@
 import { Actor } from "@/types/Actor";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
-import BoringAvatar from 'boring-avatars';
+import BoringAvatar from "boring-avatars";
 
 export interface UserAvatarProps {
   actor: Actor;
