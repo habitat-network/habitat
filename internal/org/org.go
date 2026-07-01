@@ -13,7 +13,7 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
@@ -42,46 +42,6 @@ func isDuplicateError(err error) bool {
 	return errors.Is(err, gorm.ErrDuplicatedKey)
 }
 
-// Org represents a single organization on a pear instance.
-type Org interface {
-	DID() syntax.DID
-	// Any app-level / further authz (like teams in an org) should happen using our permissions model.
-
-	AddAdmin(ctx context.Context, admin syntax.DID) error
-	// Only support adding members through CreateNewMemberIdentity for now
-	GetAdmins(ctx context.Context) ([]syntax.DID, error)
-	GetMembers(ctx context.Context) ([]syntax.DID, error)
-	RemoveAdmin(ctx context.Context, admin syntax.DID) error
-	RemoveMembers(ctx context.Context, members []syntax.DID) error
-	DowngradeAdmin(ctx context.Context, admin syntax.DID) error
-	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
-	IsMember(ctx context.Context, did syntax.DID) (bool, error)
-
-	// GetMetadata returns general info about this org.
-	GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput
-
-	// LoginMethod returns how users authenticate: "atproto", "google", or "password".
-	loginMethod(ctx context.Context) loginMethod
-
-	// Org member identity management; may eventually replace some of the methods above
-	IssueIdentityToken(
-		ctx context.Context,
-		caller syntax.DID,
-		reusable bool,
-		expiresAt time.Time,
-	) (token string, err error)
-	CreateNewMemberIdentity(
-		ctx context.Context,
-		token string,
-		internalHandle string,
-		password string,
-		loginID string,
-	) (*identity.Identity, error)
-	ValidateAdminSignedToken(ctx context.Context, token string) error
-
-	db.Store[Org]
-}
-
 type inviteTokenClaims struct {
 	jwt.Claims
 	Reusable bool `json:"r"` // Small keys
@@ -94,11 +54,11 @@ type orgImpl struct {
 	db               *gorm.DB
 	signingSecret    []byte
 	handleSubdomain  string
-	method           loginMethod
+	method           core.LoginMethod
 	passwordProvider *login.PasswordLoginProvider
 }
 
-var _ Org = &orgImpl{}
+var _ core.Org = &orgImpl{}
 
 // DID implements [Org].
 func (s *orgImpl) DID() syntax.DID {
@@ -110,14 +70,14 @@ func (s *orgImpl) GetMetadata(
 	domain string,
 ) habitat.NetworkHabitatOrgGetMetadataOutput {
 	return habitat.NetworkHabitatOrgGetMetadataOutput{
-		LoginMethod:     string(s.loginMethod(ctx)),
+		LoginMethod:     string(s.LoginMethod(ctx)),
 		HandleSubdomain: s.handleSubdomain,
 		OrgId:           string(s.orgID),
 		Name:            s.name,
 	}
 }
 
-func (s *orgImpl) loginMethod(ctx context.Context) loginMethod {
+func (s *orgImpl) LoginMethod(ctx context.Context) core.LoginMethod {
 	var org organization
 	if err := s.db.WithContext(ctx).First(&org, "id = ?", s.orgID).Error; err != nil {
 		return "password" // safe default
@@ -330,8 +290,8 @@ func (s *orgImpl) CreateNewMemberIdentity(
 		// them. Storing the wrong value here makes login fail with a login id
 		// mismatch at code exchange.
 		var memberLoginID string
-		switch s.loginMethod(ctx) {
-		case LoginMethodPassword:
+		switch s.LoginMethod(ctx) {
+		case core.LoginMethodPassword:
 			memberLoginID = newID.DID.String()
 			if err := s.passwordProvider.WithTx(tx).AddLoginEntry(newID.DID, password); err != nil {
 				return fmt.Errorf("add login entry: %w", err)
@@ -354,7 +314,7 @@ func (s *orgImpl) CreateNewMemberIdentity(
 }
 
 // WithTx implements [Org].
-func (s *orgImpl) WithTx(tx *gorm.DB) Org {
+func (s *orgImpl) WithTx(tx *gorm.DB) core.Org {
 	return &orgImpl{
 		orgID:           s.orgID,
 		hive:            s.hive,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
@@ -40,7 +41,7 @@ func newTestOrg(t *testing.T) *orgImpl {
 		signingSecret:    testSigningSecret,
 		passwordProvider: passwordProvider,
 		handleSubdomain:  "testorg",
-		method:           LoginMethodPassword,
+		method:           core.LoginMethodPassword,
 		name:             "Test Org",
 	}
 	return s

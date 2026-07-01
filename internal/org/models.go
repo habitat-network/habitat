@@ -4,22 +4,15 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-)
-
-type loginMethod string
-
-const (
-	LoginMethodAtproto  loginMethod = "atproto"
-	LoginMethodGoogle   loginMethod = "google"
-	LoginMethodPassword loginMethod = "password"
+	"github.com/habitat-network/habitat/internal/core"
 )
 
 // organization represents a managed org on a pear instance.
 type organization struct {
-	ID              syntax.DID  `gorm:"primaryKey"`
-	Name            string      // optional display name
-	LoginMethod     loginMethod // "atproto", "google", "password"
-	SigningSecret   string      // base64-encoded HMAC-SHA256 key for invite tokens
+	ID              syntax.DID       `gorm:"primaryKey"`
+	Name            string           // optional display name
+	LoginMethod     core.LoginMethod // "atproto", "google", "password"
+	SigningSecret   string           // base64-encoded HMAC-SHA256 key for invite tokens
 	CreatedAt       time.Time
 	HandleSubdomain string `gorm:"unique"`
 }
