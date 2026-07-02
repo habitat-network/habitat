@@ -60,8 +60,8 @@ func TestCrawler(t *testing.T) {
 	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	sub := newSubscriber(db, oauthApp, resyncBuf)
-	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
+	sub := newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))
+	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif, newTestMetrics(t))
 
 	makeToken := func(jti string) string {
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -151,8 +151,8 @@ func TestCrawler_Error(t *testing.T) {
 	oauthApp := oauthclient.NewApp(&cfg, store)
 
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	sub := newSubscriber(db, oauthApp, resyncBuf)
-	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif)
+	sub := newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))
+	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif, newTestMetrics(t))
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
