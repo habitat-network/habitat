@@ -8,7 +8,8 @@ export interface Config {
   domain: string;
   // The org this server acts on behalf of (e.g. "acme.local.habitat.network").
   // Resolved to the org DID at startup; that DID is sent to sap so it proxies
-  // requests using the org's tracked session.
+  // requests using the org's tracked session, and is the handle sap's /org/add
+  // OAuth flow authorizes.
   orgHandle: string;
   port: number;
   // Directory where the crawl database is persisted.
@@ -21,8 +22,10 @@ export interface Config {
 export interface DerivedConfig extends Config {
   did: string;
   serviceId: string;
-  // Base URL of sap's proxy endpoint (<base>/proxy). All authenticated pear
-  // XRPC calls are routed here; sap attaches the org's OAuth token.
+  // Base URL of sap's internal port. All authenticated pear XRPC calls are
+  // routed through <sapUrl>/proxy (sap attaches the org's OAuth token), and the
+  // org-login bootstrap kicks off sap's <sapUrl>/org/add OAuth flow.
+  sapUrl: string;
   sapProxyUrl: string;
   // Websocket URL of sap's internal outbox channel. The crawler subscribes here
   // to discover the org's docs and acks each message it receives.
@@ -44,9 +47,9 @@ export function loadConfig(): DerivedConfig {
   const domain = required("DOCS_SERVER_DOMAIN");
   const orgHandle = required("DOCS_SERVER_ORG_HANDLE");
   const dataDir = process.env.DOCS_SERVER_DATA_DIR ?? ".docs-server";
-  // sap's internal port serves both the /proxy (http) and /channel (ws)
-  // endpoints and is not publicly exposed via TLS. Defaults to the local-dev
-  // sap. The channel websocket URL is derived by swapping the scheme.
+  // sap's internal port serves /proxy (http), /org/add (http) and /channel
+  // (ws), and is not publicly exposed via TLS. Defaults to the local-dev sap.
+  // The channel websocket URL is derived by swapping the scheme.
   const sapUrl = (
     process.env.DOCS_SERVER_SAP_URL ?? "http://127.0.0.1:2581"
   ).replace(/\/$/, "");
@@ -62,6 +65,7 @@ export function loadConfig(): DerivedConfig {
     ...config,
     serviceId,
     did: `did:web:${domain}`,
+    sapUrl,
     sapProxyUrl: `${sapUrl}/proxy`,
     sapChannelUrl: `${sapUrl.replace(/^http/, "ws")}/channel`,
     crawlDbPath:

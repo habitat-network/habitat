@@ -51,11 +51,14 @@ Set these in `dev.env` (gitignored):
 | `DOCS_SERVER_CRAWL_DB`   | sqlite path for the crawl store (default `<DATA_DIR>/crawl.db`).             |
 
 The frontend (`docsv2`) needs `DOCS_SERVER_DID` (`did:web:<DOCS_SERVER_DOMAIN>`)
-at build time so it can set the `Atproto-Proxy` header.
+at build time so it can set the `Atproto-Proxy` header and resolve this server's
+`/org/login` endpoint.
 
-## Setup
+## Org bootstrap
 
-The org must be added to sap (`POST /org/add`) and have completed sap's OAuth
-flow so sap tracks a session for it. Once sap can proxy for the org DID, the
-docs server needs no separate authorization — it resolves the org handle to its
-DID at startup and routes all authenticated calls through sap.
+sap must hold an OAuth session for the org before it can proxy this server's
+calls. The docs server exposes `GET /org/login`, which kicks off sap's
+`/org/add` flow for `DOCS_SERVER_ORG_HANDLE` and redirects the admin to Habitat
+to approve. The docsv2 login page links here ("add this app"). Once approved,
+sap tracks the org session and all proxied calls (and the crawler's
+`listSubjects` lookups) succeed.

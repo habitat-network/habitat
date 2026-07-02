@@ -70,7 +70,9 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	config := oauth.NewPublicConfig(
 		"https://"+domain+"/client-metadata.json",
 		"https://"+domain+"/oauth-callback",
-		[]string{"atproto"},
+		// pear's OAuth server rejects any requested scope ("invalid_scope"), so
+		// this client must request none.
+		[]string{},
 	)
 	if err := config.SetClientSecret(secret, "sap"); err != nil {
 		return fmt.Errorf("set client secret: %w", err)

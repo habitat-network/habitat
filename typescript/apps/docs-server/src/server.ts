@@ -19,8 +19,11 @@ export function createApp(
 
   // did:web document. pear resolves did:web:<domain> here and reads the #docs
   // service endpoint to forward network.habitat.docs.* calls to this server.
-  app.get("/.well-known/did.json", (c) =>
-    c.json({
+  // Allow any origin so the docsv2 frontend can resolve it to find the org-login
+  // endpoint.
+  app.get("/.well-known/did.json", (c) => {
+    c.header("Access-Control-Allow-Origin", "*");
+    return c.json({
       "@context": ["https://www.w3.org/ns/did/v1"],
       id: config.did,
       service: [
@@ -30,8 +33,28 @@ export function createApp(
           serviceEndpoint: `https://${config.domain}`,
         },
       ],
-    }),
-  );
+    });
+  });
+
+  // Org-credential bootstrap. An org admin (redirected here from docsv2) kicks
+  // off sap's OAuth flow for the org: sap starts the authorization-code flow and
+  // returns the URL to redirect the admin to. Once they approve, sap tracks the
+  // org's session and can proxy this server's pear calls as the org. The org
+  // handle comes from the form; it defaults to the configured org, which is the
+  // one this server proxies its own calls as.
+  app.get("/org/login", async (c) => {
+    const handle = c.req.query("handle") || config.orgHandle;
+    const res = await fetch(`${config.sapUrl}/org/add`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ handle }),
+    });
+    if (!res.ok) {
+      return c.text(`failed to start org auth: ${await res.text()}`, 502);
+    }
+    const { redirect_url } = (await res.json()) as { redirect_url: string };
+    return c.redirect(redirect_url);
+  });
 
   app.post("/xrpc/network.habitat.docs.createDoc", async (c) => {
     const caller = await authorize(
