@@ -42,7 +42,7 @@ func (c *CollectionService) readableSpaces(
 }
 
 // ListCollections lists the collections the caller can see with a count of the
-// distinct records in each.
+// records in each (counted once per space a record belongs to).
 func (c *CollectionService) ListCollections(
 	ctx context.Context,
 	caller syntax.DID,
@@ -70,9 +70,10 @@ func (c *CollectionService) ListCollections(
 	return out, nil
 }
 
-// ListRecords lists the records in a collection the caller can see, collapsing
-// the per-space copies of the same atproto record into one entry that lists
-// every space (the caller can read) the record belongs to.
+// ListRecords lists the records in a collection the caller can see. Each record
+// is scoped to a single space: the same repo/collection/rkey in a different
+// space is a distinct record (each space holds its own version), so it appears
+// as its own entry.
 func (c *CollectionService) ListRecords(
 	ctx context.Context,
 	caller syntax.DID,
@@ -87,31 +88,22 @@ func (c *CollectionService) ListRecords(
 		return habitat.NetworkHabitatCollectionsListRecordsOutput{}, err
 	}
 	return habitat.NetworkHabitatCollectionsListRecordsOutput{
-		Records: groupRecordViews(rows),
+		Records: recordViews(rows),
 	}, nil
 }
 
-// groupRecordViews collapses per-space record rows into one view per atproto
-// record, listing every space the record belongs to. First-seen order is
-// preserved (rows arrive ordered by at_uri); positions are tracked by index so
-// appends that reallocate the backing array stay consistent.
-func groupRecordViews(rows []recordRow) []habitat.NetworkHabitatCollectionsDefsRecordView {
-	indexByRecord := map[string]int{}
-	views := []habitat.NetworkHabitatCollectionsDefsRecordView{}
+// recordViews maps each per-space record row to its own view, keyed by the
+// space-record URI.
+func recordViews(rows []recordRow) []habitat.NetworkHabitatCollectionsDefsRecordView {
+	views := make([]habitat.NetworkHabitatCollectionsDefsRecordView, 0, len(rows))
 	for _, row := range rows {
-		i, ok := indexByRecord[row.AtURI]
-		if !ok {
-			views = append(views, habitat.NetworkHabitatCollectionsDefsRecordView{
-				Uri:        row.AtURI,
-				Repo:       row.Repo,
-				Collection: row.Collection,
-				Rkey:       row.Rkey,
-				Spaces:     []string{},
-			})
-			i = len(views) - 1
-			indexByRecord[row.AtURI] = i
-		}
-		views[i].Spaces = append(views[i].Spaces, row.SpaceURI)
+		views = append(views, habitat.NetworkHabitatCollectionsDefsRecordView{
+			Uri:        row.RecordURI,
+			Space:      row.SpaceURI,
+			Repo:       row.Repo,
+			Collection: row.Collection,
+			Rkey:       row.Rkey,
+		})
 	}
 	return views
 }

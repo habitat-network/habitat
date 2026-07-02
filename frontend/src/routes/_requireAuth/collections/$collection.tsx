@@ -57,7 +57,7 @@ function CollectionRecords() {
           <TableHeader>
             <TableRow>
               <TableHead>Record</TableHead>
-              <TableHead>Spaces</TableHead>
+              <TableHead>Space</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -71,13 +71,7 @@ function CollectionRecords() {
                   />
                 </TableCell>
                 <TableCell className="align-top">
-                  <div className="flex flex-wrap gap-1">
-                    {record.spaces.map((space) => (
-                      <Badge key={space} variant="outline">
-                        {spaceLabel(space)}
-                      </Badge>
-                    ))}
-                  </div>
+                  <Badge variant="outline">{spaceLabel(record.space)}</Badge>
                 </TableCell>
               </TableRow>
             ))}
@@ -118,7 +112,7 @@ function RecordBody({
         <RecordRenderer
           record={data as Record<string, unknown>}
           lexicon={collection}
-          uri={record.uri}
+          uri={`at://${record.repo}/${record.collection}/${record.rkey}`}
         />
       ) : (
         <ReactJson src={{ value: data }} collapsed={1} />

@@ -7292,7 +7292,7 @@
       },
       "network.habitat.collections.defs.collectionView": {
         "type": "object",
-        "description": "A record collection (lexicon type) present in the org's synced data, with a count of the distinct records in it the calling user can see.",
+        "description": "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
         "required": [
           "collection",
           "recordCount"
@@ -7310,19 +7310,24 @@
       },
       "network.habitat.collections.defs.recordView": {
         "type": "object",
-        "description": "A record identified by its repo, collection and rkey, together with the spaces it belongs to that the calling user can read. The record body is not included; fetch it on demand from pear with one of the spaces.",
+        "description": "A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.",
         "required": [
           "uri",
+          "space",
           "repo",
           "collection",
-          "rkey",
-          "spaces"
+          "rkey"
         ],
         "properties": {
           "uri": {
             "type": "string",
-            "description": "The AT URI of the record (at://repo/collection/rkey).",
-            "format": "at-uri"
+            "description": "The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space.",
+            "format": "uri"
+          },
+          "space": {
+            "type": "string",
+            "description": "URI of the space this record belongs to.",
+            "format": "uri"
           },
           "repo": {
             "type": "string",
@@ -7338,13 +7343,6 @@
             "type": "string",
             "description": "The record key.",
             "format": "record-key"
-          },
-          "spaces": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uri"
-            }
           }
         }
       },

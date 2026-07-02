@@ -14,12 +14,12 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'network.habitat.collections.defs'
 
-/** A record collection (lexicon type) present in the org's synced data, with a count of the distinct records in it the calling user can see. */
+/** A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version. */
 export interface CollectionView {
   $type?: 'network.habitat.collections.defs#collectionView'
   /** The NSID of the record collection. */
   collection: string
-  /** Number of distinct records in this collection the calling user can see, counted across all spaces they can read. */
+  /** Number of records in this collection the calling user can see, counted across all spaces they can read (once per space a record belongs to). */
   recordCount: number
 }
 
@@ -33,19 +33,19 @@ export function validateCollectionView<V>(v: V) {
   return validate<CollectionView & V>(v, id, hashCollectionView)
 }
 
-/** A record identified by its repo, collection and rkey, together with the spaces it belongs to that the calling user can read. The record body is not included; fetch it on demand from pear with one of the spaces. */
+/** A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey. */
 export interface RecordView {
   $type?: 'network.habitat.collections.defs#recordView'
-  /** The AT URI of the record (at://repo/collection/rkey). */
+  /** The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space. */
   uri: string
+  /** URI of the space this record belongs to. */
+  space: string
   /** DID of the repo the record lives in. */
   repo: string
   /** The NSID of the record collection. */
   collection: string
   /** The record key. */
   rkey: string
-  /** URIs of the spaces this record belongs to that the calling user can read. */
-  spaces: string[]
 }
 
 const hashRecordView = 'recordView'

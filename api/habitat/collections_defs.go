@@ -10,9 +10,9 @@ type NetworkHabitatCollectionsDefsCollectionView struct {
 
 // NetworkHabitatCollectionsDefsRecordView represents a recordView object
 type NetworkHabitatCollectionsDefsRecordView struct {
-	Collection string   `json:"collection"`
-	Repo       string   `json:"repo"`
-	Rkey       string   `json:"rkey"`
-	Spaces     []string `json:"spaces"`
-	Uri        string   `json:"uri"`
+	Collection string `json:"collection"`
+	Repo       string `json:"repo"`
+	Rkey       string `json:"rkey"`
+	Space      string `json:"space"`
+	Uri        string `json:"uri"`
 }

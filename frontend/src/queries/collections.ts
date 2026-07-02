@@ -46,21 +46,19 @@ export function collectionRecordsQueryOptions(
   });
 }
 
-// recordBodyQueryOptions fetches a single record's body directly from pear, by
-// one of the spaces it belongs to. The collections index never stores bodies.
+// recordBodyQueryOptions fetches a single record's body directly from pear,
+// from the space it belongs to. The collections index never stores bodies.
 export function recordBodyQueryOptions(
   record: RecordView,
   authManager: AuthManager,
 ) {
-  const space = record.spaces[0];
   return queryOptions({
-    queryKey: ["record-body", record.uri, space],
-    enabled: space !== undefined,
+    queryKey: ["record-body", record.uri],
     queryFn: async (): Promise<unknown> => {
       const { value } = await query(
         "network.habitat.space.getRecord",
         {
-          space,
+          space: record.space,
           repo: record.repo,
           collection: record.collection,
           rkey: record.rkey,

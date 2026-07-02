@@ -4,7 +4,7 @@
     "defs": {
         "collectionView": {
             "type": "object",
-            "description": "A record collection (lexicon type) present in the org's synced data, with a count of the distinct records in it the calling user can see.",
+            "description": "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
             "required": [
                 "collection",
                 "recordCount"
@@ -17,25 +17,30 @@
                 },
                 "recordCount": {
                     "type": "integer",
-                    "description": "Number of distinct records in this collection the calling user can see, counted across all spaces they can read."
+                    "description": "Number of records in this collection the calling user can see, counted across all spaces they can read (once per space a record belongs to)."
                 }
             }
         },
         "recordView": {
             "type": "object",
-            "description": "A record identified by its repo, collection and rkey, together with the spaces it belongs to that the calling user can read. The record body is not included; fetch it on demand from pear with one of the spaces.",
+            "description": "A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.",
             "required": [
                 "uri",
+                "space",
                 "repo",
                 "collection",
-                "rkey",
-                "spaces"
+                "rkey"
             ],
             "properties": {
                 "uri": {
                     "type": "string",
-                    "format": "at-uri",
-                    "description": "The AT URI of the record (at://repo/collection/rkey)."
+                    "format": "uri",
+                    "description": "The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space."
+                },
+                "space": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space this record belongs to."
                 },
                 "repo": {
                     "type": "string",
@@ -51,14 +56,6 @@
                     "type": "string",
                     "format": "record-key",
                     "description": "The record key."
-                },
-                "spaces": {
-                    "type": "array",
-                    "description": "URIs of the spaces this record belongs to that the calling user can read.",
-                    "items": {
-                        "type": "string",
-                        "format": "uri"
-                    }
                 }
             }
         }

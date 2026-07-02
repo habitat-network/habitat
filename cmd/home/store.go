@@ -169,8 +169,9 @@ func (s *Store) DeleteRecord(ctx context.Context, uri habitat_syntax.SpaceRecord
 }
 
 // CountCollections returns, for each collection with at least one record in the
-// given spaces, the number of distinct atproto records (deduplicated across
-// spaces) in that collection. Returns an empty slice when spaces is empty.
+// given spaces, the number of records in that collection, counting a record
+// once per space it belongs to (each space holds its own version). Returns an
+// empty slice when spaces is empty.
 func (s *Store) CountCollections(
 	ctx context.Context,
 	spaces []string,
@@ -181,7 +182,7 @@ func (s *Store) CountCollections(
 	var counts []collectionCount
 	err := s.db.WithContext(ctx).
 		Model(&recordRow{}).
-		Select("collection, COUNT(DISTINCT at_uri) AS count").
+		Select("collection, COUNT(*) AS count").
 		Where("space_uri IN ?", spaces).
 		Group("collection").
 		Order("collection ASC").
@@ -193,8 +194,8 @@ func (s *Store) CountCollections(
 }
 
 // ListRecordsInSpaces returns every indexed record row in the given collection
-// that belongs to one of the given spaces. Callers group the rows by atproto
-// record to collapse the per-space copies. Returns nil when spaces is empty.
+// that belongs to one of the given spaces, one row per space-record. Returns
+// nil when spaces is empty.
 func (s *Store) ListRecordsInSpaces(
 	ctx context.Context,
 	spaces []string,
@@ -206,7 +207,7 @@ func (s *Store) ListRecordsInSpaces(
 	var rows []recordRow
 	err := s.db.WithContext(ctx).
 		Where("collection = ? AND space_uri IN ?", collection, spaces).
-		Order("at_uri ASC").
+		Order("at_uri ASC, space_uri ASC").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err

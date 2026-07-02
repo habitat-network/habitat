@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"sort"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -41,7 +40,7 @@ func seedRecords(t *testing.T, ctx context.Context, store *Store) {
 	}
 }
 
-func TestCountCollectionsDeduplicatesAcrossSpaces(t *testing.T) {
+func TestCountCollectionsCountsPerSpace(t *testing.T) {
 	ctx := context.Background()
 	store := setupStore(t)
 	seedRecords(t, ctx, store)
@@ -53,9 +52,10 @@ func TestCountCollectionsDeduplicatesAcrossSpaces(t *testing.T) {
 	for _, c := range counts {
 		got[c.Collection] = c.Count
 	}
-	// Record A is in both spaces but counts once.
+	// Record A is in both spaces and counts once per space (each space holds
+	// its own version): A@space1 + A@space2 + B@space1 = 3 posts, C = 1 like.
 	require.Equal(t, map[string]int64{
-		"app.bsky.feed.post": 2,
+		"app.bsky.feed.post": 3,
 		"app.bsky.feed.like": 1,
 	}, got)
 }
@@ -130,21 +130,22 @@ func TestUpsertRecordIgnoresMalformedURI(t *testing.T) {
 	require.Empty(t, rows)
 }
 
-func TestGroupRecordViewsCollapsesSpaces(t *testing.T) {
+func TestRecordViewsAreScopedPerSpace(t *testing.T) {
+	// The same repo/collection/rkey in two spaces yields two distinct views,
+	// each carrying its own space and space-record URI.
 	rows := []recordRow{
-		{AtURI: "at://did:web:alice/c/r1", Repo: "did:web:alice", Collection: "c", Rkey: "r1", SpaceURI: space1},
-		{AtURI: "at://did:web:alice/c/r1", Repo: "did:web:alice", Collection: "c", Rkey: "r1", SpaceURI: space2},
-		{AtURI: "at://did:web:bob/c/r2", Repo: "did:web:bob", Collection: "c", Rkey: "r2", SpaceURI: space1},
+		{RecordURI: space1 + "/did:web:alice/c/r1", SpaceURI: space1, Repo: "did:web:alice", Collection: "c", Rkey: "r1"},
+		{RecordURI: space2 + "/did:web:alice/c/r1", SpaceURI: space2, Repo: "did:web:alice", Collection: "c", Rkey: "r1"},
+		{RecordURI: space1 + "/did:web:bob/c/r2", SpaceURI: space1, Repo: "did:web:bob", Collection: "c", Rkey: "r2"},
 	}
-	views := groupRecordViews(rows)
-	require.Len(t, views, 2)
+	views := recordViews(rows)
+	require.Len(t, views, 3)
 
-	byURI := map[string][]string{}
+	spaceByURI := map[string]string{}
 	for _, v := range views {
-		spaces := append([]string(nil), v.Spaces...)
-		sort.Strings(spaces)
-		byURI[v.Uri] = spaces
+		spaceByURI[v.Uri] = v.Space
 	}
-	require.Equal(t, []string{space1, space2}, byURI["at://did:web:alice/c/r1"])
-	require.Equal(t, []string{space1}, byURI["at://did:web:bob/c/r2"])
+	require.Equal(t, space1, spaceByURI[space1+"/did:web:alice/c/r1"])
+	require.Equal(t, space2, spaceByURI[space2+"/did:web:alice/c/r1"])
+	require.Equal(t, space1, spaceByURI[space1+"/did:web:bob/c/r2"])
 }
