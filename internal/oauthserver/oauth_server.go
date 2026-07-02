@@ -33,18 +33,14 @@ const (
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
 
-	// authSessionName is the cookie name for the persistent "already signed in"
-	// session. Unlike the flow cookie above, it survives across OAuth flows so
-	// that a returning user can skip the interactive login.
-	authSessionName = "habitat-auth"
+	// sessionDIDKey is the key under which the signed-in user's DID is stored in
+	// the session. It persists across OAuth flows so that a returning user can
+	// skip the interactive login.
+	sessionDIDKey = "did"
 
-	// authSessionDIDKey is the key under which the signed-in user's DID is stored
-	// in the persistent auth session.
-	authSessionDIDKey = "did"
-
-	// authSessionMaxAge is how long a persistent auth session remains valid
-	// before the user must sign in interactively again.
-	authSessionMaxAge = 24 * time.Hour
+	// sessionMaxAge is how long a session remains valid before the user must sign
+	// in interactively again.
+	sessionMaxAge = 24 * time.Hour
 )
 
 func init() {
@@ -184,12 +180,10 @@ type OAuthServer struct {
 	// Org store for membership lookups
 	orgStore org.Store
 
-	// Session store for OAuth flash data across redirects
+	// Session store holding OAuth flow flash data across redirects and, once a
+	// user has signed in, their DID so subsequent authorize requests can skip
+	// the interactive login flow.
 	sessionStore sessions.Store
-
-	// Persistent session store recording that a user has already signed in, so
-	// subsequent authorize requests can skip the interactive login flow.
-	authSessionStore sessions.Store
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -240,20 +234,13 @@ func NewOAuthServer(
 		loginRouter.OrgStore = orgStore
 	}
 
+	// The session is scoped to the root path so it is readable on both
+	// /oauth/authorize (to skip login for a signed-in user) and /oauth-callback
+	// (where the flow flash and the signed-in DID are written).
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
-		Path:     "/oauth-callback",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	}
-
-	// The auth session must be readable on both /oauth/authorize (to skip login)
-	// and /oauth-callback (where it is set), so it is scoped to the root path.
-	authSessionStore := sessions.NewCookieStore(secret)
-	authSessionStore.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   int(authSessionMaxAge.Seconds()),
+		MaxAge:   int(sessionMaxAge.Seconds()),
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
@@ -270,12 +257,11 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		loginRouter:      loginRouter,
-		sessionStore:     cookieStore,
-		authSessionStore: authSessionStore,
-		directory:        directory,
-		storage:          storage,
-		orgStore:         orgStore,
+		loginRouter:  loginRouter,
+		sessionStore: cookieStore,
+		directory:    directory,
+		storage:      storage,
+		orgStore:     orgStore,
 	}, nil
 }
 
@@ -456,19 +442,6 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	session.Options.MaxAge = -1
-	if err := o.sessionStore.Save(r, w, session); err != nil {
-		o.metrics.callbackErr(ctx, err, "delete_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to clear session",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "recreate_req")
@@ -513,10 +486,13 @@ func (o *OAuthServer) HandleCallback(
 	}
 
 	// Remember that this user has signed in so future authorize requests can skip
-	// the interactive login. A failure here is non-fatal: the flow still
-	// completes, the user just won't get the skip on their next visit.
-	if err := o.saveAuthenticatedSession(w, r, arf.Did); err != nil {
-		slog.WarnContext(ctx, "failed to save auth session", "err", err)
+	// the interactive login. Reading the flash above already popped it, so saving
+	// now both clears the flow state and persists the signed-in DID. A failure
+	// here is non-fatal: the flow still completes, the user just won't get the
+	// skip on their next visit.
+	session.Values[sessionDIDKey] = arf.Did.String()
+	if err := o.sessionStore.Save(r, w, session); err != nil {
+		slog.WarnContext(ctx, "failed to save session", "err", err)
 	}
 
 	if err := o.writeAuthorizeResponse(ctx, w, authRequest, arf.Did); err != nil {
@@ -554,31 +530,16 @@ func (o *OAuthServer) writeAuthorizeResponse(
 	return nil
 }
 
-// authenticatedAs reports whether the request carries a valid auth session for
-// the given DID, meaning the user has already signed in as that identity.
+// authenticatedAs reports whether the request carries a valid session for the
+// given DID, meaning the user has already signed in as that identity.
 func (o *OAuthServer) authenticatedAs(r *http.Request, did syntax.DID) bool {
-	session, err := o.authSessionStore.Get(r, authSessionName)
+	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
 		// A malformed or tampered cookie is treated as "not signed in".
 		return false
 	}
-	stored, ok := session.Values[authSessionDIDKey].(string)
+	stored, ok := session.Values[sessionDIDKey].(string)
 	return ok && stored != "" && stored == did.String()
-}
-
-// saveAuthenticatedSession records the signed-in DID in the persistent auth
-// session cookie.
-func (o *OAuthServer) saveAuthenticatedSession(
-	w http.ResponseWriter,
-	r *http.Request,
-	did syntax.DID,
-) error {
-	session, err := o.authSessionStore.New(r, authSessionName)
-	if err != nil {
-		return err
-	}
-	session.Values[authSessionDIDKey] = did.String()
-	return o.authSessionStore.Save(r, w, session)
 }
 
 // HandleToken processes OAuth 2.0 token requests from the client.
