@@ -17,6 +17,7 @@
     "@tanstack/router-plugin": "^1.168.0",
     "api": "workspace:*",
     "axios": "^1.8.4",
+    "boring-avatars": "catalog:",
     "canvas-confetti": "^1.9.4",
     "internal": "workspace:*",
     "js-cookie": "^3.0.5",

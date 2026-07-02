@@ -10,11 +10,19 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+type inviteTokenClaims struct {
+	jwt.Claims
+	Reusable bool `json:"r"` // Small keys
+}
 
 type Member struct {
 	Org     core.Org
@@ -40,6 +48,23 @@ type Store interface {
 
 	GetMember(ctx context.Context, did syntax.DID) (*Member, error)
 	GetMemberByLoginID(ctx context.Context, loginID string) (*Member, error)
+
+	ValidateAdminSignedToken(ctx context.Context, orgDID syntax.DID, token string) error
+	IssueIdentityToken(
+		ctx context.Context,
+		orgDID syntax.DID,
+		caller syntax.DID,
+		reusable bool,
+		expiresAt time.Time,
+	) (string, error)
+	CreateNewMemberIdentity(
+		ctx context.Context,
+		orgDID syntax.DID,
+		token string,
+		internalHandle string,
+		password string,
+		loginID string,
+	) (*identity.Identity, error)
 }
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
@@ -74,19 +99,12 @@ func NewStore(
 }
 
 func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
-	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
-	if err != nil {
-		return nil, err
-	}
 	return &orgImpl{
-		orgID:            org.ID,
-		hive:             s.hive,
-		db:               s.db,
-		signingSecret:    signingSecret,
-		handleSubdomain:  org.HandleSubdomain,
-		method:           org.LoginMethod,
-		passwordProvider: s.passwordProvider,
-		name:             org.Name,
+		orgID:           org.ID,
+		db:              s.db,
+		handleSubdomain: org.HandleSubdomain,
+		name:            org.Name,
+		method:          org.LoginMethod,
 	}, nil
 }
 
@@ -250,4 +268,161 @@ func (s *storeImpl) GetMemberByLoginID(ctx context.Context, loginID string) (*Me
 		Role:    m.Role,
 		LoginID: m.LoginID,
 	}, nil
+}
+
+func (s *storeImpl) ValidateAdminSignedToken(
+	ctx context.Context,
+	orgDID syntax.DID,
+	token string,
+) error {
+	var org organization
+	if err := s.db.WithContext(ctx).Where("id = ?", orgDID).First(&org).Error; err != nil {
+		return ErrOrgNotFound
+	}
+
+	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
+	if err != nil {
+		return err
+	}
+
+	parsed, err := jwt.ParseSigned(token)
+	if err != nil {
+		return ErrInvalidToken
+	}
+	var claims inviteTokenClaims
+	if err := parsed.Claims(signingSecret, &claims); err != nil {
+		return ErrInvalidToken
+	}
+	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
+		return ErrInvalidToken
+	}
+	if !claims.Reusable {
+		result := s.db.WithContext(ctx).
+			Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&spentToken{OrgID: orgDID, JTI: claims.ID, ConsumedAt: time.Now()})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrInvalidToken
+		}
+	}
+	return nil
+}
+
+func (s *storeImpl) IssueIdentityToken(
+	ctx context.Context,
+	orgDID syntax.DID,
+	caller syntax.DID,
+	reusable bool,
+	expiresAt time.Time,
+) (string, error) {
+	if expiresAt.After(time.Now().AddDate(0, 1, 0)) {
+		return "", ErrInvalidTokenExpiry
+	}
+
+	var org organization
+	if err := s.db.WithContext(ctx).Where("id = ?", orgDID).First(&org).Error; err != nil {
+		return "", ErrOrgNotFound
+	}
+
+	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
+	if err != nil {
+		return "", err
+	}
+
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	jti := base64.RawURLEncoding.EncodeToString(b)
+
+	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: signingSecret}, nil)
+	if err != nil {
+		return "", err
+	}
+
+	claims := inviteTokenClaims{
+		Claims: jwt.Claims{
+			ID:     jti,
+			Issuer: caller.String(),
+			Expiry: jwt.NewNumericDate(expiresAt),
+		},
+		Reusable: reusable,
+	}
+	return jwt.Signed(sig).Claims(claims).CompactSerialize()
+}
+
+func (s *storeImpl) CreateNewMemberIdentity(
+	ctx context.Context,
+	orgDID syntax.DID,
+	token string,
+	internalHandle string,
+	password string,
+	loginID string,
+) (*identity.Identity, error) {
+	var org organization
+	if err := s.db.WithContext(ctx).Where("id = ?", orgDID).First(&org).Error; err != nil {
+		return nil, ErrOrgNotFound
+	}
+
+	signingSecret, err := base64.StdEncoding.DecodeString(org.SigningSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the admin-signed token
+	parsed, err := jwt.ParseSigned(token)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+	var claims inviteTokenClaims
+	if err := parsed.Claims(signingSecret, &claims); err != nil {
+		return nil, ErrInvalidToken
+	}
+	if err := claims.ValidateWithLeeway(jwt.Expected{Time: time.Now()}, 0); err != nil {
+		return nil, ErrInvalidToken
+	}
+	if !claims.Reusable {
+		result := s.db.WithContext(ctx).
+			Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&spentToken{OrgID: orgDID, JTI: claims.ID, ConsumedAt: time.Now()})
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil, ErrInvalidToken
+		}
+	}
+
+	var id *identity.Identity
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		newID, err := s.hive.WithTx(tx).MintIdentity(ctx, internalHandle, org.HandleSubdomain)
+		if err != nil {
+			return fmt.Errorf("mint identity: %w", err)
+		}
+		id = newID
+
+		var memberLoginID string
+		switch org.LoginMethod {
+		case core.LoginMethodPassword:
+			memberLoginID = newID.DID.String()
+			if err := s.passwordProvider.WithTx(tx).AddLoginEntry(newID.DID, password); err != nil {
+				return fmt.Errorf("add login entry: %w", err)
+			}
+		default:
+			memberLoginID = loginID
+		}
+
+		return tx.Create(&member{
+			OrgID:   orgDID,
+			Did:     newID.DID,
+			Role:    MemberRole,
+			LoginID: memberLoginID,
+		}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
 }

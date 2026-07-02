@@ -1168,6 +1168,681 @@
         }
       }
     },
+    "/network.habitat.groups.addMember": {
+      "post": {
+        "tags": [
+          "network.habitat.groups"
+        ],
+        "summary": "network.habitat.groups.addMember",
+        "description": "Add a member to a group. The member is either an individual user (subjectDid) or another group whose members are inherited (subjectGroup). The home server writes the backing relationship tuple using the org credential. Caller must be able to manage the group.",
+        "operationId": "network.habitat.groups.addMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "description": "URI of the group-space to add the member to.",
+                    "format": "uri"
+                  },
+                  "subjectDid": {
+                    "type": "string",
+                    "description": "DID of the user to add as a member. Mutually exclusive with subjectGroup.",
+                    "format": "did"
+                  },
+                  "subjectGroup": {
+                    "type": "string",
+                    "description": "URI of another group-space whose members this group should inherit. Mutually exclusive with subjectDid.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the written relationship tuple."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "Forbidden"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.groups.createGroup": {
+      "post": {
+        "tags": [
+          "network.habitat.groups"
+        ],
+        "summary": "network.habitat.groups.createGroup",
+        "description": "Create a new group. The home server creates a network.habitat.group space using the org credential, writes a network.habitat.group.profile self record, and grants the calling user the manager role so they are both a member and able to manage the group.",
+        "operationId": "network.habitat.groups.createGroup",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "description": "URI of the created group-space.",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.groups.deleteMember": {
+      "post": {
+        "tags": [
+          "network.habitat.groups"
+        ],
+        "summary": "network.habitat.groups.deleteMember",
+        "description": "Remove a member from a group. The member is either an individual user (subjectDid) or an inherited group (subjectGroup). The home server deletes the backing relationship tuple using the org credential. Caller must be able to manage the group.",
+        "operationId": "network.habitat.groups.deleteMember",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "description": "URI of the group-space to remove the member from.",
+                    "format": "uri"
+                  },
+                  "subjectDid": {
+                    "type": "string",
+                    "description": "DID of the user to remove. Mutually exclusive with subjectGroup.",
+                    "format": "did"
+                  },
+                  "subjectGroup": {
+                    "type": "string",
+                    "description": "URI of an inherited group-space to stop inheriting. Mutually exclusive with subjectDid.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "Forbidden"
+                        },
+                        {
+                          "const": "InvalidSubject"
+                        },
+                        {
+                          "const": "MemberNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.groups.getGroup": {
+      "get": {
+        "tags": [
+          "network.habitat.groups"
+        ],
+        "summary": "network.habitat.groups.getGroup",
+        "description": "Fetch a single group with its full membership expanded, including which other groups it inherits members from. Implemented by the home server and reached via pear service proxying.",
+        "operationId": "network.habitat.groups.getGroup",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "description": "URI of the group-space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URI of the group-space.",
+              "format": "uri"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/network.habitat.groups.defs.groupView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.groups.listGroups": {
+      "get": {
+        "tags": [
+          "network.habitat.groups"
+        ],
+        "summary": "network.habitat.groups.listGroups",
+        "description": "List the groups visible to the calling user: groups they are a member of (directly or through inherited groups) and groups they can manage. Implemented by the home server and reached via pear service proxying.",
+        "operationId": "network.habitat.groups.listGroups",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "groups"
+                  ],
+                  "properties": {
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.groups.defs.groupView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.groups.updateGroup": {
+      "post": {
+        "tags": [
+          "network.habitat.groups"
+        ],
+        "summary": "network.habitat.groups.updateGroup",
+        "description": "Update a group's profile (name and/or description). Caller must be able to manage the group.",
+        "operationId": "network.habitat.groups.updateGroup",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string",
+                    "description": "URI of the group-space.",
+                    "format": "uri"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "uri"
+                  ],
+                  "properties": {
+                    "uri": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "GroupNotFound"
+                        },
+                        {
+                          "const": "Forbidden"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.instance.describeInstance": {
       "get": {
         "tags": [
@@ -6512,6 +7187,98 @@
           }
         }
       },
+      "network.habitat.groups.defs.groupView": {
+        "type": "object",
+        "description": "A group, backed by a network.habitat.group space, with its membership resolved. Membership is the set of users holding at least the writer role on the group-space, expanded through inherited groups.",
+        "required": [
+          "uri",
+          "name",
+          "isMember",
+          "canManage"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "URI of the group-space.",
+            "format": "uri"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "isMember": {
+            "type": "boolean",
+            "description": "Whether the calling user is a member of this group."
+          },
+          "canManage": {
+            "type": "boolean",
+            "description": "Whether the calling user can manage this group (add members, edit it)."
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/network.habitat.groups.defs.memberView"
+            }
+          },
+          "inheritedGroups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/network.habitat.groups.defs.groupRef"
+            }
+          }
+        }
+      },
+      "network.habitat.groups.defs.memberView": {
+        "type": "object",
+        "required": [
+          "did",
+          "direct"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          },
+          "role": {
+            "type": "string",
+            "description": "Role held on the group-space (owner|manager|writer|reader)."
+          },
+          "direct": {
+            "type": "boolean",
+            "description": "True if the member is granted a role directly on this group, false if the membership is inherited from another group."
+          },
+          "viaGroup": {
+            "type": "string",
+            "description": "If inherited, the URI of the group-space the membership came from.",
+            "format": "uri"
+          }
+        }
+      },
+      "network.habitat.groups.defs.groupRef": {
+        "type": "object",
+        "required": [
+          "uri",
+          "name"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "network.habitat.listConnectedApps.app": {
         "type": "object",
         "required": [
@@ -7064,6 +7831,9 @@
     },
     {
       "name": "network.habitat.group"
+    },
+    {
+      "name": "network.habitat.groups"
     },
     {
       "name": "network.habitat.instance"

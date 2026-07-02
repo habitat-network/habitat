@@ -2,6 +2,7 @@ package org
 
 import (
 	"context"
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
-func newTestOrg(t *testing.T) *orgImpl {
+func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
@@ -34,17 +35,32 @@ func newTestOrg(t *testing.T) *orgImpl {
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
 	require.NoError(t, err)
-	s := &orgImpl{
-		orgID:            "test-org",
-		hive:             h,
-		db:               db,
-		signingSecret:    testSigningSecret,
-		passwordProvider: passwordProvider,
-		handleSubdomain:  "testorg",
-		method:           core.LoginMethodPassword,
-		name:             "Test Org",
-	}
-	return s
+
+	st, err := NewStore(
+		db,
+		h,
+		pdsclient.NewDummyDirectory("https://pds.example.com"),
+		"pear.example.com",
+		passwordProvider,
+	)
+	require.NoError(t, err)
+	store := st.(*storeImpl)
+
+	orgDid := syntax.DID("test-org")
+	signingSecret := base64.StdEncoding.EncodeToString(testSigningSecret)
+	require.NoError(t, store.db.Create(&organization{
+		ID:              orgDid,
+		Name:            "Test Org",
+		LoginMethod:     core.LoginMethodPassword,
+		SigningSecret:   signingSecret,
+		HandleSubdomain: "testorg",
+	}).Error)
+
+	org, err := store.GetOrg(t.Context(), orgDid)
+	require.NoError(t, err)
+	orgImpl := org.(*orgImpl)
+
+	return store, orgImpl
 }
 
 var adminDID = syntax.DID("did:plc:alice111")
@@ -54,187 +70,222 @@ const (
 	testPassword     = "test-password-123"
 )
 
-func addMember(t *testing.T, s *orgImpl, handle string) *identity.Identity {
+func addMember(t *testing.T, store *storeImpl, org *orgImpl, handle string) *identity.Identity {
 	t.Helper()
-	token, err := s.IssueIdentityToken(
+	token, err := store.IssueIdentityToken(
 		t.Context(),
+		org.orgID,
 		adminDID,
 		true,
 		time.Now().Add(time.Hour),
 	)
 	require.NoError(t, err)
-	id, err := s.CreateNewMemberIdentity(t.Context(), token, handle, testPasswordHash, "")
+	id, err := store.CreateNewMemberIdentity(
+		t.Context(),
+		org.orgID,
+		token,
+		handle,
+		testPasswordHash,
+		"",
+	)
 	require.NoError(t, err)
 	return id
 }
 
 func TestIsMember(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, s, "alice")
+	id := addMember(t, store, org, "alice")
 
-	ok, err := s.IsMember(ctx, id.DID)
+	ok, err := org.IsMember(ctx, id.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 }
 
 func TestCreateNewMemberIdentityPasswordLoginIDIsDID(t *testing.T) {
-	// A password member authenticates with a password keyed to their minted DID,
-	// so their stored LoginID must be that DID. If it isn't, login fails at code
-	// exchange with a "login id mismatch".
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, s, "alice")
+	id := addMember(t, store, org, "alice")
 
 	var m member
-	require.NoError(t, s.db.Where("did = ?", id.DID).First(&m).Error)
+	require.NoError(t, org.db.Where("did = ?", id.DID).First(&m).Error)
 	require.Equal(t, id.DID.String(), m.LoginID)
 }
 
 func TestAddAdmin_GetAdmins(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, s, "alice")
-	require.NoError(t, s.AddAdmin(ctx, id.DID))
+	id := addMember(t, store, org, "alice")
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
 
-	admins, err := s.GetAdmins(ctx)
+	admins, err := org.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{id.DID}, admins)
 }
 
 func TestAddAdmin_NotMember(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	_, org := newTestOrg(t)
 
-	err := s.AddAdmin(ctx, adminDID)
+	err := org.AddAdmin(ctx, adminDID)
 	require.ErrorIs(t, err, ErrNotMember)
 }
 
 func TestRemoveAdmin_LastAdmin(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id := addMember(t, s, "alice")
-	require.NoError(t, s.AddAdmin(ctx, id.DID))
+	id := addMember(t, store, org, "alice")
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
 
-	err := s.RemoveAdmin(ctx, id.DID)
+	err := org.RemoveAdmin(ctx, id.DID)
 	require.ErrorIs(t, err, ErrLastAdmin)
 }
 
 func TestRemoveAdmin_MultipleAdmins(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id1 := addMember(t, s, "alice")
-	id2 := addMember(t, s, "bob")
-	require.NoError(t, s.AddAdmin(ctx, id1.DID))
-	require.NoError(t, s.AddAdmin(ctx, id2.DID))
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
+	require.NoError(t, org.AddAdmin(ctx, id1.DID))
+	require.NoError(t, org.AddAdmin(ctx, id2.DID))
 
-	require.NoError(t, s.RemoveAdmin(ctx, id2.DID))
+	require.NoError(t, org.RemoveAdmin(ctx, id2.DID))
 
-	admins, err := s.GetAdmins(ctx)
+	admins, err := org.GetAdmins(ctx)
 	require.NoError(t, err)
 	require.Equal(t, []syntax.DID{id1.DID}, admins)
 }
 
 func TestGetMembers(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	members, err := s.GetMembers(ctx)
+	members, err := org.GetMembers(ctx)
 	require.NoError(t, err)
 	require.Empty(t, members)
 
-	id1 := addMember(t, s, "alice")
-	id2 := addMember(t, s, "bob")
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
 
-	members, err = s.GetMembers(ctx)
+	members, err = org.GetMembers(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []syntax.DID{id1.DID, id2.DID}, members)
 }
 
 func TestRemoveMembers(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	id1 := addMember(t, s, "alice")
-	id2 := addMember(t, s, "bob")
-	require.NoError(t, s.RemoveMembers(ctx, []syntax.DID{id2.DID}))
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
+	require.NoError(t, org.RemoveMembers(ctx, []syntax.DID{id2.DID}))
 
-	ok, err := s.IsMember(ctx, id1.DID)
+	ok, err := org.IsMember(ctx, id1.DID)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	ok, err = s.IsMember(ctx, id2.DID)
+	ok, err = org.IsMember(ctx, id2.DID)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
 
 func TestGenerateAndUseIdentityToken(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	token, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
+	token, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
 
-	members, err := s.GetMembers(ctx)
+	members, err := org.GetMembers(ctx)
 	require.NoError(t, err)
 	require.Len(t, members, 1)
 }
 
 func TestIdentityToken_CannotReuse(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	token, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
+	token, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "bob", testPasswordHash, "")
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestMintIdentity_DuplicateHandle(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	token1, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
+	token1, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
-	token2, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().Add(time.Hour))
+	token2, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		false,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token1, "alice", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token1, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token2, "alice", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token2, "alice", testPasswordHash, "")
 	require.ErrorIs(t, err, hive.ErrNotCreated)
 }
 
 func TestIdentityToken_Reusable(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	token, err := s.IssueIdentityToken(ctx, adminDID, true, time.Now().Add(time.Hour))
+	token, err := store.IssueIdentityToken(
+		ctx,
+		org.orgID,
+		adminDID,
+		true,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
 
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "bob", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "bob", testPasswordHash, "")
 	require.NoError(t, err)
-	_, err = s.CreateNewMemberIdentity(ctx, token, "alice", testPasswordHash, "")
+	_, err = store.CreateNewMemberIdentity(ctx, org.orgID, token, "alice", testPasswordHash, "")
 	require.ErrorIs(t, err, hive.ErrNotCreated)
 }
 
 func TestIssueIdentityToken_ExpiryTooLate(t *testing.T) {
 	ctx := context.Background()
-	s := newTestOrg(t)
+	store, org := newTestOrg(t)
 
-	_, err := s.IssueIdentityToken(ctx, adminDID, false, time.Now().AddDate(0, 1, 1))
+	_, err := store.IssueIdentityToken(ctx, org.orgID, adminDID, false, time.Now().AddDate(0, 1, 1))
 	require.ErrorIs(t, err, ErrInvalidTokenExpiry)
 }
