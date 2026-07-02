@@ -34,16 +34,16 @@
 /* CSS custom properties (accessible as var(--strawberry) in inline styles) */
 :root {
   --strawberry: #ff2d6f;
-  --tangerine: #FF6A37;
+  --tangerine: #FF9301;
   --banana: #ffef0a;
-  --lime: #8ee71b;
+  --lime: #DAFF8D;
   --grape: #a256c8;
   --blueberry: #3224b1;
   --cherry: #ae2e35;
   --peach: #ffc062;
 
-  --bg: #2D5644;
-  --surface: #FF6A37;
+  --bg: #DAFF8D;
+  --surface: #FF9301;
   --border: #2a2a40;
 
   --text: #1c1c2e;

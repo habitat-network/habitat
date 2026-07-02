@@ -38,26 +38,26 @@ pear.local.habitat.network {
 }
 
 sap.local.habitat.network {
-    reverse_proxy 127.0.0.1:2580
-    tls internal
+	reverse_proxy 127.0.0.1:2580
+	tls internal
 }
 
 search.local.habitat.network {
-    reverse_proxy 127.0.0.1:8091
-    tls internal
+	reverse_proxy 127.0.0.1:8091
+	tls internal
 }
 
 home.local.habitat.network {
-    reverse_proxy 127.0.0.1:2600
-    tls internal
+	reverse_proxy 127.0.0.1:2600
+	tls internal
 }
 
 fruitgang.local.habitat.network {
-  reverse_proxy 127.0.0.1:5178
-  tls internal
+	reverse_proxy 127.0.0.1:5178
+	tls internal
 }
 
 fruitgang-api.local.habitat.network {
-  reverse_proxy 127.0.0.1:3100
-  tls internal
+	reverse_proxy 127.0.0.1:3100
+	tls internal
 }
