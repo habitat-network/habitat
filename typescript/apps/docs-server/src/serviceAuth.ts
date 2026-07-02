@@ -1,6 +1,5 @@
 import { verifySignature } from "@atproto/crypto";
 import type { DerivedConfig } from "./config";
-import type { OrgClient } from "./orgClient";
 
 // ServiceAuthError signals an invalid/forbidden service-auth JWT (HTTP 401).
 export class ServiceAuthError extends Error {}
@@ -15,15 +14,13 @@ interface ServiceAuthPayload {
 // ServiceAuthVerifier fully verifies the service-auth JWT that pear signs on a
 // caller's behalf and forwards to us: it checks the audience (our DID), the
 // lexicon method, expiry, and the cryptographic signature against the caller's
-// signing key. The caller is an org member whose did:web doc is served by pear
-// behind the org OAuth credential, so we resolve it through the OrgClient.
+// signing key. The caller is an org member whose did:web doc is served
+// (publicly) by pear, resolved by a plain fetch of the member's host.
 export class ServiceAuthVerifier {
   private config: DerivedConfig;
-  private org: OrgClient;
 
-  constructor(config: DerivedConfig, org: OrgClient) {
+  constructor(config: DerivedConfig) {
     this.config = config;
-    this.org = org;
   }
 
   // verify returns the caller (issuer) DID on success.
@@ -56,15 +53,15 @@ export class ServiceAuthVerifier {
     return payload.iss;
   }
 
-  // resolveSigningKey fetches the caller's did:web document through pear (which
-  // gates member DID docs behind the org credential) and extracts the atproto
-  // signing key as a did:key string.
+  // resolveSigningKey fetches the caller's did:web document (served publicly by
+  // pear at the member's host) and extracts the atproto signing key as a
+  // did:key string.
   private async resolveSigningKey(did: string): Promise<string> {
     if (!did.startsWith("did:web:")) {
       throw new ServiceAuthError(`unsupported issuer DID method: ${did}`);
     }
     const url = didWebDocUrl(did);
-    const res = await this.org.orgFetch(url);
+    const res = await fetch(url);
     if (!res.ok) {
       throw new ServiceAuthError(
         `failed to resolve issuer DID doc (${res.status})`,

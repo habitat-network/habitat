@@ -34,7 +34,7 @@ export class DocStore {
     updateB64: string,
     _: string, // memberDid - not doing attribution yet
   ): Promise<{ uri: string; cid?: string }> {
-    const orgDid = await this.pear.orgDid();
+    const orgDid = this.pear.orgDid();
     const spaceUri = this.pear.spaceUri(docId, orgDid);
     const ydoc = await this.load(docId, spaceUri);
     Y.applyUpdateV2(ydoc, new Uint8Array(Buffer.from(updateB64, "base64")));

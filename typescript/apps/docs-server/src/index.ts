@@ -1,8 +1,7 @@
 import fs from "node:fs/promises";
 import { serve } from "@hono/node-server";
 import { loadConfig } from "./config";
-import { OrgClient } from "./orgClient";
-import { PearClient } from "./pearClient";
+import { PearClient, resolveOrgDid } from "./pearClient";
 import { DocStore } from "./docStore";
 import { CrawlStore } from "./crawlStore";
 import { Crawler } from "./crawler";
@@ -10,8 +9,11 @@ import { createApp } from "./server";
 
 async function main() {
   const config = loadConfig();
-  const org = await OrgClient.create(config);
-  const pear = new PearClient(config, org);
+  // Authenticated pear calls are proxied by sap using the org's tracked
+  // session; we only need the org DID to name that session in the Habitat-Did
+  // header, so resolve it from the configured handle once at startup.
+  const orgDid = await resolveOrgDid(config.orgHandle);
+  const pear = new PearClient(config, orgDid);
   const docs = new DocStore(pear);
 
   // The crawler subscribes to sap's outbox channel to discover the org's docs
@@ -22,14 +24,7 @@ async function main() {
   const crawler = new Crawler(config, pear, crawl);
   crawler.start();
 
-  const app = createApp(config, org, docs, crawl);
-
-  if (!org.isAuthorized()) {
-    console.warn(
-      `[docs-server] not yet authorized for ${config.orgHandle}; ` +
-        `visit https://${config.domain}/oauth/login to grant the org credential`,
-    );
-  }
+  const app = createApp(config, docs, crawl);
 
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(
