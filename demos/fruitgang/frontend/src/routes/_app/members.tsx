@@ -60,9 +60,15 @@ function MembersPage() {
 
   return (
     <div>
-      <h2 style={{ fontFamily: "var(--font-display)", fontSize: "2rem", color: "var(--text)", marginBottom: "1.5rem" }}>
+      <h2 style={{ fontFamily: "var(--font-display)", fontSize: "2rem", color: "var(--text)", marginBottom: "0.5rem" }}>
         the gang 🍉
       </h2>
+      <p style={{ color: "var(--muted)", fontSize: "0.95rem", lineHeight: 1.7, marginBottom: "1.75rem", maxWidth: "560px" }}>
+        This is a community for fruit lovers! Whether you're a devoted follower of the <em>Fructus</em> or a sworn
+        defender of the humble <em>Bacas</em>, you belong here. We celebrate all fruit — the noble <em>Pomum</em>,
+        the wild <em>Frux</em>, and everything in between. Pick your favorite, log your snacks, and chat with
+        fellow fruit enthusiasts. No citrus left behind. 🍊🍋🍇
+      </p>
 
       {!hasMember && (
         <div style={{
@@ -115,7 +121,7 @@ function MembersPage() {
       ) : (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
           gap: "1rem",
         }}>
           {members.map((m) => <MemberCard key={m.uri} member={m} />)}
@@ -132,43 +138,27 @@ function MemberCard({ member }: { member: MemberRecord }) {
 
   return (
     <div style={{
-      background: "var(--surface)",
-      border: `1px solid var(--border)`,
-      borderTop: `3px solid ${accentColor}`,
-      borderRadius: "var(--radius-card)",
-      padding: "1.25rem",
+      background: "var(--coconut)",
+      border: `4px solid ${accentColor}`,
+      borderRadius: "50%",
+      aspectRatio: "1 / 1",
       display: "flex",
       flexDirection: "column",
-      gap: "0.5rem",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "1.25rem",
+      gap: "0.3rem",
+      textAlign: "center",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-        <div style={{
-          width: 48, height: 48,
-          background: "var(--bg)",
-          border: `2px solid ${accentColor}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "1.5rem",
-          flexShrink: 0,
-        }}>
-          {fruit?.emoji ?? "🍑"}
-        </div>
-        <div>
-          <div style={{ fontWeight: 700, color: "var(--text)", fontSize: "1rem" }}>
-            {member.displayName}
-          </div>
-          {fruit && (
-            <div style={{ fontSize: "0.75rem", color: accentColor, fontWeight: 600 }}>
-              {fruit.emoji} {fruit.label} fan
-            </div>
-          )}
-        </div>
+      <div style={{ fontWeight: 700, color: "var(--text)", fontSize: "0.95rem" }}>
+        {member.displayName}{fruit ? ` ${fruit.emoji}` : ""}
       </div>
       {member.funFact && (
-        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
-          "{member.funFact}"
+        <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--muted)", fontStyle: "italic", lineHeight: 1.4 }}>
+          fun fact: {member.funFact}
         </p>
       )}
-      <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--border)", marginTop: "auto" }}>
+      <p style={{ margin: 0, fontSize: "0.72rem", color: "var(--muted)", marginTop: "0.2rem" }}>
         since {joinDate}
       </p>
     </div>

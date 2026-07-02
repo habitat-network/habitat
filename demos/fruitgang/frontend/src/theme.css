@@ -41,6 +41,7 @@
   --blueberry: #3224b1;
   --cherry: #ae2e35;
   --peach: #ffc062;
+  --coconut: #f2f1ec;
 
   --bg: #DAFF8D;
   --surface: #FF9301;
@@ -55,6 +56,8 @@
   --radius-card: 4px;
   --radius-pill: 4px;
   --radius-input: 3px;
+
+  --light-text: #ffffff;
 }
 
 html,
