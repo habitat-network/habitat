@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/db"
@@ -29,10 +28,13 @@ type Hive interface {
 	// identity's signing key (the same key registered in its did:web doc). It is
 	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
 	// since habitat owns the signing key, it must be the issuer of these tokens.
+	// org, when non-empty, is recorded as an "org" claim naming the organization
+	// the issuer acted as.
 	SignServiceAuth(
 		ctx context.Context,
 		iss syntax.DID,
 		aud string,
+		org syntax.DID,
 		ttl time.Duration,
 		lxm *syntax.NSID,
 	) (string, error)
@@ -149,6 +151,7 @@ func (h *hive) SignServiceAuth(
 	ctx context.Context,
 	iss syntax.DID,
 	aud string,
+	org syntax.DID,
 	ttl time.Duration,
 	lxm *syntax.NSID,
 ) (string, error) {
@@ -162,7 +165,7 @@ func (h *hive) SignServiceAuth(
 	if err != nil {
 		return "", err
 	}
-	return auth.SignServiceAuth(iss, aud, ttl, lxm, priv)
+	return signServiceAuth(iss, aud, org, ttl, lxm, priv)
 }
 
 // MintOrgIdentity implements [Hive].

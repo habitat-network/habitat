@@ -17,6 +17,9 @@ interface OutboxMessage {
 
 interface ParsedRecordUri {
   spaceUri: string;
+  // The org DID that owns the space (used as the Habitat-Did when resolving the
+  // doc's readers).
+  owner: string;
   skey: string;
   collection: string;
 }
@@ -38,6 +41,7 @@ export function parseSpaceRecordUri(uri: string): ParsedRecordUri | undefined {
   }
   return {
     spaceUri: `ats://${owner}/${type}/${skey}`,
+    owner,
     skey,
     collection,
   };
@@ -135,7 +139,10 @@ export class Crawler {
       title: value.title || "Untitled",
     });
     try {
-      const readers = await this.pear.listReaders(parsed.spaceUri);
+      const readers = await this.pear.listReaders(
+        parsed.owner,
+        parsed.spaceUri,
+      );
       this.store.replaceReaders(parsed.spaceUri, readers);
     } catch (err) {
       // Keep any previously-stored readers; a later redelivery/update retries.

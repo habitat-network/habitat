@@ -126,12 +126,21 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 		return
 	}
 
+	// The caller's org, forwarded as an "org" claim so the target (e.g. the docs
+	// server) can act on the org's behalf without being configured for a single
+	// org. Empty when the caller isn't a member of any org.
+	var org syntax.DID
+	if credInfo.Org != nil {
+		org = credInfo.Org.DID()
+	}
+
 	// Habitat owns user signing keys, so it signs service auth tokens on behalf
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
 	jwt, err := s.hive.SignServiceAuth(
 		r.Context(),
 		credInfo.Subject,
 		targetDID.String(),
+		org,
 		60*time.Second,
 		&nsid,
 	)

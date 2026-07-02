@@ -111,10 +111,12 @@ func TestSignServiceAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	lxm := syntax.NSID("com.atproto.repo.createRecord")
+	org := syntax.DID("did:web:acme.org.example.com")
 	token, err := h.SignServiceAuth(
 		context.Background(),
 		ident.DID,
 		"did:web:pear.example.com",
+		org,
 		time.Hour,
 		&lxm,
 	)
@@ -136,6 +138,8 @@ func TestSignServiceAuth(t *testing.T) {
 	require.Equal(t, "did:web:pear.example.com", aud[0])
 
 	require.Equal(t, "com.atproto.repo.createRecord", (*claims)["lxm"])
+
+	require.Equal(t, org.String(), (*claims)["org"])
 
 	exp, err := claims.GetExpirationTime()
 	require.NoError(t, err)
@@ -161,6 +165,7 @@ func TestSignServiceAuth_DIDNotFound(t *testing.T) {
 		context.Background(),
 		syntax.DID("did:web:nonexist.example.com"),
 		"did:web:pear.example.com",
+		"",
 		time.Hour,
 		nil,
 	)
@@ -174,6 +179,7 @@ func TestSignServiceAuth_WrongDomain(t *testing.T) {
 		context.Background(),
 		syntax.DID("did:web:nonexist.other.com"),
 		"did:web:pear.example.com",
+		"",
 		time.Hour,
 		nil,
 	)

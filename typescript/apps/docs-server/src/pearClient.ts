@@ -16,22 +16,16 @@ export interface SpaceRef {
   skey: string;
 }
 
-// PearClient wraps the network.habitat.space XRPC endpoints. Rather than
-// holding its own org credential, it routes every call through sap's proxy
-// (POST /proxy/<nsid>) with the org DID in the Habitat-Did header; sap
-// authenticates the request as the org. Each document is its own space (owned
-// by the org); the docs server is the sole writer of its canonical records.
+// PearClient wraps the network.habitat.space XRPC endpoints. It holds no org
+// credential; every call is routed through sap's proxy (POST /proxy/<nsid>)
+// with the target org DID in the Habitat-Did header, and sap authenticates the
+// request as that org. The org is passed per call, so one docs server can act
+// for any org sap has a session for.
 export class PearClient {
   private config: DerivedConfig;
-  private orgDidStr: string;
 
-  constructor(config: DerivedConfig, orgDid: string) {
+  constructor(config: DerivedConfig) {
     this.config = config;
-    this.orgDidStr = orgDid;
-  }
-
-  orgDid(): string {
-    return this.orgDidStr;
   }
 
   // spaceUri reconstructs a doc's space URI from its skey. Space URIs are
@@ -41,6 +35,7 @@ export class PearClient {
   }
 
   private async call<T>(
+    org: string,
     nsid: string,
     method: "GET" | "POST",
     payload: object,
@@ -48,9 +43,7 @@ export class PearClient {
     const base = `${this.config.sapProxyUrl}/${nsid}`;
     let url = base;
     let body: string | undefined;
-    const headers: Record<string, string> = {
-      [habitatDIDHeader]: this.orgDidStr,
-    };
+    const headers: Record<string, string> = { [habitatDIDHeader]: org };
     if (method === "GET") {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(payload)) {
@@ -69,10 +62,12 @@ export class PearClient {
     return (await res.json()) as T;
   }
 
-  // createSpace creates a new space for a document. pear generates the skey.
-  async createSpace(): Promise<SpaceRef> {
+  // createSpace creates a new space owned by the given org. pear generates the
+  // skey.
+  async createSpace(org: string): Promise<SpaceRef> {
     const created =
       await this.call<NetworkHabitatSpaceCreateSpace.OutputSchema>(
+        org,
         "network.habitat.space.createSpace",
         "POST",
         {
@@ -83,11 +78,12 @@ export class PearClient {
   }
 
   // listReaders returns the member DIDs that hold the reader role on a doc's
-  // space, expanding groups and role implications. sap proxies this as the org
-  // (the org owner always passes the reader check).
-  async listReaders(spaceUri: string): Promise<string[]> {
+  // space, expanding groups and role implications. Proxied as the space's owning
+  // org (the org owner always passes the reader check).
+  async listReaders(org: string, spaceUri: string): Promise<string[]> {
     const out =
       await this.call<NetworkHabitatRelationshipListSubjects.OutputSchema>(
+        org,
         "network.habitat.relationship.listSubjects",
         "GET",
         { space: spaceUri, relation: "reader" },
@@ -96,12 +92,14 @@ export class PearClient {
   }
 
   async putRecord(
+    org: string,
     space: string,
     collection: string,
     rkey: string,
     record: Record<string, unknown>,
   ): Promise<NetworkHabitatSpacePutRecord.OutputSchema> {
     return this.call<NetworkHabitatSpacePutRecord.OutputSchema>(
+      org,
       "network.habitat.space.putRecord",
       "POST",
       {
@@ -114,15 +112,17 @@ export class PearClient {
   }
 
   async getRecord(
+    org: string,
     space: string,
     collection: string,
     rkey: string,
   ): Promise<NetworkHabitatSpaceGetRecord.OutputSchema | undefined> {
     try {
       return await this.call<NetworkHabitatSpaceGetRecord.OutputSchema>(
+        org,
         "network.habitat.space.getRecord",
         "GET",
-        { space, repo: this.orgDidStr, collection, rkey },
+        { space, repo: org, collection, rkey },
       );
     } catch {
       // Record not found (or not yet replicated).
@@ -133,12 +133,13 @@ export class PearClient {
   // addMember grants a member access to a doc's space so they can read the
   // canonical records directly via their own OAuth session.
   async addMember(
+    org: string,
     space: string,
     did: string,
     access: "read" | "write",
   ): Promise<void> {
     try {
-      await this.call<unknown>("network.habitat.space.addMember", "POST", {
+      await this.call<unknown>(org, "network.habitat.space.addMember", "POST", {
         space,
         did,
         access,
@@ -147,18 +148,6 @@ export class PearClient {
       // Already a member, or a benign race — safe to ignore.
     }
   }
-}
-
-// resolveOrgDid maps the configured org handle to its DID via the public
-// atproto-did well-known endpoint (served by pear/identity, no auth). The org
-// DID is opaque (did:web:<random>.<domain>), so it must be resolved rather than
-// derived from the handle.
-export async function resolveOrgDid(handle: string): Promise<string> {
-  const res = await fetch(`https://${handle}/.well-known/atproto-did`);
-  if (!res.ok) {
-    throw new Error(`resolve org handle ${handle}: ${res.status}`);
-  }
-  return (await res.text()).trim();
 }
 
 function skeyOf(uri: string): string {

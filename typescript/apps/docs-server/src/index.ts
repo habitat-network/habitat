@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { serve } from "@hono/node-server";
 import { loadConfig } from "./config";
-import { PearClient, resolveOrgDid } from "./pearClient";
+import { PearClient } from "./pearClient";
 import { DocStore } from "./docStore";
 import { CrawlStore } from "./crawlStore";
 import { Crawler } from "./crawler";
@@ -9,12 +9,10 @@ import { createApp } from "./server";
 
 async function main() {
   const config = loadConfig();
-  // Authenticated pear calls are proxied by sap using the org's tracked
-  // session; we only need the org DID to name that session in the Habitat-Did
-  // header, so resolve it from the configured handle once at startup. pear may
-  // still be coming up (they start together in dev), so retry rather than crash.
-  const orgDid = await resolveOrgDidWithRetry(config.orgHandle);
-  const pear = new PearClient(config, orgDid);
+  // Authenticated pear calls are proxied by sap, which authenticates as the org
+  // named in each request's service auth (the Habitat-Did header), so the docs
+  // server holds no org itself and needs no per-org configuration.
+  const pear = new PearClient(config);
   const docs = new DocStore(pear);
 
   // The crawler subscribes to sap's outbox channel to discover the org's docs
@@ -33,28 +31,6 @@ async function main() {
         `(service #${config.serviceId})`,
     );
   });
-}
-
-// resolveOrgDidWithRetry resolves the org handle to its DID, retrying while pear
-// is still starting up (the handle lookup goes through pear). Gives up after
-// ~60s so a genuinely bad handle still surfaces as a fatal error.
-async function resolveOrgDidWithRetry(handle: string): Promise<string> {
-  const maxAttempts = 30;
-  const delayMs = 2000;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await resolveOrgDid(handle);
-    } catch (err) {
-      if (attempt >= maxAttempts) {
-        throw err;
-      }
-      console.warn(
-        `[docs-server] could not resolve org handle ${handle} ` +
-          `(attempt ${attempt}/${maxAttempts}), retrying: ${String(err)}`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
 }
 
 main().catch((err) => {
