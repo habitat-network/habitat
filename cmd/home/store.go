@@ -49,6 +49,32 @@ type tupleRow struct {
 
 func (tupleRow) TableName() string { return "group_tuples" }
 
+// recordRow is one indexed record synced from a member's repo, keyed by its
+// full space-record URI (spaceURI/repo/collection/rkey). The same underlying
+// atproto record (repo+collection+rkey) can appear in several spaces, giving
+// one row per (space, record). The record body is not stored; the collections
+// endpoints only expose its identity and which spaces it belongs to.
+type recordRow struct {
+	RecordURI  string `gorm:"column:record_uri;primaryKey"`
+	SpaceURI   string `gorm:"column:space_uri;index"`
+	Repo       string `gorm:"column:repo"`
+	Collection string `gorm:"column:collection;index"`
+	Rkey       string `gorm:"column:rkey"`
+	// AtURI is the collection-scoped atproto URI (at://repo/collection/rkey),
+	// the identity shared by the same record across spaces.
+	AtURI     string    `gorm:"column:at_uri;index"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (recordRow) TableName() string { return "records" }
+
+// collectionCount is one row of the per-collection record count, counting
+// distinct atproto records (not per-space copies).
+type collectionCount struct {
+	Collection string `gorm:"column:collection"`
+	Count      int64  `gorm:"column:count"`
+}
+
 // orgSessionRow records the OAuth session id obtained when the home server is
 // authorized for an org, so the org credential can be rebuilt after a restart.
 type orgSessionRow struct {
@@ -66,7 +92,7 @@ type Store struct {
 }
 
 func NewStore(db *gorm.DB) (*Store, error) {
-	if err := db.AutoMigrate(&groupRow{}, &tupleRow{}, &orgSessionRow{}); err != nil {
+	if err := db.AutoMigrate(&groupRow{}, &tupleRow{}, &recordRow{}, &orgSessionRow{}); err != nil {
 		return nil, err
 	}
 	return &Store{db: db}, nil
@@ -108,6 +134,84 @@ func (s *Store) DeleteTuple(ctx context.Context, recordURI habitat_syntax.SpaceR
 	return s.db.WithContext(ctx).
 		Where("record_uri = ?", recordURI.String()).
 		Delete(&tupleRow{}).Error
+}
+
+// UpsertRecord indexes a synced record by its space-record URI. URIs that do
+// not parse into all four parts (space, repo, collection, rkey) are ignored so
+// a malformed message does not wedge the indexer.
+func (s *Store) UpsertRecord(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
+	space := uri.SpaceURI()
+	repo := uri.Repo()
+	collection := uri.Collection()
+	rkey := uri.Rkey()
+	if space == "" || repo == "" || collection == "" || rkey == "" {
+		return nil
+	}
+	row := recordRow{
+		RecordURI:  uri.String(),
+		SpaceURI:   space.String(),
+		Repo:       repo.String(),
+		Collection: collection.String(),
+		Rkey:       rkey.String(),
+		AtURI:      "at://" + repo.String() + "/" + collection.String() + "/" + rkey.String(),
+		UpdatedAt:  time.Now(),
+	}
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "record_uri"}},
+		UpdateAll: true,
+	}).Create(&row).Error
+}
+
+func (s *Store) DeleteRecord(ctx context.Context, uri habitat_syntax.SpaceRecordURI) error {
+	return s.db.WithContext(ctx).
+		Where("record_uri = ?", uri.String()).
+		Delete(&recordRow{}).Error
+}
+
+// CountCollections returns, for each collection with at least one record in the
+// given spaces, the number of distinct atproto records (deduplicated across
+// spaces) in that collection. Returns an empty slice when spaces is empty.
+func (s *Store) CountCollections(
+	ctx context.Context,
+	spaces []string,
+) ([]collectionCount, error) {
+	if len(spaces) == 0 {
+		return []collectionCount{}, nil
+	}
+	var counts []collectionCount
+	err := s.db.WithContext(ctx).
+		Model(&recordRow{}).
+		Select("collection, COUNT(DISTINCT at_uri) AS count").
+		Where("space_uri IN ?", spaces).
+		Group("collection").
+		Order("collection ASC").
+		Scan(&counts).Error
+	if err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
+// ListRecordsInSpaces returns every indexed record row in the given collection
+// that belongs to one of the given spaces. Callers group the rows by atproto
+// record to collapse the per-space copies. Returns nil when spaces is empty.
+func (s *Store) ListRecordsInSpaces(
+	ctx context.Context,
+	spaces []string,
+	collection string,
+) ([]recordRow, error) {
+	if len(spaces) == 0 {
+		return nil, nil
+	}
+	var rows []recordRow
+	err := s.db.WithContext(ctx).
+		Where("collection = ? AND space_uri IN ?", collection, spaces).
+		Order("at_uri ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (s *Store) ListGroups(ctx context.Context) ([]groupRow, error) {

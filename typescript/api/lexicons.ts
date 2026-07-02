@@ -1170,6 +1170,137 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatCollectionsDefs: {
+    lexicon: 1,
+    id: 'network.habitat.collections.defs',
+    defs: {
+      collectionView: {
+        type: 'object',
+        description:
+          "A record collection (lexicon type) present in the org's synced data, with a count of the distinct records in it the calling user can see.",
+        required: ['collection', 'recordCount'],
+        properties: {
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          recordCount: {
+            type: 'integer',
+            description:
+              'Number of distinct records in this collection the calling user can see, counted across all spaces they can read.',
+          },
+        },
+      },
+      recordView: {
+        type: 'object',
+        description:
+          'A record identified by its repo, collection and rkey, together with the spaces it belongs to that the calling user can read. The record body is not included; fetch it on demand from pear with one of the spaces.',
+        required: ['uri', 'repo', 'collection', 'rkey', 'spaces'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'at-uri',
+            description:
+              'The AT URI of the record (at://repo/collection/rkey).',
+          },
+          repo: {
+            type: 'string',
+            format: 'did',
+            description: 'DID of the repo the record lives in.',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+            description: 'The record key.',
+          },
+          spaces: {
+            type: 'array',
+            description:
+              'URIs of the spaces this record belongs to that the calling user can read.',
+            items: {
+              type: 'string',
+              format: 'uri',
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListCollections: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listCollections',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the record collections (lexicon types) present in the org's synced data, each with a count of the distinct records the calling user can see. Only collections with at least one visible record are returned. Implemented by the home server and reached via pear service proxying.",
+        parameters: {
+          type: 'params',
+          properties: {},
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collections'],
+            properties: {
+              collections: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#collectionView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListRecords: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listRecords',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the records in a collection the calling user can see, each with the spaces it belongs to that the user can read. The record body is not included; fetch it on demand from pear. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          required: ['collection'],
+          properties: {
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record collection to list.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#recordView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatDocsCrdt: {
     lexicon: 1,
     id: 'network.habitat.docs.crdt',
@@ -4392,6 +4523,11 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
+  NetworkHabitatCollectionsDefs: 'network.habitat.collections.defs',
+  NetworkHabitatCollectionsListCollections:
+    'network.habitat.collections.listCollections',
+  NetworkHabitatCollectionsListRecords:
+    'network.habitat.collections.listRecords',
   NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
   NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
   NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',

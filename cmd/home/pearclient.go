@@ -159,6 +159,26 @@ func (p *pearClient) deleteTuple(ctx context.Context, uri habitat_syntax.SpaceRe
 		habitat.NetworkHabitatRelationshipDeleteTupleInput{Uri: uri.String()}, nil)
 }
 
+// listObjects returns the spaces on which did holds relation, resolved
+// authoritatively by pear's FGA. pear only returns spaces the calling
+// credential (the org) can also read, so this is the org-visible set of spaces
+// the user can see.
+func (p *pearClient) listObjects(
+	ctx context.Context,
+	did syntax.DID,
+	relation string,
+) ([]string, error) {
+	var out habitat.NetworkHabitatRelationshipListObjectsOutput
+	err := p.get(ctx, "network.habitat.relationship.listObjects", url.Values{
+		"did":      []string{did.String()},
+		"relation": []string{relation},
+	}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out.Spaces, nil
+}
+
 // check reports whether did holds relation on space, resolved authoritatively
 // by pear's FGA (expanding usersets and role implications) with no index lag.
 func (p *pearClient) check(

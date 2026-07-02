@@ -32,14 +32,24 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
             </>
           )}
           {profile && (
-            <li>
-              <Link
-                to="/groups"
-                className="text-gray-500 hover:text-black transition-colors"
-              >
-                Groups
-              </Link>
-            </li>
+            <>
+              <li>
+                <Link
+                  to="/groups"
+                  className="text-gray-500 hover:text-black transition-colors"
+                >
+                  Groups
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/collections"
+                  className="text-gray-500 hover:text-black transition-colors"
+                >
+                  Collections
+                </Link>
+              </li>
+            </>
           )}
         </ul>
         {profile ? (
