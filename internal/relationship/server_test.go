@@ -20,7 +20,7 @@ import (
 func newTestServer(t *testing.T, caller syntax.DID) (*Server, *Store, spaces.Store) {
 	t.Helper()
 	rel, sp := newTestStore(t)
-	auth := authn.NewStubAuthnForTest(caller)
+	auth := authn.NewStubAuthnForTestWithOrg(caller, caller)
 	return NewServer(rel, rel.fga, auth, auth), rel, sp
 }
 
@@ -50,7 +50,7 @@ func TestServer_WriteTuple(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.NotEmpty(t, out.Uri)
 
-	allowed, err := rel.Check(t.Context(), alice, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, alice, RoleReader, space)
 	require.NoError(t, err)
 	require.True(t, allowed)
 }
@@ -107,7 +107,7 @@ func TestServer_DeleteTuple(t *testing.T) {
 	s.DeleteTuple(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	allowed, err := rel.Check(t.Context(), alice, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, alice, RoleReader, space)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }

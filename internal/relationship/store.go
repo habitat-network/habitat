@@ -252,6 +252,7 @@ func (s *Store) listTuples(
 // built-in role implications.
 func (s *Store) Check(
 	ctx context.Context,
+	org syntax.DID,
 	did syntax.DID,
 	role Role,
 	space habitat_syntax.SpaceURI,
@@ -266,6 +267,7 @@ func (s *Store) Check(
 		fgaRelation,
 		fgastore.SpaceObjectKey(space),
 		ownerContextualTuple(space),
+		fgastore.OrgMemberContextualTuple(org),
 	)
 }
 
@@ -273,6 +275,7 @@ func (s *Store) Check(
 // usersets and role implications.
 func (s *Store) ListSubjects(
 	ctx context.Context,
+	org syntax.DID,
 	space habitat_syntax.SpaceURI,
 	role Role,
 ) ([]syntax.DID, error) {
@@ -285,6 +288,7 @@ func (s *Store) ListSubjects(
 		fgastore.SpaceObjectKey(space),
 		fgaRelation,
 		ownerContextualTuple(space),
+		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err
@@ -304,6 +308,7 @@ func (s *Store) ListSubjects(
 // and role implications.
 func (s *Store) ListObjects(
 	ctx context.Context,
+	org syntax.DID,
 	did syntax.DID,
 	role Role,
 ) ([]habitat_syntax.SpaceURI, error) {
@@ -316,6 +321,7 @@ func (s *Store) ListObjects(
 		fgastore.MemberUserString(did),
 		fgaRelation,
 		fgastore.TypeSpace,
+		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err

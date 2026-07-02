@@ -47,6 +47,7 @@ func NewServer(
 // using the owner contextual tuple so space owners always pass.
 func (s *Server) authorize(
 	ctx context.Context,
+	callerOrg syntax.DID,
 	callerDID syntax.DID,
 	spaceURI habitat_syntax.SpaceURI,
 	relation string,
@@ -57,6 +58,7 @@ func (s *Server) authorize(
 		relation,
 		fgastore.SpaceObjectKey(spaceURI),
 		ownerContextualTuple(spaceURI),
+		fgastore.OrgMemberContextualTuple(callerOrg),
 	)
 }
 
@@ -161,7 +163,13 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 		filterType = &t
 	}
 
-	spaces, err := s.store.ListSpaces(r.Context(), credInfo.Subject, filterOwner, filterType)
+	spaces, err := s.store.ListSpaces(
+		r.Context(),
+		credInfo.Org.DID(),
+		credInfo.Subject,
+		filterOwner,
+		filterType,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "list spaces", http.StatusInternalServerError)
 		return
@@ -221,6 +229,7 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 
 	authorized, err := s.authorize(
 		r.Context(),
+		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
@@ -290,6 +299,7 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	authorized, err := s.authorize(
 		r.Context(),
+		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceMemberManager,
@@ -348,7 +358,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
+	isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -364,7 +374,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := s.store.GetMembers(r.Context(), spaceURI)
+	members, err := s.store.GetMembers(r.Context(), credInfo.Org.DID(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -419,6 +429,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 
 	authorized, err := s.authorize(
 		r.Context(),
+		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceWriter,
@@ -520,7 +531,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
+		isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
 		if err != nil {
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -605,7 +616,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
+		isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
 		if err != nil {
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -709,7 +720,7 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(r.Context(), spaceURI, credInfo.Subject)
+		isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
 		if err != nil {
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -790,6 +801,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 
 	authorized, err := s.authorize(
 		r.Context(),
+		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceOwner,
@@ -865,6 +877,7 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 
 	authorized, err := s.authorize(
 		r.Context(),
+		credInfo.Org.DID(),
 		credInfo.Subject,
 		spaceURI,
 		fgastore.RelationSpaceOwner,
