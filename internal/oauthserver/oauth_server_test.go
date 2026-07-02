@@ -254,6 +254,118 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther /* What fosite authorize error uses */, resp.StatusCode)
 }
 
+// TestHandleAuthorizeSkipsLoginForSignedInUser verifies that once a user has
+// completed the login flow, a subsequent authorize request for the same handle
+// skips the interactive PDS login and redirects straight back to the client app
+// with an authorization code.
+func TestHandleAuthorizeSkipsLoginForSignedInUser(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	require.NoError(t, err)
+	clientMetadata := &pdsclient.ClientMetadata{}
+	oauthClient := pdsclient.NewDummyOAuthClient(t, clientMetadata)
+	defer oauthClient.Close()
+	secret, err := encrypt.GenerateKey()
+	require.NoError(t, err)
+	bytes, err := encrypt.ParseKey(secret)
+	require.NoError(t, err)
+
+	dummyDir := pdsclient.NewDummyDirectory("http://pds.url")
+	oauthServer, err := NewOAuthServer(
+		bytes,
+		&org.LoginRouter{
+			Pds: login.NewPDSProvider(oauthClient, credStore, dummyDir),
+		},
+		dummyDir,
+		db,
+		noop.Meter{},
+		testStore(t),
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+		case "/token":
+			oauthServer.HandleToken(w, r)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	server.Client().Jar = jar
+	clientMetadata.RedirectUris = []string{server.URL + "/oauth-callback"}
+
+	verifier := oauth2.GenerateVerifier()
+	config := &oauth2.Config{
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  server.URL + "/authorize",
+			TokenURL: server.URL + "/token",
+		},
+	}
+
+	clientApp := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/client-metadata.json":
+				w.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(w).Encode(&pdsclient.ClientMetadata{
+					ClientId:      "http://" + r.Host + "/client-metadata.json",
+					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
+					ResponseTypes: []string{"code"},
+					GrantTypes:    []string{"authorization_code", "refresh_token"},
+				}))
+			case "/oauth-callback":
+				// terminal redirect target for the client app; nothing to do.
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}),
+	)
+	defer clientApp.Close()
+
+	config.ClientID = clientApp.URL + "/client-metadata.json"
+	config.RedirectURL = clientApp.URL + "/oauth-callback"
+
+	// First flow: complete the full login so the auth session cookie is stored
+	// in the jar.
+	authURL := config.AuthCodeURL(
+		"test-state",
+		oauth2.S256ChallengeOption(verifier),
+	) + "&handle=did:web:example.did.com"
+	firstReq, err := http.NewRequest(http.MethodGet, authURL, nil)
+	require.NoError(t, err)
+	firstResp, err := server.Client().Do(firstReq)
+	require.NoError(t, err)
+	require.NoError(t, firstResp.Body.Close())
+
+	// Second flow: stop following redirects so we can inspect where /authorize
+	// sends the user.
+	server.Client().CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	secondReq, err := http.NewRequest(http.MethodGet, authURL, nil)
+	require.NoError(t, err)
+	secondResp, err := server.Client().Do(secondReq)
+	require.NoError(t, err)
+	require.NoError(t, secondResp.Body.Close())
+
+	require.Equal(t, http.StatusSeeOther, secondResp.StatusCode)
+	loc, err := secondResp.Location()
+	require.NoError(t, err)
+	// The skip path redirects straight to the client app with an auth code,
+	// rather than to the PDS login endpoint.
+	require.Equal(t, clientApp.URL+"/oauth-callback", loc.Scheme+"://"+loc.Host+loc.Path)
+	require.NotEmpty(t, loc.Query().Get("code"), "expected an authorization code in the redirect")
+}
+
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

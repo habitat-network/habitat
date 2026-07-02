@@ -32,6 +32,19 @@ const (
 	// this is the cookie name.
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
+
+	// authSessionName is the cookie name for the persistent "already signed in"
+	// session. Unlike the flow cookie above, it survives across OAuth flows so
+	// that a returning user can skip the interactive login.
+	authSessionName = "habitat-auth"
+
+	// authSessionDIDKey is the key under which the signed-in user's DID is stored
+	// in the persistent auth session.
+	authSessionDIDKey = "did"
+
+	// authSessionMaxAge is how long a persistent auth session remains valid
+	// before the user must sign in interactively again.
+	authSessionMaxAge = 24 * time.Hour
 )
 
 func init() {
@@ -173,6 +186,10 @@ type OAuthServer struct {
 
 	// Session store for OAuth flash data across redirects
 	sessionStore sessions.Store
+
+	// Persistent session store recording that a user has already signed in, so
+	// subsequent authorize requests can skip the interactive login flow.
+	authSessionStore sessions.Store
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -231,6 +248,17 @@ func NewOAuthServer(
 		SameSite: http.SameSiteNoneMode,
 	}
 
+	// The auth session must be readable on both /oauth/authorize (to skip login)
+	// and /oauth-callback (where it is set), so it is scoped to the root path.
+	authSessionStore := sessions.NewCookieStore(secret)
+	authSessionStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   int(authSessionMaxAge.Seconds()),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	}
+
 	return &OAuthServer{
 		metrics: oauthMetrics,
 		provider: compose.Compose(
@@ -242,11 +270,12 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 		),
-		loginRouter:  loginRouter,
-		sessionStore: cookieStore,
-		directory:    directory,
-		storage:      storage,
-		orgStore:     orgStore,
+		loginRouter:      loginRouter,
+		sessionStore:     cookieStore,
+		authSessionStore: authSessionStore,
+		directory:        directory,
+		storage:          storage,
+		orgStore:         orgStore,
 	}, nil
 }
 
@@ -308,6 +337,18 @@ func (o *OAuthServer) HandleAuthorize(
 			"failed to lookup identity",
 			http.StatusInternalServerError,
 		)
+		return
+	}
+
+	// If the user has already signed in as this DID during a previous flow, skip
+	// the interactive login and issue the authorization response directly.
+	if o.authenticatedAs(r, id.DID) {
+		if err := o.writeAuthorizeResponse(ctx, w, requester, id.DID); err != nil {
+			o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
+			o.provider.WriteAuthorizeError(ctx, w, requester, err)
+			return
+		}
+		o.metrics.authorizeSuccess(ctx)
 		return
 	}
 
@@ -471,12 +512,14 @@ func (o *OAuthServer) HandleCallback(
 		return
 	}
 
-	resp, err := o.provider.NewAuthorizeResponse(
-		ctx,
-		authRequest,
-		newAuthorizeSession(authRequest, arf.Did),
-	)
-	if err != nil {
+	// Remember that this user has signed in so future authorize requests can skip
+	// the interactive login. A failure here is non-fatal: the flow still
+	// completes, the user just won't get the skip on their next visit.
+	if err := o.saveAuthenticatedSession(w, r, arf.Did); err != nil {
+		slog.WarnContext(ctx, "failed to save auth session", "err", err)
+	}
+
+	if err := o.writeAuthorizeResponse(ctx, w, authRequest, arf.Did); err != nil {
 		o.metrics.callbackErr(ctx, err, fositeErrReason(err))
 		utils.LogAndHTTPError(
 			ctx,
@@ -487,8 +530,55 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
+}
+
+// writeAuthorizeResponse issues the Habitat OAuth authorization response for the
+// given (already validated) authorize request and signed-in DID, redirecting the
+// user back to the client app with an authorization code.
+func (o *OAuthServer) writeAuthorizeResponse(
+	ctx context.Context,
+	w http.ResponseWriter,
+	authRequest fosite.AuthorizeRequester,
+	did syntax.DID,
+) error {
+	resp, err := o.provider.NewAuthorizeResponse(
+		ctx,
+		authRequest,
+		newAuthorizeSession(authRequest, did),
+	)
+	if err != nil {
+		return err
+	}
+	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
+	return nil
+}
+
+// authenticatedAs reports whether the request carries a valid auth session for
+// the given DID, meaning the user has already signed in as that identity.
+func (o *OAuthServer) authenticatedAs(r *http.Request, did syntax.DID) bool {
+	session, err := o.authSessionStore.Get(r, authSessionName)
+	if err != nil {
+		// A malformed or tampered cookie is treated as "not signed in".
+		return false
+	}
+	stored, ok := session.Values[authSessionDIDKey].(string)
+	return ok && stored != "" && stored == did.String()
+}
+
+// saveAuthenticatedSession records the signed-in DID in the persistent auth
+// session cookie.
+func (o *OAuthServer) saveAuthenticatedSession(
+	w http.ResponseWriter,
+	r *http.Request,
+	did syntax.DID,
+) error {
+	session, err := o.authSessionStore.New(r, authSessionName)
+	if err != nil {
+		return err
+	}
+	session.Values[authSessionDIDKey] = did.String()
+	return o.authSessionStore.Save(r, w, session)
 }
 
 // HandleToken processes OAuth 2.0 token requests from the client.
