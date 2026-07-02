@@ -339,7 +339,7 @@ func (s *Store) ListObjects(
 // parseTupleValue decodes the subject/relation/object from a stored tuple
 // record value.
 func parseTupleValue(value map[string]any) (Subject, Role, habitat_syntax.SpaceURI, error) {
-	subject, err := ParseSubject(value["subject"])
+	subject, err := parseSubjectInput(value["subject"])
 	if err != nil {
 		return nil, "", "", err
 	}

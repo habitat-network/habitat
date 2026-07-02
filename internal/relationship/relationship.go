@@ -131,9 +131,9 @@ func (s SpaceRoleSubject) toInterface() map[string]any {
 	}
 }
 
-// ParseSubject decodes a subject from the generated union interface{} value
+// parseSubjectInput decodes a subject from the generated union interface{} value
 // (as produced by JSON decoding of an XRPC body or CBOR decoding of a record).
-func ParseSubject(generic any) (Subject, error) {
+func parseSubjectInput(generic any) (Subject, error) {
 	m, ok := generic.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%w: subject is not an object", ErrInvalidTuple)
@@ -173,11 +173,11 @@ func ParseSubject(generic any) (Subject, error) {
 	}
 }
 
-// parseCheckSubject builds a Subject from the flat check query params: a bare
+// parseSubjectParams builds a Subject from the flat check query params: a bare
 // DID yields a UserSubject, while a space URI plus subjectRole yields a
 // SpaceRoleSubject userset (all subjects holding subjectRole on that space).
 // subjectRole is required for, and only valid with, a space subject.
-func parseCheckSubject(subject, subjectRole string) (Subject, error) {
+func parseSubjectParams(subject, subjectRole string) (Subject, error) {
 	if did, err := syntax.ParseDID(subject); err == nil {
 		if subjectRole != "" {
 			return nil, fmt.Errorf(

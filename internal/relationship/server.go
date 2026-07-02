@@ -97,7 +97,7 @@ func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subject, err := ParseSubject(input.Subject)
+	subject, err := parseSubjectInput(input.Subject)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -237,7 +237,7 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subject, err := parseCheckSubject(params.Subject, params.SubjectRole)
+	subject, err := parseSubjectParams(params.Subject, params.SubjectRole)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
