@@ -2566,15 +2566,21 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+          'Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
         parameters: {
           type: 'params',
-          required: ['did', 'relation', 'space'],
+          required: ['subject', 'relation', 'space'],
           properties: {
-            did: {
+            subject: {
               type: 'string',
-              format: 'did',
-              description: 'DID of the user to check.',
+              description:
+                'The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.',
             },
             relation: {
               type: 'string',
@@ -2596,7 +2602,7 @@ export const schemaDict = {
             properties: {
               allowed: {
                 type: 'boolean',
-                description: 'Whether the user holds the role on the space.',
+                description: 'Whether the subject holds the role on the space.',
               },
             },
           },

@@ -173,6 +173,40 @@ func ParseSubject(generic any) (Subject, error) {
 	}
 }
 
+// parseCheckSubject builds a Subject from the flat check query params: a bare
+// DID yields a UserSubject, while a space URI plus subjectRole yields a
+// SpaceRoleSubject userset (all subjects holding subjectRole on that space).
+// subjectRole is required for, and only valid with, a space subject.
+func parseCheckSubject(subject, subjectRole string) (Subject, error) {
+	if did, err := syntax.ParseDID(subject); err == nil {
+		if subjectRole != "" {
+			return nil, fmt.Errorf(
+				"%w: subjectRole must be omitted for a user subject",
+				ErrInvalidTuple,
+			)
+		}
+		return UserSubject{DID: did}, nil
+	}
+	space, err := habitat_syntax.ParseSpaceURI(subject)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: subject is neither a DID nor a space URI",
+			ErrInvalidTuple,
+		)
+	}
+	if subjectRole == "" {
+		return nil, fmt.Errorf(
+			"%w: subjectRole is required for a space subject",
+			ErrInvalidTuple,
+		)
+	}
+	role := Role(subjectRole)
+	if _, err := roleToFGARelation(role); err != nil {
+		return nil, err
+	}
+	return SpaceRoleSubject{Space: space, Role: role}, nil
+}
+
 // objectToInterface serializes a space object (a plain ref, not a union, so no
 // $type) to the map form stored in the record and returned over XRPC.
 func objectToInterface(space habitat_syntax.SpaceURI) map[string]any {

@@ -237,9 +237,9 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
+	subject, err := parseCheckSubject(params.Subject, params.SubjectRole)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -247,7 +247,7 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowed, err := s.store.Check(r.Context(), did, Role(params.Relation), space)
+	allowed, err := s.store.Check(r.Context(), subject, Role(params.Relation), space)
 	if errors.Is(err, ErrInvalidTuple) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

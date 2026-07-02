@@ -169,7 +169,7 @@ func (p *pearClient) check(
 ) (bool, error) {
 	var out habitat.NetworkHabitatRelationshipCheckOutput
 	err := p.get(ctx, "network.habitat.relationship.check", url.Values{
-		"did":      []string{did.String()},
+		"subject":  []string{did.String()},
 		"relation": []string{relation},
 		"space":    []string{space.String()},
 	}, &out)

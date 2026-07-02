@@ -4,9 +4,10 @@ package habitat
 
 // NetworkHabitatRelationshipCheckParams represents the input parameters for network.habitat.relationship.check
 type NetworkHabitatRelationshipCheckParams struct {
-	Did      string `json:"did"`
-	Relation string `json:"relation"`
-	Space    string `json:"space"`
+	Relation    string `json:"relation"`
+	Space       string `json:"space"`
+	Subject     string `json:"subject"`
+	SubjectRole string `json:"subjectRole,omitempty"`
 }
 
 // NetworkHabitatRelationshipCheckOutput represents the output for network.habitat.relationship.check

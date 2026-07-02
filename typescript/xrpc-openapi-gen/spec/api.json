@@ -3764,7 +3764,7 @@
           "network.habitat.relationship"
         ],
         "summary": "network.habitat.relationship.check",
-        "description": "Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
+        "description": "Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.",
         "operationId": "network.habitat.relationship.check",
         "security": [
           {
@@ -3773,14 +3773,23 @@
         ],
         "parameters": [
           {
-            "name": "did",
+            "name": "subject",
             "in": "query",
-            "description": "DID of the user to check.",
+            "description": "The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.",
             "required": true,
             "schema": {
               "type": "string",
-              "description": "DID of the user to check.",
-              "format": "did"
+              "description": "The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required."
+            }
+          },
+          {
+            "name": "subjectRole",
+            "in": "query",
+            "description": "The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID."
             }
           },
           {
@@ -3818,7 +3827,7 @@
                   "properties": {
                     "allowed": {
                       "type": "boolean",
-                      "description": "Whether the user holds the role on the space."
+                      "description": "Whether the subject holds the role on the space."
                     }
                   }
                 }
