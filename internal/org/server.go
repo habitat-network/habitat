@@ -4,31 +4,58 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/api/bsky"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/schema"
+	"github.com/ipfs/go-cid"
+
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/instance"
-	"github.com/habitat-network/habitat/internal/pear"
-	"github.com/habitat-network/habitat/internal/permissions"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
 var errNotMemberOfOrg = errors.New("not a member of an organization")
+
+// SpaceWriter is the subset of spaces.Store needed to bootstrap profile
+// records for new org/member identities. Declared locally, rather than
+// depending on internal/spaces directly, because internal/spaces depends on
+// internal/org for its own HTTP layer (org.Store) and importing it here
+// would create an import cycle.
+type SpaceWriter interface {
+	CreateSpace(
+		ctx context.Context,
+		org syntax.DID,
+		owner syntax.DID,
+		spaceType syntax.NSID,
+		skey habitat_syntax.SpaceKey,
+	) (habitat_syntax.SpaceURI, error)
+	PutRecord(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		owner syntax.DID,
+		collection syntax.NSID,
+		rkey syntax.RecordKey,
+		value map[string]any,
+	) (habitat_syntax.SpaceRecordURI, *cid.Cid, error)
+}
 
 // Serve org-specific APIs
 // Server does both authn and authz for these routes
 type Server struct {
 	store          Store
 	auth           authn.Method
-	pear           pear.Pear
+	spaces         SpaceWriter
 	domain         string
 	decoder        *schema.Decoder
 	dir            identity.Directory
@@ -38,7 +65,7 @@ type Server struct {
 func NewServer(
 	store Store,
 	auth authn.Method,
-	p pear.Pear,
+	spacesStore SpaceWriter,
 	domain string,
 	dir identity.Directory,
 	instancePolicy instance.PolicyStore,
@@ -46,12 +73,63 @@ func NewServer(
 	return &Server{
 		store:          store,
 		auth:           auth,
-		pear:           p,
+		spaces:         spacesStore,
 		domain:         domain,
 		decoder:        schema.NewDecoder(),
 		dir:            dir,
 		instancePolicy: instancePolicy,
 	}, nil
+}
+
+// writeProfileRecord ensures the org's shared member-profiles space exists,
+// then writes a minimal bsky actor profile record into it (owned by
+// memberDID, at rkey "self") so the identity is usable by atproto apps.
+func (s *Server) writeProfileRecord(
+	ctx context.Context,
+	orgDID syntax.DID,
+	memberDID syntax.DID,
+	handle syntax.Handle,
+) error {
+	// Best-effort ensure the space exists (e.g. it may already have been
+	// created for a prior member of this org); the URI is deterministic from
+	// its type and well-known key regardless of whether this call created it.
+	_, _ = s.spaces.CreateSpace(
+		ctx,
+		orgDID,
+		orgDID,
+		habitat_syntax.ProfilesSpaceType,
+		habitat_syntax.ProfilesSpaceKey,
+	)
+	spaceURI := habitat_syntax.ConstructSpaceURI(
+		orgDID,
+		habitat_syntax.ProfilesSpaceType,
+		habitat_syntax.ProfilesSpaceKey,
+	)
+
+	displayName := handle.String()
+	profileJSON, err := json.Marshal(&bsky.ActorProfile{
+		LexiconTypeID: "app.bsky.actor.profile",
+		DisplayName:   &displayName,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal profile record: %w", err)
+	}
+	value, err := atdata.UnmarshalJSON(profileJSON)
+	if err != nil {
+		return fmt.Errorf("decode profile record: %w", err)
+	}
+
+	if _, _, err := s.spaces.PutRecord(
+		ctx,
+		spaceURI,
+		memberDID,
+		syntax.NSID("app.bsky.actor.profile"),
+		syntax.RecordKey("self"),
+		value,
+	); err != nil {
+		return fmt.Errorf("put profile record: %w", err)
+	}
+	return nil
 }
 
 // IsMember checks if the given DID is a member of any org on this instance.
@@ -231,6 +309,18 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError,
 		)
 		return
+	}
+
+	if s.spaces != nil {
+		if err := s.writeProfileRecord(r.Context(), orgID.DID, id.DID, id.Handle); err != nil {
+			slog.ErrorContext(r.Context(),
+				"failed to create profile record for org admin",
+				"err",
+				err,
+				"handle",
+				id.Handle,
+			)
+		}
 	}
 
 	// The org now exists. If an invite gated this creation, mark it used now
@@ -774,24 +864,8 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create a minimal app.bsky.actor.profile record so the identity is usable by atproto apps
-	if s.pear != nil {
-		profile := map[string]any{
-			"$type":  "app.bsky.actor.profile",
-			"did":    id.DID.String(),
-			"handle": id.Handle.String(),
-		}
-		_, err = s.pear.PutRecord(
-			r.Context(),
-			id.DID,
-			id.DID,
-			syntax.NSID("app.bsky.actor.profile"),
-			profile,
-			syntax.RecordKey("self"),
-			nil,
-			[]permissions.Grantee{},
-		)
-		if err != nil {
+	if s.spaces != nil {
+		if err := s.writeProfileRecord(r.Context(), orgDid, id.DID, id.Handle); err != nil {
 			slog.ErrorContext(r.Context(),
 				"failed to create profile record for new member",
 				"err",

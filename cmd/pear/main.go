@@ -346,7 +346,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	orgServer, err := org.NewServer(
 		orgStore,
 		oauthServer,
-		pear,
+		spacesStore,
 		domain,
 		hiveDir,
 		instanceAdminStore,

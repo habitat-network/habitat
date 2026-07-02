@@ -15,6 +15,13 @@ import (
 // Protocol records it mirrors stay in sync.
 const ReservedRelationshipTupleNSID = "network.habitat.relationship.tuple"
 
+// ProfilesSpaceType is the space type of the org-owned space holding member
+// profile records, one per member DID under record key "self".
+const ProfilesSpaceType = "network.habitat.profiles"
+
+// ProfilesSpaceKey is the well-known space key of an org's profiles space.
+const ProfilesSpaceKey = SpaceKey("self")
+
 type SpaceKey string
 
 func NewSkey(tid syntax.TID) SpaceKey {
