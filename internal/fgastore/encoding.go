@@ -25,6 +25,12 @@ func MemberUserString(did syntax.DID) string {
 	return "user:" + url.QueryEscape(did.String())
 }
 
+// OrgObjectKey returns the FGA object key for an org.
+// The key uses the DID URL-encoded so OpenFGA can parse it as a typed object.
+func OrgObjectKey(did syntax.DID) string {
+	return "organization:" + url.QueryEscape(did.String())
+}
+
 // SpaceUsersetString returns the FGA userset string for all subjects holding
 // `relation` on the given space, e.g. "space:<spaceURI>#can_read". This is how a
 // space (including a group-space) is referenced as a grantee on another space.

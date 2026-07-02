@@ -7,6 +7,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/fgastore"
+
 	"gorm.io/gorm"
 )
 
@@ -38,6 +40,7 @@ type orgImpl struct {
 	db              *gorm.DB
 	handleSubdomain string
 	method          core.LoginMethod
+	fga             fgastore.Store
 }
 
 var _ core.Org = &orgImpl{}
@@ -64,6 +67,14 @@ func (s *orgImpl) LoginMethod(ctx context.Context) core.LoginMethod {
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
+	if err := s.fga.Write(
+		ctx,
+		fgastore.MemberUserString(admin),
+		fgastore.RelationAdmin,
+		fgastore.OrgObjectKey(s.orgID),
+	); err != nil {
+		return err
+	}
 	result := s.db.WithContext(ctx).Model(&member{}).
 		Where("org_id = ? AND did = ?", s.orgID, admin).
 		Update("role", AdminRole)
@@ -122,6 +133,14 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
+	if err := s.fga.Delete(
+		ctx,
+		fgastore.MemberUserString(admin),
+		fgastore.RelationAdmin,
+		fgastore.OrgObjectKey(s.orgID),
+	); err != nil {
+		return err
+	}
 	return s.db.WithContext(ctx).
 		Model(&member{}).
 		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
@@ -141,6 +160,14 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
+	if err := s.fga.Delete(
+		ctx,
+		fgastore.MemberUserString(admin),
+		fgastore.RelationAdmin,
+		fgastore.OrgObjectKey(s.orgID),
+	); err != nil {
+		return err
+	}
 	return s.db.WithContext(ctx).
 		Where("org_id = ? AND did = ? AND role = ?", s.orgID, admin, AdminRole).
 		Delete(&member{}).
@@ -148,6 +175,16 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 }
 
 func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error {
+	for _, m := range members {
+		if err := s.fga.Delete(
+			ctx,
+			fgastore.MemberUserString(m),
+			fgastore.RelationMember,
+			fgastore.OrgObjectKey(s.orgID),
+		); err != nil {
+			return err
+		}
+	}
 	return s.db.WithContext(ctx).
 		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, members, MemberRole).
 		Delete(&member{}).
@@ -186,5 +223,6 @@ func (s *orgImpl) WithTx(tx *gorm.DB) core.Org {
 		handleSubdomain: s.handleSubdomain,
 		name:            s.name,
 		method:          s.method,
+		fga:             s.fga,
 	}
 }
