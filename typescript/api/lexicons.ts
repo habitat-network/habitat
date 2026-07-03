@@ -1170,6 +1170,133 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatCollectionsDefs: {
+    lexicon: 1,
+    id: 'network.habitat.collections.defs',
+    defs: {
+      collectionView: {
+        type: 'object',
+        description:
+          "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
+        required: ['collection', 'recordCount'],
+        properties: {
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          recordCount: {
+            type: 'integer',
+            description:
+              'Number of records in this collection the calling user can see, counted across all spaces they can read (once per space a record belongs to).',
+          },
+        },
+      },
+      recordView: {
+        type: 'object',
+        description:
+          'A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.',
+        required: ['uri', 'space', 'repo', 'collection', 'rkey'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space.',
+          },
+          space: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space this record belongs to.',
+          },
+          repo: {
+            type: 'string',
+            format: 'did',
+            description: 'DID of the repo the record lives in.',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+            description: 'The record key.',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListCollections: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listCollections',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the record collections (lexicon types) present in the org's synced data, each with a count of the distinct records the calling user can see. Only collections with at least one visible record are returned. Implemented by the home server and reached via pear service proxying.",
+        parameters: {
+          type: 'params',
+          properties: {},
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collections'],
+            properties: {
+              collections: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#collectionView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListRecords: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listRecords',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the records in a collection the calling user can see, each with the spaces it belongs to that the user can read. The record body is not included; fetch it on demand from pear. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          required: ['collection'],
+          properties: {
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record collection to list.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#recordView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatDocsCrdt: {
     lexicon: 1,
     id: 'network.habitat.docs.crdt',
@@ -4398,6 +4525,11 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
+  NetworkHabitatCollectionsDefs: 'network.habitat.collections.defs',
+  NetworkHabitatCollectionsListCollections:
+    'network.habitat.collections.listCollections',
+  NetworkHabitatCollectionsListRecords:
+    'network.habitat.collections.listRecords',
   NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
   NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
   NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',

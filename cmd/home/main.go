@@ -92,9 +92,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	groups := NewGroupService(store, oauthApp)
+	collections := NewCollectionService(store, oauthApp)
 	indexer := NewIndexer(store, s.Outbox)
 	server := NewServer(
-		domain, cmd.String(fOrgHandle), groups, oauthApp, s, store,
+		domain, cmd.String(fOrgHandle), groups, collections, oauthApp, s, store,
 		authn.NewServiceAuthMethod(dir),
 	)
 

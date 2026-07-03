@@ -13,7 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/stretchr/testify/require"
@@ -65,7 +65,7 @@ func newTestServer(
 
 	srv, err := NewServer(
 		storeImpl,
-		authn.NewStubAuthnForTest(adminIdent.DID),
+		authntest.NewSuccessMethod(adminIdent.DID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -299,7 +299,7 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -328,7 +328,7 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -357,7 +357,7 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -388,7 +388,7 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 	policy := &fakeInstancePolicy{policy: "invite_only"}
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -422,7 +422,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 	store := newTestStore(t)
 	srv, err := NewServer(
 		store,
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -482,7 +482,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),

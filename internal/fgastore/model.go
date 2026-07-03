@@ -24,7 +24,13 @@ const (
 // inheritance: the relationship store grants "all holders of role R on space A"
 // a role on space B by writing a space userset tuple.
 func spaceDirectlyRelatedUserTypes() []*openfgav1.RelationReference {
-	refs := []*openfgav1.RelationReference{{Type: TypeUser}}
+	refs := []*openfgav1.RelationReference{
+		{Type: TypeUser},
+		{
+			Type:               TypeOrganization,
+			RelationOrWildcard: &openfgav1.RelationReference_Relation{Relation: RelationMember},
+		},
+	}
 	for _, rel := range []string{
 		RelationSpaceOwner,
 		RelationSpaceReader,

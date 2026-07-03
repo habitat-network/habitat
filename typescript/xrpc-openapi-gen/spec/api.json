@@ -848,6 +848,205 @@
         }
       }
     },
+    "/network.habitat.collections.listCollections": {
+      "get": {
+        "tags": [
+          "network.habitat.collections"
+        ],
+        "summary": "network.habitat.collections.listCollections",
+        "description": "List the record collections (lexicon types) present in the org's synced data, each with a count of the distinct records the calling user can see. Only collections with at least one visible record are returned. Implemented by the home server and reached via pear service proxying.",
+        "operationId": "network.habitat.collections.listCollections",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "collections"
+                  ],
+                  "properties": {
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.collections.defs.collectionView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.collections.listRecords": {
+      "get": {
+        "tags": [
+          "network.habitat.collections"
+        ],
+        "summary": "network.habitat.collections.listRecords",
+        "description": "List the records in a collection the calling user can see, each with the spaces it belongs to that the user can read. The record body is not included; fetch it on demand from pear. Implemented by the home server and reached via pear service proxying.",
+        "operationId": "network.habitat.collections.listRecords",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "query",
+            "description": "The NSID of the record collection to list.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The NSID of the record collection to list.",
+              "format": "nsid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "records"
+                  ],
+                  "properties": {
+                    "records": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.collections.defs.recordView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.docs.createDoc": {
       "post": {
         "tags": [
@@ -7100,6 +7299,62 @@
         "description": "This collection is reserved for special purposes and cannot be directly written to. To read/set cliques, use clique-specific XRPC APIs.",
         "properties": {}
       },
+      "network.habitat.collections.defs.collectionView": {
+        "type": "object",
+        "description": "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
+        "required": [
+          "collection",
+          "recordCount"
+        ],
+        "properties": {
+          "collection": {
+            "type": "string",
+            "description": "The NSID of the record collection.",
+            "format": "nsid"
+          },
+          "recordCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "network.habitat.collections.defs.recordView": {
+        "type": "object",
+        "description": "A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.",
+        "required": [
+          "uri",
+          "space",
+          "repo",
+          "collection",
+          "rkey"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space.",
+            "format": "uri"
+          },
+          "space": {
+            "type": "string",
+            "description": "URI of the space this record belongs to.",
+            "format": "uri"
+          },
+          "repo": {
+            "type": "string",
+            "description": "DID of the repo the record lives in.",
+            "format": "did"
+          },
+          "collection": {
+            "type": "string",
+            "description": "The NSID of the record collection.",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "description": "The record key.",
+            "format": "record-key"
+          }
+        }
+      },
       "network.habitat.docs.crdt": {
         "type": "object",
         "required": [
@@ -7831,6 +8086,9 @@
     },
     {
       "name": "network.habitat.clique"
+    },
+    {
+      "name": "network.habitat.collections"
     },
     {
       "name": "network.habitat.docs"

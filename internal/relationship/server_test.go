@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
 func newTestServer(t *testing.T, caller syntax.DID) (*Server, *Store, spaces.Store) {
 	t.Helper()
 	rel, sp := newTestStore(t)
-	auth := authn.NewStubAuthnForTest(caller)
+	auth := authntest.NewSuccessMethodWithOrg(caller, caller)
 	return NewServer(rel, rel.fga, auth, auth), rel, sp
 }
 
@@ -50,7 +50,7 @@ func TestServer_WriteTuple(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.NotEmpty(t, out.Uri)
 
-	allowed, err := rel.Check(t.Context(), UserSubject{DID: alice}, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.True(t, allowed)
 }
@@ -107,7 +107,7 @@ func TestServer_DeleteTuple(t *testing.T) {
 	s.DeleteTuple(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	allowed, err := rel.Check(t.Context(), UserSubject{DID: alice}, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
@@ -288,8 +288,8 @@ func TestServer_Unauthenticated(t *testing.T) {
 	s := NewServer(
 		rel,
 		rel.fga,
-		authn.NewStubAuthnFailedForTest(),
-		authn.NewStubAuthnFailedForTest(),
+		authntest.NewFailMethod(),
+		authntest.NewFailMethod(),
 	)
 
 	w := httptest.NewRecorder()
