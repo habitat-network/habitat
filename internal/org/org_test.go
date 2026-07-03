@@ -198,6 +198,132 @@ func TestRemoveMembers(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestAddAdmin_RemovesMemberFGA(t *testing.T) {
+	ctx := context.Background()
+	store, org := newTestOrg(t)
+
+	id := addMember(t, store, org, "alice")
+	memberUser := fgastore.MemberUserString(id.DID)
+	orgObj := fgastore.OrgObjectKey(org.orgID)
+
+	// Before promotion: has member tuple, no admin tuple
+	tuples, err := org.fga.Read(ctx, fgastore.Tuple{
+		User:     memberUser,
+		Relation: fgastore.RelationMember,
+		Object:   orgObj,
+	})
+	require.NoError(t, err)
+	require.Len(t, tuples, 1)
+
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
+		User:     memberUser,
+		Relation: fgastore.RelationAdmin,
+		Object:   orgObj,
+	})
+	require.NoError(t, err)
+	require.Empty(t, tuples)
+
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
+
+	// After promotion: has admin tuple, no member tuple
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
+		User:     memberUser,
+		Relation: fgastore.RelationAdmin,
+		Object:   orgObj,
+	})
+	require.NoError(t, err)
+	require.Len(t, tuples, 1)
+
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
+		User:     memberUser,
+		Relation: fgastore.RelationMember,
+		Object:   orgObj,
+	})
+	require.NoError(t, err)
+	require.Empty(t, tuples)
+}
+
+func TestDowngradeAdmin(t *testing.T) {
+	ctx := context.Background()
+	store, org := newTestOrg(t)
+
+	id1 := addMember(t, store, org, "alice")
+	id2 := addMember(t, store, org, "bob")
+	require.NoError(t, org.AddAdmin(ctx, id1.DID))
+	require.NoError(t, org.AddAdmin(ctx, id2.DID))
+
+	memberUser := fgastore.MemberUserString(id1.DID)
+	orgObj := fgastore.OrgObjectKey(org.orgID)
+
+	require.NoError(t, org.DowngradeAdmin(ctx, id1.DID))
+
+	// After downgrade: has member tuple, no admin tuple
+	tuples, err := org.fga.Read(ctx, fgastore.Tuple{
+		User:     memberUser,
+		Relation: fgastore.RelationMember,
+		Object:   orgObj,
+	})
+	require.NoError(t, err)
+	require.Len(t, tuples, 1)
+
+	tuples, err = org.fga.Read(ctx, fgastore.Tuple{
+		User:     memberUser,
+		Relation: fgastore.RelationAdmin,
+		Object:   orgObj,
+	})
+	require.NoError(t, err)
+	require.Empty(t, tuples)
+
+	// DB-level verification
+	ok, err := org.IsMember(ctx, id1.DID)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = org.IsAdmin(ctx, id1.DID)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	admins, err := org.GetAdmins(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []syntax.DID{id2.DID}, admins)
+}
+
+func TestDowngradeAdmin_LastAdmin(t *testing.T) {
+	ctx := context.Background()
+	store, org := newTestOrg(t)
+
+	id := addMember(t, store, org, "alice")
+	require.NoError(t, org.AddAdmin(ctx, id.DID))
+
+	err := org.DowngradeAdmin(ctx, id.DID)
+	require.ErrorIs(t, err, ErrLastAdmin)
+
+	// Still an admin
+	ok, err := org.IsAdmin(ctx, id.DID)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestRemoveMembers_RemovesFGATuples(t *testing.T) {
+	ctx := context.Background()
+	store, org := newTestOrg(t)
+
+	id := addMember(t, store, org, "alice")
+	memberUser := fgastore.MemberUserString(id.DID)
+	orgObj := fgastore.OrgObjectKey(org.orgID)
+
+	require.NoError(t, org.RemoveMembers(ctx, []syntax.DID{id.DID}))
+
+	// FGA member tuple should be gone
+	tuples, err := org.fga.Read(ctx, fgastore.Tuple{
+		User:     memberUser,
+		Relation: fgastore.RelationMember,
+		Object:   orgObj,
+	})
+	require.NoError(t, err)
+	require.Empty(t, tuples)
+}
+
 func TestGenerateAndUseIdentityToken(t *testing.T) {
 	ctx := context.Background()
 	store, org := newTestOrg(t)

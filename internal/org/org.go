@@ -8,6 +8,8 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	openfgav1 "github.com/openfga/api/proto/openfga/v1"
+	"github.com/openfga/openfga/pkg/tuple"
 
 	"gorm.io/gorm"
 )
@@ -67,11 +69,29 @@ func (s *orgImpl) LoginMethod(ctx context.Context) core.LoginMethod {
 }
 
 func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
-	if err := s.fga.Write(
+	if err := s.fga.WriteRaw(
 		ctx,
-		fgastore.MemberUserString(admin),
-		fgastore.RelationAdmin,
-		fgastore.OrgObjectKey(s.orgID),
+		&openfgav1.WriteRequest{
+			Writes: &openfgav1.WriteRequestWrites{
+			TupleKeys: []*openfgav1.TupleKey{
+				tuple.NewTupleKey(
+					fgastore.OrgObjectKey(s.orgID),
+					fgastore.RelationAdmin,
+					fgastore.MemberUserString(admin),
+				),
+			},
+		},
+		Deletes: &openfgav1.WriteRequestDeletes{
+			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+					fgastore.OrgObjectKey(s.orgID),
+					fgastore.RelationMember,
+					fgastore.MemberUserString(admin),
+				)),
+			},
+			OnMissing: "ignore",
+		},
+	},
 	); err != nil {
 		return err
 	}
@@ -133,11 +153,29 @@ func (s *orgImpl) DowngradeAdmin(ctx context.Context, admin syntax.DID) error {
 	if adminCount < 2 {
 		return ErrLastAdmin
 	}
-	if err := s.fga.Delete(
+	if err := s.fga.WriteRaw(
 		ctx,
-		fgastore.MemberUserString(admin),
-		fgastore.RelationAdmin,
-		fgastore.OrgObjectKey(s.orgID),
+		&openfgav1.WriteRequest{
+			Writes: &openfgav1.WriteRequestWrites{
+				TupleKeys: []*openfgav1.TupleKey{
+					tuple.NewTupleKey(
+						fgastore.OrgObjectKey(s.orgID),
+						fgastore.RelationMember,
+						fgastore.MemberUserString(admin),
+					),
+				},
+			},
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+						fgastore.OrgObjectKey(s.orgID),
+						fgastore.RelationAdmin,
+						fgastore.MemberUserString(admin),
+					)),
+				},
+				OnMissing: "ignore",
+			},
+		},
 	); err != nil {
 		return err
 	}
@@ -175,15 +213,24 @@ func (s *orgImpl) RemoveAdmin(ctx context.Context, admin syntax.DID) error {
 }
 
 func (s *orgImpl) RemoveMembers(ctx context.Context, members []syntax.DID) error {
+	tuples := make([]*openfgav1.TupleKeyWithoutCondition, 0, len(members))
 	for _, m := range members {
-		if err := s.fga.Delete(
-			ctx,
-			fgastore.MemberUserString(m),
-			fgastore.RelationMember,
+		tuples = append(tuples, tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
 			fgastore.OrgObjectKey(s.orgID),
-		); err != nil {
-			return err
-		}
+			fgastore.RelationMember,
+			fgastore.MemberUserString(m),
+		)))
+	}
+	if err := s.fga.WriteRaw(
+		ctx,
+		&openfgav1.WriteRequest{
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys: tuples,
+				OnMissing: "ignore",
+			},
+		},
+	); err != nil {
+		return err
 	}
 	return s.db.WithContext(ctx).
 		Where("org_id = ? AND did IN ? AND role = ?", s.orgID, members, MemberRole).
