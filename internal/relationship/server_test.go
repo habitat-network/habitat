@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 )
 
 func newTestServer(t *testing.T, caller syntax.DID) (*Server, *Store, spaces.Store) {
 	t.Helper()
 	rel, sp := newTestStore(t)
-	auth := authn.NewStubAuthnForTestWithOrg(caller, caller)
+	auth := authntest.NewSuccessMethodWithOrg(caller, caller)
 	return NewServer(rel, rel.fga, auth, auth), rel, sp
 }
 
@@ -288,8 +288,8 @@ func TestServer_Unauthenticated(t *testing.T) {
 	s := NewServer(
 		rel,
 		rel.fga,
-		authn.NewStubAuthnFailedForTest(),
-		authn.NewStubAuthnFailedForTest(),
+		authntest.NewFailMethod(),
+		authntest.NewFailMethod(),
 	)
 
 	w := httptest.NewRecorder()

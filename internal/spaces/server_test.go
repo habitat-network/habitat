@@ -14,6 +14,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/org/testutil"
@@ -37,15 +38,15 @@ func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 
 func newOwnerServer(t *testing.T) *Server {
 	return newTestServer(t,
-		authn.NewStubAuthnForTestWithOrg(owner, orgId),
-		authn.NewStubAuthnForTestWithOrg(owner, orgId),
+		authntest.NewSuccessMethodWithOrg(owner, orgId),
+		authntest.NewSuccessMethodWithOrg(owner, orgId),
 	)
 }
 
 func newAliceServer(t *testing.T) *Server {
 	return newTestServer(t,
-		authn.NewStubAuthnForTestWithOrg(alice, orgId),
-		authn.NewStubAuthnForTestWithOrg(alice, orgId),
+		authntest.NewSuccessMethodWithOrg(alice, orgId),
+		authntest.NewSuccessMethodWithOrg(alice, orgId),
 	)
 }
 
@@ -337,8 +338,8 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 
 func TestServer_Unauthorized(t *testing.T) {
 	s := newTestServer(t,
-		authn.NewStubAuthnFailedForTest(),
-		authn.NewStubAuthnFailedForTest(),
+		authntest.NewFailMethod(),
+		authntest.NewFailMethod(),
 	)
 
 	body := `{"type": "network.habitat.group"}`

@@ -10,7 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -36,7 +36,7 @@ func neverNext(t *testing.T) http.Handler {
 }
 
 func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
-	sp := NewServiceProxy(authn.NewStubAuthnFailedForTest(), nil, identity.NewMockDirectory())
+	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory())
 
 	nextCalled := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +54,7 @@ func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
 
 func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 	sp := NewServiceProxy(
-		authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")),
+		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		identity.NewMockDirectory(),
 	)
@@ -68,7 +68,7 @@ func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 }
 
 func TestServiceProxyAuthFails_Returns401(t *testing.T) {
-	sp := NewServiceProxy(authn.NewStubAuthnFailedForTest(), nil, identity.NewMockDirectory())
+	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory())
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
@@ -81,7 +81,7 @@ func TestServiceProxyAuthFails_Returns401(t *testing.T) {
 func TestServiceProxyDIDResolutionFails_Returns502(t *testing.T) {
 	// Empty directory — LookupDID will not find the target DID.
 	sp := NewServiceProxy(
-		authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")),
+		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		identity.NewMockDirectory(),
 	)
@@ -105,7 +105,7 @@ func TestServiceProxyServiceNotFound_Returns400(t *testing.T) {
 		},
 	})
 	sp := NewServiceProxy(
-		authn.NewStubAuthnForTest(syntax.DID("did:web:alice.org.example.com")),
+		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		dir,
 	)
@@ -141,7 +141,7 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 		Services: map[string]identity.ServiceEndpoint{"atproto_labeler": {URL: target.URL}},
 	})
 
-	sp := NewServiceProxy(authn.NewStubAuthnForTest(callerID.DID), h, dir)
+	sp := NewServiceProxy(authntest.NewSuccessMethod(callerID.DID), h, dir)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)

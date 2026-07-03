@@ -531,7 +531,12 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
+		isMember, err := s.store.IsMember(
+			r.Context(),
+			credInfo.Org.DID(),
+			spaceURI,
+			credInfo.Subject,
+		)
 		if err != nil {
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -616,7 +621,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
+		isMember, err := s.store.IsMember(
+			r.Context(),
+			credInfo.Org.DID(),
+			spaceURI,
+			credInfo.Subject,
+		)
 		if err != nil {
 			utils.LogAndHTTPError(
 				r.Context(),
@@ -720,7 +730,12 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(r.Context(), credInfo.Org.DID(), spaceURI, credInfo.Subject)
+		isMember, err := s.store.IsMember(
+			r.Context(),
+			credInfo.Org.DID(),
+			spaceURI,
+			credInfo.Subject,
+		)
 		if err != nil {
 			utils.LogAndHTTPError(
 				r.Context(),

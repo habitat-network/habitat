@@ -111,8 +111,17 @@ type Store interface {
 		access SpaceAccess,
 	) error
 	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
-	GetMembers(ctx context.Context, org syntax.DID, space habitat_syntax.SpaceURI) ([]MemberInfo, error)
-	IsMember(ctx context.Context, org syntax.DID, space habitat_syntax.SpaceURI, did syntax.DID) (bool, error)
+	GetMembers(
+		ctx context.Context,
+		org syntax.DID,
+		space habitat_syntax.SpaceURI,
+	) ([]MemberInfo, error)
+	IsMember(
+		ctx context.Context,
+		org syntax.DID,
+		space habitat_syntax.SpaceURI,
+		did syntax.DID,
+	) (bool, error)
 
 	// Record operations
 	PutRecord(

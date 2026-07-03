@@ -12,7 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org"
@@ -57,7 +57,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	orgServer, err := org.NewServer(
 		orgStore,
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewStubAuthnForTest(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -65,7 +65,7 @@ func TestMintThenLookup(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	hiveServer, err := habitat_identity.NewServer(h, authn.NewStubAuthnForTest(adminDID), orgStore)
+	hiveServer, err := habitat_identity.NewServer(h, authntest.NewStubAuthnForTest(adminDID), orgStore)
 	require.NoError(t, err)
 
 	// Admin issues an invite token via org server
