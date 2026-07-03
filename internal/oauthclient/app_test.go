@@ -81,6 +81,19 @@ func TestApp_ProcessCallback_InvalidParams(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestApp_ResolveDID(t *testing.T) {
+	app := testApp(t, oauth.NewMemStore())
+	did, err := app.ResolveDID(context.Background(), "did:web:test.com")
+	require.NoError(t, err)
+	require.Equal(t, syntax.DID("did:web:test.com"), did)
+}
+
+func TestApp_ResolveDID_InvalidIdentifier(t *testing.T) {
+	app := testApp(t, oauth.NewMemStore())
+	_, err := app.ResolveDID(context.Background(), "not a valid identifier!!")
+	assert.Error(t, err)
+}
+
 func TestApp_Logout_Idempotent(t *testing.T) {
 	app := testApp(t, oauth.NewMemStore())
 	err := app.Logout(context.Background(), syntax.DID("did:plc:nonexistent"), "sess1")

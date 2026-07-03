@@ -36,8 +36,12 @@ func (s *fruitgangServer) handleClientMetadata(w http.ResponseWriter, _ *http.Re
 	}
 }
 
-// handleAddOrg initiates the OAuth flow for the given org handle.
-// The admin types their org's handle; the backend resolves it and starts the OAuth dance.
+// handleAddOrg connects the given org handle to Fruit Gang.
+// The admin types their org's handle; if sap already holds a live session for
+// that org (e.g. a prior connection attempt got the OAuth login done but
+// failed to create the space or persist it), we retry using that session
+// instead of forcing the admin through the OAuth dance again. Otherwise the
+// backend resolves the handle and starts a fresh OAuth flow.
 func (s *fruitgangServer) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w, r)
 
@@ -54,7 +58,12 @@ func (s *fruitgangServer) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid identifier", http.StatusBadRequest)
 		return
 	}
-	fmt.Println("atid", atid)
+
+	if did, err := s.oauthApp.ResolveDID(r.Context(), atid.String()); err == nil {
+		if s.tryReconnectWithExistingSession(r.Context(), w, did) {
+			return
+		}
+	}
 
 	redirectURL, err := s.oauthApp.StartAuthFlow(r.Context(), atid.String())
 	if err != nil {
@@ -66,6 +75,32 @@ func (s *fruitgangServer) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	_ = enc.Encode(map[string]string{"redirect_url": redirectURL})
+}
+
+// tryReconnectWithExistingSession attempts to finish connecting the org using
+// a session sap already holds for it, so a failure in the space-creation step
+// doesn't force the admin back through a full OAuth login just to retry it.
+// It returns true if it fully handled the request (wrote either a success or
+// an error response); false means sap has no usable session for this org and
+// the caller should fall back to starting a fresh OAuth flow.
+func (s *fruitgangServer) tryReconnectWithExistingSession(ctx context.Context, w http.ResponseWriter, did syntax.DID) bool {
+	client, err := s.sap.GetClient(ctx, did)
+	if err != nil {
+		return false
+	}
+
+	spaceURI, err := s.connectOrgSpace(ctx, client, did)
+	if err != nil {
+		slog.WarnContext(ctx, "retry with existing session failed, falling back to fresh oauth flow", "did", did, "err", err)
+		return false
+	}
+
+	slog.InfoContext(ctx, "org reconnected using existing session", "did", did, "space", spaceURI)
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(map[string]string{"redirect_url": s.frontendURL})
+	return true
 }
 
 func (s *fruitgangServer) handleAddOrgCORSPreflight(w http.ResponseWriter, r *http.Request) {
@@ -85,15 +120,16 @@ func (s *fruitgangServer) handleOAuthCallback(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	spaceURI, err := s.ensureSpace(r.Context(), sessionData.AccountDID, sessionData.SessionID)
+	client, err := s.oauthApp.GetClient(r.Context(), sessionData.AccountDID, sessionData.SessionID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "ensure space failed", "did", sessionData.AccountDID, "err", err)
-		http.Error(w, fmt.Sprintf("ensure space: %s", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("get oauth client: %s", err), http.StatusInternalServerError)
 		return
 	}
 
-	if err := s.store.SetDefaultSpace(sessionData.AccountDID.String(), spaceURI); err != nil {
-		http.Error(w, fmt.Sprintf("save space: %s", err), http.StatusInternalServerError)
+	spaceURI, err := s.connectOrgSpace(r.Context(), client, sessionData.AccountDID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "connect org space failed", "did", sessionData.AccountDID, "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -101,14 +137,25 @@ func (s *fruitgangServer) handleOAuthCallback(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, s.frontendURL, http.StatusSeeOther)
 }
 
-// ensureSpace creates the fruitgang community space for the org (or finds the existing one),
-// then grants write access to all current org members.
-func (s *fruitgangServer) ensureSpace(ctx context.Context, did syntax.DID, sessionID string) (string, error) {
-	client, err := s.oauthApp.GetClient(ctx, did, sessionID)
+// connectOrgSpace creates (or finds) the org's fruitgang community space,
+// grants member access, and persists it as the org's default space -- the
+// flag the frontend checks to know the org is connected.
+func (s *fruitgangServer) connectOrgSpace(ctx context.Context, client *http.Client, did syntax.DID) (string, error) {
+	spaceURI, err := s.ensureSpace(ctx, client, did)
 	if err != nil {
-		return "", fmt.Errorf("get oauth client: %w", err)
+		return "", fmt.Errorf("ensure space: %w", err)
 	}
 
+	if err := s.store.SetDefaultSpace(did.String(), spaceURI); err != nil {
+		return "", fmt.Errorf("save space: %w", err)
+	}
+
+	return spaceURI, nil
+}
+
+// ensureSpace creates the fruitgang community space for the org (or finds the existing one),
+// then grants write access to all current org members.
+func (s *fruitgangServer) ensureSpace(ctx context.Context, client *http.Client, did syntax.DID) (string, error) {
 	input := habitatapi.NetworkHabitatSpaceCreateSpaceInput{
 		Type: "network.habitat.group",
 		Skey: "fruitgang",

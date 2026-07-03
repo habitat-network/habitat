@@ -63,13 +63,6 @@ function MembersPage() {
       <h2 style={{ fontFamily: "var(--font-display)", fontSize: "2rem", color: "var(--text)", marginBottom: "0.5rem" }}>
         the gang 🍉
       </h2>
-      <p style={{ color: "var(--muted)", fontSize: "0.95rem", lineHeight: 1.7, marginBottom: "1.75rem", maxWidth: "560px" }}>
-        This is a community for fruit lovers! Whether you're a devoted follower of the <em>Fructus</em> or a sworn
-        defender of the humble <em>Bacas</em>, you belong here. We celebrate all fruit — the noble <em>Pomum</em>,
-        the wild <em>Frux</em>, and everything in between. Pick your favorite, log your snacks, and chat with
-        fellow fruit enthusiasts. No citrus left behind. 🍊🍋🍇
-      </p>
-
       {!hasMember && (
         <div style={{
           background: "var(--surface)",
@@ -121,8 +114,9 @@ function MembersPage() {
       ) : (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-          gap: "1rem",
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          justifyItems: "center",
+          gap: "1.5rem",
         }}>
           {members.map((m) => <MemberCard key={m.uri} member={m} />)}
         </div>
@@ -141,7 +135,9 @@ function MemberCard({ member }: { member: MemberRecord }) {
       background: "var(--coconut)",
       border: `4px solid ${accentColor}`,
       borderRadius: "50%",
-      aspectRatio: "1 / 1",
+      width: "180px",
+      height: "180px",
+      flexShrink: 0,
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -149,12 +145,21 @@ function MemberCard({ member }: { member: MemberRecord }) {
       padding: "1.25rem",
       gap: "0.3rem",
       textAlign: "center",
+      overflow: "hidden",
     }}>
       <div style={{ fontWeight: 700, color: "var(--text)", fontSize: "0.95rem" }}>
         {member.displayName}{fruit ? ` ${fruit.emoji}` : ""}
       </div>
       {member.funFact && (
-        <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--muted)", fontStyle: "italic", lineHeight: 1.4 }}>
+        <p style={{
+          margin: 0,
+          fontSize: "0.78rem",
+          color: "var(--muted)",
+          fontStyle: "italic",
+          lineHeight: 1.4,
+          maxHeight: "3.9em",
+          overflowY: "auto",
+        }}>
           fun fact: {member.funFact}
         </p>
       )}

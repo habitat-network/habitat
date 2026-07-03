@@ -10,6 +10,6 @@ tasks:
       HOME_PORT: '2600'
       HOME_DOMAIN: 'home.local.habitat.network'
       HOME_DB: 'sqlite://home.db'
-      HOME_ORG_HANDLE: 'acmecorp.pear.local.habitat.network'
+      HOME_ORG_HANDLE: 'fruity.pear.local.habitat.network'
       HOME_SECRET: 'z42tt1ZWxkfKn5ujwLsELfY7191h4q6UCFjeRGf6tKXaMCnX'
       HOME_LOG_LEVEL: 'info'
