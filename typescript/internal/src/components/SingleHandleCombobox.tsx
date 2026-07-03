@@ -45,9 +45,9 @@ export const SingleHandleCombobox = ({
       open={open}
       onOpenChange={setOpen}
       onValueChange={(actor: Actor | null) => {
-        if (actor?.handle) {
-          onValueChange(actor.handle);
-          setSearchValue(actor.handle);
+        if (actor?.did) {
+          onValueChange(actor.did);
+          setSearchValue(actor.handle ?? actor.did);
           setOpen(false);
         }
       }}

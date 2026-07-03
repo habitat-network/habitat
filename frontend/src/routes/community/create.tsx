@@ -125,13 +125,14 @@ function CreateCommunityPage() {
         login_method: values.login_method,
         login_id: loginId || undefined,
       };
-      await procedure("network.habitat.org.create", body, {
-        unauthenticated: true,
-        domain: targetDomain,
-      });
+      const { admin_handle } = await procedure(
+        "network.habitat.org.create",
+        body,
+        { unauthenticated: true, domain: targetDomain },
+      );
       await navigate({
         to: "/oauth-login",
-        search: { handle: "admin" },
+        search: { handle: admin_handle },
       });
     } catch (err) {
       setError("root", {
@@ -209,7 +210,7 @@ function CreateCommunityPage() {
               </Field>
               {loginMethod === "atproto" ? (
                 <Field>
-                  <FieldLabel>AT Protocol Handle</FieldLabel>
+                  <FieldLabel>Your AT Protocol Handle</FieldLabel>
                   <Controller
                     control={control}
                     name="login_id"
@@ -225,7 +226,7 @@ function CreateCommunityPage() {
                 </Field>
               ) : (
                 <Field>
-                  <FieldLabel>Google Account</FieldLabel>
+                  <FieldLabel>Your Google Account</FieldLabel>
                   <Input value={contactEmail} disabled />
                 </Field>
               )}
