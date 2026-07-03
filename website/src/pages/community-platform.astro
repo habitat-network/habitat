@@ -47,7 +47,6 @@ const communityCreateUrl = import.meta.env.DEV
 
     <!-- SECTION: safe data -->
     <section class="section section-safe-data">
-      <img class="section-image section-image-left reveal" style="--d: 200ms" src="/group-asset.png" alt="" />
       <div class="section-inner">
         <div class="section-text section-text-right">
           <h2 class="reveal">We build the stuff an LLM probably shouldn't.</h2>
@@ -56,6 +55,7 @@ const communityCreateUrl = import.meta.env.DEV
           </p>
         </div>
       </div>
+      <img class="section-image section-image-left reveal" style="--d: 200ms" src="/group-asset.png" alt="" />
     </section>
 
       <!-- SECTION: open protocols -->
@@ -80,7 +80,7 @@ const communityCreateUrl = import.meta.env.DEV
       <div class="section-inner center">
         <h2 class="reveal">Give your community its own habitat.</h2>
         <div class="reveal" style="--d: 100ms; margin-bottom: 32px;">
-          <a class="cta-button cta-green" href={communityCreateUrl}>Get started now →</a>
+          <a class="cta-button cta-green" href={communityCreateUrl} style="min-width:420px">Get started now →</a>
         </div>
         <form class="waitlist center reveal" style="--d: 180ms" novalidate>
           <label class="visually-hidden" for="email-cp">your email</label>
@@ -121,7 +121,7 @@ const communityCreateUrl = import.meta.env.DEV
     overflow: hidden;
   }
   .landing.cp .section-community-apps .section-text {
-    max-width: 480px;
+    max-width: 580px;
   }
   .landing.cp .section-text-right {
     max-width: 480px;
@@ -134,12 +134,17 @@ const communityCreateUrl = import.meta.env.DEV
     right: 0;
     transform: translateY(-50%);
     width: 42%;
-    max-width: 640px;
+    max-width: 520px;
     height: auto;
   }
   .landing.cp .section-image-left {
     right: auto;
     left: 0;
+  }
+
+  .landing.cp .section-community-apps,
+  .landing.cp .section-safe-data {
+    border-bottom: none;
   }
 
   .landing.cp .section-with-buttons {
@@ -175,9 +180,6 @@ const communityCreateUrl = import.meta.env.DEV
       flex: 1;
       min-width: 0;
     }
-    .waitlist button {
-      white-space: normal;
-    }
     .landing.cp .section-community-apps,
     .landing.cp .section-safe-data {
       overflow: visible;
@@ -195,6 +197,12 @@ const communityCreateUrl = import.meta.env.DEV
       max-width: none;
       margin-top: 32px;
       margin-bottom: 32px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .waitlist button {
+      white-space: normal;
     }
   }
 
