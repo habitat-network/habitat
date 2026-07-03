@@ -11,7 +11,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { procedure, query, SingleHandleCombobox } from "internal";
 import { NetworkHabitatOrgCreate } from "api";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { slugifyHandle } from "@/lib/slugifyHandle";
 
 export const Route = createFileRoute("/community/create")({
@@ -147,7 +147,7 @@ function CreateCommunityPage() {
       <form onSubmit={handleSubmit(onSubmit)}>
         <fieldset disabled={isSubmitting} className="flex flex-col gap-4">
           {step === 1 ? (
-            <>
+            <Fragment key="step-1">
               <Field>
                 <FieldLabel>Community Name</FieldLabel>
                 <Input
@@ -182,9 +182,9 @@ function CreateCommunityPage() {
               <Button type="button" onClick={onContinue}>
                 Continue
               </Button>
-            </>
+            </Fragment>
           ) : (
-            <>
+            <Fragment key="step-2">
               <Field>
                 <FieldLabel>How do you want members to sign in?</FieldLabel>
                 <Controller
@@ -273,7 +273,7 @@ function CreateCommunityPage() {
                   {isSubmitting ? "Creating..." : "Create Community"}
                 </Button>
               </div>
-            </>
+            </Fragment>
           )}
           <FieldError errors={[errors.root]} />
         </fieldset>
