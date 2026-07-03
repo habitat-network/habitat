@@ -609,6 +609,48 @@ func TestCheck_SpaceUsersetCrossSpaceInheritance(t *testing.T) {
 	require.True(t, ok, "writer of B should imply reader of B")
 }
 
+func TestOrgObjectKey(t *testing.T) {
+	did := syntax.DID("did:plc:org1")
+	key := OrgObjectKey(did)
+	require.Equal(t, "organization:did%3Aplc%3Aorg1", key)
+}
+
+func TestOrgMemberUsersetString(t *testing.T) {
+	did := syntax.DID("did:plc:myorg")
+	us := OrgMemberUsersetString(did)
+	require.Equal(t, "organization:did%3Aplc%3Amyorg#member", us)
+}
+
+func TestOrgMemberContextualTuple_ProducesCorrectTuple(t *testing.T) {
+	org := syntax.DID("did:plc:example")
+	tup := OrgMemberContextualTuple(org)
+	require.Equal(t, "organization:did%3Aplc%3Aexample#member", tup.User)
+	require.Equal(t, RelationSpaceReader, tup.Relation)
+	require.Contains(t, tup.Object, "space:")
+	require.Contains(t, tup.Object, "network.habitat.organization")
+}
+
+func TestSpaceUsersetString(t *testing.T) {
+	uri := habitat_syntax.SpaceURI("ats://did:plc:abc/network.habitat.space/my-space")
+	result := SpaceUsersetString(uri, RelationSpaceReader)
+	require.Equal(
+		t,
+		"space:ats%3A%2F%2Fdid%3Aplc%3Aabc%2Fnetwork.habitat.space%2Fmy-space#can_read",
+		result,
+	)
+}
+
+func TestRead_ReturnsEmptyForNoMatch(t *testing.T) {
+	ctx := context.Background()
+	f := newTestSQLite(t)
+
+	require.NoError(t, f.Write(ctx, "user:alice", RelationSpaceReader, "space:org/a"))
+
+	tuples, err := f.Read(ctx, Tuple{Object: "space:nonexistent"})
+	require.NoError(t, err)
+	require.Empty(t, tuples)
+}
+
 func TestCheck_NestedGroupSpaces(t *testing.T) {
 	ctx := context.Background()
 	f := newTestSQLite(t)

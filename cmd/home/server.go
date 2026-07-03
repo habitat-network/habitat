@@ -22,6 +22,7 @@ type Server struct {
 	domain      string
 	orgHandle   string
 	groups      *GroupService
+	collections *CollectionService
 	oauthApp    *oauthclient.App
 	sap         *sap.Sap
 	store       *Store
@@ -31,6 +32,7 @@ type Server struct {
 func NewServer(
 	domain, orgHandle string,
 	groups *GroupService,
+	collections *CollectionService,
 	oauthApp *oauthclient.App,
 	s *sap.Sap,
 	store *Store,
@@ -40,6 +42,7 @@ func NewServer(
 		domain:      domain,
 		orgHandle:   orgHandle,
 		groups:      groups,
+		collections: collections,
 		oauthApp:    oauthApp,
 		sap:         s,
 		store:       store,
@@ -59,6 +62,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /xrpc/network.habitat.groups.updateGroup", s.handleUpdateGroup)
 	mux.HandleFunc("POST /xrpc/network.habitat.groups.addMember", s.handleAddMember)
 	mux.HandleFunc("POST /xrpc/network.habitat.groups.deleteMember", s.handleDeleteMember)
+
+	mux.HandleFunc("GET /xrpc/network.habitat.collections.listCollections", s.handleListCollections)
+	mux.HandleFunc("GET /xrpc/network.habitat.collections.listRecords", s.handleListRecords)
 }
 
 // handleDIDDoc serves the did:web document. pear resolves did:web:<domain> here
@@ -205,6 +211,37 @@ func (s *Server) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, r, map[string]any{})
+}
+
+func (s *Server) handleListCollections(w http.ResponseWriter, r *http.Request) {
+	caller, ok := s.authCaller(w, r)
+	if !ok {
+		return
+	}
+	out, err := s.collections.ListCollections(r.Context(), caller)
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, out)
+}
+
+func (s *Server) handleListRecords(w http.ResponseWriter, r *http.Request) {
+	caller, ok := s.authCaller(w, r)
+	if !ok {
+		return
+	}
+	collection := r.URL.Query().Get("collection")
+	if collection == "" {
+		writeXRPCError(w, http.StatusBadRequest, "InvalidRequest", "collection is required")
+		return
+	}
+	out, err := s.collections.ListRecords(r.Context(), caller, collection)
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+	writeJSON(w, r, out)
 }
 
 // authCaller verifies the forwarded service-auth JWT pear signed on the

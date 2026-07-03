@@ -34,6 +34,9 @@ import * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 import * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 import * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 import * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
+import * as NetworkHabitatCollectionsDefs from './types/network/habitat/collections/defs.js'
+import * as NetworkHabitatCollectionsListCollections from './types/network/habitat/collections/listCollections.js'
+import * as NetworkHabitatCollectionsListRecords from './types/network/habitat/collections/listRecords.js'
 import * as NetworkHabitatDocsCrdt from './types/network/habitat/docs/crdt.js'
 import * as NetworkHabitatDocsCreateDoc from './types/network/habitat/docs/createDoc.js'
 import * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDocs.js'
@@ -122,6 +125,9 @@ export * as NetworkHabitatCliqueCreateClique from './types/network/habitat/cliqu
 export * as NetworkHabitatCliqueGetMembers from './types/network/habitat/clique/getMembers.js'
 export * as NetworkHabitatCliqueIsMember from './types/network/habitat/clique/isMember.js'
 export * as NetworkHabitatCliqueRemoveMembers from './types/network/habitat/clique/removeMembers.js'
+export * as NetworkHabitatCollectionsDefs from './types/network/habitat/collections/defs.js'
+export * as NetworkHabitatCollectionsListCollections from './types/network/habitat/collections/listCollections.js'
+export * as NetworkHabitatCollectionsListRecords from './types/network/habitat/collections/listRecords.js'
 export * as NetworkHabitatDocsCrdt from './types/network/habitat/docs/crdt.js'
 export * as NetworkHabitatDocsCreateDoc from './types/network/habitat/docs/createDoc.js'
 export * as NetworkHabitatDocsListDocs from './types/network/habitat/docs/listDocs.js'
@@ -652,6 +658,7 @@ export class NetworkHabitatNS {
   photo: NetworkHabitatPhotoRecord
   admin: NetworkHabitatAdminNS
   clique: NetworkHabitatCliqueNS
+  collections: NetworkHabitatCollectionsNS
   docs: NetworkHabitatDocsNS
   group: NetworkHabitatGroupNS
   groups: NetworkHabitatGroupsNS
@@ -669,6 +676,7 @@ export class NetworkHabitatNS {
     this._client = client
     this.admin = new NetworkHabitatAdminNS(client)
     this.clique = new NetworkHabitatCliqueNS(client)
+    this.collections = new NetworkHabitatCollectionsNS(client)
     this.docs = new NetworkHabitatDocsNS(client)
     this.group = new NetworkHabitatGroupNS(client)
     this.groups = new NetworkHabitatGroupsNS(client)
@@ -804,6 +812,38 @@ export class NetworkHabitatCliqueNS {
       'network.habitat.clique.removeMembers',
       opts?.qp,
       data,
+      opts,
+    )
+  }
+}
+
+export class NetworkHabitatCollectionsNS {
+  _client: XrpcClient
+
+  constructor(client: XrpcClient) {
+    this._client = client
+  }
+
+  listCollections(
+    params?: NetworkHabitatCollectionsListCollections.QueryParams,
+    opts?: NetworkHabitatCollectionsListCollections.CallOptions,
+  ): Promise<NetworkHabitatCollectionsListCollections.Response> {
+    return this._client.call(
+      'network.habitat.collections.listCollections',
+      params,
+      undefined,
+      opts,
+    )
+  }
+
+  listRecords(
+    params?: NetworkHabitatCollectionsListRecords.QueryParams,
+    opts?: NetworkHabitatCollectionsListRecords.CallOptions,
+  ): Promise<NetworkHabitatCollectionsListRecords.Response> {
+    return this._client.call(
+      'network.habitat.collections.listRecords',
+      params,
+      undefined,
       opts,
     )
   }

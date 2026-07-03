@@ -248,11 +248,13 @@ func (s *Store) listTuples(
 	return views, nil
 }
 
-// Check reports whether did holds role on space, resolving usersets and the
-// built-in role implications.
+// Check reports whether subject holds role on space, resolving usersets and the
+// built-in role implications. The subject is either an individual user or a
+// space-role userset (e.g. spaceA's writers).
 func (s *Store) Check(
 	ctx context.Context,
-	did syntax.DID,
+	org syntax.DID,
+	subject Subject,
 	role Role,
 	space habitat_syntax.SpaceURI,
 ) (bool, error) {
@@ -260,12 +262,17 @@ func (s *Store) Check(
 	if err != nil {
 		return false, err
 	}
+	user, err := subject.fgaUserString()
+	if err != nil {
+		return false, err
+	}
 	return s.fga.Check(
 		ctx,
-		fgastore.MemberUserString(did),
+		user,
 		fgaRelation,
 		fgastore.SpaceObjectKey(space),
 		ownerContextualTuple(space),
+		fgastore.OrgMemberContextualTuple(org),
 	)
 }
 
@@ -273,6 +280,7 @@ func (s *Store) Check(
 // usersets and role implications.
 func (s *Store) ListSubjects(
 	ctx context.Context,
+	org syntax.DID,
 	space habitat_syntax.SpaceURI,
 	role Role,
 ) ([]syntax.DID, error) {
@@ -285,6 +293,7 @@ func (s *Store) ListSubjects(
 		fgastore.SpaceObjectKey(space),
 		fgaRelation,
 		ownerContextualTuple(space),
+		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err
@@ -304,6 +313,7 @@ func (s *Store) ListSubjects(
 // and role implications.
 func (s *Store) ListObjects(
 	ctx context.Context,
+	org syntax.DID,
 	did syntax.DID,
 	role Role,
 ) ([]habitat_syntax.SpaceURI, error) {
@@ -316,6 +326,7 @@ func (s *Store) ListObjects(
 		fgastore.MemberUserString(did),
 		fgaRelation,
 		fgastore.TypeSpace,
+		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err
@@ -334,7 +345,7 @@ func (s *Store) ListObjects(
 // parseTupleValue decodes the subject/relation/object from a stored tuple
 // record value.
 func parseTupleValue(value map[string]any) (Subject, Role, habitat_syntax.SpaceURI, error) {
-	subject, err := ParseSubject(value["subject"])
+	subject, err := parseSubjectInput(value["subject"])
 	if err != nil {
 		return nil, "", "", err
 	}

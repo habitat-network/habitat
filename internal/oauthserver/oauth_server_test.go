@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
@@ -450,7 +451,9 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		dummyDir,
 	)
 	require.NoError(t, err, "failed to setup password provider")
-	orgStore, err := org.NewStore(hiveDB, h, dummyDir, pearDomain, passwordProvider)
+	fgaStore, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err, "failed to setup fga store")
+	orgStore, err := org.NewStore(hiveDB, h, dummyDir, pearDomain, passwordProvider, fgaStore)
 	require.NoError(t, err, "failed to setup org store")
 
 	_, member, err := orgStore.CreateOrg(

@@ -53,6 +53,8 @@ import type {
   NetworkHabitatGroupsCreateGroup,
   NetworkHabitatGroupsUpdateGroup,
   NetworkHabitatGroupsAddMember,
+  NetworkHabitatCollectionsListCollections,
+  NetworkHabitatCollectionsListRecords,
 } from "api";
 import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
@@ -91,6 +93,16 @@ type QueryEndpoints = {
   "network.habitat.groups.getGroup": Query<
     NetworkHabitatGroupsGetGroup.QueryParams,
     NetworkHabitatGroupsGetGroup.OutputSchema
+  >;
+  // Implemented by the home server; reached via pear service proxying when
+  // called with an Atproto-Proxy header.
+  "network.habitat.collections.listCollections": Query<
+    NetworkHabitatCollectionsListCollections.QueryParams,
+    NetworkHabitatCollectionsListCollections.OutputSchema
+  >;
+  "network.habitat.collections.listRecords": Query<
+    NetworkHabitatCollectionsListRecords.QueryParams,
+    NetworkHabitatCollectionsListRecords.OutputSchema
   >;
   "com.atproto.repo.listRecords": Query<
     ComAtprotoRepoListRecords.QueryParams,

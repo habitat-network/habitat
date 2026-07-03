@@ -17,29 +17,31 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
           <li>
             <Link to="/">🌱 habitat</Link>
           </li>
-          {org && (
+          {profile && (
             <>
-              <li>
-                <Button variant="link" render={<Link to="/org" />}>
-                  {org.name}
-                </Button>
-              </li>
+              {org && (
+                <li>
+                  <Button variant="link" render={<Link to="/org" />}>
+                    {org.name}
+                  </Button>
+                </li>
+              )}
               <li>
                 <Button variant="link" render={<Link to="/spaces" />}>
                   Spaces
                 </Button>
               </li>
+              <li>
+                <Button variant="link" render={<Link to="/groups" />}>
+                  Groups
+                </Button>
+              </li>
+              <li>
+                <Button variant="link" render={<Link to="/collections" />}>
+                  Collections
+                </Button>
+              </li>
             </>
-          )}
-          {profile && (
-            <li>
-              <Link
-                to="/groups"
-                className="text-gray-500 hover:text-black transition-colors"
-              >
-                Groups
-              </Link>
-            </li>
           )}
         </ul>
         {profile ? (

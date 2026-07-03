@@ -10,26 +10,17 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util.js'
+import type * as NetworkHabitatCollectionsDefs from './defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.relationship.check'
+const id = 'network.habitat.collections.listCollections'
 
-export type QueryParams = {
-  /** The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required. */
-  subject: string
-  /** The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID. */
-  subjectRole?: 'owner' | 'manager' | 'writer' | 'reader'
-  /** The role to check for on the space. */
-  relation: 'owner' | 'manager' | 'writer' | 'reader'
-  /** URI of the space. */
-  space: string
-}
+export type QueryParams = {}
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  /** Whether the subject holds the role on the space. */
-  allowed: boolean
+  collections: NetworkHabitatCollectionsDefs.CollectionView[]
 }
 
 export interface CallOptions {
