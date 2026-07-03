@@ -16,6 +16,8 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -34,6 +36,7 @@ type resyncer struct {
 	resyncNotif *utils.PollNotifier
 	outboxNotif *utils.PollNotifier
 	jobs        chan resyncJob
+	metrics     *metrics
 }
 
 func newResyncer(
@@ -43,6 +46,7 @@ func newResyncer(
 	resyncNotif *utils.PollNotifier,
 	outboxNotif *utils.PollNotifier,
 	parallelism int,
+	metrics *metrics,
 ) *resyncer {
 	if parallelism <= 0 {
 		parallelism = 5
@@ -55,6 +59,7 @@ func newResyncer(
 		resyncNotif: resyncNotif,
 		outboxNotif: outboxNotif,
 		jobs:        make(chan resyncJob),
+		metrics:     metrics,
 	}
 }
 
@@ -85,8 +90,16 @@ func (r *resyncer) runDispatcher(ctx context.Context) {
 }
 
 func (r *resyncer) dispatch(ctx context.Context) {
+	ctx, span := r.metrics.tracer.Start(ctx, "sap.resyncer.dispatch")
+	start := time.Now()
+	defer func() {
+		r.metrics.dispatchFinished(ctx, start)
+		span.End()
+	}()
+
 	slog.InfoContext(ctx, "resync dispatch called")
 	now := time.Now().Unix()
+	totalClaimed := 0
 	for {
 		rows, err := r.db.WithContext(ctx).Raw(`
 			UPDATE managed_repos SET state = 'resyncing'
@@ -106,6 +119,7 @@ func (r *resyncer) dispatch(ctx context.Context) {
 		`, now, 100).Rows()
 		if err != nil {
 			slog.ErrorContext(ctx, "claim batch", "err", err)
+			span.RecordError(err)
 			return
 		}
 		var jobs []resyncJob
@@ -114,6 +128,7 @@ func (r *resyncer) dispatch(ctx context.Context) {
 			if err := rows.Scan(&j.Space, &j.DID); err != nil {
 				_ = rows.Close()
 				slog.ErrorContext(ctx, "scan job", "err", err)
+				span.RecordError(err)
 				return
 			}
 			jobs = append(jobs, j)
@@ -121,19 +136,24 @@ func (r *resyncer) dispatch(ctx context.Context) {
 		_ = rows.Close()
 		if err := rows.Err(); err != nil {
 			slog.ErrorContext(ctx, "rows err", "err", err)
+			span.RecordError(err)
 			return
 		}
 		if len(jobs) == 0 {
+			span.SetAttributes(attribute.Int("sap.jobs_claimed", totalClaimed))
 			return
 		}
+		totalClaimed += len(jobs)
 		for _, j := range jobs {
 			select {
 			case r.jobs <- j:
 			case <-ctx.Done():
+				span.SetAttributes(attribute.Int("sap.jobs_claimed", totalClaimed))
 				return
 			}
 		}
 		if len(jobs) < 100 {
+			span.SetAttributes(attribute.Int("sap.jobs_claimed", totalClaimed))
 			return
 		}
 	}
@@ -147,19 +167,39 @@ func (r *resyncer) runWorker(ctx context.Context, workerID int) {
 			return
 		case job := <-r.jobs:
 			logger.InfoContext(ctx, "resync repo", "space", job.Space, "repo", job.DID)
-			if err := r.syncRepo(ctx, job.Space, job.DID); err != nil {
-				logger.ErrorContext(
-					ctx,
-					"resync failed",
-					"space",
-					job.Space,
-					"repo",
-					job.DID,
-					"err",
-					err,
-				)
-			}
+			r.runJob(ctx, logger, job)
 		}
+	}
+}
+
+func (r *resyncer) runJob(ctx context.Context, logger *slog.Logger, job resyncJob) {
+	ctx, span := r.metrics.tracer.Start(ctx, "sap.resyncer.sync_repo",
+		trace.WithAttributes(
+			attribute.String("sap.space", job.Space.String()),
+			attribute.String("sap.repo", job.DID.String()),
+		))
+	start := time.Now()
+	r.metrics.resyncWorkerBusy(ctx)
+	status := "success"
+	defer func() {
+		r.metrics.resyncWorkerIdle(ctx)
+		r.metrics.resyncJobFinished(ctx, start, status)
+		span.End()
+	}()
+
+	if err := r.syncRepo(ctx, job.Space, job.DID); err != nil {
+		status = "error"
+		span.RecordError(err)
+		logger.ErrorContext(
+			ctx,
+			"resync failed",
+			"space",
+			job.Space,
+			"repo",
+			job.DID,
+			"err",
+			err,
+		)
 	}
 }
 

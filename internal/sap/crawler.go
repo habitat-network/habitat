@@ -7,12 +7,15 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -23,6 +26,7 @@ type crawler struct {
 	resyncBuf   *resyncBuffer
 	sub         *subscriber
 	resyncNotif *utils.PollNotifier
+	metrics     *metrics
 }
 
 func newCrawler(
@@ -31,6 +35,7 @@ func newCrawler(
 	resyncBuf *resyncBuffer,
 	sub *subscriber,
 	resyncNotif *utils.PollNotifier,
+	metrics *metrics,
 ) *crawler {
 	return &crawler{
 		db:          db,
@@ -38,35 +43,53 @@ func newCrawler(
 		resyncBuf:   resyncBuf,
 		sub:         sub,
 		resyncNotif: resyncNotif,
+		metrics:     metrics,
 	}
 }
 
 func (c *crawler) resumeIncompleteCrawls(ctx context.Context) error {
+	ctx, span := c.metrics.tracer.Start(ctx, "sap.crawler.resume_incomplete_crawls")
+	defer span.End()
+
 	var orgs []managedOrg
 	if err := c.db.WithContext(ctx).
 		Where("crawl_state = ?", crawlStateRunning).
 		Or("crawl_state IS NULL").
 		Find(&orgs).Error; err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("find incomplete crawls: %w", err)
 	}
+	span.SetAttributes(attribute.Int("sap.crawls_resumed", len(orgs)))
 	for i := range orgs {
-		go c.crawlOrg(ctx, &orgs[i])
+		go c.crawlOrg(inheritCancelDetachSpan(ctx), &orgs[i])
 	}
 	return nil
 }
 
 func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
+	ctx, span := c.metrics.tracer.Start(ctx, "sap.crawler.crawl_org",
+		trace.WithAttributes(attribute.String("sap.org", org.DID.String())))
+	start := time.Now()
+	c.metrics.crawlStarted(ctx)
+	status := "error"
+	defer func() {
+		c.metrics.crawlFinished(ctx, start, status)
+		span.End()
+	}()
+
 	if err := c.db.WithContext(ctx).
 		Model(&managedOrg{}).
 		Where("did = ?", org.DID).
 		Update("crawl_state", crawlStateRunning).Error; err != nil {
 		slog.ErrorContext(ctx, "set crawl running", "org", org.DID, "err", err)
+		span.RecordError(err)
 		return
 	}
 
 	crawlErr := c.resumeCrawl(ctx, org)
 
 	if crawlErr != nil {
+		span.RecordError(crawlErr)
 		if err := c.db.WithContext(ctx).
 			Model(&managedOrg{}).
 			Where("did = ?", org.DID).
@@ -91,11 +114,14 @@ func (c *crawler) crawlOrg(ctx context.Context, org *managedOrg) {
 		Where("did = ?", org.DID).
 		Update("crawl_state", crawlStateComplete).Error; err != nil {
 		slog.ErrorContext(ctx, "set crawl complete", "org", org.DID, "err", err)
+		span.RecordError(err)
 		return
 	}
+	status = "success"
 
 	if err := c.resyncBuf.drainOrg(ctx, org.DID); err != nil {
 		slog.ErrorContext(ctx, "drain org buffer", "org", org.DID, "err", err)
+		span.RecordError(err)
 	}
 	slog.InfoContext(ctx, "crawler finished", "org", org.DID)
 }
