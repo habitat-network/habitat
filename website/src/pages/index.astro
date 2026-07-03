@@ -17,20 +17,20 @@ import "../styles/landing.css";
         <div class="hero-copy">
           <h1 class="display reveal">Own your data.</h1>
           <p class="hero-sub reveal" style="--d: 120ms">
-            Habitat is a unified data layer for organizations, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and incompatible permissions across providers a thing of the past. Give your agents the context they actually need and the guardrails to ship safely.
+            Habitat is an open-source data ownership layer for organizations, so your data works better for you. Make vendor lock-in, clunky cross-app workflows, and incompatible permissions a thing of the past. Learn how to take back control over your data now.
           </p>
 <!-- Calendly link widget begin -->
 <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
 <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
 <div class="reveal" style="--d: 180ms; margin-bottom: 32px;">
-  <a href="" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/arushi-habitat'});return false;" style="font-size: 1.125rem;">Talk to us</a>
+  <a class="cta-button cta-green hero-talk-to-us" href="" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/arushi-habitat'});return false;">Talk to us</a>
 </div>
 <!-- Calendly link widget end -->
 
           <form class="waitlist reveal" style="--d: 220ms" novalidate>
             <label class="visually-hidden" for="email-hero">your email</label>
             <input id="email-hero" type="text" name="email" placeholder="your email" required />
-            <button type="submit">Or join the waitlist<span aria-hidden="true">→</span></button>
+            <button type="submit">Or join the general release waitlist<span aria-hidden="true">→</span></button>
           </form>
           <p class="waitlist-status reveal" data-status="idle" aria-live="polite"></p>
         </div>
@@ -64,7 +64,7 @@ import "../styles/landing.css";
     <!-- SECTION 1: THE SHIFT -->
     <section class="section shift">
       <div class="section-inner">
-        <h2 class="reveal">Your data should belong to you.</h2>
+        <h2 class="reveal">We're building your data's forever home.</h2>
         <p class="lead reveal" style="--d: 100ms">
           Today, your data belongs to SaaS providers. Each provider is siloed and limits access through their APIs, making data less useful and integrated agentic workflows harder. Habitat changes that.
         </p>
@@ -411,22 +411,14 @@ import "../styles/landing.css";
     align-items: center;
   }
 
-  .talk-btn {
-    display: inline-block;
-    margin-bottom: 32px;
-    padding: 12px 28px;
-    border-radius: 999px;
-    background: var(--black);
-    color: var(--white);
-    font: inherit;
-    font-size: 1rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: background 160ms ease;
+  .hero-talk-to-us {
+    display: flex;
+    width: 100%;
+    min-width: 0;
   }
-  .talk-btn:hover {
-    background: var(--green);
-    border-color: var(--green);
+
+  .hero-copy .waitlist {
+    max-width: none;
   }
 
   .waitlist {
