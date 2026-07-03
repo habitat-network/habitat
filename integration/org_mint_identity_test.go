@@ -13,8 +13,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
-	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -35,7 +35,9 @@ func TestMintThenLookup(t *testing.T) {
 
 	// Create the org store and seed an org
 	dir := identity.DefaultDirectory()
-	orgStore, err := org.NewStore(db, h, dir, "pear.example.com", nil)
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	orgStore, err := org.NewStore(db, h, dir, "pear.example.com", nil, fga)
 	require.NoError(t, err)
 
 	orgIdIdent, _, err := orgStore.CreateOrg(

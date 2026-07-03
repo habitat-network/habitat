@@ -13,8 +13,10 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -75,6 +77,7 @@ type storeImpl struct {
 	pearDomain       string
 	everyone         core.Org
 	passwordProvider *login.PasswordLoginProvider
+	fga              fgastore.Store
 }
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
@@ -84,6 +87,7 @@ func NewStore(
 	dir identity.Directory,
 	pearDomain string,
 	passwordProvider *login.PasswordLoginProvider,
+	fga fgastore.Store,
 ) (Store, error) {
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
@@ -95,6 +99,7 @@ func NewStore(
 		pearDomain:       pearDomain,
 		everyone:         NewEveryoneOrg(),
 		passwordProvider: passwordProvider,
+		fga:              fga,
 	}, nil
 }
 
@@ -105,6 +110,7 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 		handleSubdomain: org.HandleSubdomain,
 		name:            org.Name,
 		method:          org.LoginMethod,
+		fga:             s.fga,
 	}, nil
 }
 
@@ -206,6 +212,16 @@ func (s *storeImpl) CreateOrg(
 		case "atproto", "google":
 			memberLoginID = loginID
 		}
+
+		if err := s.fga.Write(
+			ctx,
+			fgastore.MemberUserString(id.DID),
+			fgastore.RelationAdmin,
+			fgastore.OrgObjectKey(orgId.DID),
+		); err != nil {
+			return fmt.Errorf("failed to write fga: %w", err)
+		}
+
 		return tx.Create(&member{
 			OrgID:     mintedOrgId.DID,
 			Did:       id.DID,
@@ -412,6 +428,15 @@ func (s *storeImpl) CreateNewMemberIdentity(
 			}
 		default:
 			memberLoginID = loginID
+		}
+
+		if err := s.fga.Write(
+			ctx,
+			fgastore.MemberUserString(id.DID),
+			fgastore.RelationMember,
+			fgastore.OrgObjectKey(orgDID),
+		); err != nil {
+			return fmt.Errorf("write fga: %w", err)
 		}
 
 		return tx.Create(&member{

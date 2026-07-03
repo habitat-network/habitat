@@ -263,6 +263,7 @@ func setupPear(
 		orgHive,
 		server.URL,
 		nil,
+		fgaStore,
 	)
 	require.NoError(t, err)
 
