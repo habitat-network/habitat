@@ -21,7 +21,7 @@ import (
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sync"
 
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -296,7 +296,7 @@ func setupPear(
 		spacesStore,
 		fgaStore,
 		oauthServer,
-		authn.NewStubAuthnFailedForTest(),
+		authntest.NewFailMethod(),
 		orgStore,
 	)
 

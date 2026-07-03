@@ -97,6 +97,7 @@ type Store interface {
 	// ListSpaces returns the spaces that `member` is a part of
 	ListSpaces(
 		ctx context.Context,
+		org syntax.DID,
 		member syntax.DID,
 		filterOwner *syntax.DID,
 		filterType *syntax.NSID,
@@ -110,8 +111,17 @@ type Store interface {
 		access SpaceAccess,
 	) error
 	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
-	GetMembers(ctx context.Context, space habitat_syntax.SpaceURI) ([]MemberInfo, error)
-	IsMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) (bool, error)
+	GetMembers(
+		ctx context.Context,
+		org syntax.DID,
+		space habitat_syntax.SpaceURI,
+	) ([]MemberInfo, error)
+	IsMember(
+		ctx context.Context,
+		org syntax.DID,
+		space habitat_syntax.SpaceURI,
+		did syntax.DID,
+	) (bool, error)
 
 	// Record operations
 	PutRecord(
@@ -246,6 +256,7 @@ func (s *store) CreateSpace(
 
 func (s *store) ListSpaces(
 	ctx context.Context,
+	org syntax.DID,
 	member syntax.DID,
 	filterOwner *syntax.DID,
 	filterType *syntax.NSID,
@@ -262,6 +273,7 @@ func (s *store) ListSpaces(
 			fgastore.MemberUserString(member),
 			"can_read",
 			"space",
+			fgastore.OrgMemberContextualTuple(org),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("list fga spaces: %w", err)
@@ -296,6 +308,7 @@ func (s *store) ListSpaces(
 			fgastore.SpaceObjectKey(uri),
 			"can_read",
 			ownerContextualTuple(uri),
+			fgastore.OrgMemberContextualTuple(org),
 		)
 		memberCount := 0
 		if err == nil {
@@ -313,6 +326,7 @@ func (s *store) ListSpaces(
 
 func (s *store) GetMembers(
 	ctx context.Context,
+	org syntax.DID,
 	uri habitat_syntax.SpaceURI,
 ) ([]MemberInfo, error) {
 	var sp space
@@ -330,6 +344,7 @@ func (s *store) GetMembers(
 		fgastore.SpaceObjectKey(uri),
 		"can_read",
 		ownerContextualTuple(uri),
+		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err
@@ -340,6 +355,7 @@ func (s *store) GetMembers(
 		fgastore.SpaceObjectKey(uri),
 		"can_write",
 		ownerContextualTuple(uri),
+		fgastore.OrgMemberContextualTuple(org),
 	)
 	if err != nil {
 		return nil, err
@@ -367,6 +383,7 @@ func (s *store) GetMembers(
 
 func (s *store) IsMember(
 	ctx context.Context,
+	org syntax.DID,
 	uri habitat_syntax.SpaceURI,
 	did syntax.DID,
 ) (bool, error) {
@@ -376,6 +393,7 @@ func (s *store) IsMember(
 		fgastore.RelationSpaceReader,
 		fgastore.SpaceObjectKey(uri),
 		ownerContextualTuple(uri),
+		fgastore.OrgMemberContextualTuple(org),
 	)
 }
 
