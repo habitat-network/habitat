@@ -56,6 +56,18 @@ func (ix *Indexer) Run(ctx context.Context) error {
 
 func (ix *Indexer) handle(ctx context.Context, msg sap.OutboxMessage) error {
 	deleted := isDeleted(msg.Value)
+
+	// Every synced record is indexed into the records table so the collections
+	// endpoints can browse the org's data by collection type, regardless of
+	// whether the collection also feeds the group index below.
+	if deleted {
+		if err := ix.store.DeleteRecord(ctx, msg.URI); err != nil {
+			return err
+		}
+	} else if err := ix.store.UpsertRecord(ctx, msg.URI); err != nil {
+		return err
+	}
+
 	switch msg.URI.Collection().String() {
 	case collectionGroupProfile:
 		if deleted {
