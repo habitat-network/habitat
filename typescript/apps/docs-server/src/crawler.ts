@@ -1,5 +1,4 @@
 import type { DerivedConfig } from "./config";
-import type { PearClient } from "./pearClient";
 import type { CrawlStore } from "./crawlStore";
 
 // A doc is represented by its rendered-markdown record (which carries the
@@ -44,10 +43,10 @@ export function parseSpaceRecordUri(uri: string): ParsedRecordUri | undefined {
 }
 
 // Crawler subscribes to sap's outbox channel over the internal websocket, acks
-// every message it receives, and persists the docs it discovers. For each doc
-// it resolves the members that may read it (relationship.listSubjects) so
-// listDocs can be filtered per-caller. It reconnects automatically; unacked
-// messages are redelivered by sap on the next connection.
+// every message it receives, and persists the docs it discovers (space URI and
+// title). Permissions are not indexed; they are resolved on demand at read
+// time. It reconnects automatically; unacked messages are redelivered by sap
+// on the next connection.
 export class Crawler {
   private stopped = false;
   // Serializes message processing so acks are sent in delivery order and the
@@ -56,7 +55,6 @@ export class Crawler {
 
   constructor(
     private config: DerivedConfig,
-    private pear: PearClient,
     private store: CrawlStore,
   ) {}
 
@@ -134,13 +132,6 @@ export class Crawler {
       docId: parsed.skey,
       title: value.title || "Untitled",
     });
-    try {
-      const readers = await this.pear.listReaders(parsed.spaceUri);
-      this.store.replaceReaders(parsed.spaceUri, readers);
-    } catch (err) {
-      // Keep any previously-stored readers; a later redelivery/update retries.
-      console.error("[crawler] listSubjects failed", parsed.spaceUri, err);
-    }
   }
 }
 

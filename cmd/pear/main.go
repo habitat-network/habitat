@@ -254,6 +254,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 		slog.Error("unable to setup org store", "err", err)
 		os.Exit(1)
 	}
+	// Backfill membership tuples for members created before memberships were
+	// mirrored into FGA; a no-op once synced.
+	if err := orgStore.SyncFGAMemberships(startupCtx); err != nil {
+		slog.Error("unable to sync org memberships to fga", "err", err)
+		os.Exit(1)
+	}
 
 	loginRouter := &org.LoginRouter{
 		Pds:      login.NewPDSProvider(oauthClient, pdsCredStore, defaultDir),

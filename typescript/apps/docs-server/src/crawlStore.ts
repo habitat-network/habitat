@@ -6,10 +6,11 @@ export interface DocView {
   title: string;
 }
 
-// CrawlStore persists the docs the sap crawler discovers and, for each doc, the
-// set of member DIDs that hold read access. listDocs is served from here so a
-// caller only ever sees docs they are allowed to read. It is backed by sqlite
-// so the crawl state survives restarts (sap only redelivers unacked messages).
+// CrawlStore persists the docs the sap crawler discovers (space URI, id and
+// title). It carries no permission state: what a user may read is resolved on
+// demand via relationship.listObjects, and listDocs intersects that with this
+// table. Backed by sqlite so the crawl state survives restarts (sap only
+// redelivers unacked messages).
 export class CrawlStore {
   private db: DatabaseSync;
 
@@ -22,12 +23,7 @@ export class CrawlStore {
         title      TEXT NOT NULL,
         updated_at INTEGER NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS doc_readers (
-        space_uri TEXT NOT NULL,
-        did       TEXT NOT NULL,
-        PRIMARY KEY (space_uri, did)
-      );
-      CREATE INDEX IF NOT EXISTS idx_doc_readers_did ON doc_readers (did);
+      DROP TABLE IF EXISTS doc_readers;
     `);
   }
 
@@ -45,37 +41,21 @@ export class CrawlStore {
       .run(doc.spaceUri, doc.docId, doc.title, Date.now());
   }
 
-  // replaceReaders atomically swaps the stored reader DIDs for a doc so the set
-  // always reflects the latest listSubjects result.
-  replaceReaders(spaceUri: string, dids: string[]): void {
-    const del = this.db.prepare(`DELETE FROM doc_readers WHERE space_uri = ?`);
-    const ins = this.db.prepare(
-      `INSERT OR IGNORE INTO doc_readers (space_uri, did) VALUES (?, ?)`,
-    );
-    this.db.exec("BEGIN");
-    try {
-      del.run(spaceUri);
-      for (const did of dids) {
-        ins.run(spaceUri, did);
-      }
-      this.db.exec("COMMIT");
-    } catch (err) {
-      this.db.exec("ROLLBACK");
-      throw err;
+  // docsBySpaceUris returns the crawled docs for the given space URIs, newest
+  // first. URIs the crawler hasn't seen yet are simply absent.
+  docsBySpaceUris(spaceUris: string[]): DocView[] {
+    if (spaceUris.length === 0) {
+      return [];
     }
-  }
-
-  // listDocsForSubject returns the docs the given DID may read, newest first.
-  listDocsForSubject(did: string): DocView[] {
+    const placeholders = spaceUris.map(() => "?").join(",");
     const rows = this.db
       .prepare(
-        `SELECT d.doc_id AS docId, d.space_uri AS uri, d.title AS title
-         FROM docs d
-         JOIN doc_readers r ON r.space_uri = d.space_uri
-         WHERE r.did = ?
-         ORDER BY d.updated_at DESC`,
+        `SELECT doc_id AS docId, space_uri AS uri, title
+         FROM docs
+         WHERE space_uri IN (${placeholders})
+         ORDER BY updated_at DESC`,
       )
-      .all(did);
+      .all(...spaceUris);
     return rows.map((r) => ({
       docId: String(r.docId),
       uri: String(r.uri),

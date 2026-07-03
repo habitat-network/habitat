@@ -355,11 +355,22 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var filterType *syntax.NSID
+	if params.Type != "" {
+		t, err := syntax.ParseNSID(params.Type)
+		if err != nil {
+			utils.LogAndHTTPError(r.Context(), w, err, "parse type filter", http.StatusBadRequest)
+			return
+		}
+		filterType = &t
+	}
+
 	spaceURIs, err := s.store.ListObjects(
 		r.Context(),
 		credInfo.Org.DID(),
 		did,
 		Role(params.Relation),
+		filterType,
 	)
 	if errors.Is(err, ErrInvalidTuple) {
 		http.Error(w, err.Error(), http.StatusBadRequest)

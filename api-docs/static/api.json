@@ -4222,6 +4222,17 @@
               "type": "string",
               "description": "The role to query for."
             }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter to spaces of this type.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Filter to spaces of this type.",
+              "format": "nsid"
+            }
           }
         ],
         "responses": {

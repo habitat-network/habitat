@@ -4,6 +4,10 @@ import type { DerivedConfig } from "./config";
 // ServiceAuthError signals an invalid/forbidden service-auth JWT (HTTP 401).
 export class ServiceAuthError extends Error {}
 
+// ForbiddenError signals a valid caller who is not allowed to act (HTTP 403).
+// Distinct from ServiceAuthError so clients don't treat it as a session expiry.
+export class ForbiddenError extends Error {}
+
 interface ServiceAuthPayload {
   iss: string;
   aud: string;

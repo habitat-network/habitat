@@ -1,31 +1,31 @@
 import fs from "node:fs/promises";
 import { serve } from "@hono/node-server";
 import { loadConfig } from "./config";
-import { PearClient, resolveOrgDid } from "./pearClient";
+import { PearClient } from "./pearClient";
 import { DocStore } from "./docStore";
 import { CrawlStore } from "./crawlStore";
 import { Crawler } from "./crawler";
+import { OrgDirectory } from "./orgDirectory";
 import { createApp } from "./server";
 
 async function main() {
   const config = loadConfig();
-  // Authenticated pear calls are proxied by sap using the org's tracked
-  // session; we only need the org DID to name that session in the Habitat-Did
-  // header, so resolve it from the configured handle once at startup. pear may
-  // still be coming up (they start together in dev), so retry rather than crash.
-  const orgDid = await resolveOrgDidWithRetry(config.orgHandle);
-  const pear = new PearClient(config, orgDid);
+  // Authenticated pear calls are proxied by sap, which holds sessions for the
+  // orgs it manages. The caller's org is resolved per request from org
+  // membership (OrgDirectory), so the docs server needs no per-org config.
+  const pear = new PearClient(config);
   const docs = new DocStore(pear);
+  const orgs = new OrgDirectory(config, pear);
 
   // The crawler subscribes to sap's outbox channel to discover the org's docs
-  // and persists them (with their reader DIDs) to the crawl store, which backs
-  // the per-caller listDocs endpoint.
+  // and persists their titles to the crawl store; permissions are resolved on
+  // demand at read time.
   await fs.mkdir(config.dataDir, { recursive: true });
   const crawl = new CrawlStore(config.crawlDbPath);
-  const crawler = new Crawler(config, pear, crawl);
+  const crawler = new Crawler(config, crawl);
   crawler.start();
 
-  const app = createApp(config, docs, crawl);
+  const app = createApp(config, pear, docs, crawl, orgs);
 
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(
@@ -33,28 +33,6 @@ async function main() {
         `(service #${config.serviceId})`,
     );
   });
-}
-
-// resolveOrgDidWithRetry resolves the org handle to its DID, retrying while pear
-// is still starting up (the handle lookup goes through pear). Gives up after
-// ~60s so a genuinely bad handle still surfaces as a fatal error.
-async function resolveOrgDidWithRetry(handle: string): Promise<string> {
-  const maxAttempts = 30;
-  const delayMs = 2000;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await resolveOrgDid(handle);
-    } catch (err) {
-      if (attempt >= maxAttempts) {
-        throw err;
-      }
-      console.warn(
-        `[docs-server] could not resolve org handle ${handle} ` +
-          `(attempt ${attempt}/${maxAttempts}), retrying: ${String(err)}`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
 }
 
 main().catch((err) => {

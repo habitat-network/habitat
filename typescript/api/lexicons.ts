@@ -2835,6 +2835,11 @@ export const schemaDict = {
               enum: ['owner', 'manager', 'writer', 'reader'],
               description: 'The role to query for.',
             },
+            type: {
+              type: 'string',
+              format: 'nsid',
+              description: 'Filter to spaces of this type.',
+            },
           },
         },
         output: {

@@ -6,11 +6,6 @@ export interface Config {
   // Public domain the docs server is reachable at. Also its did:web host, so
   // the DID is did:web:<domain> and pear can resolve the #docs service endpoint.
   domain: string;
-  // The org this server acts on behalf of (e.g. "acme.local.habitat.network").
-  // Resolved to the org DID at startup; that DID is sent to sap so it proxies
-  // requests using the org's tracked session, and is the handle sap's /org/add
-  // OAuth flow authorizes.
-  orgHandle: string;
   port: number;
   // Directory where the crawl database is persisted.
   dataDir: string;
@@ -30,8 +25,7 @@ export interface DerivedConfig extends Config {
   // Websocket URL of sap's internal outbox channel. The crawler subscribes here
   // to discover the org's docs and acks each message it receives.
   sapChannelUrl: string;
-  // Path to the sqlite database the crawler persists discovered docs and their
-  // per-doc reader DIDs to.
+  // Path to the sqlite database the crawler persists discovered docs to.
   crawlDbPath: string;
 }
 
@@ -45,17 +39,15 @@ function required(name: string): string {
 
 export function loadConfig(): DerivedConfig {
   const domain = required("DOCS_SERVER_DOMAIN");
-  const orgHandle = required("DOCS_SERVER_ORG_HANDLE");
   const dataDir = process.env.DOCS_SERVER_DATA_DIR ?? ".docs-server";
-  // sap's internal port serves /proxy (http), /org/add (http) and /channel
-  // (ws), and is not publicly exposed via TLS. Defaults to the local-dev sap.
-  // The channel websocket URL is derived by swapping the scheme.
+  // sap's internal port serves /proxy (http), /org/add + /org/list (http) and
+  // /channel (ws), and is not publicly exposed via TLS. Defaults to the
+  // local-dev sap. The channel websocket URL is derived by swapping the scheme.
   const sapUrl = (
     process.env.DOCS_SERVER_SAP_URL ?? "http://127.0.0.1:2581"
   ).replace(/\/$/, "");
   const config: Config = {
     domain,
-    orgHandle,
     port: parseInt(process.env.DOCS_SERVER_PORT ?? "2590", 10),
     dataDir,
     spaceType: process.env.DOCS_SERVER_SPACE_TYPE ?? "network.habitat.docs",

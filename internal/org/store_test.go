@@ -188,3 +188,47 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 	}
 	require.Equal(t, orgId2.DID, gotID2)
 }
+
+func TestStore_SyncFGAMemberships(t *testing.T) {
+	store, org := newTestOrg(t)
+
+	// Members created directly in SQL, simulating rows that predate membership
+	// tuples being written to FGA.
+	alice := syntax.DID("did:plc:alice-sync")
+	bob := syntax.DID("did:plc:bob-sync")
+	require.NoError(t, store.db.Create(&member{
+		OrgID:   org.orgID,
+		Did:     alice,
+		Role:    AdminRole,
+		LoginID: alice.String(),
+	}).Error)
+	require.NoError(t, store.db.Create(&member{
+		OrgID:   org.orgID,
+		Did:     bob,
+		Role:    MemberRole,
+		LoginID: bob.String(),
+	}).Error)
+
+	require.NoError(t, store.SyncFGAMemberships(t.Context()))
+
+	allowed, err := store.fga.Check(
+		t.Context(),
+		fgastore.MemberUserString(alice),
+		fgastore.RelationAdmin,
+		fgastore.OrgObjectKey(org.orgID),
+	)
+	require.NoError(t, err)
+	require.True(t, allowed, "admin tuple backfilled")
+
+	allowed, err = store.fga.Check(
+		t.Context(),
+		fgastore.MemberUserString(bob),
+		fgastore.RelationMember,
+		fgastore.OrgObjectKey(org.orgID),
+	)
+	require.NoError(t, err)
+	require.True(t, allowed, "member tuple backfilled")
+
+	// Running the sync again must not fail on the already-written tuples.
+	require.NoError(t, store.SyncFGAMemberships(t.Context()))
+}

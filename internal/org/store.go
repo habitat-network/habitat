@@ -16,6 +16,8 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
+	openfgav1 "github.com/openfga/api/proto/openfga/v1"
+	"github.com/openfga/openfga/pkg/tuple"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -67,6 +69,12 @@ type Store interface {
 		password string,
 		loginID string,
 	) (*identity.Identity, error)
+
+	// SyncFGAMemberships reconciles the membership table into the FGA store,
+	// writing the member/admin tuple for every member. It is idempotent and
+	// exists to backfill orgs whose members were created before memberships
+	// were mirrored into FGA.
+	SyncFGAMemberships(ctx context.Context) error
 }
 
 // storeImpl is the Store implementation backed by gorm and the identity directory.
@@ -450,4 +458,42 @@ func (s *storeImpl) CreateNewMemberIdentity(
 		return nil, err
 	}
 	return id, nil
+}
+
+// SyncFGAMemberships implements [Store]. Writes are batched and duplicate
+// tuples are ignored, so re-running against an already-synced store is a
+// no-op.
+func (s *storeImpl) SyncFGAMemberships(ctx context.Context) error {
+	var members []member
+	if err := s.db.WithContext(ctx).Find(&members).Error; err != nil {
+		return fmt.Errorf("list members: %w", err)
+	}
+
+	tuples := make([]*openfgav1.TupleKey, 0, len(members))
+	for _, m := range members {
+		relation := fgastore.RelationMember
+		if m.Role == AdminRole {
+			relation = fgastore.RelationAdmin
+		}
+		tuples = append(tuples, tuple.NewTupleKey(
+			fgastore.OrgObjectKey(m.OrgID),
+			relation,
+			fgastore.MemberUserString(m.Did),
+		))
+	}
+
+	// OpenFGA caps writes per request, so send in chunks.
+	const chunkSize = 50
+	for start := 0; start < len(tuples); start += chunkSize {
+		chunk := tuples[start:min(start+chunkSize, len(tuples))]
+		if err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Writes: &openfgav1.WriteRequestWrites{
+				TupleKeys:   chunk,
+				OnDuplicate: "ignore",
+			},
+		}); err != nil {
+			return fmt.Errorf("write membership tuples: %w", err)
+		}
+	}
+	return nil
 }

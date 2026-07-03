@@ -1,18 +1,22 @@
 # docs-server
 
 A small TypeScript (Hono) server that owns the canonical state of collaborative
-documents for one org.
+documents for the orgs sap manages.
 
 ## Architecture
 
-- Makes authenticated pear calls **through `cmd/sap`**, which holds the org's
-  OAuth session. Every XRPC call is sent to sap's proxy (`POST /proxy/<nsid>`)
-  with the org DID in a `Habitat-Did` header; sap attaches the org's access
-  token and `Habitat-Auth-Method: oauth` before forwarding to pear. The docs
-  server holds no credential of its own — it only resolves the configured org
-  handle to its DID at startup (a public lookup).
+- Makes authenticated pear calls **through `cmd/sap`**, which holds OAuth
+  sessions for the orgs it manages. Every XRPC call is sent to sap's proxy
+  (`POST /proxy/<nsid>`) with the target org DID in a `Habitat-Did` header; sap
+  attaches that org's access token and `Habitat-Auth-Method: oauth` before
+  forwarding to pear. The docs server holds no credential and no per-org config.
+- Resolves the **caller's org from membership**: sap's `/org/list` names the
+  managed orgs, and `network.habitat.relationship.listSubjects` on each org's
+  self space (`ats://<org>/network.habitat.organization/self`, relation
+  `reader`) yields its members. The resulting user→org map is cached briefly
+  and consulted on every request.
 - Is the **sole writer** of the canonical doc record. It writes
-  `network.habitat.docs` records into an org-owned space via
+  `network.habitat.docs` records into a space owned by the caller's org via
   `network.habitat.space.putRecord`.
 - Receives CRDT updates from frontends as **service-auth XRPC calls**. Frontends
   call `network.habitat.doc.createDoc` / `network.habitat.doc.updateDoc` with an
@@ -24,11 +28,12 @@ documents for one org.
   edit. Merges with `Y.applyUpdateV2` and writes the full re-encoded state back.
 - Runs a **crawler** that subscribes to sap's outbox channel over its internal
   websocket port, acking every message it receives. When it sees a doc's
-  markdown record it persists the doc to a local **sqlite** table and calls
-  `network.habitat.relationship.listSubjects` (proxied through sap) to record
-  which members may read it. `listDocs` is served from this store and filtered
-  to the caller, so a member only ever sees docs they have permission to. Unacked
-  messages are redelivered by sap on the next connection.
+  markdown record it persists the doc's space URI and title to a local
+  **sqlite** table. Permissions are **not** indexed: `listDocs` resolves them
+  on demand via `network.habitat.relationship.listObjects` (the doc spaces the
+  caller holds the reader role on, filtered by space type) and intersects that
+  with the crawled titles. Unacked messages are redelivered by sap on the next
+  connection.
 
 ## DID
 
@@ -43,7 +48,6 @@ Set these in `dev.env` (gitignored):
 | Variable                 | Description                                                                  |
 | ------------------------ | ---------------------------------------------------------------------------- |
 | `DOCS_SERVER_DOMAIN`     | Public domain / did:web host, e.g. `docs-server.local.habitat.network`.      |
-| `DOCS_SERVER_ORG_HANDLE` | The org this server acts on behalf of; resolved to the org DID at startup.   |
 | `DOCS_SERVER_PORT`       | HTTP port (default `2590`).                                                  |
 | `DOCS_SERVER_DATA_DIR`   | Where the crawl database is persisted (default `.docs-server`).              |
 | `DOCS_SERVER_SPACE_TYPE` | Space type each doc space is created under (default `network.habitat.docs`). |
@@ -56,9 +60,8 @@ at build time so it can set the `Atproto-Proxy` header and resolve this server's
 
 ## Org bootstrap
 
-sap must hold an OAuth session for the org before it can proxy this server's
-calls. The docs server exposes `GET /org/login`, which kicks off sap's
-`/org/add` flow for `DOCS_SERVER_ORG_HANDLE` and redirects the admin to Habitat
-to approve. The docsv2 login page links here ("add this app"). Once approved,
-sap tracks the org session and all proxied calls (and the crawler's
-`listSubjects` lookups) succeed.
+sap must hold an OAuth session for an org before it can proxy calls for it. The
+docs server exposes `GET /org/login?handle=<org handle>`, which kicks off sap's
+`/org/add` flow for that org and redirects the admin to Habitat to approve. The
+docsv2 login page links here ("add this app"). Once approved, sap tracks the
+org session, the org appears in `/org/list`, and its members can use docs.
