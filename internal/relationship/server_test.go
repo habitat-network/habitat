@@ -50,7 +50,7 @@ func TestServer_WriteTuple(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.NotEmpty(t, out.Uri)
 
-	allowed, err := rel.Check(t.Context(), org, alice, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.True(t, allowed)
 }
@@ -107,7 +107,7 @@ func TestServer_DeleteTuple(t *testing.T) {
 	s.DeleteTuple(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
-	allowed, err := rel.Check(t.Context(), org, alice, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
@@ -165,7 +165,7 @@ func TestServer_Check(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.Check(w, queryReq(
 		"/xrpc/network.habitat.relationship.check",
-		url.Values{"space": {space.String()}, "did": {alice.String()}, "relation": {"reader"}},
+		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"reader"}},
 	))
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -257,7 +257,7 @@ func TestServer_Check_InvalidRelation(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.Check(w, queryReq(
 		"/xrpc/network.habitat.relationship.check",
-		url.Values{"space": {space.String()}, "did": {alice.String()}, "relation": {"bogus"}},
+		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"bogus"}},
 	))
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -295,7 +295,7 @@ func TestServer_Unauthenticated(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.Check(w, queryReq(
 		"/xrpc/network.habitat.relationship.check",
-		url.Values{"space": {space.String()}, "did": {alice.String()}, "relation": {"reader"}},
+		url.Values{"space": {space.String()}, "subject": {alice.String()}, "relation": {"reader"}},
 	))
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }

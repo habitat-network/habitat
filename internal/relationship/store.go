@@ -248,12 +248,13 @@ func (s *Store) listTuples(
 	return views, nil
 }
 
-// Check reports whether did holds role on space, resolving usersets and the
-// built-in role implications.
+// Check reports whether subject holds role on space, resolving usersets and the
+// built-in role implications. The subject is either an individual user or a
+// space-role userset (e.g. spaceA's writers).
 func (s *Store) Check(
 	ctx context.Context,
 	org syntax.DID,
-	did syntax.DID,
+	subject Subject,
 	role Role,
 	space habitat_syntax.SpaceURI,
 ) (bool, error) {
@@ -261,9 +262,13 @@ func (s *Store) Check(
 	if err != nil {
 		return false, err
 	}
+	user, err := subject.fgaUserString()
+	if err != nil {
+		return false, err
+	}
 	return s.fga.Check(
 		ctx,
-		fgastore.MemberUserString(did),
+		user,
 		fgaRelation,
 		fgastore.SpaceObjectKey(space),
 		ownerContextualTuple(space),
@@ -340,7 +345,7 @@ func (s *Store) ListObjects(
 // parseTupleValue decodes the subject/relation/object from a stored tuple
 // record value.
 func parseTupleValue(value map[string]any) (Subject, Role, habitat_syntax.SpaceURI, error) {
-	subject, err := ParseSubject(value["subject"])
+	subject, err := parseSubjectInput(value["subject"])
 	if err != nil {
 		return nil, "", "", err
 	}

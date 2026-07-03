@@ -98,7 +98,7 @@ func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subject, err := ParseSubject(input.Subject)
+	subject, err := parseSubjectInput(input.Subject)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -256,9 +256,9 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
+	subject, err := parseSubjectParams(params.Subject, params.SubjectRole)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -272,13 +272,9 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowed, err := s.store.Check(
-		r.Context(),
+	allowed, err := s.store.Check(r.Context(),
 		credInfo.Org.DID(),
-		did,
-		Role(params.Relation),
-		space,
-	)
+		subject, Role(params.Relation), space)
 	if errors.Is(err, ErrInvalidTuple) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
