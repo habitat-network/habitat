@@ -1,6 +1,7 @@
 import {
   Button,
   Field,
+  FieldDescription,
   FieldError,
   FieldLabel,
   Input,
@@ -27,6 +28,7 @@ interface FormValues {
   admin_password: string;
   login_method: "password" | "atproto" | "google";
   login_id: string;
+  contact_email: string;
   handle_subdomain: string;
   use_custom_instance: boolean;
   custom_domain: string;
@@ -91,6 +93,7 @@ function CreateOrgPage() {
       name: "My Organization",
       login_method: "password",
       login_id: "",
+      contact_email: "",
       use_custom_instance: false,
       custom_domain: "",
     },
@@ -99,6 +102,15 @@ function CreateOrgPage() {
   const loginMethod = watch("login_method");
   const useCustomInstance = watch("use_custom_instance");
   const customDomain = watch("custom_domain");
+  const googleLoginId = watch("login_id");
+
+  const [contactEmailTouched, setContactEmailTouched] = useState(false);
+
+  useEffect(() => {
+    if (loginMethod === "google" && !contactEmailTouched) {
+      setValue("contact_email", googleLoginId);
+    }
+  }, [loginMethod, googleLoginId, contactEmailTouched, setValue]);
 
   useEffect(() => {
     if (invite || !useCustomInstance || !customDomain) {
@@ -142,6 +154,7 @@ function CreateOrgPage() {
         name: values.name || undefined,
         login_method: values.login_method,
         handle_subdomain: values.handle_subdomain,
+        contact_email: values.contact_email,
         invite_token: token,
       };
       if (values.login_method === "password") {
@@ -214,6 +227,22 @@ function CreateOrgPage() {
             <FieldLabel>Organization Name</FieldLabel>
             <Input placeholder="My Organization" {...register("name")} />
             <FieldError errors={[errors.name]} />
+          </Field>
+          <Field>
+            <FieldLabel>Contact Email</FieldLabel>
+            <FieldDescription>
+              For contact purposes about your account.
+            </FieldDescription>
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              {...register("contact_email", {
+                required: true,
+                onChange: () => setContactEmailTouched(true),
+                pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+              })}
+            />
+            <FieldError errors={[errors.contact_email]} />
           </Field>
           <Field>
             <FieldLabel>Handle Subdomain</FieldLabel>

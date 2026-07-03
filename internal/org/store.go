@@ -44,6 +44,7 @@ type Store interface {
 		loginMethod string,
 		loginID string,
 		handleSubdomain string,
+		contactEmail string,
 	) (orgId *identity.Identity, id *identity.Identity, err error)
 
 	GetMember(ctx context.Context, did syntax.DID) (*Member, error)
@@ -159,6 +160,7 @@ func (s *storeImpl) CreateOrg(
 	method string,
 	loginID string,
 	handleSubdomain string,
+	contactEmail string,
 ) (*identity.Identity, *identity.Identity, error) {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
@@ -181,6 +183,7 @@ func (s *storeImpl) CreateOrg(
 			SigningSecret:   signingSecret,
 			CreatedAt:       time.Now(),
 			HandleSubdomain: handleSubdomain,
+			ContactEmail:    contactEmail,
 		}).Error; err != nil {
 			if isDuplicateError(err) {
 				return ErrOrgAlreadyExists

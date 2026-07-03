@@ -34,7 +34,7 @@ import (
 func testStore(t *testing.T) org.Store {
 	t.Helper()
 	s := testutil.NewTestStore(t)
-	_, _, err := s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "")
+	_, _, err := s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "", "contact@example.com")
 	require.NoError(t, err)
 	return s
 }
@@ -461,6 +461,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		"atproto",
 		pdsLoginDID,
 		"acme",
+		"contact@example.com",
 	)
 	require.NoError(t, err, "failed to create org with hive-served admin")
 

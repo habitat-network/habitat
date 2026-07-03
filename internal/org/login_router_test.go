@@ -43,6 +43,7 @@ func TestLoginRouter(t *testing.T) {
 		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	t.Logf("orgId: %s", orgId.DID.String())
 	t.Logf("adminId: %s", adminId.DID.String())
@@ -94,6 +95,7 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	token, err := store.IssueIdentityToken(
@@ -131,6 +133,7 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	router := LoginRouter{
@@ -158,6 +161,7 @@ func TestExchange_MissingMember(t *testing.T) {
 		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	router := LoginRouter{

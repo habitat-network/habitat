@@ -46,6 +46,7 @@ func TestStore_CreateOrg(t *testing.T) {
 		"password",
 		"",
 		"",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, orgId)
@@ -64,6 +65,10 @@ func TestStore_CreateOrg(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, admins, 1)
 	require.Equal(t, adminId.DID, admins[0])
+
+	var stored organization
+	require.NoError(t, s.db.First(&stored, "id = ?", orgId.DID).Error)
+	require.Equal(t, "contact@example.com", stored.ContactEmail)
 }
 
 func TestStore_GetOrg_NotFound(t *testing.T) {
@@ -82,6 +87,7 @@ func TestStore_GetOrgForDID_Member(t *testing.T) {
 		"password",
 		"",
 		"",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 
@@ -118,6 +124,7 @@ func TestStore_GetMember_Existing(t *testing.T) {
 		"password",
 		"",
 		"",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 
@@ -153,6 +160,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 		"password",
 		"",
 		"org1",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	orgId2, adminId2, err := s.CreateOrg(
@@ -163,6 +171,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 		"password",
 		"",
 		"org2",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 
