@@ -80,7 +80,7 @@ function CreateCommunityPage() {
                 <FieldLabel>Community Name</FieldLabel>
                 <Input
                   placeholder="My Community"
-                  value={name}
+                  {...register("name", { required: true })}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     handleNameChange(e.target.value)
                   }
