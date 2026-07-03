@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/pdsclient"
@@ -25,12 +26,15 @@ func newTestStore(t *testing.T) *storeImpl {
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 	)
 	require.NoError(t, err)
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
 	store, err := NewStore(
 		db,
 		h,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),
 		"pear.example.com",
 		passwordProvider,
+		fga,
 	)
 	require.NoError(t, err)
 	return store.(*storeImpl)
