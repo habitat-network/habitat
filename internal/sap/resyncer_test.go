@@ -68,7 +68,7 @@ func TestResyncer_SyncRepo(t *testing.T) {
 	)
 	oauthApp := oauthclient.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
+	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1, newTestMetrics(t))
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
@@ -132,7 +132,7 @@ func TestResyncer_RunDispatchesPendingReposOnStartup(t *testing.T) {
 	)
 	oauthApp := oauthclient.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1)
+	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 1, newTestMetrics(t))
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
@@ -201,7 +201,15 @@ func TestResyncer_Dispatcher(t *testing.T) {
 	)
 	oauthApp := oauthclient.NewApp(&cfg, store)
 	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
-	resyncer := newResyncer(db, oauthApp, resyncBuf, resyncNotif, outboxNotif, 10)
+	resyncer := newResyncer(
+		db,
+		oauthApp,
+		resyncBuf,
+		resyncNotif,
+		outboxNotif,
+		10,
+		newTestMetrics(t),
+	)
 
 	tk := testJWT(t)
 	require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
