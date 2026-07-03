@@ -42,18 +42,17 @@ func NewServer(store *Store, fga fgastore.Store, oauth, serviceAuth authn.Method
 // using the owner contextual tuple so the org owner always passes.
 func (s *Server) authorize(
 	ctx context.Context,
-	callerOrg syntax.DID,
-	callerDID syntax.DID,
+	caller *authn.CredentialInfo,
 	space habitat_syntax.SpaceURI,
 	relation string,
 ) (bool, error) {
 	return s.fga.Check(
 		ctx,
-		fgastore.MemberUserString(callerDID),
+		fgastore.MemberUserString(caller.Subject),
 		relation,
 		fgastore.SpaceObjectKey(space),
 		ownerContextualTuple(space),
-		fgastore.OrgMemberContextualTuple(callerOrg),
+		fgastore.OrgMemberContextualTuple(caller.Org.DID()),
 	)
 }
 
@@ -62,12 +61,11 @@ func (s *Server) authorize(
 func (s *Server) requireRole(
 	w http.ResponseWriter,
 	r *http.Request,
-	callerOrg syntax.DID,
-	callerDID syntax.DID,
+	caller *authn.CredentialInfo,
 	space habitat_syntax.SpaceURI,
 	relation string,
 ) bool {
-	authorized, err := s.authorize(r.Context(), callerOrg, callerDID, space, relation)
+	authorized, err := s.authorize(r.Context(), caller, space, relation)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -115,8 +113,7 @@ func (s *Server) WriteTuple(w http.ResponseWriter, r *http.Request) {
 	if !s.requireRole(
 		w,
 		r,
-		credInfo.Org.DID(),
-		credInfo.Subject,
+		credInfo,
 		object,
 		fgastore.RelationSpaceMemberManager,
 	) {
@@ -163,8 +160,7 @@ func (s *Server) DeleteTuple(w http.ResponseWriter, r *http.Request) {
 	if !s.requireRole(
 		w,
 		r,
-		credInfo.Org.DID(),
-		credInfo.Subject,
+		credInfo,
 		space,
 		fgastore.RelationSpaceMemberManager,
 	) {
@@ -207,8 +203,7 @@ func (s *Server) ListTuples(w http.ResponseWriter, r *http.Request) {
 	if !s.requireRole(
 		w,
 		r,
-		credInfo.Org.DID(),
-		credInfo.Subject,
+		credInfo,
 		space,
 		fgastore.RelationSpaceReader,
 	) {
@@ -270,8 +265,7 @@ func (s *Server) Check(w http.ResponseWriter, r *http.Request) {
 	if !s.requireRole(
 		w,
 		r,
-		credInfo.Org.DID(),
-		credInfo.Subject,
+		credInfo,
 		space,
 		fgastore.RelationSpaceReader,
 	) {
@@ -320,8 +314,7 @@ func (s *Server) ListSubjects(w http.ResponseWriter, r *http.Request) {
 	if !s.requireRole(
 		w,
 		r,
-		credInfo.Org.DID(),
-		credInfo.Subject,
+		credInfo,
 		space,
 		fgastore.RelationSpaceReader,
 	) {
@@ -385,8 +378,7 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 	for _, space := range spaceURIs {
 		readable, err := s.authorize(
 			r.Context(),
-			credInfo.Org.DID(),
-			credInfo.Subject,
+			credInfo,
 			space,
 			fgastore.RelationSpaceReader,
 		)

@@ -65,7 +65,11 @@ func TestMintThenLookup(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	hiveServer, err := habitat_identity.NewServer(h, authntest.NewStubAuthnForTest(adminDID), orgStore)
+	hiveServer, err := habitat_identity.NewServer(
+		h,
+		authntest.NewStubAuthnForTest(adminDID),
+		orgStore,
+	)
 	require.NoError(t, err)
 
 	// Admin issues an invite token via org server

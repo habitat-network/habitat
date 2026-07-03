@@ -73,25 +73,25 @@ func (s *orgImpl) AddAdmin(ctx context.Context, admin syntax.DID) error {
 		ctx,
 		&openfgav1.WriteRequest{
 			Writes: &openfgav1.WriteRequestWrites{
-			TupleKeys: []*openfgav1.TupleKey{
-				tuple.NewTupleKey(
-					fgastore.OrgObjectKey(s.orgID),
-					fgastore.RelationAdmin,
-					fgastore.MemberUserString(admin),
-				),
+				TupleKeys: []*openfgav1.TupleKey{
+					tuple.NewTupleKey(
+						fgastore.OrgObjectKey(s.orgID),
+						fgastore.RelationAdmin,
+						fgastore.MemberUserString(admin),
+					),
+				},
+			},
+			Deletes: &openfgav1.WriteRequestDeletes{
+				TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
+					tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
+						fgastore.OrgObjectKey(s.orgID),
+						fgastore.RelationMember,
+						fgastore.MemberUserString(admin),
+					)),
+				},
+				OnMissing: "ignore",
 			},
 		},
-		Deletes: &openfgav1.WriteRequestDeletes{
-			TupleKeys: []*openfgav1.TupleKeyWithoutCondition{
-				tuple.TupleKeyToTupleKeyWithoutCondition(tuple.NewTupleKey(
-					fgastore.OrgObjectKey(s.orgID),
-					fgastore.RelationMember,
-					fgastore.MemberUserString(admin),
-				)),
-			},
-			OnMissing: "ignore",
-		},
-	},
 	); err != nil {
 		return err
 	}
