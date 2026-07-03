@@ -12,7 +12,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	habitatapi "github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/demos/fruitgang/internal/index"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 )
@@ -20,12 +21,11 @@ import (
 type fruitgangServer struct {
 	sap         *sap.Sap
 	oauthApp    *oauthclient.App
-	store       *index.Store
 	frontendURL string
 }
 
-func newFruitgangServer(sapInstance *sap.Sap, oauthApp *oauthclient.App, store *index.Store, frontendURL string) *fruitgangServer {
-	return &fruitgangServer{sap: sapInstance, oauthApp: oauthApp, store: store, frontendURL: frontendURL}
+func newFruitgangServer(sapInstance *sap.Sap, oauthApp *oauthclient.App, frontendURL string) *fruitgangServer {
+	return &fruitgangServer{sap: sapInstance, oauthApp: oauthApp, frontendURL: frontendURL}
 }
 
 func (s *fruitgangServer) handleClientMetadata(w http.ResponseWriter, _ *http.Request) {
@@ -36,12 +36,8 @@ func (s *fruitgangServer) handleClientMetadata(w http.ResponseWriter, _ *http.Re
 	}
 }
 
-// handleAddOrg connects the given org handle to Fruit Gang.
-// The admin types their org's handle; if sap already holds a live session for
-// that org (e.g. a prior connection attempt got the OAuth login done but
-// failed to create the space or persist it), we retry using that session
-// instead of forcing the admin through the OAuth dance again. Otherwise the
-// backend resolves the handle and starts a fresh OAuth flow.
+// handleAddOrg initiates the OAuth flow for the given org handle.
+// The admin types their org's handle; the backend resolves it and starts the OAuth dance.
 func (s *fruitgangServer) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w, r)
 
@@ -59,12 +55,6 @@ func (s *fruitgangServer) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if did, err := s.oauthApp.ResolveDID(r.Context(), atid.String()); err == nil {
-		if s.tryReconnectWithExistingSession(r.Context(), w, did) {
-			return
-		}
-	}
-
 	redirectURL, err := s.oauthApp.StartAuthFlow(r.Context(), atid.String())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("start auth flow: %s", err), http.StatusInternalServerError)
@@ -77,46 +67,23 @@ func (s *fruitgangServer) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	_ = enc.Encode(map[string]string{"redirect_url": redirectURL})
 }
 
-// tryReconnectWithExistingSession attempts to finish connecting the org using
-// a session sap already holds for it, so a failure in the space-creation step
-// doesn't force the admin back through a full OAuth login just to retry it.
-// It returns true if it fully handled the request (wrote either a success or
-// an error response); false means sap has no usable session for this org and
-// the caller should fall back to starting a fresh OAuth flow.
-func (s *fruitgangServer) tryReconnectWithExistingSession(ctx context.Context, w http.ResponseWriter, did syntax.DID) bool {
-	client, err := s.sap.GetClient(ctx, did)
-	if err != nil {
-		return false
-	}
-
-	spaceURI, err := s.connectOrgSpace(ctx, client, did)
-	if err != nil {
-		slog.WarnContext(ctx, "retry with existing session failed, falling back to fresh oauth flow", "did", did, "err", err)
-		return false
-	}
-
-	slog.InfoContext(ctx, "org reconnected using existing session", "did", did, "space", spaceURI)
-	w.Header().Set("Content-Type", "application/json")
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(map[string]string{"redirect_url": s.frontendURL})
-	return true
-}
-
 func (s *fruitgangServer) handleAddOrgCORSPreflight(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w, r)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleOAuthCallback finishes connecting the org: it creates (or finds) the
+// org's Fruit Gang space and grants every org member access to it, and only
+// then tells sap to start managing the org. That ordering matters: sap
+// managing an org is the single durable signal /getSpaceURI relies on to
+// decide the org is connected (see internal/server/server.go), so a failure
+// while setting up the space must not leave sap thinking the org is ready --
+// the admin can simply retry the OAuth flow from scratch, since nothing
+// partial was persisted.
 func (s *fruitgangServer) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	sessionData, err := s.oauthApp.ProcessCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("process callback: %s", err), http.StatusInternalServerError)
-		return
-	}
-
-	if err := s.sap.AddManagedOrg(r.Context(), sessionData.AccountDID, sessionData.SessionID); err != nil {
-		http.Error(w, fmt.Sprintf("save org: %s", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -126,35 +93,38 @@ func (s *fruitgangServer) handleOAuthCallback(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	spaceURI, err := s.connectOrgSpace(r.Context(), client, sessionData.AccountDID)
-	if err != nil {
+	if err := s.connectOrgSpace(r.Context(), client, sessionData.AccountDID); err != nil {
 		slog.ErrorContext(r.Context(), "connect org space failed", "did", sessionData.AccountDID, "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	slog.InfoContext(r.Context(), "org onboarded", "did", sessionData.AccountDID, "space", spaceURI)
+	if err := s.sap.AddManagedOrg(r.Context(), sessionData.AccountDID, sessionData.SessionID); err != nil {
+		http.Error(w, fmt.Sprintf("save org: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	slog.InfoContext(r.Context(), "org onboarded", "did", sessionData.AccountDID)
 	http.Redirect(w, r, s.frontendURL, http.StatusSeeOther)
 }
 
-// connectOrgSpace creates (or finds) the org's fruitgang community space,
-// grants member access, and persists it as the org's default space -- the
-// flag the frontend checks to know the org is connected.
-func (s *fruitgangServer) connectOrgSpace(ctx context.Context, client *http.Client, did syntax.DID) (string, error) {
+// connectOrgSpace creates (or finds) the org's Fruit Gang space and grants
+// every org member write access to it.
+func (s *fruitgangServer) connectOrgSpace(ctx context.Context, client *http.Client, did syntax.DID) error {
 	spaceURI, err := s.ensureSpace(ctx, client, did)
 	if err != nil {
-		return "", fmt.Errorf("ensure space: %w", err)
+		return fmt.Errorf("ensure space: %w", err)
 	}
 
-	if err := s.store.SetDefaultSpace(did.String(), spaceURI); err != nil {
-		return "", fmt.Errorf("save space: %w", err)
+	if err := s.grantOrgMembersAccess(client, did, spaceURI); err != nil {
+		return fmt.Errorf("grant org access: %w", err)
 	}
 
-	return spaceURI, nil
+	return nil
 }
 
-// ensureSpace creates the fruitgang community space for the org (or finds the existing one),
-// then grants write access to all current org members.
+// ensureSpace creates the fruitgang community space for the org, or finds the
+// existing one if it was already created by a prior connection attempt.
 func (s *fruitgangServer) ensureSpace(ctx context.Context, client *http.Client, did syntax.DID) (string, error) {
 	input := habitatapi.NetworkHabitatSpaceCreateSpaceInput{
 		Type: "network.habitat.group",
@@ -171,94 +141,45 @@ func (s *fruitgangServer) ensureSpace(ctx context.Context, client *http.Client, 
 	}
 	defer resp.Body.Close()
 
-	var spaceURI string
-	if resp.StatusCode == http.StatusOK {
+	switch resp.StatusCode {
+	case http.StatusOK:
 		var out habitatapi.NetworkHabitatSpaceCreateSpaceOutput
 		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 			return "", fmt.Errorf("decode createSpace response: %w", err)
 		}
-		spaceURI = out.Uri
-	} else if resp.StatusCode == http.StatusConflict {
-		spaceURI, err = s.findExistingSpace(ctx, client, did)
-		if err != nil {
-			return "", err
-		}
-	} else {
+		return out.Uri, nil
+	case http.StatusConflict:
+		return s.findExistingSpace(ctx, client, did)
+	default:
 		respBody, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("createSpace returned %d: %s", resp.StatusCode, string(respBody))
 	}
-
-	if err := s.grantOrgAccess(ctx, client, spaceURI); err != nil {
-		slog.WarnContext(ctx, "some members could not be granted space access", "err", err)
-	}
-	return spaceURI, nil
 }
 
-// grantOrgAccess grants roles on the space to all current org members and admins via
-// the relationship API. Admins receive manager role; non-admin members receive writer role.
-func (s *fruitgangServer) grantOrgAccess(ctx context.Context, client *http.Client, spaceURI string) error {
-	adminsResp, err := client.Get("/xrpc/network.habitat.org.getAdmins")
-	if err != nil {
-		return fmt.Errorf("getAdmins request: %w", err)
-	}
-	defer adminsResp.Body.Close()
-	if adminsResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(adminsResp.Body)
-		return fmt.Errorf("getAdmins returned %d: %s", adminsResp.StatusCode, string(body))
-	}
-	var adminsOut habitatapi.NetworkHabitatOrgGetAdminsOutput
-	if err := json.NewDecoder(adminsResp.Body).Decode(&adminsOut); err != nil {
-		return fmt.Errorf("decode getAdmins response: %w", err)
-	}
+// grantOrgMembersAccess grants writer access on spaceURI to every current and
+// future member of the org, in a single idempotent call. It does this by
+// referencing the org's self space (ats://<org>/network.habitat.organization/self)
+// as the grant's subject: every org member automatically holds "reader" on
+// that space (see fgastore.OrgMemberContextualTuple), so granting "writer" on
+// spaceURI to "readers of the org's self space" covers the whole org without
+// enumerating members or admins individually.
+func (s *fruitgangServer) grantOrgMembersAccess(client *http.Client, did syntax.DID, spaceURI string) error {
+	orgSelfSpace := habitat_syntax.ConstructSpaceURI(did, "network.habitat.organization", "self")
 
-	membersResp, err := client.Get("/xrpc/network.habitat.org.getMembers")
-	if err != nil {
-		return fmt.Errorf("getMembers request: %w", err)
-	}
-	defer membersResp.Body.Close()
-	if membersResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(membersResp.Body)
-		return fmt.Errorf("getMembers returned %d: %s", membersResp.StatusCode, string(body))
-	}
-	var membersOut habitatapi.NetworkHabitatOrgGetMembersOutput
-	if err := json.NewDecoder(membersResp.Body).Decode(&membersOut); err != nil {
-		return fmt.Errorf("decode getMembers response: %w", err)
-	}
-
-	adminSet := make(map[string]bool, len(adminsOut.Admins))
-	for _, a := range adminsOut.Admins {
-		adminSet[a.Did] = true
-	}
-
-	for _, a := range adminsOut.Admins {
-		if err := s.writeTuple(ctx, client, spaceURI, a.Did, "manager"); err != nil {
-			slog.WarnContext(ctx, "could not grant admin manager role", "did", a.Did, "err", err)
-		}
-	}
-	for _, m := range membersOut.Members {
-		if adminSet[m.Did] {
-			continue
-		}
-		if err := s.writeTuple(ctx, client, spaceURI, m.Did, "writer"); err != nil {
-			slog.WarnContext(ctx, "could not grant member writer role", "did", m.Did, "err", err)
-		}
-	}
-	return nil
-}
-
-func (s *fruitgangServer) writeTuple(_ context.Context, client *http.Client, spaceURI, did, relation string) error {
 	input := habitatapi.NetworkHabitatRelationshipWriteTupleInput{
 		Subject: map[string]any{
-			"$type": "network.habitat.relationship.defs#userSubject",
-			"did":   did,
+			"$type": "network.habitat.relationship.defs#spaceRoleSubject",
+			"space": orgSelfSpace.String(),
+			"role":  "reader",
 		},
-		Relation: relation,
+		Relation: "writer",
 		Object:   habitatapi.NetworkHabitatRelationshipDefsSpaceObject{Space: spaceURI},
 	}
 	body, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
+
 	resp, err := client.Post("/xrpc/network.habitat.relationship.writeTuple", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("writeTuple request: %w", err)

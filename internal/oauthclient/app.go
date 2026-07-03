@@ -43,22 +43,6 @@ func NewApp(config *oauth.ClientConfig, store oauth.ClientAuthStore, opts ...Opt
 	return app
 }
 
-// ResolveDID looks up the DID for a handle or DID identifier without
-// starting an OAuth flow.
-func (a *App) ResolveDID(ctx context.Context, identifier string) (syntax.DID, error) {
-	atid, err := syntax.ParseAtIdentifier(identifier)
-	if err != nil {
-		return "", fmt.Errorf("parse identifier: %w", err)
-	}
-
-	id, err := a.dir.Lookup(ctx, atid)
-	if err != nil {
-		return "", fmt.Errorf("lookup identity: %w", err)
-	}
-
-	return id.DID, nil
-}
-
 func (a *App) StartAuthFlow(ctx context.Context, identifier string) (string, error) {
 	atid, err := syntax.ParseAtIdentifier(identifier)
 	if err != nil {

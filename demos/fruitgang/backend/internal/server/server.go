@@ -1,13 +1,21 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/demos/fruitgang/internal/index"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
+
+// OrgLookup reports which orgs are currently connected. *sap.Sap satisfies
+// this via its existing ListManagedOrgs method.
+type OrgLookup interface {
+	ListManagedOrgs(ctx context.Context) ([]syntax.DID, error)
+}
 
 type memberResponse struct {
 	URI           string    `json:"uri"`
@@ -41,7 +49,7 @@ type logResponse struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-func New(store *index.Store) http.Handler {
+func New(store *index.Store, orgs OrgLookup) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]bool{"ok": true})
@@ -100,16 +108,20 @@ func New(store *index.Store) http.Handler {
 		writeJSON(w, resp)
 	})
 	mux.HandleFunc("GET /getSpaceURI", func(w http.ResponseWriter, r *http.Request) {
-		uri, err := store.GetAnyDefaultSpaceURI()
+		// Fruit Gang is a single-org demo: the connected org's space URI is
+		// derived from its DID rather than stored, since sap already durably
+		// tracks which org (if any) has been connected.
+		dids, err := orgs.ListManagedOrgs(r.Context())
 		if err != nil {
-			if errors.Is(err, index.ErrNoDefaultSpace) {
-				http.Error(w, "no default space configured", http.StatusNotFound)
-				return
-			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, map[string]string{"uri": uri})
+		if len(dids) == 0 {
+			http.Error(w, "no org connected", http.StatusNotFound)
+			return
+		}
+		uri := habitat_syntax.ConstructSpaceURI(dids[0], "network.habitat.group", "fruitgang")
+		writeJSON(w, map[string]string{"uri": uri.String()})
 	})
 	return corsMiddleware(mux)
 }

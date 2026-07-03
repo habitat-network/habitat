@@ -1,7 +1,6 @@
 package index
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -13,10 +12,8 @@ type Store struct {
 	db *gorm.DB
 }
 
-var ErrNoDefaultSpace = fmt.Errorf("no default space configured")
-
 func NewStore(db *gorm.DB) (*Store, error) {
-	if err := db.AutoMigrate(&Member{}, &Chat{}, &ChatReply{}, &Log{}, &DefaultSpace{}); err != nil {
+	if err := db.AutoMigrate(&Member{}, &Chat{}, &ChatReply{}, &Log{}); err != nil {
 		return nil, fmt.Errorf("migrate index tables: %w", err)
 	}
 	return &Store{db: db}, nil
@@ -60,32 +57,4 @@ func (s *Store) GetReplies(chatURI string) ([]ChatReply, error) {
 func (s *Store) GetLogs() ([]Log, error) {
 	var out []Log
 	return out, s.db.Order("created_at DESC").Find(&out).Error
-}
-
-func (s *Store) SetDefaultSpace(orgDID, spaceURI string) error {
-	return s.db.Clauses(clause.OnConflict{UpdateAll: true}).Create(&DefaultSpace{OrgDID: orgDID, SpaceURI: spaceURI}).Error
-}
-
-func (s *Store) GetDefaultSpaceURI(orgDID string) (string, error) {
-	var row DefaultSpace
-	if err := s.db.First(&row, "org_did = ?", orgDID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", ErrNoDefaultSpace
-		}
-		return "", err
-	}
-	return row.SpaceURI, nil
-}
-
-// GetAnyDefaultSpaceURI returns the space URI for the single configured org.
-// Fruitgang is a single-org demo, so there is at most one row.
-func (s *Store) GetAnyDefaultSpaceURI() (string, error) {
-	var row DefaultSpace
-	if err := s.db.First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", ErrNoDefaultSpace
-		}
-		return "", err
-	}
-	return row.SpaceURI, nil
 }

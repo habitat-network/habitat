@@ -38,8 +38,3 @@ type Log struct {
 	CreatedAt time.Time
 	IndexedAt time.Time
 }
-
-type DefaultSpace struct {
-	OrgDID   string `gorm:"primaryKey;column:org_did"`
-	SpaceURI string
-}

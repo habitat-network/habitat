@@ -103,14 +103,14 @@ func start(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("create sap: %w", err)
 	}
 
-	fg := newFruitgangServer(s, oauthApp, store, cmd.String(fFrontendURL))
+	fg := newFruitgangServer(s, oauthApp, cmd.String(fFrontendURL))
 
 	rootMux := http.NewServeMux()
 	rootMux.HandleFunc("GET /client-metadata.json", fg.handleClientMetadata)
 	rootMux.HandleFunc("POST /add-org", fg.handleAddOrg)
 	rootMux.HandleFunc("OPTIONS /add-org", fg.handleAddOrgCORSPreflight)
 	rootMux.HandleFunc("GET /oauth-callback", fg.handleOAuthCallback)
-	rootMux.Handle("/", server.New(store))
+	rootMux.Handle("/", server.New(store, s))
 
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error { return s.Start(ctx) })

@@ -16,7 +16,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	habitatapi "github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/demos/fruitgang/internal/index"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/sap"
@@ -27,10 +26,11 @@ import (
 
 // orgBackend fakes the subset of a Habitat pear instance that the fruitgang
 // backend calls into during org onboarding: token exchange plus the
-// createSpace/getAdmins/getMembers/writeTuple XRPC endpoints.
+// createSpace/writeTuple/listSpaces XRPC endpoints.
 type orgBackend struct {
 	*httptest.Server
 	createSpaceFail atomic.Bool
+	writeTupleInput atomic.Pointer[habitatapi.NetworkHabitatRelationshipWriteTupleInput]
 }
 
 func newOrgBackend(t *testing.T) *orgBackend {
@@ -55,18 +55,18 @@ func newOrgBackend(t *testing.T) *orgBackend {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(w).Encode(habitatapi.NetworkHabitatSpaceCreateSpaceOutput{
-			Uri: "at://did:web:acme.example/network.habitat.space/fruitgang",
+			Uri: "ats://did:web:acme.example/network.habitat.group/fruitgang",
 		}))
 	})
 
-	mux.HandleFunc("GET /xrpc/network.habitat.org.getAdmins", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /xrpc/network.habitat.relationship.writeTuple", func(w http.ResponseWriter, r *http.Request) {
+		var input habitatapi.NetworkHabitatRelationshipWriteTupleInput
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&input))
+		ob.writeTupleInput.Store(&input)
 		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(habitatapi.NetworkHabitatOrgGetAdminsOutput{}))
-	})
-
-	mux.HandleFunc("GET /xrpc/network.habitat.org.getMembers", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(habitatapi.NetworkHabitatOrgGetMembersOutput{}))
+		require.NoError(t, json.NewEncoder(w).Encode(habitatapi.NetworkHabitatRelationshipWriteTupleOutput{
+			Uri: "ats://did:web:acme.example/network.habitat.relationship.tuple/1",
+		}))
 	})
 
 	// Stubbed so sap's background crawler (spawned as a side effect of
@@ -98,9 +98,6 @@ func newTestFruitgangServer(t *testing.T, orgBackendURL string) *fruitgangServer
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/fruitgang.db"), &gorm.Config{})
 	require.NoError(t, err)
 
-	store, err := index.NewStore(db)
-	require.NoError(t, err)
-
 	oauthStore, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
 
@@ -115,7 +112,7 @@ func newTestFruitgangServer(t *testing.T, orgBackendURL string) *fruitgangServer
 	sapInstance, err := sap.NewSap(sap.SapConfig{DB: db, OAuthClient: oauthApp})
 	require.NoError(t, err)
 
-	return newFruitgangServer(sapInstance, oauthApp, store, "https://fruitgang.example")
+	return newFruitgangServer(sapInstance, oauthApp, "https://fruitgang.example")
 }
 
 // connectOrg drives handleAddOrg + handleOAuthCallback for the given DID,
@@ -152,42 +149,6 @@ func connectOrg(t *testing.T, s *fruitgangServer, did string) *http.Response {
 	return callbackW.Result()
 }
 
-func TestHandleOAuthCallback_PartialFailureThenRetry_ReusesExistingSession(t *testing.T) {
-	ob := newOrgBackend(t)
-	s := newTestFruitgangServer(t, ob.URL)
-	const did = "did:web:acme.example"
-
-	ob.createSpaceFail.Store(true)
-	resp := connectOrg(t, s, did)
-	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-
-	_, err := s.store.GetDefaultSpaceURI(did)
-	require.ErrorIs(t, err, index.ErrNoDefaultSpace, "space should not be connected after a failed attempt")
-
-	_, err = s.sap.GetClient(t.Context(), syntax.DID(did))
-	require.NoError(t, err, "sap should already hold a session for the org from the failed attempt")
-
-	ob.createSpaceFail.Store(false)
-
-	addOrgBody, err := json.Marshal(map[string]string{"handle": did})
-	require.NoError(t, err)
-	retryReq := httptest.NewRequest(http.MethodPost, "/add-org", bytes.NewReader(addOrgBody))
-	retryW := httptest.NewRecorder()
-	s.handleAddOrg(retryW, retryReq)
-	require.Equal(t, http.StatusOK, retryW.Code)
-
-	var retryResp struct {
-		RedirectURL string `json:"redirect_url"`
-	}
-	require.NoError(t, json.NewDecoder(retryW.Body).Decode(&retryResp))
-	require.Equal(t, s.frontendURL, retryResp.RedirectURL,
-		"a retry should reuse sap's existing session and go straight to the frontend, not restart the OAuth dance")
-
-	uri, err := s.store.GetDefaultSpaceURI(did)
-	require.NoError(t, err)
-	require.NotEmpty(t, uri)
-}
-
 func TestHandleOAuthCallback_FirstConnection_Succeeds(t *testing.T) {
 	ob := newOrgBackend(t)
 	s := newTestFruitgangServer(t, ob.URL)
@@ -196,7 +157,39 @@ func TestHandleOAuthCallback_FirstConnection_Succeeds(t *testing.T) {
 	resp := connectOrg(t, s, did)
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 
-	uri, err := s.store.GetDefaultSpaceURI(did)
-	require.NoError(t, err)
-	require.NotEmpty(t, uri)
+	_, err := s.sap.GetClient(t.Context(), syntax.DID(did))
+	require.NoError(t, err, "sap should manage the org once connection succeeds")
+
+	input := ob.writeTupleInput.Load()
+	require.NotNil(t, input, "expected a single writeTuple call granting org members access")
+	require.Equal(t, "writer", input.Relation)
+	require.Equal(t, "ats://did:web:acme.example/network.habitat.group/fruitgang", input.Object.Space)
+	subject, ok := input.Subject.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "network.habitat.relationship.defs#spaceRoleSubject", subject["$type"])
+	require.Equal(t, "ats://did:web:acme.example/network.habitat.organization/self", subject["space"])
+	require.Equal(t, "reader", subject["role"])
+}
+
+func TestHandleOAuthCallback_SpaceCreationFails_OrgNotMarkedManaged(t *testing.T) {
+	ob := newOrgBackend(t)
+	s := newTestFruitgangServer(t, ob.URL)
+	const did = "did:web:acme.example"
+
+	ob.createSpaceFail.Store(true)
+	resp := connectOrg(t, s, did)
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	// sap must not think the org is connected: a partial failure here should
+	// leave nothing for /getSpaceURI to (incorrectly) treat as "connected",
+	// so the admin can just retry the OAuth flow from scratch.
+	_, err := s.sap.GetClient(t.Context(), syntax.DID(did))
+	require.Error(t, err, "sap should not manage the org after a failed connection attempt")
+
+	ob.createSpaceFail.Store(false)
+	resp = connectOrg(t, s, did)
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+
+	_, err = s.sap.GetClient(t.Context(), syntax.DID(did))
+	require.NoError(t, err, "retry should succeed and mark the org managed")
 }
