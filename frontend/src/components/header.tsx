@@ -19,11 +19,13 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
           </li>
           {profile && (
             <>
-              {org && <li>
-                <Button variant="link" render={<Link to="/org" />}>
-                  {org.name}
-                </Button>
-              </li>}
+              {org && (
+                <li>
+                  <Button variant="link" render={<Link to="/org" />}>
+                    {org.name}
+                  </Button>
+                </li>
+              )}
               <li>
                 <Button variant="link" render={<Link to="/spaces" />}>
                   Spaces

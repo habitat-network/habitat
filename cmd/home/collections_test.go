@@ -134,9 +134,27 @@ func TestRecordViewsAreScopedPerSpace(t *testing.T) {
 	// The same repo/collection/rkey in two spaces yields two distinct views,
 	// each carrying its own space and space-record URI.
 	rows := []recordRow{
-		{RecordURI: space1 + "/did:web:alice/c/r1", SpaceURI: space1, Repo: "did:web:alice", Collection: "c", Rkey: "r1"},
-		{RecordURI: space2 + "/did:web:alice/c/r1", SpaceURI: space2, Repo: "did:web:alice", Collection: "c", Rkey: "r1"},
-		{RecordURI: space1 + "/did:web:bob/c/r2", SpaceURI: space1, Repo: "did:web:bob", Collection: "c", Rkey: "r2"},
+		{
+			RecordURI:  space1 + "/did:web:alice/c/r1",
+			SpaceURI:   space1,
+			Repo:       "did:web:alice",
+			Collection: "c",
+			Rkey:       "r1",
+		},
+		{
+			RecordURI:  space2 + "/did:web:alice/c/r1",
+			SpaceURI:   space2,
+			Repo:       "did:web:alice",
+			Collection: "c",
+			Rkey:       "r1",
+		},
+		{
+			RecordURI:  space1 + "/did:web:bob/c/r2",
+			SpaceURI:   space1,
+			Repo:       "did:web:bob",
+			Collection: "c",
+			Rkey:       "r2",
+		},
 	}
 	views := recordViews(rows)
 	require.Len(t, views, 3)

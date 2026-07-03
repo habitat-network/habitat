@@ -60,9 +60,7 @@ function CollectionCard({ collection }: { collection: CollectionView }) {
       >
         <CardContent className="flex flex-col gap-2 py-5">
           <span className="break-all">
-            {prefix && (
-              <span className="text-muted-foreground">{prefix}.</span>
-            )}
+            {prefix && <span className="text-muted-foreground">{prefix}.</span>}
             <span className="font-medium">{leaf}</span>
           </span>
           <span className="text-sm text-muted-foreground">
