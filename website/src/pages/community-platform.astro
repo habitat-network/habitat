@@ -78,14 +78,14 @@ const communityCreateUrl = import.meta.env.DEV
     <!-- CLOSING -->
     <section class="section closing">
       <div class="section-inner center">
-        <h2 class="reveal">Learn how to use Habitat for your community.</h2>
+        <h2 class="reveal">Give your community its own habitat.</h2>
         <div class="reveal" style="--d: 100ms; margin-bottom: 32px;">
           <a class="cta-button cta-green" href={communityCreateUrl}>Get started now →</a>
         </div>
         <form class="waitlist center reveal" style="--d: 180ms" novalidate>
           <label class="visually-hidden" for="email-cp">your email</label>
           <input id="email-cp" type="text" name="email" placeholder="your email" required />
-          <button type="submit">Join the general release waitlist <span aria-hidden="true">→</span></button>
+          <button type="submit">Sign up to get updates from us<span aria-hidden="true">→</span></button>
         </form>
         <p class="waitlist-status reveal" style="--d: 260ms" data-status="idle" aria-live="polite"></p>
       </div>
@@ -97,6 +97,7 @@ const communityCreateUrl = import.meta.env.DEV
   /* Page-specific overrides: this hero is text-only, so use tighter padding
      and let the heading run wider than the index hero's two-column layout. */
   .landing.cp .hero { padding: 96px 0 80px; }
+  .landing.cp .hero .cta-button { min-width: 300px; }
   .landing.cp .display { max-width: 18ch; }
   .landing.cp .hero-sub { max-width: 60ch; margin-bottom: 0; }
   .landing.cp .section h2 { max-width: 28ch; }
@@ -174,6 +175,9 @@ const communityCreateUrl = import.meta.env.DEV
       flex: 1;
       min-width: 0;
     }
+    .waitlist button {
+      white-space: normal;
+    }
     .landing.cp .section-community-apps,
     .landing.cp .section-safe-data {
       overflow: visible;
@@ -225,6 +229,7 @@ const communityCreateUrl = import.meta.env.DEV
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    white-space: nowrap;
     transition: color 160ms ease;
   }
   .waitlist button:hover { color: var(--green); }
