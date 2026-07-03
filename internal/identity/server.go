@@ -108,12 +108,7 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 		lxm = &parsed
 	}
 
-	var org syntax.DID
-	if credInfo.Org != nil {
-		org = credInfo.Org.DID()
-	}
-
-	token, err := s.hive.SignServiceAuth(r.Context(), credInfo.Subject, aud, org, ttl, lxm)
+	token, err := s.hive.SignServiceAuth(r.Context(), credInfo.Subject, aud, ttl, lxm)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),

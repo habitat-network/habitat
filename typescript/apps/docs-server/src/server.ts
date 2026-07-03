@@ -8,7 +8,6 @@ import type { DerivedConfig } from "./config";
 import type { DocStore } from "./docStore";
 import type { CrawlStore } from "./crawlStore";
 import { ServiceAuthError, ServiceAuthVerifier } from "./serviceAuth";
-import type { Caller } from "./serviceAuth";
 
 export function createApp(
   config: DerivedConfig,
@@ -38,15 +37,13 @@ export function createApp(
   });
 
   // Org-credential bootstrap. An org admin (redirected here from docsv2) kicks
-  // off sap's OAuth flow for the org named in the `handle` form field: sap
-  // starts the authorization-code flow and returns the URL to redirect the admin
-  // to. Once they approve, sap tracks the org's session and can proxy this
-  // server's pear calls (and the crawler's) as that org.
+  // off sap's OAuth flow for the org: sap starts the authorization-code flow and
+  // returns the URL to redirect the admin to. Once they approve, sap tracks the
+  // org's session and can proxy this server's pear calls as the org. The org
+  // handle comes from the form; it defaults to the configured org, which is the
+  // one this server proxies its own calls as.
   app.get("/org/login", async (c) => {
-    const handle = c.req.query("handle");
-    if (!handle) {
-      return c.text("missing handle", 400);
-    }
+    const handle = c.req.query("handle") || config.orgHandle;
     const res = await fetch(`${config.sapUrl}/org/add`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -66,7 +63,7 @@ export function createApp(
       verifier,
     );
     const output: NetworkHabitatDocsCreateDoc.OutputSchema =
-      await docs.createDoc(caller.did, caller.org);
+      await docs.createDoc(caller);
     return c.json(output);
   });
 
@@ -79,14 +76,13 @@ export function createApp(
     const input =
       (await c.req.json()) as NetworkHabitatDocsUpdateDoc.InputSchema;
     const output: NetworkHabitatDocsUpdateDoc.OutputSchema =
-      await docs.applyUpdate(input.docId, input.update, caller.did, caller.org);
+      await docs.applyUpdate(input.docId, input.update, caller);
     return c.json(output);
   });
 
   // listDocs returns only the docs the caller may read. The set is served from
   // the crawl store, which the sap crawler keeps up to date: it records each
   // doc and, via relationship.listSubjects, the members that hold read access.
-  // No org is needed — the store spans every crawled org and filters by DID.
   app.get("/xrpc/network.habitat.docs.listDocs", async (c) => {
     const caller = await authorize(
       c.req.header("Authorization"),
@@ -94,7 +90,7 @@ export function createApp(
       verifier,
     );
     const output: NetworkHabitatDocsListDocs.OutputSchema = {
-      docs: crawl.listDocsForSubject(caller.did),
+      docs: crawl.listDocsForSubject(caller),
     };
     return c.json(output);
   });
@@ -113,7 +109,7 @@ async function authorize(
   authHeader: string | undefined,
   lxm: string,
   verifier: ServiceAuthVerifier,
-): Promise<Caller> {
+): Promise<string> {
   const jwt = authHeader?.replace(/^Bearer /, "");
   if (!jwt) {
     throw new ServiceAuthError("missing service auth token");

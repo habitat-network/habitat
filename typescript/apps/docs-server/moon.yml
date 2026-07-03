@@ -5,6 +5,10 @@ tasks:
     env:
       DOCS_SERVER_PORT: "2590"
       DOCS_SERVER_DOMAIN: "docs-server.local.habitat.network"
+      # Org the docs server acts on behalf of. Resolved to the org DID at
+      # startup; sap proxies authenticated pear calls using the org's session,
+      # and /org/login authorizes this handle via sap's OAuth flow.
+      DOCS_SERVER_ORG_HANDLE: "acmecorp.pear.local.habitat.network"
       # Trust the macOS system keychain (where Caddy's `tls internal` installs its
       # root CA) so the Node server's HTTPS calls to pear and to member did:web
       # docs succeed in local dev.

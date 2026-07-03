@@ -8,15 +8,7 @@ interface ServiceAuthPayload {
   iss: string;
   aud: string;
   exp: number;
-  lxm: string;
-  org: string;
-}
-
-// Caller is the verified identity of a forwarded request: the member DID and
-// the org they acted as.
-export interface Caller {
-  did: string;
-  org: string;
+  lxm?: string;
 }
 
 // ServiceAuthVerifier fully verifies the service-auth JWT that pear signs on a
@@ -31,8 +23,8 @@ export class ServiceAuthVerifier {
     this.config = config;
   }
 
-  // verify returns the caller (issuer DID + org) on success.
-  async verify(jwt: string, expectedLxm: string): Promise<Caller> {
+  // verify returns the caller (issuer) DID on success.
+  async verify(jwt: string, expectedLxm: string): Promise<string> {
     const parts = jwt.split(".");
     if (parts.length !== 3) {
       throw new ServiceAuthError("malformed JWT");
@@ -50,9 +42,6 @@ export class ServiceAuthVerifier {
     if (typeof payload.exp !== "number" || payload.exp < Date.now() / 1000) {
       throw new ServiceAuthError("token expired");
     }
-    if (!payload.org) {
-      throw new ServiceAuthError("token missing org claim");
-    }
 
     const signingKey = await this.resolveSigningKey(payload.iss);
     const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
@@ -61,7 +50,7 @@ export class ServiceAuthVerifier {
     if (!ok) {
       throw new ServiceAuthError("invalid signature");
     }
-    return { did: payload.iss, org: payload.org };
+    return payload.iss;
   }
 
   // resolveSigningKey fetches the caller's did:web document (served publicly by
