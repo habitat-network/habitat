@@ -316,6 +316,7 @@ func setupPear(
 		"atproto",
 		"loginId",
 		"org",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 

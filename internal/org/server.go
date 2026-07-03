@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -159,8 +160,13 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AdminHandle == "" || req.Name == "" || req.LoginMethod == "" {
+	if req.AdminHandle == "" || req.Name == "" || req.LoginMethod == "" || req.ContactEmail == "" {
 		utils.LogAndHTTPError(r.Context(), w, nil, "missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := mail.ParseAddress(req.ContactEmail); err != nil {
+		utils.LogAndHTTPError(r.Context(), w, nil, "invalid contact email", http.StatusBadRequest)
 		return
 	}
 
@@ -215,6 +221,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		req.LoginMethod,
 		req.LoginId,
 		req.HandleSubdomain,
+		req.ContactEmail,
 	)
 	if errors.Is(err, identity.ErrInvalidHandle) {
 		http.Error(w, err.Error(), http.StatusBadRequest)

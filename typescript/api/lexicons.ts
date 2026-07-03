@@ -2099,12 +2099,17 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['admin_handle'],
+            required: ['admin_handle', 'contact_email'],
             properties: {
               admin_handle: {
                 type: 'string',
                 description:
                   'Internal handle for the bootstrap admin (alphanumeric, 1-50 chars).',
+              },
+              contact_email: {
+                type: 'string',
+                description:
+                  'Email address for contacting the org about its account (not used for login).',
               },
               admin_password: {
                 type: 'string',

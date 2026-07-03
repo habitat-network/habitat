@@ -48,6 +48,7 @@ func TestMintThenLookup(t *testing.T) {
 		"password",
 		"",
 		"test-org",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	testOrgID := orgIdIdent.DID

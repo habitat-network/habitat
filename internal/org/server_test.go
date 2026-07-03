@@ -60,6 +60,7 @@ func newTestServer(
 		"password",
 		"",
 		"",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 
@@ -221,6 +222,7 @@ func TestCreateOrg(t *testing.T) {
 		AdminPassword:   "securepassword123",
 		LoginMethod:     "password",
 		HandleSubdomain: "org",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -266,6 +268,7 @@ func TestCreateOrg_InvalidHandle(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "org",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -278,12 +281,47 @@ func TestCreateOrg_InvalidHandle(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestCreateOrg_ContactEmailValidation(t *testing.T) {
+	tests := []struct {
+		name         string
+		contactEmail string
+	}{
+		{name: "missing", contactEmail: ""},
+		{name: "malformed", contactEmail: "not-an-email"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newCreateTestServer(t)
+
+			body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+				Name:            "My Org",
+				AdminHandle:     "admin",
+				AdminPassword:   "securepassword123",
+				LoginMethod:     "password",
+				HandleSubdomain: "org",
+				ContactEmail:    tt.contactEmail,
+			})
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/xrpc/network.habitat.org.create",
+				bytes.NewReader(body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.CreateOrg(w, req)
+			require.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+}
+
 func TestCreateOrg_MissingFields(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
 		AdminHandle:     "admin",
 		HandleSubdomain: "org",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -313,6 +351,7 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -342,6 +381,7 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -371,6 +411,7 @@ func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     "garbage",
 	})
 	req := httptest.NewRequest(
@@ -402,6 +443,7 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     "a-valid-token",
 	})
 	req := httptest.NewRequest(
@@ -443,6 +485,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 		"password",
 		"",
 		"test",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 
@@ -452,6 +495,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     "a-valid-token",
 	})
 	req := httptest.NewRequest(
@@ -496,6 +540,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     token,
 	})
 	req := httptest.NewRequest(
