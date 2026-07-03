@@ -34,7 +34,16 @@ import (
 func testStore(t *testing.T) org.Store {
 	t.Helper()
 	s := testutil.NewTestStore(t)
-	_, _, err := s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "", "contact@example.com")
+	_, _, err := s.CreateOrg(
+		t.Context(),
+		"org-name",
+		"admin",
+		"password",
+		"",
+		"",
+		"",
+		"contact@example.com",
+	)
 	require.NoError(t, err)
 	return s
 }

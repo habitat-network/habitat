@@ -160,7 +160,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 		"password",
 		"",
 		"org1",
-		"contact@example.com",
+		"contact1@example.com",
 	)
 	require.NoError(t, err)
 	orgId2, adminId2, err := s.CreateOrg(
@@ -171,7 +171,7 @@ func TestStore_GetOrgForDID_AfterMultipleOrgs(t *testing.T) {
 		"password",
 		"",
 		"org2",
-		"contact@example.com",
+		"contact2@example.com",
 	)
 	require.NoError(t, err)
 
