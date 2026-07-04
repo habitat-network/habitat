@@ -120,6 +120,7 @@ function CreateCommunityPage() {
         values.login_method === "google" ? contactEmail : values.login_id;
       const body: NetworkHabitatOrgCreate.InputSchema = {
         admin_handle: "admin",
+        contact_email: values.contact_email,
         name: values.name,
         handle_subdomain: values.handle_subdomain,
         login_method: values.login_method,

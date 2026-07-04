@@ -28,8 +28,10 @@ export const SingleHandleCombobox = ({
   const [searchValue, setSearchValue] = useState(value || "");
   const debouncedSearchValue = useDebounce(searchValue, 250);
   const inputRef = useRef<HTMLDivElement>(null);
+  const lastCommittedValueRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (value === lastCommittedValueRef.current) return;
     setSearchValue(value || "");
   }, [value]);
 
@@ -46,6 +48,7 @@ export const SingleHandleCombobox = ({
       onOpenChange={setOpen}
       onValueChange={(actor: Actor | null) => {
         if (actor?.did) {
+          lastCommittedValueRef.current = actor.did;
           onValueChange(actor.did);
           setSearchValue(actor.handle ?? actor.did);
           setOpen(false);
