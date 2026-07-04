@@ -275,6 +275,8 @@ func setupPear(
 		db,
 		metricnoop.Meter{},
 		orgStore,
+		server.URL+"/oauth/token",
+		oauthserver.NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
 

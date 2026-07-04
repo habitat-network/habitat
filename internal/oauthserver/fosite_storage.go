@@ -26,10 +26,10 @@ import (
 var tracer = otel.Tracer("github.com/habitat-network/habitat/internal/oauthserver")
 
 type store struct {
-	memoryStore            *storage.MemoryStore
-	strategy               *strategy
-	db                     *gorm.DB
-	jwtBearerClientDomains []string
+	memoryStore              *storage.MemoryStore
+	strategy                 *strategy
+	db                       *gorm.DB
+	approvedJwtBearerClients ApprovedClientStore
 }
 
 type OAuthSession struct {
@@ -49,17 +49,21 @@ type ConnectedApp struct {
 	UpdatedAt time.Time
 }
 
-func newStore(strat *strategy, db *gorm.DB, jwtBearerClientDomains []string) (*store, error) {
+func newStore(
+	strat *strategy,
+	db *gorm.DB,
+	approvedJwtBearerClients ApprovedClientStore,
+) (*store, error) {
 	err := db.AutoMigrate(&OAuthSession{}, &ConnectedApp{})
 	if err != nil {
 		return nil, err
 	}
 	// TODO: we need to add a goroutine here that cleans up expired sessions
 	return &store{
-		memoryStore:            storage.NewMemoryStore(),
-		strategy:               strat,
-		db:                     db,
-		jwtBearerClientDomains: jwtBearerClientDomains,
+		memoryStore:              storage.NewMemoryStore(),
+		strategy:                 strat,
+		db:                       db,
+		approvedJwtBearerClients: approvedJwtBearerClients,
 	}, nil
 }
 
@@ -146,7 +150,7 @@ func (s *store) GetPublicKeys(
 	issuer string,
 	_ string,
 ) (*jose.JSONWebKeySet, error) {
-	if !s.isJWTBearerClientAllowed(issuer) {
+	if !s.approvedJwtBearerClients.IsApprovedClient(issuer) {
 		return nil, fosite.ErrNotFound
 	}
 	metadata, err := s.fetchClientMetadata(ctx, issuer)
@@ -166,7 +170,7 @@ func (s *store) GetPublicKeyScopes(
 	_ string,
 	_ string,
 ) ([]string, error) {
-	if !s.isJWTBearerClientAllowed(issuer) {
+	if !s.approvedJwtBearerClients.IsApprovedClient(issuer) {
 		return nil, fosite.ErrNotFound
 	}
 	cl, err := s.GetClient(ctx, issuer)
@@ -174,21 +178,6 @@ func (s *store) GetPublicKeyScopes(
 		return nil, err
 	}
 	return cl.GetScopes(), nil
-}
-
-func (s *store) isJWTBearerClientAllowed(clientID string) bool {
-	metadataURL, err := url.Parse(clientID)
-	if err != nil {
-		return false
-	}
-	// support any subdomains for now
-	// TODO: probably should support explicit wildcards
-	for _, domain := range s.jwtBearerClientDomains {
-		if strings.HasSuffix(metadataURL.Host, domain) {
-			return true
-		}
-	}
-	return false
 }
 
 // IsJWTUsed implements rfc7523.RFC7523KeyStorage.

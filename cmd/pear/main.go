@@ -285,7 +285,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
-		domain,
+		"https://"+domain+"/oauth/token",
+		oauthserver.NewJWTBearerStore(
+			cmd.StringSlice(fBuiltinApps)...,
+		),
 	)
 	if err != nil {
 		slog.Error("unable to setup oauth server", "err", err)

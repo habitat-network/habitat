@@ -27,6 +27,7 @@ var (
 	fPdsOauthClientUri  = "pds_oauth_client_uri"
 	fAdminPassword      = "admin_password"
 	fUiDevProxy         = "ui_dev_proxy"
+	fBuiltinApps        = "builtin_app"
 )
 
 var profiles []string
@@ -119,6 +120,11 @@ func getFlags() ([]cli.Flag, []cli.MutuallyExclusiveFlags) {
 				Name:    fUiDevProxy,
 				Usage:   "If set, reverse-proxy the embedded /ui/ pages to this URL (the pear-pages dev server) instead of serving the embedded build. Used in development.",
 				Sources: getSources(fUiDevProxy),
+			},
+			&cli.StringSliceFlag{
+				Name:    fBuiltinApps,
+				Usage:   "Builtin clients that can retrieve instance token using jwt bearer grants",
+				Sources: getSources(fBuiltinApps),
 			},
 		}, []cli.MutuallyExclusiveFlags{
 			{

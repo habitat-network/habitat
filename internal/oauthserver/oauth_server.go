@@ -200,14 +200,15 @@ func NewOAuthServer(
 	db *gorm.DB,
 	meter metric.Meter,
 	orgStore org.Store,
-	domain string,
+	tokenURL string,
+	approvedJwtBearerClients ApprovedClientStore,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 		ScopeStrategy:              scopeStrategy,
-		TokenURL:                   "https://" + domain + "/oauth/token",
+		TokenURL:                   tokenURL,
 		// The JWT Bearer grant identifies the client solely via the "iss"
 		// claim of the assertion (checked against jwtBearerAllowedClients),
 		// so a separate client_id/secret on the token request isn't required.
@@ -218,7 +219,7 @@ func NewOAuthServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
-	storage, err := newStore(strategy, db, []string{domain})
+	storage, err := newStore(strategy, db, approvedJwtBearerClients)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
