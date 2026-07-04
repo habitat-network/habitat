@@ -2,13 +2,17 @@ package sap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/atproto"
 	"github.com/habitat-network/habitat/internal/oauthclient"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -121,4 +125,62 @@ func (s *Sap) GetClient(ctx context.Context, did syntax.DID) (*http.Client, erro
 		return nil, err
 	}
 	return s.oauthClient.GetClient(ctx, did, org.SessionID)
+}
+
+func (s *Sap) HandleNotifyWrite(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input atproto.ComAtprotoSpaceNotifyWriteInput
+	json.NewDecoder(r.Body).Decode(&input)
+
+	space, err := habitat_syntax.ParseSpaceURI(input.Space)
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"decode space field of input",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	_, err = s.orgManager.GetManagedOrg(ctx, space.SpaceOwner())
+	if errors.Is(err, OrgNotFound) {
+		slog.InfoContext(ctx, "org not managed, adding", "org", space.SpaceOwner())
+		session, err := s.oauthClient.AddSessionWithBearerJwt(ctx, space.SpaceOwner())
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"add session",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		err = s.AddManagedOrg(ctx, session.AccountDID, session.SessionID)
+		if err != nil {
+			utils.LogAndHTTPError(
+				r.Context(),
+				w,
+				err,
+				"add org",
+				http.StatusInternalServerError,
+			)
+			return
+		}
+	}
+	if err != nil {
+		utils.LogAndHTTPError(
+			r.Context(),
+			w,
+			err,
+			"get org",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	// TODO: for now, we'll rely on the outdated subscriber to handle syncing. notifyWrite should be
+	// the standard way to sync so we need to handle the event here
 }

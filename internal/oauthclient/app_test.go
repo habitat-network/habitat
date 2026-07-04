@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +23,32 @@ func testApp(t *testing.T, store oauth.ClientAuthStore) *App {
 		require.Equal(t, "POST", r.Method)
 		require.Equal(t, "/oauth/token", r.URL.Path)
 		require.NoError(t, r.ParseForm())
-		require.Equal(t, "abc", r.PostForm.Get("code"))
+		switch r.Form.Get("grant_type") {
+		case "authorization_code":
+			require.Equal(t, "abc", r.PostForm.Get("code"))
+		case "refresh_token":
+			require.Equal(t, "refresh-token", r.Form.Get("refresh_token"))
+		case "urn:ietf:params:oauth:grant-type:jwt-bearer":
+			require.Equal(t, "POST", r.Method)
+			require.Equal(t, "/oauth/token", r.URL.Path)
+
+			t.Logf("assertion: %s", r.Form.Get("assertion"))
+			var claims jwt.MapClaims
+			_, _, err := jwt.NewParser().ParseUnverified(r.Form.Get("assertion"), &claims)
+			require.NoError(t, err)
+
+			require.Equal(t, "https://example.com/client-metadata.json", claims["iss"])
+			require.Equal(t, "did:web:test.com", claims["sub"])
+			require.Equal(t, "http://"+r.Host+"/oauth/token", claims["aud"])
+
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+				"access_token":  newJwtToken(t, "did:web:test.com", time.Now().Add(time.Hour)),
+				"refresh_token": "refresh-token",
+			}))
+		default:
+			t.Fatalf("unexpected grant type: %s", r.Form.Get("grant_type"))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
 			"access_token":  newJwtToken(t, "did:web:test.com", time.Now().Add(time.Hour)),
@@ -34,6 +61,9 @@ func testApp(t *testing.T, store oauth.ClientAuthStore) *App {
 		"https://example.com/oauth-callback",
 		[]string{"atproto"},
 	)
+	secret, err := atcrypto.GeneratePrivateKeyP256()
+	require.NoError(t, err)
+	cfg.SetClientSecret(secret, "test_key")
 	return NewApp(
 		&cfg,
 		store,
@@ -106,4 +136,12 @@ func TestApp_ProcessCallback_StateNotFound(t *testing.T) {
 		"code":  {"abc"},
 	})
 	assert.Error(t, err)
+}
+
+func TestApp_AddSessionWithBearerJwt(t *testing.T) {
+	app := testApp(t, oauth.NewMemStore())
+	sess, err := app.AddSessionWithBearerJwt(context.Background(), syntax.DID("did:web:test.com"))
+	require.NoError(t, err)
+	require.Equal(t, syntax.DID("did:web:test.com"), sess.AccountDID)
+	require.Equal(t, "refresh-token", sess.RefreshToken)
 }

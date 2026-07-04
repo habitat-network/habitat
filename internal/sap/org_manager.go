@@ -2,10 +2,13 @@ package sap
 
 import (
 	"context"
+	"errors"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"gorm.io/gorm"
 )
+
+var OrgNotFound = errors.New("org not found")
 
 type orgManager struct {
 	db *gorm.DB
@@ -32,6 +35,9 @@ func (m *orgManager) AddManagedOrg(
 func (m *orgManager) GetManagedOrg(ctx context.Context, did syntax.DID) (*managedOrg, error) {
 	var org managedOrg
 	if err := m.db.WithContext(ctx).Where("did = ?", did).First(&org).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, OrgNotFound
+		}
 		return nil, err
 	}
 	return &org, nil

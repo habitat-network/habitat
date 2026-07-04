@@ -311,6 +311,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		os.Exit(1)
 	}
 	syncServer := sync.NewServer(eventStore)
+	notifier := sync.NewNotifier(cmd.StringSlice(fBuiltinApps), syncServer, hive)
 
 	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore)
 	if err != nil {
@@ -556,6 +557,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 	eg.Go(func() error {
 		slog.Info("starting sequencer")
 		return eventStore.StartSequencer(egCtx)
+	})
+	eg.Go(func() error {
+		slog.Info("starting notifier")
+		return notifier.Start(egCtx)
 	})
 	eg.Go(func() error {
 		slog.Info("starting server", "port", port)

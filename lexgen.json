@@ -4,5 +4,11 @@
     "prefix": "network.habitat",
     "outdir": "api/habitat",
     "import": "github.com/habitat-network/habitat/api/habitat"
+  },
+  {
+    "package": "atproto",
+    "prefix": "com.atproto",
+    "outdir": "api/atproto",
+    "import": "github.com/habitat-network/habitat/api/atproto"
   }
 ]

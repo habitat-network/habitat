@@ -545,6 +545,45 @@ export const schemaDict = {
       },
     },
   },
+  ComAtprotoSpaceNotifyWrite: {
+    lexicon: 1,
+    id: 'com.atproto.space.notifyWrite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'repo', 'rev', 'hash'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the account whose repo advanced.',
+              },
+              rev: {
+                type: 'string',
+                description: 'The revision of the write.',
+              },
+              hash: {
+                type: 'bytes',
+                description:
+                  "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos.",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   CommunityLexiconCalendarEvent: {
     lexicon: 1,
     id: 'community.lexicon.calendar.event',
@@ -4514,6 +4553,7 @@ export const ids = {
   ComAtprotoRepoPutRecord: 'com.atproto.repo.putRecord',
   ComAtprotoRepoStrongRef: 'com.atproto.repo.strongRef',
   ComAtprotoServerGetServiceAuth: 'com.atproto.server.getServiceAuth',
+  ComAtprotoSpaceNotifyWrite: 'com.atproto.space.notifyWrite',
   CommunityLexiconCalendarEvent: 'community.lexicon.calendar.event',
   CommunityLexiconCalendarInvite: 'community.lexicon.calendar.invite',
   CommunityLexiconCalendarRsvp: 'community.lexicon.calendar.rsvp',
