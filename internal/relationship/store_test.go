@@ -53,6 +53,42 @@ func newSpace(
 	return uri
 }
 
+func TestParseSubjectParams(t *testing.T) {
+	space := habitat_syntax.SpaceURI("ats://did:plc:abc123/network.habitat.space/team")
+
+	t.Run("user did", func(t *testing.T) {
+		subject, err := parseSubjectParams(alice.String(), "")
+		require.NoError(t, err)
+		require.Equal(t, UserSubject{DID: alice}, subject)
+	})
+
+	t.Run("space role userset", func(t *testing.T) {
+		subject, err := parseSubjectParams(space.String(), string(RoleReader))
+		require.NoError(t, err)
+		require.Equal(t, SpaceRoleSubject{Space: space, Role: RoleReader}, subject)
+	})
+
+	t.Run("user with subjectRole is rejected", func(t *testing.T) {
+		_, err := parseSubjectParams(alice.String(), string(RoleReader))
+		require.ErrorIs(t, err, ErrInvalidTuple)
+	})
+
+	t.Run("space without subjectRole is rejected", func(t *testing.T) {
+		_, err := parseSubjectParams(space.String(), "")
+		require.ErrorIs(t, err, ErrInvalidTuple)
+	})
+
+	t.Run("space with invalid subjectRole is rejected", func(t *testing.T) {
+		_, err := parseSubjectParams(space.String(), "bogus")
+		require.ErrorIs(t, err, ErrInvalidTuple)
+	})
+
+	t.Run("non-did non-space subject is rejected", func(t *testing.T) {
+		_, err := parseSubjectParams("not-a-subject", "")
+		require.ErrorIs(t, err, ErrInvalidTuple)
+	})
+}
+
 func TestWriteTuple_UserReader(t *testing.T) {
 	rel, sp := newTestStore(t)
 	space := newSpace(t, sp, docsType, "doc")
@@ -61,15 +97,15 @@ func TestWriteTuple_UserReader(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, uri)
 
-	allowed, err := rel.Check(t.Context(), alice, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.True(t, allowed)
 
-	allowed, err = rel.Check(t.Context(), alice, RoleWriter, space)
+	allowed, err = rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleWriter, space)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
-	allowed, err = rel.Check(t.Context(), bob, RoleReader, space)
+	allowed, err = rel.Check(t.Context(), org, UserSubject{DID: bob}, RoleReader, space)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
@@ -82,7 +118,7 @@ func TestWriteTuple_OwnerImpliesLowerRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, role := range []Role{RoleOwner, RoleManager, RoleWriter, RoleReader} {
-		allowed, err := rel.Check(t.Context(), alice, role, space)
+		allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, role, space)
 		require.NoError(t, err)
 		require.True(t, allowed, "owner should imply %s", role)
 	}
@@ -144,7 +180,7 @@ func TestDeleteTuple(t *testing.T) {
 
 	require.NoError(t, rel.DeleteTuple(t.Context(), uri))
 
-	allowed, err := rel.Check(t.Context(), alice, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.False(t, allowed)
 
@@ -238,13 +274,108 @@ func TestGroupAsSpace(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	allowed, err := rel.Check(t.Context(), alice, RoleWriter, target)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleWriter, target)
 	require.NoError(t, err)
 	require.True(t, allowed, "group member should be a writer of the target space")
 
-	allowed, err = rel.Check(t.Context(), bob, RoleWriter, target)
+	allowed, err = rel.Check(t.Context(), org, UserSubject{DID: bob}, RoleWriter, target)
 	require.NoError(t, err)
 	require.False(t, allowed, "non-member should not have access")
+}
+
+// TestOrgSelfSpaceGrantsAllMembers exercises the org-membership chain: using the
+// org's self-space (network.habitat.organization/self) as a tuple subject grants
+// every member of the org the tuple's role on the object space. Membership
+// resolves through the org-member contextual tuple, so no per-member tuple is
+// stored on the object space.
+func TestOrgSelfSpaceGrantsAllMembers(t *testing.T) {
+	rel, sp := newTestStore(t)
+	target := newSpace(t, sp, docsType, "doc")
+
+	charlie := syntax.DID("did:plc:charlie") // not a member of the org
+
+	// alice and bob are members of the org.
+	for _, member := range []syntax.DID{alice, bob} {
+		err := rel.fga.Write(
+			t.Context(),
+			fgastore.MemberUserString(member),
+			fgastore.RelationMember,
+			fgastore.OrgObjectKey(org),
+		)
+		require.NoError(t, err)
+	}
+
+	// Grant the org's self-space (as a reader userset) writer access on the
+	// target space. Every org member is a reader of the self-space via the
+	// contextual tuple, so this extends writer access to all of them.
+	orgSpace := habitat_syntax.ConstructSpaceURI(
+		org,
+		"network.habitat.organization",
+		habitat_syntax.SpaceKey("self"),
+	)
+	_, err := rel.WriteTuple(
+		t.Context(),
+		SpaceRoleSubject{Space: orgSpace, Role: RoleReader},
+		RoleWriter,
+		target,
+	)
+	require.NoError(t, err)
+
+	// Every org member can write (and therefore read) the target space.
+	for _, member := range []syntax.DID{alice, bob} {
+		allowed, err := rel.Check(t.Context(), org, UserSubject{member}, RoleWriter, target)
+		require.NoError(t, err)
+		require.True(t, allowed, "org member %s should be a writer of the target space", member)
+	}
+
+	// A user who is not a member of the org gets no access.
+	allowed, err := rel.Check(t.Context(), org, UserSubject{charlie}, RoleWriter, target)
+	require.NoError(t, err)
+	require.False(t, allowed, "non-member should not have access")
+}
+
+// TestCheck_SpaceSubject checks a space-role userset directly as the subject of
+// a Check (rather than an individual user), resolving role implications and
+// distinguishing usersets that were never granted.
+func TestCheck_SpaceSubject(t *testing.T) {
+	rel, sp := newTestStore(t)
+	group := newSpace(t, sp, groupType, "team")
+	target := newSpace(t, sp, docsType, "doc")
+
+	// The group's readers are writers of the target space.
+	_, err := rel.WriteTuple(
+		t.Context(),
+		SpaceRoleSubject{Space: group, Role: RoleReader},
+		RoleWriter,
+		target,
+	)
+	require.NoError(t, err)
+
+	readers := SpaceRoleSubject{Space: group, Role: RoleReader}
+
+	allowed, err := rel.Check(t.Context(), org, readers, RoleWriter, target)
+	require.NoError(t, err)
+	require.True(t, allowed, "the group's readers hold the writer role they were granted")
+
+	allowed, err = rel.Check(t.Context(), org, readers, RoleReader, target)
+	require.NoError(t, err)
+	require.True(t, allowed, "writer implies reader for the userset")
+
+	allowed, err = rel.Check(t.Context(), org, readers, RoleOwner, target)
+	require.NoError(t, err)
+	require.False(t, allowed, "writer does not imply owner")
+
+	// A userset over an unrelated group was never granted any role on target.
+	other := newSpace(t, sp, groupType, "other")
+	allowed, err = rel.Check(
+		t.Context(),
+		org,
+		SpaceRoleSubject{Space: other, Role: RoleReader},
+		RoleWriter,
+		target,
+	)
+	require.NoError(t, err)
+	require.False(t, allowed, "a userset that was never granted holds no role")
 }
 
 func TestListSubjects(t *testing.T) {
@@ -256,12 +387,12 @@ func TestListSubjects(t *testing.T) {
 	_, err = rel.WriteTuple(t.Context(), UserSubject{DID: bob}, RoleWriter, space)
 	require.NoError(t, err)
 
-	readers, err := rel.ListSubjects(t.Context(), space, RoleReader)
+	readers, err := rel.ListSubjects(t.Context(), org, space, RoleReader)
 	require.NoError(t, err)
 	require.Contains(t, readers, alice)
 	require.Contains(t, readers, bob) // writer implies reader
 
-	writers, err := rel.ListSubjects(t.Context(), space, RoleWriter)
+	writers, err := rel.ListSubjects(t.Context(), org, space, RoleWriter)
 	require.NoError(t, err)
 	require.Contains(t, writers, bob)
 	require.NotContains(t, writers, alice)
@@ -277,12 +408,12 @@ func TestListObjects(t *testing.T) {
 	_, err = rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleWriter, spaceB)
 	require.NoError(t, err)
 
-	readers, err := rel.ListObjects(t.Context(), alice, RoleReader)
+	readers, err := rel.ListObjects(t.Context(), org, alice, RoleReader)
 	require.NoError(t, err)
 	require.Contains(t, readers, spaceA)
 	require.Contains(t, readers, spaceB) // writer implies reader
 
-	writers, err := rel.ListObjects(t.Context(), alice, RoleWriter)
+	writers, err := rel.ListObjects(t.Context(), org, alice, RoleWriter)
 	require.NoError(t, err)
 	require.Contains(t, writers, spaceB)
 	require.NotContains(t, writers, spaceA)
@@ -328,7 +459,7 @@ func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, tuples)
 
-	allowed, err := rel.Check(t.Context(), alice, RoleReader, space)
+	allowed, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, RoleReader, space)
 	require.NoError(t, err)
 	require.False(t, allowed)
 }
@@ -337,12 +468,12 @@ func TestInvalidRole_QueryMethods(t *testing.T) {
 	rel, sp := newTestStore(t)
 	space := newSpace(t, sp, docsType, "doc")
 
-	_, err := rel.Check(t.Context(), alice, Role("bogus"), space)
+	_, err := rel.Check(t.Context(), org, UserSubject{DID: alice}, Role("bogus"), space)
 	require.ErrorIs(t, err, ErrInvalidTuple)
 
-	_, err = rel.ListSubjects(t.Context(), space, Role("bogus"))
+	_, err = rel.ListSubjects(t.Context(), org, space, Role("bogus"))
 	require.ErrorIs(t, err, ErrInvalidTuple)
 
-	_, err = rel.ListObjects(t.Context(), alice, Role("bogus"))
+	_, err = rel.ListObjects(t.Context(), org, alice, Role("bogus"))
 	require.ErrorIs(t, err, ErrInvalidTuple)
 }

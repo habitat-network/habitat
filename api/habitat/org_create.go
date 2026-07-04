@@ -6,6 +6,7 @@ package habitat
 type NetworkHabitatOrgCreateInput struct {
 	AdminHandle     string `json:"admin_handle"`
 	AdminPassword   string `json:"admin_password,omitempty"`
+	ContactEmail    string `json:"contact_email"`
 	HandleSubdomain string `json:"handle_subdomain,omitempty"`
 	InviteToken     string `json:"invite_token,omitempty"`
 	LoginId         string `json:"login_id,omitempty"`

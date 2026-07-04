@@ -3,11 +3,10 @@ package org
 import (
 	"context"
 	"errors"
-	"time"
 
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/core"
 	"gorm.io/gorm"
 )
 
@@ -22,13 +21,8 @@ func (e *everyoneOrg) DID() syntax.DID {
 	return syntax.DID("did:web:public.habitat.network")
 }
 
-// ValidateAdminSignedToken implements [Org].
-func (e *everyoneOrg) ValidateAdminSignedToken(ctx context.Context, token string) error {
-	return ErrNotSupportedPublic
-}
-
-func (e *everyoneOrg) loginMethod(ctx context.Context) loginMethod {
-	return LoginMethodAtproto
+func (e *everyoneOrg) LoginMethod(ctx context.Context) core.LoginMethod {
+	return core.LoginMethodAtproto
 }
 
 // GetMetadata implements Org.
@@ -89,27 +83,6 @@ func (e *everyoneOrg) IsMember(ctx context.Context, member syntax.DID) (bool, er
 	return true, nil
 }
 
-// IssueIdentityToken implements Org.
-func (e *everyoneOrg) IssueIdentityToken(
-	ctx context.Context,
-	caller syntax.DID,
-	reusable bool,
-	expiresAt time.Time,
-) (token string, err error) {
-	return "", ErrNotSupportedPublic
-}
-
-// CreateNewMemberIdentity implements Org.
-func (e *everyoneOrg) CreateNewMemberIdentity(
-	ctx context.Context,
-	token string,
-	internalHandle string,
-	password string,
-	loginID string,
-) (*identity.Identity, error) {
-	return nil, ErrNotSupportedPublic
-}
-
 // AuthenticateMember implements Org.
 func (e *everyoneOrg) AuthenticateMember(
 	ctx context.Context,
@@ -120,10 +93,10 @@ func (e *everyoneOrg) AuthenticateMember(
 }
 
 // WithTx implements [Org].
-func (e *everyoneOrg) WithTx(tx *gorm.DB) Org {
+func (e *everyoneOrg) WithTx(tx *gorm.DB) core.Org {
 	return e
 }
 
-func NewEveryoneOrg() Org {
+func NewEveryoneOrg() core.Org {
 	return &everyoneOrg{}
 }

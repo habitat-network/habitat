@@ -248,6 +248,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		hiveDir,
 		domain,
 		passwordProvider,
+		fgaStore,
 	)
 	if err != nil {
 		slog.Error("unable to setup org store", "err", err)

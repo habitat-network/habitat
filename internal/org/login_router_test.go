@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/stretchr/testify/require"
 )
@@ -39,9 +40,10 @@ func TestLoginRouter(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	t.Logf("orgId: %s", orgId.DID.String())
 	t.Logf("adminId: %s", adminId.DID.String())
@@ -90,16 +92,21 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
-	o, err := store.GetOrg(t.Context(), orgId.DID)
+	token, err := store.IssueIdentityToken(
+		t.Context(),
+		orgId.DID,
+		adminId.DID,
+		true,
+		time.Now().Add(time.Hour),
+	)
 	require.NoError(t, err)
-	token, err := o.IssueIdentityToken(t.Context(), adminId.DID, true, time.Now().Add(time.Hour))
-	require.NoError(t, err)
-	memberId, err := o.CreateNewMemberIdentity(t.Context(), token, "alice", "", "")
+	memberId, err := store.CreateNewMemberIdentity(t.Context(), orgId.DID, token, "alice", "", "")
 	require.NoError(t, err)
 
 	router := LoginRouter{
@@ -123,9 +130,10 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	router := LoginRouter{
@@ -150,9 +158,10 @@ func TestExchange_MissingMember(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(core.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 	router := LoginRouter{

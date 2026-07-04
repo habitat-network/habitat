@@ -17,22 +17,40 @@ const Header = ({ profile, org, onLogout }: HeaderProps) => {
           <li>
             <Link to="/">🌱 habitat</Link>
           </li>
-          {org && (
-            <li>
-              <Link
-                to="/org"
-                className="text-gray-500 hover:text-black transition-colors"
-              >
-                {org.name}
-              </Link>
-            </li>
+          {profile && (
+            <>
+              {org && (
+                <li>
+                  <Button variant="link" render={<Link to="/org" />}>
+                    {org.name}
+                  </Button>
+                </li>
+              )}
+              <li>
+                <Button variant="link" render={<Link to="/spaces" />}>
+                  Spaces
+                </Button>
+              </li>
+              <li>
+                <Button variant="link" render={<Link to="/groups" />}>
+                  Groups
+                </Button>
+              </li>
+              <li>
+                <Button variant="link" render={<Link to="/collections" />}>
+                  Collections
+                </Button>
+              </li>
+            </>
           )}
         </ul>
         {profile ? (
           <ul className="flex items-center gap-2">
-            <Button variant="ghost" render={<Link to="/devtools" />}>
-              Devtools
-            </Button>
+            {import.meta.env.DEV && (
+              <Button variant="ghost" render={<Link to="/devtools" />}>
+                Devtools
+              </Button>
+            )}
             <UserAvatar actor={profile} />
             <li>
               <Button onClick={onLogout}>Logout</Button>

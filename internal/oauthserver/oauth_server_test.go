@@ -15,7 +15,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/encrypt"
+	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
@@ -33,7 +35,16 @@ import (
 func testStore(t *testing.T) org.Store {
 	t.Helper()
 	s := testutil.NewTestStore(t)
-	_, _, err := s.CreateOrg(t.Context(), "org-name", "admin", "password", "", "", "")
+	_, _, err := s.CreateOrg(
+		t.Context(),
+		"org-name",
+		"admin",
+		"password",
+		"",
+		"",
+		"",
+		"contact@example.com",
+	)
 	require.NoError(t, err)
 	return s
 }
@@ -457,7 +468,9 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		dummyDir,
 	)
 	require.NoError(t, err, "failed to setup password provider")
-	orgStore, err := org.NewStore(hiveDB, h, dummyDir, pearDomain, passwordProvider)
+	fgaStore, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err, "failed to setup fga store")
+	orgStore, err := org.NewStore(hiveDB, h, dummyDir, pearDomain, passwordProvider, fgaStore)
 	require.NoError(t, err, "failed to setup org store")
 
 	_, member, err := orgStore.CreateOrg(
@@ -468,6 +481,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		"atproto",
 		pdsLoginDID,
 		"acme",
+		"contact@example.com",
 	)
 	require.NoError(t, err, "failed to create org with hive-served admin")
 
@@ -727,13 +741,13 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 // testIsMemberStore wraps an org.Store and overrides GetOrgByDID.
 type testIsMemberStore struct {
 	org.Store
-	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
+	fn func(ctx context.Context, did syntax.DID) (core.Org, error)
 }
 
 func (s *testIsMemberStore) GetOrgForDID(
 	ctx context.Context,
 	did syntax.DID,
-) (org.Org, bool, error) {
+) (core.Org, bool, error) {
 	o, err := s.fn(ctx, did)
 	return o, false, err
 }
@@ -902,7 +916,7 @@ func TestValidate(t *testing.T) {
 	t.Run("GetOrgForDID error returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
+			fn: func(_ context.Context, _ syntax.DID) (core.Org, error) {
 				return nil, errors.New("simulated database failure")
 			},
 		})
@@ -914,7 +928,7 @@ func TestValidate(t *testing.T) {
 	t.Run("non-member returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
+			fn: func(_ context.Context, _ syntax.DID) (core.Org, error) {
 				return nil, org.ErrMemberNotFound
 			},
 		})

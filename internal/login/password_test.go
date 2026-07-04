@@ -41,11 +41,21 @@ func TestLoginProvider_Authorize(t *testing.T) {
 	redirect, state, err := p.Authorize(context.Background(), "did:web:alice.example.com")
 	require.NoError(t, err)
 	require.Nil(t, state)
+	// loginHint is resolved from a DID to a handle (from the dummy directory)
+	// so the login page can display something readable.
 	require.Equal(
 		t,
-		"https://pear.example.com/ui/login/habitat?handle=did%3Aweb%3Aalice.example.com",
+		"https://pear.example.com/ui/login/habitat?handle=example.handle.com",
 		redirect,
 	)
+}
+
+func TestLoginProvider_Authorize_EmptyLoginHint(t *testing.T) {
+	p := newTestLoginProvider(t)
+	redirect, state, err := p.Authorize(context.Background(), "")
+	require.NoError(t, err)
+	require.Nil(t, state)
+	require.Equal(t, "https://pear.example.com/ui/login/habitat?handle=", redirect)
 }
 
 func TestLoginProvider_ExchangeRoundTrip(t *testing.T) {

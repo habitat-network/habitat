@@ -20,6 +20,8 @@ export type QueryParams = {}
 export interface InputSchema {
   /** Internal handle for the bootstrap admin (alphanumeric, 1-50 chars). */
   admin_handle: string
+  /** Email address for contacting the org about its account (not used for login). */
+  contact_email: string
   /** Password for the bootstrap admin account (required for password login method). */
   admin_password?: string
   /** Subdomain for all org member handles (e.g. 'acmecorp'). */

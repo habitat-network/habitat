@@ -59,13 +59,25 @@ func NewPasswordProvider(
 var _ Provider = (*PasswordLoginProvider)(nil)
 
 func (p *PasswordLoginProvider) Authorize(
-	_ context.Context,
+	ctx context.Context,
 	loginHint string,
 ) (string, []byte, error) {
+	// loginHint is the member's LoginID, which for password login is their DID
+	// (see CreateNewMemberIdentity), not a human-readable handle. Resolve it to
+	// a handle so the login page (typescript/apps/pear-pages) can display
+	// something readable instead of a DID; fall back to the DID if resolution
+	// fails.
+	display := loginHint
+	if did, err := syntax.ParseDID(loginHint); err == nil {
+		if id, err := p.dir.LookupDID(ctx, did); err == nil && !id.Handle.IsInvalidHandle() {
+			display = id.Handle.String()
+		}
+	}
+
 	// The member login page is served by pear itself as a pre-rendered page
 	// embedded under /ui/ (see internal/webui and typescript/apps/pear-pages).
 	redirect := "https://" + p.pearDomain + "/ui/login/habitat?handle=" + url.QueryEscape(
-		loginHint,
+		display,
 	)
 	return redirect, nil, nil
 }

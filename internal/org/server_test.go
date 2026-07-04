@@ -13,7 +13,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -59,12 +60,13 @@ func newTestServer(
 		"password",
 		"",
 		"",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 
 	srv, err := NewServer(
 		storeImpl,
-		authn.NewStubAuthnForTest(adminIdent.DID),
+		authntest.NewSuccessMethod(adminIdent.DID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -136,10 +138,9 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Mint an org-signed token to authenticate the request.
-	org, err := srv.store.GetOrg(context.Background(), orgId)
-	require.NoError(t, err)
-	token, err := org.IssueIdentityToken(
+	token, err := srv.store.IssueIdentityToken(
 		context.Background(),
+		orgId,
 		adminDID,
 		true,
 		time.Now().Add(time.Hour),
@@ -160,7 +161,7 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(core.LoginMethodPassword), out.LoginMethod)
 }
 
 func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
@@ -195,7 +196,7 @@ func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(core.LoginMethodPassword), out.LoginMethod)
 }
 
 func newCreateTestServer(t *testing.T) *Server {
@@ -221,6 +222,7 @@ func TestCreateOrg(t *testing.T) {
 		AdminPassword:   "securepassword123",
 		LoginMethod:     "password",
 		HandleSubdomain: "org",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -266,6 +268,7 @@ func TestCreateOrg_InvalidHandle(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "org",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -278,12 +281,47 @@ func TestCreateOrg_InvalidHandle(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestCreateOrg_ContactEmailValidation(t *testing.T) {
+	tests := []struct {
+		name         string
+		contactEmail string
+	}{
+		{name: "missing", contactEmail: ""},
+		{name: "malformed", contactEmail: "not-an-email"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newCreateTestServer(t)
+
+			body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
+				Name:            "My Org",
+				AdminHandle:     "admin",
+				AdminPassword:   "securepassword123",
+				LoginMethod:     "password",
+				HandleSubdomain: "org",
+				ContactEmail:    tt.contactEmail,
+			})
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/xrpc/network.habitat.org.create",
+				bytes.NewReader(body),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.CreateOrg(w, req)
+			require.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+}
+
 func TestCreateOrg_MissingFields(t *testing.T) {
 	srv := newCreateTestServer(t)
 
 	body, _ := json.Marshal(habitat.NetworkHabitatOrgCreateInput{
 		AdminHandle:     "admin",
 		HandleSubdomain: "org",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -299,7 +337,7 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -313,6 +351,7 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -328,7 +367,7 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -342,6 +381,7 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 	})
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -357,7 +397,7 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -371,6 +411,7 @@ func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     "garbage",
 	})
 	req := httptest.NewRequest(
@@ -388,7 +429,7 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 	policy := &fakeInstancePolicy{policy: "invite_only"}
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -402,6 +443,7 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     "a-valid-token",
 	})
 	req := httptest.NewRequest(
@@ -422,7 +464,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 	store := newTestStore(t)
 	srv, err := NewServer(
 		store,
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -443,6 +485,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 		"password",
 		"",
 		"test",
+		"contact@example.com",
 	)
 	require.NoError(t, err)
 
@@ -452,6 +495,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     "a-valid-token",
 	})
 	req := httptest.NewRequest(
@@ -482,7 +526,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 
 	srv, err := NewServer(
 		newTestStore(t),
-		authn.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -496,6 +540,7 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 		AdminPassword:   "password",
 		LoginMethod:     "password",
 		HandleSubdomain: "test",
+		ContactEmail:    "contact@example.com",
 		InviteToken:     token,
 	})
 	req := httptest.NewRequest(

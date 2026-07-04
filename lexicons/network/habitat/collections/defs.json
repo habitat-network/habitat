@@ -1,0 +1,63 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.collections.defs",
+    "defs": {
+        "collectionView": {
+            "type": "object",
+            "description": "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
+            "required": [
+                "collection",
+                "recordCount"
+            ],
+            "properties": {
+                "collection": {
+                    "type": "string",
+                    "format": "nsid",
+                    "description": "The NSID of the record collection."
+                },
+                "recordCount": {
+                    "type": "integer",
+                    "description": "Number of records in this collection the calling user can see, counted across all spaces they can read (once per space a record belongs to)."
+                }
+            }
+        },
+        "recordView": {
+            "type": "object",
+            "description": "A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.",
+            "required": [
+                "uri",
+                "space",
+                "repo",
+                "collection",
+                "rkey"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space."
+                },
+                "space": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the space this record belongs to."
+                },
+                "repo": {
+                    "type": "string",
+                    "format": "did",
+                    "description": "DID of the repo the record lives in."
+                },
+                "collection": {
+                    "type": "string",
+                    "format": "nsid",
+                    "description": "The NSID of the record collection."
+                },
+                "rkey": {
+                    "type": "string",
+                    "format": "record-key",
+                    "description": "The record key."
+                }
+            }
+        }
+    }
+}

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/authn"
+	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +86,7 @@ func TestServeHTTP_ForwardsToCallerPDS(t *testing.T) {
 
 	callerDID := syntax.DID("did:plc:caller123")
 	p := &PDSForwarding{
-		oauth:            authn.NewStubAuthnForTest(callerDID),
+		oauth:            authntest.NewSuccessMethod(callerDID),
 		pdsClientFactory: pdsclient.NewDummyClientFactory(fakePDS.URL),
 		plainHTTPClient:  fakePDS.Client(),
 	}

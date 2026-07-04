@@ -14,7 +14,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
+	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -50,6 +52,12 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	}
 	slog.SetLogLoggerLevel(logLevel)
 
+	otelShutdown, err := telemetry.SetupOpenTelemetry(ctx)
+	if err != nil {
+		return fmt.Errorf("setup opentelemetry: %w", err)
+	}
+	defer func() { _ = otelShutdown(context.Background()) }()
+
 	db, err := setupDatabase(cmd.String(fDb))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
@@ -81,6 +89,8 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	s, err := sap.NewSap(sap.SapConfig{
 		DB:          db,
 		OAuthClient: oauthApp,
+		Meter:       otel.Meter("sap"),
+		Tracer:      otel.Tracer("sap"),
 	})
 	if err != nil {
 		return fmt.Errorf("create sap: %w", err)
@@ -101,6 +111,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	internalMux.HandleFunc("/org/add", server.handleAddOrg)
 	internalMux.HandleFunc("/org/list", server.handleListOrgs)
 	internalMux.HandleFunc("/channel", server.handleOutboxChannel)
+	internalMux.HandleFunc("/proxy/", server.handleProxy)
 
 	slog.InfoContext(ctx, "listening",
 		"oauth_port", cmd.String(fPort),

@@ -1170,6 +1170,133 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatCollectionsDefs: {
+    lexicon: 1,
+    id: 'network.habitat.collections.defs',
+    defs: {
+      collectionView: {
+        type: 'object',
+        description:
+          "A record collection (lexicon type) present in the org's synced data, with a count of the records in it the calling user can see. A record scoped to more than one readable space is counted once per space, since each space holds its own version.",
+        required: ['collection', 'recordCount'],
+        properties: {
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          recordCount: {
+            type: 'integer',
+            description:
+              'Number of records in this collection the calling user can see, counted across all spaces they can read (once per space a record belongs to).',
+          },
+        },
+      },
+      recordView: {
+        type: 'object',
+        description:
+          'A single record scoped to one space. The same repo/collection/rkey in a different space is a distinct record with its own version, so it appears as its own recordView. The record body is not included; fetch it on demand from pear using the space, repo, collection and rkey.',
+        required: ['uri', 'space', 'repo', 'collection', 'rkey'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'The space-record URI (spaceUri/repo/collection/rkey), unique to this record in this space.',
+          },
+          space: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the space this record belongs to.',
+          },
+          repo: {
+            type: 'string',
+            format: 'did',
+            description: 'DID of the repo the record lives in.',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+            description: 'The NSID of the record collection.',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+            description: 'The record key.',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListCollections: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listCollections',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the record collections (lexicon types) present in the org's synced data, each with a count of the distinct records the calling user can see. Only collections with at least one visible record are returned. Implemented by the home server and reached via pear service proxying.",
+        parameters: {
+          type: 'params',
+          properties: {},
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['collections'],
+            properties: {
+              collections: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#collectionView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatCollectionsListRecords: {
+    lexicon: 1,
+    id: 'network.habitat.collections.listRecords',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the records in a collection the calling user can see, each with the spaces it belongs to that the user can read. The record body is not included; fetch it on demand from pear. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          required: ['collection'],
+          properties: {
+            collection: {
+              type: 'string',
+              format: 'nsid',
+              description: 'The NSID of the record collection to list.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['records'],
+            properties: {
+              records: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.collections.defs#recordView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatDocsCrdt: {
     lexicon: 1,
     id: 'network.habitat.docs.crdt',
@@ -1408,6 +1535,388 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatGroupsAddMember: {
+    lexicon: 1,
+    id: 'network.habitat.groups.addMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Add a member to a group. The member is either an individual user (subjectDid) or another group whose members are inherited (subjectGroup). The home server writes the backing relationship tuple using the org credential. Caller must be able to manage the group.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['group'],
+            properties: {
+              group: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the group-space to add the member to.',
+              },
+              subjectDid: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'DID of the user to add as a member. Mutually exclusive with subjectGroup.',
+              },
+              subjectGroup: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of another group-space whose members this group should inherit. Mutually exclusive with subjectDid.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              uri: {
+                type: 'string',
+                description: 'URI of the written relationship tuple.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+          {
+            name: 'Forbidden',
+            description: 'The caller is not allowed to manage this group.',
+          },
+          {
+            name: 'InvalidSubject',
+            description:
+              'Exactly one of subjectDid or subjectGroup must be provided.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatGroupsCreateGroup: {
+    lexicon: 1,
+    id: 'network.habitat.groups.createGroup',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Create a new group. The home server creates a network.habitat.group space using the org credential, writes a network.habitat.group.profile self record, and grants the calling user the manager role so they are both a member and able to manage the group.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['name'],
+            properties: {
+              name: {
+                type: 'string',
+                maxLength: 256,
+              },
+              description: {
+                type: 'string',
+                maxLength: 2048,
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the created group-space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupsDefs: {
+    lexicon: 1,
+    id: 'network.habitat.groups.defs',
+    defs: {
+      groupView: {
+        type: 'object',
+        description:
+          'A group, backed by a network.habitat.group space, with its membership resolved. Membership is the set of users holding at least the writer role on the group-space, expanded through inherited groups.',
+        required: ['uri', 'name', 'isMember', 'canManage'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+            description: 'URI of the group-space.',
+          },
+          name: {
+            type: 'string',
+          },
+          description: {
+            type: 'string',
+          },
+          createdAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+          memberCount: {
+            type: 'integer',
+            description:
+              'Number of distinct members after expanding inherited groups.',
+          },
+          isMember: {
+            type: 'boolean',
+            description: 'Whether the calling user is a member of this group.',
+          },
+          canManage: {
+            type: 'boolean',
+            description:
+              'Whether the calling user can manage this group (add members, edit it).',
+          },
+          members: {
+            type: 'array',
+            items: {
+              type: 'ref',
+              ref: 'lex:network.habitat.groups.defs#memberView',
+            },
+          },
+          inheritedGroups: {
+            type: 'array',
+            description: 'Other groups this group inherits members from.',
+            items: {
+              type: 'ref',
+              ref: 'lex:network.habitat.groups.defs#groupRef',
+            },
+          },
+        },
+      },
+      memberView: {
+        type: 'object',
+        required: ['did', 'direct'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+          role: {
+            type: 'string',
+            description:
+              'Role held on the group-space (owner|manager|writer|reader).',
+          },
+          direct: {
+            type: 'boolean',
+            description:
+              'True if the member is granted a role directly on this group, false if the membership is inherited from another group.',
+          },
+          viaGroup: {
+            type: 'string',
+            format: 'uri',
+            description:
+              'If inherited, the URI of the group-space the membership came from.',
+          },
+        },
+      },
+      groupRef: {
+        type: 'object',
+        required: ['uri', 'name'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'uri',
+          },
+          name: {
+            type: 'string',
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupsDeleteMember: {
+    lexicon: 1,
+    id: 'network.habitat.groups.deleteMember',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Remove a member from a group. The member is either an individual user (subjectDid) or an inherited group (subjectGroup). The home server deletes the backing relationship tuple using the org credential. Caller must be able to manage the group.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['group'],
+            properties: {
+              group: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of the group-space to remove the member from.',
+              },
+              subjectDid: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'DID of the user to remove. Mutually exclusive with subjectGroup.',
+              },
+              subjectGroup: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'URI of an inherited group-space to stop inheriting. Mutually exclusive with subjectDid.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+          {
+            name: 'Forbidden',
+            description: 'The caller is not allowed to manage this group.',
+          },
+          {
+            name: 'InvalidSubject',
+            description:
+              'Exactly one of subjectDid or subjectGroup must be provided.',
+          },
+          {
+            name: 'MemberNotFound',
+            description: 'The subject is not a direct member of the group.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatGroupsGetGroup: {
+    lexicon: 1,
+    id: 'network.habitat.groups.getGroup',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'Fetch a single group with its full membership expanded, including which other groups it inherits members from. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          required: ['group'],
+          properties: {
+            group: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the group-space.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'ref',
+            ref: 'lex:network.habitat.groups.defs#groupView',
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatGroupsListGroups: {
+    lexicon: 1,
+    id: 'network.habitat.groups.listGroups',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          'List the groups visible to the calling user: groups they are a member of (directly or through inherited groups) and groups they can manage. Implemented by the home server and reached via pear service proxying.',
+        parameters: {
+          type: 'params',
+          properties: {},
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['groups'],
+            properties: {
+              groups: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.groups.defs#groupView',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatGroupsUpdateGroup: {
+    lexicon: 1,
+    id: 'network.habitat.groups.updateGroup',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Update a group's profile (name and/or description). Caller must be able to manage the group.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['group'],
+            properties: {
+              group: {
+                type: 'string',
+                format: 'uri',
+                description: 'URI of the group-space.',
+              },
+              name: {
+                type: 'string',
+                maxLength: 256,
+              },
+              description: {
+                type: 'string',
+                maxLength: 2048,
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['uri'],
+            properties: {
+              uri: {
+                type: 'string',
+                format: 'uri',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'GroupNotFound',
+            description: 'No group with the given URI is indexed.',
+          },
+          {
+            name: 'Forbidden',
+            description: 'The caller is not allowed to manage this group.',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatInstanceDescribeInstance: {
     lexicon: 1,
     id: 'network.habitat.instance.describeInstance',
@@ -1590,12 +2099,17 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['admin_handle'],
+            required: ['admin_handle', 'contact_email'],
             properties: {
               admin_handle: {
                 type: 'string',
                 description:
                   'Internal handle for the bootstrap admin (alphanumeric, 1-50 chars).',
+              },
+              contact_email: {
+                type: 'string',
+                description:
+                  'Email address for contacting the org about its account (not used for login).',
               },
               admin_password: {
                 type: 'string',
@@ -2184,15 +2698,21 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'Check whether a user holds a role on a space, resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
+          'Check whether a subject holds a role on a space. The subject is either a user (DID) or a space-role userset (a space URI plus subjectRole), resolving through space-role usersets (groups, including org member/admin groups, are spaces, so group membership and nested groups resolve as space-role usersets) and built-in role implications (owner implies manager implies writer implies reader). Caller must have the reader role on the space.',
         parameters: {
           type: 'params',
-          required: ['did', 'relation', 'space'],
+          required: ['subject', 'relation', 'space'],
           properties: {
-            did: {
+            subject: {
               type: 'string',
-              format: 'did',
-              description: 'DID of the user to check.',
+              description:
+                'The subject to check: a user DID, or a space URI when checking a space-role userset. When a space URI, subjectRole is required.',
+            },
+            subjectRole: {
+              type: 'string',
+              enum: ['owner', 'manager', 'writer', 'reader'],
+              description:
+                'The role held on the subject space, forming a userset. Required when subject is a space URI; omit when subject is a user DID.',
             },
             relation: {
               type: 'string',
@@ -2214,7 +2734,7 @@ export const schemaDict = {
             properties: {
               allowed: {
                 type: 'boolean',
-                description: 'Whether the user holds the role on the space.',
+                description: 'Whether the subject holds the role on the space.',
               },
             },
           },
@@ -4010,6 +4530,11 @@ export const ids = {
   NetworkHabitatCliqueGetMembers: 'network.habitat.clique.getMembers',
   NetworkHabitatCliqueIsMember: 'network.habitat.clique.isMember',
   NetworkHabitatCliqueRemoveMembers: 'network.habitat.clique.removeMembers',
+  NetworkHabitatCollectionsDefs: 'network.habitat.collections.defs',
+  NetworkHabitatCollectionsListCollections:
+    'network.habitat.collections.listCollections',
+  NetworkHabitatCollectionsListRecords:
+    'network.habitat.collections.listRecords',
   NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
   NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
   NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',
@@ -4017,6 +4542,13 @@ export const ids = {
   NetworkHabitatDocsUpdateDoc: 'network.habitat.docs.updateDoc',
   NetworkHabitatGrantee: 'network.habitat.grantee',
   NetworkHabitatGroupProfile: 'network.habitat.group.profile',
+  NetworkHabitatGroupsAddMember: 'network.habitat.groups.addMember',
+  NetworkHabitatGroupsCreateGroup: 'network.habitat.groups.createGroup',
+  NetworkHabitatGroupsDefs: 'network.habitat.groups.defs',
+  NetworkHabitatGroupsDeleteMember: 'network.habitat.groups.deleteMember',
+  NetworkHabitatGroupsGetGroup: 'network.habitat.groups.getGroup',
+  NetworkHabitatGroupsListGroups: 'network.habitat.groups.listGroups',
+  NetworkHabitatGroupsUpdateGroup: 'network.habitat.groups.updateGroup',
   NetworkHabitatInstanceDescribeInstance:
     'network.habitat.instance.describeInstance',
   NetworkHabitatInternalNotifyOfUpdate:

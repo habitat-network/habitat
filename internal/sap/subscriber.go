@@ -13,6 +13,8 @@ import (
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/r3labs/sse/v2"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -27,6 +29,7 @@ type subscriber struct {
 	db          *gorm.DB
 	oauthClient *oauthclient.App
 	resyncBuf   *resyncBuffer
+	metrics     *metrics
 
 	subscriptionsMu sync.RWMutex
 	subscriptions   map[syntax.DID]*subscription
@@ -37,6 +40,7 @@ func (s *subscriber) WithTx(tx *gorm.DB) *subscriber {
 		db:            tx,
 		oauthClient:   s.oauthClient,
 		resyncBuf:     s.resyncBuf,
+		metrics:       s.metrics,
 		subscriptions: s.subscriptions,
 	}
 }
@@ -45,20 +49,32 @@ func newSubscriber(
 	db *gorm.DB,
 	oauthClient *oauthclient.App,
 	resyncBuf *resyncBuffer,
+	metrics *metrics,
 ) *subscriber {
 	return &subscriber{
 		db:            db,
 		oauthClient:   oauthClient,
 		resyncBuf:     resyncBuf,
+		metrics:       metrics,
 		subscriptions: map[syntax.DID]*subscription{},
 	}
 }
 
 // addSubscription adds a new subscription to subscribeSpaces and tracks it by org id
 func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
+	ctx, span := s.metrics.tracer.Start(ctx, "sap.subscriber.subscription",
+		trace.WithAttributes(attribute.String("sap.org", org.DID.String())))
+	s.metrics.subscriptionStarted(ctx)
+	defer func() {
+		s.metrics.subscriptionEnded(ctx)
+		span.End()
+	}()
+
 	httpClient, err := s.oauthClient.GetClient(ctx, org.DID, org.SessionID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get oauth client", "org", org.DID, "err", err)
+		span.RecordError(err)
+		s.metrics.subscriptionError(ctx)
 		return
 	}
 	client := sse.NewClient("/xrpc/network.habitat.sync.subscribeSpaces")
@@ -72,6 +88,10 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	}
 
 	err = client.SubscribeRawWithContext(subscribeCtx, func(event *sse.Event) {
+		eventCtx, eventSpan := s.metrics.tracer.Start(subscribeCtx, "sap.subscriber.handle_event",
+			trace.WithAttributes(attribute.String("sap.org", org.DID.String())))
+		defer eventSpan.End()
+
 		eventType := string(event.Event)
 		switch eventType {
 		case "space":
@@ -83,6 +103,8 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 					"err",
 					err,
 				)
+				eventSpan.RecordError(err)
+				s.metrics.eventProcessed(eventCtx, "error")
 				return
 			}
 			err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -100,6 +122,8 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 			})
 			if err != nil {
 				slog.ErrorContext(subscribeCtx, "failed to save space event", "err", err)
+				eventSpan.RecordError(err)
+				s.metrics.eventProcessed(eventCtx, "error")
 				// The sse client already advanced LastEventID past this event
 				// before invoking this handler. Roll it back to the last
 				// successfully committed cursor so a reconnect replays the
@@ -107,6 +131,7 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 				client.LastEventID.Store(lastGoodCursor)
 				return
 			}
+			s.metrics.eventProcessed(eventCtx, "success")
 			lastGoodCursor = []byte(strconv.FormatUint(spaceEvent.Seq, 10))
 		default:
 			slog.WarnContext(subscribeCtx, "unknown event type", "event", event.Event)
@@ -114,6 +139,8 @@ func (s *subscriber) addSubscription(ctx context.Context, org *managedOrg) {
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to subscribe", "org", org.DID, "err", err)
+		span.RecordError(err)
+		s.metrics.subscriptionError(ctx)
 		s.db.Model(&managedOrg{}).Where("did = ?", org.DID).UpdateColumn("error_msg", err.Error())
 		return
 	}
@@ -146,6 +173,9 @@ func (s *subscriber) closeSubscriptions() error {
 
 // loadSubscriptions loads orgs from the database and adds them to the subscriptions
 func (s *subscriber) loadSubscriptions(ctx context.Context) error {
+	ctx, span := s.metrics.tracer.Start(ctx, "sap.subscriber.load_subscriptions")
+	defer span.End()
+
 	activeSubs := []syntax.DID{}
 	s.subscriptionsMu.RLock()
 	for k := range s.subscriptions {
@@ -159,10 +189,12 @@ func (s *subscriber) loadSubscriptions(ctx context.Context) error {
 	}
 	err := query.Find(&orgs).Error
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("load subscriptions: %w", err)
 	}
+	span.SetAttributes(attribute.Int("sap.subscriptions_loaded", len(orgs)))
 	for _, o := range orgs {
-		go s.addSubscription(ctx, &o)
+		go s.addSubscription(inheritCancelDetachSpan(ctx), &o)
 	}
 	slog.InfoContext(ctx, "loaded subscriptions", "count", len(orgs))
 	return nil

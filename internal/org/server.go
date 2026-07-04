@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -62,15 +64,18 @@ func (s *Server) IsMember(ctx context.Context, member syntax.DID) (bool, error) 
 	return true, nil
 }
 
-func (s *Server) validateOrgToken(ctx context.Context, orgID string, token string) (Org, error) {
+func (s *Server) validateOrgToken(
+	ctx context.Context,
+	orgID string,
+	token string,
+) (core.Org, error) {
 	org, err := s.store.GetOrg(ctx, syntax.DID(orgID))
 	if err != nil {
 		return nil, err
 	}
 
 	// Org found, validate token.
-	err = org.ValidateAdminSignedToken(ctx, token)
-	if err != nil {
+	if err := s.store.ValidateAdminSignedToken(ctx, syntax.DID(orgID), token); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +91,7 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	orgID := params.OrgId
-	var org Org
+	var org core.Org
 	// Either orgID is supplied in query params and the signed token is passed up for authn method
 	if orgID != "" {
 		org, err = s.validateOrgToken(
@@ -155,8 +160,13 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AdminHandle == "" || req.Name == "" || req.LoginMethod == "" {
+	if req.AdminHandle == "" || req.Name == "" || req.LoginMethod == "" || req.ContactEmail == "" {
 		utils.LogAndHTTPError(r.Context(), w, nil, "missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := mail.ParseAddress(req.ContactEmail); err != nil {
+		utils.LogAndHTTPError(r.Context(), w, nil, "invalid contact email", http.StatusBadRequest)
 		return
 	}
 
@@ -211,6 +221,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		req.LoginMethod,
 		req.LoginId,
 		req.HandleSubdomain,
+		req.ContactEmail,
 	)
 	if errors.Is(err, identity.ErrInvalidHandle) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -690,7 +701,13 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 		expiresAt = parsed
 	}
 
-	token, err := org.IssueIdentityToken(r.Context(), credInfo.Subject, req.Reusable, expiresAt)
+	token, err := s.store.IssueIdentityToken(
+		r.Context(),
+		org.DID(),
+		credInfo.Subject,
+		req.Reusable,
+		expiresAt,
+	)
 	if err != nil {
 		utils.LogAndHTTPError(
 			r.Context(),
@@ -742,20 +759,9 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := s.store.GetOrg(r.Context(), orgDid)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"getting organization",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	id, err := org.CreateNewMemberIdentity(
+	id, err := s.store.CreateNewMemberIdentity(
 		r.Context(),
+		orgDid,
 		req.Token,
 		req.Handle,
 		req.Password,
