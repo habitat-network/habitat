@@ -36,9 +36,9 @@ function CreateCommunityPage() {
   const [customInstanceName, setCustomInstanceName] = useState<string | null>(
     null,
   );
-  const [customInstanceError, setCustomInstanceError] = useState<
-    string | null
-  >(null);
+  const [customInstanceError, setCustomInstanceError] = useState<string | null>(
+    null,
+  );
 
   const {
     register,
