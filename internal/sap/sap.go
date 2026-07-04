@@ -146,6 +146,9 @@ func (s *Sap) HandleNotifyWrite(w http.ResponseWriter, r *http.Request) {
 
 	_, err = s.orgManager.GetManagedOrg(ctx, space.SpaceOwner())
 	if errors.Is(err, OrgNotFound) {
+		// if we receive a notification about an org that we don't manage, try to add it
+		// using jwt bearer grant. the assumption is that pear trusts this app so we should
+		// be able to receive an org credential
 		slog.InfoContext(ctx, "org not managed, adding", "org", space.SpaceOwner())
 		session, err := s.oauthClient.AddSessionWithBearerJwt(ctx, space.SpaceOwner())
 		if err != nil {
