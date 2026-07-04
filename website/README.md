@@ -41,3 +41,7 @@ All commands are run from the root of the project, from a terminal:
 ## 👀 Want to learn more?
 
 Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+
+## Notes from Arushi
+
+To deploy, just copy the output from `pnpm build` into the root directory for our Github Pages website: `cp -r /path/to/habitat/website/dist/* /path/to/website/.`
