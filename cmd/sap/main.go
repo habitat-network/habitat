@@ -105,6 +105,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	oauthMux := http.NewServeMux()
 	oauthMux.HandleFunc("/oauth-callback", server.handleOAuthCallback)
 	oauthMux.HandleFunc("/client-metadata.json", server.handleClientMetadata)
+	oauthMux.HandleFunc("/xrpc/com.atproto.space.notifyWrite", s.HandleNotifyWrite)
 
 	internalMux := http.NewServeMux()
 	internalMux.HandleFunc("/health", server.handleHealth)
