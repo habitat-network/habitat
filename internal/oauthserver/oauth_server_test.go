@@ -54,6 +54,8 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		_, err := NewOAuthServer(
 			[]byte("not valid base64"),
 			nil, nil, nil, noop.Meter{}, testStore(t),
+			"https://habitat.example/oauth/token",
+			NewJWTBearerStore(),
 		)
 		require.Error(t, err)
 	})
@@ -80,6 +82,8 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		db,
 		noop.Meter{},
 		testStore(t),
+		"https://habitat.example/oauth/token",
+		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
 
@@ -178,6 +182,8 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 		db,
 		noop.Meter{},
 		testStore(t),
+		"https://habitat.example/oauth/token",
+		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
 
@@ -294,6 +300,8 @@ func TestOAuthServerE2E(t *testing.T) {
 		db,
 		noop.Meter{},
 		testStore(t),
+		"https://habitat.example/oauth/token",
+		NewJWTBearerStore(),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -506,6 +514,8 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 		db,
 		noop.Meter{},
 		orgStore,
+		"https://habitat.example/oauth/token",
+		NewJWTBearerStore(),
 	)
 	require.NoError(t, err, "failed to setup oauth server")
 
@@ -644,6 +654,8 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 		db,
 		noop.Meter{},
 		testStore(t),
+		"https://habitat.example/oauth/token",
+		NewJWTBearerStore(),
 	)
 	require.NoError(t, err)
 
@@ -851,6 +863,8 @@ func TestValidate(t *testing.T) {
 			db,
 			noop.Meter{},
 			st,
+			"https://habitat.example/oauth/token",
+			NewJWTBearerStore(),
 		)
 		require.NoError(t, srvErr)
 		return s
@@ -955,6 +969,8 @@ func TestValidateWithScopeChecking(t *testing.T) {
 			db,
 			noop.Meter{},
 			st,
+			"https://habitat.example/oauth/token",
+			NewJWTBearerStore(),
 		)
 		require.NoError(t, srvErr)
 		return s

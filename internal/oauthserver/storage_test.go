@@ -27,7 +27,7 @@ func TestGetClient(t *testing.T) {
 		secretBytes,
 		&fosite.Config{})
 	require.NoError(t, err)
-	store, err := newStore(strat, db)
+	store, err := newStore(strat, db, nil)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

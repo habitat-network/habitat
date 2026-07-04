@@ -180,6 +180,7 @@ type OAuthServer struct {
 // The server is configured with:
 //   - Authorization Code Grant with PKCE
 //   - Refresh Token Grant
+//   - JWT Bearer Grant (RFC 7523) for a hardcoded allow-list of clients
 //   - JWT token strategy for access tokens
 //   - Integration with AT Protocol identity directory
 //   - Database storage for OAuth sessions and PDS tokens
@@ -188,6 +189,8 @@ type OAuthServer struct {
 //   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
+//   - tokenURL: this server's token endpoint URL, used to validate the "aud"
+//     claim of JWT Bearer grant assertions
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
@@ -197,19 +200,26 @@ func NewOAuthServer(
 	db *gorm.DB,
 	meter metric.Meter,
 	orgStore org.Store,
+	tokenURL string,
+	approvedJwtBearerClients ApprovedClientStore,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
 		GlobalSecret:               secret,
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 		ScopeStrategy:              scopeStrategy,
+		TokenURL:                   tokenURL,
+		// The JWT Bearer grant identifies the client solely via the "iss"
+		// claim of the assertion (checked against jwtBearerAllowedClients),
+		// so a separate client_id/secret on the token request isn't required.
+		GrantTypeJWTBearerCanSkipClientAuth: true,
 	}
 
 	strategy, err := newStrategy(secret, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create strategy: %w", err)
 	}
-	storage, err := newStore(strategy, db)
+	storage, err := newStore(strategy, db, approvedJwtBearerClients)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
@@ -241,6 +251,7 @@ func NewOAuthServer(
 			compose.OAuth2RefreshTokenGrantFactory,
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
+			compose.RFC7523AssertionGrantFactory,
 		),
 		loginRouter:  loginRouter,
 		sessionStore: cookieStore,
@@ -496,6 +507,8 @@ func (o *OAuthServer) HandleCallback(
 // This handler supports the following grant types:
 //   - authorization_code: Exchange an authorization code for access and refresh tokens
 //   - refresh_token: Use a refresh token to obtain a new access token
+//   - urn:ietf:params:oauth:grant-type:jwt-bearer: Exchange a signed JWT assertion,
+//     from a hardcoded allow-list of clients, for an access token
 //
 // The handler:
 //  1. Validates the client's token request (client credentials, grant type, etc.)
@@ -509,7 +522,7 @@ func (o *OAuthServer) HandleCallback(
 func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	ctx := r.Context()
-	req, err := o.provider.NewAccessRequest(ctx, r, &oauth2.JWTSession{})
+	req, err := o.provider.NewAccessRequest(ctx, r, newSession())
 	if err != nil {
 		logError(ctx, err)
 		o.provider.WriteAccessError(ctx, w, req, err)
