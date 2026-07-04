@@ -14,6 +14,7 @@ import {
   ItemTitle,
 } from "internal/components/ui";
 import { App } from "api/types/network/habitat/listConnectedApps";
+import { homeProxyHeaders } from "@/queries/groups";
 import Avatar from "boring-avatars";
 
 import { Search } from "lucide-react";
@@ -31,6 +32,12 @@ export const Route = createFileRoute("/_requireAuth/")({
       (app) => app.clientUri !== `https://${__DOMAIN__}`,
     );
 
+    const collectionsData = await query(
+      "network.habitat.collections.listCollections",
+      {},
+      { authManager, headers: homeProxyHeaders() },
+    );
+
     let orgName: string | undefined;
     try {
       const meta = await query(
@@ -43,7 +50,11 @@ export const Route = createFileRoute("/_requireAuth/")({
       // Not a member of an org
     }
 
-    return { apps, orgName };
+    return {
+      apps,
+      orgName,
+      hasCollections: collectionsData.collections.length > 0,
+    };
   },
   pendingComponent: () => <p>Loading...</p>,
   component() {
@@ -99,7 +110,7 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
 }
 
 function AuthenticatedHome() {
-  const { apps } = Route.useLoaderData()!;
+  const { apps, hasCollections } = Route.useLoaderData()!;
 
   // For now, don't require the user to be registered with a habitat service. If they do have one,
   // requests will still be routed there, but allow them to use the centralized one by default.
@@ -118,9 +129,26 @@ function AuthenticatedHome() {
           </InputGroupAddon>
         </InputGroup>
       </div>
-      <div className="flex gap-4 flex-wrap">
-        <RecentlyUsed apps={apps} />
-      </div>
+      {hasCollections ? (
+        <div className="flex gap-4 flex-wrap">
+          <RecentlyUsed apps={apps} />
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground">
+            Looks like there&rsquo;s nothing here!{" "}
+            <a
+              href="https://habitat.network/habitat/api/docs/habitat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-primary"
+            >
+              Read the docs
+            </a>{" "}
+            to get started building.
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
