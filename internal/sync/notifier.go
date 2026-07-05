@@ -85,7 +85,7 @@ func (n *Notifier) Start(ctx context.Context, event events.Event) error {
 				req, err := http.NewRequestWithContext(
 					ctx,
 					http.MethodPost,
-					fmt.Sprintf("%s/%s", subscriberURL, notifyWriteEndpoint),
+					fmt.Sprintf("%s/xrpc/%s", subscriberURL, notifyWriteEndpoint),
 					bytes.NewReader(body),
 				)
 				if err != nil {
