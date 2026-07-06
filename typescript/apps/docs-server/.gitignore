@@ -1,4 +1,4 @@
 node_modules/
 dist/
-# Persisted org credential + signing key — never commit (contains secrets).
+# Local crawl database — never commit.
 .docs-server/
