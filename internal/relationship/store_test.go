@@ -402,21 +402,46 @@ func TestListObjects(t *testing.T) {
 	rel, sp := newTestStore(t)
 	spaceA := newSpace(t, sp, docsType, "a")
 	spaceB := newSpace(t, sp, docsType, "b")
+	group := newSpace(t, sp, groupType, "team")
 
 	_, err := rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleReader, spaceA)
 	require.NoError(t, err)
 	_, err = rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleWriter, spaceB)
 	require.NoError(t, err)
+	_, err = rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleReader, group)
+	require.NoError(t, err)
 
-	readers, err := rel.ListObjects(t.Context(), org, alice, RoleReader)
+	readers, err := rel.ListObjects(t.Context(), org, alice, RoleReader, nil)
 	require.NoError(t, err)
 	require.Contains(t, readers, spaceA)
 	require.Contains(t, readers, spaceB) // writer implies reader
+	require.Contains(t, readers, group)
 
-	writers, err := rel.ListObjects(t.Context(), org, alice, RoleWriter)
+	writers, err := rel.ListObjects(t.Context(), org, alice, RoleWriter, nil)
 	require.NoError(t, err)
 	require.Contains(t, writers, spaceB)
 	require.NotContains(t, writers, spaceA)
+}
+
+func TestListObjectsTypeFilter(t *testing.T) {
+	rel, sp := newTestStore(t)
+	doc := newSpace(t, sp, docsType, "doc")
+	group := newSpace(t, sp, groupType, "team")
+
+	_, err := rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleReader, doc)
+	require.NoError(t, err)
+	_, err = rel.WriteTuple(t.Context(), UserSubject{DID: alice}, RoleReader, group)
+	require.NoError(t, err)
+
+	docs, err := rel.ListObjects(t.Context(), org, alice, RoleReader, &docsType)
+	require.NoError(t, err)
+	require.Contains(t, docs, doc)
+	require.NotContains(t, docs, group)
+
+	groups, err := rel.ListObjects(t.Context(), org, alice, RoleReader, &groupType)
+	require.NoError(t, err)
+	require.Contains(t, groups, group)
+	require.NotContains(t, groups, doc)
 }
 
 // flakyFGA wraps a real FGA store but can be told to fail mutating WriteRaw
@@ -474,6 +499,6 @@ func TestInvalidRole_QueryMethods(t *testing.T) {
 	_, err = rel.ListSubjects(t.Context(), org, space, Role("bogus"))
 	require.ErrorIs(t, err, ErrInvalidTuple)
 
-	_, err = rel.ListObjects(t.Context(), org, alice, Role("bogus"))
+	_, err = rel.ListObjects(t.Context(), org, alice, Role("bogus"), nil)
 	require.ErrorIs(t, err, ErrInvalidTuple)
 }
