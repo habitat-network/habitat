@@ -6,8 +6,8 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "./ui/combobox";
-import { Input } from "./ui/input";
-import { useEffect, useMemo, useRef, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { NetworkHabitatGroupsDefs } from "api";
 import { AuthManager } from "../authManager";
@@ -73,10 +73,7 @@ export const GroupCombobox = ({
         onValueChange(group);
       }}
     >
-      <ComboboxInput
-        placeholder={placeholder}
-        value={searchValue}
-      />
+      <ComboboxInput placeholder={placeholder} value={searchValue} />
       <ComboboxContent>
         <ComboboxEmpty>No groups found.</ComboboxEmpty>
         <ComboboxList>
