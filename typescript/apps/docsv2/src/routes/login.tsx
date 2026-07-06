@@ -9,9 +9,11 @@ export const Route = createFileRoute("/login")({
       <AuthForm
         authManager={authManager}
         redirectUrl={`https://${__DOMAIN__}`}
-        orgLoginUrl={router.buildLocation({
-          to: '/org-login',
-        }).href}
+        orgLoginUrl={
+          router.buildLocation({
+            to: "/org-login",
+          }).href
+        }
       />
     );
   },

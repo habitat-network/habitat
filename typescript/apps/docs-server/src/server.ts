@@ -96,12 +96,7 @@ export function createApp(
     const input =
       (await c.req.json()) as NetworkHabitatDocsUpdateDoc.InputSchema;
     const output: NetworkHabitatDocsUpdateDoc.OutputSchema =
-      await docs.applyUpdate(
-        input.docId,
-        input.update,
-        caller,
-        orgFor(caller),
-      );
+      await docs.applyUpdate(input.docId, input.update, caller, orgFor(caller));
     return c.json(output);
   });
 

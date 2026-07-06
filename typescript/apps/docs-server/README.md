@@ -45,12 +45,12 @@ can resolve the forward target via standard did:web resolution.
 
 Set these in `dev.env` (gitignored):
 
-| Variable                 | Description                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `DOCS_SERVER_DOMAIN`     | Public domain / did:web host, e.g. `docs-server.local.habitat.network`.      |
-| `DOCS_SERVER_PORT`       | HTTP port (default `2590`).                                                  |
-| `DOCS_SERVER_SPACE_TYPE` | Space type each doc space is created under (default `network.habitat.docs`). |
-| `DOCS_SERVER_SAP_URL`    | Base URL of sap's internal port (default `http://127.0.0.1:2581`).           |
+| Variable                 | Description                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| `DOCS_SERVER_DOMAIN`     | Public domain / did:web host, e.g. `docs-server.local.habitat.network`.                  |
+| `DOCS_SERVER_PORT`       | HTTP port (default `2590`).                                                              |
+| `DOCS_SERVER_SPACE_TYPE` | Space type each doc space is created under (default `network.habitat.docs`).             |
+| `DOCS_SERVER_SAP_URL`    | Base URL of sap's internal port (default `http://127.0.0.1:2581`).                       |
 | `DOCS_SERVER_DB`         | sqlite path for crawled docs and org membership (default `.docs-server/docs-server.db`). |
 
 The frontend (`docsv2`) needs `DOCS_SERVER_DID` (`did:web:<DOCS_SERVER_DOMAIN>`)

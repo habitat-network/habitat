@@ -70,7 +70,7 @@ export class Crawler {
     private meta: DocMetadataStore,
     private crdt: DocCrdtStore,
     private orgs: OrgDirectory,
-  ) { }
+  ) {}
 
   // start runs the connect/reconnect loop in the background.
   start(): void {
@@ -98,7 +98,9 @@ export class Crawler {
   // connectOnce opens a single websocket and resolves once it closes.
   private connectOnce(): Promise<void> {
     return new Promise<void>((resolve) => {
-      const ws = new WebSocket(`${this.config.sapUrl.replace(/^http/, "ws")}/channel`);
+      const ws = new WebSocket(
+        `${this.config.sapUrl.replace(/^http/, "ws")}/channel`,
+      );
       ws.addEventListener("open", () => {
         console.log(`[crawler] connected to ${this.config.sapUrl}`);
       });

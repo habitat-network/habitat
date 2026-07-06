@@ -14,7 +14,7 @@ interface AuthFormProps {
   redirectUrl: string;
   serverError?: string;
   defaultHandle?: string;
-  orgLoginUrl?: string
+  orgLoginUrl?: string;
 }
 
 export default function AuthForm({
@@ -22,7 +22,7 @@ export default function AuthForm({
   redirectUrl,
   serverError,
   defaultHandle,
-  orgLoginUrl
+  orgLoginUrl,
 }: AuthFormProps) {
   const { register, handleSubmit } = useForm<AuthFormData>();
   const {
@@ -72,7 +72,14 @@ export default function AuthForm({
           </FieldGroup>
         </form>
         {orgLoginUrl && (
-          <Button variant="link" className="mt-6" size="sm" render={<a href={orgLoginUrl} />} >Add this app to your organization</Button>
+          <Button
+            variant="link"
+            className="mt-6"
+            size="sm"
+            render={<a href={orgLoginUrl} />}
+          >
+            Add this app to your organization
+          </Button>
         )}
       </div>
     </div>
