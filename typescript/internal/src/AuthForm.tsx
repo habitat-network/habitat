@@ -3,12 +3,7 @@ import { useForm } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { useId } from "react";
 import { Button, Input } from "./components/ui";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "./components/ui/field";
+import { Field, FieldGroup, FieldLabel } from "./components/ui/field";
 
 interface AuthFormData {
   handle?: string;
@@ -19,6 +14,7 @@ interface AuthFormProps {
   redirectUrl: string;
   serverError?: string;
   defaultHandle?: string;
+  orgLoginUrl?: string
 }
 
 export default function AuthForm({
@@ -26,6 +22,7 @@ export default function AuthForm({
   redirectUrl,
   serverError,
   defaultHandle,
+  orgLoginUrl
 }: AuthFormProps) {
   const { register, handleSubmit } = useForm<AuthFormData>();
   const {
@@ -51,9 +48,6 @@ export default function AuthForm({
           <FieldGroup className="mt-6 space-y-4">
             <Field>
               <FieldLabel>Handle</FieldLabel>
-              <FieldDescription>
-                This is your handle to log in to the Habitat dashboard.
-              </FieldDescription>
               <Input
                 {...register("handle")}
                 defaultValue={defaultHandle}
@@ -77,6 +71,9 @@ export default function AuthForm({
             </Button>
           </FieldGroup>
         </form>
+        {orgLoginUrl && (
+          <Button variant="link" className="mt-6" size="sm" render={<a href={orgLoginUrl} />} >Add this app to your organization</Button>
+        )}
       </div>
     </div>
   );

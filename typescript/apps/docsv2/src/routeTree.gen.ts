@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as OrgLoginRouteImport } from './routes/org-login'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RequireAuthRouteImport } from './routes/_requireAuth'
 import { Route as RequireAuthIndexRouteImport } from './routes/_requireAuth/index'
 import { Route as RequireAuthUriRouteImport } from './routes/_requireAuth/$uri'
 
+const OrgLoginRoute = OrgLoginRouteImport.update({
+  id: '/org-login',
+  path: '/org-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -37,10 +43,12 @@ const RequireAuthUriRoute = RequireAuthUriRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof RequireAuthIndexRoute
   '/login': typeof LoginRoute
+  '/org-login': typeof OrgLoginRoute
   '/$uri': typeof RequireAuthUriRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/org-login': typeof OrgLoginRoute
   '/$uri': typeof RequireAuthUriRoute
   '/': typeof RequireAuthIndexRoute
 }
@@ -48,18 +56,20 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_requireAuth': typeof RequireAuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/org-login': typeof OrgLoginRoute
   '/_requireAuth/$uri': typeof RequireAuthUriRoute
   '/_requireAuth/': typeof RequireAuthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/$uri'
+  fullPaths: '/' | '/login' | '/org-login' | '/$uri'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/$uri' | '/'
+  to: '/login' | '/org-login' | '/$uri' | '/'
   id:
     | '__root__'
     | '/_requireAuth'
     | '/login'
+    | '/org-login'
     | '/_requireAuth/$uri'
     | '/_requireAuth/'
   fileRoutesById: FileRoutesById
@@ -67,10 +77,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   RequireAuthRoute: typeof RequireAuthRouteWithChildren
   LoginRoute: typeof LoginRoute
+  OrgLoginRoute: typeof OrgLoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/org-login': {
+      id: '/org-login'
+      path: '/org-login'
+      fullPath: '/org-login'
+      preLoaderRoute: typeof OrgLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -119,6 +137,7 @@ const RequireAuthRouteWithChildren = RequireAuthRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   RequireAuthRoute: RequireAuthRouteWithChildren,
   LoginRoute: LoginRoute,
+  OrgLoginRoute: OrgLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
