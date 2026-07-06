@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -117,9 +118,17 @@ func start(ctx context.Context, cmd *cli.Command) error {
 	eg.Go(func() error { return indexer.Run(ctx, s.Outbox, store) })
 	eg.Go(func() error {
 		srv := &http.Server{Addr: ":" + cmd.String(fPort), Handler: rootMux}
-		go func() { _ = srv.ListenAndServe() }()
-		<-ctx.Done()
-		return srv.Shutdown(context.Background())
+		listenErr := make(chan error, 1)
+		go func() { listenErr <- srv.ListenAndServe() }()
+		select {
+		case err := <-listenErr:
+			if errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+			return fmt.Errorf("listen and serve: %w", err)
+		case <-ctx.Done():
+			return srv.Shutdown(context.Background())
+		}
 	})
 	return eg.Wait()
 }

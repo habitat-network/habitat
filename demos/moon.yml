@@ -1,0 +1,8 @@
+# demos/moon.yml
+tasks:
+  dev:
+    command: noop
+    deps:
+      - fruitgang:dev
+      - docsv2:dev
+    preset: server

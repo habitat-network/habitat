@@ -2,7 +2,7 @@ layer: application
 tasks:
   dev:
     env:
-      DEVTOOLS_PORT: "42073"
+      DEVTOOLS_PORT: "42074"
       SERVER_PORT: "5176"
       # DID of the docs server; injected as the __DOCS_SERVER_DID__ Vite define so
       # the frontend can target it via the Atproto-Proxy header.

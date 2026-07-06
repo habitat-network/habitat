@@ -1,12 +1,10 @@
 layer: application
 tasks:
   dev:
-    command: go
-    args:
-      - run
-      - ./cmd
+    command: $workspaceRoot/bin/fruitgang-backend
     deps:
       - pear:dev
+      - ~:build
     env:
       FG_PORT: "3100"
       FG_DOMAIN: "fruitgang-api.local.habitat.network"

@@ -3,6 +3,9 @@
 		format console
 		level warn
 	}
+	servers {
+		protocols h1 h2
+	}
 }
 
 frontend.local.habitat.network {

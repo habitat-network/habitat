@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getFruit } from "@/fruits";
 
-async function fetchMembers(): Promise<Array<{ did: string; favoriteFruit?: string }>> {
+async function fetchMembers(): Promise<Array<{ did: string; displayName?: string; favoriteFruit?: string }>> {
   const res = await fetch(`${__FRUITGANG_API__}/getMembers`);
   if (!res.ok) return [];
   return res.json();
