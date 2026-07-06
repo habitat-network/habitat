@@ -2,6 +2,7 @@ import type {
   NetworkHabitatSpaceCreateSpace,
   NetworkHabitatSpacePutRecord,
   NetworkHabitatSpaceGetRecord,
+  NetworkHabitatRelationshipWriteTuple,
   NetworkHabitatRelationshipListSubjects,
   NetworkHabitatRelationshipListObjects,
 } from "api";
@@ -171,6 +172,31 @@ export class PearClient {
     } catch {
       // Already a member, or a benign race — safe to ignore.
     }
+  }
+
+  // grantRole grants a user a role on a space via a relationship tuple. sap
+  // proxies as the org (the space owner), which passes writeTuple's manager
+  // check. Unlike addMember (read/write only), this can grant "owner", which
+  // includes the manage-members permission needed to share the doc onward.
+  async grantRole(
+    org: string,
+    space: string,
+    did: string,
+    relation: "owner" | "manager" | "writer" | "reader",
+  ): Promise<void> {
+    await this.call<NetworkHabitatRelationshipWriteTuple.OutputSchema>(
+      org,
+      "network.habitat.relationship.writeTuple",
+      "POST",
+      {
+        subject: {
+          $type: "network.habitat.relationship.defs#userSubject",
+          did,
+        },
+        relation,
+        object: { space },
+      } satisfies NetworkHabitatRelationshipWriteTuple.InputSchema,
+    );
   }
 }
 

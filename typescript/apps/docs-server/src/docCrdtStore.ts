@@ -37,8 +37,10 @@ export class DocCrdtStore {
   }
 
   // createDoc creates a new doc space owned by the caller's org, seeds its
-  // records, persists the CRDT state, and grants the creating member write
-  // access so they can read it back directly.
+  // records, persists the CRDT state, and grants the creating member the owner
+  // role. Owner includes read/write (so they can read the doc back directly)
+  // plus manage-members, which is what lets them share the doc with others via
+  // the relationship endpoints.
   async createDoc(
     memberDid: string,
     org: string,
@@ -47,7 +49,7 @@ export class DocCrdtStore {
     const ydoc = new Y.Doc();
     await this.writeRecords(org, space.uri, ydoc);
     this.persist(space.uri, ydoc);
-    await this.pear.addMember(org, space.uri, memberDid, "write");
+    await this.pear.grantRole(org, space.uri, memberDid, "owner");
     return { uri: space.uri, docId: space.skey };
   }
 
