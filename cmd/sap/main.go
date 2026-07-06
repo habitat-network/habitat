@@ -78,7 +78,7 @@ func runSap(ctx context.Context, cmd *cli.Command) error {
 	config := oauth.NewPublicConfig(
 		"https://"+domain+"/client-metadata.json",
 		"https://"+domain+"/oauth-callback",
-		[]string{"atproto"},
+		[]string{},
 	)
 	if err := config.SetClientSecret(secret, "sap"); err != nil {
 		return fmt.Errorf("set client secret: %w", err)
