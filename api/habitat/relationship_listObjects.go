@@ -6,6 +6,7 @@ package habitat
 type NetworkHabitatRelationshipListObjectsParams struct {
 	Did      string `json:"did"`
 	Relation string `json:"relation"`
+	Type     string `json:"type,omitempty"`
 }
 
 // NetworkHabitatRelationshipListObjectsOutput represents the output for network.habitat.relationship.listObjects

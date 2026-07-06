@@ -310,12 +310,14 @@ func (s *Store) ListSubjects(
 }
 
 // ListObjects returns the spaces on which did holds role, expanding usersets
-// and role implications.
+// and role implications. If filterType is non-nil, only spaces of that type
+// are returned.
 func (s *Store) ListObjects(
 	ctx context.Context,
 	org syntax.DID,
 	did syntax.DID,
 	role Role,
+	filterType *syntax.NSID,
 ) ([]habitat_syntax.SpaceURI, error) {
 	fgaRelation, err := roleToFGARelation(role)
 	if err != nil {
@@ -335,6 +337,9 @@ func (s *Store) ListObjects(
 	for _, key := range objects {
 		uri, err := fgastore.ParseSpaceObjectKey(key)
 		if err != nil {
+			continue
+		}
+		if filterType != nil && uri.SpaceType() != *filterType {
 			continue
 		}
 		spaceURIs = append(spaceURIs, uri)
