@@ -24,12 +24,14 @@ export class DocStore {
   }
 
   // createDoc creates a new doc space, seeds its records, and grants the
-  // creating member write access so they can read it back directly.
+  // creating member the owner role. Owner includes read/write (so they can read
+  // the doc back directly) plus manage-members, which is what lets them share
+  // the doc with others via the relationship endpoints.
   async createDoc(memberDid: string): Promise<{ uri: string; docId: string }> {
     const space = await this.pear.createSpace();
     const ydoc = new Y.Doc();
     await this.writeRecords(space.uri, ydoc);
-    await this.pear.addMember(space.uri, memberDid, "write");
+    await this.pear.grantRole(space.uri, memberDid, "owner");
     this.docs.set(space.skey, ydoc);
     return { uri: space.uri, docId: space.skey };
   }
