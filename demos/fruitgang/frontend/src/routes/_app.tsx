@@ -44,7 +44,8 @@ function AppLayout() {
     staleTime: 1000 * 30,
   });
 
-  const myFruit = members.find((m) => m.did === did)?.favoriteFruit;
+  const me = members.find((m) => m.did === did);
+  const myFruit = me?.favoriteFruit;
   const accentColor = myFruit
     ? `var(${getFruit(myFruit)?.colorVar ?? "--strawberry"})`
     : "var(--strawberry)";
@@ -58,15 +59,28 @@ function AppLayout() {
         display: "flex", alignItems: "center",
         padding: "0 1.5rem", height: "60px", gap: "1rem",
       }}>
-        <span style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "1.4rem",
-          color: "var(--text)",
+        <div style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: "0.6rem",
           marginRight: "auto",
           userSelect: "none",
         }}>
-          🍓 fruit gang
-        </span>
+          <span style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.4rem",
+            color: "var(--text)",
+          }}>
+            🍓 fruit gang
+          </span>
+          <span style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "0.8rem",
+            color: "var(--muted)",
+          }}>
+            a community for fruit lovers
+          </span>
+        </div>
 
         {spaceURI && (
           <>
@@ -76,10 +90,22 @@ function AppLayout() {
           </>
         )}
 
+        {me?.displayName && (
+          <span style={{
+            marginLeft: "auto",
+            fontFamily: "var(--font-body)",
+            fontWeight: 600,
+            fontSize: "0.85rem",
+            color: "var(--text)",
+          }}>
+            {me.displayName}
+          </span>
+        )}
+
         <button
           onClick={() => authManager.logout()}
           style={{
-            marginLeft: "auto",
+            marginLeft: me?.displayName ? undefined : "auto",
             background: "none",
             border: "1px solid var(--border)",
             color: "var(--muted)",
