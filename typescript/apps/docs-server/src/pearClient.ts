@@ -215,11 +215,14 @@ export class PearClient {
       org,
       "network.habitat.relationship.check",
       "GET",
-      { subject: did, relation, space } satisfies NetworkHabitatRelationshipCheck.QueryParams,
+      {
+        subject: did,
+        relation,
+        space,
+      } satisfies NetworkHabitatRelationshipCheck.QueryParams,
     );
     return out.allowed;
   }
-
 }
 
 function skeyOf(uri: string): string {
