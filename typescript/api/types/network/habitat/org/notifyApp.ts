@@ -13,19 +13,13 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'com.atproto.space.notifyWrite'
+const id = 'network.habitat.org.notifyApp'
 
 export type QueryParams = {}
 
 export interface InputSchema {
-  /** Reference to the space. */
-  space: string
-  /** The DID of the account whose repo advanced. */
-  repo: string
-  /** The revision of the write. */
-  rev: string
-  /** The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos. */
-  hash: Uint8Array
+  /** The DID of the organization the app should sync. */
+  org: string
 }
 
 export interface CallOptions {

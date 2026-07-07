@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-var OrgNotFound = errors.New("org not found")
+var ErrOrgNotFound = errors.New("org not found")
 
 type orgManager struct {
 	db *gorm.DB
@@ -36,7 +36,7 @@ func (m *orgManager) GetManagedOrg(ctx context.Context, did syntax.DID) (*manage
 	var org managedOrg
 	if err := m.db.WithContext(ctx).Where("did = ?", did).First(&org).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, OrgNotFound
+			return nil, ErrOrgNotFound
 		}
 		return nil, err
 	}

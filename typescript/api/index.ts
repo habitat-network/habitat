@@ -18,7 +18,6 @@ import * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords
 import * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 import * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 import * as ComAtprotoServerGetServiceAuth from './types/com/atproto/server/getServiceAuth.js'
-import * as ComAtprotoSpaceNotifyWrite from './types/com/atproto/space/notifyWrite.js'
 import * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 import * as CommunityLexiconCalendarInvite from './types/community/lexicon/calendar/invite.js'
 import * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
@@ -65,6 +64,7 @@ import * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMe
 import * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
 import * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/loginMember.js'
 import * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
+import * as NetworkHabitatOrgNotifyApp from './types/network/habitat/org/notifyApp.js'
 import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -110,7 +110,6 @@ export * as ComAtprotoRepoListRecords from './types/com/atproto/repo/listRecords
 export * as ComAtprotoRepoPutRecord from './types/com/atproto/repo/putRecord.js'
 export * as ComAtprotoRepoStrongRef from './types/com/atproto/repo/strongRef.js'
 export * as ComAtprotoServerGetServiceAuth from './types/com/atproto/server/getServiceAuth.js'
-export * as ComAtprotoSpaceNotifyWrite from './types/com/atproto/space/notifyWrite.js'
 export * as CommunityLexiconCalendarEvent from './types/community/lexicon/calendar/event.js'
 export * as CommunityLexiconCalendarInvite from './types/community/lexicon/calendar/invite.js'
 export * as CommunityLexiconCalendarRsvp from './types/community/lexicon/calendar/rsvp.js'
@@ -157,6 +156,7 @@ export * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMe
 export * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
 export * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/loginMember.js'
 export * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
+export * as NetworkHabitatOrgNotifyApp from './types/network/habitat/org/notifyApp.js'
 export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -249,13 +249,11 @@ export class ComAtprotoNS {
   _client: XrpcClient
   repo: ComAtprotoRepoNS
   server: ComAtprotoServerNS
-  space: ComAtprotoSpaceNS
 
   constructor(client: XrpcClient) {
     this._client = client
     this.repo = new ComAtprotoRepoNS(client)
     this.server = new ComAtprotoServerNS(client)
-    this.space = new ComAtprotoSpaceNS(client)
   }
 }
 
@@ -351,26 +349,6 @@ export class ComAtprotoServerNS {
       .catch((e) => {
         throw ComAtprotoServerGetServiceAuth.toKnownErr(e)
       })
-  }
-}
-
-export class ComAtprotoSpaceNS {
-  _client: XrpcClient
-
-  constructor(client: XrpcClient) {
-    this._client = client
-  }
-
-  notifyWrite(
-    data?: ComAtprotoSpaceNotifyWrite.InputSchema,
-    opts?: ComAtprotoSpaceNotifyWrite.CallOptions,
-  ): Promise<ComAtprotoSpaceNotifyWrite.Response> {
-    return this._client.call(
-      'com.atproto.space.notifyWrite',
-      opts?.qp,
-      data,
-      opts,
-    )
   }
 }
 
@@ -1427,6 +1405,18 @@ export class NetworkHabitatOrgNS {
   ): Promise<NetworkHabitatOrgMintMemberIdentity.Response> {
     return this._client.call(
       'network.habitat.org.mintMemberIdentity',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  notifyApp(
+    data?: NetworkHabitatOrgNotifyApp.InputSchema,
+    opts?: NetworkHabitatOrgNotifyApp.CallOptions,
+  ): Promise<NetworkHabitatOrgNotifyApp.Response> {
+    return this._client.call(
+      'network.habitat.org.notifyApp',
       opts?.qp,
       data,
       opts,

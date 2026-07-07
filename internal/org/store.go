@@ -37,6 +37,8 @@ type Member struct {
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
 	GetOrg(ctx context.Context, orgID syntax.DID) (core.Org, error)
+	// ListOrgs returns every org registered on this pear instance.
+	ListOrgs(ctx context.Context) ([]core.Org, error)
 	GetOrgForDID(ctx context.Context, did syntax.DID) (o core.Org, isMember bool, err error)
 	CreateOrg(
 		ctx context.Context,
@@ -122,6 +124,23 @@ func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (core.Org, err
 		return nil, ErrOrgNotFound
 	}
 	return s.orgFromModel(&org)
+}
+
+// ListOrgs returns every org registered on this pear instance.
+func (s *storeImpl) ListOrgs(ctx context.Context) ([]core.Org, error) {
+	var orgs []organization
+	if err := s.db.WithContext(ctx).Find(&orgs).Error; err != nil {
+		return nil, err
+	}
+	result := make([]core.Org, 0, len(orgs))
+	for i := range orgs {
+		o, err := s.orgFromModel(&orgs[i])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, o)
+	}
+	return result, nil
 }
 
 // GetOrgForDID returns the org the given DID belongs to.

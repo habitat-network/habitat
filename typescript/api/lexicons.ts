@@ -545,45 +545,6 @@ export const schemaDict = {
       },
     },
   },
-  ComAtprotoSpaceNotifyWrite: {
-    lexicon: 1,
-    id: 'com.atproto.space.notifyWrite',
-    defs: {
-      main: {
-        type: 'procedure',
-        description:
-          'Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['space', 'repo', 'rev', 'hash'],
-            properties: {
-              space: {
-                type: 'string',
-                format: 'at-uri',
-                description: 'Reference to the space.',
-              },
-              repo: {
-                type: 'string',
-                format: 'did',
-                description: 'The DID of the account whose repo advanced.',
-              },
-              rev: {
-                type: 'string',
-                description: 'The revision of the write.',
-              },
-              hash: {
-                type: 'bytes',
-                description:
-                  "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos.",
-              },
-            },
-          },
-        },
-      },
-    },
-  },
   CommunityLexiconCalendarEvent: {
     lexicon: 1,
     id: 'community.lexicon.calendar.event',
@@ -2506,6 +2467,31 @@ export const schemaDict = {
               did: {
                 type: 'string',
                 description: 'The DID of the newly minted member identity.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatOrgNotifyApp: {
+    lexicon: 1,
+    id: 'network.habitat.org.notifyApp',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Notify a habitat-compatible app about an organization so it can begin syncing the org's data. Sent by pear at app startup and when new orgs are added. Best-effort. Authenticated with service auth.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the organization the app should sync.',
               },
             },
           },
@@ -4558,7 +4544,6 @@ export const ids = {
   ComAtprotoRepoPutRecord: 'com.atproto.repo.putRecord',
   ComAtprotoRepoStrongRef: 'com.atproto.repo.strongRef',
   ComAtprotoServerGetServiceAuth: 'com.atproto.server.getServiceAuth',
-  ComAtprotoSpaceNotifyWrite: 'com.atproto.space.notifyWrite',
   CommunityLexiconCalendarEvent: 'community.lexicon.calendar.event',
   CommunityLexiconCalendarInvite: 'community.lexicon.calendar.invite',
   CommunityLexiconCalendarRsvp: 'community.lexicon.calendar.rsvp',
@@ -4609,6 +4594,7 @@ export const ids = {
   NetworkHabitatOrgIssueInviteToken: 'network.habitat.org.issueInviteToken',
   NetworkHabitatOrgLoginMember: 'network.habitat.org.loginMember',
   NetworkHabitatOrgMintMemberIdentity: 'network.habitat.org.mintMemberIdentity',
+  NetworkHabitatOrgNotifyApp: 'network.habitat.org.notifyApp',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
   NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:
