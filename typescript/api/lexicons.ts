@@ -2474,6 +2474,31 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatOrgNotifyApp: {
+    lexicon: 1,
+    id: 'network.habitat.org.notifyApp',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Notify a habitat-compatible app about an organization so it can begin syncing the org's data. Sent by pear at app startup and when new orgs are added. Best-effort. Authenticated with service auth.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['org'],
+            properties: {
+              org: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the organization the app should sync.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatOrgRemoveAdmin: {
     lexicon: 1,
     id: 'network.habitat.org.removeAdmin',
@@ -4569,6 +4594,7 @@ export const ids = {
   NetworkHabitatOrgIssueInviteToken: 'network.habitat.org.issueInviteToken',
   NetworkHabitatOrgLoginMember: 'network.habitat.org.loginMember',
   NetworkHabitatOrgMintMemberIdentity: 'network.habitat.org.mintMemberIdentity',
+  NetworkHabitatOrgNotifyApp: 'network.habitat.org.notifyApp',
   NetworkHabitatOrgRemoveAdmin: 'network.habitat.org.removeAdmin',
   NetworkHabitatOrgRemoveMembers: 'network.habitat.org.removeMembers',
   NetworkHabitatPermissionsAddPermission:

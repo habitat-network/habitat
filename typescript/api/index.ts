@@ -64,6 +64,7 @@ import * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMe
 import * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
 import * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/loginMember.js'
 import * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
+import * as NetworkHabitatOrgNotifyApp from './types/network/habitat/org/notifyApp.js'
 import * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 import * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 import * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -155,6 +156,7 @@ export * as NetworkHabitatOrgGetMetadata from './types/network/habitat/org/getMe
 export * as NetworkHabitatOrgIssueInviteToken from './types/network/habitat/org/issueInviteToken.js'
 export * as NetworkHabitatOrgLoginMember from './types/network/habitat/org/loginMember.js'
 export * as NetworkHabitatOrgMintMemberIdentity from './types/network/habitat/org/mintMemberIdentity.js'
+export * as NetworkHabitatOrgNotifyApp from './types/network/habitat/org/notifyApp.js'
 export * as NetworkHabitatOrgRemoveAdmin from './types/network/habitat/org/removeAdmin.js'
 export * as NetworkHabitatOrgRemoveMembers from './types/network/habitat/org/removeMembers.js'
 export * as NetworkHabitatPermissionsAddPermission from './types/network/habitat/permissions/addPermission.js'
@@ -1403,6 +1405,18 @@ export class NetworkHabitatOrgNS {
   ): Promise<NetworkHabitatOrgMintMemberIdentity.Response> {
     return this._client.call(
       'network.habitat.org.mintMemberIdentity',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  notifyApp(
+    data?: NetworkHabitatOrgNotifyApp.InputSchema,
+    opts?: NetworkHabitatOrgNotifyApp.CallOptions,
+  ): Promise<NetworkHabitatOrgNotifyApp.Response> {
+    return this._client.call(
+      'network.habitat.org.notifyApp',
       opts?.qp,
       data,
       opts,

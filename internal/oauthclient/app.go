@@ -4,13 +4,18 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/singleflight"
 )
@@ -135,6 +140,63 @@ func (a *App) ProcessCallback(
 		return nil, fmt.Errorf("delete auth request info: %w", err)
 	}
 
+	return &sessData, nil
+}
+
+func (a *App) AddSessionWithBearerJwt(
+	ctx context.Context,
+	did syntax.DID,
+) (*oauth.ClientSessionData, error) {
+	id, err := a.dir.LookupDID(ctx, did)
+	if err != nil {
+		return nil, fmt.Errorf("lookup DID: %w", err)
+	}
+	pearURL := id.GetServiceEndpoint("habitat")
+
+	jwt, err := jwt.NewWithClaims(signingMethodES256, jwt.RegisteredClaims{
+		Issuer:    a.Config.ClientID,
+		Audience:  []string{pearURL + "/oauth/token"},
+		Subject:   did.String(),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+		ID:        uuid.NewString(),
+	}).SignedString(a.Config.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("create client assertion: %w", err)
+	}
+
+	resp, err := http.Post(
+		pearURL+"/oauth/token",
+		"application/x-www-form-urlencoded",
+		strings.NewReader(url.Values{
+			"grant_type": {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
+			"assertion":  {jwt},
+		}.Encode()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("post token: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("post token: %s", resp.Status)
+	}
+
+	var token oauth2.Token
+	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
+		return nil, fmt.Errorf("decode token: %w", err)
+	}
+	sessData := oauth.ClientSessionData{
+		AccountDID:              did,
+		SessionID:               uuid.NewString(),
+		HostURL:                 pearURL,
+		AuthServerURL:           pearURL,
+		AuthServerTokenEndpoint: pearURL + "/oauth/token",
+		Scopes:                  a.Config.Scopes,
+		AccessToken:             token.AccessToken,
+		RefreshToken:            token.RefreshToken,
+	}
+	if err := a.store.SaveSession(ctx, sessData); err != nil {
+		return nil, fmt.Errorf("save session: %w", err)
+	}
 	return &sessData, nil
 }
 

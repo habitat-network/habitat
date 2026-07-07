@@ -2,12 +2,15 @@ package sap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/utils"
 	"go.opentelemetry.io/otel/metric"
@@ -121,4 +124,41 @@ func (s *Sap) GetClient(ctx context.Context, did syntax.DID) (*http.Client, erro
 		return nil, err
 	}
 	return s.oauthClient.GetClient(ctx, did, org.SessionID)
+}
+
+func (s *Sap) HandleNotifyApp(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var input habitat.NetworkHabitatOrgNotifyAppInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "decode input", http.StatusBadRequest)
+		return
+	}
+
+	orgDID, err := syntax.ParseDID(input.Org)
+	if err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "parse org did", http.StatusBadRequest)
+		return
+	}
+
+	_, err = s.orgManager.GetManagedOrg(ctx, orgDID)
+	if errors.Is(err, ErrOrgNotFound) {
+		// if we receive a notification about an org that we don't manage, add it
+		// using a jwt bearer grant. the assumption is that pear trusts this app so we
+		// should be able to receive an org credential
+		slog.InfoContext(ctx, "org not managed, adding", "org", orgDID)
+		session, err := s.oauthClient.AddSessionWithBearerJwt(ctx, orgDID)
+		if err != nil {
+			utils.LogAndHTTPError(ctx, w, err, "add session", http.StatusInternalServerError)
+			return
+		}
+		if err := s.AddManagedOrg(ctx, session.AccountDID, session.SessionID); err != nil {
+			utils.LogAndHTTPError(ctx, w, err, "add org", http.StatusInternalServerError)
+			return
+		}
+	} else if err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "get org", http.StatusInternalServerError)
+		return
+	}
+
+	// TODO: kick off / resume syncing the org's repos now that it is managed.
 }

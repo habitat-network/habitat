@@ -37,6 +37,8 @@ type Member struct {
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
 	GetOrg(ctx context.Context, orgID syntax.DID) (core.Org, error)
+	// ListOrgs returns every org registered on this pear instance.
+	ListOrgs(ctx context.Context) ([]core.Org, error)
 	GetOrgForDID(ctx context.Context, did syntax.DID) (o core.Org, isMember bool, err error)
 	CreateOrg(
 		ctx context.Context,
@@ -79,6 +81,7 @@ type storeImpl struct {
 	everyone         core.Org
 	passwordProvider *login.PasswordLoginProvider
 	fga              fgastore.Store
+	notifier         *Notifier
 }
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
@@ -89,6 +92,7 @@ func NewStore(
 	pearDomain string,
 	passwordProvider *login.PasswordLoginProvider,
 	fga fgastore.Store,
+	notifier *Notifier,
 ) (Store, error) {
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
@@ -101,6 +105,7 @@ func NewStore(
 		everyone:         NewEveryoneOrg(),
 		passwordProvider: passwordProvider,
 		fga:              fga,
+		notifier:         notifier,
 	}, nil
 }
 
@@ -122,6 +127,23 @@ func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (core.Org, err
 		return nil, ErrOrgNotFound
 	}
 	return s.orgFromModel(&org)
+}
+
+// ListOrgs returns every org registered on this pear instance.
+func (s *storeImpl) ListOrgs(ctx context.Context) ([]core.Org, error) {
+	var orgs []organization
+	if err := s.db.WithContext(ctx).Find(&orgs).Error; err != nil {
+		return nil, err
+	}
+	result := make([]core.Org, 0, len(orgs))
+	for i := range orgs {
+		o, err := s.orgFromModel(&orgs[i])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, o)
+	}
+	return result, nil
 }
 
 // GetOrgForDID returns the org the given DID belongs to.
@@ -236,6 +258,8 @@ func (s *storeImpl) CreateOrg(
 	if err != nil {
 		return nil, nil, err
 	}
+
+	s.notifier.NotifyApps(ctx, orgId.DID)
 
 	return orgId, id, nil
 }
