@@ -15,6 +15,18 @@ import (
 	"golang.org/x/oauth2"
 )
 
+func makeIDToken(clientID, email string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	payload := base64.RawURLEncoding.EncodeToString(
+		fmt.Appendf(
+			nil,
+			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"iat":1000000000,"exp":9999999999}`,
+			clientID,
+			email,
+		))
+	return header + "." + payload + ".fakesignature"
+}
+
 func TestGoogleProvider_Authorize(t *testing.T) {
 	p, err := NewGoogleProvider(
 		"client-id",

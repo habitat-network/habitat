@@ -8,7 +8,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
@@ -28,8 +27,7 @@ var (
 
 func newTestStore(t *testing.T) (*Store, spaces.Store) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
