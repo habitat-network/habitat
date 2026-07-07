@@ -14,24 +14,18 @@ import (
 	"syscall"
 
 	"github.com/alexedwards/argon2id"
-	"github.com/pressly/goose/v3"
-	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/plugin/opentelemetry/tracing"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/clique"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -45,6 +39,7 @@ import (
 	"github.com/habitat-network/habitat/internal/sync"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/p2p"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
@@ -57,7 +52,6 @@ import (
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/webui"
-	"github.com/lmittmann/tint"
 	"github.com/urfave/cli/v3"
 
 	_ "github.com/habitat-network/habitat/cmd/pear/migrations"
@@ -67,11 +61,9 @@ import (
 var embedMigrations embed.FS
 
 func main() {
-	flags, mutuallyExclusiveFlags := getFlags()
 	cmd := &cli.Command{
-		Flags:                  flags,
-		MutuallyExclusiveFlags: mutuallyExclusiveFlags,
-		Action:                 run,
+		Flags:  getFlags(),
+		Action: run,
 	}
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		slog.Error("error running command", "err", err)
@@ -79,17 +71,17 @@ func main() {
 	}
 }
 
-func run(_ context.Context, cmd *cli.Command) error {
+func run(ctx context.Context, cmd *cli.Command) error {
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
-	notifyCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	notifyCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by slog.
-	otelClose, err := telemetry.SetupOpenTelemetry(notifyCtx)
+	otelClose, err := telemetry.SetupOpenTelemetry(notifyCtx, "pear")
 	defer otelClose(context.Background())
 	if err != nil {
 		slog.Error("failed setting up open telemetry for metric/trace/log collection", "err", err)
@@ -100,11 +92,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	tracer := otel.Tracer("pear/main")
 	startupCtx, startupSpan := tracer.Start(notifyCtx, "startup")
 
-	env := utils.GetEnvString("env", "local")
-	meter := otel.Meter("habitat-meter", metric.WithInstrumentationAttributes(attribute.KeyValue{
-		Key:   "env",
-		Value: attribute.StringValue(env),
-	}))
+	meter := otel.Meter("habitat-meter")
 
 	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
 	if err != nil {
@@ -114,24 +102,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 		defer gauge.Record(context.Background(), 0)
 	}
 
-	logHandlers := []slog.Handler{}
-	logHandlers = append(logHandlers, otelslog.NewHandler(
-		"habitat",
-		otelslog.WithLoggerProvider(global.GetLoggerProvider()),
-	))
-	if cmd.Bool(fDebug) {
-		logHandlers = append(logHandlers,
-			tint.NewHandler(os.Stdout, &tint.Options{
-				AddSource: true,
-				Level:     slog.LevelDebug,
-			}),
-		)
-	}
-	slog.SetDefault(slog.New(slog.NewMultiHandler(logHandlers...)))
+	slog.SetDefault(log.New(log.WithStdout(cmd.Bool(fDebug))))
 
 	slog.Info("running with flags", "flags", cmd.FlagNames())
 
-	db := setupDB(cmd)
+	db, err := db.New(cmd.String(fDb), db.WithMigrations(embedMigrations))
+	if err != nil {
+		slog.Error("unable to setup database", "err", err)
+		os.Exit(1)
+	}
 	fgaStore := setupFGA(startupCtx, cmd)
 
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
@@ -629,48 +608,6 @@ func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
-}
-
-func setupDB(cmd *cli.Command) *gorm.DB {
-	var db *gorm.DB
-	var err error
-
-	postgresUrl := cmd.String(fPgUrl)
-	if postgresUrl != "" {
-		db, err = gorm.Open(postgres.Open(postgresUrl), &gorm.Config{TranslateError: true})
-		if err != nil {
-			slog.Error("unable to open postgres db backing pear server")
-		}
-		slog.Info("connected to postgres database")
-	} else {
-		dbPath := cmd.String(fDb)
-		db, err = gorm.Open(
-			sqlite.Open(dbPath+"?_journal_mode=WAL"),
-			&gorm.Config{TranslateError: true},
-		)
-		if err != nil {
-			slog.Error("unable to open sqlite file backing pear server")
-		}
-		slog.Info("connected to sqlite database", "path", dbPath)
-	}
-	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
-		slog.Error("unable to setup database otel tracing and metrics plugin")
-	}
-	sqlDb, err := db.DB()
-	if err != nil {
-		slog.Error("unable to open postgres db backing pear server")
-	}
-	goose.SetBaseFS(embedMigrations)
-	if postgresUrl != "" {
-		goose.SetDialect("postgres")
-	} else {
-		goose.SetDialect("sqlite")
-	}
-	err = goose.Up(sqlDb, "migrations")
-	if err != nil {
-		slog.Error("unable to run migrations")
-	}
-	return db
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {

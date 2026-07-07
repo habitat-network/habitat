@@ -12,6 +12,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/ipfs/go-cid v0.6.0
 	github.com/libp2p/go-libp2p v0.48.0
+	github.com/lmittmann/tint v1.1.3
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/openfga/api/proto v0.0.0-20260319214821-f153694bfc20
@@ -20,6 +21,7 @@ require (
 	github.com/pressly/goose/v3 v3.27.1
 	github.com/r3labs/sse/v2 v2.10.0
 	github.com/stretchr/testify v1.11.1
+	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.67.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.42.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0
@@ -27,6 +29,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.44.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
+	gorm.io/driver/postgres v1.5.7
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
 )
