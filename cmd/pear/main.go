@@ -106,7 +106,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
-	db, err := db.New(cmd.String(fDb), db.WithMigrations(embedMigrations))
+	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
 	}
@@ -597,9 +597,11 @@ func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc 
 }
 
 func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
-	postgresUrl := cmd.String(fPgUrl)
-	if postgresUrl != "" {
-		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
+	dsn := cmd.String(fDB)
+	// Share the main Postgres database for FGA when one is configured; only fall
+	// back to a separate SQLite file when the main store is SQLite.
+	if db.ParseDialect(dsn) == db.Postgres {
+		fga, err := fgastore.NewPostgres(ctx, dsn)
 		if err != nil {
 			return nil, fmt.Errorf("setup fga store with postgres: %w", err)
 		}
@@ -609,7 +611,7 @@ func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 	// mattn/go-sqlite3 (used by GORM) and modernc.org/sqlite (used by OpenFGA).
 	// Strip the "sqlite://" scheme (as internal/db does) so we hand OpenFGA a
 	// plain filesystem path rather than a URI it parses as a host.
-	fgaPath := strings.TrimPrefix(cmd.String(fDb), "sqlite://") + ".fga.db"
+	fgaPath := strings.TrimPrefix(cmd.String(fDB), "sqlite://") + ".fga.db"
 	fga, err := fgastore.NewSQLite(ctx, fgaPath)
 	if err != nil {
 		return nil, fmt.Errorf("setup fga sqlite store %q: %w", fgaPath, err)
