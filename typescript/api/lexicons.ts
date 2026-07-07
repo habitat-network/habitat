@@ -1297,6 +1297,66 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatDocsComment: {
+    lexicon: 1,
+    id: 'network.habitat.docs.comment',
+    defs: {
+      main: {
+        type: 'record',
+        description:
+          "A comment on a collaborative document, written by the commenting member into the document's companion comment space. Top-level comments anchor to a text range via Yjs relative positions; replies reference a parent comment and omit the range.",
+        key: 'tid',
+        record: {
+          type: 'object',
+          required: ['body', 'createdAt', 'docSpace'],
+          properties: {
+            body: {
+              type: 'string',
+              maxLength: 10000,
+              maxGraphemes: 3000,
+              description: 'The comment text.',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
+              description: 'When the comment was authored.',
+            },
+            docSpace: {
+              type: 'string',
+              format: 'uri',
+              description: 'URI of the document space this comment relates to.',
+            },
+            range: {
+              type: 'ref',
+              ref: 'lex:network.habitat.docs.comment#range',
+              description:
+                'The anchored text range. Present on top-level comments; omitted on replies.',
+            },
+            parent: {
+              type: 'string',
+              description:
+                'Space-record URI of the parent comment this replies to. Omitted for top-level comments.',
+            },
+          },
+        },
+      },
+      range: {
+        type: 'object',
+        required: ['start', 'end'],
+        properties: {
+          start: {
+            type: 'string',
+            description:
+              'JSON-encoded Yjs relative position of the range start.',
+          },
+          end: {
+            type: 'string',
+            description: 'JSON-encoded Yjs relative position of the range end.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatDocsCrdt: {
     lexicon: 1,
     id: 'network.habitat.docs.crdt',
@@ -1356,6 +1416,111 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatDocsListComments: {
+    lexicon: 1,
+    id: 'network.habitat.docs.listComments',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the comment threads on a document. Implemented by the docs server, which authorizes the caller against the document's comment space and groups crawled comment records into threads.",
+        parameters: {
+          type: 'params',
+          required: ['docId'],
+          properties: {
+            docId: {
+              type: 'string',
+              description: "The document's space key.",
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['comments'],
+            properties: {
+              comments: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.docs.listComments#commentView',
+                },
+              },
+            },
+          },
+        },
+      },
+      commentView: {
+        type: 'object',
+        required: ['uri', 'author', 'body', 'createdAt', 'replies'],
+        properties: {
+          uri: {
+            type: 'string',
+            description:
+              "The comment record's space-record URI; used as the parent reference when replying.",
+          },
+          author: {
+            type: 'string',
+            format: 'did',
+            description: "DID of the comment's author.",
+          },
+          body: {
+            type: 'string',
+          },
+          createdAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+          range: {
+            type: 'ref',
+            ref: 'lex:network.habitat.docs.listComments#rangeView',
+            description: 'The anchored range for top-level comments.',
+          },
+          replies: {
+            type: 'array',
+            items: {
+              type: 'ref',
+              ref: 'lex:network.habitat.docs.listComments#replyView',
+            },
+            description: 'Direct replies to this comment, oldest first.',
+          },
+        },
+      },
+      replyView: {
+        type: 'object',
+        required: ['uri', 'author', 'body', 'createdAt'],
+        properties: {
+          uri: {
+            type: 'string',
+          },
+          author: {
+            type: 'string',
+            format: 'did',
+          },
+          body: {
+            type: 'string',
+          },
+          createdAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+        },
+      },
+      rangeView: {
+        type: 'object',
+        required: ['start', 'end'],
+        properties: {
+          start: {
+            type: 'string',
+          },
+          end: {
+            type: 'string',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatDocsListDocs: {
     lexicon: 1,
     id: 'network.habitat.docs.listDocs',
@@ -1397,6 +1562,12 @@ export const schemaDict = {
           title: {
             type: 'string',
             description: "The document title, from its markdown 'self' record.",
+          },
+          commentSpace: {
+            type: 'string',
+            format: 'uri',
+            description:
+              "URI of the document's companion comment space, where comment records are written.",
           },
         },
       },
@@ -4540,8 +4711,10 @@ export const ids = {
     'network.habitat.collections.listCollections',
   NetworkHabitatCollectionsListRecords:
     'network.habitat.collections.listRecords',
+  NetworkHabitatDocsComment: 'network.habitat.docs.comment',
   NetworkHabitatDocsCrdt: 'network.habitat.docs.crdt',
   NetworkHabitatDocsCreateDoc: 'network.habitat.docs.createDoc',
+  NetworkHabitatDocsListComments: 'network.habitat.docs.listComments',
   NetworkHabitatDocsListDocs: 'network.habitat.docs.listDocs',
   NetworkHabitatDocsMarkdown: 'network.habitat.docs.markdown',
   NetworkHabitatDocsUpdateDoc: 'network.habitat.docs.updateDoc',

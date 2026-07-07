@@ -1154,6 +1154,111 @@
         }
       }
     },
+    "/network.habitat.docs.listComments": {
+      "get": {
+        "tags": [
+          "network.habitat.docs"
+        ],
+        "summary": "network.habitat.docs.listComments",
+        "description": "List the comment threads on a document. Implemented by the docs server, which authorizes the caller against the document's comment space and groups crawled comment records into threads.",
+        "operationId": "network.habitat.docs.listComments",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "docId",
+            "in": "query",
+            "description": "The document's space key.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The document's space key."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "comments"
+                  ],
+                  "properties": {
+                    "comments": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.docs.listComments.commentView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.docs.listDocs": {
       "get": {
         "tags": [
@@ -7371,6 +7476,55 @@
           }
         }
       },
+      "network.habitat.docs.comment": {
+        "type": "object",
+        "required": [
+          "body",
+          "createdAt",
+          "docSpace"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "The comment text.",
+            "maxLength": 10000
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the comment was authored.",
+            "format": "date-time"
+          },
+          "docSpace": {
+            "type": "string",
+            "description": "URI of the document space this comment relates to.",
+            "format": "uri"
+          },
+          "range": {
+            "$ref": "#/components/schemas/network.habitat.docs.comment.range"
+          },
+          "parent": {
+            "type": "string",
+            "description": "Space-record URI of the parent comment this replies to. Omitted for top-level comments."
+          }
+        }
+      },
+      "network.habitat.docs.comment.range": {
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "JSON-encoded Yjs relative position of the range start."
+          },
+          "end": {
+            "type": "string",
+            "description": "JSON-encoded Yjs relative position of the range end."
+          }
+        }
+      },
       "network.habitat.docs.crdt": {
         "type": "object",
         "required": [
@@ -7380,6 +7534,83 @@
           "blob": {
             "type": "string",
             "description": "Base64-encoded Yjs state update representing the document content."
+          }
+        }
+      },
+      "network.habitat.docs.listComments.commentView": {
+        "type": "object",
+        "required": [
+          "uri",
+          "author",
+          "body",
+          "createdAt",
+          "replies"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "The comment record's space-record URI; used as the parent reference when replying."
+          },
+          "author": {
+            "type": "string",
+            "description": "DID of the comment's author.",
+            "format": "did"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "range": {
+            "$ref": "#/components/schemas/network.habitat.docs.listComments.rangeView"
+          },
+          "replies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/network.habitat.docs.listComments.replyView"
+            }
+          }
+        }
+      },
+      "network.habitat.docs.listComments.replyView": {
+        "type": "object",
+        "required": [
+          "uri",
+          "author",
+          "body",
+          "createdAt"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string",
+            "format": "did"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "network.habitat.docs.listComments.rangeView": {
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
           }
         }
       },
@@ -7402,6 +7633,11 @@
           "title": {
             "type": "string",
             "description": "The document title, from its markdown 'self' record."
+          },
+          "commentSpace": {
+            "type": "string",
+            "description": "URI of the document's companion comment space, where comment records are written.",
+            "format": "uri"
           }
         }
       },

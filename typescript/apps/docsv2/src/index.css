@@ -84,4 +84,10 @@
   .prose a {
     text-underline-offset: 2px;
   }
+
+  .comment-highlight {
+    background-color: #fff3bf;
+    border-bottom: 2px solid #f2c94c;
+    cursor: pointer;
+  }
 }

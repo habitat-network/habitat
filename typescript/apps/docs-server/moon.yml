@@ -17,3 +17,5 @@ tasks:
       - pear:dev
       - sap:dev
       - root:caddy
+  test:
+    command: pnpm test

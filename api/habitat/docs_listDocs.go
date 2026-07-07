@@ -4,9 +4,10 @@ package habitat
 
 // NetworkHabitatDocsListDocsDocView represents a docView object
 type NetworkHabitatDocsListDocsDocView struct {
-	DocId string `json:"docId"`
-	Title string `json:"title"`
-	Uri   string `json:"uri"`
+	CommentSpace string `json:"commentSpace,omitempty"`
+	DocId        string `json:"docId"`
+	Title        string `json:"title"`
+	Uri          string `json:"uri"`
 }
 
 // NetworkHabitatDocsListDocsOutput represents the output for network.habitat.docs.listDocs

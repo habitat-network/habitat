@@ -1,0 +1,63 @@
+{
+    "lexicon": 1,
+    "id": "network.habitat.docs.comment",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "A comment on a collaborative document, written by the commenting member into the document's companion comment space. Top-level comments anchor to a text range via Yjs relative positions; replies reference a parent comment and omit the range.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "body",
+                    "createdAt",
+                    "docSpace"
+                ],
+                "properties": {
+                    "body": {
+                        "type": "string",
+                        "maxLength": 10000,
+                        "maxGraphemes": 3000,
+                        "description": "The comment text."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime",
+                        "description": "When the comment was authored."
+                    },
+                    "docSpace": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "URI of the document space this comment relates to."
+                    },
+                    "range": {
+                        "type": "ref",
+                        "ref": "#range",
+                        "description": "The anchored text range. Present on top-level comments; omitted on replies."
+                    },
+                    "parent": {
+                        "type": "string",
+                        "description": "Space-record URI of the parent comment this replies to. Omitted for top-level comments."
+                    }
+                }
+            }
+        },
+        "range": {
+            "type": "object",
+            "required": [
+                "start",
+                "end"
+            ],
+            "properties": {
+                "start": {
+                    "type": "string",
+                    "description": "JSON-encoded Yjs relative position of the range start."
+                },
+                "end": {
+                    "type": "string",
+                    "description": "JSON-encoded Yjs relative position of the range end."
+                }
+            }
+        }
+    }
+}

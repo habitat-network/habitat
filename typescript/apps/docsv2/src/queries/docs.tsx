@@ -15,6 +15,7 @@ export interface DocSummary {
   docId: string;
   uri: string;
   title: string;
+  commentSpace?: string;
 }
 
 // The sidebar list comes entirely from the docs server's listDocs endpoint,

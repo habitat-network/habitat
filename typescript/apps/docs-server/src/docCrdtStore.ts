@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { Mutex } from "async-mutex";
 import * as Y from "yjs";
-import type { PearClient } from "./pearClient";
+import { DOCS_SPACE_TYPE, COMMENT_SPACE_TYPE, type PearClient } from "./pearClient";
 import { renderDoc } from "./render";
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
@@ -45,7 +45,31 @@ export class DocCrdtStore {
     memberDid: string,
     org: string,
   ): Promise<{ uri: string; docId: string }> {
-    const space = await this.pear.createSpace(org);
+    const space = await this.pear.createSpace(org, DOCS_SPACE_TYPE);
+    // Companion comment space: same skey as the doc, different type, so its URI
+    // is derivable from the doc id everywhere.
+    const commentSpace = await this.pear.createSpace(
+      org,
+      COMMENT_SPACE_TYPE,
+      space.skey,
+    );
+    // Derive comment permissions from the doc: doc readers can read comments,
+    // doc writers can write them. A comment-only grant is a direct writer tuple
+    // on the comment space (not written here).
+    await this.pear.writeUsersetTuple(
+      org,
+      space.uri,
+      "reader",
+      "reader",
+      commentSpace.uri,
+    );
+    await this.pear.writeUsersetTuple(
+      org,
+      space.uri,
+      "writer",
+      "writer",
+      commentSpace.uri,
+    );
     const ydoc = new Y.Doc();
     await this.writeRecords(org, space.uri, ydoc);
     this.persist(space.uri, ydoc);

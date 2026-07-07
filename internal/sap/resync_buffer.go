@@ -76,8 +76,13 @@ func eventChains(prevRev syntax.TID, since syntax.TID) bool {
 }
 
 func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error {
+	fmt.Printf("[sap-debug] applyEvent space=%s repo=%s rev=%s since=%s numOps=%d\n", event.Space, event.Repo, event.Rev, event.Since, len(event.Ops))
+	for i, op := range event.Ops {
+		fmt.Printf("[sap-debug] applyEvent op[%d] action=%s uri=%s\n", i, op.Action, op.Uri)
+	}
 	if !eventChains(repo.Rev, event.Since) {
 		if event.Since > repo.Rev {
+			fmt.Printf("[sap-debug] applyEvent desync space=%s repo=%s rev=%s since=%s\n", event.Space, event.Repo, repo.Rev, event.Since)
 			err := rb.db.Model(&managedRepo{}).
 				Where("space = ? AND did = ?", event.Space, event.Repo).
 				Update("state", RepoStateDesynced).Error
@@ -86,9 +91,10 @@ func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error 
 			}
 			return err
 		}
-		// past event that we've already seen
+		fmt.Printf("[sap-debug] applyEvent past event, skipping space=%s repo=%s\n", event.Space, event.Repo)
 		return nil
 	}
+	fmt.Printf("[sap-debug] applyEvent updating repo state to active\n")
 	if err := rb.db.Model(&managedRepo{}).
 		Where("space = ? AND did = ?", event.Space, event.Repo).
 		Updates(map[string]any{"rev": event.Rev, "state": RepoStateActive}).
@@ -96,9 +102,11 @@ func (rb *resyncBuffer) applyEvent(event events.Event, repo *managedRepo) error 
 		return err
 	}
 	if err := writeEventOps(rb.db, event.Ops); err != nil {
+		fmt.Printf("[sap-debug] applyEvent writeEventOps error: %v\n", err)
 		return err
 	}
 	rb.outboxNotif.Notify()
+	fmt.Printf("[sap-debug] applyEvent done, ops written to outbox\n")
 	return nil
 }
 
@@ -198,6 +206,7 @@ func (rb *resyncBuffer) handleSpaceEvent(
 	org *managedOrg,
 	event events.Event,
 ) error {
+	fmt.Printf("[sap-debug] handleSpaceEvent space=%s repo=%s seq=%d numOps=%d type=%s\n", event.Space, event.Repo, event.Seq, len(event.Ops), event.Type)
 	var repo managedRepo
 	err := rb.db.WithContext(ctx).
 		Where("space = ? AND did = ?", event.Space, event.Repo).
@@ -215,11 +224,14 @@ func (rb *resyncBuffer) handleSpaceEvent(
 			return err
 		}
 		rb.resyncNotif.Notify()
+		fmt.Printf("[sap-debug] created pending repo space=%s did=%s\n", event.Space, event.Repo)
 	}
 
 	if rb.shouldBuffer(org, &repo, event) {
+		fmt.Printf("[sap-debug] buffering event space=%s repo=%s state=%s\n", event.Space, event.Repo, repo.State)
 		return rb.appendEvent(event)
 	}
 
+	fmt.Printf("[sap-debug] applying event space=%s repo=%s state=%s\n", event.Space, event.Repo, repo.State)
 	return rb.applyEvent(event, &repo)
 }

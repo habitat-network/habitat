@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc --build --force",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@atproto/crypto": "^0.4.5",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "^4.19.2",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

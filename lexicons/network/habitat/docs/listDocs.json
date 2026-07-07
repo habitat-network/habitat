@@ -43,6 +43,11 @@
                 "title": {
                     "type": "string",
                     "description": "The document title, from its markdown 'self' record."
+                },
+                "commentSpace": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URI of the document's companion comment space, where comment records are written."
                 }
             }
         }

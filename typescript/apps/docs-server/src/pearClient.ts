@@ -5,6 +5,7 @@ import type {
   NetworkHabitatRelationshipWriteTuple,
   NetworkHabitatRelationshipListSubjects,
   NetworkHabitatRelationshipListObjects,
+  NetworkHabitatRelationshipCheck,
 } from "api";
 import type { DerivedConfig } from "./config";
 
@@ -18,7 +19,13 @@ const habitatDIDHeader = "Habitat-Did";
 // the org's membership.
 const ORG_SPACE_TYPE = "network.habitat.organization";
 const SELF_SKEY = "self";
-const DOCS_SPACE_TYPE = "network.habitat.docs";
+
+export type Role = "owner" | "manager" | "writer" | "reader";
+
+// Space types. A document lives in a doc space; its companion comment space
+// reuses the same skey under the comments type, so the URI is derivable.
+export const DOCS_SPACE_TYPE = "network.habitat.docs";
+export const COMMENT_SPACE_TYPE = "network.habitat.docs.comments";
 
 export interface SpaceRef {
   uri: string;
@@ -41,6 +48,12 @@ export class PearClient {
   // ats://<orgDid>/<type>/<skey>.
   spaceUri(skey: string, orgDid: string): string {
     return `ats://${orgDid}/${DOCS_SPACE_TYPE}/${skey}`;
+  }
+
+  // commentSpaceUri reconstructs a doc's companion comment space URI from the
+  // doc's skey. Comment spaces reuse the doc skey under the comments type.
+  commentSpaceUri(skey: string, orgDid: string): string {
+    return `ats://${orgDid}/${COMMENT_SPACE_TYPE}/${skey}`;
   }
 
   private async call<T>(
@@ -71,17 +84,20 @@ export class PearClient {
     return (await res.json()) as T;
   }
 
-  // createSpace creates a new doc space owned by the given org. pear generates
-  // the skey.
-  async createSpace(org: string): Promise<SpaceRef> {
+  // createSpace creates a new space of the given type owned by the org. When
+  // skey is omitted pear generates one; pass it to pin the key (used to give a
+  // doc's comment space the same skey as the doc space).
+  async createSpace(
+    org: string,
+    type: string,
+    skey?: string,
+  ): Promise<SpaceRef> {
     const created =
       await this.call<NetworkHabitatSpaceCreateSpace.OutputSchema>(
         org,
         "network.habitat.space.createSpace",
         "POST",
-        {
-          type: DOCS_SPACE_TYPE,
-        } satisfies NetworkHabitatSpaceCreateSpace.InputSchema,
+        { type, skey } satisfies NetworkHabitatSpaceCreateSpace.InputSchema,
       );
     return { uri: created.uri, skey: skeyOf(created.uri) };
   }
@@ -197,6 +213,72 @@ export class PearClient {
         object: { space },
       } satisfies NetworkHabitatRelationshipWriteTuple.InputSchema,
     );
+  }
+
+  // writeUsersetTuple grants a role on the object space to everyone holding
+  // subjectRole on subjectSpace (a spaceRoleSubject userset), enabling
+  // cross-space permission inheritance — e.g. a doc's writers become its
+  // comment space's writers. sap proxies as the org (object-space owner), which
+  // passes writeTuple's manager check.
+  async writeUsersetTuple(
+    org: string,
+    subjectSpace: string,
+    subjectRole: Role,
+    relation: Role,
+    object: string,
+  ): Promise<void> {
+    await this.call<NetworkHabitatRelationshipWriteTuple.OutputSchema>(
+      org,
+      "network.habitat.relationship.writeTuple",
+      "POST",
+      {
+        subject: {
+          $type: "network.habitat.relationship.defs#spaceRoleSubject",
+          space: subjectSpace,
+          role: subjectRole,
+        },
+        relation,
+        object: { space: object },
+      } satisfies NetworkHabitatRelationshipWriteTuple.InputSchema,
+    );
+  }
+
+  // check resolves whether a user holds a role on a space (through role
+  // implications and usersets). Used to authorize listComments against the
+  // comment space. sap proxies as the org, which holds reader on the space.
+  async check(
+    org: string,
+    did: string,
+    relation: Role,
+    space: string,
+  ): Promise<boolean> {
+    const out = await this.call<NetworkHabitatRelationshipCheck.OutputSchema>(
+      org,
+      "network.habitat.relationship.check",
+      "GET",
+      { subject: did, relation, space } satisfies NetworkHabitatRelationshipCheck.QueryParams,
+    );
+    return out.allowed;
+  }
+
+  // ensureCommentSpace creates the companion comment space for a doc (if it
+  // doesn't already exist) and writes the userset tuples that make doc
+  // readers/writers into comment readers/writers. Idempotent: the tuples are
+  // already idempotent, and createSpace tolerates a 409 (space already exists).
+  async ensureCommentSpace(
+    org: string,
+    docSpaceUri: string,
+    docId: string,
+  ): Promise<string> {
+    const commentSpace = this.commentSpaceUri(docId, org);
+    try {
+      await this.createSpace(org, COMMENT_SPACE_TYPE, docId);
+    } catch {
+      // Space already exists – nothing to do for creation.
+    }
+    await this.writeUsersetTuple(org, docSpaceUri, "reader", "reader", commentSpace);
+    await this.writeUsersetTuple(org, docSpaceUri, "writer", "writer", commentSpace);
+    return commentSpace;
   }
 }
 

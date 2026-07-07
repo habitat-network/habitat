@@ -49,7 +49,7 @@ catalogs:
       specifier: ^2.0.4
       version: 2.0.4
     jsdom:
-      specifier: ^27.0.0
+      specifier: ^27.4.0
       version: 27.4.0
     react:
       specifier: ^19.2.3
@@ -478,6 +478,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@22.19.3)(jiti@2.7.0)(jsdom@27.4.0)(lightningcss@1.32.0)(msw@2.12.10(@types/node@22.19.3)(typescript@5.9.3))(sass@1.98.0)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
 
   typescript/apps/docsv2:
     dependencies:

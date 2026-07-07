@@ -1,15 +1,27 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
-import { useQuery } from "@tanstack/react-query";
 import {
   docQueryOptions,
   docsListQueryOptions,
   pushUpdate,
 } from "@/queries/docs";
+import {
+  listCommentsQueryOptions,
+  createComment,
+  createReply,
+  type CommentThread,
+} from "@/queries/comments";
+import {
+  CommentHighlight,
+  setCommentHighlights,
+} from "@/extensions/commentHighlight";
+import { rangeFromSelection, resolveRange } from "@/lib/anchor";
+import { CommentsSidebar } from "@/components/CommentsSidebar";
 import { ShareDialogV2, XRPCError } from "internal";
 import {
   Button,
@@ -69,11 +81,15 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { ydoc, docId } = Route.useLoaderData();
     const { authManager } = Route.useRouteContext();
     const [dirty, setDirty] = useState(false);
+    const [hasSelection, setHasSelection] = useState(false);
+    const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
     // The doc's space URI comes from the docs list; it's what ShareDialogV2
     // manages access for.
     const { data: docs } = useQuery(docsListQueryOptions(authManager));
-    const spaceUri = docs?.find((d) => d.docId === docId)?.uri;
+    const doc = docs?.find((d) => d.docId === docId);
+    const spaceUri = doc?.uri;
+    const commentSpace = doc?.commentSpace;
 
     // Debounced save: encode the full Yjs state and push it through pear to the
     // docs server, which merges it into the canonical record.
@@ -102,6 +118,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         extensions: [
           StarterKit.configure({ undoRedo: false }),
           Collaboration.configure({ document: ydoc }),
+          CommentHighlight,
         ],
         editorProps: {
           attributes: {
@@ -110,20 +127,105 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           },
         },
         onUpdate: handleUpdate,
+        onSelectionUpdate({ editor }) {
+          const { from, to } = editor.state.selection;
+          setHasSelection(from !== to);
+        },
       },
       [ydoc],
     );
 
+    const queryClient = useQueryClient();
+    const { data: threads } = useQuery(
+      listCommentsQueryOptions(docId, authManager),
+    );
+
+    const addComment = useMutation({
+      mutationFn: async () => {
+        if (!editor || !commentSpace || !spaceUri) return;
+        const range = rangeFromSelection(editor);
+        if (!range) return;
+        const body = window.prompt("Comment");
+        if (!body) return;
+        await createComment(authManager, commentSpace, {
+          body,
+          range,
+          docSpace: spaceUri,
+        });
+      },
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          listCommentsQueryOptions(docId, authManager),
+        ),
+    });
+
+    const replyMutation = useMutation({
+      mutationFn: async ({
+        parent,
+        body,
+      }: {
+        parent: string;
+        body: string;
+      }) => {
+        if (!commentSpace || !spaceUri) return;
+        setReplyingTo(parent);
+        await createReply(authManager, commentSpace, {
+          body,
+          parent,
+          docSpace: spaceUri,
+        });
+      },
+      onSettled: () => setReplyingTo(null),
+      onSuccess: () =>
+        queryClient.invalidateQueries(
+          listCommentsQueryOptions(docId, authManager),
+        ),
+    });
+
+    useEffect(() => {
+      if (!editor || !threads) return;
+      setCommentHighlights(
+        editor,
+        threads
+          .filter((t) => t.range)
+          .map((t) => ({ id: t.uri, range: t.range! })),
+      );
+    }, [editor, threads]);
+
+    const onSelectComment = (thread: CommentThread) => {
+      if (!editor || !thread.range) return;
+      const resolved = resolveRange(editor, thread.range);
+      if (!resolved) return;
+      editor.chain().focus().setTextSelection(resolved).scrollIntoView().run();
+    };
+
     return (
       <div className="flex flex-col-reverse h-full">
-        <div className="flex-1 flex flex-col items-center [&_.ProseMirror]:focus-visible:outline-2 [&_.ProseMirror]:focus-visible:outline-offset-[-1px] [&_.ProseMirror]:focus-visible:outline-ring/40">
-          <EditorContent className="w-full flex-1" editor={editor} />
+        <div className="flex-1 flex min-h-0">
+          <div className="flex-1 flex flex-col items-center overflow-y-auto [&_.ProseMirror]:focus-visible:outline-2 [&_.ProseMirror]:focus-visible:outline-offset-[-1px] [&_.ProseMirror]:focus-visible:outline-ring/40">
+            <EditorContent className="w-full flex-1" editor={editor} />
+          </div>
+          <CommentsSidebar
+            threads={threads ?? []}
+            canComment={!!commentSpace}
+            onSelect={onSelectComment}
+            onReply={(parent, body) => replyMutation.mutate({ parent, body })}
+            isReplying={replyingTo}
+          />
         </div>
         <PageHeader>
           <div className="flex items-center gap-2">
             {spaceUri && (
-              <ShareDialogV2 spaceUri={spaceUri} authManager={authManager} />
+              <ShareDialogV2 spaceUri={spaceUri} authManager={authManager} relation="writer" />
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!commentSpace || !hasSelection || addComment.isPending}
+              onClick={() => addComment.mutate()}
+            >
+              Comment
+            </Button>
             <Popover>
               <PopoverTrigger
                 render={
@@ -134,7 +236,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
               />
               <PopoverContent>
                 <PopoverTitle>Sync status</PopoverTitle>
-                <span>{dirty ? "🔄 Syncing" : "✅ Synced"}</span>
+                <span>{dirty ? "\u{1F504} Syncing" : "\u2705 Synced"}</span>
               </PopoverContent>
             </Popover>
           </div>

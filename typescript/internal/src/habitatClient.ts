@@ -47,6 +47,7 @@ import type {
   NetworkHabitatInstanceDescribeInstance,
   NetworkHabitatDocsCreateDoc,
   NetworkHabitatDocsUpdateDoc,
+  NetworkHabitatDocsListComments,
   NetworkHabitatDocsListDocs,
   NetworkHabitatGroupsListGroups,
   NetworkHabitatGroupsGetGroup,
@@ -81,6 +82,10 @@ type UnauthedQuery<
 type QueryEndpoints = {
   // Implemented by the docs server; reached via pear service proxying when
   // called with an Atproto-Proxy header.
+  "network.habitat.docs.listComments": Query<
+    NetworkHabitatDocsListComments.QueryParams,
+    NetworkHabitatDocsListComments.OutputSchema
+  >;
   "network.habitat.docs.listDocs": Query<
     NetworkHabitatDocsListDocs.QueryParams,
     NetworkHabitatDocsListDocs.OutputSchema

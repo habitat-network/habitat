@@ -45,6 +45,8 @@ export interface DocView {
   uri: string
   /** The document title, from its markdown 'self' record. */
   title: string
+  /** URI of the document's companion comment space, where comment records are written. */
+  commentSpace?: string
 }
 
 const hashDocView = 'docView'

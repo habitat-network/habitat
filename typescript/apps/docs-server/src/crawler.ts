@@ -2,6 +2,8 @@ import type { DerivedConfig } from "./config";
 import type { DocMetadataStore } from "./docMetadataStore";
 import type { DocCrdtStore } from "./docCrdtStore";
 import type { OrgDirectory } from "./orgDirectory";
+import type { DocCommentStore } from "./docCommentStore";
+import { DOCS_SPACE_TYPE } from "./pearClient";
 
 // A doc is represented by its rendered-markdown record (which carries the
 // title); the crawler keys doc discovery off this collection.
@@ -13,6 +15,9 @@ const CRDT_COLLECTION = "network.habitat.docs.crdt";
 // org's membership may have changed, so the org directory is refetched.
 const ORG_SPACE_TYPE = "network.habitat.organization";
 const RECONNECT_DELAY_MS = 2000;
+// Comment records live in a doc's companion comment space, authored by members
+// into their own repo; the crawler indexes them under the doc space they name.
+const COMMENT_COLLECTION = "network.habitat.docs.comment";
 
 // outboxMessage is sap's wire format for a single outbox event (see
 // cmd/sap/websocket.go). The crawler acks it back by id.
@@ -27,7 +32,9 @@ interface ParsedRecordUri {
   owner: string;
   type: string;
   skey: string;
+  repo: string;
   collection: string;
+  rkey: string;
 }
 
 // parseSpaceRecordUri splits a space-record URI of the form
@@ -41,8 +48,8 @@ export function parseSpaceRecordUri(uri: string): ParsedRecordUri | undefined {
   if (parts.length !== 6) {
     return undefined;
   }
-  const [owner, type, skey, , collection] = parts;
-  if (!owner || !type || !skey || !collection) {
+  const [owner, type, skey, repo, collection, rkey] = parts;
+  if (!owner || !type || !skey || !repo || !collection || !rkey) {
     return undefined;
   }
   return {
@@ -50,7 +57,9 @@ export function parseSpaceRecordUri(uri: string): ParsedRecordUri | undefined {
     owner,
     type,
     skey,
+    repo,
     collection,
+    rkey,
   };
 }
 
@@ -70,6 +79,7 @@ export class Crawler {
     private meta: DocMetadataStore,
     private crdt: DocCrdtStore,
     private orgs: OrgDirectory,
+    private comments: DocCommentStore,
   ) {}
 
   // start runs the connect/reconnect loop in the background.
@@ -109,7 +119,13 @@ export class Crawler {
         this.enqueue(() => this.handleMessage(ws, data));
       });
       // The close event fires after any error, so it alone resolves the loop.
-      ws.addEventListener("close", () => resolve());
+      ws.addEventListener("close", () => {
+        console.log("[crawler] disconnected");
+        resolve();
+      });
+      ws.addEventListener("error", (err) => {
+        console.error("[crawler] websocket error", err);
+      });
     });
   }
 
@@ -141,6 +157,7 @@ export class Crawler {
     if (!parsed) {
       return;
     }
+    console.log("[crawler] processing", parsed.collection, "uri:", msg.uri);
     if (parsed.type === ORG_SPACE_TYPE) {
       // The space owner is the org whose membership changed; refetch it.
       await this.orgs.refresh(parsed.owner);
@@ -160,6 +177,37 @@ export class Crawler {
       if (value.blob) {
         await this.crdt.upsertState(parsed.spaceUri, value.blob);
       }
+      return;
+    }
+    if (parsed.collection === COMMENT_COLLECTION) {
+      const value = (msg.value ?? {}) as {
+        body?: string;
+        createdAt?: string;
+        parent?: string;
+        docSpace?: string;
+        range?: { start: string; end: string };
+      };
+      console.log("[crawler] comment received", { body: !!value.body, createdAt: value.createdAt, msgUri: msg.uri });
+      if (!value.body || !value.createdAt) {
+        console.log("[crawler] comment skipped - missing body or createdAt");
+        return;
+      }
+      // The comment space reuses the doc's skey, so the related doc space is
+      // derivable from the comment record's own space URI. We derive it (rather
+      // than trusting the record's docSpace field) so a comment can't be
+      // attributed to a doc whose comment space the author can't write.
+      const docSpace = `ats://${parsed.owner}/${DOCS_SPACE_TYPE}/${parsed.skey}`;
+      console.log("[crawler] upserting comment for docSpace:", docSpace);
+      this.comments.upsertComment({
+        docSpace,
+        uri: msg.uri,
+        author: parsed.repo,
+        body: value.body,
+        createdAt: value.createdAt,
+        parentUri: value.parent,
+        range: value.range,
+      });
+      console.log("[crawler] comment upserted successfully");
       return;
     }
     // Some other collection; nothing to persist.

@@ -7,6 +7,7 @@ import { PearClient } from "./pearClient";
 import { DocCrdtStore } from "./docCrdtStore";
 import { DocMetadataStore } from "./docMetadataStore";
 import { Crawler } from "./crawler";
+import { DocCommentStore } from "./docCommentStore";
 import { OrgDirectory } from "./orgDirectory";
 import { createApp } from "./server";
 
@@ -24,13 +25,14 @@ async function main() {
   const docs = new DocCrdtStore(pear, db);
   const meta = new DocMetadataStore(db);
   const orgs = new OrgDirectory(config, pear, db);
+  const comments = new DocCommentStore(db);
 
   // The crawler subscribes to sap's outbox channel to discover the org's docs,
   // persisting their titles to the metadata store and their CRDT state to the
   // CRDT store; permissions are resolved on demand at read time. It also
   // forwards events on the network.habitat.organization space so the org
   // directory refetches membership instead of polling on an interval.
-  const crawler = new Crawler(config, meta, docs, orgs);
+  const crawler = new Crawler(config, meta, docs, orgs, comments);
   crawler.start();
 
   // Populate the org directory once at startup; subsequent per-org refreshes
@@ -41,7 +43,7 @@ async function main() {
       console.error("[org-directory] initial refresh failed", err),
     );
 
-  const app = createApp(config, pear, docs, meta, orgs);
+  const app = createApp(config, pear, docs, meta, orgs, comments);
 
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(
