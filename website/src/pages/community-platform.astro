@@ -2,6 +2,10 @@
 import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
 import "../styles/landing.css";
+
+const communityCreateUrl = import.meta.env.DEV
+  ? "https://frontend.local.habitat.network/community/create"
+  : "https://habitat.network/habitat/community/create";
 ---
 
 <Layout
@@ -10,90 +14,78 @@ import "../styles/landing.css";
 >
   <Header />
 
+  <!-- Calendly link widget begin -->
+  <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
+  <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
+  <!-- Calendly link widget end -->
+
   <main class="landing cp">
     <!-- HERO -->
     <section class="hero">
       <div class="hero-inner">
-        <h1 class="display reveal" style="--d: 80ms">Your community's data should belong to you.</h1>
+        <h2 class="display reveal" style="--d: 80ms">You bring the community, we bring the platform.</h2>
         <p class="hero-sub reveal" style="--d: 160ms">
-          Habitat's Community Platform is for groups that are ready to own their data and build for their unique needs, instead of using mass-produced software. Habitat gives you the foundation to reduce reliance on Big Tech, build custom apps, and collaborate with other communities.
+          
         </p>
       </div>
     </section>
 
     <!-- SECTION: backend handled -->
-    <section class="section">
-      <div class="section-inner section-with-icon">
+    <section class="section section-community-apps">
+      <div class="section-inner">
         <div class="section-text">
-          <h2 class="reveal">Build for your community's needs; let Habitat handle the rest.</h2>
+          <h2 class="reveal">Build apps that actually feel like your community.</h2>
           <p class="lead reveal" style="--d: 100ms">
-             With Habitat as your data backend, you can create custom frontends and apps tailored to your community's needs. Rather than paying for SaaS tools only to use one feature from each, build directly for your community's needs in an integrated UI. <a href="https://calendly.com/arushi-habitat">Get in touch to learn how.</a>
+             With Habitat as your data backend, you can create custom frontends and apps tailored to your community's needs. Rather than fragmenting your community across tools, build directly in an integrated UI. <a href="https://calendly.com/arushi-habitat">Get in touch to learn how.</a>
           </p>
         </div>
-        <svg class="section-icon reveal" style="--d: 200ms" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-          <rect x="12" y="10" width="24" height="8"/>
-          <rect x="16" y="20" width="20" height="8"/>
-          <rect x="20" y="30" width="16" height="8"/>
-        </svg>
       </div>
+      <img class="section-image reveal" style="--d: 200ms" src="/community-asset.png" alt="" width="1508" height="1196" />
     </section>
 
-    <!-- SECTION: open source -->
+  
+
+    <!-- SECTION: safe data -->
+    <section class="section section-safe-data">
+      <div class="section-inner">
+        <div class="section-text section-text-right">
+          <h2 class="reveal">We build the stuff an LLM probably shouldn't.</h2>
+          <p class="lead reveal" style="--d: 100ms">
+            Identities, authentication, permissioning, search. Focus on your community's experience and let Habitat handle the infra. Our platform is built to be flexible--to support your present and future needs.
+          </p>
+        </div>
+      </div>
+      <img class="section-image section-image-left reveal" style="--d: 200ms" src="/group-asset.png" alt="" width="2120" height="1604" />
+    </section>
+
+      <!-- SECTION: open protocols -->
     <section class="section">
-      <div class="section-inner section-with-icon">
+      <div class="section-inner section-with-buttons">
         <div class="section-text">
           <h2 class="reveal">Open-source, open protocols, deployed anywhere.</h2>
           <p class="lead reveal" style="--d: 100ms">
-            Habitat is fully open source and built on AT protocol, an open protocol for data portability and interoperability. 
-            Run it on our hosted service, deploy it to your own infrastructure, or even self-host. Your community's data is your, forever.
+            Habitat is fully open source and built on AT protocol, an open protocol for data portability and interoperability.
+            Run it on our hosted service, deploy it to your own infrastructure, or even self-host. Your community's data is yours, forever.
           </p>
         </div>
-        <svg class="section-icon reveal" style="--d: 200ms" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-          <rect x="14" y="18" width="20" height="20"/>
-          <line x1="24" y1="8" x2="24" y2="18"/>
-          <line x1="18" y1="12" x2="24" y2="8"/>
-          <line x1="30" y1="12" x2="24" y2="8"/>
-        </svg>
-      </div>
-    </section>
-
-    <!-- SECTION: open protocols -->
-    <section class="section">
-      <div class="section-inner section-with-icon">
-        <div class="section-text">
-          <h2 class="reveal">Built-in primitives.</h2>
-          <p class="lead reveal" style="--d: 100ms">
-            Community members can login with their existing identities--Google or AT Protocol--so they don't need another password. We offer fine-grained
-            permissioning APIs, admin app authorization, and developer convenience functions, so you can focus on your community's experience while Habitat handles the infra.
-          </p>
+        <div class="section-buttons reveal" style="--d: 200ms">
+          <a class="cta-button cta-lime" href="https://habitat.network/habitat/api">Read the docs</a>
+          <a class="cta-button cta-pink" href="" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/arushi-habitat'});return false;">Talk to us</a>
         </div>
-        <svg class="section-icon reveal" style="--d: 200ms" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1" shape-rendering="crispEdges" aria-hidden="true">
-          <rect x="8" y="8" width="32" height="32"/>
-          <line x1="8" y1="16" x2="40" y2="16"/>
-          <line x1="8" y1="24" x2="40" y2="24"/>
-          <line x1="8" y1="32" x2="40" y2="32"/>
-          <line x1="16" y1="8" x2="16" y2="40"/>
-          <line x1="24" y1="8" x2="24" y2="40"/>
-          <line x1="32" y1="8" x2="32" y2="40"/>
-        </svg>
       </div>
     </section>
 
     <!-- CLOSING -->
     <section class="section closing">
       <div class="section-inner center">
-        <h2 class="reveal">Learn how to use Habitat for your community.</h2>
-        <!-- Calendly link widget begin -->
-        <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
-        <script src="https://assets.calendly.com/assets/external/widget.js" type="text/javascript" async></script>
+        <h2 class="reveal">Give your community its own habitat.</h2>
         <div class="reveal" style="--d: 100ms; margin-bottom: 32px;">
-          <a href="" onclick="Calendly.initPopupWidget({url: 'https://calendly.com/arushi-habitat'});return false;">Talk to us</a>
+          <a class="cta-button cta-green" href={communityCreateUrl} style="min-width:420px">Get started now →</a>
         </div>
-        <!-- Calendly link widget end -->
         <form class="waitlist center reveal" style="--d: 180ms" novalidate>
           <label class="visually-hidden" for="email-cp">your email</label>
           <input id="email-cp" type="text" name="email" placeholder="your email" required />
-          <button type="submit">Join waitlist <span aria-hidden="true">→</span></button>
+          <button type="submit">Sign up to get updates from us<span aria-hidden="true">→</span></button>
         </form>
         <p class="waitlist-status reveal" style="--d: 260ms" data-status="idle" aria-live="polite"></p>
       </div>
@@ -105,6 +97,7 @@ import "../styles/landing.css";
   /* Page-specific overrides: this hero is text-only, so use tighter padding
      and let the heading run wider than the index hero's two-column layout. */
   .landing.cp .hero { padding: 96px 0 80px; }
+  .landing.cp .hero .cta-button { min-width: 300px; }
   .landing.cp .display { max-width: 18ch; }
   .landing.cp .hero-sub { max-width: 60ch; margin-bottom: 0; }
   .landing.cp .section h2 { max-width: 28ch; }
@@ -122,12 +115,95 @@ import "../styles/landing.css";
     color: var(--black);
   }
 
+  .landing.cp .section-community-apps,
+  .landing.cp .section-safe-data {
+    position: relative;
+    overflow: hidden;
+  }
+  .landing.cp .section-community-apps .section-text {
+    max-width: 580px;
+  }
+  .landing.cp .section-text-right {
+    max-width: 480px;
+    margin-left: auto;
+  }
+  .landing.cp .section-image {
+    display: block;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    width: 42%;
+    max-width: 520px;
+    height: auto;
+  }
+  .landing.cp .section-image-left {
+    right: auto;
+    left: 0;
+  }
+
+  .landing.cp .section-community-apps,
+  .landing.cp .section-safe-data {
+    border-bottom: none;
+  }
+
+  .landing.cp .section-with-buttons {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 48px;
+    align-items: center;
+  }
+  .landing.cp .section-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    justify-self: end;
+  }
+  .landing.cp .cta-lime { background: var(--lime); }
+  .landing.cp .cta-pink { background: var(--pink); }
+
   @media (max-width: 880px) {
     .landing.cp .hero { padding: 56px 0 64px; }
     .landing.cp .section-with-icon {
       grid-template-columns: 1fr;
     }
     .landing.cp .section-icon { display: none; }
+    .landing.cp .section-with-buttons {
+      grid-template-columns: 1fr;
+    }
+    .landing.cp .section-buttons {
+      justify-self: stretch;
+      flex-direction: row;
+      margin-top: 32px;
+    }
+    .landing.cp .cta-button {
+      flex: 1;
+      min-width: 0;
+    }
+    .landing.cp .section-community-apps,
+    .landing.cp .section-safe-data {
+      overflow: visible;
+    }
+    .landing.cp .section-community-apps .section-text,
+    .landing.cp .section-text-right {
+      max-width: none;
+      margin-left: 0;
+    }
+    .landing.cp .section-image {
+      display: block;
+      position: static;
+      transform: none;
+      width: 100%;
+      max-width: none;
+      margin-top: 32px;
+      margin-bottom: 32px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .waitlist button {
+      white-space: normal;
+    }
   }
 
   .waitlist {
@@ -161,6 +237,7 @@ import "../styles/landing.css";
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    white-space: nowrap;
     transition: color 160ms ease;
   }
   .waitlist button:hover { color: var(--green); }

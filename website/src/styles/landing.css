@@ -5,6 +5,8 @@
   --white: #ffffff;
   --black: #000000;
   --green: #008000;
+  --lime: #daff8d;
+  --pink: #ef7acd;
   --rule: rgba(0, 0, 0, 0.10);
   --muted: rgba(0, 0, 0, 0.60);
 }
@@ -38,6 +40,33 @@
   border-bottom-color: var(--green);
   transform: none;
   text-decoration: none;
+}
+
+.landing .cta-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+  padding: 16px 28px;
+  font-weight: 500;
+  font-size: 1rem;
+  color: var(--black);
+  text-align: center;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  box-sizing: border-box;
+  transition: border-color 160ms ease;
+}
+.landing .cta-button:hover {
+  color: var(--black);
+  border-color: var(--black);
+}
+.landing .cta-green {
+  background: var(--green);
+  color: var(--white);
+}
+.landing .cta-green:hover {
+  color: var(--white);
 }
 
 .landing .section-inner,

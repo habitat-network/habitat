@@ -20,6 +20,8 @@ export type QueryParams = {
   did: string
   /** The role to query for. */
   relation: 'owner' | 'manager' | 'writer' | 'reader'
+  /** Filter to spaces of this type. */
+  type?: string
 }
 export type InputSchema = undefined
 
