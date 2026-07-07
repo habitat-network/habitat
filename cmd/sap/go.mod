@@ -13,7 +13,6 @@ require (
 	github.com/urfave/cli/v3 v3.9.0
 	go.opentelemetry.io/otel v1.44.0
 	golang.org/x/sync v0.20.0
-	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
 )
 
@@ -114,5 +113,6 @@ require (
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/postgres v1.5.7 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )

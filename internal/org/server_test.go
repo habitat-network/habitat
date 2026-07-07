@@ -515,7 +515,12 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 // org.Server.CreateOrg, not just by the fakeInstancePolicy used elsewhere in
 // this file.
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
-	instanceStore, err := instance.NewStore(testutil.NewDB(t), []byte("key"), "passhash", "pear.example.com")
+	instanceStore, err := instance.NewStore(
+		testutil.NewDB(t),
+		[]byte("key"),
+		"passhash",
+		"pear.example.com",
+	)
 	require.NoError(t, err)
 	require.NoError(t, instanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))
 	token, err := instanceStore.IssueInvite(t.Context())
