@@ -38,7 +38,7 @@ func TestNewWithoutMigrations(t *testing.T) {
 }
 
 func TestDialect(t *testing.T) {
-	require.Equal(t, postgresDialect, dialect("postgres://user:pass@localhost:5432"))
-	require.Equal(t, sqliteDialect, dialect("sqlite://file.db"))
-	require.Empty(t, dialect("foo://bar"))
+	require.Equal(t, Postgres, ParseDialect("postgres://user:pass@localhost:5432"))
+	require.Equal(t, Sqlite, ParseDialect("sqlite://file.db"))
+	require.Empty(t, ParseDialect("foo://bar"))
 }

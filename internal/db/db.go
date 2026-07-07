@@ -38,7 +38,7 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 	gormConfig := &gorm.Config{
 		TranslateError: true,
 	}
-	switch Dialect(dsn) {
+	switch ParseDialect(dsn) {
 	case Postgres:
 		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
 		if err != nil {
@@ -63,7 +63,7 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 			return nil, err
 		}
 		goose.SetBaseFS(cfg.migrations)
-		if err := goose.SetDialect(string(Dialect(dsn))); err != nil {
+		if err := goose.SetDialect(string(ParseDialect(dsn))); err != nil {
 			return nil, err
 		}
 		if err := goose.Up(sqlDB, "migrations"); err != nil {
