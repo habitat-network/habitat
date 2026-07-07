@@ -21,8 +21,8 @@ func TestStore_Concurrency(t *testing.T) {
 	const eventsPerWriter = 10
 	const totalEvents = numWriters * eventsPerWriter
 
+	clock := syntax.NewTIDClock(0)
 	for i := range numWriters {
-		clock := syntax.NewTIDClock(0)
 		go func(id int) {
 			prev := clock.Next()
 			for range eventsPerWriter {
