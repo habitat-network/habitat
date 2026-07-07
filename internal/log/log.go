@@ -17,9 +17,9 @@ type config struct {
 
 type Option func(*config)
 
-func WithStdout() Option {
+func WithStdout(stdout bool) Option {
 	return func(o *config) {
-		o.stdout = true
+		o.stdout = stdout
 	}
 }
 

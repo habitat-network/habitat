@@ -1,8 +1,8 @@
 package db
 
 import (
-	"embed"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	"github.com/pressly/goose/v3"
@@ -17,12 +17,12 @@ var (
 )
 
 type config struct {
-	migrations *embed.FS
+	migrations fs.FS
 }
 
 type Option func(*config)
 
-func WithMigrations(migrations *embed.FS) Option {
+func WithMigrations(migrations fs.FS) Option {
 	return func(o *config) {
 		o.migrations = migrations
 	}
@@ -61,7 +61,9 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 			return nil, err
 		}
 		goose.SetBaseFS(cfg.migrations)
-		goose.SetDialect(dialect(dsn))
+		if err := goose.SetDialect(dialect(dsn)); err != nil {
+			return nil, err
+		}
 		if err := goose.Up(sqlDB, "migrations"); err != nil {
 			return nil, err
 		}

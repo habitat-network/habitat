@@ -71,17 +71,17 @@ func main() {
 	}
 }
 
-func run(_ context.Context, cmd *cli.Command) error {
+func run(ctx context.Context, cmd *cli.Command) error {
 	port := cmd.String(fPort)
 	httpsCerts := cmd.String(fHttpsCerts)
 
-	notifyCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	notifyCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	// Setup OpenTelemetry
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by slog.
-	otelClose, err := telemetry.SetupOpenTelemetry(notifyCtx)
+	otelClose, err := telemetry.SetupOpenTelemetry(notifyCtx, "pear")
 	defer otelClose(context.Background())
 	if err != nil {
 		slog.Error("failed setting up open telemetry for metric/trace/log collection", "err", err)
@@ -102,11 +102,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 		defer gauge.Record(context.Background(), 0)
 	}
 
-	slog.SetDefault(log.New(cmd.Bool(fDebug)))
+	slog.SetDefault(log.New(log.WithStdout(cmd.Bool(fDebug))))
 
 	slog.Info("running with flags", "flags", cmd.FlagNames())
 
-	db := db.New(cmd.String(fDb), db.WithMigrations(embedMigrations))
+	db, err := db.New(cmd.String(fDb), db.WithMigrations(embedMigrations))
+	if err != nil {
+		slog.Error("unable to setup database", "err", err)
+		os.Exit(1)
+	}
 	fgaStore := setupFGA(startupCtx, cmd)
 
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))

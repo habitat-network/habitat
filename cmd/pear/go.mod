@@ -10,7 +10,6 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/habitat-network/habitat v0.0.2-testing-9
 	github.com/pressly/goose/v3 v3.27.1
-	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli/v3 v3.7.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/metric v1.44.0
