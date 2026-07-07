@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/alexedwards/argon2id"
@@ -84,8 +85,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	otelClose, err := telemetry.SetupOpenTelemetry(notifyCtx, "pear")
 	defer otelClose(context.Background())
 	if err != nil {
-		slog.Error("failed setting up open telemetry for metric/trace/log collection", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup open telemetry for metric/trace/log collection: %w", err)
 	}
 	slog.Info("successfully set up open telemetry")
 
@@ -108,15 +108,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	db, err := db.New(cmd.String(fDb), db.WithMigrations(embedMigrations))
 	if err != nil {
-		slog.Error("unable to setup database", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup database: %w", err)
 	}
-	fgaStore := setupFGA(startupCtx, cmd)
+	fgaStore, err := setupFGA(startupCtx, cmd)
+	if err != nil {
+		return fmt.Errorf("setup fga store: %w", err)
+	}
 
 	oauthSecret, err := encrypt.ParseKey(cmd.String(fOauthServerSecret))
 	if err != nil {
-		slog.Error("unable to parse oauth server secret for login provider", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("parse oauth server secret for login provider: %w", err)
 	}
 
 	passwordHash, err := setupInstanceAdminPassword(cmd)
@@ -128,21 +129,18 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		passwordHash,
 	)
 	if err != nil {
-		slog.Error("unable to setup instance admin store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup instance admin store: %w", err)
 	}
 
 	instanceAdminServer := instance.NewServer(instanceAdminStore, "habitat.network")
 
 	credKey, err := encrypt.ParseKey(cmd.String(fPdsCredEncryptKey))
 	if err != nil {
-		slog.Error("unable to load PDS encryption key", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("load PDS encryption key: %w", err)
 	}
 	pdsCredStore, err := pdscred.NewPDSCredentialStore(db.WithContext(startupCtx), credKey)
 	if err != nil {
-		slog.Error("unable to setup pds cred store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup pds cred store: %w", err)
 	}
 
 	domain := cmd.String(fDomain)
@@ -161,8 +159,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		meter,
 	)
 	if err != nil {
-		slog.Error("unable to setup oauth client", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup oauth client: %w", err)
 	}
 
 	mux := mux.NewRouter()
@@ -182,6 +179,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		})
 	}
 
+	// Canonical liveness endpoint. Registered before any auth-gated routes so
+	// it stays reachable without credentials; used by deploy healthchecks and
+	// the startup smoke test.
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
 	hiveDomain := cmd.String(fHiveDomain)
 	if hiveDomain == "" {
 		hiveDomain = domain
@@ -189,8 +194,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	hive, err := hive.NewHive(hiveDomain, domain, db.WithContext(startupCtx))
 	if err != nil {
-		slog.Error("unable to setup hive (identity service for org)", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup hive (identity service for org): %w", err)
 	}
 	// Be careful about where this is passed, because only privileged services that are doing auth
 	// should be able to fallback to the hive directory implementation
@@ -207,8 +211,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		defaultDir,
 	)
 	if err != nil {
-		slog.Error("unable to setup PDS client factory", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup PDS client factory: %w", err)
 	}
 
 	passwordProvider, err := login.NewPasswordProvider(
@@ -218,8 +221,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		hiveDir,
 	)
 	if err != nil {
-		slog.Error("unable to setup password login provider", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup password login provider: %w", err)
 	}
 	orgStore, err := org.NewStore(
 		db.WithContext(startupCtx),
@@ -230,8 +232,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		fgaStore,
 	)
 	if err != nil {
-		slog.Error("unable to setup org store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup org store: %w", err)
 	}
 
 	loginRouter := &org.LoginRouter{
@@ -250,8 +251,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			credKey,
 		)
 		if err != nil {
-			slog.Error("unable to setup google login provider", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("setup google login provider: %w", err)
 		}
 		loginRouter.Google = googleProvider
 		slog.Info("google login provider enabled")
@@ -271,8 +271,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		),
 	)
 	if err != nil {
-		slog.Error("unable to setup oauth server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup oauth server: %w", err)
 	}
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
@@ -280,21 +279,18 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
-		slog.Error("unable to setup clique store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup clique store: %w", err)
 	}
 
 	eventStore, err := events.NewStore(db.WithContext(startupCtx))
 	if err != nil {
-		slog.Error("unable to setup event store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup event store: %w", err)
 	}
 	syncServer := sync.NewServer(eventStore)
 
 	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore)
 	if err != nil {
-		slog.Error("unable to setup spaces store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup spaces store: %w", err)
 	}
 	serviceAuth := authn.NewServiceAuthMethod(defaultDir)
 	spacesServer := spaces.NewServer(
@@ -315,14 +311,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	repo, err := repo.NewRepo(db.WithContext(startupCtx))
 	if err != nil {
-		slog.Error("unable to setup repo", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup repo: %w", err)
 	}
 
 	permissions, err := permissions.NewStore(db, cliqueStore)
 	if err != nil {
-		slog.Error("failed to create permission store", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("create permission store: %w", err)
 	}
 
 	pear := pear.NewPear(hiveDir, permissions, repo)
@@ -336,8 +330,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		instanceAdminStore,
 	)
 	if err != nil {
-		slog.Error("unable to setup org server for domain", "err", err, "domain", domain)
-		os.Exit(1)
+		return fmt.Errorf("setup org server for domain %q: %w", domain, err)
 	}
 	mux.HandleFunc("/xrpc/network.habitat.org.getMetadata", orgServer.GetMetadata)
 	mux.HandleFunc("/xrpc/network.habitat.org.getAdmins", orgServer.GetAdmins)
@@ -359,14 +352,12 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	p2pServer, err := p2p.NewServer(startupCtx, serviceAuth, pear, meter)
 	if err != nil {
-		slog.Error("unable to setup p2p server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup p2p server: %w", err)
 	}
 
 	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore)
 	if err != nil {
-		slog.Error("unable to setup hive server", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup hive server: %w", err)
 	}
 
 	mux.Host("{opaqueID:.+}." + hiveDomain).
@@ -517,8 +508,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
 	if err != nil {
-		slog.Error("unable to setup embedded UI handler", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("setup embedded UI handler: %w", err)
 	}
 	mux.PathPrefix("/ui/").Handler(uiHandler)
 
@@ -602,25 +592,25 @@ func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc 
 	}
 }
 
-func setupFGA(ctx context.Context, cmd *cli.Command) fgastore.Store {
+func setupFGA(ctx context.Context, cmd *cli.Command) (fgastore.Store, error) {
 	postgresUrl := cmd.String(fPgUrl)
 	if postgresUrl != "" {
 		fga, err := fgastore.NewPostgres(ctx, postgresUrl)
 		if err != nil {
-			slog.Error("unable to setup fga store with postgres", "err", err)
-			os.Exit(1)
+			return nil, fmt.Errorf("setup fga store with postgres: %w", err)
 		}
-		return fga
+		return fga, nil
 	}
 	// Use a separate SQLite file for FGA to avoid lock conflicts between
 	// mattn/go-sqlite3 (used by GORM) and modernc.org/sqlite (used by OpenFGA).
-	fgaPath := cmd.String(fDb) + ".fga.db"
+	// Strip the "sqlite://" scheme (as internal/db does) so we hand OpenFGA a
+	// plain filesystem path rather than a URI it parses as a host.
+	fgaPath := strings.TrimPrefix(cmd.String(fDb), "sqlite://") + ".fga.db"
 	fga, err := fgastore.NewSQLite(ctx, fgaPath)
 	if err != nil {
-		slog.Error("unable to setup fga sqlite store", "err", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("setup fga sqlite store %q: %w", fgaPath, err)
 	}
-	return fga
+	return fga, nil
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

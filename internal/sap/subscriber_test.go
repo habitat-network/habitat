@@ -9,13 +9,13 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sync"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -191,11 +191,7 @@ func TestSubscriber_BuffersWhileCrawlRunning(t *testing.T) {
 func setupSubscriber(
 	t *testing.T,
 ) (db *gorm.DB, eventsCh chan events.Event, subscriber *subscriber) {
-	db, err := gorm.Open(
-		sqlite.Open(t.TempDir()+"/test.db"),
-		&gorm.Config{},
-	)
-	require.NoError(t, err)
+	db = testutil.NewDB(t)
 	require.NoError(t, autoMigrate(db))
 
 	eventsCh = make(chan events.Event)

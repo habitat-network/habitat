@@ -14,20 +14,17 @@ import (
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
 func newTestLoginProvider(t *testing.T) *PasswordLoginProvider {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
 	provider, err := NewPasswordProvider(
-		db,
+		testutil.NewDB(t),
 		"pear.example.com",
 		testSigningSecret,
 		pdsclient.NewDummyDirectory("https://pds.example.com"),

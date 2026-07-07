@@ -14,6 +14,7 @@ import (
 	"time"
 
 	jose "github.com/go-jose/go-jose/v3"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/org"
@@ -23,8 +24,6 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
 	oauthjwt "golang.org/x/oauth2/jwt"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 // newJWTBearerTestClient creates an httptest server serving a
@@ -84,8 +83,7 @@ func setupJWTBearerTestServer(
 	approvedClientIDs ...string,
 ) (srv *OAuthServer, actualTokenURL string) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	secret, err := encrypt.GenerateKey()
