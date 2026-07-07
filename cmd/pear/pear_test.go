@@ -12,16 +12,45 @@ import (
 
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
+	tc "github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/urfave/cli/v3"
 )
 
-// TestStartup boots the full pear server via run() against a throwaway SQLite
-// DB and polls the /health endpoint, exercising the real startup wiring (DB,
-// FGA, oauth server, stores, router). It's a smoke test: it catches setup
-// regressions (e.g. a mis-constructed FGA path) that unit tests don't.
-func TestStartup(t *testing.T) {
-	port := freePort(t)
+func TestStartup_Sqlite(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
+	requireStartupHealthy(t, "sqlite://"+dbPath)
+}
+
+func TestStartup_Postgres(t *testing.T) {
+	ctx := context.Background()
+
+	container, err := postgres.Run(ctx,
+		"postgres:16-alpine",
+		postgres.WithDatabase("pear"),
+		postgres.WithUsername("pear"),
+		postgres.WithPassword("pear"),
+		tc.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
+
+	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	requireStartupHealthy(t, connStr)
+}
+
+// requireStartupHealthy boots the pear server against the given database DSN and
+// asserts it comes up and serves /health, failing if it exits early. It drives
+// the shared startup path so both the SQLite and Postgres tests exercise the
+// same boot sequence, differing only in the backing store.
+func requireStartupHealthy(t *testing.T, dbDSN string) {
+	t.Helper()
+	port := freePort(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -33,7 +62,7 @@ func TestStartup(t *testing.T) {
 	args := []string{
 		"pear",
 		"--domain=localhost",
-		"--db=sqlite://" + dbPath,
+		"--db=" + dbDSN,
 		"--port=" + port,
 		"--pds_cred_encrypt_key=" + key,
 		"--oauth_server_secret=" + key,

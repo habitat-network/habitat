@@ -10,10 +10,9 @@ var (
 	fDebug              = "debug"
 	fDomain             = "domain"
 	fServiceName        = "service_name"
-	fDb                 = "db"
+	fDB                 = "db"
 	fPort               = "port"
 	fHttpsCerts         = "httpscerts"
-	fPgUrl              = "pgurl"
 	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
 	fOauthServerSecret  = "oauth_server_secret"
 	fOauthClientSecret  = "oauth_client_secret"
@@ -119,10 +118,10 @@ func getFlags() []cli.Flag {
 		},
 
 		&cli.StringFlag{
-			Name:    fDb,
+			Name:    fDB,
 			Usage:   "Database connection string",
 			Value:   "sqlite://repo.db",
-			Sources: getSources(fDb),
+			Sources: getSources(fDB),
 		},
 	}
 }

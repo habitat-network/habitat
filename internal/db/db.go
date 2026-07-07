@@ -11,9 +11,11 @@ import (
 	"gorm.io/gorm"
 )
 
+type Dialect string
+
 var (
-	sqliteDialect   = "sqlite3"
-	postgresDialect = "postgres"
+	Sqlite   Dialect = "sqlite3"
+	Postgres Dialect = "postgres"
 )
 
 type config struct {
@@ -36,13 +38,13 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 	gormConfig := &gorm.Config{
 		TranslateError: true,
 	}
-	switch dialect(dsn) {
-	case postgresDialect:
+	switch Dialect(dsn) {
+	case Postgres:
 		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
 		if err != nil {
 			return nil, err
 		}
-	case sqliteDialect:
+	case Sqlite:
 		path := strings.TrimPrefix(dsn, "sqlite://")
 		db, err = gorm.Open(sqlite.Open(path), gormConfig)
 		if err != nil {
@@ -61,7 +63,7 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 			return nil, err
 		}
 		goose.SetBaseFS(cfg.migrations)
-		if err := goose.SetDialect(dialect(dsn)); err != nil {
+		if err := goose.SetDialect(string(Dialect(dsn))); err != nil {
 			return nil, err
 		}
 		if err := goose.Up(sqlDB, "migrations"); err != nil {
@@ -73,12 +75,12 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 	return db, nil
 }
 
-func dialect(dsn string) string {
+func ParseDialect(dsn string) Dialect {
 	if strings.HasPrefix(dsn, "postgres") {
-		return postgresDialect
+		return Postgres
 	}
 	if strings.HasPrefix(dsn, "sqlite") {
-		return sqliteDialect
+		return Sqlite
 	}
 	return ""
 }
