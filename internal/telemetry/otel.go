@@ -3,18 +3,13 @@ package telemetry
 // OpenTelemetry integration
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
-
-	"errors"
-
 	"time"
-
-	"github.com/habitat-network/habitat/internal/utils"
 
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -35,23 +30,6 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
-func habitatResourceDefinition() (*resource.Resource, error) {
-	env := utils.GetEnvString("env", "unknown")
-	resource, err := resource.New(
-		context.Background(),
-		resource.WithFromEnv(),
-		resource.WithOSDescription(),
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String("habitat"),
-			attribute.String("env", env),
-		),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return resource, nil
-}
-
 func setupTraceProvider(
 	ctx context.Context,
 	resource *resource.Resource,
@@ -71,9 +49,7 @@ func setupTraceProvider(
 		tracesdk.WithResource(resource),
 		tracesdk.WithSampler(tracesdk.AlwaysSample()),
 	)
-	*shutdownFuncs = append(*shutdownFuncs, func(ctx context.Context) error {
-		return provider.Shutdown(ctx)
-	})
+	*shutdownFuncs = append(*shutdownFuncs, provider.Shutdown)
 	return provider, nil
 }
 
@@ -95,9 +71,7 @@ func setupMetricsProvider(
 		metricsdk.WithReader(metricsdk.NewPeriodicReader(exporter)),
 		metricsdk.WithResource(resource),
 	)
-	*shutdownFuncs = append(*shutdownFuncs, func(ctx context.Context) error {
-		return provider.Shutdown(ctx)
-	})
+	*shutdownFuncs = append(*shutdownFuncs, provider.Shutdown)
 	return provider, nil
 }
 
@@ -121,9 +95,7 @@ func setupLoggingProvider(
 		logsdk.WithProcessor(logsdk.NewBatchProcessor(exporter)),
 		logsdk.WithResource(resource),
 	)
-	*shutdownFuncs = append(*shutdownFuncs, func(ctx context.Context) error {
-		return provider.Shutdown(ctx)
-	})
+	*shutdownFuncs = append(*shutdownFuncs, provider.Shutdown)
 	return provider, nil
 }
 
@@ -136,7 +108,10 @@ func setupLoggingProvider(
 // in OTel / Grafana.
 //
 // This code was more or less copied from the golang OpenTelemetry tutorial.
-func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error) {
+func SetupOpenTelemetry(
+	ctx context.Context,
+	serviceName string,
+) (func(context.Context) error, error) {
 	var shutdownFuncs []func(context.Context) error
 	// shutdown calls cleanup functions registered via shutdownFuncs.
 	// The errors from the calls are joined.
@@ -156,7 +131,14 @@ func SetupOpenTelemetry(ctx context.Context) (func(context.Context) error, error
 		err = errors.Join(inErr, shutdown(ctx))
 	}
 
-	resource, err := habitatResourceDefinition()
+	resource, err := resource.New(
+		ctx,
+		resource.WithOS(),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+		),
+		resource.WithFromEnv(), // env has precedence
+	)
 	if err != nil {
 		handleErr(err)
 		return shutdown, err

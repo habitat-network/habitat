@@ -9,19 +9,12 @@ require (
 	github.com/bluesky-social/indigo v0.0.0-20260611225325-2e8287f2f1bb
 	github.com/gorilla/handlers v1.5.2
 	github.com/habitat-network/habitat v0.0.2-testing-9
-	github.com/lmittmann/tint v1.1.3
 	github.com/pressly/goose/v3 v3.27.1
-	github.com/urfave/cli-altsrc/v3 v3.1.0
 	github.com/urfave/cli/v3 v3.7.0
 	go.opentelemetry.io/otel v1.44.0
-	go.opentelemetry.io/otel/log v0.20.0
 	go.opentelemetry.io/otel/metric v1.44.0
 	golang.org/x/sync v0.20.0
 	google.golang.org/api v0.272.0
-	gorm.io/driver/postgres v1.6.0
-	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.31.2
-	gorm.io/plugin/opentelemetry v0.1.16
 )
 
 require (
@@ -30,23 +23,16 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	filippo.io/bigmod v0.1.1-0.20260103110540-f8a47775ebe5 // indirect
-	filippo.io/edwards25519 v1.2.0 // indirect
 	filippo.io/keygen v0.0.0-20260114151900-8e2790ea4c5b // indirect
-	github.com/ClickHouse/ch-go v0.71.0 // indirect
-	github.com/ClickHouse/clickhouse-go/v2 v2.45.0 // indirect
 	github.com/IBM/pgxpoolprometheus v1.1.3 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/Yiling-J/theine-go v0.6.2 // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dunglas/httpsfv v1.1.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
-	github.com/go-faster/city v1.0.1 // indirect
-	github.com/go-faster/errors v0.7.1 // indirect
-	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
@@ -57,12 +43,11 @@ require (
 	github.com/gorilla/sessions v1.4.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3 // indirect
-	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/ipfs/boxo v0.37.0 // indirect
 	github.com/jaegertracing/jaeger-idl v0.6.0 // indirect
-	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
+	github.com/lmittmann/tint v1.1.3 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/natefinch/wrap v0.2.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
@@ -71,22 +56,20 @@ require (
 	github.com/openfga/language/pkg/go v0.2.1 // indirect
 	github.com/openfga/openfga v1.15.1 // indirect
 	github.com/ory/pop/v6 v6.4.1 // indirect
-	github.com/paulmach/orb v0.13.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pion/transport/v4 v4.0.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
-	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0 // indirect
+	go.opentelemetry.io/otel/log v0.20.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
-	gorm.io/driver/clickhouse v0.7.0 // indirect
-	gorm.io/driver/mysql v1.6.0 // indirect
+	gorm.io/driver/postgres v1.6.0 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
+	gorm.io/gorm v1.31.2 // indirect
 	modernc.org/libc v1.73.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
@@ -227,7 +210,7 @@ require (
 	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/contrib/bridges/otelslog v0.11.0
+	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux v0.67.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.67.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.67.0 // indirect

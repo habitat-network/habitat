@@ -7,20 +7,18 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/log"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/habitat-network/habitat/internal/telemetry"
 	"github.com/urfave/cli/v3"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func main() {
@@ -45,20 +43,15 @@ func run(args []string) error {
 }
 
 func runSap(ctx context.Context, cmd *cli.Command) error {
-	var logLevel slog.Level
-	err := logLevel.UnmarshalText([]byte(strings.ToUpper(cmd.String(fLogLevel))))
-	if err != nil {
-		return fmt.Errorf("unmarshal log level: %w", err)
-	}
-	slog.SetLogLoggerLevel(logLevel)
-
-	otelShutdown, err := telemetry.SetupOpenTelemetry(ctx)
+	otelShutdown, err := telemetry.SetupOpenTelemetry(ctx, "sap")
 	if err != nil {
 		return fmt.Errorf("setup opentelemetry: %w", err)
 	}
 	defer func() { _ = otelShutdown(context.Background()) }()
 
-	db, err := setupDatabase(cmd.String(fDb))
+	slog.SetDefault(log.New(log.WithLevel(cmd.String(fLogLevel))))
+
+	db, err := db.New(cmd.String(fDB))
 	if err != nil {
 		return fmt.Errorf("setup database: %w", err)
 	}
@@ -143,24 +136,4 @@ func serve(ctx context.Context, addr string, handler http.Handler) error {
 	go func() { _ = srv.ListenAndServe() }()
 	<-ctx.Done()
 	return srv.Shutdown(ctx)
-}
-
-func setupDatabase(dbURL string) (*gorm.DB, error) {
-	if !strings.HasPrefix(dbURL, "sqlite://") {
-		return nil, fmt.Errorf("unsupported database URL: %s (only sqlite:// supported)", dbURL)
-	}
-
-	path := dbURL[len("sqlite://"):]
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	db.Exec("PRAGMA journal_mode=WAL;")
-	db.Exec("PRAGMA synchronous=NORMAL;")
-	db.Exec("PRAGMA busy_timeout=10000;")
-
-	return db, nil
 }
