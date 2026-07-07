@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -66,8 +67,9 @@ func main() {
 		Flags:  getFlags(),
 		Action: run,
 	}
-	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		slog.Error("error running command", "err", err)
+	ctx := context.Background()
+	if err := cmd.Run(ctx, os.Args); err != nil {
+		slog.ErrorContext(ctx, "error running command", "err", err)
 		os.Exit(1)
 	}
 }
@@ -83,11 +85,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	// This needs to happen at the beginning so components use the global logger initialized below
 	// by slog.
 	otelClose, err := telemetry.SetupOpenTelemetry(notifyCtx, "pear")
-	defer otelClose(context.Background())
+	defer func() { _ = otelClose(context.Background()) }()
 	if err != nil {
 		return fmt.Errorf("setup open telemetry for metric/trace/log collection: %w", err)
 	}
-	slog.Info("successfully set up open telemetry")
+	slog.InfoContext(notifyCtx, "successfully set up open telemetry")
 
 	tracer := otel.Tracer("pear/main")
 	startupCtx, startupSpan := tracer.Start(notifyCtx, "startup")
@@ -96,15 +98,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	gauge, err := meter.Int64Gauge("habitat.running", metric.WithUnit("item"))
 	if err != nil {
-		slog.Error("failed to create gauge", "err", err)
+		slog.ErrorContext(startupCtx, "failed to create gauge", "err", err)
 	} else {
 		gauge.Record(startupCtx, 1)
 		defer gauge.Record(context.Background(), 0)
 	}
 
-	slog.SetDefault(log.New(log.WithStdout(cmd.Bool(fDebug))))
-
-	slog.Info("running with flags", "flags", cmd.FlagNames())
+	slog.InfoContext(startupCtx, "running with flags", "flags", cmd.FlagNames())
 
 	db, err := db.New(cmd.String(fDB), db.WithMigrations(embedMigrations))
 	if err != nil {
@@ -120,7 +120,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("parse oauth server secret for login provider: %w", err)
 	}
 
-	passwordHash, err := setupInstanceAdminPassword(cmd)
+	passwordHash, err := setupInstanceAdminPassword(startupCtx, cmd)
+	if err != nil {
+		return fmt.Errorf("setup instance admin password: %w", err)
+	}
 	// Reuse the oauth server secret
 	instanceAdminStore, err := instance.NewStore(
 		db.WithContext(startupCtx),
@@ -254,7 +257,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			return fmt.Errorf("setup google login provider: %w", err)
 		}
 		loginRouter.Google = googleProvider
-		slog.Info("google login provider enabled")
+		slog.InfoContext(startupCtx, "google login provider enabled")
 	}
 
 	oauthServer, err := oauthserver.NewOAuthServer(
@@ -379,10 +382,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		os.Getenv("WAITLIST_SVC_ACCOUNT_CREDS"),
 	)
 	if err == nil {
-		slog.Info("successfully set up waitlist service")
+		slog.InfoContext(startupCtx, "successfully set up waitlist service")
 		mux.HandleFunc("/waitlist", waitlistSvc.HandleWaitlistEmailSignup)
 	} else {
-		slog.Error("unable to set up waitlist service", "err", err)
+		slog.ErrorContext(startupCtx, "unable to set up waitlist service", "err", err)
 	}
 
 	mux.HandleFunc("/admin/login", instanceAdminServer.ServeLoginPage).Methods("GET")
@@ -515,6 +518,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.PathPrefix("/").HandlerFunc(p2pServer.HandleLibp2p)
 
 	startupSpan.End()
+	slog.SetDefault(log.New(log.WithStdout(cmd.Bool(fDebug))))
 
 	s := &http.Server{
 		Handler: mux,
@@ -523,11 +527,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	eg, egCtx := errgroup.WithContext(startupCtx)
 	eg.Go(func() error {
-		slog.Info("starting sequencer")
+		slog.InfoContext(egCtx, "starting sequencer")
 		return eventStore.StartSequencer(egCtx)
 	})
 	eg.Go(func() error {
-		slog.Info("starting server", "port", port)
+		slog.InfoContext(egCtx, "starting server", "port", port)
 		if httpsCerts == "" {
 			return s.ListenAndServe()
 		}
@@ -539,20 +543,20 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	eg.Go(func() error {
 		<-egCtx.Done()
-		slog.Info("shutting down p2p server")
+		slog.InfoContext(egCtx, "shutting down p2p server")
 		if err := p2pServer.Close(); err != nil {
-			slog.Error("error closing p2p host", "err", err)
+			slog.ErrorContext(egCtx, "error closing p2p host", "err", err)
 		}
-		slog.Info("shutting down server")
+		slog.InfoContext(egCtx, "shutting down server")
 		if err := s.Shutdown(context.Background()); err != nil {
-			slog.Error("error shutting down http server", "err", err)
+			slog.ErrorContext(egCtx, "error shutting down http server", "err", err)
 		}
 		return nil
 	})
 
 	err = eg.Wait()
-	if err != nil {
-		slog.Error("server shut down returned an error", "err", err)
+	if !errors.Is(err, context.Canceled) {
+		slog.ErrorContext(startupCtx, "server shut down returned an error", "err", err)
 	}
 	return err
 }
@@ -633,7 +637,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func setupInstanceAdminPassword(cmd *cli.Command) (string, error) {
+func setupInstanceAdminPassword(ctx context.Context, cmd *cli.Command) (string, error) {
 	pass := cmd.String(fAdminPassword)
 
 	// Generate a password on startup if not given
@@ -644,7 +648,8 @@ func setupInstanceAdminPassword(cmd *cli.Command) (string, error) {
 			return "", err
 		}
 		pass = string(b)
-		slog.Warn(
+		slog.WarnContext(
+			ctx,
 			"generated instance admin password; save it now, it will not be shown again until next restart. password changes on restart if not added to environment variables via HABITAT_ADMIN_PASSWORD",
 			"username",
 			"admin",
