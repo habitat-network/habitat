@@ -4,8 +4,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import Collaboration from "@tiptap/extension-collaboration";
 import * as Y from "yjs";
-import { docQueryOptions, pushUpdate } from "@/queries/docs";
-import { XRPCError } from "internal";
+import { useQuery } from "@tanstack/react-query";
+import {
+  docQueryOptions,
+  docsListQueryOptions,
+  pushUpdate,
+} from "@/queries/docs";
+import { ShareDialogV2, XRPCError } from "internal";
 import {
   Button,
   Popover,
@@ -65,6 +70,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     const { authManager } = Route.useRouteContext();
     const [dirty, setDirty] = useState(false);
 
+    // The doc's space URI comes from the docs list; it's what ShareDialogV2
+    // manages access for.
+    const { data: docs } = useQuery(docsListQueryOptions(authManager));
+    const spaceUri = docs?.find((d) => d.docId === docId)?.uri;
+
     // Debounced save: encode the full Yjs state and push it through pear to the
     // docs server, which merges it into the canonical record.
     const handleUpdate = useMemo(() => {
@@ -111,6 +121,9 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         </div>
         <PageHeader>
           <div className="flex items-center gap-2">
+            {spaceUri && (
+              <ShareDialogV2 spaceUri={spaceUri} authManager={authManager} />
+            )}
             <Popover>
               <PopoverTrigger
                 render={
