@@ -52,13 +52,12 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 }
 
 func TestGoogleProvider_Exchange(t *testing.T) {
-	db := testutil.NewDB(t)
 	clientID := "test-client-id.apps.googleusercontent.com"
 	p, err := NewGoogleProvider(
 		clientID,
 		"test-secret",
 		"https://example.com/callback",
-		db,
+		testutil.NewDB(t),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)

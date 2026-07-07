@@ -11,9 +11,7 @@ import (
 )
 
 func TestRepoPutAndGetRecord(t *testing.T) {
-	pearDB := testutil.NewDB(t)
-
-	repo, err := NewRepo(pearDB)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	collection := "test.collection"
@@ -45,9 +43,7 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 
 func TestRepoListRecords(t *testing.T) {
 	ctx := t.Context()
-	db := testutil.NewDB(t)
-
-	repo, err := NewRepo(db)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 	_, err = repo.PutRecord(
 		t.Context(),
@@ -110,9 +106,7 @@ func TestRepoListRecords(t *testing.T) {
 
 func TestRepoListCollections(t *testing.T) {
 	ctx := t.Context()
-	db := testutil.NewDB(t)
-
-	repo, err := NewRepo(db)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	did := syntax.DID("did:plc:testuser")
@@ -164,9 +158,7 @@ func TestRepoListCollections(t *testing.T) {
 }
 
 func TestRepoUploadAndGetBlob(t *testing.T) {
-	db := testutil.NewDB(t)
-
-	repo, err := NewRepo(db)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -216,9 +208,7 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 
 func TestListRecords(t *testing.T) {
 	ctx := t.Context()
-	db := testutil.NewDB(t)
-
-	repo, err := NewRepo(db)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -266,9 +256,7 @@ func TestListRecords(t *testing.T) {
 //  2. link rows use DoNothing — putting the same blob-referencing record twice must
 //     not produce a duplicate-key error or a duplicate link row.
 func TestPutRecordOnConflict(t *testing.T) {
-	db := testutil.NewDB(t)
-
-	repo, err := NewRepo(db)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -356,9 +344,7 @@ func TestPutRecordOnConflict(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	ctx := t.Context()
-	db := testutil.NewDB(t)
-
-	repo, err := NewRepo(db)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	did := "did:plc:testuser"
@@ -423,9 +409,7 @@ func TestCreateRecord(t *testing.T) {
 }
 
 func TestDeleteRecord(t *testing.T) {
-	db := testutil.NewDB(t)
-
-	repo, err := NewRepo(db)
+	repo, err := NewRepo(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	ownerDID := syntax.DID("did:example:owner")

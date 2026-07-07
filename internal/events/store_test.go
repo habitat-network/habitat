@@ -12,8 +12,7 @@ import (
 )
 
 func TestStore_Concurrency(t *testing.T) {
-	db := testutil.NewDB(t)
-	store, err := NewStore(db)
+	store, err := NewStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	go func() { require.ErrorIs(t, store.StartSequencer(t.Context()), context.Canceled) }()
@@ -69,8 +68,7 @@ func TestStore_Concurrency(t *testing.T) {
 }
 
 func TestStore_SubscriberDoesntBlock(t *testing.T) {
-	db := testutil.NewDB(t)
-	store, err := NewStore(db)
+	store, err := NewStore(testutil.NewDB(t))
 	require.NoError(t, err)
 	go func() { require.ErrorIs(t, store.StartSequencer(t.Context()), context.Canceled) }()
 

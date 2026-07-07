@@ -18,8 +18,7 @@ import (
 
 func newTestServiceProxyHive(t *testing.T) hive.Hive {
 	t.Helper()
-	db := testutil.NewDB(t)
-	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	h, err := hive.NewHive("example.com", "pear.example.com", testutil.NewDB(t))
 	require.NoError(t, err)
 	return h
 }

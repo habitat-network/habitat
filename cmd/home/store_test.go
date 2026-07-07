@@ -12,8 +12,7 @@ import (
 
 func setupStore(t *testing.T) *Store {
 	t.Helper()
-	db := testutil.NewDB(t)
-	store, err := NewStore(db)
+	store, err := NewStore(testutil.NewDB(t))
 	require.NoError(t, err)
 	return store
 }

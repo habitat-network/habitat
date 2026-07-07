@@ -60,8 +60,7 @@ func TestControllerPrivateDataPutGet(t *testing.T) {
 	}
 
 	dir := mockIdentities([]syntax.DID{"did:example:myid", "did:example:anotherid"})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -149,8 +148,7 @@ func TestListOwnRecords(t *testing.T) {
 		"someKey": "someVal",
 	}
 	dir := mockIdentities([]syntax.DID{"did:example:myid"})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	// putRecord
 	coll := syntax.NSID("my.fake.collection")
@@ -192,8 +190,7 @@ func TestListRecords(t *testing.T) {
 			"did:example:specificreader",
 		},
 	)
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	val := map[string]any{"someKey": "someVal"}
 	validate := true
@@ -293,8 +290,7 @@ func TestPutRecordWithGrantees(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, grantee1DID, grantee2DID, nonGranteeDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	val := map[string]any{"data": "secret"}
 	coll := syntax.NSID("my.fake.collection")
@@ -349,8 +345,7 @@ func TestPutRecordCrossUserUnauthorized(t *testing.T) {
 	targetDID := syntax.DID("did:plc:target")
 
 	dir := mockIdentities([]syntax.DID{callerDID, targetDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	val := map[string]any{"data": "value"}
 	validate := true
@@ -535,8 +530,7 @@ func TestDeleteRecord(t *testing.T) {
 	otherDID := syntax.DID("did:example:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, otherDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -574,8 +568,7 @@ func TestDeleteRecord(t *testing.T) {
 // TODO: eventually test permissions with blobs here
 func TestPearUploadAndGetBlob(t *testing.T) {
 	dir := mockIdentities([]syntax.DID{"did:example:alice"})
-	db := testutil.NewDB(t)
-	pear := newPearForTest(t, db, dir)
+	pear := newPearForTest(t, testutil.NewDB(t), dir)
 
 	did := syntax.DID("did:example:alice")
 	// use an empty blob to avoid hitting sqlite3.SQLITE_LIMIT_LENGTH in test environment
@@ -812,8 +805,7 @@ func TestGetBlobPermissionsViaRecord(t *testing.T) {
 	bobDID := syntax.DID("did:example:bob")
 	charlieDID := syntax.DID("did:example:charlie")
 	dir := mockIdentities([]syntax.DID{aliceDID, bobDID, charlieDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	// Alice uploads a blob.
 	blobData := []byte("this is my test blob")

@@ -14,8 +14,6 @@ import (
 )
 
 func TestGetClient(t *testing.T) {
-	db := testutil.NewDB(t)
-
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)
 	secretBytes, err := encrypt.ParseKey(secret)
@@ -24,7 +22,7 @@ func TestGetClient(t *testing.T) {
 		secretBytes,
 		&fosite.Config{})
 	require.NoError(t, err)
-	store, err := newStore(strat, db, nil)
+	store, err := newStore(strat, testutil.NewDB(t), nil)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

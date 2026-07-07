@@ -20,8 +20,7 @@ func TestHasPermission(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonGranteeDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -95,8 +94,7 @@ func TestAddPermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -185,8 +183,7 @@ func TestRemovePermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
@@ -247,8 +244,7 @@ func TestListPermissionGrants(t *testing.T) {
 	otherDID := syntax.DID("did:plc:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, otherDID})
-	db := testutil.NewDB(t)
-	p := newPearForTest(t, db, dir)
+	p := newPearForTest(t, testutil.NewDB(t), dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")

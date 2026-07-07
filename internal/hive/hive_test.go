@@ -15,8 +15,7 @@ import (
 
 func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
-	db := testutil.NewDB(t)
-	h, err := NewHive(memberDomain, pearDomain, db)
+	h, err := NewHive(memberDomain, pearDomain, testutil.NewDB(t))
 	require.NoError(t, err)
 	return h
 }
