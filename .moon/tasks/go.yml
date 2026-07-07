@@ -10,18 +10,13 @@ fileGroups:
     - '**/*.go'
 tasks:
   format-check:
-    command: noop
-    deps:
-    - root:format-check
+    command: golangci-lint fmt -d
   format:
-    command: noop
-    deps:
-    - root:format
-    preset: server
+    command: golangci-lint fmt
   lint-check:
-    command: noop
-    deps:
-    - root:lint-check
+    command: golangci-lint run
+  lint:
+    command: golangci-lint run --fix
   build:
     deps:
     - ^:build

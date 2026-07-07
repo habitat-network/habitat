@@ -15,6 +15,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -58,7 +59,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	orgServer, err := org.NewServer(
 		orgStore,
-		authntest.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -68,7 +69,7 @@ func TestMintThenLookup(t *testing.T) {
 
 	hiveServer, err := habitat_identity.NewServer(
 		h,
-		authntest.NewStubAuthnForTest(adminDID),
+		authntest.NewSuccessMethod(adminDID),
 		orgStore,
 	)
 	require.NoError(t, err)

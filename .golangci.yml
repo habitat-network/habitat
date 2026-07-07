@@ -10,3 +10,5 @@ linters:
       context: "all"
 formatters:
   enable: golines
+run:
+  allow-parallel-runners: true
