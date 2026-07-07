@@ -38,7 +38,6 @@ func TestStartup(t *testing.T) {
 		"--pds_cred_encrypt_key=" + key,
 		"--oauth_server_secret=" + key,
 		"--oauth_client_secret=" + key,
-		"--admin_password=password",
 	}
 
 	// run() blocks until ctx is cancelled; drive it on a goroutine and surface
