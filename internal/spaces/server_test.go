@@ -9,12 +9,11 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/org/testutil"
@@ -22,8 +21,7 @@ import (
 
 func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true})
-	require.NoError(t, err)
+	db := db_testutil.NewDB(t)
 	ctx := t.Context()
 	fga, err := fgastore.NewMemory(ctx)
 	require.NoError(t, err)

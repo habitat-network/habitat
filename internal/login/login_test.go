@@ -5,20 +5,17 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 // --- pdsProvider ---
 
 func TestPDSProvider_Authorize(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	credStore, err := pdscred.NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},
@@ -47,9 +44,7 @@ func TestPDSProvider_Authorize(t *testing.T) {
 }
 
 func TestPDSProvider_Exchange(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
+	credStore, err := pdscred.NewPDSCredentialStore(testutil.NewDB(t), encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{
 		RedirectUris: []string{"https://pds.example.com/authorize"},

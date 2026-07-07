@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/sync"
 
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -32,8 +33,6 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/stretchr/testify/require"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestSap(t *testing.T) {
@@ -86,13 +85,7 @@ func TestSap(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db, err := gorm.Open(
-		sqlite.Open(
-			t.TempDir()+"/sap.db?_journal_mode=WAL",
-		),
-		&gorm.Config{},
-	)
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
@@ -245,11 +238,7 @@ func setupPear(
 
 	fgaStore, err := fgastore.NewSQLite(t.Context(), t.TempDir()+"/pear.fga.db")
 	require.NoError(t, err)
-	db, err := gorm.Open(
-		sqlite.Open(t.TempDir()+"/pear.db?_journal_mode=WAL"),
-		&gorm.Config{},
-	)
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)

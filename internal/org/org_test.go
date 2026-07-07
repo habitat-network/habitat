@@ -9,23 +9,20 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var testSigningSecret = []byte("test-signing-secret-for-org-00000")
 
 func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	require.NoError(t, db.AutoMigrate(&organization{}, &member{}, &spentToken{}))
 	h, err := hive.NewHive("example.com", "pear.example.com", db)
 	require.NoError(t, err)

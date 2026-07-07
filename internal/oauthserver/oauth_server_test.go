@@ -16,6 +16,7 @@ import (
 
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/core"
+	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -27,8 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/oauth2"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 // testStore creates a Store with a seeded test org.
@@ -61,8 +60,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	// Common setup for all handler tests.
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := dbtestutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -160,8 +158,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 }
 
 func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := dbtestutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -272,8 +269,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err, "failed to open test database")
+	db := dbtestutil.NewDB(t)
 
 	// setup pds credential store
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
@@ -444,8 +440,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 
 	// hive and the org store share one db: org.WithTx swaps hive's db
 	// connection for its own transaction when minting member identities.
-	hiveDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err, "failed to open hive database")
+	hiveDB := dbtestutil.NewDB(t)
 	h, err := hive.NewHive(memberDomain, pearDomain, hiveDB)
 	require.NoError(t, err, "failed to create hive")
 
@@ -486,8 +481,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to create org with hive-served admin")
 
 	// setup test database
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err, "failed to open test database")
+	db := dbtestutil.NewDB(t)
 
 	// setup pds credential store
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
@@ -632,8 +626,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 }
 
 func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := dbtestutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -836,8 +829,7 @@ func acquireAccessToken(
 
 // TestValidate tests every error and success pathway of OAuthServer.Validate.
 func TestValidate(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := dbtestutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -946,8 +938,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateWithScopeChecking(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := dbtestutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}

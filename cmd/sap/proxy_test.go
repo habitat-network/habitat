@@ -10,11 +10,10 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 const testProxyDID = "did:plc:testorg"
@@ -38,8 +37,7 @@ func futureJWT(t *testing.T) string {
 func openProxyTestServer(t *testing.T, pearHost string) *httptest.Server {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)

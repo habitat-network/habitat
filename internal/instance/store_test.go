@@ -6,22 +6,17 @@ import (
 	"testing"
 
 	"github.com/alexedwards/argon2id"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func newTestStore(t *testing.T) *storeImpl {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
-
 	hash, err := argon2id.CreateHash("password", argon2id.DefaultParams)
 	require.NoError(t, err)
 
-	store, err := NewStore(db, []byte("random"), "pear.example.com", hash)
+	store, err := NewStore(testutil.NewDB(t), []byte("random"), "pear.example.com", hash)
 	require.NoError(t, err)
 	return store
 }
