@@ -81,6 +81,7 @@ type storeImpl struct {
 	everyone         core.Org
 	passwordProvider *login.PasswordLoginProvider
 	fga              fgastore.Store
+	notifier         *Notifier
 }
 
 // NewStore creates a Store that manages multiple orgs on a pear instance.
@@ -91,6 +92,7 @@ func NewStore(
 	pearDomain string,
 	passwordProvider *login.PasswordLoginProvider,
 	fga fgastore.Store,
+	notifier *Notifier,
 ) (Store, error) {
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
@@ -103,6 +105,7 @@ func NewStore(
 		everyone:         NewEveryoneOrg(),
 		passwordProvider: passwordProvider,
 		fga:              fga,
+		notifier:         notifier,
 	}, nil
 }
 
@@ -255,6 +258,8 @@ func (s *storeImpl) CreateOrg(
 	if err != nil {
 		return nil, nil, err
 	}
+
+	s.notifier.NotifyApps(ctx, orgId.DID)
 
 	return orgId, id, nil
 }

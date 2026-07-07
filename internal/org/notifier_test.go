@@ -6,120 +6,92 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
-
-// fakeHive implements hive.Hive; only SignServiceAuth is exercised here.
-type fakeHive struct {
-	hive.Hive
-	token string
-}
-
-func (f *fakeHive) SignServiceAuth(
-	_ context.Context,
-	_ syntax.DID,
-	_ string,
-	_ time.Duration,
-	_ *syntax.NSID,
-) (string, error) {
-	return f.token, nil
-}
-
-// capturedRequest records what an app received on notifyApp.
-type capturedRequest struct {
-	path  string
-	auth  string
-	input habitat.NetworkHabitatOrgNotifyAppInput
-}
 
 // notifyAppServer returns an httptest server implementing notifyApp that records
 // every request it receives.
-func notifyAppServer(t *testing.T) (*httptest.Server, *[]capturedRequest) {
+func notifyAppServer(t *testing.T, wg *sync.WaitGroup) *httptest.Server {
 	t.Helper()
-	var mu sync.Mutex
-	captured := &[]capturedRequest{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// deferred so a failing require below (which calls Goexit) still releases
+		// the wait instead of hanging the test.
+		defer wg.Done()
 		body, _ := io.ReadAll(r.Body)
 		var input habitat.NetworkHabitatOrgNotifyAppInput
 		require.NoError(t, json.Unmarshal(body, &input))
-		mu.Lock()
-		*captured = append(*captured, capturedRequest{
-			path:  r.URL.Path,
-			auth:  r.Header.Get("Authorization"),
-			input: input,
-		})
-		mu.Unlock()
+		token, _, err := jwt.NewParser().
+			ParseUnverified(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), jwt.MapClaims{})
+		require.NoError(t, err)
+		// Service auth carries the org DID in the issuer claim, not the subject.
+		iss, err := token.Claims.GetIssuer()
+		require.NoError(t, err)
+		require.Equal(t, input.Org, iss)
 	}))
 	t.Cleanup(srv.Close)
-	return srv, captured
+	return srv
+}
+
+func testHive(t *testing.T) hive.Hive {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"))
+	require.NoError(t, err)
+	h, err := hive.NewHive("id.example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	return h
 }
 
 func TestNotifyApps(t *testing.T) {
-	srv, captured := notifyAppServer(t)
-	notifier := NewNotifier([]string{srv.URL}, &fakeHive{token: "test-jwt"})
-
-	orgDID := syntax.DID("did:web:acme.example.com")
-	notifier.NotifyApps(t.Context(), orgDID)
-
-	require.Len(t, *captured, 1)
-	got := (*captured)[0]
-	require.Equal(t, "/xrpc/network.habitat.org.notifyApp", got.path)
-	require.Equal(t, "Bearer test-jwt", got.auth)
-	require.Equal(t, orgDID.String(), got.input.Org)
+	var wg sync.WaitGroup
+	srv1 := notifyAppServer(t, &wg)
+	srv2 := notifyAppServer(t, &wg)
+	h := testHive(t)
+	id, err := h.MintOrgIdentity(t.Context(), "org.handle")
+	require.NoError(t, err)
+	notifier := NewNotifier([]string{srv1.URL, srv2.URL}, h)
+	wg.Add(2)
+	notifier.NotifyApps(t.Context(), id.DID)
+	wg.Wait()
 }
 
-func TestNotifyApps_NotifiesEveryApp(t *testing.T) {
-	srv1, captured1 := notifyAppServer(t)
-	srv2, captured2 := notifyAppServer(t)
-	notifier := NewNotifier([]string{srv1.URL, srv2.URL}, &fakeHive{token: "jwt"})
-
-	notifier.NotifyApps(t.Context(), syntax.DID("did:web:acme.example.com"))
-
-	require.Len(t, *captured1, 1)
-	require.Len(t, *captured2, 1)
+type testOrgLister struct {
+	ids []syntax.DID
 }
 
-// fakeStore implements Store; only ListOrgs is exercised.
-type fakeStore struct {
-	Store
-	orgs []core.Org
+func (t testOrgLister) ListOrgs(ctx context.Context) ([]core.Org, error) {
+	orgs := make([]core.Org, 0, len(t.ids))
+	for _, id := range t.ids {
+		orgs = append(orgs, &orgImpl{orgID: id})
+	}
+	return orgs, nil
 }
-
-func (f *fakeStore) ListOrgs(_ context.Context) ([]core.Org, error) {
-	return f.orgs, nil
-}
-
-// fakeOrg implements core.Org; only DID is exercised.
-type fakeOrg struct {
-	core.Org
-	did syntax.DID
-}
-
-func (f *fakeOrg) DID() syntax.DID { return f.did }
 
 func TestBootstrapNotifications(t *testing.T) {
-	srv, captured := notifyAppServer(t)
-	notifier := NewNotifier([]string{srv.URL}, &fakeHive{token: "jwt"})
+	var wg sync.WaitGroup
+	srv1 := notifyAppServer(t, &wg)
+	srv2 := notifyAppServer(t, &wg)
+	h := testHive(t)
+	id1, err := h.MintOrgIdentity(t.Context(), "org1.handle")
+	require.NoError(t, err)
+	id2, err := h.MintOrgIdentity(t.Context(), "org2.handle")
+	require.NoError(t, err)
 
-	store := &fakeStore{orgs: []core.Org{
-		&fakeOrg{did: syntax.DID("did:web:acme.example.com")},
-		&fakeOrg{did: syntax.DID("did:web:globex.example.com")},
-	}}
+	notifier := NewNotifier([]string{srv1.URL, srv2.URL}, h)
 
-	require.NoError(t, BootstrapNotifications(t.Context(), notifier, store))
-
-	require.Len(t, *captured, 2)
-	orgs := []string{(*captured)[0].input.Org, (*captured)[1].input.Org}
-	require.ElementsMatch(t,
-		[]string{"did:web:acme.example.com", "did:web:globex.example.com"},
-		orgs,
-	)
+	wg.Add(4)
+	require.NoError(t, BootstrapNotifications(
+		t.Context(),
+		notifier, testOrgLister{ids: []syntax.DID{id1.DID, id2.DID}}))
+	wg.Wait()
 }

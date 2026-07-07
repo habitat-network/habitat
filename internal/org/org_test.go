@@ -47,6 +47,7 @@ func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 		"pear.example.com",
 		passwordProvider,
 		fga,
+		NewNotifier([]string{}, h),
 	)
 	require.NoError(t, err)
 	store := st.(*storeImpl)

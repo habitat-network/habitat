@@ -35,6 +35,7 @@ func newTestStore(t *testing.T) *storeImpl {
 		"pear.example.com",
 		passwordProvider,
 		fga,
+		NewNotifier([]string{}, h),
 	)
 	require.NoError(t, err)
 	return store.(*storeImpl)

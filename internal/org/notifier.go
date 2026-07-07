@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/hive"
 )
 
@@ -37,8 +38,9 @@ func NewNotifier(appURLs []string, hve hive.Hive) *Notifier {
 	}
 }
 
-// NotifyApps notifies every builtin app about the given org. It is best-effort:
-// a failure to notify one app is logged and does not stop the others.
+// NotifyApps notifies every builtin app about the given org. It is best-effort
+// and fire-and-forget: each app is notified in its own goroutine without waiting
+// for the response, and a failure to notify one app is logged and ignored.
 func (n *Notifier) NotifyApps(ctx context.Context, orgDID syntax.DID) {
 	body, err := json.Marshal(habitat.NetworkHabitatOrgNotifyAppInput{
 		Org: orgDID.String(),
@@ -47,16 +49,21 @@ func (n *Notifier) NotifyApps(ctx context.Context, orgDID syntax.DID) {
 		slog.ErrorContext(ctx, "failed to marshal notifyApp body", "err", err, "org", orgDID)
 		return
 	}
+	// Detach from the caller's context so the in-flight requests aren't cancelled
+	// when the caller returns.
+	ctx = context.WithoutCancel(ctx)
 	for _, appURL := range n.appURLs {
-		if err := n.notifyApp(ctx, orgDID, appURL, body); err != nil {
-			slog.ErrorContext(
-				ctx,
-				"failed to notify app",
-				"err", err,
-				"org", orgDID,
-				"app", appURL,
-			)
-		}
+		go func() {
+			if err := n.notifyApp(ctx, orgDID, appURL, body); err != nil {
+				slog.ErrorContext(
+					ctx,
+					"failed to notify app",
+					"err", err,
+					"org", orgDID,
+					"app", appURL,
+				)
+			}
+		}()
 	}
 }
 
@@ -95,10 +102,14 @@ func (n *Notifier) notifyApp(
 	return nil
 }
 
+type orgLister interface {
+	ListOrgs(ctx context.Context) ([]core.Org, error)
+}
+
 // BootstrapNotifications notifies all builtin apps about every org registered
 // on this instance. Intended to be called once at pear startup so apps can
 // resume syncing existing orgs.
-func BootstrapNotifications(ctx context.Context, notifier *Notifier, store Store) error {
+func BootstrapNotifications(ctx context.Context, notifier *Notifier, store orgLister) error {
 	orgs, err := store.ListOrgs(ctx)
 	if err != nil {
 		return fmt.Errorf("list orgs: %w", err)

@@ -538,13 +538,6 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return eventStore.StartSequencer(egCtx)
 	})
 	eg.Go(func() error {
-		slog.Info("bootstrapping app notifications")
-		if err := org.BootstrapNotifications(egCtx, notifier, orgStore); err != nil {
-			slog.ErrorContext(egCtx, "failed to bootstrap app notifications", "err", err)
-		}
-		return nil
-	})
-	eg.Go(func() error {
 		slog.Info("starting server", "port", port)
 		if httpsCerts == "" {
 			return s.ListenAndServe()
@@ -567,6 +560,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		}
 		return nil
 	})
+
+	slog.Info("bootstrapping app notifications")
+	if err := org.BootstrapNotifications(startupCtx, notifier, orgStore); err != nil {
+		slog.ErrorContext(startupCtx, "failed to bootstrap app notifications", "err", err)
+	}
 
 	err = eg.Wait()
 	if err != nil {
