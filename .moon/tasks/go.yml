@@ -69,10 +69,12 @@ tasks:
     - $workspaceRoot
     - --build.cmd
     - go build -o $workspaceRoot/bin/$project .
-    - --build.bin
+    - --build.entrypoint
     - $workspaceRoot/bin/$project
     - --build.include_dir
     - cmd/$project,internal,api,pkg
+    - --log.main_only 
+    - 'true'
     options:
       envFile:
       - /dev.env
