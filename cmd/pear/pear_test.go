@@ -55,7 +55,7 @@ func TestStartup(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		defer resp.Body.Close()
+		require.NoError(t, resp.Body.Close())
 		return resp.StatusCode == http.StatusOK
 	}, 30*time.Second, 100*time.Millisecond, "server never became healthy")
 
@@ -69,7 +69,7 @@ func freePort(t *testing.T) string {
 	t.Helper()
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
-	defer l.Close()
+	require.NoError(t, l.Close())
 	_, port, err := net.SplitHostPort(l.Addr().String())
 	require.NoError(t, err)
 	return port

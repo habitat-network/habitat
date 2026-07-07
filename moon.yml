@@ -14,19 +14,6 @@ tasks:
     inputs:
       - '@group(mod)'
       - '@group(internal_test)'
-  format-check:
-    command: golangci-lint fmt -d
-    inputs:
-    - /**/*.go
-  format:
-    command: golangci-lint fmt
-    inputs:
-    - /**/*.go
-    preset: server
-  lint-check:
-    command: golangci-lint run
-    inputs:
-    - /**/*.go
   caddy:
     command: caddy
     args:
