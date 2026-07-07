@@ -3,7 +3,7 @@ package main
 import "github.com/urfave/cli/v3"
 
 var (
-	fDb           = "db"
+	fDB           = "db"
 	fPort         = "port"
 	fInternalPort = "internal-port"
 	fDomain       = "domain"
@@ -14,7 +14,7 @@ var (
 func getFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
-			Name:    fDb,
+			Name:    fDB,
 			Usage:   "Database connection string",
 			Value:   "sqlite://sap.db",
 			Sources: cli.EnvVars("SAP_DB"),
