@@ -16,6 +16,8 @@ import (
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
+	openfgav1 "github.com/openfga/api/proto/openfga/v1"
+	"github.com/openfga/openfga/pkg/tuple"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -93,7 +95,8 @@ func NewStore(
 	if err := db.AutoMigrate(&organization{}, &member{}, &spentToken{}); err != nil {
 		return nil, err
 	}
-	return &storeImpl{
+
+	store := &storeImpl{
 		db:               db,
 		hive:             hve,
 		dir:              dir,
@@ -101,7 +104,11 @@ func NewStore(
 		everyone:         NewEveryoneOrg(),
 		passwordProvider: passwordProvider,
 		fga:              fga,
-	}, nil
+	}
+
+	store.syncFGAMemberships(context.Background())
+
+	return store, nil
 }
 
 func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
@@ -453,4 +460,39 @@ func (s *storeImpl) CreateNewMemberIdentity(
 		return nil, err
 	}
 	return id, nil
+}
+
+func (s *storeImpl) syncFGAMemberships(ctx context.Context) error {
+	var members []member
+	if err := s.db.WithContext(ctx).Find(&members).Error; err != nil {
+		return fmt.Errorf("list members: %w", err)
+	}
+
+	tuples := make([]*openfgav1.TupleKey, 0, len(members))
+	for _, m := range members {
+		relation := fgastore.RelationMember
+		if m.Role == AdminRole {
+			relation = fgastore.RelationAdmin
+		}
+		tuples = append(tuples, tuple.NewTupleKey(
+			fgastore.OrgObjectKey(m.OrgID),
+			relation,
+			fgastore.MemberUserString(m.Did),
+		))
+	}
+
+	// OpenFGA caps writes per request, so send in chunks.
+	const chunkSize = 50
+	for start := 0; start < len(tuples); start += chunkSize {
+		chunk := tuples[start:min(start+chunkSize, len(tuples))]
+		if err := s.fga.WriteRaw(ctx, &openfgav1.WriteRequest{
+			Writes: &openfgav1.WriteRequestWrites{
+				TupleKeys:   chunk,
+				OnDuplicate: "ignore",
+			},
+		}); err != nil {
+			return fmt.Errorf("write membership tuples: %w", err)
+		}
+	}
+	return nil
 }
