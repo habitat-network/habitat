@@ -74,10 +74,10 @@ func New(dsn string, opts ...Option) (db *gorm.DB, err error) {
 }
 
 func dialect(dsn string) string {
-	if strings.HasPrefix(dsn, "postgres://") {
+	if strings.HasPrefix(dsn, "postgres") {
 		return postgresDialect
 	}
-	if strings.HasPrefix(dsn, "sqlite://") {
+	if strings.HasPrefix(dsn, "sqlite") {
 		return sqliteDialect
 	}
 	return ""
