@@ -9,16 +9,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func newTestHive(t *testing.T, memberDomain, pearDomain string) Hive {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	h, err := NewHive(memberDomain, pearDomain, db)
 	require.NoError(t, err)
 	return h

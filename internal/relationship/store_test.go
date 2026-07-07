@@ -8,9 +8,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -459,8 +459,7 @@ func (f *flakyFGA) WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) er
 }
 
 func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	mem, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mem.Close() })

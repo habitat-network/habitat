@@ -5,20 +5,13 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func openDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
-	require.NoError(t, err)
-	return db
-}
-
 func TestStore_SaveAndGetSession(t *testing.T) {
-	store, err := NewGormStore(openDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	sess := oauth.ClientSessionData{
@@ -35,7 +28,7 @@ func TestStore_SaveAndGetSession(t *testing.T) {
 }
 
 func TestStore_SaveAndGetAuthRequest(t *testing.T) {
-	store, err := NewGormStore(openDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	info := oauth.AuthRequestData{
@@ -50,7 +43,7 @@ func TestStore_SaveAndGetAuthRequest(t *testing.T) {
 }
 
 func TestStore_DeleteSession(t *testing.T) {
-	store, err := NewGormStore(openDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	sess := oauth.ClientSessionData{
@@ -66,7 +59,7 @@ func TestStore_DeleteSession(t *testing.T) {
 }
 
 func TestStore_DeleteAuthRequest(t *testing.T) {
-	store, err := NewGormStore(openDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	info := oauth.AuthRequestData{State: "state456"}
@@ -78,7 +71,7 @@ func TestStore_DeleteAuthRequest(t *testing.T) {
 }
 
 func TestStore_UpdateExistingSession(t *testing.T) {
-	store, err := NewGormStore(openDB(t))
+	store, err := NewGormStore(testutil.NewDB(t))
 	require.NoError(t, err)
 
 	sess := oauth.ClientSessionData{

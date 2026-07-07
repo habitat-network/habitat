@@ -1,25 +1,17 @@
 package repo
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func TestRepoPutAndGetRecord(t *testing.T) {
-	testDBPath := filepath.Join(os.TempDir(), "test_pear.db")
-	defer func() { require.NoError(t, os.Remove(testDBPath)) }()
-
-	pearDB, err := gorm.Open(sqlite.Open(testDBPath), &gorm.Config{})
-	require.NoError(t, err)
+	pearDB := testutil.NewDB(t)
 
 	repo, err := NewRepo(pearDB)
 	require.NoError(t, err)
@@ -53,8 +45,7 @@ func TestRepoPutAndGetRecord(t *testing.T) {
 
 func TestRepoListRecords(t *testing.T) {
 	ctx := t.Context()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
@@ -119,8 +110,7 @@ func TestRepoListRecords(t *testing.T) {
 
 func TestRepoListCollections(t *testing.T) {
 	ctx := t.Context()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
@@ -174,8 +164,7 @@ func TestRepoListCollections(t *testing.T) {
 }
 
 func TestRepoUploadAndGetBlob(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
@@ -227,8 +216,7 @@ func TestRepoUploadAndGetBlob(t *testing.T) {
 
 func TestListRecords(t *testing.T) {
 	ctx := t.Context()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
@@ -278,10 +266,7 @@ func TestListRecords(t *testing.T) {
 //  2. link rows use DoNothing — putting the same blob-referencing record twice must
 //     not produce a duplicate-key error or a duplicate link row.
 func TestPutRecordOnConflict(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
@@ -371,8 +356,7 @@ func TestPutRecordOnConflict(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	ctx := t.Context()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
@@ -439,8 +423,7 @@ func TestCreateRecord(t *testing.T) {
 }
 
 func TestDeleteRecord(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	repo, err := NewRepo(db)
 	require.NoError(t, err)

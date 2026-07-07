@@ -4,10 +4,9 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/permissions"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 
 	habitat_err "github.com/habitat-network/habitat/internal/error"
 )
@@ -21,15 +20,14 @@ func TestHasPermission(t *testing.T) {
 	nonGranteeDID := syntax.DID("did:plc:nongrantee")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonGranteeDID})
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(
+	_, err := p.PutRecord(
 		t.Context(),
 		ownerDID,
 		ownerDID,
@@ -97,15 +95,14 @@ func TestAddPermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(
+	_, err := p.PutRecord(
 		t.Context(),
 		ownerDID,
 		ownerDID,
@@ -188,15 +185,14 @@ func TestRemovePermissions(t *testing.T) {
 	nonOwnerDID := syntax.DID("did:plc:nonowner")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, nonOwnerDID})
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(
+	_, err := p.PutRecord(
 		t.Context(),
 		ownerDID,
 		ownerDID,
@@ -251,15 +247,14 @@ func TestListPermissionGrants(t *testing.T) {
 	otherDID := syntax.DID("did:plc:other")
 
 	dir := mockIdentities([]syntax.DID{ownerDID, granteeDID, otherDID})
-	db, err := gorm.Open(sqlite.Open(":memory:"))
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	p := newPearForTest(t, db, dir)
 
 	coll := syntax.NSID("my.fake.collection")
 	rkey := syntax.RecordKey("my-rkey")
 	validate := true
 
-	_, err = p.PutRecord(
+	_, err := p.PutRecord(
 		t.Context(),
 		ownerDID,
 		ownerDID,

@@ -9,38 +9,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
-
-func newTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	return db
-}
-
-func makeIDToken(clientID, email string) string {
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
-	payload := base64.RawURLEncoding.EncodeToString(
-		fmt.Appendf(
-			nil,
-			`{"iss":"https://accounts.google.com","aud":"%s","sub":"123","email":"%s","email_verified":true,"iat":1000000000,"exp":9999999999}`,
-			clientID,
-			email,
-		))
-	return header + "." + payload + ".fakesignature"
-}
 
 func TestGoogleProvider_Authorize(t *testing.T) {
 	p, err := NewGoogleProvider(
 		"client-id",
 		"client-secret",
 		"https://example.com/callback",
-		newTestDB(t),
+		testutil.NewDB(t),
 		encrypt.TestKey,
 	)
 	require.NoError(t, err)
@@ -60,7 +40,7 @@ func TestGoogleProvider_Authorize(t *testing.T) {
 }
 
 func TestGoogleProvider_Exchange(t *testing.T) {
-	db := newTestDB(t)
+	db := testutil.NewDB(t)
 	clientID := "test-client-id.apps.googleusercontent.com"
 	p, err := NewGoogleProvider(
 		clientID,

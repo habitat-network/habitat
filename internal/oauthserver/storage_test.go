@@ -7,17 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/ory/fosite"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetClient(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	secret, err := encrypt.GenerateKey()
 	require.NoError(t, err)

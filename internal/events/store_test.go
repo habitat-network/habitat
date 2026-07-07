@@ -3,28 +3,16 @@ package events
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
-func openTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-	db, err := gorm.Open(
-		sqlite.Open(filepath.Join(t.TempDir(), "test.db")+"?_journal_mode=WAL&_busy_timeout=5000"),
-		&gorm.Config{},
-	)
-	require.NoError(t, err)
-	return db
-}
-
 func TestStore_Concurrency(t *testing.T) {
-	db := openTestDB(t)
+	db := testutil.NewDB(t)
 	store, err := NewStore(db)
 	require.NoError(t, err)
 
@@ -81,7 +69,7 @@ func TestStore_Concurrency(t *testing.T) {
 }
 
 func TestStore_SubscriberDoesntBlock(t *testing.T) {
-	db := openTestDB(t)
+	db := testutil.NewDB(t)
 	store, err := NewStore(db)
 	require.NoError(t, err)
 	go func() { require.ErrorIs(t, store.StartSequencer(t.Context()), context.Canceled) }()

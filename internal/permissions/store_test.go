@@ -5,14 +5,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/clique"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func newTestStore(t *testing.T) *store {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	cliqueStore, err := clique.NewStore(db)
 	require.NoError(t, err)
 	store, err := NewStore(db, cliqueStore)

@@ -7,15 +7,13 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestGetDpopClient_Success(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
@@ -52,8 +50,7 @@ func TestGetDpopClient_Success(t *testing.T) {
 }
 
 func TestGetDpopClient_NotFound(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 
 	store, err := NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)

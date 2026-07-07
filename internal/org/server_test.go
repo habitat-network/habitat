@@ -15,10 +15,9 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 type fakeInstancePolicy struct {
@@ -516,8 +515,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 // org.Server.CreateOrg, not just by the fakeInstancePolicy used elsewhere in
 // this file.
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	instanceStore, err := instance.NewStore(db, []byte("key"), "passhash", "pear.example.com")
 	require.NoError(t, err)
 	require.NoError(t, instanceStore.UpdateSettings(t.Context(), "Acme Hosting", "invite_only"))

@@ -4,18 +4,16 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestOrgManager_CreateAndGet(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	require.NoError(t, autoMigrate(db))
 
 	o := newOrgManager(db)
-	_, err = o.AddManagedOrg(t.Context(), "did:plc:testorg", "session1")
+	_, err := o.AddManagedOrg(t.Context(), "did:plc:testorg", "session1")
 	require.NoError(t, err)
 
 	info, err := o.GetManagedOrg(t.Context(), "did:plc:testorg")
@@ -27,8 +25,7 @@ func TestOrgManager_CreateAndGet(t *testing.T) {
 }
 
 func TestOrgManager_ListOrgs(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/test.db"), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutil.NewDB(t)
 	require.NoError(t, autoMigrate(db))
 
 	o := newOrgManager(db)
