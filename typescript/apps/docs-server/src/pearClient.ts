@@ -5,6 +5,7 @@ import type {
   NetworkHabitatRelationshipWriteTuple,
   NetworkHabitatRelationshipListSubjects,
   NetworkHabitatRelationshipListObjects,
+  NetworkHabitatRelationshipCheck,
 } from "api";
 import type { DerivedConfig } from "./config";
 
@@ -19,6 +20,8 @@ const habitatDIDHeader = "Habitat-Did";
 const ORG_SPACE_TYPE = "network.habitat.organization";
 const SELF_SKEY = "self";
 const DOCS_SPACE_TYPE = "network.habitat.docs";
+
+export type Role = "owner" | "manager" | "writer" | "reader";
 
 export interface SpaceRef {
   uri: string;
@@ -198,6 +201,25 @@ export class PearClient {
       } satisfies NetworkHabitatRelationshipWriteTuple.InputSchema,
     );
   }
+
+  // check resolves whether a user holds a role on a space (through role
+  // implications and usersets). Used to authorize listComments against the
+  // comment space. sap proxies as the org, which holds reader on the space.
+  async check(
+    org: string,
+    did: string,
+    relation: Role,
+    space: string,
+  ): Promise<boolean> {
+    const out = await this.call<NetworkHabitatRelationshipCheck.OutputSchema>(
+      org,
+      "network.habitat.relationship.check",
+      "GET",
+      { subject: did, relation, space } satisfies NetworkHabitatRelationshipCheck.QueryParams,
+    );
+    return out.allowed;
+  }
+
 }
 
 function skeyOf(uri: string): string {

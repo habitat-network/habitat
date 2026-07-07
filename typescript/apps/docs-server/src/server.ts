@@ -95,6 +95,8 @@ export function createApp(
     );
     const input =
       (await c.req.json()) as NetworkHabitatDocsUpdateDoc.InputSchema;
+    const org = orgFor(caller);
+    pear.check(org, caller, "writer", pear.spaceUri(input.docId, org));
     const output: NetworkHabitatDocsUpdateDoc.OutputSchema =
       await docs.applyUpdate(input.docId, input.update, caller, orgFor(caller));
     return c.json(output);
