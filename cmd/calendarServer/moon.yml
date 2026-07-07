@@ -1,9 +1,0 @@
-tasks:
-  build:
-    deps:
-    - root:build
-  dev:
-    env:
-      CALENDAR_DOMAIN: calendar-server.local.habitat.network
-      CALENDAR_PORT: '8801'
-      CALENDAR_DEBUG: 'true'
