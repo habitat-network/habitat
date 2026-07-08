@@ -241,7 +241,7 @@ func TestServer_ListRecords(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note",
+		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note&repo="+owner.String(),
 		nil,
 	)
 	w := httptest.NewRecorder()
