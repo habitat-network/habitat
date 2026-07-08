@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/utils"
 )
 
 func ParseDIDInput(
@@ -16,7 +15,7 @@ func ParseDIDInput(
 ) (syntax.DID, bool) {
 	did, err := syntax.ParseDID(input)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusBadRequest)
+		WriteInvalidRequest(ctx, w, "failed to parse "+name, err)
 		return "", false
 	}
 	return did, true
