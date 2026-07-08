@@ -8,7 +8,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -53,7 +52,7 @@ func newTestOrg(t *testing.T) (*storeImpl, *orgImpl) {
 	require.NoError(t, store.db.Create(&organization{
 		ID:              orgDid,
 		Name:            "Test Org",
-		LoginMethod:     core.LoginMethodPassword,
+		LoginMethod:     LoginMethodPassword,
 		SigningSecret:   signingSecret,
 		HandleSubdomain: "testorg",
 	}).Error)

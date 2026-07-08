@@ -112,7 +112,7 @@ func TestStore_GetOrgForDID_Everyone(t *testing.T) {
 	external := syntax.DID("did:plc:unknown")
 	org, _, err := s.GetOrgForDID(t.Context(), external)
 	require.NoError(t, err)
-	_, ok := org.(*everyoneOrg)
+	_, ok := org.(*EveryoneOrg)
 	require.True(t, ok)
 }
 

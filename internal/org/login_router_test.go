@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +39,7 @@ func TestLoginRouter(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(core.LoginMethodGoogle),
+		string(LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",
@@ -92,7 +91,7 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(core.LoginMethodGoogle),
+		string(LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",
@@ -130,7 +129,7 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(core.LoginMethodGoogle),
+		string(LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",
@@ -158,7 +157,7 @@ func TestExchange_MissingMember(t *testing.T) {
 		"test-org",
 		"admin",
 		"",
-		string(core.LoginMethodGoogle),
+		string(LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",

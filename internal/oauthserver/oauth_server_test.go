@@ -15,7 +15,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/internal/authn"
-	"github.com/habitat-network/habitat/internal/core"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -734,13 +733,13 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 // testIsMemberStore wraps an org.Store and overrides GetOrgByDID.
 type testIsMemberStore struct {
 	org.Store
-	fn func(ctx context.Context, did syntax.DID) (core.Org, error)
+	fn func(ctx context.Context, did syntax.DID) (org.Org, error)
 }
 
 func (s *testIsMemberStore) GetOrgForDID(
 	ctx context.Context,
 	did syntax.DID,
-) (core.Org, bool, error) {
+) (org.Org, bool, error) {
 	o, err := s.fn(ctx, did)
 	return o, false, err
 }
@@ -908,7 +907,7 @@ func TestValidate(t *testing.T) {
 	t.Run("GetOrgForDID error returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (core.Org, error) {
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
 				return nil, errors.New("simulated database failure")
 			},
 		})
@@ -920,7 +919,7 @@ func TestValidate(t *testing.T) {
 	t.Run("non-member returns !ok with 401", func(t *testing.T) {
 		srv := newSrv(&testIsMemberStore{
 			Store: testStore(t),
-			fn: func(_ context.Context, _ syntax.DID) (core.Org, error) {
+			fn: func(_ context.Context, _ syntax.DID) (org.Org, error) {
 				return nil, org.ErrMemberNotFound
 			},
 		})
