@@ -4003,21 +4003,20 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'Get a single record from a permissioned space. Callable by any space member.',
+          "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         parameters: {
           type: 'params',
-          required: ['space', 'collection', 'rkey'],
+          required: ['space', 'repo', 'collection', 'rkey'],
           properties: {
             space: {
               type: 'string',
-              format: 'uri',
+              format: 'at-uri',
               description: 'Reference to the space.',
             },
             repo: {
               type: 'string',
               format: 'did',
-              description:
-                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+              description: 'The DID of the account whose repo to read from.',
             },
             collection: {
               type: 'string',
@@ -4039,7 +4038,7 @@ export const schemaDict = {
             properties: {
               uri: {
                 type: 'string',
-                description: 'URI of the record.',
+                format: 'at-uri',
               },
               cid: {
                 type: 'string',
@@ -4054,6 +4053,18 @@ export const schemaDict = {
         errors: [
           {
             name: 'RecordNotFound',
+          },
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
           },
         ],
       },
