@@ -13,16 +13,20 @@ import {
 
 const is$typed = _is$typed,
   validate = _validate
-const id = 'network.habitat.space.getMembers'
+const id = 'network.habitat.space.listRepos'
 
 export type QueryParams = {
   /** Reference to the space. */
   space: string
+  /** Maximum number of repos to return. */
+  limit?: number
+  cursor?: string
 }
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  members: Member[]
+  cursor?: string
+  repos: Repo[]
 }
 
 export interface CallOptions {
@@ -50,19 +54,22 @@ export function toKnownErr(e: any) {
   return e
 }
 
-export interface Member {
-  $type?: 'network.habitat.space.getMembers#member'
+export interface Repo {
+  $type?: 'network.habitat.space.listRepos#repo'
+  /** The DID of a repo that holds data in the space. */
   did: string
-  access?: 'read' | 'write'
-  addedAt?: string
+  /** The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth. */
+  rev?: string
+  /** The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority. */
+  hash?: Uint8Array
 }
 
-const hashMember = 'member'
+const hashRepo = 'repo'
 
-export function isMember<V>(v: V) {
-  return is$typed(v, id, hashMember)
+export function isRepo<V>(v: V) {
+  return is$typed(v, id, hashRepo)
 }
 
-export function validateMember<V>(v: V) {
-  return validate<Member & V>(v, id, hashMember)
+export function validateRepo<V>(v: V) {
+  return validate<Repo & V>(v, id, hashRepo)
 }

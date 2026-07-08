@@ -48,11 +48,11 @@ type SpaceView struct {
 	MemberCount int
 }
 
-// MemberInfo holds a member's DID and when they were added
-type MemberInfo struct {
-	Did     syntax.DID
-	Access  SpaceAccess
-	AddedAt time.Time
+// RepoInfo holds a repo's DID and latest rev within a space
+type RepoInfo struct {
+	DID  syntax.DID
+	Rev  string
+	Hash []byte
 }
 
 // Record is a single record within a space
@@ -111,11 +111,10 @@ type Store interface {
 		access SpaceAccess,
 	) error
 	RemoveMember(ctx context.Context, space habitat_syntax.SpaceURI, did syntax.DID) error
-	GetMembers(
+	ListRepos(
 		ctx context.Context,
-		org syntax.DID,
 		space habitat_syntax.SpaceURI,
-	) ([]MemberInfo, error)
+	) ([]RepoInfo, error)
 	IsMember(
 		ctx context.Context,
 		org syntax.DID,
@@ -324,11 +323,10 @@ func (s *store) ListSpaces(
 	return views, nil
 }
 
-func (s *store) GetMembers(
+func (s *store) ListRepos(
 	ctx context.Context,
-	org syntax.DID,
 	uri habitat_syntax.SpaceURI,
-) ([]MemberInfo, error) {
+) ([]RepoInfo, error) {
 	var sp space
 	err := s.db.WithContext(ctx).
 		Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
@@ -339,46 +337,29 @@ func (s *store) GetMembers(
 		return nil, err
 	}
 
-	readerStrs, err := s.fga.ListUsers(
-		ctx,
-		fgastore.SpaceObjectKey(uri),
-		"can_read",
-		ownerContextualTuple(uri),
-		fgastore.OrgMemberContextualTuple(org),
-	)
-	if err != nil {
+	type repoRev struct {
+		Repo syntax.DID
+		Rev  syntax.TID
+	}
+	var results []repoRev
+	if err := s.db.WithContext(ctx).
+		Model(&spaceRecord{}).
+		Select("repo, MAX(rev) as rev").
+		Where("space = ?", uri).
+		Group("repo").
+		Find(&results).Error; err != nil {
 		return nil, err
 	}
 
-	writerStrs, err := s.fga.ListUsers(
-		ctx,
-		fgastore.SpaceObjectKey(uri),
-		"can_write",
-		ownerContextualTuple(uri),
-		fgastore.OrgMemberContextualTuple(org),
-	)
-	if err != nil {
-		return nil, err
-	}
-	writerSet := make(map[string]struct{}, len(writerStrs))
-	for _, w := range writerStrs {
-		writerSet[w] = struct{}{}
-	}
-
-	members := make([]MemberInfo, 0, len(readerStrs))
-	for _, userStr := range readerStrs {
-		did, err := fgastore.MemberUserToDID(userStr)
-		if err != nil {
-			continue
+	repos := make([]RepoInfo, len(results))
+	for i, r := range results {
+		repos[i] = RepoInfo{
+			DID:  r.Repo,
+			Rev:  string(r.Rev),
+			Hash: nil,
 		}
-		access := SpaceAccessRead
-		if _, ok := writerSet[userStr]; ok {
-			access = SpaceAccessWrite
-		}
-		members = append(members, MemberInfo{Did: did, Access: access})
 	}
-
-	return members, nil
+	return repos, nil
 }
 
 func (s *store) IsMember(

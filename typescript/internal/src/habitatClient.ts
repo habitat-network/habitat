@@ -37,7 +37,7 @@ import type {
   NetworkHabitatOrgMintMemberIdentity,
   NetworkHabitatSpaceAddMember,
   NetworkHabitatSpaceDeleteRecord,
-  NetworkHabitatSpaceGetMembers,
+  NetworkHabitatSpaceListRepos,
   NetworkHabitatSpaceGetRecord,
   NetworkHabitatSpaceListRecords,
   NetworkHabitatSpaceListSpaces,
@@ -173,9 +173,9 @@ type QueryEndpoints = {
     NetworkHabitatPermissionsListPermissions.QueryParams,
     NetworkHabitatPermissionsListPermissions.OutputSchema
   >;
-  "network.habitat.space.getMembers": Query<
-    NetworkHabitatSpaceGetMembers.QueryParams,
-    NetworkHabitatSpaceGetMembers.OutputSchema
+  "network.habitat.space.listRepos": Query<
+    NetworkHabitatSpaceListRepos.QueryParams,
+    NetworkHabitatSpaceListRepos.OutputSchema
   >;
   "network.habitat.space.getRecord": Query<
     NetworkHabitatSpaceGetRecord.QueryParams,
