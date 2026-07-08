@@ -168,8 +168,8 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 		}
 
 		for _, space := range listSpacesOutput.Spaces {
-			if err := c.enumerateSpaceMembers(ctx, client, space.Uri); err != nil {
-				return fmt.Errorf("enumerate space members for %s: %w", space.Uri, err)
+			if err := c.enumerateSpaceRepos(ctx, client, space.Uri); err != nil {
+				return fmt.Errorf("enumerate space repos for %s: %w", space.Uri, err)
 			}
 		}
 
@@ -188,33 +188,33 @@ func (c *crawler) resumeCrawl(ctx context.Context, org *managedOrg) error {
 	return nil
 }
 
-func (c *crawler) enumerateSpaceMembers(
+func (c *crawler) enumerateSpaceRepos(
 	ctx context.Context,
 	client *http.Client,
 	spaceURI string,
 ) error {
 	values := url.Values{"space": []string{spaceURI}}
-	resp, err := client.Get("/xrpc/network.habitat.space.getMembers?" + values.Encode())
+	resp, err := client.Get("/xrpc/network.habitat.space.listRepos?" + values.Encode())
 	if err != nil {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	var getMembersOutput habitat.NetworkHabitatSpaceGetMembersOutput
-	if err := json.NewDecoder(resp.Body).Decode(&getMembersOutput); err != nil {
+	var listReposOutput habitat.NetworkHabitatSpaceListReposOutput
+	if err := json.NewDecoder(resp.Body).Decode(&listReposOutput); err != nil {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("get members: %s", resp.Status)
+		return fmt.Errorf("list repos: %s", resp.Status)
 	}
 
 	space := habitat_syntax.SpaceURI(spaceURI)
-	for _, member := range getMembersOutput.Members {
+	for _, repo := range listReposOutput.Repos {
 		if err := c.db.WithContext(ctx).
 			Clauses(clause.OnConflict{DoNothing: true}).
 			Create(&managedRepo{
 				Space: space,
-				DID:   syntax.DID(member.Did),
+				DID:   syntax.DID(repo.Did),
 				State: RepoStatePending,
 			}).Error; err != nil {
 			return err
@@ -222,11 +222,11 @@ func (c *crawler) enumerateSpaceMembers(
 	}
 	slog.InfoContext(
 		ctx,
-		"enumerate space members, notifying resync",
+		"enumerate space repos, notifying resync",
 		"space",
 		space,
-		"members",
-		len(getMembersOutput.Members),
+		"repos",
+		len(listReposOutput.Repos),
 	)
 	c.resyncNotif.Notify()
 	return nil
