@@ -10,6 +10,7 @@ import (
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/utils"
 
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -78,11 +79,7 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatCliqueCreateCliqueOutput{
 		Clique: string(clique),
 	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
@@ -260,11 +257,7 @@ func (s *Server) GetCliqueMembers(w http.ResponseWriter, r *http.Request) {
 		Members: members,
 	}
 
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
@@ -338,9 +331,5 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatCliqueIsMemberOutput{
 		Found: found,
 	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "json encoding", http.StatusInternalServerError)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
