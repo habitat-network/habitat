@@ -16,6 +16,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/pear"
 	"github.com/habitat-network/habitat/internal/permissions"
@@ -134,16 +135,7 @@ func (s *Server) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	meta := org.GetMetadata(r.Context(), s.domain)
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(meta); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, meta)
 }
 
 // Org APIs
@@ -260,16 +252,7 @@ func (s *Server) CreateOrg(w http.ResponseWriter, r *http.Request) {
 		AdminHandle: id.Handle.String(),
 		Name:        req.Name,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
@@ -323,18 +306,9 @@ func (s *Server) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetAdminsOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatOrgGetAdminsOutput{
 		Admins: admins,
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
@@ -388,18 +362,9 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatOrgGetMembersOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatOrgGetMembersOutput{
 		Members: members,
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 func (s *Server) AddAdmin(w http.ResponseWriter, r *http.Request) {
@@ -722,16 +687,7 @@ func (s *Server) IssueInviteToken(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatOrgIssueInviteTokenOutput{
 		Token: token,
 	}
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
@@ -813,15 +769,5 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		Did:    id.DID.String(),
 		Handle: id.Handle.String(),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }

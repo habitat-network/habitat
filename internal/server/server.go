@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/pear"
@@ -139,18 +140,9 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoPutRecordOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatRepoPutRecordOutput{
 		Uri: uri.String(),
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 // CreateRecord creates a new record
@@ -237,18 +229,9 @@ func (s *Server) CreateRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = json.NewEncoder(w).Encode(&habitat.NetworkHabitatRepoCreateRecordOutput{
+	httpx.WriteJSON(r.Context(), w, &habitat.NetworkHabitatRepoCreateRecordOutput{
 		Uri: uri.String(),
-	}); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	})
 }
 
 // GetRecord gets a potentially encrypted record (see s.inner.getRecord)
@@ -351,16 +334,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		output.Permissions = permissions.ConstructInterfaceFromGrantees(grantees)
 	}
 
-	if json.NewEncoder(w).Encode(output) != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
@@ -411,17 +385,7 @@ func (s *Server) UploadBlob(w http.ResponseWriter, r *http.Request) {
 	out := habitat.NetworkHabitatRepoUploadBlobOutput{
 		Blob: blob,
 	}
-	err = json.NewEncoder(w).Encode(out)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"error encoding json output",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, out)
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
@@ -645,16 +609,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 		output.Records = append(output.Records, next)
 	}
-	if json.NewEncoder(w).Encode(output) != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
@@ -699,16 +654,7 @@ func (s *Server) DescribeRepo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err = json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 // TODO: this is a confusing name, because our ListPermissions internally takes in a generic query of grantee + owner + collection + rkey
@@ -750,23 +696,7 @@ func (s *Server) ListPermissions(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"json marshal response",
-			http.StatusInternalServerError,
-		)
-		slog.ErrorContext(
-			r.Context(),
-			"error sending response for ListPermissions request",
-			"err",
-			err,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) AddPermission(w http.ResponseWriter, r *http.Request) {

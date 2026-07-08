@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 )
@@ -40,8 +41,7 @@ func NewSapServer(
 }
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	httpx.WriteJSON(r.Context(), w, map[string]string{"status": "ok"})
 }
 
 func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
@@ -60,13 +60,7 @@ func (s *server) handleAddOrg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
-		w.Header().Set("Content-Type", "application/json")
-		enc := json.NewEncoder(w)
-		enc.SetEscapeHTML(false)
-		err = enc.Encode(map[string]string{"redirect_url": redirectURL})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		httpx.WriteJSON(r.Context(), w, map[string]string{"redirect_url": redirectURL})
 		return
 	}
 	w.Header().Set("Location", redirectURL)
@@ -83,8 +77,7 @@ func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
 	if orgs == nil {
 		orgs = []syntax.DID{}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"orgs": orgs})
+	httpx.WriteJSON(r.Context(), w, map[string]any{"orgs": orgs})
 }
 
 func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
@@ -184,10 +177,5 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleClientMetadata(w http.ResponseWriter, r *http.Request) {
-	cm := s.oauthClient.Config.ClientMetadata()
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(cm); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, s.oauthClient.Config.ClientMetadata())
 }

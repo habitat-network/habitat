@@ -1,10 +1,11 @@
 package oauthserver
 
 import (
-	"encoding/json"
+	"context"
 	"net/http"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/habitat-network/habitat/internal/httpx"
 )
 
 // buildAuthServerMetadata assembles the authorization-server metadata document
@@ -43,9 +44,6 @@ func buildProtectedResourceMetadata(issuer string) oauth.ProtectedResourceMetada
 	}
 }
 
-func writeMetadataJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+func writeMetadataJSON(ctx context.Context, w http.ResponseWriter, v any) {
+	httpx.WriteJSON(ctx, w, v)
 }

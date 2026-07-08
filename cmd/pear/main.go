@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -30,6 +29,7 @@ import (
 	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -598,10 +598,7 @@ func serveDid(domain string) http.HandlerFunc {
 func serveClientMetadata(oauthClient pdsclient.PdsOAuthClient) http.HandlerFunc {
 	metadata := oauthClient.ClientMetadata()
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(metadata); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		httpx.WriteJSON(r.Context(), w, metadata)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -117,16 +118,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatSpaceCreateSpaceOutput{
 		Uri: uri.String(),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
@@ -188,16 +180,7 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatSpaceListSpacesOutput{
 		Spaces: views,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
@@ -394,16 +377,7 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatSpaceGetMembersOutput{
 		Members: memberViews,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
@@ -499,16 +473,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		Uri: recordUri.String(),
 		Cid: cid.String(),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
@@ -588,16 +553,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		Cid:   rec.Cid.String(),
 		Value: rec.Value,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
@@ -691,16 +647,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	output := habitat.NetworkHabitatSpaceListRecordsOutput{
 		Records: recViews,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
@@ -781,16 +728,7 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		output.Cursor = records[len(records)-1].Rev
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
@@ -857,16 +795,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	output := habitat.NetworkHabitatSpaceDeleteRecordOutput{}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(output); err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encode response",
-			http.StatusInternalServerError,
-		)
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
 
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
