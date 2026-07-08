@@ -452,9 +452,8 @@ func (s *Server) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parsing did", http.StatusBadRequest)
+	did, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+	if !ok {
 		return
 	}
 

@@ -703,15 +703,8 @@ func (s *Server) MintMemberIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgDid, err := syntax.ParseDID(req.OrgId)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"parsing org did",
-			http.StatusBadRequest,
-		)
+	orgDid, ok := httpx.ParseDIDInput(r.Context(), w, req.OrgId, "orgId")
+	if !ok {
 		return
 	}
 

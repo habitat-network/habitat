@@ -350,9 +350,8 @@ func (s *Server) ListObjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
+	did, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+	if !ok {
 		return
 	}
 

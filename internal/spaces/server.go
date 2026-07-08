@@ -137,9 +137,8 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	}
 	var filterOwner *syntax.DID
 	if params.Did != "" {
-		ownerDid, err := syntax.ParseDID(params.Did)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
+		ownerDid, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+		if !ok {
 			return
 		}
 		filterOwner = &ownerDid
@@ -204,9 +203,8 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberDID, err := syntax.ParseDID(input.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
+	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	if !ok {
 		return
 	}
 
@@ -274,9 +272,8 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberDID, err := syntax.ParseDID(input.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
+	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	if !ok {
 		return
 	}
 
@@ -532,10 +529,6 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	owner := credInfo.Subject
 	if params.Repo != "" {
 		owner, err = syntax.ParseDID(params.Repo)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
-			return
-		}
 	}
 
 	rec, err := s.store.GetRecord(r.Context(), spaceURI, owner, collection, rkey)
@@ -617,9 +610,8 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 	var repo syntax.DID
 	if params.Repo != "" {
-		parsedRepo, err := syntax.ParseDID(params.Repo)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
+		parsedRepo, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+		if !ok {
 			return
 		}
 		repo = parsedRepo
@@ -670,9 +662,8 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repoDID, err := syntax.ParseDID(params.Repo)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
+	repoDID, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	if !ok {
 		return
 	}
 
