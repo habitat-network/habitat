@@ -4,25 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/core"
-	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
+	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/org/testutil"
+	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/habitat-network/habitat/internal/pdscred"
 	"github.com/stretchr/testify/require"
@@ -60,7 +66,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 	})
 
 	// Common setup for all handler tests.
-	db := dbtestutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -158,7 +164,7 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 }
 
 func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -269,7 +275,7 @@ func TestHandleCallbackDIDNotInAllowlist(t *testing.T) {
 
 func TestOAuthServerE2E(t *testing.T) {
 	// setup test database
-	db := dbtestutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 
 	// setup pds credential store
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
@@ -440,7 +446,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 
 	// hive and the org store share one db: org.WithTx swaps hive's db
 	// connection for its own transaction when minting member identities.
-	hiveDB := dbtestutil.NewDB(t)
+	hiveDB := db_testutil.NewDB(t)
 	h, err := hive.NewHive(memberDomain, pearDomain, hiveDB)
 	require.NoError(t, err, "failed to create hive")
 
@@ -481,7 +487,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.NoError(t, err, "failed to create org with hive-served admin")
 
 	// setup test database
-	db := dbtestutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 
 	// setup pds credential store
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
@@ -626,7 +632,7 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 }
 
 func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -829,7 +835,7 @@ func acquireAccessToken(
 
 // TestValidate tests every error and success pathway of OAuthServer.Validate.
 func TestValidate(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -938,7 +944,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateWithScopeChecking(t *testing.T) {
-	db := dbtestutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
 	clientMetadata := &pdsclient.ClientMetadata{}
@@ -989,4 +995,165 @@ func TestValidateWithScopeChecking(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
 	})
+}
+
+// TestIndigoClientApp exercises the full OAuth 2.0 authorization code flow
+// (PAR → authorize → callback → token → resource) using the indigo
+// oauth.ClientApp. Unlike the existing TestOAuthServerE2E which uses Go's
+// standard x/oauth2 library, this test drives the flow with indigo's DPoP-bound
+// SendInitialTokenRequest, ResumeSession, and ClientSession.DoWithAuth.
+func TestIndigoClientApp(t *testing.T) {
+	// The disambiguation page returns a handle, which the OAuth server resolves
+	// (via hive) to the member's hive-served DID; the org store then routes that
+	// DID's login to the atproto (passthrough) provider. The passthrough stands
+	// in for the PDS OAuth dance and reports the member's external atproto login
+	// DID on exchange.
+	const pdsLoginDID = "did:web:example.did.com"
+	const memberDomain = "unreachable.invalid"
+	const pearDomain = "pear." + memberDomain
+
+	orgStore := org_testutil.NewTestStore(t)
+
+	db := db_testutil.NewDB(t)
+	loginProvider := login_testutil.NewPassthroughProvider("", pdsLoginDID)
+	dir := pdsclient.NewDummyDirectory("https://habitat.example")
+	oauthServer, err := NewOAuthServer(
+		encrypt.TestKey,
+		&org.LoginRouter{
+			Pds:      loginProvider,
+			OrgStore: orgStore,
+		},
+		dir,
+		db,
+		noop.Meter{},
+		orgStore,
+		"https://habitat.example",
+		NewJWTBearerStore(),
+	)
+	require.NoError(t, err)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("server path: %s", r.URL.String())
+		switch r.URL.Path {
+		case "/oauth/par":
+			oauthServer.HandlePAR(w, r)
+		case "/oauth/authorize":
+			oauthServer.HandleAuthorize(w, r)
+		case "/ui/login/disambiguate":
+			// Stand in for the disambiguation page + user: re-issue the
+			// authorization request with the preserved params plus a handle.
+			http.Redirect(w, r, "/oauth/authorize?handle=example.handle.com", http.StatusSeeOther)
+		case "/oauth-callback":
+			oauthServer.HandleCallback(w, r)
+		case "/oauth/token":
+			oauthServer.HandleToken(w, r)
+		case "/resource":
+			oauthServer.Validate(w, r)
+		case "/.well-known/oauth-authorization-server":
+			oauthServer.HandleAuthServerMetadata(w, r)
+		case "/.well-known/oauth-protected-resource":
+			oauthServer.HandleProtectedResourceMetadata(w, r)
+		default:
+			t.Logf("unknown server path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	loginProvider.RedirectURI = "https://habitat.example/oauth-callback"
+
+	// Client app serves the client metadata document and echoes back the
+	// fosite authorization code at its own callback URL.
+	clientApp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/client-metadata.json":
+			w.Header().Set("Content-Type", "application/json")
+			err := json.NewEncoder(w).Encode(&oauth.ClientMetadata{
+				ClientID:      "http://" + r.Host + "/client-metadata.json",
+				RedirectURIs:  []string{"http://" + r.Host + "/oauth-callback"},
+				ResponseTypes: []string{"code"},
+				GrantTypes:    []string{"authorization_code", "refresh_token"},
+				Scope:         "atproto",
+			})
+			require.NoError(t, err)
+		case "/oauth-callback":
+			t.Logf("callback: %s", r.URL.String())
+			w.Header().Set("Content-Type", "application/json")
+			err := json.NewEncoder(w).Encode(map[string]string{
+				"state":        r.URL.Query().Get("state"),
+				"code":         r.URL.Query().Get("code"),
+				"redirect_uri": r.URL.Query().Get("redirect_uri"),
+				"iss":          r.URL.Query().Get("iss"),
+				"scope":        r.URL.Query().Get("scope"),
+			})
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(clientApp.Close)
+
+	// Build the indigo ClientApp with a public-client config and in-memory
+	// store.  We override the HTTP client so that it trusts the test server's
+	// TLS certificate and override the identity directory with our dummy so
+	// that ProcessCallback (not called here but kept for consistency) can
+	// resolve DIDs.
+	indigoApp := oauth.NewClientApp(new(oauth.NewPublicConfig(
+		clientApp.URL+"/client-metadata.json",
+		clientApp.URL+"/oauth-callback",
+		[]string{"atproto"},
+	)), oauth.NewMemStore())
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	client := &http.Client{Jar: jar, Transport: &roundTripper{t: t, server: server}}
+	indigoApp.Client = client
+	indigoApp.Resolver.Client = client
+	// indigo resolves the token subject DID to a PDS host and then to an auth
+	// server; point every DID at the habitat issuer so that resolution matches.
+	indigoApp.Dir = dir
+
+	redirect, err := indigoApp.StartAuthFlow(t.Context(), "https://habitat.example")
+	require.NoError(t, err)
+
+	resp, err := client.Get(redirect)
+	require.NoError(t, err)
+	var respJson map[string]string
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&respJson))
+	require.NoError(t, err, resp.Body.Close())
+	t.Logf("respJson: %v", respJson)
+	require.NotEmpty(t, respJson["code"])
+
+	_, err = indigoApp.ProcessCallback(t.Context(), url.Values{
+		"code":         []string{respJson["code"]},
+		"state":        []string{respJson["state"]},
+		"redirect_uri": []string{respJson["redirect_uri"]},
+		"iss":          []string{respJson["iss"]},
+	})
+	require.NoError(t, err)
+}
+
+type roundTripper struct {
+	t      *testing.T
+	server *httptest.Server
+}
+
+func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	fmt.Fprintf(os.Stderr, "DEBUG roundTripper original URL=%s\n", req.URL.String())
+	fmt.Fprintf(os.Stderr, "DEBUG roundTripper cookies=%q\n", req.Header.Get("Cookie"))
+	if req.URL.Host == "habitat.example" {
+		url, err := url.Parse(rt.server.URL + req.URL.RequestURI())
+		require.NoError(rt.t, err)
+		req.URL = url
+		fmt.Fprintf(os.Stderr, "DEBUG roundTripper rewritten URL=%s\n", req.URL.String())
+	}
+	resp, err := rt.server.Client().Transport.RoundTrip(req)
+	if err == nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"DEBUG roundTripper response status=%d set-cookie=%q\n",
+			resp.StatusCode,
+			resp.Header.Get("Set-Cookie"),
+		)
+	}
+	return resp, err
 }

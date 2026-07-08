@@ -29,7 +29,7 @@ func TestBuildAuthServerMetadata(t *testing.T) {
 		"scopes_supported": ["atproto"],
 		"dpop_signing_alg_values_supported": ["ES256"],
 		"authorization_response_iss_parameter_supported": true,
-		"require_pushed_authorization_requests": false,
+		"require_pushed_authorization_requests": true,
 		"client_id_metadata_document_supported": true
 		}`, string(b))
 }

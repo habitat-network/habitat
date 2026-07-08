@@ -29,7 +29,7 @@ func buildAuthServerMetadata(issuer string) oauth.AuthServerMetadata {
 		ScopesSupported:                            []string{"atproto"},
 		DPoPSigningAlgValuesSupported:              []string{"ES256"},
 		AuthorizationReponseISSParameterSupported:  true,
-		RequirePushedAuthorizationRequests:         false, // TODO: switch to true
+		RequirePushedAuthorizationRequests:         true,
 		ClientIDMetadataDocumentSupported:          true,
 	}
 }

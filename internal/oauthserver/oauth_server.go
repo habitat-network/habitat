@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"time"
@@ -31,6 +32,8 @@ const (
 	// this is the cookie name.
 	// TODO: hardcoding this means that only one oauth flow can be in progress at a time
 	sessionName = "auth-session"
+
+	disambiguationPath = "/ui/login/disambiguate"
 )
 
 func init() {
@@ -107,6 +110,8 @@ func NewOAuthServer(
 		// claim of the assertion (checked against jwtBearerAllowedClients),
 		// so a separate client_id/secret on the token request isn't required.
 		GrantTypeJWTBearerCanSkipClientAuth: true,
+		// TODO uncomment this when we migrate off openid-client
+		// IsPushedAuthorizeEnforced:           true,
 	}
 
 	strategy, err := newStrategy(secret, config)
@@ -129,10 +134,11 @@ func NewOAuthServer(
 
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options = &sessions.Options{
-		Path:     "/oauth-callback",
+		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
+		MaxAge:   10 * 60,
 	}
 
 	return &OAuthServer{
@@ -146,6 +152,7 @@ func NewOAuthServer(
 			compose.OAuth2PKCEFactory,
 			compose.OAuth2StatelessJWTIntrospectionFactory, // Use stateless JWT introspection
 			compose.RFC7523AssertionGrantFactory,
+			compose.PushedAuthorizeHandlerFactory,
 		),
 		loginRouter:  loginRouter,
 		sessionStore: cookieStore,
@@ -184,18 +191,66 @@ func (o *OAuthServer) HandleAuthorize(
 	r *http.Request,
 ) {
 	ctx := r.Context()
-	requester, err := o.provider.NewAuthorizeRequest(ctx, r)
+	session, err := o.sessionStore.Get(r, sessionName)
 	if err != nil {
-		o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
-		o.provider.WriteAuthorizeError(ctx, w, requester, err)
+		o.metrics.authorizeErr(ctx, err, "new_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to create session",
+			http.StatusInternalServerError,
+		)
 		return
 	}
-	if err = r.ParseForm(); err != nil {
-		o.metrics.authorizeErr(ctx, err, "parse_form")
-		utils.LogAndHTTPError(ctx, w, err, "failed to parse form", http.StatusBadRequest)
+	flashes := session.Flashes("disambiguation")
+	if err := session.Save(r, w); err != nil {
+		o.metrics.authorizeErr(ctx, err, "save_session")
+		utils.LogAndHTTPError(
+			ctx,
+			w,
+			err,
+			"failed to save session",
+			http.StatusInternalServerError,
+		)
 		return
 	}
-	handle := r.Form.Get("handle")
+	var requester fosite.AuthorizeRequester
+	if len(flashes) > 0 {
+		// resume request after disambiguation
+		form := flashes[0].(authRequestFlash).Form
+		form.Add("handle", r.URL.Query().Get("handle"))
+		requester = &fosite.AuthorizeRequest{Request: fosite.Request{Form: form}}
+	} else {
+		requester, err = o.provider.NewAuthorizeRequest(ctx, r)
+		if err != nil {
+			o.metrics.authorizeErr(ctx, err, fositeErrReason(err))
+			o.provider.WriteAuthorizeError(ctx, w, requester, err)
+			return
+		}
+	}
+
+	form := maps.Clone(requester.GetRequestForm())
+	form.Del("request_uri")
+	handle := form.Get("handle")
+	if handle == "" {
+		slog.WarnContext(ctx, "request form", "form", requester.GetRequestForm())
+		form.Del("handle")
+		session.AddFlash(authRequestFlash{Form: form}, "disambiguation")
+		if err := session.Save(r, w); err != nil {
+			o.metrics.authorizeErr(ctx, err, "save_session")
+			utils.LogAndHTTPError(
+				ctx,
+				w,
+				err,
+				"failed to save disambiguation session",
+				http.StatusInternalServerError,
+			)
+		}
+		http.Redirect(w, r, disambiguationPath, http.StatusSeeOther)
+		return
+	}
+
 	atid, err := syntax.ParseAtIdentifier(handle)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "parse_handle")
@@ -216,7 +271,6 @@ func (o *OAuthServer) HandleAuthorize(
 		)
 		return
 	}
-
 	redirect, providerState, err := o.loginRouter.Authorize(ctx, id.DID)
 	if err != nil {
 		o.metrics.authorizeErr(ctx, err, "begin_login")
@@ -229,25 +283,12 @@ func (o *OAuthServer) HandleAuthorize(
 		)
 		return
 	}
-
-	session, err := o.sessionStore.New(r, sessionName)
-	if err != nil {
-		o.metrics.authorizeErr(ctx, err, "new_session")
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"failed to create session",
-			http.StatusInternalServerError,
-		)
-		return
-	}
 	session.AddFlash(&authRequestFlash{
 		Form:          requester.GetRequestForm(),
 		ProviderState: providerState,
 		Did:           id.DID,
 	})
-	if err := o.sessionStore.Save(r, w, session); err != nil {
+	if err := session.Save(r, w); err != nil {
 		o.metrics.authorizeErr(ctx, err, "save_session")
 		utils.LogAndHTTPError(
 			ctx,
@@ -261,6 +302,25 @@ func (o *OAuthServer) HandleAuthorize(
 
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 	o.metrics.authorizeSuccess(ctx)
+}
+
+// HandlePAR processes RFC 9126 Pushed Authorization Requests. The client POSTs
+// the authorization request parameters (form-encoded) and receives a
+// request_uri it can then hand to the authorization endpoint. PAR is supported
+// but not required, so clients may also call /oauth/authorize directly.
+func (o *OAuthServer) HandlePAR(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	req, err := o.provider.NewPushedAuthorizeRequest(ctx, r)
+	if err != nil {
+		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
+		return
+	}
+	resp, err := o.provider.NewPushedAuthorizeResponse(ctx, req, newSession())
+	if err != nil {
+		o.provider.WritePushedAuthorizeError(ctx, w, req, err)
+		return
+	}
+	o.provider.WritePushedAuthorizeResponse(ctx, w, req, resp)
 }
 
 // HandleCallback processes the OAuth callback from the user's PDS.
@@ -322,7 +382,7 @@ func (o *OAuthServer) HandleCallback(
 	}
 
 	session.Options.MaxAge = -1
-	if err := o.sessionStore.Save(r, w, session); err != nil {
+	if err := session.Save(r, w); err != nil {
 		o.metrics.callbackErr(ctx, err, "delete_session")
 		utils.LogAndHTTPError(
 			ctx,
@@ -333,7 +393,6 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
-
 	recreatedRequest, err := http.NewRequest(http.MethodGet, "/?"+arf.Form.Encode(), nil)
 	if err != nil {
 		o.metrics.callbackErr(ctx, err, "recreate_req")
@@ -393,6 +452,8 @@ func (o *OAuthServer) HandleCallback(
 		)
 		return
 	}
+	// TODO uncomment this when we migrate off openid-client
+	// resp.AddParameter("iss", o.issuer)
 	o.provider.WriteAuthorizeResponse(ctx, w, authRequest, resp)
 	o.metrics.callbackSuccess()
 }
@@ -432,6 +493,7 @@ func (o *OAuthServer) HandleToken(w http.ResponseWriter, r *http.Request) {
 		o.provider.WriteAccessError(ctx, w, req, err)
 		return
 	}
+	resp.SetExtra("sub", req.GetSession().GetSubject())
 	o.provider.WriteAccessResponse(ctx, w, req, resp)
 }
 

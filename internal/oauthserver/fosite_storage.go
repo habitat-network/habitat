@@ -69,11 +69,36 @@ func newStore(
 
 var (
 	_ fosite.Storage                = (*store)(nil)
+	_ fosite.PARStorage             = (*store)(nil)
 	_ oauth2.CoreStorage            = (*store)(nil)
 	_ oauth2.TokenRevocationStorage = (*store)(nil)
 	_ pkce.PKCERequestStorage       = (*store)(nil)
 	_ rfc7523.RFC7523KeyStorage     = (*store)(nil)
 )
+
+// CreatePARSession implements fosite.PARStorage. The pushed authorization
+// request context is short-lived and single-use, so it is kept in memory
+// rather than persisted; see the note on the memory store above.
+func (s *store) CreatePARSession(
+	ctx context.Context,
+	requestURI string,
+	request fosite.AuthorizeRequester,
+) error {
+	return s.memoryStore.CreatePARSession(ctx, requestURI, request)
+}
+
+// GetPARSession implements fosite.PARStorage.
+func (s *store) GetPARSession(
+	ctx context.Context,
+	requestURI string,
+) (fosite.AuthorizeRequester, error) {
+	return s.memoryStore.GetPARSession(ctx, requestURI)
+}
+
+// DeletePARSession implements fosite.PARStorage.
+func (s *store) DeletePARSession(ctx context.Context, requestURI string) error {
+	return s.memoryStore.DeletePARSession(ctx, requestURI)
+}
 
 // ClientAssertionJWTValid implements fosite.Storage.
 func (s *store) ClientAssertionJWTValid(ctx context.Context, jti string) error {

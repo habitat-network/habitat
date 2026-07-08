@@ -27,6 +27,7 @@ import (
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
+	login_testutil "github.com/habitat-network/habitat/internal/login/testutil"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/spaces"
@@ -259,7 +260,10 @@ func setupPear(
 	oauthServer, err := oauthserver.NewOAuthServer(
 		encrypt.TestKey,
 		&org.LoginRouter{
-			Pds: &passthroughProvider{redirectURI: server.URL + "/oauth-callback"},
+			Pds: login_testutil.NewPassthroughProvider(
+				server.URL+"/oauth-callback",
+				"loginId",
+			),
 		},
 		orgHive,
 		db,
@@ -318,26 +322,4 @@ func setupPear(
 	}()
 
 	return server, orgId, adminId, spacesStore, orgHive
-}
-
-type passthroughProvider struct {
-	redirectURI string
-}
-
-// Authorize implements [login.Provider].
-func (p *passthroughProvider) Authorize(
-	ctx context.Context,
-	loginHint string,
-) (redirectURI string, state []byte, err error) {
-	return p.redirectURI, nil, nil
-}
-
-// Exchange implements [login.Provider].
-func (p *passthroughProvider) Exchange(
-	ctx context.Context,
-	code string,
-	issuer string,
-	state []byte,
-) (loginId string, err error) {
-	return "loginId", nil
 }
