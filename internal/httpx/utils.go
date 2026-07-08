@@ -17,5 +17,7 @@ func WriteJSON(ctx context.Context, w http.ResponseWriter, v interface{}) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(bytes)
-	slog.ErrorContext(ctx, "write json", "err", err)
+	if err != nil {
+		slog.ErrorContext(ctx, "write json", "err", err)
+	}
 }
