@@ -6486,7 +6486,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.getRecord",
-        "description": "Get a single record from a permissioned space. Callable by any space member.",
+        "description": "Get a single record from a permissioned space. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         "operationId": "network.habitat.space.getRecord",
         "security": [
           {
@@ -6502,17 +6502,17 @@
             "schema": {
               "type": "string",
               "description": "Reference to the space.",
-              "format": "uri"
+              "format": "at-uri"
             }
           },
           {
             "name": "repo",
             "in": "query",
-            "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
-            "required": false,
+            "description": "The DID of the account whose repo to read from.",
+            "required": true,
             "schema": {
               "type": "string",
-              "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
+              "description": "The DID of the account whose repo to read from.",
               "format": "did"
             }
           },
@@ -6554,7 +6554,7 @@
                   "properties": {
                     "uri": {
                       "type": "string",
-                      "description": "URI of the record."
+                      "format": "at-uri"
                     },
                     "cid": {
                       "type": "string",
@@ -6591,6 +6591,18 @@
                         },
                         {
                           "const": "RecordNotFound"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
                         }
                       ]
                     },
