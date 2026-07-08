@@ -6,16 +6,29 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/habitat-network/habitat/internal/utils"
+	"github.com/bluesky-social/indigo/atproto/atclient"
 )
 
-func WriteJSON(ctx context.Context, w http.ResponseWriter, v interface{}) {
+func WriteJSON(ctx context.Context, w http.ResponseWriter, v any) {
 	bytes, err := json.Marshal(v)
 	if err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "marshal json", http.StatusInternalServerError)
+		slog.ErrorContext(ctx, "marshal json", "err", err)
+		writeError(ctx, w, "marshal json", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(bytes)
-	slog.ErrorContext(ctx, "write json", "err", err)
+	if err != nil {
+		slog.ErrorContext(ctx, "write json", "err", err)
+	}
+}
+
+func writeError(ctx context.Context, w http.ResponseWriter, name string, msg string, code int) {
+	w.WriteHeader(code)
+	WriteJSON(ctx, w, atclient.ErrorBody{Name: name, Message: msg})
+}
+
+func WriteInvalidRequest(ctx context.Context, w http.ResponseWriter, msg string, err error) {
+	slog.WarnContext(ctx, "bad request", "msg", msg, "err", err)
+	writeError(ctx, w, "InvalidRequest", msg, http.StatusBadRequest)
 }

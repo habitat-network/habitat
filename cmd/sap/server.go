@@ -111,13 +111,8 @@ func (s *server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing "+habitatDIDHeader+" header", http.StatusBadRequest)
 		return
 	}
-	did, err := syntax.ParseDID(didStr)
-	if err != nil {
-		http.Error(
-			w,
-			fmt.Sprintf("invalid %s header: %s", habitatDIDHeader, err),
-			http.StatusBadRequest,
-		)
+	did, ok := httpx.ParseDIDInput(r.Context(), w, didStr, habitatDIDHeader)
+	if !ok {
 		return
 	}
 

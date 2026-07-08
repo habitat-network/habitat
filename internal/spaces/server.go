@@ -137,9 +137,8 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 	}
 	var filterOwner *syntax.DID
 	if params.Did != "" {
-		ownerDid, err := syntax.ParseDID(params.Did)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse did", http.StatusBadRequest)
+		ownerDid, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+		if !ok {
 			return
 		}
 		filterOwner = &ownerDid
@@ -204,9 +203,8 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberDID, err := syntax.ParseDID(input.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
+	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	if !ok {
 		return
 	}
 
@@ -274,9 +272,8 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberDID, err := syntax.ParseDID(input.Did)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse member did", http.StatusBadRequest)
+	memberDID, ok := httpx.ParseDIDInput(r.Context(), w, input.Did, "did")
+	if !ok {
 		return
 	}
 
@@ -320,18 +317,20 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
+func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
 
-	var params habitat.NetworkHabitatSpaceGetMembersParams
+	var params habitat.NetworkHabitatSpaceListReposParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		return
+	}
+
+	if params.Cursor != "" || params.Limit != 0 {
+		http.Error(w, "cursor and limit are not yet supported", http.StatusNotImplemented)
 		return
 	}
 
@@ -357,25 +356,26 @@ func (s *Server) GetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := s.store.GetMembers(r.Context(), credInfo.Org.DID(), spaceURI)
+	repos, err := s.store.ListRepos(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	} else if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "get members", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "list repos", http.StatusInternalServerError)
 		return
 	}
 
-	memberViews := make([]habitat.NetworkHabitatSpaceGetMembersMember, len(members))
-	for i, m := range members {
-		memberViews[i] = habitat.NetworkHabitatSpaceGetMembersMember{
-			Did:     m.Did.String(),
-			AddedAt: m.AddedAt.Format("2006-01-02T15:04:05.000Z"),
+	repoViews := make([]habitat.NetworkHabitatSpaceListReposRepo, len(repos))
+	for i, r := range repos {
+		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
+			Did:  r.DID.String(),
+			Rev:  r.Rev,
+			Hash: nil,
 		}
 	}
 
-	output := habitat.NetworkHabitatSpaceGetMembersOutput{
-		Members: memberViews,
+	output := habitat.NetworkHabitatSpaceListReposOutput{
+		Repos: repoViews,
 	}
 	httpx.WriteJSON(r.Context(), w, output)
 }
@@ -532,10 +532,6 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 	owner := credInfo.Subject
 	if params.Repo != "" {
 		owner, err = syntax.ParseDID(params.Repo)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
-			return
-		}
 	}
 
 	rec, err := s.store.GetRecord(r.Context(), spaceURI, owner, collection, rkey)
@@ -607,9 +603,8 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		filterCollection = &c
 	}
 
-	repo, err := syntax.ParseDID(params.Repo)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
+	repo, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	if !ok {
 		return
 	}
 
@@ -653,9 +648,8 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repoDID, err := syntax.ParseDID(params.Repo)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
+	repoDID, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	if !ok {
 		return
 	}
 

@@ -3996,68 +3996,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceGetMembers: {
-    lexicon: 1,
-    id: 'network.habitat.space.getMembers',
-    defs: {
-      main: {
-        type: 'query',
-        description:
-          'Get the list of members in a space. Callable by any member of the space.',
-        parameters: {
-          type: 'params',
-          required: ['space'],
-          properties: {
-            space: {
-              type: 'string',
-              format: 'uri',
-              description: 'Reference to the space.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['members'],
-            properties: {
-              members: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.space.getMembers#member',
-                },
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-            description: 'The specified space does not exist.',
-          },
-        ],
-      },
-      member: {
-        type: 'object',
-        required: ['did'],
-        properties: {
-          did: {
-            type: 'string',
-            format: 'did',
-          },
-          access: {
-            type: 'string',
-            enum: ['read', 'write'],
-          },
-          addedAt: {
-            type: 'string',
-            format: 'datetime',
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatSpaceGetRecord: {
     lexicon: 1,
     id: 'network.habitat.space.getRecord',
@@ -4327,6 +4265,83 @@ export const schemaDict = {
             type: 'unknown',
             description:
               "The record's value. Inlined by default; omitted when excludeValues is set.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceListRepos: {
+    lexicon: 1,
+    id: 'network.habitat.space.listRepos',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the known repos that hold data in a space (the writer set), with each repo's current rev and commit hash. Served by the space host. This is the sync boundary, not an access-control list: it enumerates only writers, never readers. The set is what the authority claims from write notifications and is not itself authoritative; a repo's host is the source of truth.",
+        parameters: {
+          type: 'params',
+          required: ['space'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of repos to return.',
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['repos'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              repos: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listRepos#repo',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+      repo: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+            description: 'The DID of a repo that holds data in the space.',
+          },
+          rev: {
+            type: 'string',
+            description:
+              "The repo's current revision (TID), as last reported to the authority. May lag the repo host, which is the source of truth.",
+          },
+          hash: {
+            type: 'bytes',
+            description:
+              "The repo's current commit hash (sha256 of the LtHash state), as last reported to the authority.",
           },
         },
       },
@@ -4635,10 +4650,10 @@ export const ids = {
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
-  NetworkHabitatSpaceGetMembers: 'network.habitat.space.getMembers',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
   NetworkHabitatSpaceGetRepoOplog: 'network.habitat.space.getRepoOplog',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
+  NetworkHabitatSpaceListRepos: 'network.habitat.space.listRepos',
   NetworkHabitatSpaceListSpaces: 'network.habitat.space.listSpaces',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
   NetworkHabitatSpaceRemoveMember: 'network.habitat.space.removeMember',
