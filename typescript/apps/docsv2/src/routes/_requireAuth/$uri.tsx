@@ -122,7 +122,11 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         <PageHeader>
           <div className="flex items-center gap-2">
             {spaceUri && (
-              <ShareDialogV2 spaceUri={spaceUri} authManager={authManager} />
+              <ShareDialogV2
+                spaceUri={spaceUri}
+                authManager={authManager}
+                relation="writer"
+              />
             )}
             <Popover>
               <PopoverTrigger
