@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
+	"github.com/habitat-network/habitat/internal/httpx"
 )
 
 type Server struct {
@@ -109,6 +110,5 @@ func (s *Server) HandleQuery(w http.ResponseWriter, r *http.Request) {
 			Rank: int64(res.Rank * 1_000_000),
 		})
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
+	httpx.WriteJSON(r.Context(), w, out)
 }

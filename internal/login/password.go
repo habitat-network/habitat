@@ -17,6 +17,7 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/db"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/utils"
 	"gorm.io/gorm"
 )
@@ -164,14 +165,9 @@ func (p *PasswordLoginProvider) HandlePasswordLogin(w http.ResponseWriter, r *ht
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(habitat.NetworkHabitatOrgLoginMemberOutput{
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatOrgLoginMemberOutput{
 		CallbackURL: "https://" + p.pearDomain + "/oauth-callback?code=" + token,
 	})
-	if err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "encoding response", http.StatusInternalServerError)
-		return
-	}
 }
 
 func (p *PasswordLoginProvider) AddLoginEntry(did syntax.DID, password string) error {
