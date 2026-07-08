@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -18,6 +17,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/gorilla/mux"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/oauthclient"
 	"github.com/habitat-network/habitat/internal/sap"
 	"github.com/urfave/cli/v3"
@@ -127,13 +127,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	router.Handle(
 		"/client-metadata.json",
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			enc := json.NewEncoder(w)
-			enc.SetEscapeHTML(false)
-			err = enc.Encode(oauthApp.Config.ClientMetadata())
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
+			httpx.WriteJSON(r.Context(), w, oauthApp.Config.ClientMetadata())
 		}),
 	)
 
