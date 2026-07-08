@@ -23,7 +23,6 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/oauth2"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
 )
@@ -47,115 +46,6 @@ type authRequestFlash struct {
 	Did           syntax.DID // DID of the user
 }
 
-type metrics struct {
-	// HandleAuthorize
-	authorizeErrCtr     metric.Int64Counter
-	authorizeSuccessCtr metric.Int64Counter
-
-	// HandleCallback
-	callbackErrCtr     metric.Int64Counter
-	callbackSuccessCtr metric.Int64Counter
-
-	// HandleToken
-	refreshTokenRequestCtr metric.Int64Counter
-}
-
-func newMetrics(meter metric.Meter) (*metrics, error) {
-	authorizeErrCtr, err := meter.Int64Counter(
-		"oauth.authorize.err",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts errors in OAuth /authorize implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	authorizeSuccessCtr, err := meter.Int64Counter(
-		"oauth.authorize.success",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts successes in OAuth /authorize implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	callbackErrCtr, err := meter.Int64Counter(
-		"oauth.callback.err",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts errors in OAuth /callback implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	callbackSuccessCtr, err := meter.Int64Counter(
-		"oauth.callback.success",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts successes in OAuth /callback implementation"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshTokenRequestCtr, err := meter.Int64Counter(
-		"oauth.refresh_token.request",
-		metric.WithUnit("Item"),
-		metric.WithDescription("counts request to refresh an OAuth token with habitat"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &metrics{
-		authorizeErrCtr:        authorizeErrCtr,
-		authorizeSuccessCtr:    authorizeSuccessCtr,
-		callbackErrCtr:         callbackErrCtr,
-		callbackSuccessCtr:     callbackSuccessCtr,
-		refreshTokenRequestCtr: refreshTokenRequestCtr,
-	}, nil
-}
-
-func (m *metrics) authorizeErr(ctx context.Context, err error, reason string) {
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	m.authorizeErrCtr.Add(
-		ctx,
-		1,
-		metric.WithAttributeSet(
-			attribute.NewSet(
-				attribute.String("reason", reason),
-			),
-		),
-	)
-}
-
-func (m *metrics) authorizeSuccess(ctx context.Context) {
-	m.authorizeSuccessCtr.Add(ctx, 1)
-}
-
-func (m *metrics) callbackErr(ctx context.Context, err error, reason string) {
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	m.callbackErrCtr.Add(
-		ctx,
-		1,
-		metric.WithAttributeSet(
-			attribute.NewSet(
-				attribute.String("reason", reason),
-			),
-		),
-	)
-}
-
-func (m *metrics) callbackSuccess() {
-	m.callbackSuccessCtr.Add(
-		context.Background(),
-		1,
-	)
-}
-
 // OAuthServer implements an OAuth 2.0 authorization server with AT Protocol integration.
 // It handles OAuth authorization flows, token issuance, and integrates with DPoP
 // for proof-of-possession token binding.
@@ -173,6 +63,9 @@ type OAuthServer struct {
 
 	// Session store for OAuth flash data across redirects
 	sessionStore sessions.Store
+
+	// issuer origin (https URL, no path) the discovery metadata is built from.
+	issuer string
 }
 
 // NewOAuthServer creates a new OAuth 2.0 authorization server instance.
@@ -189,8 +82,9 @@ type OAuthServer struct {
 //   - loginRouter: Routes login flows by DID service endpoint
 //   - directory: AT Protocol identity directory for resolving handles to DIDs
 //   - db: GORM database connection for storing OAuth sessions
-//   - tokenURL: this server's token endpoint URL, used to validate the "aud"
-//     claim of JWT Bearer grant assertions
+//   - issuer: this server's issuer origin (an https URL with no path), from
+//     which the endpoint URLs in the discovery metadata and the token endpoint
+//     URL (used to validate the "aud" claim of JWT Bearer assertions) are built
 //
 // Returns a configured OAuthServer ready to handle authorization requests.
 func NewOAuthServer(
@@ -200,7 +94,7 @@ func NewOAuthServer(
 	db *gorm.DB,
 	meter metric.Meter,
 	orgStore org.Store,
-	tokenURL string,
+	issuer string,
 	approvedJwtBearerClients ApprovedClientStore,
 ) (*OAuthServer, error) {
 	config := &fosite.Config{
@@ -208,7 +102,7 @@ func NewOAuthServer(
 		SendDebugMessagesToClients: true,
 		RefreshTokenScopes:         []string{},
 		ScopeStrategy:              scopeStrategy,
-		TokenURL:                   tokenURL,
+		TokenURL:                   issuer + "/oauth/token",
 		// The JWT Bearer grant identifies the client solely via the "iss"
 		// claim of the assertion (checked against jwtBearerAllowedClients),
 		// so a separate client_id/secret on the token request isn't required.
@@ -258,6 +152,7 @@ func NewOAuthServer(
 		directory:    directory,
 		storage:      storage,
 		orgStore:     orgStore,
+		issuer:       issuer,
 	}, nil
 }
 
@@ -627,6 +522,18 @@ func (o *OAuthServer) ValidateRaw(
 	}
 
 	return credInfo, true, nil
+}
+
+// HandleAuthServerMetadata serves the OAuth 2.0 Authorization Server Metadata
+// document at /.well-known/oauth-authorization-server.
+func (o *OAuthServer) HandleAuthServerMetadata(w http.ResponseWriter, r *http.Request) {
+	writeMetadataJSON(w, buildAuthServerMetadata(o.issuer))
+}
+
+// HandleProtectedResourceMetadata serves the OAuth 2.0 Protected Resource
+// Metadata document at /.well-known/oauth-protected-resource.
+func (o *OAuthServer) HandleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
+	writeMetadataJSON(w, buildProtectedResourceMetadata(o.issuer))
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {

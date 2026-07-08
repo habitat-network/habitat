@@ -74,12 +74,12 @@ func newJWTBearerTestClient(t *testing.T) *oauthjwt.Config {
 }
 
 // setupJWTBearerTestServer wires up an OAuthServer whose token endpoint is
-// reachable at the returned tokenURL. The tokenURL parameter sets the
-// expected aud claim for JWT Bearer assertions. approvedClientIDs are
-// registered in the JWT Bearer client allow-list.
+// reachable at the returned tokenURL. The issuer parameter determines the
+// expected aud claim for JWT Bearer assertions (issuer + "/oauth/token").
+// approvedClientIDs are registered in the JWT Bearer client allow-list.
 func setupJWTBearerTestServer(
 	t *testing.T,
-	tokenURL string,
+	issuer string,
 	approvedClientIDs ...string,
 ) (srv *OAuthServer, actualTokenURL string) {
 	t.Helper()
@@ -113,7 +113,7 @@ func setupJWTBearerTestServer(
 		db,
 		noop.Meter{},
 		testStore(t),
-		tokenURL,
+		issuer,
 		NewJWTBearerStore(approvedClientIDs...),
 	)
 	require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 		const subject = "did:web:service-subject.example"
 		cfg.Subject = subject
 		cfg.TokenURL = tokenURL
-		cfg.Audience = domain
+		cfg.Audience = domain + "/oauth/token"
 		cfg.Expires = time.Minute
 		tok, err := cfg.TokenSource(t.Context()).Token()
 		require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 
 		cfg.Subject = "did:web:subject.example"
 		cfg.TokenURL = tokenURL
-		cfg.Audience = "example.com"
+		cfg.Audience = "example.com/oauth/token"
 		cfg.Expires = time.Minute
 		_, err := cfg.TokenSource(t.Context()).Token()
 		require.Error(t, err)
@@ -173,7 +173,7 @@ func TestHandleTokenJWTBearerGrant(t *testing.T) {
 			PrivateKeyID: cfg.PrivateKeyID,
 			Subject:      "did:web:subject.example",
 			TokenURL:     tokenURL,
-			Audience:     domain,
+			Audience:     domain + "/oauth/token",
 			Expires:      time.Minute,
 			PrivateClaims: map[string]any{
 				"jti": "test-jti-mismatched",
