@@ -268,7 +268,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		db.WithContext(startupCtx),
 		meter,
 		orgStore,
-		"https://"+domain+"/oauth/token",
+		"https://"+domain,
 		oauthserver.NewJWTBearerStore(
 			cmd.StringSlice(fBuiltinApps)...,
 		),
@@ -403,6 +403,15 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	mux.HandleFunc("/.well-known/did.json", serveDid(domain))
 	mux.HandleFunc("/client-metadata.json", serveClientMetadata(oauthClient))
+
+	mux.HandleFunc(
+		"/.well-known/oauth-authorization-server",
+		oauthServer.HandleAuthServerMetadata,
+	)
+	mux.HandleFunc(
+		"/.well-known/oauth-protected-resource",
+		oauthServer.HandleProtectedResourceMetadata,
+	)
 
 	mux.HandleFunc("/oauth-callback", oauthServer.HandleCallback)
 	mux.HandleFunc("/oauth/authorize", oauthServer.HandleAuthorize)
