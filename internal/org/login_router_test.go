@@ -1,4 +1,4 @@
-package org
+package org_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/org"
+	"github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,13 +35,13 @@ func (d *dummyProvider) Exchange(
 }
 
 func TestLoginRouter(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestStore(t)
 	orgId, adminId, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(org.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",
@@ -48,7 +50,7 @@ func TestLoginRouter(t *testing.T) {
 	t.Logf("adminId: %s", adminId.DID.String())
 
 	require.NoError(t, err)
-	router := LoginRouter{
+	router := org.LoginRouter{
 		Google:   &dummyProvider{loginID: "test@gmail.com"},
 		OrgStore: store,
 	}
@@ -85,13 +87,13 @@ func TestLoginRouter(t *testing.T) {
 }
 
 func TestExchange_RequireAdminForOrg(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestStore(t)
 	orgId, adminId, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(org.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",
@@ -108,7 +110,7 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 	memberId, err := store.CreateNewMemberIdentity(t.Context(), orgId.DID, token, "alice", "", "")
 	require.NoError(t, err)
 
-	router := LoginRouter{
+	router := org.LoginRouter{
 		Google:   &dummyProvider{loginID: memberId.DID.String()},
 		OrgStore: store,
 	}
@@ -123,19 +125,19 @@ func TestExchange_RequireAdminForOrg(t *testing.T) {
 }
 
 func TestExchange_MismatchLoginID(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestStore(t)
 	_, adminId, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(org.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",
 	)
 	require.NoError(t, err)
-	router := LoginRouter{
+	router := org.LoginRouter{
 		Google:   &dummyProvider{loginID: "differentId@gmail.com"},
 		OrgStore: store,
 	}
@@ -151,19 +153,19 @@ func TestExchange_MismatchLoginID(t *testing.T) {
 }
 
 func TestExchange_MissingMember(t *testing.T) {
-	store := newTestStore(t)
+	store := testutil.NewTestStore(t)
 	_, adminId, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
 		"",
-		string(LoginMethodGoogle),
+		string(org.LoginMethodGoogle),
 		"test@gmail.com",
 		"subdomain",
 		"contact@example.com",
 	)
 	require.NoError(t, err)
-	router := LoginRouter{
+	router := org.LoginRouter{
 		Google:   &dummyProvider{loginID: "differentId@gmail.com"},
 		OrgStore: store,
 	}
