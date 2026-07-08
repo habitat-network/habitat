@@ -33,6 +33,7 @@ func NewServer(store Store, oauth authn.Method, serviceAuth authn.Method) *Serve
 }
 
 func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
 		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
@@ -50,15 +51,8 @@ func (s *Server) CreateClique(w http.ResponseWriter, r *http.Request) {
 
 	dids := make([]syntax.DID, len(input.Members))
 	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"decode members field of input",
-				http.StatusBadRequest,
-			)
+		did, ok := httpx.ParseDIDInput(ctx, w, m, "member")
+		if !ok {
 			return
 		}
 		dids[i] = did
@@ -100,15 +94,8 @@ func (s *Server) AddCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	dids := make([]syntax.DID, len(input.Members))
 	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"decode members field of input",
-				http.StatusBadRequest,
-			)
+		did, ok := httpx.ParseDIDInput(r.Context(), w, m, "member")
+		if !ok {
 			return
 		}
 		dids[i] = did
@@ -156,15 +143,8 @@ func (s *Server) RemoveCliqueMembers(w http.ResponseWriter, r *http.Request) {
 
 	dids := make([]syntax.DID, len(input.Members))
 	for i, m := range input.Members {
-		did, err := syntax.ParseDID(m)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"decode members field of input",
-				http.StatusBadRequest,
-			)
+		did, ok := httpx.ParseDIDInput(r.Context(), w, m, "member")
+		if !ok {
 			return
 		}
 		dids[i] = did
@@ -304,15 +284,8 @@ func (s *Server) IsCliqueMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	did, err := syntax.ParseDID(params.Did)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"decode did from url param",
-			http.StatusBadRequest,
-		)
+	did, ok := httpx.ParseDIDInput(r.Context(), w, params.Did, "did")
+	if !ok {
 		return
 	}
 
