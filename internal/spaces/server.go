@@ -557,9 +557,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-	).Validate(w, r)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -576,27 +575,20 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	if err != nil {
+		utils.LogAndHTTPError(
 			r.Context(),
-			credInfo.Org.DID(),
-			spaceURI,
-			credInfo.Subject,
+			w,
+			err,
+			"check membership",
+			http.StatusInternalServerError,
 		)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"check membership",
-				http.StatusInternalServerError,
-			)
-			return
-		}
-		if !isMember {
-			http.Error(w, "not a member of this space", http.StatusForbidden)
-			return
-		}
+		return
+	}
+	if !isMember {
+		http.Error(w, "not a member of this space", http.StatusForbidden)
+		return
 	}
 
 	var filterCollection *syntax.NSID
@@ -615,16 +607,10 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		filterCollection = &c
 	}
 
-	var repo syntax.DID
-	if params.Repo != "" {
-		parsedRepo, err := syntax.ParseDID(params.Repo)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
-			return
-		}
-		repo = parsedRepo
-	} else {
-		repo = credInfo.Subject
+	repo, err := syntax.ParseDID(params.Repo)
+	if err != nil {
+		utils.LogAndHTTPError(r.Context(), w, err, "parse repo did", http.StatusBadRequest)
+		return
 	}
 
 	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
@@ -639,15 +625,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
 			Cid:        rec.Cid.String(),
-			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
-			Value:      rec.Value,
+		}
+		if !params.ExcludeValues {
+			recViews[i].Value = rec.Value
 		}
 	}
-
-	output := habitat.NetworkHabitatSpaceListRecordsOutput{
-		Records: recViews,
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
 }
 
 func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {

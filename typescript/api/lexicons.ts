@@ -4230,32 +4230,33 @@ export const schemaDict = {
       main: {
         type: 'query',
         description:
-          'List records in a permissioned space, matching a specific collection. Callable by any member of the space.',
+          "List the records in an account's repo within a permissioned space, optionally filtered by collection. By default each record's value is inlined; set excludeValues for a metadata-only listing (collection, rkey, cid). Used for full-state recovery. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         parameters: {
           type: 'params',
-          required: ['space'],
+          required: ['space', 'repo'],
           properties: {
             space: {
               type: 'string',
-              format: 'uri',
+              format: 'at-uri',
               description: 'Reference to the space.',
             },
             repo: {
               type: 'string',
               format: 'did',
-              description:
-                'The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.',
+              description: 'The DID of the account whose repo to list.',
             },
             collection: {
               type: 'string',
               format: 'nsid',
-              description: 'The NSID of the record type.',
+              description:
+                'The NSID of the record collection. If omitted, lists records across all collections.',
             },
             limit: {
               type: 'integer',
               minimum: 1,
               maximum: 100,
               default: 50,
+              description: 'The number of records to return.',
             },
             cursor: {
               type: 'string',
@@ -4263,6 +4264,12 @@ export const schemaDict = {
             reverse: {
               type: 'boolean',
               description: 'Flag to reverse the order of the returned records.',
+            },
+            excludeValues: {
+              type: 'boolean',
+              default: false,
+              description:
+                'If true, omit inlined record values and return only metadata (collection, rkey, cid).',
             },
           },
         },
@@ -4285,6 +4292,20 @@ export const schemaDict = {
             },
           },
         },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
       },
       record: {
         type: 'object',
@@ -4302,12 +4323,10 @@ export const schemaDict = {
             type: 'string',
             format: 'cid',
           },
-          updatedAt: {
-            type: 'string',
-            format: 'datetime',
-          },
           value: {
             type: 'unknown',
+            description:
+              "The record's value. Inlined by default; omitted when excludeValues is set.",
           },
         },
       },
