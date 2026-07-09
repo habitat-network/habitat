@@ -2,7 +2,6 @@ package authn
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"slices"
 
@@ -26,6 +25,9 @@ type CredentialInfo struct {
 type Method interface {
 	CanHandle(r *http.Request) bool
 	Validate(w http.ResponseWriter, r *http.Request, scopes ...string) (*CredentialInfo, bool)
+}
+
+type RawMethod interface {
 	ValidateRaw(ctx context.Context, token string, scopes ...string) (*CredentialInfo, bool, error)
 }
 
@@ -72,23 +74,4 @@ func (v *Validator) Validate(w http.ResponseWriter, r *http.Request) (*Credentia
 	}
 	w.WriteHeader(http.StatusUnauthorized)
 	return nil, false
-}
-
-func (v *Validator) ValidateRaw(
-	ctx context.Context,
-	token string,
-	/* TODO: take in scopes here */
-) (*CredentialInfo, bool, error) {
-	var err error
-	var did *CredentialInfo
-	var ok bool
-	for _, method := range v.authMethods {
-		did, ok, err = method.ValidateRaw(ctx, token /* TODO: scopes */)
-		// Allow first pass through
-		if ok && err == nil {
-			return did, true, nil
-		}
-	}
-	// Return the last error
-	return did, ok, fmt.Errorf("no auth method passed; latest err: %w", err)
 }
