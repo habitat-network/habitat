@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/habitat-network/habitat/internal/authn"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
@@ -102,7 +103,25 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 
 	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{}).
+			SignedString(secret)
+		require.NoError(t, err)
+		r.Header.Set("Authorization", "Bearer "+token)
 		r.Header.Set("Habitat-Auth-Method", "oauth")
+		require.True(t, oauthSrv.CanHandle(r))
+	})
+
+	t.Run("CanHandle returns true for typ", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		token, err := new(jwt.Token{
+			Header: map[string]interface{}{
+				"typ": "oauth+JWT",
+				"alg": "HS256",
+			},
+			Method: jwt.SigningMethodHS256,
+		}).SignedString(secret)
+		require.NoError(t, err)
+		r.Header.Set("Authorization", "Bearer "+token)
 		require.True(t, oauthSrv.CanHandle(r))
 	})
 
