@@ -65,14 +65,6 @@ func (s *success) Validate(
 	return &authn.CredentialInfo{Subject: s.did, Type: s.credType, Org: s.org}, true
 }
 
-func (s *success) ValidateRaw(
-	_ context.Context,
-	_ string,
-	_ ...string,
-) (*authn.CredentialInfo, bool, error) {
-	return &authn.CredentialInfo{Subject: s.did, Type: s.credType, Org: s.org}, true, nil
-}
-
 func NewSuccessMethod(did syntax.DID) authn.Method {
 	return &success{
 		did:      did,
@@ -100,14 +92,6 @@ func (s *failure) Validate(
 ) (*authn.CredentialInfo, bool) {
 	http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 	return nil, false
-}
-
-func (s *failure) ValidateRaw(
-	_ context.Context,
-	_ string,
-	_ ...string,
-) (*authn.CredentialInfo, bool, error) {
-	return nil, false, nil
 }
 
 func NewFailMethod() authn.Method {

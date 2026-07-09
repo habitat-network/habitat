@@ -1,8 +1,6 @@
 package authn
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -69,51 +67,4 @@ func (t *testAuthMethod) Validate(
 		return nil, false
 	}
 	return &CredentialInfo{Subject: syntax.DID("did:web:test"), Type: OrgCredential}, true
-}
-
-// ValidateRaw implements [Method].
-func (t *testAuthMethod) ValidateRaw(
-	ctx context.Context,
-	token string,
-	scopes ...string,
-) (*CredentialInfo, bool, error) {
-	if token != t.expectedHeader {
-		return nil, false, fmt.Errorf("unexpected token")
-	}
-	if t.fail {
-		return nil, false, fmt.Errorf("auth failed")
-	}
-	return &CredentialInfo{Subject: syntax.DID("did:web:test"), Type: OrgCredential}, true, nil
-}
-
-func TestValidateRaw(t *testing.T) {
-	ctx := context.Background()
-
-	// First method handles it successfully.
-	credInfo, ok, err := NewValidator(
-		WithAuthMethods(
-			&testAuthMethod{expectedHeader: "foo"},
-			&testAuthMethod{expectedHeader: "bar"},
-		),
-	).ValidateRaw(ctx, "foo")
-	require.True(t, ok)
-	require.NoError(t, err)
-	require.Equal(t, syntax.DID("did:web:test"), credInfo.Subject)
-
-	// Matching method fails.
-	_, ok, err = NewValidator(
-		WithAuthMethods(
-			&testAuthMethod{expectedHeader: "foo"},
-			&testAuthMethod{expectedHeader: "bar", fail: true},
-		),
-	).ValidateRaw(ctx, "bar")
-	require.False(t, ok)
-	require.Error(t, err)
-
-	// No method matches the token.
-	_, ok, err = NewValidator(
-		WithAuthMethods(&testAuthMethod{expectedHeader: "bar"}),
-	).ValidateRaw(ctx, "foo")
-	require.False(t, ok)
-	require.Error(t, err)
 }

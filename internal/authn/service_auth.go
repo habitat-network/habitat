@@ -78,23 +78,6 @@ func (p *pdsServiceAuthMethod) Validate(
 	return &CredentialInfo{Subject: did, Type: UserCredential}, true
 }
 
-func (p *pdsServiceAuthMethod) ValidateRaw(
-	ctx context.Context,
-	token string,
-	scopes ...string,
-) (*CredentialInfo, bool, error) {
-	parsed, err := jwt.ParseSigned(token)
-	if err != nil {
-		return nil, false, err
-	}
-
-	did, ok, err := p.validateInner(parsed)
-	if !ok || err != nil {
-		return nil, ok, err
-	}
-	return &CredentialInfo{Subject: did, Type: UserCredential}, true, nil
-}
-
 type serviceJwtPayload struct {
 	Iss string `json:"iss"`
 	Aud string `json:"aud"`
