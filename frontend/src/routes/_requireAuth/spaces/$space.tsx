@@ -86,7 +86,7 @@ function SpaceRecords() {
     }) {
       await procedure(
         "network.habitat.space.deleteRecord",
-        { space, collection, rkey },
+        { space, collection, rkey, repo: authManager.getAuthInfo()!.did },
         { authManager },
       );
       router.invalidate();

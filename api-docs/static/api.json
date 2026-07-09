@@ -6151,7 +6151,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.deleteRecord",
-        "description": "Delete a record in a space, or ensure it doesn't exist. Caller must have can_delete on the space.",
+        "description": "Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS.",
         "operationId": "network.habitat.space.deleteRecord",
         "security": [
           {
@@ -6166,6 +6166,7 @@
                 "type": "object",
                 "required": [
                   "space",
+                  "repo",
                   "collection",
                   "rkey"
                 ],
@@ -6173,7 +6174,12 @@
                   "space": {
                     "type": "string",
                     "description": "Reference to the space.",
-                    "format": "uri"
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of the repo to delete from (the authenticated member).",
+                    "format": "did"
                   },
                   "collection": {
                     "type": "string",
@@ -6184,16 +6190,6 @@
                     "type": "string",
                     "description": "The Record Key.",
                     "format": "record-key"
-                  },
-                  "swapRecord": {
-                    "type": "string",
-                    "description": "Compare and swap with the previous record by CID.",
-                    "format": "cid"
-                  },
-                  "swapCommit": {
-                    "type": "string",
-                    "description": "Compare and swap with the previous commit by CID.",
-                    "format": "cid"
                   }
                 }
               }
@@ -6236,7 +6232,7 @@
                           "const": "InvalidToken"
                         },
                         {
-                          "const": "InvalidSwap"
+                          "const": "SpaceNotFound"
                         }
                       ]
                     },

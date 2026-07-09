@@ -236,7 +236,7 @@ func TestServer_DeleteRecord(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "del-me"}`
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "del-me"}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.deleteRecord",
@@ -352,7 +352,7 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "test"}`
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:alice", "collection": "network.habitat.note", "rkey": "test"}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.deleteRecord",

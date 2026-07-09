@@ -713,23 +713,35 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithRequiredSubject(),
-	).Validate(w, r)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
 
 	var input habitat.NetworkHabitatSpaceDeleteRecordInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode request body", http.StatusBadRequest)
+		utils.LogAndHTTPError(ctx, w, err, "decode request body", http.StatusBadRequest)
 		return
 	}
 
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
 	if !ok {
 		return
+	}
+
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+
+	if credInfo.Subject != repo {
+		httpx.WriteInvalidRequest(
+			ctx,
+			w,
+			"can't write to other repo",
+			fmt.Errorf("wrong repo"),
+		)
 	}
 
 	authorized, err := s.authorize(
@@ -753,20 +765,16 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		// TODO: we don't know if they're not authorize because they're not a member or
 		// because they don't have the right role. assume worst case and return not found
 		// need to return a reason from authorize
-		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to delete"))
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not authorized to delete"))
 		return
 	}
 
-	collection, ok := httpx.ParseNSIDInput(r.Context(), w, input.Collection, "collection")
+	collection, ok := httpx.ParseNSIDInput(ctx, w, input.Collection, "collection")
 	if !ok {
 		return
 	}
 	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
-		http.Error(
-			w,
-			"relationship tuples must be managed via network.habitat.relationship.* endpoints",
-			http.StatusForbidden,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "invalid collection", err)
 		return
 	}
 
