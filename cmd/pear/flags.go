@@ -14,6 +14,7 @@ var (
 	fPort               = "port"
 	fHttpsCerts         = "httpscerts"
 	fPdsCredEncryptKey  = "pds_cred_encrypt_key"
+	fSpaceSigningKey    = "space_signing_key"
 	fOauthServerSecret  = "oauth_server_secret"
 	fOauthClientSecret  = "oauth_client_secret"
 	fHiveDomain         = "hive_domain"
@@ -68,6 +69,11 @@ func getFlags() []cli.Flag {
 			Usage:    "32-byte base64-encoded encryption key for PDS credentials. Can use cmd/keygen to generate",
 			Required: true,
 			Sources:  getSources(fPdsCredEncryptKey),
+		},
+		&cli.StringFlag{
+			Name:    fSpaceSigningKey,
+			Usage:   "Multibase-encoded P-256 private key for the single space-host identity. Signs permissioned-repo commits for repo owners on external PDSes. If unset, host-signed commits are omitted.",
+			Sources: getSources(fSpaceSigningKey),
 		},
 		&cli.StringFlag{
 			Name:     fOauthServerSecret,

@@ -26,14 +26,22 @@ type Server struct {
 	serviceAuth authn.Method
 	decoder     *schema.Decoder
 	orgStore    org.Store
+	commit      *commitAuthority
 }
 
+// NewServer constructs the spaces server. host and member are the commit
+// signers: member signs commits for habitat-managed repo owners with their own
+// key (proposal spec), and host signs for owners on external PDSes with
+// Habitat's single host key. Either may be nil; when neither can sign an
+// author, listRepoOps omits the signed commit.
 func NewServer(
 	store Store,
 	fga fgastore.Store,
 	oauth authn.Method,
 	serviceAuth authn.Method,
 	orgStore org.Store,
+	host CommitSigner,
+	member MemberSigner,
 ) *Server {
 	return &Server{
 		store:       store,
@@ -42,6 +50,7 @@ func NewServer(
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
 		orgStore:    orgStore,
+		commit:      &commitAuthority{host: host, member: member},
 	}
 }
 
@@ -708,7 +717,54 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		output.Cursor = records[len(records)-1].Rev
 	}
 
+	// When this page reaches the head of the oplog (fewer ops than the limit) and
+	// a signer is available for the repo owner, include the current signed commit
+	// so a syncer can authenticate the state it has folded up to this point.
+	if len(records) < limit && s.commit.canSign(repoDID) {
+		commit, err := s.buildRepoCommit(r.Context(), w, spaceURI, repoDID)
+		switch {
+		case err == nil:
+			output.Commit = commit
+		case errors.Is(err, errEmptyRepo):
+			// Repo holds no records; nothing to commit over.
+		default:
+			return // HTTP error already written.
+		}
+	}
+
 	httpx.WriteJSON(r.Context(), w, output)
+}
+
+// buildRepoCommit computes and signs the repo's current head commit. It returns
+// ok=false (after writing an HTTP error) only on an internal failure; a repo
+// with no records yields a zero commit with ok=true (the caller skips it).
+func (s *Server) buildRepoCommit(
+	ctx context.Context,
+	w http.ResponseWriter,
+	spaceURI habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
+	rev, hash, found, err := s.store.RepoHead(ctx, spaceURI, repo)
+	if err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "repo head", http.StatusInternalServerError)
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
+	}
+	if !found {
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, errEmptyRepo
+	}
+	commit, err := buildSignedCommit(ctx, s.commit, spaceURI, repo, rev, hash)
+	if err != nil {
+		utils.LogAndHTTPError(ctx, w, err, "build signed commit", http.StatusInternalServerError)
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
+	}
+	return habitat.NetworkHabitatSpaceDefsSignedCommit{
+		Ver:  int64(commit.Ver),
+		Hash: commit.Hash,
+		Ikm:  commit.Ikm,
+		Mac:  commit.Mac,
+		Sig:  commit.Sig,
+		Rev:  commit.Rev,
+	}, nil
 }
 
 func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
@@ -777,7 +833,7 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.store.DeleteRecord(r.Context(), spaceURI, collection, input.Rkey)
+	err = s.store.DeleteRecord(r.Context(), spaceURI, repo, collection, input.Rkey)
 	if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "delete record", http.StatusInternalServerError)
 		return

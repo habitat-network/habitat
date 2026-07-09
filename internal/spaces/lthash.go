@@ -50,6 +50,19 @@ func (h *ltHash) fold(element string, subtract bool) {
 	}
 }
 
+// loadLtHash reconstructs an ltHash from its serialized 2048-byte state. A state
+// of the wrong length (e.g. an empty/missing row) yields the zero (empty) hash.
+func loadLtHash(state []byte) ltHash {
+	var h ltHash
+	if len(state) != ltHashStateBytes {
+		return h
+	}
+	for i := range ltHashLanes {
+		h.lanes[i] = binary.LittleEndian.Uint16(state[i*2:])
+	}
+	return h
+}
+
 // state returns the 2048-byte little-endian serialization of the lanes.
 func (h *ltHash) state() []byte {
 	b := make([]byte, ltHashStateBytes)

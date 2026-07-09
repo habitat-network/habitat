@@ -297,12 +297,25 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
 	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
+
+	// Habitat's single host signing key signs permissioned-repo commits for repo
+	// owners on external PDSes (habitat-managed owners sign with their own hive
+	// key instead). Optional: if unset, host-signed commits are omitted.
+	var hostSigner spaces.CommitSigner
+	if k := cmd.String(fSpaceSigningKey); k != "" {
+		hostSigner, err = spaces.NewHostSigner(k)
+		if err != nil {
+			return fmt.Errorf("setup space-host signing key: %w", err)
+		}
+	}
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
 		oauthServer,
 		serviceAuth,
 		orgStore,
+		hostSigner,
+		hive,
 	)
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)

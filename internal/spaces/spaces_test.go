@@ -427,11 +427,50 @@ func TestDeleteRecord(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "rkey", map[string]any{"x": 1})
 	require.NoError(t, err)
 
-	err = s.DeleteRecord(t.Context(), uri, coll, "rkey")
+	err = s.DeleteRecord(t.Context(), uri, owner, coll, "rkey")
 	require.NoError(t, err)
 
 	_, err = s.GetRecord(t.Context(), uri, owner, coll, "rkey")
 	require.ErrorIs(t, err, ErrRecordNotFound)
+}
+
+// TestRepoHash_IncrementalOnUpdateAndDelete verifies the cached LtHash is
+// maintained in the write path: an update folds the old cid out (not just the
+// new one in), and deleting the last record drops the repo from the writer set.
+func TestRepoHash_IncrementalOnUpdateAndDelete(t *testing.T) {
+	s := newTestStore(t)
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+	coll := syntax.NSID("network.habitat.note")
+
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 1})
+	require.NoError(t, err)
+	var want1 ltHash
+	want1.add(recordElement(coll.String(), "k1", cid1.String()))
+	_, hash, found, err := s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, want1.sum(), hash)
+
+	// Update the same rkey: the old element must be folded out and the new in.
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"v": 2})
+	require.NoError(t, err)
+	require.NotEqual(t, cid1.String(), cid2.String())
+	var want2 ltHash
+	want2.add(recordElement(coll.String(), "k1", cid2.String()))
+	_, hash, _, err = s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.Equal(t, want2.sum(), hash, "update must not leave the old cid folded in")
+
+	// Delete the last record: the repo leaves the writer set.
+	require.NoError(t, s.DeleteRecord(t.Context(), uri, owner, coll, "k1"))
+	_, _, found, err = s.RepoHead(t.Context(), uri, owner)
+	require.NoError(t, err)
+	require.False(t, found)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Empty(t, repos)
 }
 
 func TestDeleteRecord_Nonexistent(t *testing.T) {
@@ -441,7 +480,7 @@ func TestDeleteRecord_Nonexistent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deleting a nonexistent record should not error
-	err = s.DeleteRecord(t.Context(), uri, syntax.NSID("network.habitat.note"), "nonexistent")
+	err = s.DeleteRecord(t.Context(), uri, owner, syntax.NSID("network.habitat.note"), "nonexistent")
 	require.NoError(t, err)
 }
 

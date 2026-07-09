@@ -40,6 +40,18 @@ type spaceRecord struct {
 	UpdatedAt  time.Time
 }
 
+// repoHashState caches a permissioned repo's LtHash so reads (listRepos,
+// listRepoOps commit) don't rescan every record. State is the 2048-byte LtHash
+// buffer, maintained incrementally in the write path (folded in on put, out on
+// delete). Rev tracks the repo's latest write revision.
+type repoHashState struct {
+	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	Repo      syntax.DID              `gorm:"primaryKey"`
+	State     []byte
+	Rev       syntax.TID
+	UpdatedAt time.Time
+}
+
 // SpaceView is the public representation of a space
 type SpaceView struct {
 	URI         habitat_syntax.SpaceURI
@@ -147,6 +159,7 @@ type Store interface {
 	DeleteRecord(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
 		collection syntax.NSID,
 		rkey string,
 	) error
@@ -163,6 +176,14 @@ type Store interface {
 		since string,
 		limit int,
 	) ([]Record, error)
+
+	// RepoHead returns a repo's current head revision and LtHash commit hash.
+	// found is false when the repo holds no records in the space.
+	RepoHead(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+	) (rev string, hash []byte, found bool, err error)
 
 	// WithTx returns a copy of the store scoped to the given transaction, so its
 	// DB writes participate in a caller-managed transaction. FGA writes are not
@@ -192,7 +213,7 @@ type store struct {
 var _ Store = &store{}
 
 func NewStore(db *gorm.DB, fga fgastore.Store, eventStore events.Store) (*store, error) {
-	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
+	if err := db.AutoMigrate(&space{}, &spaceRecord{}, &repoHashState{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
 	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0), eventStore: eventStore}, nil
@@ -326,6 +347,40 @@ func (s *store) ListSpaces(
 	return views, nil
 }
 
+// loadRepoHash reads a repo's cached LtHash state and rev, or the zero hash and
+// empty rev (found=false) when no row exists yet.
+func loadRepoHash(
+	tx *gorm.DB,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (ltHash, syntax.TID, bool, error) {
+	var row repoHashState
+	err := tx.Where("space = ? AND repo = ?", space, repo).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ltHash{}, "", false, nil
+	}
+	if err != nil {
+		return ltHash{}, "", false, err
+	}
+	return loadLtHash(row.State), row.Rev, true, nil
+}
+
+// saveRepoHash persists a repo's LtHash state and rev.
+func saveRepoHash(
+	tx *gorm.DB,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	h ltHash,
+	rev syntax.TID,
+) error {
+	return tx.Save(&repoHashState{
+		Space: space,
+		Repo:  repo,
+		State: h.state(),
+		Rev:   rev,
+	}).Error
+}
+
 func (s *store) ListRepos(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
@@ -340,45 +395,24 @@ func (s *store) ListRepos(
 		return nil, err
 	}
 
-	// Scan every record in the space once and fold each repo's records into an
-	// LtHash. Computing the commit hash requires reading the full record set
-	// anyway, so we derive the max rev in the same pass rather than a separate
-	// GROUP BY query.
-	var rows []spaceRecord
+	// The writer set and each repo's hash come straight from the cached hash
+	// table, maintained incrementally by the write path — no record rescan.
+	var rows []repoHashState
 	if err := s.db.WithContext(ctx).
 		Where("space = ?", uri).
-		Order("repo ASC, rev ASC").
+		Order("repo ASC").
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	type repoAcc struct {
-		rev  syntax.TID
-		hash ltHash
-	}
-	accs := make(map[syntax.DID]*repoAcc)
-	var order []syntax.DID
-	for _, row := range rows {
-		a, ok := accs[row.Repo]
-		if !ok {
-			a = &repoAcc{}
-			accs[row.Repo] = a
-			order = append(order, row.Repo)
+	repos := make([]RepoInfo, len(rows))
+	for i, row := range rows {
+		h := loadLtHash(row.State)
+		repos[i] = RepoInfo{
+			DID:  row.Repo,
+			Rev:  string(row.Rev),
+			Hash: h.sum(),
 		}
-		if row.Rev > a.rev {
-			a.rev = row.Rev
-		}
-		a.hash.add(recordElement(row.Collection.String(), row.Rkey.String(), row.Cid))
-	}
-
-	repos := make([]RepoInfo, 0, len(order))
-	for _, did := range order {
-		a := accs[did]
-		repos = append(repos, RepoInfo{
-			DID:  did,
-			Rev:  string(a.rev),
-			Hash: a.hash.sum(),
-		})
 	}
 	return repos, nil
 }
@@ -582,6 +616,29 @@ func (s *store) PutRecord(
 		); err != nil {
 			return err
 		}
+
+		// Maintain the cached LtHash: fold out this record's previous element (if
+		// it already existed) and fold in the new one, then advance the rev.
+		var existing spaceRecord
+		existErr := tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				spaceUri, repo, collection, rkey).
+			First(&existing).Error
+		if existErr != nil && !errors.Is(existErr, gorm.ErrRecordNotFound) {
+			return existErr
+		}
+		h, _, _, err := loadRepoHash(tx, spaceUri, repo)
+		if err != nil {
+			return err
+		}
+		if existErr == nil {
+			h.remove(recordElement(collection.String(), rkey.String(), existing.Cid))
+		}
+		h.add(recordElement(collection.String(), rkey.String(), cid.String()))
+		if err := saveRepoHash(tx, spaceUri, repo, h, tid); err != nil {
+			return err
+		}
+
 		return tx.Save(&spaceRecord{
 			Repo:       repo,
 			Space:      spaceUri,
@@ -759,19 +816,76 @@ func (s *store) ListRepoOps(
 	return records, nil
 }
 
+func (s *store) RepoHead(
+	ctx context.Context,
+	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
+) (string, []byte, bool, error) {
+	h, rev, found, err := loadRepoHash(s.db.WithContext(ctx), uri, repo)
+	if err != nil {
+		return "", nil, false, fmt.Errorf("repo head: %w", err)
+	}
+	if !found {
+		return "", nil, false, nil
+	}
+	return string(rev), h.sum(), true, nil
+}
+
 func (s *store) DeleteRecord(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
+	repo syntax.DID,
 	collection syntax.NSID,
 	rkey string,
 ) error {
-	result := s.db.WithContext(ctx).
-		Where("space = ? AND collection = ? AND rkey = ?",
-			uri, collection, rkey).
-		Delete(&spaceRecord{})
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if tx.Name() == "postgres" {
+			if err := tx.Exec(
+				`SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))`,
+				uri,
+				repo,
+			).Error; err != nil {
+				return err
+			}
+		}
 
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+		var rows []spaceRecord
+		if err := tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				uri, repo, collection, rkey).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		if err := tx.
+			Where("space = ? AND repo = ? AND collection = ? AND rkey = ?",
+				uri, repo, collection, rkey).
+			Delete(&spaceRecord{}).Error; err != nil {
+			return err
+		}
+
+		// Fold the deleted records out of the cached LtHash.
+		h, rev, _, err := loadRepoHash(tx, uri, repo)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			h.remove(recordElement(row.Collection.String(), row.Rkey.String(), row.Cid))
+		}
+
+		// Drop the hash row entirely once the repo holds no more records, so it
+		// leaves the writer set reported by ListRepos.
+		var remaining int64
+		if err := tx.Model(&spaceRecord{}).
+			Where("space = ? AND repo = ?", uri, repo).
+			Count(&remaining).Error; err != nil {
+			return err
+		}
+		if remaining == 0 {
+			return tx.Where("space = ? AND repo = ?", uri, repo).Delete(&repoHashState{}).Error
+		}
+		return saveRepoHash(tx, uri, repo, h, rev)
+	})
 }

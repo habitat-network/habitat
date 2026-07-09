@@ -37,6 +37,13 @@ type Hive interface {
 		ttl time.Duration,
 		lxm *syntax.NSID,
 	) (string, error)
+	// IsManaged reports whether did is a habitat-managed did:web identity (one
+	// whose signing key hive holds).
+	IsManaged(did syntax.DID) bool
+	// SignAsMember signs msg with did's signing key (HashAndSign). Precondition:
+	// IsManaged(did). Used to sign permissioned-repo commits on behalf of
+	// habitat-managed repo owners, per the atproto permissioned-data proposal.
+	SignAsMember(ctx context.Context, did syntax.DID, msg []byte) ([]byte, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -164,6 +171,27 @@ func (h *hive) SignServiceAuth(
 		return "", fmt.Errorf("failed to get signing private key: %w", err)
 	}
 	return auth.SignServiceAuth(iss, aud, ttl, lxm, priv)
+}
+
+// IsManaged implements Hive.
+func (h *hive) IsManaged(did syntax.DID) bool {
+	content := strings.TrimPrefix(did.String(), "did:web:")
+	_, after, ok := strings.Cut(content, ".")
+	return ok && after == h.memberDomain
+}
+
+// SignAsMember implements Hive.
+func (h *hive) SignAsMember(ctx context.Context, did syntax.DID, msg []byte) ([]byte, error) {
+	content := strings.TrimPrefix(did.String(), "did:web:")
+	opaqueID, after, ok := strings.Cut(content, ".")
+	if !ok || after != h.memberDomain {
+		return nil, identity.ErrDIDNotFound
+	}
+	priv, err := h.store.getSigningPrivateKeyByID(ctx, opaqueID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get signing private key: %w", err)
+	}
+	return priv.HashAndSign(msg)
 }
 
 // MintOrgIdentity implements [Hive].

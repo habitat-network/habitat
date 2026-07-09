@@ -289,6 +289,8 @@ func setupPear(
 		oauthServer,
 		authntest.NewFailMethod(),
 		orgStore,
+		nil,
+		nil,
 	)
 
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)
