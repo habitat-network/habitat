@@ -13,24 +13,26 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-func NewServiceAuthMethod(directory identity.Directory) Method {
-	return &pdsServiceAuthMethod{
+func NewServiceAuthMethod(directory identity.Directory) *AtprotoServiceAuthMethod {
+	return &AtprotoServiceAuthMethod{
 		directory: directory,
 	}
 }
 
-type pdsServiceAuthMethod struct {
+type AtprotoServiceAuthMethod struct {
 	directory identity.Directory
 }
 
-var _ Method = (*pdsServiceAuthMethod)(nil)
+var _ Method = (*AtprotoServiceAuthMethod)(nil)
 
 // CanHandle implements [Method].
-func (p *pdsServiceAuthMethod) CanHandle(r *http.Request) bool {
+func (p *AtprotoServiceAuthMethod) CanHandle(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
 }
 
-func (p *pdsServiceAuthMethod) validateInner(token *jwt.JSONWebToken) (syntax.DID, bool, error) {
+func (p *AtprotoServiceAuthMethod) validateInner(
+	token *jwt.JSONWebToken,
+) (syntax.DID, bool, error) {
 	var claims serviceJwtPayload
 	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
 		return "", false, err
@@ -56,7 +58,7 @@ func (p *pdsServiceAuthMethod) validateInner(token *jwt.JSONWebToken) (syntax.DI
 }
 
 // Validate implements [Method].
-func (p *pdsServiceAuthMethod) Validate(
+func (p *AtprotoServiceAuthMethod) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
@@ -76,6 +78,23 @@ func (p *pdsServiceAuthMethod) Validate(
 		return nil, false
 	}
 	return &CredentialInfo{Subject: did, Type: UserCredential}, true
+}
+
+func (p *AtprotoServiceAuthMethod) ValidateRaw(
+	ctx context.Context,
+	token string,
+	scopes ...string,
+) (*CredentialInfo, bool, error) {
+	parsed, err := jwt.ParseSigned(token)
+	if err != nil {
+		return nil, false, err
+	}
+
+	did, ok, err := p.validateInner(parsed)
+	if !ok || err != nil {
+		return nil, ok, err
+	}
+	return &CredentialInfo{Subject: did, Type: UserCredential}, true, nil
 }
 
 type serviceJwtPayload struct {
