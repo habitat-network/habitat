@@ -135,6 +135,7 @@ export class PearClient {
         collection,
         rkey,
         record,
+        repo: org,
       } satisfies NetworkHabitatSpacePutRecord.InputSchema,
     );
   }

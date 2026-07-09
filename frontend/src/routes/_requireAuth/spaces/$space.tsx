@@ -279,7 +279,7 @@ function CreateRecordDialog({
       }
       await procedure(
         "network.habitat.space.putRecord",
-        { space, collection, record },
+        { space, collection, record, repo: authManager.getAuthInfo()!.did },
         { authManager },
       );
     },

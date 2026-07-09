@@ -7,7 +7,7 @@ type NetworkHabitatSpacePutRecordInput struct {
 	Collection string      `json:"collection"`
 	Record     interface{} `json:"record"`
 	Repo       string      `json:"repo"`
-	Rkey       string      `json:"rkey"`
+	Rkey       string      `json:"rkey,omitempty"`
 	Space      string      `json:"space"`
 	Validate   bool        `json:"validate,omitempty"`
 }
