@@ -89,43 +89,72 @@ func TestServer_ListSpaces(t *testing.T) {
 	require.Equal(t, output.Spaces[0].MemberCount, int64(2))
 }
 
-func TestServer_AddMemberAndGetMembers(t *testing.T) {
+func TestServer_ListRepos(t *testing.T) {
 	s := newOwnerServer(t)
 
 	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "shared")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "did": "did:plc:alice", "access": "read"}`
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.store.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
 	req := httptest.NewRequest(
-		http.MethodPost,
-		"/xrpc/network.habitat.space.addMember",
-		strings.NewReader(body),
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
+		nil,
 	)
 	w := httptest.NewRecorder()
-	s.AddMember(w, req)
+	s.ListRepos(w, req)
+
 	require.Equal(t, http.StatusOK, w.Code)
+	var output habitat.NetworkHabitatSpaceListReposOutput
+	err = json.NewDecoder(w.Body).Decode(&output)
+	require.NoError(t, err)
+	require.Len(t, output.Repos, 1)
+	require.Equal(t, "did:plc:owner", output.Repos[0].Did)
+	require.NotEmpty(t, output.Repos[0].Rev)
+}
+
+func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
+	s := newOwnerServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "shared")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&cursor=abc",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.ListRepos(w, req)
+	require.Equal(t, http.StatusNotImplemented, w.Code)
 
 	req = httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.space.getMembers?space="+uri.String(),
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String()+"&limit=10",
 		nil,
 	)
 	w = httptest.NewRecorder()
-	s.GetMembers(w, req)
+	s.ListRepos(w, req)
+	require.Equal(t, http.StatusNotImplemented, w.Code)
+}
 
-	require.Equal(t, http.StatusOK, w.Code)
-	var output habitat.NetworkHabitatSpaceGetMembersOutput
-	err = json.NewDecoder(w.Body).Decode(&output)
+func TestServer_ListRepos_Unauthorized(t *testing.T) {
+	s := newAliceServer(t)
+
+	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
-	require.Len(t, output.Members, 3)
 
-	dids := make([]string, len(output.Members))
-	for i, m := range output.Members {
-		dids[i] = m.Did
-	}
-	require.Contains(t, dids, "did:plc:owner")
-	require.Contains(t, dids, "did:plc:alice")
-	require.Contains(t, dids, "did:plc:org") // the owning org is an implicit member
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/xrpc/network.habitat.space.listRepos?space="+uri.String(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	s.ListRepos(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_RemoveMember(t *testing.T) {
@@ -207,7 +236,7 @@ func TestServer_DeleteRecord(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "del-me"}`
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "del-me"}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.deleteRecord",
@@ -241,7 +270,7 @@ func TestServer_ListRecords(t *testing.T) {
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note",
+		"/xrpc/network.habitat.space.listRecords?space="+uri.String()+"&collection=network.habitat.note&repo="+owner.String(),
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -270,7 +299,7 @@ func TestServer_AddMember_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.AddMember(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_RemoveMember_Unauthorized(t *testing.T) {
@@ -287,7 +316,7 @@ func TestServer_RemoveMember_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.RemoveMember(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
@@ -304,7 +333,7 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.PutRecord(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
@@ -323,7 +352,7 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "test"}`
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:alice", "collection": "network.habitat.note", "rkey": "test"}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.deleteRecord",
@@ -331,7 +360,7 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.DeleteRecord(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_Unauthorized(t *testing.T) {
@@ -371,7 +400,7 @@ func TestServer_DeleteSpace(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// space should be unreachable
-	_, err = s.store.GetMembers(t.Context(), orgId, uri)
+	_, err = s.store.ListRepos(t.Context(), uri)
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
 
@@ -389,7 +418,7 @@ func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.DeleteSpace(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_GetRepoOplog(t *testing.T) {

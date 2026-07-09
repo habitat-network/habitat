@@ -5,7 +5,6 @@ package oauthserver
 import (
 	"context"
 	"encoding/gob"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,6 +17,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/ory/fosite"
@@ -523,13 +523,13 @@ func (o *OAuthServer) ValidateRaw(
 // HandleAuthServerMetadata serves the OAuth 2.0 Authorization Server Metadata
 // document at /.well-known/oauth-authorization-server.
 func (o *OAuthServer) HandleAuthServerMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(w, buildAuthServerMetadata(o.issuer))
+	writeMetadataJSON(r.Context(), w, buildAuthServerMetadata(o.issuer))
 }
 
 // HandleProtectedResourceMetadata serves the OAuth 2.0 Protected Resource
 // Metadata document at /.well-known/oauth-protected-resource.
 func (o *OAuthServer) HandleProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
-	writeMetadataJSON(w, buildProtectedResourceMetadata(o.issuer))
+	writeMetadataJSON(r.Context(), w, buildProtectedResourceMetadata(o.issuer))
 }
 
 func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) {
@@ -578,15 +578,5 @@ func (o *OAuthServer) ListConnectedApps(w http.ResponseWriter, r *http.Request) 
 			LogoUri:   c.LogoUri,
 		}
 	}
-	err = json.NewEncoder(w).Encode(output)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"encoding response",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+	httpx.WriteJSON(r.Context(), w, output)
 }
