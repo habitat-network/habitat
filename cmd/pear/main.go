@@ -451,7 +451,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
+	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 
 	mux.HandleFunc(
 		"/xrpc/network.habitat.relationship.writeTuple",

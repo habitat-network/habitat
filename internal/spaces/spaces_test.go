@@ -485,7 +485,7 @@ func TestDeleteSpace_NonExistent(t *testing.T) {
 	require.ErrorIs(t, err, ErrSpaceNotFound)
 }
 
-func TestGetRepoOplog(t *testing.T) {
+func TestListRepoOps(t *testing.T) {
 	s := newTestStore(t)
 
 	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
@@ -500,34 +500,34 @@ func TestGetRepoOplog(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k3", map[string]any{"x": 3})
 	require.NoError(t, err)
 
-	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 1)
+	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 1)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, syntax.RecordKey("k1"), records[0].Rkey)
 
-	records, err = s.GetRepoOplog(t.Context(), uri, owner, records[0].Rev, 100)
+	records, err = s.ListRepoOps(t.Context(), uri, owner, records[0].Rev, 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, syntax.RecordKey("k3"), records[0].Rkey)
 
-	records, err = s.GetRepoOplog(t.Context(), uri, alice, "", 100)
+	records, err = s.ListRepoOps(t.Context(), uri, alice, "", 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, syntax.RecordKey("k2"), records[0].Rkey)
 }
 
-func TestGetRepoOplog_Empty(t *testing.T) {
+func TestListRepoOps_Empty(t *testing.T) {
 	s := newTestStore(t)
 
 	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, records, 0)
 }
 
-func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
+func TestListRepoOps_RevIncludesValue(t *testing.T) {
 	s := newTestStore(t)
 
 	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
@@ -538,7 +538,7 @@ func TestGetRepoOplog_RevIncludesValue(t *testing.T) {
 	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"text": "hello"})
 	require.NoError(t, err)
 
-	records, err := s.GetRepoOplog(t.Context(), uri, owner, "", 100)
+	records, err := s.ListRepoOps(t.Context(), uri, owner, "", 100)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.Equal(t, "hello", records[0].Value["text"])
