@@ -12,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/login"
@@ -27,7 +26,7 @@ type inviteTokenClaims struct {
 }
 
 type Member struct {
-	Org     core.Org
+	Org     Org
 	DID     syntax.DID
 	Role    Role
 	LoginID string
@@ -36,8 +35,8 @@ type Member struct {
 // Store is the registry of all orgs on a pear instance.
 // It routes DIDs to their org and provides cross-org membership checks.
 type Store interface {
-	GetOrg(ctx context.Context, orgID syntax.DID) (core.Org, error)
-	GetOrgForDID(ctx context.Context, did syntax.DID) (o core.Org, isMember bool, err error)
+	GetOrg(ctx context.Context, orgID syntax.DID) (Org, error)
+	GetOrgForDID(ctx context.Context, did syntax.DID) (o Org, isMember bool, err error)
 	CreateOrg(
 		ctx context.Context,
 		name string,
@@ -76,7 +75,7 @@ type storeImpl struct {
 	hive             hive.Hive
 	dir              identity.Directory
 	pearDomain       string
-	everyone         core.Org
+	everyone         Org
 	passwordProvider *login.PasswordLoginProvider
 	fga              fgastore.Store
 }
@@ -116,7 +115,7 @@ func (s *storeImpl) orgFromModel(org *organization) (*orgImpl, error) {
 }
 
 // GetOrg returns the org with the given ID.
-func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (core.Org, error) {
+func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (Org, error) {
 	var org organization
 	if err := s.db.WithContext(ctx).Where("id = ?", orgID).First(&org).Error; err != nil {
 		return nil, ErrOrgNotFound
@@ -130,7 +129,7 @@ func (s *storeImpl) GetOrg(ctx context.Context, orgID syntax.DID) (core.Org, err
 func (s *storeImpl) GetOrgForDID(
 	ctx context.Context,
 	did syntax.DID,
-) (core.Org, bool /* isMember */, error) {
+) (Org, bool /* isMember */, error) {
 	if o, err := s.GetOrg(ctx, did); err == nil {
 		return o, false, nil
 	}
@@ -185,7 +184,7 @@ func (s *storeImpl) CreateOrg(
 		if err := tx.Create(&organization{
 			ID:              mintedOrgId.DID,
 			Name:            name,
-			LoginMethod:     core.LoginMethod(method),
+			LoginMethod:     LoginMethod(method),
 			SigningSecret:   signingSecret,
 			CreatedAt:       time.Now(),
 			HandleSubdomain: handleSubdomain,
@@ -424,7 +423,7 @@ func (s *storeImpl) CreateNewMemberIdentity(
 
 		var memberLoginID string
 		switch org.LoginMethod {
-		case core.LoginMethodPassword:
+		case LoginMethodPassword:
 			memberLoginID = newID.DID.String()
 			if err := s.passwordProvider.WithTx(tx).AddLoginEntry(newID.DID, password); err != nil {
 				return fmt.Errorf("add login entry: %w", err)

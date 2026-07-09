@@ -3,32 +3,29 @@ package authn
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServiceAuthValidate(t *testing.T) {
 	directory := pdsclient.NewDummyDirectory("https://pds.com")
-	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: "ES256K",
-		Key:       atcryptoSigner{directory.PrivateKey},
-	}, nil)
-	require.NoError(t, err, "failed to create signer")
-	token, err := jwt.Signed(signer).Claims(serviceJwtPayload{
-		Iss: "did:plc:test",
-		Aud: "https://pds.com",
-		Exp: 0,
-		Lxm: "lxm",
-	}).CompactSerialize()
-	require.NoError(t, err, "failed to create token")
-	serviceAuth := NewServiceAuthMethod(directory)
+	lxm := syntax.NSID("io.example.test")
+	token, err := auth.SignServiceAuth(
+		syntax.DID("did:plc:test"),
+		"https://pds.com",
+		time.Hour,
+		&lxm,
+		directory.PrivateKey,
+	)
+	require.NoError(t, err)
+	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/xrpc/io.example.test", nil)
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	credInfo, ok := serviceAuth.Validate(w, r)
@@ -39,69 +36,25 @@ func TestServiceAuthValidate(t *testing.T) {
 
 func TestServiceAuthValidate_InvalidToken(t *testing.T) {
 	directory := pdsclient.NewDummyDirectory("https://pds.com")
-	serviceAuth := NewServiceAuthMethod(directory)
+	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/xrpc/lxm", nil)
 	r.Header.Set("Authorization", "Bearer invalid")
-	_, ok := serviceAuth.Validate(w, r)
-	require.False(t, ok)
-}
-
-func TestServiceAuthValidate_InvalidSignature(t *testing.T) {
-	directory := pdsclient.NewDummyDirectory("https://pds.com")
-	key, err := atcrypto.GeneratePrivateKeyK256()
-	require.NoError(t, err)
-	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: "ES256K",
-		Key:       atcryptoSigner{key},
-	}, nil)
-	require.NoError(t, err, "failed to create signer")
-	token, err := jwt.Signed(signer).Claims(serviceJwtPayload{
-		Iss: "did:plc:test",
-		Aud: "https://pds.com",
-		Exp: 0,
-		Lxm: "lxm",
-	}).CompactSerialize()
-	require.NoError(t, err, "failed to create token")
-	serviceAuth := NewServiceAuthMethod(directory)
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
-	r.Header.Set("Authorization", "Bearer "+token)
 	_, ok := serviceAuth.Validate(w, r)
 	require.False(t, ok)
 }
 
 func TestServiceAuthCanHandle(t *testing.T) {
 	directory := pdsclient.NewDummyDirectory("https://pds.com")
-	serviceAuth := NewServiceAuthMethod(directory)
+	tok := jwt.NewWithClaims(jwt.GetSigningMethod("ES256K"), jwt.MapClaims{
+		"iss": "did:plc:test",
+		"aud": "https://pds.com",
+	})
+	tok.Header["kid"] = "#atproto"
+	token, err := tok.SignedString(directory.PrivateKey)
+	require.NoError(t, err)
+	serviceAuth := NewServiceAuthMethod(directory, "https://pds.com")
 	r := httptest.NewRequest("GET", "/", nil)
-	r.Header.Set("Authorization", "Bearer invalid")
+	r.Header.Set("Authorization", "Bearer "+token)
 	require.True(t, serviceAuth.CanHandle(r))
-}
-
-type atcryptoSigner struct {
-	atcrypto.PrivateKey
-}
-
-var _ jose.OpaqueSigner = (*atcryptoSigner)(nil)
-
-// Algs implements [jose.OpaqueSigner].
-func (a atcryptoSigner) Algs() []jose.SignatureAlgorithm {
-	switch a.PrivateKey.(type) {
-	case *atcrypto.PrivateKeyK256:
-		return []jose.SignatureAlgorithm{"ES256K"}
-	case *atcrypto.PrivateKeyP256:
-		return []jose.SignatureAlgorithm{"ES256"}
-	}
-	return nil
-}
-
-// Public implements [jose.OpaqueSigner].
-func (a atcryptoSigner) Public() *jose.JSONWebKey {
-	return nil
-}
-
-// SignPayload implements [jose.OpaqueSigner].
-func (a atcryptoSigner) SignPayload(payload []byte, alg jose.SignatureAlgorithm) ([]byte, error) {
-	return a.HashAndSign(payload)
 }

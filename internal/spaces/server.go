@@ -122,10 +122,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -793,7 +790,6 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithRequiredSubject(),
 	).Validate(w, r)
 	if !ok {
 		return

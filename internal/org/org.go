@@ -6,13 +6,40 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
-	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/db"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/openfga/openfga/pkg/tuple"
 
 	"gorm.io/gorm"
 )
+
+type LoginMethod string
+
+const (
+	LoginMethodAtproto  LoginMethod = "atproto"
+	LoginMethodGoogle   LoginMethod = "google"
+	LoginMethodPassword LoginMethod = "password"
+)
+
+type Org interface {
+	DID() syntax.DID
+
+	AddAdmin(ctx context.Context, admin syntax.DID) error
+	GetAdmins(ctx context.Context) ([]syntax.DID, error)
+	GetMembers(ctx context.Context) ([]syntax.DID, error)
+	RemoveAdmin(ctx context.Context, admin syntax.DID) error
+	RemoveMembers(ctx context.Context, members []syntax.DID) error
+	DowngradeAdmin(ctx context.Context, admin syntax.DID) error
+	IsAdmin(ctx context.Context, did syntax.DID) (bool, error)
+	IsMember(ctx context.Context, did syntax.DID) (bool, error)
+
+	GetMetadata(ctx context.Context, domain string) habitat.NetworkHabitatOrgGetMetadataOutput
+
+	LoginMethod(ctx context.Context) LoginMethod
+
+	db.Store[Org]
+}
 
 type Role string
 
@@ -41,11 +68,11 @@ type orgImpl struct {
 	name            string
 	db              *gorm.DB
 	handleSubdomain string
-	method          core.LoginMethod
+	method          LoginMethod
 	fga             fgastore.Store
 }
 
-var _ core.Org = &orgImpl{}
+var _ Org = &orgImpl{}
 
 // DID implements [Org].
 func (s *orgImpl) DID() syntax.DID {
@@ -64,7 +91,7 @@ func (s *orgImpl) GetMetadata(
 	}
 }
 
-func (s *orgImpl) LoginMethod(ctx context.Context) core.LoginMethod {
+func (s *orgImpl) LoginMethod(ctx context.Context) LoginMethod {
 	return s.method
 }
 
@@ -263,7 +290,7 @@ func (s *orgImpl) IsMember(ctx context.Context, did syntax.DID) (bool, error) {
 }
 
 // WithTx implements [Org].
-func (s *orgImpl) WithTx(tx *gorm.DB) core.Org {
+func (s *orgImpl) WithTx(tx *gorm.DB) Org {
 	return &orgImpl{
 		orgID:           s.orgID,
 		db:              tx,

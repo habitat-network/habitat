@@ -17,6 +17,7 @@ import (
 	"github.com/habitat-network/habitat/internal/hive"
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/org"
+	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -57,7 +58,7 @@ func TestMintThenLookup(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, testOrg.AddAdmin(ctx, adminDID))
 
-	orgServer, err := org.NewServer(
+	orgServer, err := org_server.NewServer(
 		orgStore,
 		authntest.NewSuccessMethod(adminDID),
 		nil,
