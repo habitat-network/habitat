@@ -256,15 +256,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection, err := syntax.ParseNSID(params.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"parsing collection as NSID",
-			http.StatusBadRequest,
-		)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection")
+	if !ok {
 		return
 	}
 	rkey, err := syntax.ParseRecordKey(params.Rkey)
@@ -523,9 +516,8 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		subjects[i] = atid
 	}
 
-	collection, err := syntax.ParseNSID(params.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parsing collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection")
+	if !ok {
 		return
 	}
 
