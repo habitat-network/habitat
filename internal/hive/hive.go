@@ -2,6 +2,7 @@ package hive
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -160,7 +161,7 @@ func (h *hive) SignServiceAuth(
 	}
 	priv, err := h.store.getSigningPrivateKeyByID(ctx, opaqueID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get signing private key: %w", err)
 	}
 	return auth.SignServiceAuth(iss, aud, ttl, lxm, priv)
 }

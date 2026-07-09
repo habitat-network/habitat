@@ -2,6 +2,7 @@ package forwarding
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/hive"
+	"github.com/habitat-network/habitat/internal/pdsclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +34,7 @@ func neverNext(t *testing.T) http.Handler {
 }
 
 func TestServiceProxyNoHeader_CallsNext(t *testing.T) {
-	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory())
+	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory(), nil)
 
 	nextCalled := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +55,7 @@ func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		identity.NewMockDirectory(),
+		nil,
 	)
 
 	w := httptest.NewRecorder()
@@ -64,7 +67,7 @@ func TestServiceProxyMalformedHeader_Returns400(t *testing.T) {
 }
 
 func TestServiceProxyAuthFails_Returns401(t *testing.T) {
-	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory())
+	sp := NewServiceProxy(authntest.NewFailMethod(), nil, identity.NewMockDirectory(), nil)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
@@ -80,6 +83,7 @@ func TestServiceProxyDIDResolutionFails_Returns502(t *testing.T) {
 		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		identity.NewMockDirectory(),
+		nil,
 	)
 
 	w := httptest.NewRecorder()
@@ -104,6 +108,7 @@ func TestServiceProxyServiceNotFound_Returns400(t *testing.T) {
 		authntest.NewSuccessMethod(syntax.DID("did:web:alice.org.example.com")),
 		nil,
 		dir,
+		nil,
 	)
 
 	w := httptest.NewRecorder()
@@ -137,7 +142,7 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 		Services: map[string]identity.ServiceEndpoint{"atproto_labeler": {URL: target.URL}},
 	})
 
-	sp := NewServiceProxy(authntest.NewSuccessMethod(callerID.DID), h, dir)
+	sp := NewServiceProxy(authntest.NewSuccessMethod(callerID.DID), h, dir, nil)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
@@ -172,4 +177,50 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	aud, err := claims.GetAudience()
 	require.NoError(t, err)
 	require.Contains(t, aud, targetDID)
+}
+
+func TestServiceProxyIntegration_RemoteDID(t *testing.T) {
+	h := newTestServiceProxyHive(t)
+	calledDID := syntax.DID("did:plc:12345")
+	targetDID := "did:web:labeler.example.com"
+	// Record the forwarded request for assertions.
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Empty(t, r.Header.Get("Atproto-Proxy"))
+		require.Empty(t, r.Header.Get("DPoP"))
+		token, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		require.True(t, found)
+		require.Equal(t, "token", token)
+	}))
+
+	pds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/xrpc/com.atproto.server.getServiceAuth", r.URL.Path)
+		require.Equal(t, "did:web:labeler.example.com#atproto_labeler", r.URL.Query().Get("aud"))
+		require.Equal(t, "app.bsky.feed.getTimeline", r.URL.Query().Get("lxm"))
+		json.NewEncoder(w).Encode(map[string]any{
+			"token": "token",
+		})
+	}))
+
+	t.Cleanup(target.Close)
+
+	dir := identity.NewMockDirectory()
+	dir.Insert(identity.Identity{
+		DID:      syntax.DID(targetDID),
+		Services: map[string]identity.ServiceEndpoint{"atproto_labeler": {URL: target.URL}},
+	})
+
+	sp := NewServiceProxy(
+		authntest.NewSuccessMethod(calledDID),
+		h,
+		dir,
+		pdsclient.NewDummyClientFactory(pds.URL),
+	)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/xrpc/app.bsky.feed.getTimeline", nil)
+	r.Header.Set("Atproto-Proxy", targetDID+"#atproto_labeler")
+	r.Header.Set("DPoP", "some-dpop-proof")
+	sp(neverNext(t)).ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
 }
