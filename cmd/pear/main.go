@@ -36,6 +36,7 @@ import (
 	habitat_identity "github.com/habitat-network/habitat/internal/identity"
 	"github.com/habitat-network/habitat/internal/instance"
 	"github.com/habitat-network/habitat/internal/login"
+	"github.com/habitat-network/habitat/internal/notify"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
 	org_server "github.com/habitat-network/habitat/internal/org/server"
@@ -292,7 +293,13 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 	syncServer := sync.NewServer(eventStore)
 
-	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore)
+	notifyStore, err := notify.NewStore(db.WithContext(startupCtx))
+	if err != nil {
+		return fmt.Errorf("setup notify store: %w", err)
+	}
+	notifier := notify.NewNotifier(notifyStore, http.DefaultClient, hive)
+
+	spacesStore, err := spaces.NewStore(db.WithContext(startupCtx), fgaStore, eventStore, notifier)
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
@@ -304,6 +311,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		serviceAuth,
 		orgStore,
 	)
+	notifyServer := notify.NewServer(notifyStore, authn.NewSpaceCredentialAuthMethod(defaultDir))
 
 	relationshipStore := relationship.NewStore(db.WithContext(startupCtx), spacesStore, fgaStore)
 	relationshipServer := relationship.NewServer(
@@ -453,6 +461,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
 	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
+	mux.HandleFunc("/xrpc/network.habitat.space.registerNotify", notifyServer.RegisterNotify)
 
 	mux.HandleFunc(
 		"/xrpc/network.habitat.relationship.writeTuple",

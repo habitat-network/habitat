@@ -33,7 +33,7 @@ func newTestStore(t *testing.T) (*Store, spaces.Store) {
 	t.Cleanup(func() { _ = fga.Close() })
 	eventStore, err := events.NewStore(db)
 	require.NoError(t, err)
-	sp, err := spaces.NewStore(db, fga, eventStore)
+	sp, err := spaces.NewStore(db, fga, eventStore, nil)
 	require.NoError(t, err)
 	return NewStore(db, sp, fga), sp
 }
@@ -464,7 +464,7 @@ func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
 	fga := &flakyFGA{Store: mem}
 	eventStore, err := events.NewStore(db)
 	require.NoError(t, err)
-	sp, err := spaces.NewStore(db, fga, eventStore)
+	sp, err := spaces.NewStore(db, fga, eventStore, nil)
 	require.NoError(t, err)
 	rel := NewStore(db, sp, fga)
 

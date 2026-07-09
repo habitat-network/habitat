@@ -4484,6 +4484,70 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceNotifySpaceDeleted: {
+    lexicon: 1,
+    id: 'network.habitat.space.notifySpaceDeleted',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify a repo host or syncing service that a space has been deleted. Sent by the space authority, best-effort. Authenticated with service auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the deleted space.',
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceNotifyWrite: {
+    lexicon: 1,
+    id: 'network.habitat.space.notifyWrite',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'repo', 'rev', 'hash'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description: 'The DID of the account whose repo advanced.',
+              },
+              rev: {
+                type: 'string',
+                description: 'The revision of the write.',
+              },
+              hash: {
+                type: 'bytes',
+                description:
+                  "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos.",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpacePutRecord: {
     lexicon: 1,
     id: 'network.habitat.space.putRecord',
@@ -4550,6 +4614,62 @@ export const schemaDict = {
               validationStatus: {
                 type: 'string',
                 knownValues: ['valid', 'unknown'],
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
+      },
+    },
+  },
+  NetworkHabitatSpaceRegisterNotify: {
+    lexicon: 1,
+    id: 'network.habitat.space.registerNotify',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          'Register an endpoint to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential.',
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space', 'endpoint'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of a specific repo to subscribe to (repo host). Omit to subscribe to the whole space (space host).',
+              },
+              endpoint: {
+                type: 'string',
+                format: 'uri',
+                description:
+                  'The endpoint to which notifyWrite events should be delivered.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['expiresAt'],
+            properties: {
+              expiresAt: {
+                type: 'string',
+                format: 'datetime',
+                description: 'When the registration expires.',
               },
             },
           },
@@ -4736,6 +4856,10 @@ export const ids = {
   NetworkHabitatSpaceListRepoOps: 'network.habitat.space.listRepoOps',
   NetworkHabitatSpaceListRepos: 'network.habitat.space.listRepos',
   NetworkHabitatSpaceListSpaces: 'network.habitat.space.listSpaces',
+  NetworkHabitatSpaceNotifySpaceDeleted:
+    'network.habitat.space.notifySpaceDeleted',
+  NetworkHabitatSpaceNotifyWrite: 'network.habitat.space.notifyWrite',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',
+  NetworkHabitatSpaceRegisterNotify: 'network.habitat.space.registerNotify',
   NetworkHabitatSpaceRemoveMember: 'network.habitat.space.removeMember',
 } as const

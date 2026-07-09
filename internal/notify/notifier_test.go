@@ -1,0 +1,187 @@
+package notify
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/stretchr/testify/require"
+
+	"github.com/habitat-network/habitat/api/habitat"
+)
+
+var errSign = errors.New("sign failed")
+
+// fakeSigner records the service-auth requests it is asked to sign and returns a
+// fixed token, or err when set.
+type fakeSigner struct {
+	iss   syntax.DID
+	aud   string
+	lxm   string
+	calls int
+	err   error
+}
+
+func (f *fakeSigner) SignServiceAuth(
+	_ context.Context,
+	iss syntax.DID,
+	aud string,
+	_ time.Duration,
+	lxm *syntax.NSID,
+) (string, error) {
+	f.calls++
+	if f.err != nil {
+		return "", f.err
+	}
+	f.iss = iss
+	f.aud = aud
+	if lxm != nil {
+		f.lxm = lxm.String()
+	}
+	return "test-token", nil
+}
+
+func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
+	s := newTestStore(t)
+
+	type delivery struct {
+		in    habitat.NetworkHabitatSpaceNotifyWriteInput
+		authz string
+	}
+	received := make(chan delivery, 2)
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		var in habitat.NetworkHabitatSpaceNotifyWriteInput
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&in))
+		received <- delivery{in: in, authz: r.Header.Get("Authorization")}
+		w.WriteHeader(http.StatusOK)
+	}
+	subscriber := httptest.NewServer(http.HandlerFunc(handler))
+	t.Cleanup(subscriber.Close)
+
+	future := time.Now().Add(time.Hour)
+	// One whole-space and one repo-specific registration both match this write.
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
+
+	signer := &fakeSigner{}
+	notifier := NewNotifier(s, subscriber.Client(), signer)
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+
+	for range 2 {
+		select {
+		case d := <-received:
+			require.Equal(t, space.String(), d.in.Space)
+			require.Equal(t, repo.String(), d.in.Repo)
+			require.Equal(t, "3lrev", d.in.Rev)
+			require.Equal(t, "Bearer test-token", d.authz)
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for notifyWrite delivery")
+		}
+	}
+
+	// The service-auth JWT is issued by the space owner, audienced to the
+	// delivery endpoint, and scoped to notifyWrite.
+	require.Equal(t, space.SpaceOwner(), signer.iss)
+	require.Equal(t, subscriber.URL, signer.aud)
+	require.Equal(t, "network.habitat.space.notifyWrite", signer.lxm)
+}
+
+func TestNotifierNotifySpaceDeleted(t *testing.T) {
+	s := newTestStore(t)
+
+	received := make(chan habitat.NetworkHabitatSpaceNotifySpaceDeletedInput, 2)
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in habitat.NetworkHabitatSpaceNotifySpaceDeletedInput
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&in))
+		received <- in
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(subscriber.Close)
+
+	future := time.Now().Add(time.Hour)
+	// Both a whole-space and a repo-specific registration should be notified.
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
+	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
+
+	signer := &fakeSigner{}
+	notifier := NewNotifier(s, subscriber.Client(), signer)
+	notifier.NotifySpaceDeleted(t.Context(), space)
+
+	for range 2 {
+		select {
+		case in := <-received:
+			require.Equal(t, space.String(), in.Space)
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for notifySpaceDeleted delivery")
+		}
+	}
+	require.Equal(t, "network.habitat.space.notifySpaceDeleted", signer.lxm)
+}
+
+func TestNotifierNoRegistrationsSkipsSigning(t *testing.T) {
+	s := newTestStore(t)
+	signer := &fakeSigner{}
+	notifier := NewNotifier(s, http.DefaultClient, signer)
+
+	// With no registrations, neither path should sign or deliver anything.
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+	notifier.NotifySpaceDeleted(t.Context(), space)
+
+	require.Zero(t, signer.calls)
+}
+
+func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
+	s := newTestStore(t)
+
+	delivered := make(chan struct{}, 1)
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		delivered <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(subscriber.Close)
+
+	future := time.Now().Add(time.Hour)
+	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
+
+	signer := &fakeSigner{err: errSign}
+	notifier := NewNotifier(s, subscriber.Client(), signer)
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+
+	select {
+	case <-delivered:
+		t.Fatal("delivered despite service-auth signing failure")
+	case <-time.After(200 * time.Millisecond):
+	}
+	require.Equal(t, 1, signer.calls)
+}
+
+func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
+	s := newTestStore(t)
+
+	delivered := make(chan struct{}, 1)
+	subscriber := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		delivered <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(subscriber.Close)
+
+	// Registration targets bob, but the write is for repo (alice).
+	require.NoError(
+		t,
+		s.Register(t.Context(), space, bob, subscriber.URL, time.Now().Add(time.Hour)),
+	)
+
+	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{})
+	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
+
+	select {
+	case <-delivered:
+		t.Fatal("delivered notifyWrite to a non-matching registration")
+	case <-time.After(200 * time.Millisecond):
+	}
+}

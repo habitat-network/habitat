@@ -278,7 +278,7 @@ func setupPear(
 
 	syncServer := sync.NewServer(eventStore)
 
-	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore)
+	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore, nil)
 	if err != nil {
 		slog.ErrorContext(t.Context(), "unable to setup spaces store", "err", err)
 		os.Exit(1)

@@ -1,6 +1,7 @@
 package spaces
 
 import (
+	"context"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -20,9 +21,37 @@ func newTestStore(t *testing.T) Store {
 	t.Cleanup(func() { _ = fga.Close() })
 	eventStore, err := events.NewStore(db)
 	require.NoError(t, err)
-	s, err := NewStore(db, fga, eventStore)
+	s, err := NewStore(db, fga, eventStore, nil)
 	require.NoError(t, err)
 	return s
+}
+
+// recordingNotifier captures Notifier calls for assertions.
+type recordingNotifier struct {
+	calls   []notifyCall
+	deleted []habitat_syntax.SpaceURI
+}
+
+type notifyCall struct {
+	space habitat_syntax.SpaceURI
+	repo  syntax.DID
+	rev   string
+}
+
+func (n *recordingNotifier) NotifyWrite(
+	_ context.Context,
+	space habitat_syntax.SpaceURI,
+	repo syntax.DID,
+	rev string,
+) {
+	n.calls = append(n.calls, notifyCall{space: space, repo: repo, rev: rev})
+}
+
+func (n *recordingNotifier) NotifySpaceDeleted(
+	_ context.Context,
+	space habitat_syntax.SpaceURI,
+) {
+	n.deleted = append(n.deleted, space)
 }
 
 var (
@@ -543,4 +572,62 @@ func TestListRepoOps_RevIncludesValue(t *testing.T) {
 	require.Len(t, records, 1)
 	require.Equal(t, "hello", records[0].Value["text"])
 	require.NotEmpty(t, records[0].Rev)
+}
+
+func TestPutRecordTriggersNotify(t *testing.T) {
+	db := testutil.NewDB(t)
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = fga.Close() })
+	eventStore, err := events.NewStore(db)
+	require.NoError(t, err)
+	notifier := &recordingNotifier{}
+	s, err := NewStore(db, fga, eventStore, notifier)
+	require.NoError(t, err)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "notify-space")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, _, err = s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+
+	require.Len(t, notifier.calls, 1)
+	require.Equal(t, uri, notifier.calls[0].space)
+	require.Equal(t, owner, notifier.calls[0].repo)
+	require.NotEmpty(t, notifier.calls[0].rev)
+}
+
+func TestDeleteSpaceTriggersNotify(t *testing.T) {
+	db := testutil.NewDB(t)
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = fga.Close() })
+	eventStore, err := events.NewStore(db)
+	require.NoError(t, err)
+	notifier := &recordingNotifier{}
+	s, err := NewStore(db, fga, eventStore, notifier)
+	require.NoError(t, err)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "doomed")
+	require.NoError(t, err)
+
+	require.NoError(t, s.DeleteSpace(t.Context(), uri))
+	require.Equal(t, []habitat_syntax.SpaceURI{uri}, notifier.deleted)
+}
+
+func TestDeleteSpaceNotFoundDoesNotNotify(t *testing.T) {
+	db := testutil.NewDB(t)
+	fga, err := fgastore.NewMemory(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = fga.Close() })
+	eventStore, err := events.NewStore(db)
+	require.NoError(t, err)
+	notifier := &recordingNotifier{}
+	s, err := NewStore(db, fga, eventStore, notifier)
+	require.NoError(t, err)
+
+	uri := habitat_syntax.ConstructSpaceURI(owner, groupType, "missing")
+	require.ErrorIs(t, s.DeleteSpace(t.Context(), uri), ErrSpaceNotFound)
+	require.Empty(t, notifier.deleted)
 }

@@ -28,7 +28,7 @@ func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) *Server {
 	t.Cleanup(func() { _ = fga.Close() })
 	eventStore, err := events.NewStore(db)
 	require.NoError(t, err)
-	store, err := NewStore(db, fga, eventStore)
+	store, err := NewStore(db, fga, eventStore, nil)
 	require.NoError(t, err)
 
 	return NewServer(store, fga, oauth, serviceAuth, testutil.NewTestStore(t))

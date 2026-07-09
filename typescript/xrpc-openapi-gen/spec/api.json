@@ -7147,6 +7147,213 @@
         }
       }
     },
+    "/network.habitat.space.notifySpaceDeleted": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.notifySpaceDeleted",
+        "description": "Notify a repo host or syncing service that a space has been deleted. Sent by the space authority, best-effort. Authenticated with service auth.",
+        "operationId": "network.habitat.space.notifySpaceDeleted",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the deleted space.",
+                    "format": "at-uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.notifyWrite": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.notifyWrite",
+        "description": "Notify that a repo in a space has advanced to a new revision. Sent by a repo host to the space host, and forwarded to registered syncers. Best-effort. Authenticated with service auth.",
+        "operationId": "network.habitat.space.notifyWrite",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "repo",
+                  "rev",
+                  "hash"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of the account whose repo advanced.",
+                    "format": "did"
+                  },
+                  "rev": {
+                    "type": "string",
+                    "description": "The revision of the write."
+                  },
+                  "hash": {
+                    "type": "string",
+                    "format": "byte",
+                    "description": "The repo's current commit hash (sha256 of the LtHash state) after the write. Lets the space host maintain each repo's hash for listRepos."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.putRecord": {
       "post": {
         "tags": [
@@ -7231,6 +7438,132 @@
                         "valid",
                         "unknown"
                       ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.registerNotify": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.registerNotify",
+        "description": "Register an endpoint to be notified of writes. On a space host, subscribes to all repos in the space; on a repo host with a `repo`, subscribes to that repo only. Authenticated with a space credential.",
+        "operationId": "network.habitat.space.registerNotify",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space",
+                  "endpoint"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of a specific repo to subscribe to (repo host). Omit to subscribe to the whole space (space host).",
+                    "format": "did"
+                  },
+                  "endpoint": {
+                    "type": "string",
+                    "description": "The endpoint to which notifyWrite events should be delivered.",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "expiresAt": {
+                      "type": "string",
+                      "description": "When the registration expires.",
+                      "format": "date-time"
                     }
                   }
                 }
