@@ -18,14 +18,17 @@ const id = 'network.habitat.space.listRecords'
 export type QueryParams = {
   /** Reference to the space. */
   space: string
-  /** The DID of the member whose repo to read from. If omitted, defaults to the authenticated user. */
-  repo?: string
-  /** The NSID of the record type. */
+  /** The DID of the account whose repo to list. */
+  repo: string
+  /** The NSID of the record collection. If omitted, lists records across all collections. */
   collection?: string
+  /** The number of records to return. */
   limit?: number
   cursor?: string
   /** Flag to reverse the order of the returned records. */
   reverse?: boolean
+  /** If true, omit inlined record values and return only metadata (collection, rkey, cid). */
+  excludeValues?: boolean
 }
 export type InputSchema = undefined
 
@@ -45,7 +48,38 @@ export interface Response {
   data: OutputSchema
 }
 
+export class SpaceNotFoundError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
+export class RepoTakendownError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
+export class RepoSuspendedError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
+export class RepoDeactivatedError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
 export function toKnownErr(e: any) {
+  if (e instanceof XRPCError) {
+    if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
+    if (e.error === 'RepoTakendown') return new RepoTakendownError(e)
+    if (e.error === 'RepoSuspended') return new RepoSuspendedError(e)
+    if (e.error === 'RepoDeactivated') return new RepoDeactivatedError(e)
+  }
+
   return e
 }
 
@@ -54,7 +88,7 @@ export interface Record {
   collection: string
   rkey: string
   cid: string
-  updatedAt?: string
+  /** The record's value. Inlined by default; omitted when excludeValues is set. */
   value?: { [_ in string]: unknown }
 }
 

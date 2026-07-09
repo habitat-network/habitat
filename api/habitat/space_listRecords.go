@@ -4,12 +4,13 @@ package habitat
 
 // NetworkHabitatSpaceListRecordsParams represents the input parameters for network.habitat.space.listRecords
 type NetworkHabitatSpaceListRecordsParams struct {
-	Collection string `json:"collection,omitempty"`
-	Cursor     string `json:"cursor,omitempty"`
-	Limit      int64  `json:"limit,omitempty"`
-	Repo       string `json:"repo,omitempty"`
-	Reverse    bool   `json:"reverse,omitempty"`
-	Space      string `json:"space"`
+	Collection    string `json:"collection,omitempty"`
+	Cursor        string `json:"cursor,omitempty"`
+	ExcludeValues bool   `json:"excludeValues,omitempty"`
+	Limit         int64  `json:"limit,omitempty"`
+	Repo          string `json:"repo"`
+	Reverse       bool   `json:"reverse,omitempty"`
+	Space         string `json:"space"`
 }
 
 // NetworkHabitatSpaceListRecordsOutput represents the output for network.habitat.space.listRecords
@@ -23,6 +24,5 @@ type NetworkHabitatSpaceListRecordsRecord struct {
 	Cid        string      `json:"cid"`
 	Collection string      `json:"collection"`
 	Rkey       string      `json:"rkey"`
-	UpdatedAt  string      `json:"updatedAt,omitempty"`
 	Value      interface{} `json:"value,omitempty"`
 }
