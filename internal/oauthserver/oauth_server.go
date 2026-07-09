@@ -10,10 +10,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/sessions"
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
@@ -452,10 +454,18 @@ func logError(ctx context.Context, err error) {
 var _ authn.Method = (*OAuthServer)(nil)
 
 func (o *OAuthServer) CanHandle(r *http.Request) bool {
+	tokenStr := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	token, err := jwt.ParseSigned(tokenStr)
+	if err != nil {
+		return false
+	}
+	if token.Headers[0].ExtraHeaders["typ"] == "oauth+JWT" {
+		return true
+	}
 	return r.Header.Get("Habitat-Auth-Method") == "oauth"
 }
 
-// Validate's the given token and writes an error response to w if validation fails
+// Validate validates the given token and writes an error response to w if validation fails
 func (o *OAuthServer) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -477,7 +487,7 @@ func (o *OAuthServer) Validate(
 	return credInfo, true
 }
 
-// Validate's the given token and writes an error response to w if validation fails
+// ValidateRaw validates the given token and writes an error response to w if validation fails
 func (o *OAuthServer) ValidateRaw(
 	ctx context.Context,
 	token string,
@@ -487,7 +497,7 @@ func (o *OAuthServer) ValidateRaw(
 		ctx,
 		token,
 		fosite.AccessToken,
-		&oauth2.JWTSession{},
+		newSession(),
 		scopes...,
 	)
 	if err != nil {

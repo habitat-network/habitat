@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/habitat-network/habitat/internal/authn"
 	dbtestutil "github.com/habitat-network/habitat/internal/db/testutil"
@@ -102,6 +103,10 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 
 	t.Run("CanHandle returns true for oauth header", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{}).
+			SignedString(secret)
+		require.NoError(t, err)
+		r.Header.Set("Authorization", "Bearer "+token)
 		r.Header.Set("Habitat-Auth-Method", "oauth")
 		require.True(t, oauthSrv.CanHandle(r))
 	})
@@ -313,6 +318,7 @@ func TestOAuthServerE2E(t *testing.T) {
 			oauthServer.HandleToken(w, r)
 			return
 		case "/resource":
+			require.True(t, oauthServer.CanHandle(r))
 			credInfo, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
 			require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
