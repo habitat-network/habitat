@@ -35,5 +35,10 @@ func WriteInvalidRequest(ctx context.Context, w http.ResponseWriter, msg string,
 
 func WriteSpaceNotFound(ctx context.Context, w http.ResponseWriter, err error) {
 	slog.WarnContext(ctx, "space not found", "err", err)
-	WriteError(ctx, w, "SpaceNotFound", err.Error(), http.StatusBadRequest)
+	WriteError(ctx, w, "SpaceNotFound", "" /* msg */, http.StatusBadRequest)
+}
+
+func WriteNotSupported(ctx context.Context, w http.ResponseWriter, msg string) {
+	slog.WarnContext(ctx, "not supported", "msg", msg)
+	WriteError(ctx, w, "NotSupported", msg, http.StatusNotImplemented)
 }

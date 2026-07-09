@@ -6,12 +6,15 @@ package habitat
 type NetworkHabitatSpacePutRecordInput struct {
 	Collection string      `json:"collection"`
 	Record     interface{} `json:"record"`
+	Repo       string      `json:"repo"`
 	Rkey       string      `json:"rkey,omitempty"`
-	Space      string      `json:"space,omitempty"`
+	Space      string      `json:"space"`
+	Validate   bool        `json:"validate,omitempty"`
 }
 
 // NetworkHabitatSpacePutRecordOutput represents the output for network.habitat.space.putRecord
 type NetworkHabitatSpacePutRecordOutput struct {
-	Cid string `json:"cid,omitempty"`
-	Uri string `json:"uri"`
+	Cid              string `json:"cid"`
+	Uri              string `json:"uri"`
+	ValidationStatus string `json:"validationStatus,omitempty"`
 }

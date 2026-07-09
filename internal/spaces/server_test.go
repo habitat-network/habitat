@@ -187,7 +187,7 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:owner", "collection": "network.habitat.note", "rkey": "my-note", "record": {"text": "hello"}}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.putRecord",
@@ -325,7 +325,7 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 	uri, err := s.store.CreateSpace(t.Context(), orgId, owner, groupType, "test")
 	require.NoError(t, err)
 
-	body := `{"space": "` + uri.String() + `", "collection": "network.habitat.note", "rkey": "test", "record": {"x": 1}}`
+	body := `{"space": "` + uri.String() + `", "repo": "did:plc:alice", "collection": "network.habitat.note", "rkey": "test", "record": {"x": 1}}`
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/xrpc/network.habitat.space.putRecord",

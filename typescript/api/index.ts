@@ -1967,12 +1967,11 @@ export class NetworkHabitatSpaceNS {
     data?: NetworkHabitatSpacePutRecord.InputSchema,
     opts?: NetworkHabitatSpacePutRecord.CallOptions,
   ): Promise<NetworkHabitatSpacePutRecord.Response> {
-    return this._client.call(
-      'network.habitat.space.putRecord',
-      opts?.qp,
-      data,
-      opts,
-    )
+    return this._client
+      .call('network.habitat.space.putRecord', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpacePutRecord.toKnownErr(e)
+      })
   }
 
   removeMember(
