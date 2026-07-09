@@ -95,7 +95,11 @@ func (s *session) GetJWTClaims() jwt.JWTClaimsContainer {
 
 // GetJWTHeader implements oauth2.JWTSessionContainer.
 func (s *session) GetJWTHeader() *jwt.Headers {
-	return &jwt.Headers{}
+	return &jwt.Headers{
+		Extra: map[string]any{
+			"typ": "oauth+JWT",
+		},
+	}
 }
 
 // Clone implements [fosite.Session].
