@@ -383,10 +383,8 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithRequiredSubject(),
-	).Validate(w, r)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -397,8 +395,22 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Validate {
+		httpx.WriteNotSupported(ctx, w, "validate is not yet supported")
+	}
+
 	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
 	if !ok {
+		return
+	}
+
+	repo, ok := httpx.ParseDIDInput(ctx, w, input.Repo, "repo")
+	if !ok {
+		return
+	}
+
+	if credInfo.Subject != repo {
+		httpx.WriteInvalidRequest(ctx, w, "can't write to other repo", fmt.Errorf("wrong repo"))
 		return
 	}
 
@@ -459,7 +471,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 	recordUri, cid, err := s.store.PutRecord(
 		r.Context(),
 		spaceURI,
-		credInfo.Subject,
+		repo,
 		collection,
 		rkey,
 		value,

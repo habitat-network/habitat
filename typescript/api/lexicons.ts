@@ -4429,12 +4429,18 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['collection', 'record'],
+            required: ['space', 'repo', 'collection', 'record'],
             properties: {
               space: {
                 type: 'string',
-                format: 'uri',
+                format: 'at-uri',
                 description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of the repo to write to (the authenticated member).',
               },
               collection: {
                 type: 'string',
@@ -4444,8 +4450,13 @@ export const schemaDict = {
               rkey: {
                 type: 'string',
                 format: 'record-key',
-                maxLength: 512,
                 description: 'The Record Key.',
+                maxLength: 512,
+              },
+              validate: {
+                type: 'boolean',
+                description:
+                  "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons.",
               },
               record: {
                 type: 'unknown',
@@ -4458,20 +4469,29 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['uri'],
+            required: ['uri', 'cid'],
             properties: {
               uri: {
                 type: 'string',
+                format: 'at-uri',
                 description: 'URI of the written record.',
               },
               cid: {
                 type: 'string',
                 format: 'cid',
               },
+              validationStatus: {
+                type: 'string',
+                knownValues: ['valid', 'unknown'],
+              },
             },
           },
         },
-        errors: [],
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+        ],
       },
     },
   },
