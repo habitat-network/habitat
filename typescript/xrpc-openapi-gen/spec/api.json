@@ -6682,7 +6682,7 @@
           "network.habitat.space"
         ],
         "summary": "network.habitat.space.listRecords",
-        "description": "List records in a permissioned space, matching a specific collection. Callable by any member of the space.",
+        "description": "List the records in an account's repo within a permissioned space, optionally filtered by collection. By default each record's value is inlined; set excludeValues for a metadata-only listing (collection, rkey, cid). Used for full-state recovery. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
         "operationId": "network.habitat.space.listRecords",
         "security": [
           {
@@ -6698,34 +6698,35 @@
             "schema": {
               "type": "string",
               "description": "Reference to the space.",
-              "format": "uri"
+              "format": "at-uri"
             }
           },
           {
             "name": "repo",
             "in": "query",
-            "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
-            "required": false,
+            "description": "The DID of the account whose repo to list.",
+            "required": true,
             "schema": {
               "type": "string",
-              "description": "The DID of the member whose repo to read from. If omitted, defaults to the authenticated user.",
+              "description": "The DID of the account whose repo to list.",
               "format": "did"
             }
           },
           {
             "name": "collection",
             "in": "query",
-            "description": "The NSID of the record type.",
+            "description": "The NSID of the record collection. If omitted, lists records across all collections.",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "The NSID of the record type.",
+              "description": "The NSID of the record collection. If omitted, lists records across all collections.",
               "format": "nsid"
             }
           },
           {
             "name": "limit",
             "in": "query",
+            "description": "The number of records to return.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -6750,6 +6751,16 @@
             "schema": {
               "type": "boolean",
               "description": "Flag to reverse the order of the returned records."
+            }
+          },
+          {
+            "name": "excludeValues",
+            "in": "query",
+            "description": "If true, omit inlined record values and return only metadata (collection, rkey, cid).",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, omit inlined record values and return only metadata (collection, rkey, cid)."
             }
           }
         ],
@@ -6800,6 +6811,18 @@
                         },
                         {
                           "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
                         }
                       ]
                     },
@@ -8094,10 +8117,6 @@
           "cid": {
             "type": "string",
             "format": "cid"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
           },
           "value": {}
         }

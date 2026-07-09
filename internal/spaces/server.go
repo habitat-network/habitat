@@ -227,7 +227,10 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to manage members", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
 
@@ -296,7 +299,10 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to manage members", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
 
@@ -353,13 +359,13 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isMember {
-		http.Error(w, "not a member of this space", http.StatusForbidden)
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not a member"))
 		return
 	}
 
 	repos, err := s.store.ListRepos(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
 	} else if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "list repos", http.StatusInternalServerError)
@@ -432,7 +438,10 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to write records in this space", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to manage members"))
 		return
 	}
 
@@ -475,7 +484,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		value,
 	)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
 	} else if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "put record", http.StatusInternalServerError)
@@ -526,7 +535,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !isMember {
-			http.Error(w, "not a member of this space", http.StatusForbidden)
+			httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not a member"))
 			return
 		}
 	}
@@ -566,9 +575,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-	).Validate(w, r)
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -585,27 +593,20 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(
+	isMember, err := s.store.IsMember(ctx, credInfo.Org.DID(), spaceURI, credInfo.Subject)
+	if err != nil {
+		utils.LogAndHTTPError(
 			r.Context(),
-			credInfo.Org.DID(),
-			spaceURI,
-			credInfo.Subject,
+			w,
+			err,
+			"check membership",
+			http.StatusInternalServerError,
 		)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"check membership",
-				http.StatusInternalServerError,
-			)
-			return
-		}
-		if !isMember {
-			http.Error(w, "not a member of this space", http.StatusForbidden)
-			return
-		}
+		return
+	}
+	if !isMember {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
 	}
 
 	var filterCollection *syntax.NSID
@@ -624,15 +625,9 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		filterCollection = &c
 	}
 
-	var repo syntax.DID
-	if params.Repo != "" {
-		parsedRepo, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
-		if !ok {
-			return
-		}
-		repo = parsedRepo
-	} else {
-		repo = credInfo.Subject
+	repo, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	if !ok {
+		return
 	}
 
 	records, err := s.store.ListRecords(r.Context(), spaceURI, repo, filterCollection)
@@ -647,15 +642,12 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
 			Cid:        rec.Cid.String(),
-			UpdatedAt:  rec.UpdatedAt.Format("2006-01-02T15:04:05.000Z"),
-			Value:      rec.Value,
+		}
+		if !params.ExcludeValues {
+			recViews[i].Value = rec.Value
 		}
 	}
-
-	output := habitat.NetworkHabitatSpaceListRecordsOutput{
-		Records: recViews,
-	}
-	httpx.WriteJSON(r.Context(), w, output)
+	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
 }
 
 func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
@@ -777,7 +769,10 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to delete records in this space", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to delete"))
 		return
 	}
 
@@ -844,13 +839,16 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !authorized {
-		http.Error(w, "not authorized to delete this space", http.StatusForbidden)
+		// TODO: we don't know if they're not authorize because they're not a member or
+		// because they don't have the right role. assume worst case and return not found
+		// need to return a reason from authorize
+		httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not authorized to delete space"))
 		return
 	}
 
 	err = s.store.DeleteSpace(r.Context(), spaceURI)
 	if errors.Is(err, ErrSpaceNotFound) {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteSpaceNotFound(r.Context(), w, err)
 		return
 	} else if err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "delete space", http.StatusInternalServerError)

@@ -1933,12 +1933,11 @@ export class NetworkHabitatSpaceNS {
     params?: NetworkHabitatSpaceListRecords.QueryParams,
     opts?: NetworkHabitatSpaceListRecords.CallOptions,
   ): Promise<NetworkHabitatSpaceListRecords.Response> {
-    return this._client.call(
-      'network.habitat.space.listRecords',
-      params,
-      undefined,
-      opts,
-    )
+    return this._client
+      .call('network.habitat.space.listRecords', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceListRecords.toKnownErr(e)
+      })
   }
 
   listRepos(
