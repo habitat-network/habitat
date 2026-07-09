@@ -15,8 +15,8 @@ import (
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-func NewServiceAuthMethod(directory identity.Directory, audience string) Method {
-	return &pdsServiceAuthMethod{
+func NewServiceAuthMethod(directory identity.Directory, audience string) *AtprotoServiceAuthMethod {
+	return &AtprotoServiceAuthMethod{
 		validator: &auth.ServiceAuthValidator{
 			Dir:      directory,
 			Audience: audience,
@@ -24,14 +24,14 @@ func NewServiceAuthMethod(directory identity.Directory, audience string) Method 
 	}
 }
 
-type pdsServiceAuthMethod struct {
+type AtprotoServiceAuthMethod struct {
 	validator *auth.ServiceAuthValidator
 }
 
-var _ Method = (*pdsServiceAuthMethod)(nil)
+var _ Method = (*AtprotoServiceAuthMethod)(nil)
 
 // CanHandle implements [Method].
-func (p *pdsServiceAuthMethod) CanHandle(r *http.Request) bool {
+func (p *AtprotoServiceAuthMethod) CanHandle(r *http.Request) bool {
 	tokenStr, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !found {
 		return false
@@ -45,7 +45,7 @@ func (p *pdsServiceAuthMethod) CanHandle(r *http.Request) bool {
 }
 
 // Validate implements [Method].
-func (p *pdsServiceAuthMethod) Validate(
+func (p *AtprotoServiceAuthMethod) Validate(
 	w http.ResponseWriter,
 	r *http.Request,
 	scopes ...string,
@@ -69,7 +69,7 @@ func (p *pdsServiceAuthMethod) Validate(
 	}, true
 }
 
-func (p *pdsServiceAuthMethod) ValidateRaw(
+func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	ctx context.Context,
 	token string,
 	scopes ...string,
