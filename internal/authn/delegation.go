@@ -18,9 +18,13 @@ type DelegationTokenAuthMethod struct {
 
 var _ Method = (*DelegationTokenAuthMethod)(nil)
 
-func NewDelegationTokenAuthMethod(directory identity.Directory) *DelegationTokenAuthMethod {
+func NewDelegationTokenAuthMethod(
+	directory identity.Directory,
+	fga fgastore.Store,
+) *DelegationTokenAuthMethod {
 	return &DelegationTokenAuthMethod{
 		dir: directory,
+		fga: fga,
 	}
 }
 
@@ -61,7 +65,7 @@ func (d *DelegationTokenAuthMethod) Validate(
 	allowed, err := d.fga.Check(
 		ctx,
 		fgastore.MemberUserString(syntax.DID(issuer)),
-		fgastore.RelationMember,
+		fgastore.RelationSpaceReader,
 		fgastore.SpaceObjectKey(space),
 	)
 	if err != nil {

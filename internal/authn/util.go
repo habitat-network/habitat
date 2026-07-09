@@ -43,7 +43,7 @@ func fetchIssuerKeyFunc(
 		if !ok {
 			return nil, fmt.Errorf("failed to get kid")
 		}
-		publicKey, err := ident.GetPublicKey(kid)
+		publicKey, err := ident.GetPublicKey(strings.TrimPrefix(kid, "#"))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get public key: %w", err)
 		}
