@@ -6,55 +6,42 @@ import (
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
 )
 
-func NewServiceAuthMethod(directory identity.Directory) *AtprotoServiceAuthMethod {
+func NewServiceAuthMethod(directory identity.Directory, audience string) *AtprotoServiceAuthMethod {
 	return &AtprotoServiceAuthMethod{
-		directory: directory,
+		validator: &auth.ServiceAuthValidator{
+			Dir:      directory,
+			Audience: audience,
+		},
 	}
 }
 
 type AtprotoServiceAuthMethod struct {
-	directory identity.Directory
+	validator *auth.ServiceAuthValidator
 }
 
 var _ Method = (*AtprotoServiceAuthMethod)(nil)
 
 // CanHandle implements [Method].
 func (p *AtprotoServiceAuthMethod) CanHandle(r *http.Request) bool {
-	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
-}
-
-func (p *AtprotoServiceAuthMethod) validateInner(
-	token *jwt.JSONWebToken,
-) (syntax.DID, bool, error) {
-	var claims serviceJwtPayload
-	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return "", false, err
+	tokenStr, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !found {
+		return false
 	}
-	issuerDid, err := syntax.ParseDID(claims.Iss)
+	token, err := jwt.ParseSigned(tokenStr)
 	if err != nil {
-		return "", false, err
+		return false
 	}
-	// Use context.Background() to avoid cached context cancelled errors: https://github.com/bluesky-social/indigo/pull/1345
-	id, err := p.directory.LookupDID(context.Background(), issuerDid)
-	if err != nil {
-		return "", false, err
-	}
-	publicKey, err := id.PublicKey()
-	if err != nil {
-		return "", false, err
-	}
-	if err := token.Claims(atcryptoVerifier{publicKey}); err != nil {
-		return "", false, err
-	}
-	// TODO: validate Aud and Lxm
-	return issuerDid, true, nil
+	return token.Headers[0].ExtraHeaders["typ"] == "JWT" &&
+		strings.HasPrefix(token.Headers[0].KeyID, "#")
 }
 
 // Validate implements [Method].
@@ -63,21 +50,23 @@ func (p *AtprotoServiceAuthMethod) Validate(
 	r *http.Request,
 	scopes ...string,
 ) (*CredentialInfo, bool) {
-	token, err := jwt.ParseSigned(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	_, nsidStr, _ := strings.Cut(r.URL.Path, "/xrpc/")
+	nsid, err := syntax.ParseNSID(nsidStr)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
+		utils.WriteHTTPError(w, err, http.StatusBadRequest)
 		return nil, false
 	}
-
-	did, ok, err := p.validateInner(token)
+	did, err := p.validator.Validate(r.Context(), token, &nsid)
 	if err != nil {
-		utils.WriteHTTPError(w, err, http.StatusUnauthorized)
+		utils.WriteHTTPError(w, err, http.StatusBadRequest)
 		return nil, false
 	}
-	if !ok {
-		return nil, false
-	}
-	return &CredentialInfo{Subject: did, Type: UserCredential}, true
+	return &CredentialInfo{
+		Subject: did,
+		Type:    UserCredential,
+		Org:     &org.EveryoneOrg{},
+	}, true
 }
 
 func (p *AtprotoServiceAuthMethod) ValidateRaw(
@@ -85,16 +74,11 @@ func (p *AtprotoServiceAuthMethod) ValidateRaw(
 	token string,
 	scopes ...string,
 ) (*CredentialInfo, bool, error) {
-	parsed, err := jwt.ParseSigned(token)
+	did, err := p.validator.Validate(ctx, token, nil)
 	if err != nil {
 		return nil, false, err
 	}
-
-	did, ok, err := p.validateInner(parsed)
-	if !ok || err != nil {
-		return nil, ok, err
-	}
-	return &CredentialInfo{Subject: did, Type: UserCredential}, true, nil
+	return &CredentialInfo{Subject: did, Type: UserCredential, Org: &org.EveryoneOrg{}}, true, nil
 }
 
 type serviceJwtPayload struct {

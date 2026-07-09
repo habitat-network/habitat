@@ -122,10 +122,7 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
-	credInfo, ok := authn.NewValidator(
-		authn.WithAuthMethods(s.oauth),
-		authn.WithSupportedCredentials(authn.UserCredential, authn.OrgCredential),
-	).Validate(w, r)
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.oauth, s.serviceAuth)).Validate(w, r)
 	if !ok {
 		return
 	}
@@ -633,7 +630,7 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, habitat.NetworkHabitatSpaceListRecordsOutput{Records: recViews})
 }
 
-func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 	).Validate(w, r)
@@ -641,7 +638,7 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params habitat.NetworkHabitatSpaceGetRepoOplogParams
+	var params habitat.NetworkHabitatSpaceListRepoOpsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
 		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
 		return
@@ -685,25 +682,27 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	records, err := s.store.GetRepoOplog(r.Context(), spaceURI, repoDID, params.Since, limit)
+	records, err := s.store.ListRepoOps(r.Context(), spaceURI, repoDID, params.Since, limit)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "get repo oplog", http.StatusInternalServerError)
+		utils.LogAndHTTPError(r.Context(), w, err, "list repo ops", http.StatusInternalServerError)
 		return
 	}
 
-	recViews := make([]habitat.NetworkHabitatSpaceGetRepoOplogRecord, len(records))
+	ops := make([]habitat.NetworkHabitatSpaceListRepoOpsOpEntry, len(records))
 	for i, rec := range records {
-		recViews[i] = habitat.NetworkHabitatSpaceGetRepoOplogRecord{
+		ops[i] = habitat.NetworkHabitatSpaceListRepoOpsOpEntry{
 			Rev:        rec.Rev,
 			Collection: rec.Collection.String(),
 			Rkey:       rec.Rkey.String(),
-			Value:      rec.Value,
 			Cid:        rec.Cid.String(),
+		}
+		if !params.ExcludeValues {
+			ops[i].Value = rec.Value
 		}
 	}
 
-	output := habitat.NetworkHabitatSpaceGetRepoOplogOutput{
-		Records: recViews,
+	output := habitat.NetworkHabitatSpaceListRepoOpsOutput{
+		Ops: ops,
 	}
 	if len(records) > 0 {
 		output.Cursor = records[len(records)-1].Rev
@@ -791,7 +790,6 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
-		authn.WithRequiredSubject(),
 	).Validate(w, r)
 	if !ok {
 		return

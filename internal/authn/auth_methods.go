@@ -6,20 +6,19 @@ import (
 	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/habitat-network/habitat/internal/core"
+	"github.com/habitat-network/habitat/internal/org"
 )
 
 type CredentialType int
 
 const (
-	InstanceCredential CredentialType = iota
-	OrgCredential
+	OrgCredential CredentialType = iota
 	UserCredential
 )
 
 type CredentialInfo struct {
 	Subject syntax.DID
-	Org     core.Org
+	Org     org.Org
 	Type    CredentialType
 }
 
@@ -56,12 +55,6 @@ func WithAuthMethods(authMethods ...Method) ValidatorOption {
 func WithSupportedCredentials(supportedCredentials ...CredentialType) ValidatorOption {
 	return func(v *Validator) {
 		v.supportedCredentials = supportedCredentials
-	}
-}
-
-func WithRequiredSubject() ValidatorOption {
-	return func(v *Validator) {
-		v.supportedCredentials = []CredentialType{UserCredential, OrgCredential}
 	}
 }
 

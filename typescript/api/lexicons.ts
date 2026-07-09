@@ -3905,6 +3905,48 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceDefs: {
+    lexicon: 1,
+    id: 'network.habitat.space.defs',
+    defs: {
+      signedCommit: {
+        type: 'object',
+        description:
+          'A signed commit over the current state of a permissioned repo.',
+        required: ['ver', 'hash', 'mac', 'ikm', 'sig', 'rev'],
+        properties: {
+          ver: {
+            type: 'integer',
+            description:
+              'Commit format version, currently 1. Corresponds to the version in the ctx protocol tag (atproto-space-v1).',
+          },
+          hash: {
+            type: 'bytes',
+            description: 'sha256 digest of the LtHash state (32 bytes).',
+          },
+          ikm: {
+            type: 'bytes',
+            description:
+              'Per-signature input keying material (32 random bytes)',
+          },
+          sig: {
+            type: 'bytes',
+            description:
+              "Signature over ctx (space, author DID, rev, ikm) by the user's atproto signing key. Does not cover the repo hash.",
+          },
+          mac: {
+            type: 'bytes',
+            description:
+              "HMAC-SHA256 over hash, keyed by HKDF-SHA256(ikm, info=ctx). Binds the repo hash to this commit's context.",
+          },
+          rev: {
+            type: 'string',
+            description: 'Commit revision (TID), also bound into ctx.',
+          },
+        },
+      },
+    },
+  },
   NetworkHabitatSpaceDeleteRecord: {
     lexicon: 1,
     id: 'network.habitat.space.deleteRecord',
@@ -4063,97 +4105,6 @@ export const schemaDict = {
       },
     },
   },
-  NetworkHabitatSpaceGetRepoOplog: {
-    lexicon: 1,
-    id: 'network.habitat.space.getRepoOplog',
-    defs: {
-      main: {
-        type: 'query',
-        description:
-          'Get records modified since a given revision for a member in a space. Used for incremental sync. Callable by any member of the space.',
-        parameters: {
-          type: 'params',
-          required: ['space', 'repo'],
-          properties: {
-            space: {
-              type: 'string',
-              format: 'uri',
-              description: 'Reference to the space.',
-            },
-            repo: {
-              type: 'string',
-              format: 'did',
-              description: 'The DID of the member whose records to track.',
-            },
-            since: {
-              type: 'string',
-              description:
-                'Return records with revisions after this value (exclusive).',
-            },
-            limit: {
-              type: 'integer',
-              minimum: 1,
-              maximum: 1000,
-              default: 100,
-              description: 'Maximum number of records to return.',
-            },
-          },
-        },
-        output: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['records'],
-            properties: {
-              records: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:network.habitat.space.getRepoOplog#record',
-                },
-              },
-              cursor: {
-                type: 'string',
-                description:
-                  'The revision of the last returned record. Use as `since` in the next poll.',
-              },
-            },
-          },
-        },
-        errors: [
-          {
-            name: 'SpaceNotFound',
-          },
-        ],
-      },
-      record: {
-        type: 'object',
-        required: ['rev', 'collection', 'rkey', 'value'],
-        properties: {
-          rev: {
-            type: 'string',
-            description: 'Revision (TID) of this record.',
-          },
-          collection: {
-            type: 'string',
-            format: 'nsid',
-          },
-          rkey: {
-            type: 'string',
-            format: 'record-key',
-          },
-          cid: {
-            type: 'string',
-            format: 'cid',
-          },
-          value: {
-            type: 'unknown',
-            description: 'The record value.',
-          },
-        },
-      },
-    },
-  },
   NetworkHabitatSpaceListRecords: {
     lexicon: 1,
     id: 'network.habitat.space.listRecords',
@@ -4258,6 +4209,122 @@ export const schemaDict = {
             type: 'unknown',
             description:
               "The record's value. Inlined by default; omitted when excludeValues is set.",
+          },
+        },
+      },
+    },
+  },
+  NetworkHabitatSpaceListRepoOps: {
+    lexicon: 1,
+    id: 'network.habitat.space.listRepoOps',
+    defs: {
+      main: {
+        type: 'query',
+        description:
+          "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        parameters: {
+          type: 'params',
+          required: ['space', 'repo'],
+          properties: {
+            space: {
+              type: 'string',
+              format: 'at-uri',
+              description: 'Reference to the space.',
+            },
+            repo: {
+              type: 'string',
+              format: 'did',
+              description: 'The DID of the account whose oplog to retrieve.',
+            },
+            since: {
+              type: 'string',
+              description: 'Return operations after this revision.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 1000,
+              default: 100,
+              description: 'Maximum number of operations to return.',
+            },
+            excludeValues: {
+              type: 'boolean',
+              default: false,
+              description:
+                'If true, omit inlined record values and return only operation metadata.',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['ops'],
+            properties: {
+              ops: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:network.habitat.space.listRepoOps#opEntry',
+                },
+              },
+              commit: {
+                type: 'ref',
+                ref: 'lex:network.habitat.space.defs#signedCommit',
+                description:
+                  "The account's current signed commit. Included when the response reaches the head of the oplog; omitted on backfill responses.",
+              },
+              cursor: {
+                type: 'string',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'RepoTakendown',
+          },
+          {
+            name: 'RepoSuspended',
+          },
+          {
+            name: 'RepoDeactivated',
+          },
+        ],
+      },
+      opEntry: {
+        type: 'object',
+        description:
+          "A single operation in a permissioned repo's oplog. cid is null for deletes; prev is null for creates. Operations sharing the same rev belong to the same batch. value carries the record's current value for creates and updates, unless excludeValues was set or the value is stale (superseded by a later operation).",
+        required: ['rev', 'collection', 'rkey', 'cid', 'prev'],
+        nullable: ['cid', 'prev'],
+        properties: {
+          rev: {
+            type: 'string',
+          },
+          collection: {
+            type: 'string',
+            format: 'nsid',
+          },
+          rkey: {
+            type: 'string',
+            format: 'record-key',
+          },
+          cid: {
+            type: 'string',
+            format: 'cid',
+          },
+          prev: {
+            type: 'string',
+            format: 'cid',
+          },
+          value: {
+            type: 'unknown',
+            description:
+              "The record's current value, inlined for create and update operations. Omitted when excludeValues is set, for deletes, or when the value has been superseded by a later operation.",
           },
         },
       },
@@ -4661,11 +4728,12 @@ export const ids = {
   NetworkHabitatSearchQuery: 'network.habitat.search.query',
   NetworkHabitatSpaceAddMember: 'network.habitat.space.addMember',
   NetworkHabitatSpaceCreateSpace: 'network.habitat.space.createSpace',
+  NetworkHabitatSpaceDefs: 'network.habitat.space.defs',
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
-  NetworkHabitatSpaceGetRepoOplog: 'network.habitat.space.getRepoOplog',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
+  NetworkHabitatSpaceListRepoOps: 'network.habitat.space.listRepoOps',
   NetworkHabitatSpaceListRepos: 'network.habitat.space.listRepos',
   NetworkHabitatSpaceListSpaces: 'network.habitat.space.listSpaces',
   NetworkHabitatSpacePutRecord: 'network.habitat.space.putRecord',

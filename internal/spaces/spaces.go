@@ -153,7 +153,10 @@ type Store interface {
 	DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) error
 
 	// Oplog operations
-	GetRepoOplog(
+	//
+	// ListRepoOps returns a repo's operations within a space after a given
+	// revision, ordered by revision ascending, for incremental sync.
+	ListRepoOps(
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
@@ -695,7 +698,7 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	})
 }
 
-func (s *store) GetRepoOplog(
+func (s *store) ListRepoOps(
 	ctx context.Context,
 	uri habitat_syntax.SpaceURI,
 	repo syntax.DID,
@@ -716,7 +719,7 @@ func (s *store) GetRepoOplog(
 
 	var rows []spaceRecord
 	if err := query.Order("rev ASC").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("get repo oplog: %w", err)
+		return nil, fmt.Errorf("list repo ops: %w", err)
 	}
 
 	records := make([]Record, len(rows))

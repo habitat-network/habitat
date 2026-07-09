@@ -38,6 +38,7 @@ import (
 	"github.com/habitat-network/habitat/internal/login"
 	"github.com/habitat-network/habitat/internal/oauthserver"
 	"github.com/habitat-network/habitat/internal/org"
+	org_server "github.com/habitat-network/habitat/internal/org/server"
 	"github.com/habitat-network/habitat/internal/sync"
 	"go.opentelemetry.io/otel/trace"
 
@@ -295,7 +296,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup spaces store: %w", err)
 	}
-	serviceAuth := authn.NewServiceAuthMethod(defaultDir)
+	serviceAuth := authn.NewServiceAuthMethod(defaultDir, fmt.Sprintf("did:web:%s#habitat", domain))
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
@@ -324,7 +325,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	pear := pear.NewPear(hiveDir, permissions, repo)
 	// Server for org management routes
-	orgServer, err := org.NewServer(
+	orgServer, err := org_server.NewServer(
 		orgStore,
 		oauthServer,
 		pear,
@@ -451,7 +452,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	mux.HandleFunc("/xrpc/network.habitat.space.listRecords", spacesServer.ListRecords)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteRecord", spacesServer.DeleteRecord)
 	mux.HandleFunc("/xrpc/network.habitat.space.deleteSpace", spacesServer.DeleteSpace)
-	mux.HandleFunc("/xrpc/network.habitat.space.getRepoOplog", spacesServer.GetRepoOplog)
+	mux.HandleFunc("/xrpc/network.habitat.space.listRepoOps", spacesServer.ListRepoOps)
 
 	mux.HandleFunc(
 		"/xrpc/network.habitat.relationship.writeTuple",

@@ -90,11 +90,12 @@ import * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 import * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
+import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
-import * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+import * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
 import * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 import * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
 import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
@@ -181,11 +182,12 @@ export * as NetworkHabitatRepoUploadBlob from './types/network/habitat/repo/uplo
 export * as NetworkHabitatSearchQuery from './types/network/habitat/search/query.js'
 export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/addMember.js'
 export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
+export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
-export * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+export * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
 export * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 export * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
 export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
@@ -1918,17 +1920,6 @@ export class NetworkHabitatSpaceNS {
       })
   }
 
-  getRepoOplog(
-    params?: NetworkHabitatSpaceGetRepoOplog.QueryParams,
-    opts?: NetworkHabitatSpaceGetRepoOplog.CallOptions,
-  ): Promise<NetworkHabitatSpaceGetRepoOplog.Response> {
-    return this._client
-      .call('network.habitat.space.getRepoOplog', params, undefined, opts)
-      .catch((e) => {
-        throw NetworkHabitatSpaceGetRepoOplog.toKnownErr(e)
-      })
-  }
-
   listRecords(
     params?: NetworkHabitatSpaceListRecords.QueryParams,
     opts?: NetworkHabitatSpaceListRecords.CallOptions,
@@ -1937,6 +1928,17 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.listRecords', params, undefined, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceListRecords.toKnownErr(e)
+      })
+  }
+
+  listRepoOps(
+    params?: NetworkHabitatSpaceListRepoOps.QueryParams,
+    opts?: NetworkHabitatSpaceListRepoOps.CallOptions,
+  ): Promise<NetworkHabitatSpaceListRepoOps.Response> {
+    return this._client
+      .call('network.habitat.space.listRepoOps', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceListRepoOps.toKnownErr(e)
       })
   }
 

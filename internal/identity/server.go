@@ -62,7 +62,6 @@ var didCtx = []string{
 func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
-		authn.WithRequiredSubject(),
 	).Validate(w, r)
 	if !ok {
 		return

@@ -247,7 +247,7 @@ func (r *resyncer) syncRepo(
 		params.Set("limit", "1000")
 
 		req, err := http.NewRequestWithContext(ctx, "GET",
-			"/xrpc/network.habitat.space.getRepoOplog?"+params.Encode(), nil)
+			"/xrpc/network.habitat.space.listRepoOps?"+params.Encode(), nil)
 		if err != nil {
 			return r.handleSyncError(ctx, space, repoDID, fmt.Errorf("create request: %w", err))
 		}
@@ -256,7 +256,7 @@ func (r *resyncer) syncRepo(
 			return r.handleSyncError(ctx, space, repoDID, err)
 		}
 
-		var output habitat.NetworkHabitatSpaceGetRepoOplogOutput
+		var output habitat.NetworkHabitatSpaceListRepoOpsOutput
 		decodeErr := json.NewDecoder(resp.Body).Decode(&output)
 		closeErr := resp.Body.Close()
 		if decodeErr != nil {
@@ -268,7 +268,7 @@ func (r *resyncer) syncRepo(
 		if resp.StatusCode != http.StatusOK {
 			slog.WarnContext(
 				ctx,
-				"getRepoOplog status",
+				"listRepoOps status",
 				"space",
 				space,
 				"repo",
@@ -280,29 +280,29 @@ func (r *resyncer) syncRepo(
 				ctx,
 				space,
 				repoDID,
-				fmt.Errorf("getRepoOplog: %s", resp.Status),
+				fmt.Errorf("listRepoOps: %s", resp.Status),
 			)
 		}
 
 		slog.InfoContext(
 			ctx,
-			"getRepoOplog response",
+			"listRepoOps response",
 			"space",
 			space,
 			"repo",
 			repoDID,
-			"records",
-			len(output.Records),
+			"ops",
+			len(output.Ops),
 			"cursor",
 			output.Cursor,
 		)
 
-		if len(output.Records) > 0 {
+		if len(output.Ops) > 0 {
 			err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-				if err := writeOplogRecords(tx, space, repoDID, output.Records); err != nil {
+				if err := writeRepoOps(tx, space, repoDID, output.Ops); err != nil {
 					return err
 				}
-				lastRev := syntax.TID(output.Records[len(output.Records)-1].Rev)
+				lastRev := syntax.TID(output.Ops[len(output.Ops)-1].Rev)
 				return tx.Model(&managedRepo{}).
 					Where("space = ? AND did = ?", space, repoDID).
 					Update("rev", lastRev).Error
@@ -316,7 +316,7 @@ func (r *resyncer) syncRepo(
 			}
 		}
 
-		if output.Cursor == "" || len(output.Records) == 0 {
+		if output.Cursor == "" || len(output.Ops) == 0 {
 			break
 		}
 	}

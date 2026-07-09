@@ -1,4 +1,4 @@
-package org
+package server
 
 import (
 	"bytes"
@@ -14,9 +14,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/api/habitat"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/core"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/instance"
+	orgpkg "github.com/habitat-network/habitat/internal/org"
+	orgtestutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,11 +48,11 @@ func (f *fakeInstancePolicy) MarkInviteUsed(ctx context.Context, token string) e
 func newTestServer(
 	t *testing.T,
 	policy instance.PolicyStore,
-) (*Server, syntax.DID, syntax.DID) {
+) (*Server, orgpkg.Store, syntax.DID, syntax.DID) {
 	t.Helper()
-	storeImpl := newTestStore(t)
+	store := orgtestutil.NewTestStore(t)
 
-	orgIdIdent, adminIdent, err := storeImpl.CreateOrg(
+	orgIdIdent, adminIdent, err := store.CreateOrg(
 		t.Context(),
 		"test-org",
 		"admin",
@@ -64,7 +65,7 @@ func newTestServer(
 	require.NoError(t, err)
 
 	srv, err := NewServer(
-		storeImpl,
+		store,
 		authntest.NewSuccessMethod(adminIdent.DID),
 		nil,
 		"pear.example.com",
@@ -72,11 +73,11 @@ func newTestServer(
 		policy,
 	)
 	require.NoError(t, err)
-	return srv, orgIdIdent.DID, adminIdent.DID
+	return srv, store, orgIdIdent.DID, adminIdent.DID
 }
 
 func TestIssueTokenThenMintIdentity(t *testing.T) {
-	srv, orgId, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+	srv, store, orgId, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Admin issues an invite token
 	issueBody, _ := json.Marshal(habitat.NetworkHabitatOrgIssueInviteTokenInput{
@@ -121,7 +122,7 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 	newMemberDID, err := syntax.ParseDID(mintOut.Did)
 	require.NoError(t, err)
 
-	testOrg, err := srv.store.GetOrg(context.Background(), orgId)
+	testOrg, err := store.GetOrg(context.Background(), orgId)
 	require.NoError(t, err)
 	members, err := testOrg.GetMembers(context.Background())
 	require.NoError(t, err)
@@ -134,10 +135,10 @@ func TestIssueTokenThenMintIdentity(t *testing.T) {
 //  1. orgID in query params + an org-signed token in the Authorization header
 //  2. a regular authenticated caller (no orgID), resolved to their org
 func TestGetMetadataViaSignedToken(t *testing.T) {
-	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+	srv, store, orgId, adminDID := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// Mint an org-signed token to authenticate the request.
-	token, err := srv.store.IssueIdentityToken(
+	token, err := store.IssueIdentityToken(
 		context.Background(),
 		orgId,
 		adminDID,
@@ -160,11 +161,11 @@ func TestGetMetadataViaSignedToken(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(core.LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(orgpkg.LoginMethodPassword), out.LoginMethod)
 }
 
 func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
-	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+	srv, _, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -178,7 +179,7 @@ func TestGetMetadataViaSignedToken_InvalidToken(t *testing.T) {
 }
 
 func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
-	srv, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
+	srv, _, orgId, _ := newTestServer(t, &fakeInstancePolicy{policy: "open"})
 
 	// No orgID query param: the caller is resolved to their org via the
 	// stub authn method configured in newTestServer (adminDID).
@@ -195,13 +196,13 @@ func TestGetMetadataViaAuthenticatedCaller(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&out))
 	require.Equal(t, orgId.String(), out.OrgId)
 	require.Equal(t, "test-org", out.Name)
-	require.Equal(t, string(core.LoginMethodPassword), out.LoginMethod)
+	require.Equal(t, string(orgpkg.LoginMethodPassword), out.LoginMethod)
 }
 
 func newCreateTestServer(t *testing.T) *Server {
 	t.Helper()
 	srv, err := NewServer(
-		newTestStore(t),
+		orgtestutil.NewTestStore(t),
 		nil,
 		nil,
 		"domain",
@@ -335,8 +336,8 @@ func TestCreateOrg_MissingFields(t *testing.T) {
 
 func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 	srv, err := NewServer(
-		newTestStore(t),
-		authntest.NewSuccessMethod(adminDID),
+		orgtestutil.NewTestStore(t),
+		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -365,8 +366,8 @@ func TestCreateOrg_OpenPolicyIgnoresMissingToken(t *testing.T) {
 
 func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 	srv, err := NewServer(
-		newTestStore(t),
-		authntest.NewSuccessMethod(adminDID),
+		orgtestutil.NewTestStore(t),
+		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -395,8 +396,8 @@ func TestCreateOrg_InviteOnlyRejectsMissingToken(t *testing.T) {
 
 func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 	srv, err := NewServer(
-		newTestStore(t),
-		authntest.NewSuccessMethod(adminDID),
+		orgtestutil.NewTestStore(t),
+		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -427,8 +428,8 @@ func TestCreateOrg_InviteOnlyRejectsInvalidToken(t *testing.T) {
 func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 	policy := &fakeInstancePolicy{policy: "invite_only"}
 	srv, err := NewServer(
-		newTestStore(t),
-		authntest.NewSuccessMethod(adminDID),
+		orgtestutil.NewTestStore(t),
+		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -460,10 +461,10 @@ func TestCreateOrg_InviteOnlyAcceptsValidToken(t *testing.T) {
 
 func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 	policy := &fakeInstancePolicy{policy: "invite_only"}
-	store := newTestStore(t)
+	store := orgtestutil.NewTestStore(t)
 	srv, err := NewServer(
 		store,
-		authntest.NewSuccessMethod(adminDID),
+		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
@@ -512,7 +513,7 @@ func TestCreateOrg_InviteOnlyDoesNotMarkUsedOnCreateFailure(t *testing.T) {
 
 // TestCreateOrg_InviteOnlyAcceptsRealIssuedToken proves a real
 // instanceadmin.Store-issued invite is accepted end-to-end by a real
-// org.Server.CreateOrg, not just by the fakeInstancePolicy used elsewhere in
+// server.Server.CreateOrg, not just by the fakeInstancePolicy used elsewhere in
 // this file.
 func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	instanceStore, err := instance.NewStore(
@@ -527,8 +528,8 @@ func TestCreateOrg_InviteOnlyAcceptsRealIssuedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	srv, err := NewServer(
-		newTestStore(t),
-		authntest.NewSuccessMethod(adminDID),
+		orgtestutil.NewTestStore(t),
+		authntest.NewSuccessMethod(syntax.DID("did:plc:alice111")),
 		nil,
 		"pear.example.com",
 		identity.DefaultDirectory(),
