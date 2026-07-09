@@ -33,9 +33,9 @@ func TestCrawler(t *testing.T) {
 					},
 				},
 			})
-		case "/xrpc/network.habitat.space.getMembers":
-			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceGetMembersOutput{
-				Members: []habitat.NetworkHabitatSpaceGetMembersMember{
+		case "/xrpc/network.habitat.space.listRepos":
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
 					{Did: "did:plc:member1"},
 					{Did: "did:plc:member2"},
 				},

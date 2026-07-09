@@ -92,10 +92,10 @@ import * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/add
 import * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
-import * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
 import * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+import * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 import * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
 import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
 import * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
@@ -183,10 +183,10 @@ export * as NetworkHabitatSpaceAddMember from './types/network/habitat/space/add
 export * as NetworkHabitatSpaceCreateSpace from './types/network/habitat/space/createSpace.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
-export * as NetworkHabitatSpaceGetMembers from './types/network/habitat/space/getMembers.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
 export * as NetworkHabitatSpaceGetRepoOplog from './types/network/habitat/space/getRepoOplog.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
+export * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 export * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
 export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
 export * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
@@ -1907,17 +1907,6 @@ export class NetworkHabitatSpaceNS {
       })
   }
 
-  getMembers(
-    params?: NetworkHabitatSpaceGetMembers.QueryParams,
-    opts?: NetworkHabitatSpaceGetMembers.CallOptions,
-  ): Promise<NetworkHabitatSpaceGetMembers.Response> {
-    return this._client
-      .call('network.habitat.space.getMembers', params, undefined, opts)
-      .catch((e) => {
-        throw NetworkHabitatSpaceGetMembers.toKnownErr(e)
-      })
-  }
-
   getRecord(
     params?: NetworkHabitatSpaceGetRecord.QueryParams,
     opts?: NetworkHabitatSpaceGetRecord.CallOptions,
@@ -1950,6 +1939,17 @@ export class NetworkHabitatSpaceNS {
       undefined,
       opts,
     )
+  }
+
+  listRepos(
+    params?: NetworkHabitatSpaceListRepos.QueryParams,
+    opts?: NetworkHabitatSpaceListRepos.CallOptions,
+  ): Promise<NetworkHabitatSpaceListRepos.Response> {
+    return this._client
+      .call('network.habitat.space.listRepos', params, undefined, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceListRepos.toKnownErr(e)
+      })
   }
 
   listSpaces(
