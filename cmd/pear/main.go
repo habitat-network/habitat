@@ -279,7 +279,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	// Implement service proxying https://atproto.com/specs/xrpc#service-proxying
-	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir))
+	mux.Use(forwarding.NewServiceProxy(oauthServer, hive, hiveDir, pdsClientFactory))
 
 	cliqueStore, err := clique.NewStore(db.WithContext(startupCtx))
 	if err != nil {
