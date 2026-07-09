@@ -47,7 +47,7 @@ func TestParseNSIDInput_Invalid(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.JSONEq(
 		t,
-		`{"name":"InvalidRequest", "message": "failed to parse collection"}`,
+		`{"error":"InvalidRequest", "message": "failed to parse collection"}`,
 		w.Body.String(),
 	)
 }
@@ -59,16 +59,25 @@ func TestParseNSIDInput_Empty(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.JSONEq(
 		t,
-		`{"name":"InvalidRequest", "message": "failed to parse collection"}`,
+		`{"error":"InvalidRequest", "message": "failed to parse collection"}`,
 		w.Body.String(),
 	)
 }
 
 func TestParseSpaceURIInput_Valid(t *testing.T) {
 	w := httptest.NewRecorder()
-	uri, ok := ParseSpaceURIInput(t.Context(), w, "ats://did:web:example.com/com.example.space/tidvalue", "space")
+	uri, ok := ParseSpaceURIInput(
+		t.Context(),
+		w,
+		"ats://did:web:example.com/com.example.space/tidvalue",
+		"space",
+	)
 	require.True(t, ok)
-	require.Equal(t, habitat_syntax.SpaceURI("ats://did:web:example.com/com.example.space/tidvalue"), uri)
+	require.Equal(
+		t,
+		habitat_syntax.SpaceURI("ats://did:web:example.com/com.example.space/tidvalue"),
+		uri,
+	)
 	require.Equal(t, 0, w.Body.Len())
 	require.Equal(t, http.StatusOK, w.Code)
 }
@@ -80,7 +89,7 @@ func TestParseSpaceURIInput_Invalid(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.JSONEq(
 		t,
-		`{"name":"InvalidRequest", "message": "failed to parse space"}`,
+		`{"error":"InvalidRequest", "message": "failed to parse space"}`,
 		w.Body.String(),
 	)
 }
@@ -92,7 +101,7 @@ func TestParseSpaceURIInput_Empty(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.JSONEq(
 		t,
-		`{"name":"InvalidRequest", "message": "failed to parse space"}`,
+		`{"error":"InvalidRequest", "message": "failed to parse space"}`,
 		w.Body.String(),
 	)
 }
@@ -104,7 +113,7 @@ func TestParseSpaceURIInput_InvalidFormat(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.JSONEq(
 		t,
-		`{"name":"InvalidRequest", "message": "failed to parse space"}`,
+		`{"error":"InvalidRequest", "message": "failed to parse space"}`,
 		w.Body.String(),
 	)
 }
