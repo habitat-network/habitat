@@ -6526,152 +6526,6 @@
         }
       }
     },
-    "/network.habitat.space.getRepoOplog": {
-      "get": {
-        "tags": [
-          "network.habitat.space"
-        ],
-        "summary": "network.habitat.space.getRepoOplog",
-        "description": "Get records modified since a given revision for a member in a space. Used for incremental sync. Callable by any member of the space.",
-        "operationId": "network.habitat.space.getRepoOplog",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "space",
-            "in": "query",
-            "description": "Reference to the space.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Reference to the space.",
-              "format": "uri"
-            }
-          },
-          {
-            "name": "repo",
-            "in": "query",
-            "description": "The DID of the member whose records to track.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "The DID of the member whose records to track.",
-              "format": "did"
-            }
-          },
-          {
-            "name": "since",
-            "in": "query",
-            "description": "Return records with revisions after this value (exclusive).",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Return records with revisions after this value (exclusive)."
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Maximum number of records to return.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
-              "default": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "records"
-                  ],
-                  "properties": {
-                    "records": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/network.habitat.space.getRepoOplog.record"
-                      }
-                    },
-                    "cursor": {
-                      "type": "string",
-                      "description": "The revision of the last returned record. Use as `since` in the next poll."
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "oneOf": [
-                        {
-                          "const": "InvalidRequest"
-                        },
-                        {
-                          "const": "ExpiredToken"
-                        },
-                        {
-                          "const": "InvalidToken"
-                        },
-                        {
-                          "const": "SpaceNotFound"
-                        }
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "message"
-                  ],
-                  "properties": {
-                    "error": {
-                      "const": "AuthMissing"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/network.habitat.space.listRecords": {
       "get": {
         "tags": [
@@ -6779,6 +6633,173 @@
                       "items": {
                         "$ref": "#/components/schemas/network.habitat.space.listRecords.record"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "RepoTakendown"
+                        },
+                        {
+                          "const": "RepoSuspended"
+                        },
+                        {
+                          "const": "RepoDeactivated"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/network.habitat.space.listRepoOps": {
+      "get": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.listRepoOps",
+        "description": "List the operation log for an account's permissioned repo within a space, returning operations after a given revision. Primary incremental sync mechanism. By default each created or updated operation inlines the record's current value; set excludeValues for metadata-only entries. Callable with either OAuth (for the authenticated user's own data) or a space credential (for syncing services).",
+        "operationId": "network.habitat.space.listRepoOps",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Reference to the space.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Reference to the space.",
+              "format": "at-uri"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "description": "The DID of the account whose oplog to retrieve.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The DID of the account whose oplog to retrieve.",
+              "format": "did"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Return operations after this revision.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Return operations after this revision."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of operations to return.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "excludeValues",
+            "in": "query",
+            "description": "If true, omit inlined record values and return only operation metadata.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, omit inlined record values and return only operation metadata."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ops"
+                  ],
+                  "properties": {
+                    "ops": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/network.habitat.space.listRepoOps.opEntry"
+                      }
+                    },
+                    "commit": {
+                      "$ref": "#/components/schemas/network.habitat.space.defs.signedCommit"
+                    },
+                    "cursor": {
+                      "type": "string"
                     }
                   }
                 }
@@ -8066,32 +8087,45 @@
           }
         }
       },
-      "network.habitat.space.getRepoOplog.record": {
+      "network.habitat.space.defs.signedCommit": {
         "type": "object",
+        "description": "A signed commit over the current state of a permissioned repo.",
         "required": [
-          "rev",
-          "collection",
-          "rkey",
-          "value"
+          "ver",
+          "hash",
+          "mac",
+          "ikm",
+          "sig",
+          "rev"
         ],
         "properties": {
+          "ver": {
+            "type": "integer"
+          },
+          "hash": {
+            "type": "string",
+            "format": "byte",
+            "description": "sha256 digest of the LtHash state (32 bytes)."
+          },
+          "ikm": {
+            "type": "string",
+            "format": "byte",
+            "description": "Per-signature input keying material (32 random bytes)"
+          },
+          "sig": {
+            "type": "string",
+            "format": "byte",
+            "description": "Signature over ctx (space, author DID, rev, ikm) by the user's atproto signing key. Does not cover the repo hash."
+          },
+          "mac": {
+            "type": "string",
+            "format": "byte",
+            "description": "HMAC-SHA256 over hash, keyed by HKDF-SHA256(ikm, info=ctx). Binds the repo hash to this commit's context."
+          },
           "rev": {
             "type": "string",
-            "description": "Revision (TID) of this record."
-          },
-          "collection": {
-            "type": "string",
-            "format": "nsid"
-          },
-          "rkey": {
-            "type": "string",
-            "format": "record-key"
-          },
-          "cid": {
-            "type": "string",
-            "format": "cid"
-          },
-          "value": {}
+            "description": "Commit revision (TID), also bound into ctx."
+          }
         }
       },
       "network.habitat.space.listRecords.record": {
@@ -8111,6 +8145,39 @@
             "format": "record-key"
           },
           "cid": {
+            "type": "string",
+            "format": "cid"
+          },
+          "value": {}
+        }
+      },
+      "network.habitat.space.listRepoOps.opEntry": {
+        "type": "object",
+        "description": "A single operation in a permissioned repo's oplog. cid is null for deletes; prev is null for creates. Operations sharing the same rev belong to the same batch. value carries the record's current value for creates and updates, unless excludeValues was set or the value is stale (superseded by a later operation).",
+        "required": [
+          "rev",
+          "collection",
+          "rkey",
+          "cid",
+          "prev"
+        ],
+        "properties": {
+          "rev": {
+            "type": "string"
+          },
+          "collection": {
+            "type": "string",
+            "format": "nsid"
+          },
+          "rkey": {
+            "type": "string",
+            "format": "record-key"
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid"
+          },
+          "prev": {
             "type": "string",
             "format": "cid"
           },

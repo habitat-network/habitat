@@ -30,11 +30,11 @@ func writeEventOps(tx *gorm.DB, ops []events.EventOps) error {
 	return nil
 }
 
-func writeOplogRecords(
+func writeRepoOps(
 	tx *gorm.DB,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
-	records []habitat.NetworkHabitatSpaceGetRepoOplogRecord,
+	records []habitat.NetworkHabitatSpaceListRepoOpsOpEntry,
 ) error {
 	for _, rec := range records {
 		collection, err := syntax.ParseNSID(rec.Collection)
