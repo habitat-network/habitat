@@ -25,7 +25,7 @@ func TestWriteInvalidRequest(t *testing.T) {
 func TestWriteSpaceNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	WriteSpaceNotFound(t.Context(), w, nil)
-	require.JSONEq(t, `{"error":"SpaceNotFound", "message":"foo"}`, w.Body.String())
+	require.JSONEq(t, `{"error":"SpaceNotFound"}`, w.Body.String())
 }
 
 func TestWriteNotSupported(t *testing.T) {
