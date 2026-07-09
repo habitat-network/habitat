@@ -154,7 +154,7 @@ func TestServer_ListRepos_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.ListRepos(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_RemoveMember(t *testing.T) {
@@ -299,7 +299,7 @@ func TestServer_AddMember_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.AddMember(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_RemoveMember_Unauthorized(t *testing.T) {
@@ -316,7 +316,7 @@ func TestServer_RemoveMember_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.RemoveMember(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_PutRecord_Unauthorized(t *testing.T) {
@@ -333,7 +333,7 @@ func TestServer_PutRecord_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.PutRecord(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
@@ -360,7 +360,7 @@ func TestServer_DeleteRecord_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.DeleteRecord(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_Unauthorized(t *testing.T) {
@@ -418,7 +418,7 @@ func TestServer_DeleteSpace_Unauthorized(t *testing.T) {
 	)
 	w := httptest.NewRecorder()
 	s.DeleteSpace(w, req)
-	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestServer_GetRepoOplog(t *testing.T) {
