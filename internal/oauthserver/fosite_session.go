@@ -28,9 +28,13 @@ import (
 // which is why SetSubject (used by the JWT bearer handler) is all that's needed
 // to get the subject into the issued token.
 type session struct {
-	Subject               string
-	ClientID              string
-	Scopes                []string
+	Subject  string
+	ClientID string
+	Scopes   []string
+	// Permissions are the requested scopes parsed into space permissions. They
+	// are persisted alongside the raw Scopes so downstream code can enforce them
+	// without re-parsing. Scopes that are not valid space scopes are skipped.
+	Permissions           []spacePermission
 	PKCEChallenge         string
 	AuthCodeExpiresAt     time.Time
 	AccessTokenExpiresAt  time.Time
@@ -47,10 +51,12 @@ var (
 // authorization code, capturing who authorized (did) and the request's scopes
 // and PKCE challenge.
 func newAuthorizeSession(req fosite.AuthorizeRequester, did syntax.DID) *session {
+	scopes := req.GetRequestedScopes()
 	return &session{
 		Subject:       did.String(),
 		ClientID:      req.GetClient().GetID(),
-		Scopes:        req.GetRequestedScopes(),
+		Scopes:        scopes,
+		Permissions:   parseSpacePermissions(scopes),
 		PKCEChallenge: req.GetRequestForm().Get("code_challenge"),
 	}
 }
@@ -102,6 +108,7 @@ func (s *session) GetJWTHeader() *jwt.Headers {
 func (s *session) Clone() fosite.Session {
 	clone := *s
 	clone.Scopes = append([]string{}, s.Scopes...)
+	clone.Permissions = append([]spacePermission{}, s.Permissions...)
 	return &clone
 }
 

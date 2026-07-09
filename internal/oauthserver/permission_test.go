@@ -10,41 +10,106 @@ func TestPermissionFromScope(t *testing.T) {
 	tests := []struct {
 		name    string
 		scope   string
-		want    permission
+		want    spacePermission
 		wantErr bool
 	}{
 		{
-			name:  "all spaces types wildcard",
-			scope: "org:*",
-			want:  permission{Resource: "org"},
+			name:  "bare space type defaults authority to self and skey to wildcard",
+			scope: "space:com.example.bookmarks",
+			want: spacePermission{
+				SpaceType: "com.example.bookmarks",
+				Authority: authoritySelf,
+				Skey:      wildcard,
+			},
 		},
 		{
-			name:  "single space type",
-			scope: "org:com.example.type",
-			want:  permission{Resource: "org", Namespace: "com.example.type"},
+			name:  "wildcard space type",
+			scope: "space:*",
+			want: spacePermission{
+				SpaceType: wildcard,
+				Authority: authoritySelf,
+				Skey:      wildcard,
+			},
 		},
 		{
-			name:  "single space with actions",
-			scope: "org:com.example.type?action=create&action=update",
-			want: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
-				Actions:   []scopeAction{ActionCreate, ActionUpdate},
+			name:  "authority wildcard",
+			scope: "space:com.atmoboards.forum?authority=*",
+			want: spacePermission{
+				SpaceType: "com.atmoboards.forum",
+				Authority: wildcard,
+				Skey:      wildcard,
+			},
+		},
+		{
+			name:  "explicit authority did and skey",
+			scope: "space:com.atmoboards.forum?authority=did:plc:abc123&skey=default",
+			want: spacePermission{
+				SpaceType: "com.atmoboards.forum",
+				Authority: "did:plc:abc123",
+				Skey:      "default",
+			},
+		},
+		{
+			name:  "collections actions and manage",
+			scope: "space:com.atmoboards.forum?authority=*&collection=com.atmoboards.thread&action=create&action=update&manage=delete",
+			want: spacePermission{
+				SpaceType:   "com.atmoboards.forum",
+				Authority:   wildcard,
+				Skey:        wildcard,
+				Collections: []string{"com.atmoboards.thread"},
+				Actions:     []spaceAction{ActionCreate, ActionUpdate},
+				Manage:      []spaceManage{ManageDelete},
+			},
+		},
+		{
+			name:  "collection wildcard and read_self",
+			scope: "space:com.atmoboards.forum?authority=*&action=read_self&collection=*",
+			want: spacePermission{
+				SpaceType:   "com.atmoboards.forum",
+				Authority:   wildcard,
+				Skey:        wildcard,
+				Collections: []string{wildcard},
+				Actions:     []spaceAction{ActionReadSelf},
 			},
 		},
 		{
 			name:    "unknown resource",
-			scope:   "invalid:*",
+			scope:   "org:*",
 			wantErr: true,
 		},
 		{
-			name:    "empty scope",
-			scope:   "",
+			name:    "missing space type",
+			scope:   "space:",
 			wantErr: true,
 		},
 		{
 			name:    "no positional value",
-			scope:   "org",
+			scope:   "space",
+			wantErr: true,
+		},
+		{
+			name:    "invalid space type nsid",
+			scope:   "space:not-an-nsid",
+			wantErr: true,
+		},
+		{
+			name:    "invalid authority did",
+			scope:   "space:com.example.type?authority=not-a-did",
+			wantErr: true,
+		},
+		{
+			name:    "unknown action",
+			scope:   "space:com.example.type?action=bogus",
+			wantErr: true,
+		},
+		{
+			name:    "unknown manage op",
+			scope:   "space:com.example.type?manage=bogus",
+			wantErr: true,
+		},
+		{
+			name:    "unsupported param",
+			scope:   "space:com.example.type?bogus=1",
 			wantErr: true,
 		},
 	}
@@ -61,118 +126,191 @@ func TestPermissionFromScope(t *testing.T) {
 	}
 }
 
+func TestParseSpacePermissionsSkipsInvalid(t *testing.T) {
+	perms := parseSpacePermissions([]string{
+		"space:com.example.bookmarks",
+		"org:*", // not a space scope, skipped
+		"space:*",
+	})
+	require.Equal(t, []spacePermission{
+		{SpaceType: "com.example.bookmarks", Authority: authoritySelf, Skey: wildcard},
+		{SpaceType: wildcard, Authority: authoritySelf, Skey: wildcard},
+	}, perms)
+}
+
 func TestScopeMatch(t *testing.T) {
 	tests := []struct {
 		name     string
-		granted  permission
-		required permission
+		granted  spacePermission
+		required spacePermission
 		want     bool
 	}{
 		{
-			name:     "wildcard matches any space type",
-			granted:  permission{Resource: "org"},
-			required: permission{Resource: "org", Namespace: "com.example.type"},
+			name:     "space type wildcard covers concrete type",
+			granted:  spacePermission{SpaceType: wildcard, Authority: wildcard, Skey: wildcard},
+			required: spacePermission{SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard},
 			want:     true,
 		},
 		{
-			name:     "exact match",
-			granted:  permission{Resource: "org", Namespace: "com.example.type"},
-			required: permission{Resource: "org", Namespace: "com.example.type"},
-			want:     true,
-		},
-		{
-			name:     "different collection no match",
-			granted:  permission{Resource: "org", Namespace: "com.example.type"},
-			required: permission{Resource: "org", Namespace: "com.example.like"},
+			name:     "different space type no match",
+			granted:  spacePermission{SpaceType: "com.example.a", Authority: wildcard, Skey: wildcard},
+			required: spacePermission{SpaceType: "com.example.b", Authority: wildcard, Skey: wildcard},
 			want:     false,
 		},
 		{
-			name:    "wildcard matches with action constraint",
-			granted: permission{Resource: "org"},
-			required: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
-				Actions:   []scopeAction{ActionCreate},
+			name:     "authority wildcard covers concrete did",
+			granted:  spacePermission{SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard},
+			required: spacePermission{SpaceType: "com.example.type", Authority: "did:plc:abc", Skey: wildcard},
+			want:     true,
+		},
+		{
+			name:     "concrete authority does not cover wildcard",
+			granted:  spacePermission{SpaceType: "com.example.type", Authority: "did:plc:abc", Skey: wildcard},
+			required: spacePermission{SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard},
+			want:     false,
+		},
+		{
+			name:     "skey wildcard covers concrete skey",
+			granted:  spacePermission{SpaceType: "com.example.type", Authority: authoritySelf, Skey: wildcard},
+			required: spacePermission{SpaceType: "com.example.type", Authority: authoritySelf, Skey: "default"},
+			want:     true,
+		},
+		{
+			name:     "different skey no match",
+			granted:  spacePermission{SpaceType: "com.example.type", Authority: authoritySelf, Skey: "a"},
+			required: spacePermission{SpaceType: "com.example.type", Authority: authoritySelf, Skey: "b"},
+			want:     false,
+		},
+		{
+			name:     "default actions cover default actions",
+			granted:  spacePermission{SpaceType: wildcard, Authority: wildcard, Skey: wildcard},
+			required: spacePermission{SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard},
+			want:     true,
+		},
+		{
+			name: "read implies read_self",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Actions: []spaceAction{ActionRead},
+			},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Actions: []spaceAction{ActionReadSelf},
 			},
 			want: true,
 		},
 		{
-			name: "granted nil actions satisfies any action requirement",
-			granted: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
+			name: "read_self does not imply read",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Actions: []spaceAction{ActionReadSelf},
 			},
-			required: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
-				Actions:   []scopeAction{ActionCreate},
-			},
-			want: true,
-		},
-		{
-			name: "granted specific action satisfies actionless required",
-			granted: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
-				Actions:   []scopeAction{ActionCreate},
-			},
-			required: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
-			},
-			want: true,
-		},
-		{
-			name: "missing action in granted fails",
-			granted: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
-				Actions:   []scopeAction{ActionCreate},
-			},
-			required: permission{
-				Resource:  "org",
-				Namespace: "com.example.type",
-				Actions:   []scopeAction{ActionUpdate},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Actions: []spaceAction{ActionRead},
 			},
 			want: false,
 		},
 		{
-			name:     "different resource no match",
-			granted:  permission{Resource: "repo", Namespace: "com.example.type"},
-			required: permission{Resource: "org", Namespace: "com.example.type"},
-			want:     false,
+			name: "missing required action fails",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Actions: []spaceAction{ActionRead},
+			},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Actions: []spaceAction{ActionCreate},
+			},
+			want: false,
+		},
+		{
+			name: "manage subset covered",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Manage: []spaceManage{ManageUpdate, ManageDelete},
+			},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Manage: []spaceManage{ManageUpdate},
+			},
+			want: true,
+		},
+		{
+			name: "missing required manage op fails",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Manage: []spaceManage{ManageUpdate},
+			},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Manage: []spaceManage{ManageDelete},
+			},
+			want: false,
+		},
+		{
+			name: "collection wildcard covers concrete collection",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Collections: []string{wildcard},
+			},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Collections: []string{"com.example.record"},
+			},
+			want: true,
+		},
+		{
+			name: "explicit collection superset covers subset",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Collections: []string{"com.example.a", "com.example.b"},
+			},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Collections: []string{"com.example.a"},
+			},
+			want: true,
+		},
+		{
+			name: "collection not in granted set fails",
+			granted: spacePermission{
+				SpaceType: wildcard, Authority: wildcard, Skey: wildcard,
+				Collections: []string{"com.example.a"},
+			},
+			required: spacePermission{
+				SpaceType: "com.example.type", Authority: wildcard, Skey: wildcard,
+				Collections: []string{"com.example.b"},
+			},
+			want: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := scopeMatch(tt.granted, tt.required)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, scopeMatch(tt.granted, tt.required))
 		})
 	}
 }
 
-func TestScopesStrategy(t *testing.T) {
-	t.Run("wildcard satisfies single", func(t *testing.T) {
-		ok := scopeStrategy([]string{"org:*"}, "org:com.example.type")
-		require.True(t, ok)
+func TestScopeStrategy(t *testing.T) {
+	t.Run("wildcard satisfies concrete", func(t *testing.T) {
+		require.True(t, scopeStrategy([]string{"space:*?authority=*"}, "space:com.example.type?authority=*"))
 	})
 	t.Run("exact match", func(t *testing.T) {
-		ok := scopeStrategy([]string{"org:com.example.type"}, "org:com.example.type")
-		require.True(t, ok)
+		require.True(t, scopeStrategy([]string{"space:com.example.type"}, "space:com.example.type"))
 	})
 	t.Run("missing scope", func(t *testing.T) {
-		ok := scopeStrategy([]string{"org:com.example.otherType"}, "org:com.example.type")
-		require.False(t, ok)
+		require.False(t, scopeStrategy([]string{"space:com.example.other"}, "space:com.example.type"))
 	})
 	t.Run("empty granted not satisfied", func(t *testing.T) {
-		ok := scopeStrategy([]string{}, "org:com.example.type")
-		require.False(t, ok)
+		require.False(t, scopeStrategy([]string{}, "space:com.example.type"))
+	})
+	t.Run("invalid needle not satisfied", func(t *testing.T) {
+		require.False(t, scopeStrategy([]string{"space:*"}, "org:*"))
 	})
 	t.Run("needle in multi-item haystack", func(t *testing.T) {
-		ok := scopeStrategy(
-			[]string{"org:com.example.otherType", "org:com.example.type"},
-			"org:com.example.type",
-		)
-		require.True(t, ok)
+		require.True(t, scopeStrategy(
+			[]string{"space:com.example.other", "space:com.example.type"},
+			"space:com.example.type",
+		))
 	})
 }

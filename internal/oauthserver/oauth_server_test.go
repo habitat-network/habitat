@@ -625,7 +625,10 @@ func TestOAuthServerAuthenticatesHiveServedIdentity(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "resource request failed: %s", respBytes)
 }
 
-func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
+// TestHandleCallbackWithSpaceScope drives the authorization code flow with a
+// space scope requested and registered by the client, and asserts the callback
+// completes with a redirect back to the client.
+func TestHandleCallbackWithSpaceScope(t *testing.T) {
 	db := dbtestutil.NewDB(t)
 	credStore, err := pdscred.NewPDSCredentialStore(db, encrypt.TestKey)
 	require.NoError(t, err)
@@ -689,7 +692,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 					RedirectUris:  []string{"http://" + r.Host + "/oauth-callback"},
 					ResponseTypes: []string{"code"},
 					GrantTypes:    []string{"authorization_code", "refresh_token"},
-					Scope:         "org:*",
+					Scope:         "space:*",
 				}))
 			default:
 				w.WriteHeader(http.StatusNotFound)
@@ -704,7 +707,7 @@ func TestHandleCallbackRejectsOrgScopeForNonAdmin(t *testing.T) {
 	authRequest, err := http.NewRequest(http.MethodGet, config.AuthCodeURL(
 		"test-state",
 		oauth2.S256ChallengeOption(verifier),
-	)+"&handle=did:web:example.did.com&scope=org:*", nil)
+	)+"&handle=did:web:example.did.com&scope=space:*", nil)
 	require.NoError(t, err)
 
 	server.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -967,10 +970,10 @@ func TestValidateWithScopeChecking(t *testing.T) {
 		return s
 	}
 
-	t.Run("token without org scope fails org scope requirement", func(t *testing.T) {
+	t.Run("token without space scope fails space scope requirement", func(t *testing.T) {
 		srv := newSrv(testStore(t))
 		token := acquireAccessToken(t, srv, clientMetadata)
-		_, _, err := srv.ValidateRaw(t.Context(), token, "org:*")
+		_, _, err := srv.ValidateRaw(t.Context(), token, "space:*")
 		require.Error(t, err)
 	})
 

@@ -372,6 +372,7 @@ func (s *store) GetRefreshTokenSession(
 			Subject:               oauthSession.Subject,
 			ClientID:              oauthSession.ClientID,
 			Scopes:                scopes,
+			Permissions:           parseSpacePermissions(scopes),
 			RefreshTokenExpiresAt: oauthSession.ExpiresAt,
 		},
 		RequestedScope: scopes,
