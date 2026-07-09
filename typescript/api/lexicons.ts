@@ -3912,18 +3912,23 @@ export const schemaDict = {
       main: {
         type: 'procedure',
         description:
-          "Delete a record in a space, or ensure it doesn't exist. Caller must have can_delete on the space.",
+          "Delete a record in a permissioned space, or ensure it doesn't exist. Requires auth, implemented by PDS.",
         input: {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['space', 'collection', 'rkey'],
-            nullable: ['swapRecord', 'swapCommit'],
+            required: ['space', 'repo', 'collection', 'rkey'],
             properties: {
               space: {
                 type: 'string',
-                format: 'uri',
+                format: 'at-uri',
                 description: 'Reference to the space.',
+              },
+              repo: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'The DID of the repo to delete from (the authenticated member).',
               },
               collection: {
                 type: 'string',
@@ -3934,18 +3939,6 @@ export const schemaDict = {
                 type: 'string',
                 format: 'record-key',
                 description: 'The Record Key.',
-              },
-              swapRecord: {
-                type: 'string',
-                format: 'cid',
-                description:
-                  'Compare and swap with the previous record by CID.',
-              },
-              swapCommit: {
-                type: 'string',
-                format: 'cid',
-                description:
-                  'Compare and swap with the previous commit by CID.',
               },
             },
           },
@@ -3959,7 +3952,7 @@ export const schemaDict = {
         },
         errors: [
           {
-            name: 'InvalidSwap',
+            name: 'SpaceNotFound',
           },
         ],
       },
