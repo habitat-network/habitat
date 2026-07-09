@@ -111,20 +111,6 @@ func TestOAuthServerErrorPaths(t *testing.T) {
 		require.True(t, oauthSrv.CanHandle(r))
 	})
 
-	t.Run("CanHandle returns true for typ", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		token, err := new(jwt.Token{
-			Header: map[string]interface{}{
-				"typ": "oauth+JWT",
-				"alg": "HS256",
-			},
-			Method: jwt.SigningMethodHS256,
-		}).SignedString(secret)
-		require.NoError(t, err)
-		r.Header.Set("Authorization", "Bearer "+token)
-		require.True(t, oauthSrv.CanHandle(r))
-	})
-
 	t.Run("CanHandle returns false without oauth header", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		require.False(t, oauthSrv.CanHandle(r))
@@ -332,6 +318,7 @@ func TestOAuthServerE2E(t *testing.T) {
 			oauthServer.HandleToken(w, r)
 			return
 		case "/resource":
+			require.True(t, oauthServer.CanHandle(r))
 			credInfo, ok := oauthServer.Validate(w, r)
 			require.True(t, ok, "failed to validate token")
 			require.Equal(t, syntax.DID("did:web:example.did.com"), credInfo.Subject)
