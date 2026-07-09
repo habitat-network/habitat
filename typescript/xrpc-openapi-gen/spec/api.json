@@ -7127,14 +7127,22 @@
               "schema": {
                 "type": "object",
                 "required": [
+                  "space",
+                  "repo",
                   "collection",
+                  "rkey",
                   "record"
                 ],
                 "properties": {
                   "space": {
                     "type": "string",
                     "description": "Reference to the space.",
-                    "format": "uri"
+                    "format": "at-uri"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The DID of the repo to write to (the authenticated member).",
+                    "format": "did"
                   },
                   "collection": {
                     "type": "string",
@@ -7146,6 +7154,10 @@
                     "description": "The Record Key.",
                     "format": "record-key",
                     "maxLength": 512
+                  },
+                  "validate": {
+                    "type": "boolean",
+                    "description": "Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons."
                   },
                   "record": {}
                 }
@@ -7161,16 +7173,25 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "uri"
+                    "uri",
+                    "cid"
                   ],
                   "properties": {
                     "uri": {
                       "type": "string",
-                      "description": "URI of the written record."
+                      "description": "URI of the written record.",
+                      "format": "at-uri"
                     },
                     "cid": {
                       "type": "string",
                       "format": "cid"
+                    },
+                    "validationStatus": {
+                      "type": "string",
+                      "enum": [
+                        "valid",
+                        "unknown"
+                      ]
                     }
                   }
                 }
@@ -7199,6 +7220,9 @@
                         },
                         {
                           "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
                         }
                       ]
                     },

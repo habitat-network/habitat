@@ -19,11 +19,15 @@ export type QueryParams = {}
 
 export interface InputSchema {
   /** Reference to the space. */
-  space?: string
+  space: string
+  /** The DID of the repo to write to (the authenticated member). */
+  repo: string
   /** The NSID of the record collection. */
   collection: string
   /** The Record Key. */
-  rkey?: string
+  rkey: string
+  /** Can be set to 'false' to skip Lexicon schema validation of record data, 'true' to require it, or leave unset to validate only for known Lexicons. */
+  validate?: boolean
   /** The record to write. */
   record: { [_ in string]: unknown }
 }
@@ -31,7 +35,8 @@ export interface InputSchema {
 export interface OutputSchema {
   /** URI of the written record. */
   uri: string
-  cid?: string
+  cid: string
+  validationStatus?: 'valid' | 'unknown' | (string & {})
 }
 
 export interface CallOptions {
@@ -47,6 +52,16 @@ export interface Response {
   data: OutputSchema
 }
 
+export class SpaceNotFoundError extends XRPCError {
+  constructor(src: XRPCError) {
+    super(src.status, src.error, src.message, src.headers, { cause: src })
+  }
+}
+
 export function toKnownErr(e: any) {
+  if (e instanceof XRPCError) {
+    if (e.error === 'SpaceNotFound') return new SpaceNotFoundError(e)
+  }
+
   return e
 }

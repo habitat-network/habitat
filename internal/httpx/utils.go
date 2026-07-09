@@ -32,3 +32,8 @@ func WriteInvalidRequest(ctx context.Context, w http.ResponseWriter, msg string,
 	slog.WarnContext(ctx, "bad request", "msg", msg, "err", err)
 	writeError(ctx, w, "InvalidRequest", msg, http.StatusBadRequest)
 }
+
+func WriteNotSupported(ctx context.Context, w http.ResponseWriter, msg string) {
+	slog.WarnContext(ctx, "not supported", "msg", msg)
+	writeError(ctx, w, "NotSupported", msg, http.StatusNotImplemented)
+}
