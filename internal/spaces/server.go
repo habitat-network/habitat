@@ -79,9 +79,8 @@ func (s *Server) CreateSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceType, err := syntax.ParseNSID(input.Type)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space type", http.StatusBadRequest)
+	spaceType, ok := httpx.ParseNSIDInput(r.Context(), w, input.Type, "space type")
+	if !ok {
 		return
 	}
 
@@ -147,9 +146,8 @@ func (s *Server) ListSpaces(w http.ResponseWriter, r *http.Request) {
 
 	var filterType *syntax.NSID
 	if params.Type != "" {
-		t, err := syntax.ParseNSID(params.Type)
-		if err != nil {
-			utils.LogAndHTTPError(r.Context(), w, err, "parse type filter", http.StatusBadRequest)
+		t, ok := httpx.ParseNSIDInput(r.Context(), w, params.Type, "type filter")
+		if !ok {
 			return
 		}
 		filterType = &t
@@ -198,9 +196,8 @@ func (s *Server) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -270,9 +267,8 @@ func (s *Server) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -341,9 +337,8 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -404,9 +399,8 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteNotSupported(ctx, w, "validate is not yet supported")
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -445,9 +439,8 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection, err := syntax.ParseNSID(input.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, input.Collection, "collection")
+	if !ok {
 		return
 	}
 	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
@@ -512,9 +505,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 	if credInfo.Subject != "" {
@@ -539,9 +531,8 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	collection, err := syntax.ParseNSID(params.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection")
+	if !ok {
 		return
 	}
 
@@ -587,9 +578,8 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -611,15 +601,8 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 
 	var filterCollection *syntax.NSID
 	if params.Collection != "" {
-		c, err := syntax.ParseNSID(params.Collection)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"parse collection filter",
-				http.StatusBadRequest,
-			)
+		c, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection filter")
+		if !ok {
 			return
 		}
 		filterCollection = &c
@@ -664,9 +647,8 @@ func (s *Server) GetRepoOplog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(params.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -745,9 +727,8 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
@@ -776,9 +757,8 @@ func (s *Server) DeleteRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	collection, err := syntax.ParseNSID(input.Collection)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse collection", http.StatusBadRequest)
+	collection, ok := httpx.ParseNSIDInput(r.Context(), w, input.Collection, "collection")
+	if !ok {
 		return
 	}
 	if collection.String() == habitat_syntax.ReservedRelationshipTupleNSID {
@@ -815,9 +795,8 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spaceURI, err := habitat_syntax.ParseSpaceURI(input.Space)
-	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "parse space uri", http.StatusBadRequest)
+	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, input.Space, "space uri")
+	if !ok {
 		return
 	}
 
