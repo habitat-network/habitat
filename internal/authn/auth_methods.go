@@ -7,6 +7,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/org"
+	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
 type CredentialType int
@@ -19,6 +20,7 @@ const (
 type CredentialInfo struct {
 	Subject syntax.DID
 	Org     org.Org
+	Space   habitat_syntax.SpaceURI
 	Type    CredentialType
 }
 

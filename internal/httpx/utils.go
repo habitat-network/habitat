@@ -42,3 +42,14 @@ func WriteNotSupported(ctx context.Context, w http.ResponseWriter, msg string) {
 	slog.WarnContext(ctx, "not supported", "msg", msg)
 	WriteError(ctx, w, "NotSupported", msg, http.StatusNotImplemented)
 }
+
+func WriteServerError(ctx context.Context, w http.ResponseWriter, err error) {
+	slog.ErrorContext(ctx, "server error", "err", err)
+	WriteError(
+		ctx,
+		w,
+		"ServerError",
+		err.Error(), // probably fine to leak debug details for unexpected errors
+		http.StatusInternalServerError,
+	)
+}
