@@ -177,6 +177,30 @@ func TestListRepos_WithRecords(t *testing.T) {
 	require.NotEmpty(t, repos[0].Rev)
 }
 
+// TestListRepos_HashMatchesLtHash verifies the reported repo hash equals an
+// independently computed LtHash over the repo's (collection/rkey/cid) elements.
+func TestListRepos_HashMatchesLtHash(t *testing.T) {
+	s := newTestStore(t)
+
+	uri, err := s.CreateSpace(t.Context(), orgId, owner, groupType, "test")
+	require.NoError(t, err)
+
+	coll := syntax.NSID("network.habitat.note")
+	_, cid1, err := s.PutRecord(t.Context(), uri, owner, coll, "k1", map[string]any{"x": 1})
+	require.NoError(t, err)
+	_, cid2, err := s.PutRecord(t.Context(), uri, owner, coll, "k2", map[string]any{"x": 2})
+	require.NoError(t, err)
+
+	repos, err := s.ListRepos(t.Context(), uri)
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+
+	var expected ltHash
+	expected.add(recordElement(coll.String(), "k1", cid1.String()))
+	expected.add(recordElement(coll.String(), "k2", cid2.String()))
+	require.Equal(t, expected.sum(), repos[0].Hash)
+}
+
 func TestListRepos_SpaceNotFound(t *testing.T) {
 	s := newTestStore(t)
 

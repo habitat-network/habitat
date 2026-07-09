@@ -340,27 +340,45 @@ func (s *store) ListRepos(
 		return nil, err
 	}
 
-	type repoRev struct {
-		Repo syntax.DID
-		Rev  syntax.TID
-	}
-	var results []repoRev
+	// Scan every record in the space once and fold each repo's records into an
+	// LtHash. Computing the commit hash requires reading the full record set
+	// anyway, so we derive the max rev in the same pass rather than a separate
+	// GROUP BY query.
+	var rows []spaceRecord
 	if err := s.db.WithContext(ctx).
-		Model(&spaceRecord{}).
-		Select("repo, MAX(rev) as rev").
 		Where("space = ?", uri).
-		Group("repo").
-		Find(&results).Error; err != nil {
+		Order("repo ASC, rev ASC").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	repos := make([]RepoInfo, len(results))
-	for i, r := range results {
-		repos[i] = RepoInfo{
-			DID:  r.Repo,
-			Rev:  string(r.Rev),
-			Hash: nil,
+	type repoAcc struct {
+		rev  syntax.TID
+		hash ltHash
+	}
+	accs := make(map[syntax.DID]*repoAcc)
+	var order []syntax.DID
+	for _, row := range rows {
+		a, ok := accs[row.Repo]
+		if !ok {
+			a = &repoAcc{}
+			accs[row.Repo] = a
+			order = append(order, row.Repo)
 		}
+		if row.Rev > a.rev {
+			a.rev = row.Rev
+		}
+		a.hash.add(recordElement(row.Collection.String(), row.Rkey.String(), row.Cid))
+	}
+
+	repos := make([]RepoInfo, 0, len(order))
+	for _, did := range order {
+		a := accs[did]
+		repos = append(repos, RepoInfo{
+			DID:  did,
+			Rev:  string(a.rev),
+			Hash: a.hash.sum(),
+		})
 	}
 	return repos, nil
 }

@@ -369,7 +369,7 @@ func (s *Server) ListRepos(w http.ResponseWriter, r *http.Request) {
 		repoViews[i] = habitat.NetworkHabitatSpaceListReposRepo{
 			Did:  r.DID.String(),
 			Rev:  r.Rev,
-			Hash: nil,
+			Hash: r.Hash,
 		}
 	}
 

@@ -114,6 +114,10 @@ func TestServer_ListRepos(t *testing.T) {
 	require.Len(t, output.Repos, 1)
 	require.Equal(t, "did:plc:owner", output.Repos[0].Did)
 	require.NotEmpty(t, output.Repos[0].Rev)
+	// The repo's LtHash commit hash is populated (base64-encoded bytes).
+	hash, ok := output.Repos[0].Hash.(string)
+	require.True(t, ok)
+	require.NotEmpty(t, hash)
 }
 
 func TestServer_ListRepos_CursorLimitNotSupported(t *testing.T) {
