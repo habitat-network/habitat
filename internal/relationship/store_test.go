@@ -9,10 +9,11 @@ import (
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	"github.com/stretchr/testify/require"
 
-	"github.com/habitat-network/habitat/internal/db/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/spaces"
+	"github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -27,13 +28,11 @@ var (
 
 func newTestStore(t *testing.T) (*Store, spaces.Store) {
 	t.Helper()
-	db := testutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
-	eventStore, err := events.NewStore(db)
-	require.NoError(t, err)
-	sp, err := spaces.NewStore(db, fga, eventStore, nil)
+	sp := testutil.NewTestStore(t)
 	require.NoError(t, err)
 	return NewStore(db, sp, fga), sp
 }
@@ -457,7 +456,7 @@ func (f *flakyFGA) WriteRaw(ctx context.Context, req *openfgav1.WriteRequest) er
 }
 
 func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
-	db := testutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	mem, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mem.Close() })

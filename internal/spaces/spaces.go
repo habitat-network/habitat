@@ -179,7 +179,7 @@ type Notifier interface {
 		ctx context.Context,
 		space habitat_syntax.SpaceURI,
 		repo syntax.DID,
-		rev string,
+		rev syntax.TID,
 	)
 	// NotifySpaceDeleted reports that a space was deleted.
 	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
@@ -609,10 +609,8 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
 	s.eventStore.NotifyEvent(ctx)
-	if s.notifier != nil {
-		// Best-effort: notify registered syncers that this repo advanced.
-		s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev.String())
-	}
+	// Best-effort: notify registered syncers that this repo advanced.
+	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev)
 	return recordUri, &cid, nil
 }
 
@@ -734,11 +732,8 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	if err != nil {
 		return err
 	}
-
-	if s.notifier != nil {
-		// Best-effort: tell registered syncers the space is gone.
-		s.notifier.NotifySpaceDeleted(ctx, uri)
-	}
+	// Best-effort: tell registered syncers the space is gone.
+	s.notifier.NotifySpaceDeleted(ctx, uri)
 	return nil
 }
 

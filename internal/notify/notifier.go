@@ -55,7 +55,7 @@ func (d *Deliverer) NotifyWrite(
 	ctx context.Context,
 	space habitat_syntax.SpaceURI,
 	repo syntax.DID,
-	rev string,
+	rev syntax.TID,
 ) {
 	regs, err := d.store.ListForRepo(ctx, space, repo)
 	if err != nil {
@@ -70,7 +70,7 @@ func (d *Deliverer) NotifyWrite(
 	body, err := json.Marshal(habitat.NetworkHabitatSpaceNotifyWriteInput{
 		Space: space.String(),
 		Repo:  repo.String(),
-		Rev:   rev,
+		Rev:   rev.String(),
 		Hash:  "",
 	})
 	if err != nil {

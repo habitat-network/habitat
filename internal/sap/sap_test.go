@@ -19,10 +19,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/habitat-network/habitat/internal/oauthclient"
+	"github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/habitat-network/habitat/internal/sync"
 
-	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
-	"github.com/habitat-network/habitat/internal/db/testutil"
+	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
+	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
@@ -85,7 +86,7 @@ func TestSap(t *testing.T) {
 	sapServer := httptest.NewTLSServer(mux)
 	t.Cleanup(sapServer.Close)
 
-	db := testutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 
 	store, err := oauthclient.NewGormStore(db)
 	require.NoError(t, err)
@@ -238,7 +239,7 @@ func setupPear(
 
 	fgaStore, err := fgastore.NewSQLite(t.Context(), t.TempDir()+"/pear.fga.db")
 	require.NoError(t, err)
-	db := testutil.NewDB(t)
+	db := db_testutil.NewDB(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
@@ -278,16 +279,12 @@ func setupPear(
 
 	syncServer := sync.NewServer(eventStore)
 
-	spacesStore, err := spaces.NewStore(db, fgaStore, eventStore, nil)
-	if err != nil {
-		slog.ErrorContext(t.Context(), "unable to setup spaces store", "err", err)
-		os.Exit(1)
-	}
+	spacesStore := testutil.NewTestStore(t)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
 		oauthServer,
-		authntest.NewFailMethod(),
+		authn_testutil.NewFailMethod(),
 		orgStore,
 	)
 
