@@ -3,16 +3,18 @@ package utils
 import (
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func ServiceAuthClaims(
+func ServiceAuthToken(
+	privateKey atcrypto.PrivateKey,
 	iss syntax.DID,
 	aud string,
 	lxm *syntax.NSID,
 	ttl *time.Duration,
-) (headers map[string]any, claims jwt.Claims) {
+) (string, error) {
 	if ttl != nil {
 		const maxTTL = 30 * time.Minute
 		if *ttl > maxTTL {
@@ -21,12 +23,12 @@ func ServiceAuthClaims(
 	} else {
 		ttl = new(60 * time.Second)
 	}
-	return map[string]any{}, jwt.MapClaims{
+	return jwt.NewWithClaims(jwt.GetSigningMethod("ES256K"), jwt.MapClaims{
 		"exp": jwt.NewNumericDate(time.Now().Add(*ttl)),
 		"iat": jwt.NewNumericDate(time.Now()),
 		"iss": iss.String(),
 		"aud": aud,
 		"jti": RandomNonce(16),
 		"lxm": lxm,
-	}
+	}).SignedString(privateKey)
 }

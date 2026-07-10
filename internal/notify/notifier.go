@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -23,12 +23,7 @@ var (
 // ServiceAuthSigner mints a habitat-issued atproto service-auth JWT for the
 // issuing identity. hive.Hive satisfies this interface.
 type ServiceAuthSigner interface {
-	SignJWT(
-		ctx context.Context,
-		did syntax.DID,
-		headers map[string]any,
-		claims jwt.Claims,
-	) (string, error)
+	PrivateKeyForDID(ctx context.Context, did syntax.DID) (atcrypto.PrivateKey, error)
 }
 
 // Deliverer delivers notifyWrite / notifySpaceDeleted events to registered
@@ -133,8 +128,13 @@ func (d *Deliverer) deliver(
 		return
 	}
 
-	headers, claims := utils.ServiceAuthClaims(iss, endpoint, &method, nil)
-	token, err := d.signer.SignJWT(ctx, iss, headers, claims)
+	privKey, err := d.signer.PrivateKeyForDID(ctx, iss)
+	if err != nil {
+		slog.ErrorContext(ctx, "notify: get private key",
+			"err", err, "endpoint", endpoint, "method", method)
+		return
+	}
+	token, err := utils.ServiceAuthToken(privKey, iss, endpoint, &method, nil)
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: sign service auth",
 			"err", err, "endpoint", endpoint, "method", method)
