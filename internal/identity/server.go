@@ -10,7 +10,9 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
+	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
@@ -28,19 +30,25 @@ func effectiveHost(r *http.Request) string {
 	return r.Host
 }
 
-// Serve DID docs and handle --> did mappings.
+// Server serves DID docs and handle --> did mappings.
 // Does not serve the MintIdentity endpoint.
 type Server struct {
-	hive     hive.Hive
-	oauth    authn.Method
-	orgStore org.Store
+	hive          hive.Hive
+	oauth         authn.Method
+	orgStore      org.Store
+	pdsForwarding *forwarding.PDSForwarding
 }
 
 // NewServer constructs the hive HTTP server. The OAuth method is required to
 // authenticate the caller for endpoints that mint things using the identity's
 // signing key (e.g. com.atproto.server.getServiceAuth).
-func NewServer(hive hive.Hive, oauth authn.Method, orgStore org.Store) (*Server, error) {
-	return &Server{hive: hive, oauth: oauth, orgStore: orgStore}, nil
+func NewServer(
+	hive hive.Hive,
+	oauth authn.Method,
+	orgStore org.Store,
+	pdsForwarding *forwarding.PDSForwarding,
+) (*Server, error) {
+	return &Server{hive: hive, oauth: oauth, orgStore: orgStore, pdsForwarding: pdsForwarding}, nil
 }
 
 type didDocWithContext struct {
@@ -60,6 +68,7 @@ var didCtx = []string{
 // auth JWTs. Downstream services verify the token by resolving the DID and
 // fetching the same signing key, with no changes needed on their end.
 func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth),
 	).Validate(w, r)
@@ -69,11 +78,7 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 
 	aud := r.URL.Query().Get("aud")
 	if aud == "" {
-		utils.WriteHTTPError(
-			w,
-			errors.New("missing required parameter: aud"),
-			http.StatusBadRequest,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "missing required parameter: aud", nil)
 		return
 	}
 
@@ -85,12 +90,12 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 	if expStr := r.URL.Query().Get("exp"); expStr != "" {
 		expUnix, err := strconv.ParseInt(expStr, 10, 64)
 		if err != nil {
-			utils.WriteHTTPError(w, fmt.Errorf("parsing exp: %w", err), http.StatusBadRequest)
+			httpx.WriteInvalidRequest(ctx, w, "invalid exp", err)
 			return
 		}
 		ttl = time.Until(time.Unix(expUnix, 0))
 		if ttl <= 0 {
-			utils.WriteHTTPError(w, errors.New("exp is in the past"), http.StatusBadRequest)
+			httpx.WriteInvalidRequest(ctx, w, "exp is in the past", nil)
 			return
 		}
 		if ttl > maxTTL {
@@ -100,27 +105,33 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 
 	var lxm *syntax.NSID
 	if lxmStr := r.URL.Query().Get("lxm"); lxmStr != "" {
-		parsed, err := syntax.ParseNSID(lxmStr)
-		if err != nil {
-			utils.WriteHTTPError(w, fmt.Errorf("parsing lxm: %w", err), http.StatusBadRequest)
+		parsed, ok := httpx.ParseNSIDInput(ctx, w, lxmStr, "lxm")
+		if !ok {
 			return
 		}
 		lxm = &parsed
 	}
 
-	token, err := s.hive.SignServiceAuth(r.Context(), credInfo.Subject, aud, ttl, lxm)
+	token, err := s.hive.SignJWT(ctx, credInfo.Subject,
+		map[string]any{},
+		jwt.MapClaims{
+			"exp": jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			"iat": jwt.NewNumericDate(time.Now()),
+			"iss": credInfo.Subject,
+			"aud": aud,
+			"jti": utils.RandomNonce(16),
+			"lxm": lxm,
+		},
+	)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		s.pdsForwarding.ServeHTTP(w, r)
+	}
 	if err != nil {
-		utils.LogAndHTTPError(
-			r.Context(),
-			w,
-			err,
-			"signing service auth",
-			http.StatusInternalServerError,
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("signing service auth: %w", err))
 		return
 	}
 
-	httpx.WriteJSON(r.Context(), w, struct {
+	httpx.WriteJSON(ctx, w, struct {
 		Token string `json:"token"`
 	}{Token: token})
 }

@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/schema"
 
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
 	"github.com/habitat-network/habitat/internal/org"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
@@ -24,9 +27,11 @@ type Server struct {
 	fga         fgastore.Store
 	oauth       authn.Method
 	serviceAuth authn.Method
+	delegation  authn.Method
 	decoder     *schema.Decoder
 	orgStore    org.Store
 	commit      *commitAuthority
+	hive        hive.Hive
 }
 
 // NewServer constructs the spaces server. host and member are the commit
@@ -39,9 +44,10 @@ func NewServer(
 	fga fgastore.Store,
 	oauth authn.Method,
 	serviceAuth authn.Method,
+	delegation *authn.DelegationTokenAuthMethod,
 	orgStore org.Store,
 	host CommitSigner,
-	member MemberSigner,
+	hive hive.Hive,
 ) *Server {
 	return &Server{
 		store:       store,
@@ -50,7 +56,9 @@ func NewServer(
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
 		orgStore:    orgStore,
-		commit:      &commitAuthority{host: host, member: member},
+		commit:      &commitAuthority{host: host, member: hive},
+		hive:        hive,
+		delegation:  delegation,
 	}
 }
 
@@ -898,4 +906,48 @@ func (s *Server) DeleteSpace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	credInfo, ok := authn.NewValidator(authn.WithAuthMethods(s.delegation)).Validate(w, r)
+	if !ok {
+		return
+	}
+	var input habitat.NetworkHabitatSpaceGetSpaceCredentialInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		httpx.WriteInvalidRequest(ctx, w, "failed to parse params", err)
+		return
+	}
+	if input.ClientAttestation != "" {
+		httpx.WriteNotSupported(ctx, w, "client attestation is not yet supported")
+	}
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, input.Space, "space uri")
+	if !ok {
+		return
+	}
+	if credInfo.Space != spaceURI {
+		httpx.WriteInvalidRequest(ctx, w, "param doesn't match token", nil)
+		return
+	}
+	token, err := s.hive.SignJWT(
+		ctx,
+		spaceURI.SpaceOwner(),
+		map[string]any{
+			"typ": "atproto-space-credential+jwt",
+			"kid": "#atproto", // TODO: should probably switch to #atproto_space when hive supports it
+		},
+		jwt.MapClaims{
+			"iss": spaceURI.SpaceOwner(),
+			"sub": spaceURI,
+			"iat": jwt.NewNumericDate(time.Now()),
+			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			"jti": utils.RandomNonce(16),
+		},
+	)
+	if err != nil {
+		httpx.WriteSpaceNotFound(ctx, w, err)
+		return
+	}
+	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})
 }

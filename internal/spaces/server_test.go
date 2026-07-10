@@ -17,6 +17,7 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/org/testutil"
 )
 
@@ -41,7 +42,18 @@ func newTestServerWithSigners(
 	store, err := NewStore(db, fga, eventStore)
 	require.NoError(t, err)
 
-	return NewServer(store, fga, oauth, serviceAuth, testutil.NewTestStore(t), host, member)
+	h, err := hive.NewHive("example.com", "pear.example.com", db)
+	require.NoError(t, err)
+	return NewServer(
+		store,
+		fga,
+		oauth,
+		serviceAuth,
+		authn.NewDelegationTokenAuthMethod(nil, nil),
+		testutil.NewTestStore(t),
+		host,
+		h,
+	)
 }
 
 func newOwnerServer(t *testing.T) *Server {

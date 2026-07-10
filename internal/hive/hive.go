@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
-	"github.com/bluesky-social/indigo/atproto/auth"
+	_ "github.com/bluesky-social/indigo/atproto/auth" // register signing methods
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/db"
 	"gorm.io/gorm"
 )
@@ -26,16 +26,12 @@ type Hive interface {
 	MintOrgIdentity(ctx context.Context, subdomain string) (*identity.Identity, error)
 	// Minting new identities for members
 	MintIdentity(ctx context.Context, handle string, subdomain string) (*identity.Identity, error)
-	// SignServiceAuth mints an atproto-compatible service auth JWT signed by the
-	// identity's signing key (the same key registered in its did:web doc). It is
-	// the habitat-side replacement for the PDS's com.atproto.server.getServiceAuth:
-	// since habitat owns the signing key, it must be the issuer of these tokens.
-	SignServiceAuth(
+	// SignServiceJWT mints a signed JWT using the did's signing key
+	SignJWT(
 		ctx context.Context,
-		iss syntax.DID,
-		aud string,
-		ttl time.Duration,
-		lxm *syntax.NSID,
+		did syntax.DID,
+		headers map[string]any,
+		claims jwt.Claims,
 	) (string, error)
 	// IsManaged reports whether did is a habitat-managed did:web identity (one
 	// whose signing key hive holds).
@@ -152,16 +148,15 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return nil
 }
 
-// SignServiceAuth implements Hive.
-func (h *hive) SignServiceAuth(
+// SignJWT implements Hive.
+func (h *hive) SignJWT(
 	ctx context.Context,
-	iss syntax.DID,
-	aud string,
-	ttl time.Duration,
-	lxm *syntax.NSID,
+	did syntax.DID,
+	headers map[string]any,
+	claims jwt.Claims,
 ) (string, error) {
 	// Validate the DID belongs to this hive and extract the opaque ID.
-	content := strings.TrimPrefix(iss.String(), "did:web:")
+	content := strings.TrimPrefix(did.String(), "did:web:")
 	opaqueID, after, ok := strings.Cut(content, ".")
 	if !ok || after != h.memberDomain {
 		return "", identity.ErrDIDNotFound
@@ -170,7 +165,21 @@ func (h *hive) SignServiceAuth(
 	if err != nil {
 		return "", fmt.Errorf("failed to get signing private key: %w", err)
 	}
-	return auth.SignServiceAuth(iss, aud, ttl, lxm, priv)
+	method := jwt.GetSigningMethod("ES256K")
+	token := &jwt.Token{
+		Header: headers,
+		Claims: claims,
+		Method: method,
+	}
+	if token.Header["typ"] == "" {
+		token.Header["typ"] = "JWT"
+	}
+	token.Header["alg"] = "ES256K"
+	tokenString, err := token.SignedString(priv)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign JWT: %w", err)
+	}
+	return tokenString, nil
 }
 
 // IsManaged implements Hive.

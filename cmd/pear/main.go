@@ -53,7 +53,6 @@ import (
 	"github.com/habitat-network/habitat/internal/server"
 	"github.com/habitat-network/habitat/internal/spaces"
 	"github.com/habitat-network/habitat/internal/telemetry"
-	"github.com/habitat-network/habitat/internal/utils"
 	"github.com/habitat-network/habitat/internal/webui"
 	"github.com/urfave/cli/v3"
 
@@ -313,6 +312,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		fgaStore,
 		oauthServer,
 		serviceAuth,
+		authn.NewDelegationTokenAuthMethod(hiveDir, fgaStore),
 		orgStore,
 		hostSigner,
 		hive,
@@ -371,8 +371,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("setup p2p server: %w", err)
 	}
+	pdsForwarding := forwarding.NewPDSForwarding(
+		pdsCredStore,
+		oauthServer,
+		pdsClientFactory,
+		defaultDir,
+	)
 
-	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore)
+	idServer, err := habitat_identity.NewServer(hive, oauthServer, orgStore, pdsForwarding)
 	if err != nil {
 		return fmt.Errorf("setup hive server: %w", err)
 	}
@@ -487,50 +493,10 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	)
 	mux.HandleFunc("/xrpc/network.habitat.sync.subscribeSpaces", syncServer.HandleSubscribeSpaces)
 
-	pdsForwarding := forwarding.NewPDSForwarding(
-		pdsCredStore,
-		oauthServer,
-		pdsClientFactory,
-		defaultDir,
-	)
 	mux.PathPrefix("/xrpc/com.atproto.repo.").Handler(pdsForwarding)
 	mux.PathPrefix("/xrpc/com.atproto.sync.").Handler(pdsForwarding)
 
-	mux.HandleFunc(
-		"/xrpc/com.atproto.server.getServiceAuth",
-		func(w http.ResponseWriter, r *http.Request) {
-			credInfo, ok := oauthServer.Validate(w, r)
-			if !ok {
-				return
-			}
-			id, err := hiveDir.LookupDID(r.Context(), credInfo.Subject)
-			if err != nil {
-				utils.LogAndHTTPError(
-					r.Context(),
-					w,
-					err,
-					"[getServiceAuth dispatch]: looking up caller DID",
-					http.StatusBadGateway,
-				)
-				return
-			}
-			if _, ok := id.Services["atproto_pds"]; ok {
-				pdsForwarding.ServeHTTP(w, r)
-				return
-			}
-			if _, ok := id.Services["habitat"]; ok {
-				idServer.GetServiceAuth(w, r)
-				return
-			}
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				fmt.Errorf("no atproto_pds or habitat service in DID doc for %s", id.DID),
-				"[getServiceAuth dispatch]: no usable service in DID doc",
-				http.StatusBadGateway,
-			)
-		},
-	)
+	mux.HandleFunc("/xrpc/com.atproto.server.getServiceAuth", idServer.GetServiceAuth)
 
 	uiHandler, err := webui.New(cmd.String(fUiDevProxy))
 	if err != nil {

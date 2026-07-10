@@ -14,6 +14,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -85,11 +86,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	// Parse "did#serviceId" — the "#" separator is required by the AT Protocol spec.
 	rawDID, serviceID, ok := strings.Cut(proxyHeader, "#")
 	if !ok {
-		utils.WriteHTTPError(
-			w,
-			fmt.Errorf("malformed Atproto-Proxy header: missing '#'"),
-			http.StatusBadRequest,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "malformed Atproto-Proxy header: missing #", nil)
 		return
 	}
 
@@ -122,54 +119,48 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 		return
 	}
 
-	nsidStr := strings.TrimPrefix(r.URL.Path, "/xrpc/")
-	nsid, err := syntax.ParseNSID(nsidStr)
-	if err != nil {
-		utils.WriteHTTPError(w, fmt.Errorf("invalid NSID in path: %w", err), http.StatusBadRequest)
+	nsid, ok := httpx.ParseNSIDInput(ctx, w, strings.TrimPrefix(r.URL.Path, "/xrpc/"), "nsid")
+	if !ok {
 		return
 	}
 
 	// Habitat owns user signing keys, so it signs service auth tokens on behalf
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
-	jwt, err := s.hive.SignServiceAuth(
+	token, err := s.hive.SignJWT(
 		ctx,
 		credInfo.Subject,
-		targetDID.String(),
-		60*time.Second,
-		&nsid,
+		map[string]any{},
+		jwt.MapClaims{
+			"exp": jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			"iat": jwt.NewNumericDate(time.Now()),
+			"iss": credInfo.Subject,
+			"aud": targetDID,
+			"jti": utils.RandomNonce(16),
+			"lxm": nsid,
+		},
 	)
 	if errors.Is(err, identity.ErrDIDNotFound) {
-		jwt, err = s.fetchRemoveServiceAuth(ctx, credInfo, proxyHeader, nsidStr)
+		token, err = s.fetchRemoteServiceAuth(ctx, credInfo, proxyHeader, nsid)
 		if err != nil {
-			utils.LogAndHTTPError(
+			httpx.WriteServerError(
 				ctx,
 				w,
-				err,
-				"[service proxy]: failed to fetch remove service auth",
-				http.StatusInternalServerError,
+				fmt.Errorf("failed to fetch remote service auth: %w", err),
 			)
 			return
 		}
 	} else if err != nil {
-		utils.LogAndHTTPError(
+		httpx.WriteServerError(
 			ctx,
 			w,
-			err,
-			"[service proxy]: failed to sign service auth",
-			http.StatusInternalServerError,
+			fmt.Errorf("failed to sign service auth: %w", err),
 		)
 		return
 	}
 
 	base, err := url.Parse(svc.URL)
 	if err != nil {
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"[service proxy]: invalid service URL in DID document",
-			http.StatusBadGateway,
-		)
+		httpx.WriteInvalidRequest(ctx, w, "invalid service URL in aud DID document", err)
 		return
 	}
 	requestURI, err := url.Parse(r.URL.RequestURI())
@@ -211,7 +202,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	for _, h := range hopByHopHeaders {
 		outReq.Header.Del(h)
 	}
-	outReq.Header.Set("Authorization", "Bearer "+jwt)
+	outReq.Header.Set("Authorization", "Bearer "+token)
 	// DPoP proofs are bound to Habitat's endpoint and must not be forwarded.
 	outReq.Header.Del("DPoP")
 	// Strip Atproto-Proxy to prevent the target from attempting further proxying.
@@ -248,12 +239,12 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 	}
 }
 
-func (s *serviceProxy) fetchRemoveServiceAuth(
+func (s *serviceProxy) fetchRemoteServiceAuth(
 	ctx context.Context,
 	credInfo *authn.CredentialInfo,
-	proxyHeader, nsidStr string,
+	proxyHeader string, nsid syntax.NSID,
 ) (string, error) {
-	slog.WarnContext(ctx, "fetching remove service auth", "proxy", proxyHeader, "nsid", nsidStr)
+	slog.WarnContext(ctx, "fetching remove service auth", "proxy", proxyHeader, "nsid", nsid)
 	pdsClient, err := s.pdsClientFactory.NewClient(ctx, credInfo.Subject)
 	if err != nil {
 		return "", fmt.Errorf("failed to create PDS client: %w", err)
@@ -263,7 +254,7 @@ func (s *serviceProxy) fetchRemoveServiceAuth(
 		http.MethodGet,
 		"/xrpc/com.atproto.server.getServiceAuth?"+url.Values{
 			"aud": {proxyHeader},
-			"lxm": {nsidStr},
+			"lxm": {nsid.String()},
 		}.Encode(),
 		nil,
 	)
