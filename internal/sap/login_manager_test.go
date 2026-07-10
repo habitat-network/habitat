@@ -8,13 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUserManager_LoginFlowRoundTrip(t *testing.T) {
+func TestLoginManager_LoginFlowRoundTrip(t *testing.T) {
 	db := testutil.NewDB(t)
 	require.NoError(t, autoMigrate(db))
 
-	m := newUserManager(db)
+	m := newLoginManager(db)
 
-	// A state with no saved flow is not a user login.
+	// A state with no saved flow is an org-admin bootstrap, not a user login.
 	_, isUser, err := m.GetLoginFlow(t.Context(), "unknown-state")
 	require.NoError(t, err)
 	require.False(t, isUser)
@@ -31,27 +31,6 @@ func TestUserManager_LoginFlowRoundTrip(t *testing.T) {
 	did, err := m.GetCompletedLogin(t.Context(), "state1")
 	require.NoError(t, err)
 	require.Equal(t, syntax.DID("did:plc:alice"), did)
-}
-
-func TestUserManager_UserSessionUpsert(t *testing.T) {
-	db := testutil.NewDB(t)
-	require.NoError(t, autoMigrate(db))
-
-	m := newUserManager(db)
-
-	_, err := m.GetUserSession(t.Context(), "did:plc:bob")
-	require.Error(t, err)
-
-	require.NoError(t, m.AddUserSession(t.Context(), "did:plc:bob", "sess1"))
-	sess, err := m.GetUserSession(t.Context(), "did:plc:bob")
-	require.NoError(t, err)
-	require.Equal(t, "sess1", sess.SessionID)
-
-	// A newer login for the same user replaces the tracked session.
-	require.NoError(t, m.AddUserSession(t.Context(), "did:plc:bob", "sess2"))
-	sess, err = m.GetUserSession(t.Context(), "did:plc:bob")
-	require.NoError(t, err)
-	require.Equal(t, "sess2", sess.SessionID)
 }
 
 func TestStateFromAuthURL(t *testing.T) {

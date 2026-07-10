@@ -80,10 +80,11 @@ func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, map[string]any{"orgs": orgs})
 }
 
-// handleAddUserSession starts an OAuth flow for an individual user (as opposed
-// to a managed org). The caller (e.g. the docs server) supplies the handle to
-// authenticate and the URL to redirect the browser back to once sap has stored
-// the user's session. sap returns the PDS authorization URL.
+// handleAddUserSession starts a user login OAuth flow. Like the org-admin
+// bootstrap it ends in a managed session sap crawls; unlike it, the caller
+// (e.g. the docs server) supplies a URL to redirect the browser back to once
+// sap has stored the session, so it can establish its own server session. sap
+// returns the PDS authorization URL.
 func (s *server) handleAddUserSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Handle   string `json:"handle"`

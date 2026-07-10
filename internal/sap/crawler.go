@@ -3,6 +3,7 @@ package sap
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -193,6 +194,20 @@ func (c *crawler) enumerateSpaceRepos(
 	client *http.Client,
 	spaceURI string,
 ) error {
+	space := habitat_syntax.SpaceURI(spaceURI)
+
+	// A space shared between managed DIDs (an org and its members) shows up in
+	// every one of their listSpaces. Skip it if another DID's crawl already
+	// enumerated it — its repos, including everyone's, were recorded then.
+	var claim crawledSpace
+	err := c.db.WithContext(ctx).Where("space = ?", space).First(&claim).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("check crawled space: %w", err)
+	}
+
 	values := url.Values{"space": []string{spaceURI}}
 	resp, err := client.Get("/xrpc/network.habitat.space.listRepos?" + values.Encode())
 	if err != nil {
@@ -208,17 +223,24 @@ func (c *crawler) enumerateSpaceRepos(
 		return fmt.Errorf("list repos: %s", resp.Status)
 	}
 
-	space := habitat_syntax.SpaceURI(spaceURI)
-	for _, repo := range listReposOutput.Repos {
-		if err := c.db.WithContext(ctx).
-			Clauses(clause.OnConflict{DoNothing: true}).
-			Create(&managedRepo{
-				Space: space,
-				DID:   syntax.DID(repo.Did),
-				State: RepoStatePending,
-			}).Error; err != nil {
-			return err
+	// Record the repos and the crawled-space claim atomically, so an interrupted
+	// crawl leaves the space unclaimed and gets re-enumerated on resume rather
+	// than skipped with repos missing.
+	if err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, repo := range listReposOutput.Repos {
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
+				Create(&managedRepo{
+					Space: space,
+					DID:   syntax.DID(repo.Did),
+					State: RepoStatePending,
+				}).Error; err != nil {
+				return err
+			}
 		}
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&crawledSpace{Space: space}).Error
+	}); err != nil {
+		return err
 	}
 	slog.InfoContext(
 		ctx,

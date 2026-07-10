@@ -29,30 +29,27 @@ type managedOrg struct {
 	CrawlCursor     string
 }
 
-// userSession tracks the OAuth session sap holds for an individual user (as
-// opposed to a managed org). Unlike managedOrg it triggers no crawling or
-// firehose subscription; it exists solely so services (e.g. the docs server)
-// can proxy pear calls authenticated as that user. Keyed by DID so the latest
-// login wins.
-type userSession struct {
-	DID       syntax.DID `gorm:"column:did;primaryKey"`
-	SessionID string     // OAuth session ID, keys the oauth_client session store
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 // loginFlow records an in-progress user OAuth flow started via StartUserLogin,
-// keyed by the OAuth state (which is also the resulting session ID). Its
-// presence at callback time is what distinguishes a user login from an org
-// login, and it carries the URL to redirect the browser back to once the flow
-// completes. DID is filled in after the callback so the redirect target can
-// resolve which user authenticated.
+// keyed by the OAuth state (which is also the resulting session ID). sap does
+// not distinguish orgs from users — both are managed DIDs with sessions that it
+// crawls — but a user login differs from the org-admin bootstrap in that it
+// redirects the browser back to the service that started it. loginFlow carries
+// that redirect URL, and its DID (filled in after the callback) lets the
+// redirect target resolve which user authenticated.
 type loginFlow struct {
 	State       string `gorm:"column:state;primaryKey"`
 	RedirectURL string
 	DID         syntax.DID `gorm:"column:did"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// crawledSpace records that a space's repos have been enumerated, so a space
+// shared between managed DIDs (e.g. an org and one of its members) is only
+// crawled once even though it shows up in both DIDs' listSpaces.
+type crawledSpace struct {
+	Space     habitat_syntax.SpaceURI `gorm:"primaryKey"`
+	CreatedAt time.Time
 }
 
 type repoState string
@@ -100,7 +97,7 @@ func autoMigrate(db *gorm.DB) error {
 		&managedRepo{},
 		&outbox{},
 		&bufferedEvent{},
-		&userSession{},
 		&loginFlow{},
+		&crawledSpace{},
 	)
 }

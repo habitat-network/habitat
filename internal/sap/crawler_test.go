@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -180,4 +181,73 @@ func TestCrawler_Error(t *testing.T) {
 	}, 1*time.Second, 10*time.Millisecond)
 
 	require.NotEmpty(t, org.ErrorMsg)
+}
+
+// TestCrawler_SharedSpaceCrawledOnce checks that a space shared between two
+// managed DIDs (e.g. an org and one of its members) is only enumerated once,
+// even though it appears in both DIDs' listSpaces.
+func TestCrawler_SharedSpaceCrawledOnce(t *testing.T) {
+	t.Parallel()
+	const sharedSpace = "ats://did:plc:org/network.habitat.docs/shared"
+	var listReposCalls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/xrpc/network.habitat.space.listSpaces":
+			// Both DIDs are members of the same org-owned space.
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListSpacesOutput{
+				Spaces: []habitat.NetworkHabitatSpaceListSpacesSpaceView{
+					{Uri: sharedSpace, Type: "network.habitat.docs"},
+				},
+			})
+		case "/xrpc/network.habitat.space.listRepos":
+			listReposCalls.Add(1)
+			_ = json.NewEncoder(w).Encode(habitat.NetworkHabitatSpaceListReposOutput{
+				Repos: []habitat.NetworkHabitatSpaceListReposRepo{
+					{Did: "did:plc:org"},
+					{Did: "did:plc:member"},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	db := openTestDB(t)
+	resyncNotif := utils.NewPollNotifier()
+	outboxNotif := utils.NewPollNotifier()
+	store, err := oauthclient.NewGormStore(db)
+	require.NoError(t, err)
+	cfg := oauth.NewPublicConfig(
+		"https://example.com/client-metadata.json",
+		"https://example.com/oauth-callback",
+		[]string{"atproto"},
+	)
+	oauthApp := oauthclient.NewApp(&cfg, store)
+	resyncBuf := newResyncBuffer(db, resyncNotif, outboxNotif)
+	sub := newSubscriber(db, oauthApp, resyncBuf, newTestMetrics(t))
+	crawler := newCrawler(db, oauthApp, resyncBuf, sub, resyncNotif, newTestMetrics(t))
+
+	orgs := []*managedOrg{
+		{DID: "did:plc:org", SessionID: "sess-org"},
+		{DID: "did:plc:member", SessionID: "sess-member"},
+	}
+	for _, o := range orgs {
+		require.NoError(t, store.SaveSession(t.Context(), oauth.ClientSessionData{
+			AccountDID:  o.DID,
+			SessionID:   o.SessionID,
+			HostURL:     srv.URL,
+			AccessToken: testJWT(t),
+		}))
+	}
+
+	// Crawl both DIDs. The second sees the space already claimed and skips it.
+	for _, o := range orgs {
+		require.NoError(t, crawler.resumeCrawl(t.Context(), o))
+	}
+
+	require.Equal(t, int32(1), listReposCalls.Load())
+	var repos []managedRepo
+	require.NoError(t, db.Find(&repos).Error)
+	require.Len(t, repos, 2)
 }
