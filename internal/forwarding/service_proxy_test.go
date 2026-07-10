@@ -176,7 +176,8 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	require.Equal(t, callerID.DID.String(), iss)
 	aud, err := claims.GetAudience()
 	require.NoError(t, err)
-	require.Contains(t, aud, targetDID)
+	require.NotEmpty(t, aud)
+	require.Contains(t, aud[0], targetDID)
 }
 
 func TestServiceProxyIntegration_RemoteDID(t *testing.T) {
@@ -196,9 +197,9 @@ func TestServiceProxyIntegration_RemoteDID(t *testing.T) {
 		require.Equal(t, "/xrpc/com.atproto.server.getServiceAuth", r.URL.Path)
 		require.Equal(t, "did:web:labeler.example.com#atproto_labeler", r.URL.Query().Get("aud"))
 		require.Equal(t, "app.bsky.feed.getTimeline", r.URL.Query().Get("lxm"))
-		json.NewEncoder(w).Encode(map[string]any{
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
 			"token": "token",
-		})
+		}))
 	}))
 
 	t.Cleanup(target.Close)

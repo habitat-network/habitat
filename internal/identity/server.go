@@ -10,7 +10,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/forwarding"
 	"github.com/habitat-network/habitat/internal/hive"
@@ -82,25 +81,14 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// exp is the unix-seconds expiration. Default to 60s to match the lexicon
-	// default; cap at 30min to limit blast radius if a token leaks.
-	const defaultTTL = 60 * time.Second
-	const maxTTL = 30 * time.Minute
-	ttl := defaultTTL
+	var ttl *time.Duration
 	if expStr := r.URL.Query().Get("exp"); expStr != "" {
 		expUnix, err := strconv.ParseInt(expStr, 10, 64)
 		if err != nil {
 			httpx.WriteInvalidRequest(ctx, w, "invalid exp", err)
 			return
 		}
-		ttl = time.Until(time.Unix(expUnix, 0))
-		if ttl <= 0 {
-			httpx.WriteInvalidRequest(ctx, w, "exp is in the past", nil)
-			return
-		}
-		if ttl > maxTTL {
-			ttl = maxTTL
-		}
+		ttl = new(time.Until(time.Unix(expUnix, 0)))
 	}
 
 	var lxm *syntax.NSID
@@ -112,17 +100,13 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 		lxm = &parsed
 	}
 
-	token, err := s.hive.SignJWT(ctx, credInfo.Subject,
-		map[string]any{},
-		jwt.MapClaims{
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Minute)),
-			"iat": jwt.NewNumericDate(time.Now()),
-			"iss": credInfo.Subject,
-			"aud": aud,
-			"jti": utils.RandomNonce(16),
-			"lxm": lxm,
-		},
+	headers, claims := utils.ServiceAuthClaims(
+		credInfo.Subject,
+		aud,
+		lxm,
+		ttl,
 	)
+	token, err := s.hive.SignJWT(ctx, credInfo.Subject, headers, claims)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		s.pdsForwarding.ServeHTTP(w, r)
 	}

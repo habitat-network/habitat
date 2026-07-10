@@ -171,6 +171,20 @@ type Store interface {
 	db.Store[Store]
 }
 
+// Notifier is notified when a space changes so it can deliver events to
+// registered syncers. Implementations must be non-blocking and best-effort.
+type Notifier interface {
+	// NotifyWrite reports that a repo advanced to a new revision within a space.
+	NotifyWrite(
+		ctx context.Context,
+		space habitat_syntax.SpaceURI,
+		repo syntax.DID,
+		rev syntax.TID,
+	)
+	// NotifySpaceDeleted reports that a space was deleted.
+	NotifySpaceDeleted(ctx context.Context, space habitat_syntax.SpaceURI)
+}
+
 var (
 	ErrSpaceNotFound      = errors.New("space not found")
 	ErrSpaceAlreadyExists = errors.New("space already exists")
@@ -187,15 +201,29 @@ type store struct {
 	fga        fgastore.Store
 	clock      *syntax.TIDClock
 	eventStore events.Store
+	notifier   Notifier
 }
 
 var _ Store = &store{}
 
-func NewStore(db *gorm.DB, fga fgastore.Store, eventStore events.Store) (*store, error) {
+// NewStore creates a spaces store. notifier may be nil to disable notifyWrite
+// delivery.
+func NewStore(
+	db *gorm.DB,
+	fga fgastore.Store,
+	eventStore events.Store,
+	notifier Notifier,
+) (*store, error) {
 	if err := db.AutoMigrate(&space{}, &spaceRecord{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate spaces tables: %w", err)
 	}
-	return &store{db: db, fga: fga, clock: syntax.NewTIDClock(0), eventStore: eventStore}, nil
+	return &store{
+		db:         db,
+		fga:        fga,
+		clock:      syntax.NewTIDClock(0),
+		eventStore: eventStore,
+		notifier:   notifier,
+	}, nil
 }
 
 // WithTx implements [Store], returning a store whose DB operations run on tx.
@@ -205,6 +233,7 @@ func (s *store) WithTx(tx *gorm.DB) Store {
 		fga:        s.fga,
 		clock:      s.clock,
 		eventStore: s.eventStore,
+		notifier:   s.notifier,
 	}
 }
 
@@ -519,6 +548,7 @@ func (s *store) PutRecord(
 	}
 
 	var recordUri habitat_syntax.SpaceRecordURI
+	var newRev syntax.TID
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if tx.Name() == "postgres" {
 			// acquire lock on permissioned repo within space
@@ -543,6 +573,7 @@ func (s *store) PutRecord(
 			return err
 		}
 		tid := s.clock.Next()
+		newRev = tid
 		if rkey == "" {
 			rkey = syntax.RecordKey(tid)
 		}
@@ -578,6 +609,8 @@ func (s *store) PutRecord(
 		return "", nil, fmt.Errorf("failed to create record: %w", err)
 	}
 	s.eventStore.NotifyEvent(ctx)
+	// Best-effort: notify registered syncers that this repo advanced.
+	s.notifier.NotifyWrite(ctx, spaceUri, repo, newRev)
 	return recordUri, &cid, nil
 }
 
@@ -662,7 +695,7 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 	}
 
 	// everything after this point is idempotent — use a transaction
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		deleteSpace := tx.
 			Where("owner = ? AND skey = ?", uri.SpaceOwner(), uri.Skey()).
 			Delete(&space{})
@@ -696,6 +729,12 @@ func (s *store) DeleteSpace(ctx context.Context, uri habitat_syntax.SpaceURI) er
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// Best-effort: tell registered syncers the space is gone.
+	s.notifier.NotifySpaceDeleted(ctx, uri)
+	return nil
 }
 
 func (s *store) ListRepoOps(
