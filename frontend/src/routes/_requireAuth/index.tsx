@@ -14,7 +14,6 @@ import {
   ItemTitle,
 } from "internal/components/ui";
 import { App } from "api/types/network/habitat/listConnectedApps";
-import { homeProxyHeaders } from "@/queries/groups";
 import Avatar from "boring-avatars";
 
 import { Search } from "lucide-react";
@@ -32,12 +31,6 @@ export const Route = createFileRoute("/_requireAuth/")({
       (app) => app.clientUri !== `https://${__DOMAIN__}`,
     );
 
-    const collectionsData = await query(
-      "network.habitat.collections.listCollections",
-      {},
-      { authManager, headers: homeProxyHeaders() },
-    );
-
     let orgName: string | undefined;
     try {
       const meta = await query(
@@ -53,7 +46,6 @@ export const Route = createFileRoute("/_requireAuth/")({
     return {
       apps,
       orgName,
-      hasCollections: collectionsData.collections.length > 0,
     };
   },
   pendingComponent: () => <p>Loading...</p>,
@@ -110,7 +102,7 @@ function RecentlyUsed({ apps }: RecentlyUsedProps) {
 }
 
 function AuthenticatedHome() {
-  const { apps, hasCollections } = Route.useLoaderData()!;
+  const { apps } = Route.useLoaderData()!;
 
   // For now, don't require the user to be registered with a habitat service. If they do have one,
   // requests will still be routed there, but allow them to use the centralized one by default.
@@ -129,7 +121,7 @@ function AuthenticatedHome() {
           </InputGroupAddon>
         </InputGroup>
       </div>
-      {hasCollections ? (
+      {apps.length > 0 ? (
         <div className="flex gap-4 flex-wrap">
           <RecentlyUsed apps={apps} />
         </div>
