@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	_ "github.com/bluesky-social/indigo/atproto/auth" // register signing methods
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/db"
 	"gorm.io/gorm"
 )
@@ -26,13 +26,7 @@ type Hive interface {
 	MintOrgIdentity(ctx context.Context, subdomain string) (*identity.Identity, error)
 	// Minting new identities for members
 	MintIdentity(ctx context.Context, handle string, subdomain string) (*identity.Identity, error)
-	// SignServiceJWT mints a signed JWT using the did's signing key
-	SignJWT(
-		ctx context.Context,
-		did syntax.DID,
-		headers map[string]any,
-		claims jwt.Claims,
-	) (string, error)
+	PrivateKeyForDID(ctx context.Context, did syntax.DID) (atcrypto.PrivateKey, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -141,38 +135,22 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return nil
 }
 
-// SignJWT implements Hive.
-func (h *hive) SignJWT(
+// PrivateKeyForDID implements Hive.
+func (h *hive) PrivateKeyForDID(
 	ctx context.Context,
 	did syntax.DID,
-	headers map[string]any,
-	claims jwt.Claims,
-) (string, error) {
+) (atcrypto.PrivateKey, error) {
 	// Validate the DID belongs to this hive and extract the opaque ID.
 	content := strings.TrimPrefix(did.String(), "did:web:")
 	opaqueID, after, ok := strings.Cut(content, ".")
 	if !ok || after != h.memberDomain {
-		return "", identity.ErrDIDNotFound
+		return nil, identity.ErrDIDNotFound
 	}
 	priv, err := h.store.getSigningPrivateKeyByID(ctx, opaqueID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get signing private key: %w", err)
+		return nil, fmt.Errorf("failed to get signing private key: %w", err)
 	}
-	method := jwt.GetSigningMethod("ES256K")
-	token := &jwt.Token{
-		Header: headers,
-		Claims: claims,
-		Method: method,
-	}
-	if token.Header["typ"] == "" {
-		token.Header["typ"] = "JWT"
-	}
-	token.Header["alg"] = "ES256K"
-	tokenString, err := token.SignedString(priv)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign JWT: %w", err)
-	}
-	return tokenString, nil
+	return priv, nil
 }
 
 // MintOrgIdentity implements [Hive].

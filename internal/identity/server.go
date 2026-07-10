@@ -100,16 +100,15 @@ func (s *Server) GetServiceAuth(w http.ResponseWriter, r *http.Request) {
 		lxm = &parsed
 	}
 
-	headers, claims := utils.ServiceAuthClaims(
-		credInfo.Subject,
-		aud,
-		lxm,
-		ttl,
-	)
-	token, err := s.hive.SignJWT(ctx, credInfo.Subject, headers, claims)
+	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		s.pdsForwarding.ServeHTTP(w, r)
+		return
+	} else if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("fetching signing key: %w", err))
+		return
 	}
+	token, err := utils.ServiceAuthToken(privKey, credInfo.Subject, aud, lxm, ttl)
 	if err != nil {
 		httpx.WriteServerError(ctx, w, fmt.Errorf("signing service auth: %w", err))
 		return

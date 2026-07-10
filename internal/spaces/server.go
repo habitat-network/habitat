@@ -876,21 +876,25 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "param doesn't match token", nil)
 		return
 	}
-	token, err := s.hive.SignJWT(
-		ctx,
-		spaceURI.SpaceOwner(),
-		map[string]any{
-			"typ": "atproto-space-credential+jwt",
-			"kid": "#atproto", // TODO: should probably switch to #atproto_space when hive supports it
-		},
-		jwt.MapClaims{
+	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
+	if err != nil {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
+		return
+	}
+	token, err := new(jwt.Token{
+		Method: jwt.GetSigningMethod("ES256K"),
+		Claims: jwt.MapClaims{
 			"iss": spaceURI.SpaceOwner(),
 			"sub": spaceURI,
 			"iat": jwt.NewNumericDate(time.Now()),
 			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			"jti": utils.RandomNonce(16),
 		},
-	)
+		Header: map[string]any{
+			"typ": "atproto-space-credential+jwt",
+			"kid": "#atproto", // TODO: should probably switch to #atproto_space when hive supports it
+		},
+	}).SignedString(privKey)
 	if err != nil {
 		httpx.WriteSpaceNotFound(ctx, w, err)
 		return
