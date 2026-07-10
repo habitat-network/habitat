@@ -4105,6 +4105,76 @@ export const schemaDict = {
       },
     },
   },
+  NetworkHabitatSpaceGetSpaceCredential: {
+    lexicon: 1,
+    id: 'network.habitat.space.getSpaceCredential',
+    defs: {
+      main: {
+        type: 'procedure',
+        description:
+          "Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token. The resulting space credential reads repos across the space. Requires a delegation token, plus a client attestation when the space gates on app identity.",
+        input: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['space'],
+            properties: {
+              space: {
+                type: 'string',
+                format: 'at-uri',
+                description: 'Reference to the space.',
+              },
+              clientAttestation: {
+                type: 'string',
+                description:
+                  "Optional client attestation JWT establishing the app's identity. Required only when the space gates on app identity.",
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['credential'],
+            properties: {
+              credential: {
+                type: 'string',
+                description: 'A signed JWT space credential.',
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'SpaceNotFound',
+          },
+          {
+            name: 'SpaceDeleted',
+          },
+          {
+            name: 'UserNotAuthorized',
+            description: 'Refused on the basis of the requesting user.',
+          },
+          {
+            name: 'AppNotAuthorized',
+            description: 'Refused on the basis of the requesting app.',
+          },
+          {
+            name: 'NotAuthorized',
+            description:
+              'Refused for a reason not attributable to a single axis.',
+          },
+          {
+            name: 'InvalidDelegationToken',
+          },
+          {
+            name: 'InvalidClientAttestation',
+          },
+        ],
+      },
+    },
+  },
   NetworkHabitatSpaceListRecords: {
     lexicon: 1,
     id: 'network.habitat.space.listRecords',
@@ -4732,6 +4802,8 @@ export const ids = {
   NetworkHabitatSpaceDeleteRecord: 'network.habitat.space.deleteRecord',
   NetworkHabitatSpaceDeleteSpace: 'network.habitat.space.deleteSpace',
   NetworkHabitatSpaceGetRecord: 'network.habitat.space.getRecord',
+  NetworkHabitatSpaceGetSpaceCredential:
+    'network.habitat.space.getSpaceCredential',
   NetworkHabitatSpaceListRecords: 'network.habitat.space.listRecords',
   NetworkHabitatSpaceListRepoOps: 'network.habitat.space.listRepoOps',
   NetworkHabitatSpaceListRepos: 'network.habitat.space.listRepos',
