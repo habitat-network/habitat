@@ -22,6 +22,7 @@ import (
 	"github.com/habitat-network/habitat/internal/spaces/testutil"
 	"github.com/habitat-network/habitat/internal/sync"
 
+	"github.com/habitat-network/habitat/internal/authn"
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
@@ -285,7 +286,9 @@ func setupPear(
 		fgaStore,
 		oauthServer,
 		authn_testutil.NewFailMethod(),
+		authn.NewDelegationTokenAuthMethod(nil, nil),
 		orgStore,
+		orgHive,
 	)
 
 	mux.HandleFunc("/xrpc/network.habitat.space.listSpaces", spacesServer.ListSpaces)

@@ -13,7 +13,9 @@ import (
 	"github.com/habitat-network/habitat/api/habitat"
 	"github.com/habitat-network/habitat/internal/authn"
 	authntest "github.com/habitat-network/habitat/internal/authn/testutil"
+	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	"github.com/habitat-network/habitat/internal/hive"
 	org_testutil "github.com/habitat-network/habitat/internal/org/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
 	spaces_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
@@ -25,7 +27,11 @@ func newTestServer(t *testing.T, oauth, serviceAuth authn.Method) (*spaces.Serve
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
 	sp := spaces_testutil.NewTestStore(t, spaces_testutil.Config{FgaStore: fga})
-	return spaces.NewServer(sp, fga, oauth, serviceAuth, org_testutil.NewTestStore(t)), sp
+	h, err := hive.NewHive("example.com", "pear.example.com", testutil.NewDB(t))
+	require.NoError(t, err)
+	return spaces.NewServer(sp, fga, oauth, serviceAuth,
+		authn.NewDelegationTokenAuthMethod(nil, nil),
+		org_testutil.NewTestStore(t), h), sp
 }
 
 func newOwnerServer(t *testing.T) (*spaces.Server, spaces.Store) {
