@@ -124,30 +124,24 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	// Habitat owns user signing keys, so it signs service auth tokens on behalf
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
-	headers, claims := utils.ServiceAuthClaims(
-		credInfo.Subject,
-		proxyHeader,
-		&nsid,
-		nil,
-	)
-	token, err := s.hive.SignJWT(ctx, credInfo.Subject, headers, claims)
+	var token string
+	privKey, err := s.hive.PrivateKeyForDID(ctx, credInfo.Subject)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		token, err = s.fetchRemoteServiceAuth(ctx, credInfo, proxyHeader, nsid)
 		if err != nil {
-			httpx.WriteServerError(
-				ctx,
-				w,
-				fmt.Errorf("failed to fetch remote service auth: %w", err),
-			)
+			httpx.WriteServerError(ctx, w,
+				fmt.Errorf("failed to fetch remote service auth: %w", err))
 			return
 		}
 	} else if err != nil {
-		httpx.WriteServerError(
-			ctx,
-			w,
-			fmt.Errorf("failed to sign service auth: %w", err),
-		)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign service auth: %w", err))
 		return
+	} else {
+		token, err = utils.ServiceAuthToken(privKey, credInfo.Subject, proxyHeader, &nsid, nil)
+		if err != nil {
+			httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign service auth: %w", err))
+			return
+		}
 	}
 
 	base, err := url.Parse(svc.URL)
@@ -155,18 +149,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 		httpx.WriteInvalidRequest(ctx, w, "invalid service URL in aud DID document", err)
 		return
 	}
-	requestURI, err := url.Parse(r.URL.RequestURI())
-	if err != nil {
-		utils.LogAndHTTPError(
-			ctx,
-			w,
-			err,
-			"[service proxy]: failed to parse request URI",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-	forwardURL := base.ResolveReference(requestURI)
+	forwardURL := base.ResolveReference(r.URL)
 
 	var body io.Reader
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {

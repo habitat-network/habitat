@@ -7,7 +7,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -96,40 +95,23 @@ func TestLookupDID_PLC(t *testing.T) {
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }
 
-func TestSignJWT(t *testing.T) {
+func TestPrivateKey(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
 
 	ident, err := h.MintIdentity(context.Background(), "alice", "org")
 	require.NoError(t, err)
 
-	token, err := h.SignJWT(
-		t.Context(),
-		ident.DID,
-		map[string]any{},
-		jwt.MapClaims{
-			"iss": ident.DID.String(),
-		},
-	)
+	privKey, err := h.PrivateKeyForDID(t.Context(), ident.DID)
 	require.NoError(t, err)
-	require.NotEmpty(t, token)
-	key, err := ident.PublicKey()
+	expected, err := ident.PublicKey()
 	require.NoError(t, err)
-	_, err = jwt.NewParser(jwt.WithIssuer(ident.DID.String())).
-		Parse(token, func(token *jwt.Token) (any, error) {
-			return key, nil
-		})
+	actual, err := privKey.PublicKey()
 	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }
 
-func TestSignJWT_DIDNotFound(t *testing.T) {
+func TestPrivateKey_DIDNotFound(t *testing.T) {
 	h := newTestHive(t, "example.com", "pear.example.com")
-	_, err := h.SignJWT(
-		context.Background(),
-		syntax.DID("did:web:nonexist.example.com"),
-		map[string]any{},
-		jwt.MapClaims{
-			"iss": "did:web:nonexist.example.com",
-		},
-	)
+	_, err := h.PrivateKeyForDID(t.Context(), syntax.DID("did:web:nonexist.example.com"))
 	require.ErrorIs(t, err, identity.ErrDIDNotFound)
 }

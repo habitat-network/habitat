@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/hkdf"
@@ -23,20 +24,21 @@ type fakeMember struct {
 	managed bool
 }
 
-func (f *fakeMember) IsManaged(syntax.DID) bool { return f.managed }
-func (f *fakeMember) SignAsMember(_ context.Context, _ syntax.DID, msg []byte) ([]byte, error) {
-	return f.priv.HashAndSign(msg)
+func (f *fakeMember) PrivateKeyForDID(
+	ctx context.Context,
+	did syntax.DID,
+) (atcrypto.PrivateKey, error) {
+	if f.managed {
+		return f.priv, nil
+	}
+	return nil, identity.ErrDIDNotFound
 }
 
-func newHostSignerForTest(t *testing.T) (*HostSigner, atcrypto.PublicKey) {
+func newPrivateKeyForTest(t *testing.T) atcrypto.PrivateKey {
 	t.Helper()
 	priv, err := atcrypto.GeneratePrivateKeyP256()
 	require.NoError(t, err)
-	signer, err := NewHostSigner(priv.Multibase())
-	require.NoError(t, err)
-	pub, err := priv.PublicKey()
-	require.NoError(t, err)
-	return signer, pub
+	return priv
 }
 
 // verifyCommit reconstructs the ctx from the commit's own fields and checks the
@@ -63,10 +65,10 @@ func verifyCommit(
 }
 
 func TestBuildSignedCommit_HostSignedForExternalAuthor(t *testing.T) {
-	signer, pub := newHostSignerForTest(t)
-	authority := &commitAuthority{host: signer, member: nil}
+	host := newPrivateKeyForTest(t)
+	authority := &commitAuthority{host: newPrivateKeyForTest(t), member: nil}
 
-	space := habitat_syntax.ConstructSpaceURI("did:plc:org", groupType, "s")
+	space := habitat_syntax.ConstructSpaceURI("did:plc:org", "network.habitat.space", "s")
 	author := syntax.DID("did:plc:alice") // external, not habitat-managed
 	hash := (&ltHash{}).sum()
 
@@ -78,6 +80,7 @@ func TestBuildSignedCommit_HostSignedForExternalAuthor(t *testing.T) {
 	require.Len(t, c.Ikm, commitIKMLen)
 
 	// External authors are signed by the host key under the host protocol tag.
+	pub, err := host.PublicKey()
 	verifyCommit(t, c, hostProtocolTag, space, author, pub)
 }
 
@@ -87,10 +90,12 @@ func TestBuildSignedCommit_MemberSignedForManagedAuthor(t *testing.T) {
 	memberPub, err := priv.PublicKey()
 	require.NoError(t, err)
 
-	host, _ := newHostSignerForTest(t)
-	authority := &commitAuthority{host: host, member: &fakeMember{priv: priv, managed: true}}
+	authority := &commitAuthority{
+		host:   newPrivateKeyForTest(t),
+		member: &fakeMember{priv: priv, managed: true},
+	}
 
-	space := habitat_syntax.ConstructSpaceURI("did:plc:org", groupType, "s")
+	space := habitat_syntax.ConstructSpaceURI("did:plc:org", "network.habitat.space", "s")
 	author := syntax.DID("did:web:abc.example.com")
 	hash := (&ltHash{}).sum()
 
@@ -104,39 +109,42 @@ func TestBuildSignedCommit_MemberSignedForManagedAuthor(t *testing.T) {
 
 func TestBuildSignedCommit_NoSignerFails(t *testing.T) {
 	authority := &commitAuthority{}
-	space := habitat_syntax.ConstructSpaceURI("did:plc:org", groupType, "s")
-	_, err := buildSignedCommit(context.Background(), authority, space, "did:plc:alice", "3lart", (&ltHash{}).sum())
+	space := habitat_syntax.ConstructSpaceURI("did:plc:org", "network.habitat.space", "s")
+	_, err := buildSignedCommit(
+		context.Background(),
+		authority,
+		space,
+		"did:plc:alice",
+		"3lart",
+		(&ltHash{}).sum(),
+	)
 	require.ErrorIs(t, err, errNoCommitSigner)
 }
 
 func TestBuildSignedCommit_FreshIkmPerCall(t *testing.T) {
-	signer, _ := newHostSignerForTest(t)
-	authority := &commitAuthority{host: signer}
-	space := habitat_syntax.ConstructSpaceURI("did:plc:org", groupType, "s")
+	authority := &commitAuthority{host: newPrivateKeyForTest(t)}
+	space := habitat_syntax.ConstructSpaceURI("did:plc:org", "network.habitat.space", "s")
 	hash := (&ltHash{}).sum()
 
-	c1, err := buildSignedCommit(context.Background(), authority, space, "did:plc:alice", "3lart", hash)
+	c1, err := buildSignedCommit(
+		context.Background(),
+		authority,
+		space,
+		"did:plc:alice",
+		"3lart",
+		hash,
+	)
 	require.NoError(t, err)
-	c2, err := buildSignedCommit(context.Background(), authority, space, "did:plc:alice", "3lart", hash)
+	c2, err := buildSignedCommit(
+		context.Background(),
+		authority,
+		space,
+		"did:plc:alice",
+		"3lart",
+		hash,
+	)
 	require.NoError(t, err)
 
 	require.False(t, bytes.Equal(c1.Ikm, c2.Ikm), "each commit uses a fresh ikm")
 	require.False(t, bytes.Equal(c1.Sig, c2.Sig), "signatures differ because ctx includes ikm")
-}
-
-func TestCommitAuthority_CanSign(t *testing.T) {
-	host, _ := newHostSignerForTest(t)
-
-	// Host-only authority can sign any author.
-	hostOnly := &commitAuthority{host: host}
-	require.True(t, hostOnly.canSign("did:plc:alice"))
-
-	// Member-only authority can sign only managed authors.
-	memberOnly := &commitAuthority{member: &fakeMember{managed: false}}
-	require.False(t, memberOnly.canSign("did:plc:alice"))
-	require.True(t, (&commitAuthority{member: &fakeMember{managed: true}}).canSign("did:web:x.example.com"))
-
-	// Empty authority can never sign.
-	require.False(t, (&commitAuthority{}).canSign("did:plc:alice"))
-	require.False(t, (*commitAuthority)(nil).canSign("did:plc:alice"))
 }

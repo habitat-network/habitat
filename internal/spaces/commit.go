@@ -11,6 +11,7 @@ import (
 	"io"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"golang.org/x/crypto/hkdf"
 
@@ -40,82 +41,33 @@ var (
 	errEmptyRepo = errors.New("repo has no records")
 )
 
-// CommitSigner signs a commit ctx with Habitat's single host key, used for
-// authors whose identity lives on a PDS we do not control. Its public key is
-// published in Habitat's DID doc so verifiers can check host-signed commits.
-type CommitSigner interface {
-	Sign(msg []byte) ([]byte, error)
-	PublicKeyMultibase() string
-}
-
 // MemberSigner signs on behalf of habitat-managed identities (did:web hive
 // members whose keys Habitat holds). For those authors we follow the proposal
 // and sign with the repo owner's own key.
 type MemberSigner interface {
-	// IsManaged reports whether did is a habitat-managed identity.
-	IsManaged(did syntax.DID) bool
-	// SignAsMember signs msg with did's signing key. Precondition: IsManaged(did).
-	SignAsMember(ctx context.Context, did syntax.DID, msg []byte) ([]byte, error)
+	PrivateKeyForDID(ctx context.Context, did syntax.DID) (atcrypto.PrivateKey, error)
 }
-
-// HostSigner is a CommitSigner backed by a single multibase-encoded P-256 key.
-type HostSigner struct {
-	priv         atcrypto.PrivateKey
-	pubMultibase string
-}
-
-// NewHostSigner parses a multibase-encoded P-256 private key into a HostSigner.
-func NewHostSigner(privMultibase string) (*HostSigner, error) {
-	priv, err := atcrypto.ParsePrivateMultibase(privMultibase)
-	if err != nil {
-		return nil, fmt.Errorf("parsing space-host signing key: %w", err)
-	}
-	pub, err := priv.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("deriving space-host public key: %w", err)
-	}
-	return &HostSigner{priv: priv, pubMultibase: pub.Multibase()}, nil
-}
-
-// Sign implements CommitSigner.
-func (h *HostSigner) Sign(msg []byte) ([]byte, error) { return h.priv.HashAndSign(msg) }
-
-// PublicKeyMultibase implements CommitSigner.
-func (h *HostSigner) PublicKeyMultibase() string { return h.pubMultibase }
 
 // commitAuthority selects how to sign a commit for a given author: the repo
 // owner's own key (habitat-managed authors, spec tag) or the host key
 // (non-managed authors, host tag).
 type commitAuthority struct {
-	host   CommitSigner
+	host   atcrypto.PrivateKey
 	member MemberSigner
-}
-
-// canSign reports whether a signer is available for author.
-func (a *commitAuthority) canSign(author syntax.DID) bool {
-	if a == nil {
-		return false
-	}
-	if a.member != nil && a.member.IsManaged(author) {
-		return true
-	}
-	return a.host != nil
 }
 
 // resolve returns the protocol tag and signing function for author.
 func (a *commitAuthority) resolve(
 	ctx context.Context,
 	author syntax.DID,
-) (tag string, sign func([]byte) ([]byte, error), err error) {
-	if a != nil && a.member != nil && a.member.IsManaged(author) {
-		return specProtocolTag, func(msg []byte) ([]byte, error) {
-			return a.member.SignAsMember(ctx, author, msg)
-		}, nil
+) (tag string, privKey atcrypto.PrivateKey, err error) {
+	privKey, err = a.member.PrivateKeyForDID(ctx, author)
+	if errors.Is(err, identity.ErrDIDNotFound) {
+		return hostProtocolTag, a.host, nil
+	} else if err != nil {
+		return "", nil, err
 	}
-	if a != nil && a.host != nil {
-		return hostProtocolTag, a.host.Sign, nil
-	}
-	return "", nil, errNoCommitSigner
+	return specProtocolTag, privKey, nil
 }
 
 // signedCommit is the in-memory form of network.habitat.space.defs#signedCommit.
@@ -131,7 +83,13 @@ type signedCommit struct {
 // commitCtx builds the ctx byte string: the protocol tag followed by each
 // variable field length-prefixed with a big-endian uint16 (TLS 1.3 vector
 // convention): space, author DID, rev, ikm.
-func commitCtx(tag string, space habitat_syntax.SpaceURI, author syntax.DID, rev string, ikm []byte) []byte {
+func commitCtx(
+	tag string,
+	space habitat_syntax.SpaceURI,
+	author syntax.DID,
+	rev string,
+	ikm []byte,
+) []byte {
 	b := make([]byte, 0, len(tag)+len(space)+len(author)+len(rev)+len(ikm)+8)
 	b = append(b, []byte(tag)...)
 	b = appendVec(b, []byte(space.String()))
@@ -160,7 +118,7 @@ func buildSignedCommit(
 	rev string,
 	hash []byte,
 ) (signedCommit, error) {
-	tag, sign, err := authority.resolve(ctx, author)
+	tag, privKey, err := authority.resolve(ctx, author)
 	if err != nil {
 		return signedCommit{}, err
 	}
@@ -181,7 +139,7 @@ func buildSignedCommit(
 	_, _ = m.Write(hash)
 	mac := m.Sum(nil)
 
-	sig, err := sign(cctx)
+	sig, err := privKey.HashAndSign(cctx)
 	if err != nil {
 		return signedCommit{}, fmt.Errorf("sign commit ctx: %w", err)
 	}

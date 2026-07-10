@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/schema"
@@ -46,7 +47,7 @@ func NewServer(
 	serviceAuth authn.Method,
 	delegation *authn.DelegationTokenAuthMethod,
 	orgStore org.Store,
-	host CommitSigner,
+	hostPrivateKey atcrypto.PrivateKey,
 	hive hive.Hive,
 ) *Server {
 	return &Server{
@@ -56,7 +57,7 @@ func NewServer(
 		serviceAuth: serviceAuth,
 		decoder:     schema.NewDecoder(),
 		orgStore:    orgStore,
-		commit:      &commitAuthority{host: host, member: hive},
+		commit:      &commitAuthority{host: hostPrivateKey, member: hive},
 		hive:        hive,
 		delegation:  delegation,
 	}
@@ -649,50 +650,39 @@ func (s *Server) ListRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 	).Validate(w, r)
 	if !ok {
 		return
 	}
-
 	var params habitat.NetworkHabitatSpaceListRepoOpsParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		httpx.WriteInvalidRequest(ctx, w, "invalid query params", err)
 		return
 	}
-
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
 	if !ok {
 		return
 	}
-
-	repoDID, ok := httpx.ParseDIDInput(r.Context(), w, params.Repo, "repo")
+	repoDID, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
 	if !ok {
 		return
 	}
-
-	if credInfo.Subject != "" {
-		isMember, err := s.store.IsMember(
-			r.Context(),
-			credInfo.Org.DID(),
-			spaceURI,
-			credInfo.Subject,
-		)
-		if err != nil {
-			utils.LogAndHTTPError(
-				r.Context(),
-				w,
-				err,
-				"check membership",
-				http.StatusInternalServerError,
-			)
-			return
-		}
-		if !isMember {
-			http.Error(w, "not a member of this space", http.StatusForbidden)
-			return
-		}
+	isMember, err := s.store.IsMember(
+		ctx,
+		credInfo.Org.DID(),
+		spaceURI,
+		credInfo.Subject,
+	)
+	if err != nil {
+		httpx.WriteServerError(ctx, w, fmt.Errorf("check membership: %w", err))
+		return
+	}
+	if !isMember {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member: %w", err))
+		return
 	}
 
 	limit := int(params.Limit)
@@ -700,9 +690,9 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	records, err := s.store.ListRepoOps(r.Context(), spaceURI, repoDID, params.Since, limit)
+	records, err := s.store.ListRepoOps(ctx, spaceURI, repoDID, params.Since, limit)
 	if err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "list repo ops", http.StatusInternalServerError)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("list repo ops: %w", err))
 		return
 	}
 
@@ -719,9 +709,7 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	output := habitat.NetworkHabitatSpaceListRepoOpsOutput{
-		Ops: ops,
-	}
+	output := habitat.NetworkHabitatSpaceListRepoOpsOutput{Ops: ops}
 	if len(records) > 0 {
 		output.Cursor = records[len(records)-1].Rev
 	}
@@ -729,18 +717,18 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 	// When this page reaches the head of the oplog (fewer ops than the limit) and
 	// a signer is available for the repo owner, include the current signed commit
 	// so a syncer can authenticate the state it has folded up to this point.
-	if len(records) < limit && s.commit.canSign(repoDID) {
-		commit, err := s.buildRepoCommit(r.Context(), w, spaceURI, repoDID)
+	if len(records) < limit {
+		commit, err := s.buildRepoCommit(ctx, spaceURI, repoDID)
 		switch {
 		case err == nil:
 			output.Commit = commit
 		case errors.Is(err, errEmptyRepo):
 			// Repo holds no records; nothing to commit over.
 		default:
-			return // HTTP error already written.
+			httpx.WriteServerError(ctx, w, fmt.Errorf("build repo commit: %w", err))
+			return
 		}
 	}
-
 	httpx.WriteJSON(r.Context(), w, output)
 }
 
@@ -749,22 +737,22 @@ func (s *Server) ListRepoOps(w http.ResponseWriter, r *http.Request) {
 // with no records yields a zero commit with ok=true (the caller skips it).
 func (s *Server) buildRepoCommit(
 	ctx context.Context,
-	w http.ResponseWriter,
 	spaceURI habitat_syntax.SpaceURI,
 	repo syntax.DID,
 ) (habitat.NetworkHabitatSpaceDefsSignedCommit, error) {
 	rev, hash, found, err := s.store.RepoHead(ctx, spaceURI, repo)
 	if err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "repo head", http.StatusInternalServerError)
-		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, fmt.Errorf("repo head: %w", err)
 	}
 	if !found {
 		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, errEmptyRepo
 	}
 	commit, err := buildSignedCommit(ctx, s.commit, spaceURI, repo, rev, hash)
 	if err != nil {
-		utils.LogAndHTTPError(ctx, w, err, "build signed commit", http.StatusInternalServerError)
-		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, err
+		return habitat.NetworkHabitatSpaceDefsSignedCommit{}, fmt.Errorf(
+			"build signed commit: %w",
+			err,
+		)
 	}
 	return habitat.NetworkHabitatSpaceDefsSignedCommit{
 		Ver:  int64(commit.Ver),
@@ -931,23 +919,27 @@ func (s *Server) GetSpaceCredential(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInvalidRequest(ctx, w, "param doesn't match token", nil)
 		return
 	}
-	token, err := s.hive.SignJWT(
-		ctx,
-		spaceURI.SpaceOwner(),
-		map[string]any{
-			"typ": "atproto-space-credential+jwt",
-			"kid": "#atproto", // TODO: should probably switch to #atproto_space when hive supports it
-		},
-		jwt.MapClaims{
+	privKey, err := s.hive.PrivateKeyForDID(ctx, spaceURI.SpaceOwner())
+	if err != nil {
+		httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("failed to get host private key: %w", err))
+		return
+	}
+	token, err := new(jwt.Token{
+		Method: jwt.GetSigningMethod("ES256K"),
+		Claims: jwt.MapClaims{
 			"iss": spaceURI.SpaceOwner(),
 			"sub": spaceURI,
 			"iat": jwt.NewNumericDate(time.Now()),
 			"exp": jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			"jti": utils.RandomNonce(16),
 		},
-	)
+		Header: map[string]any{
+			"typ": "atproto-space-credential+jwt",
+			"kid": "#atproto", // TODO: should probably switch to #atproto_space when hive supports it
+		},
+	}).SignedString(privKey)
 	if err != nil {
-		httpx.WriteSpaceNotFound(ctx, w, err)
+		httpx.WriteServerError(ctx, w, fmt.Errorf("failed to sign token: %w", err))
 		return
 	}
 	httpx.WriteJSON(ctx, w, habitat.NetworkHabitatSpaceGetSpaceCredentialOutput{Credential: token})

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -25,33 +25,28 @@ type fakeSigner struct {
 	err error
 }
 
-func (f *fakeSigner) SignJWT(
+func (f *fakeSigner) PrivateKeyForDID(
 	_ context.Context,
-	iss syntax.DID,
-	headers map[string]any,
-	claims jwt.Claims,
-) (string, error) {
+	_ syntax.DID,
+) (atcrypto.PrivateKey, error) {
 	if f.err != nil {
-		return "", f.err
+		return nil, f.err
 	}
-	claimIss, err := claims.GetIssuer()
-	require.NoError(f.t, err)
-	require.Equal(f.t, iss.String(), claimIss)
-	return "test-token", nil
+	return atcrypto.GeneratePrivateKeyK256()
 }
 
 func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 	s := newTestStore(t)
 
 	type delivery struct {
-		in    habitat.NetworkHabitatSpaceNotifyWriteInput
-		authz string
+		in habitat.NetworkHabitatSpaceNotifyWriteInput
 	}
 	received := make(chan delivery, 2)
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		var in habitat.NetworkHabitatSpaceNotifyWriteInput
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&in))
-		received <- delivery{in: in, authz: r.Header.Get("Authorization")}
+		require.Contains(t, r.Header.Get("Authorization"), "Bearer ")
+		received <- delivery{in: in}
 		w.WriteHeader(http.StatusOK)
 	}
 	subscriber := httptest.NewServer(http.HandlerFunc(handler))
@@ -72,7 +67,6 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 			require.Equal(t, space.String(), d.in.Space)
 			require.Equal(t, repo.String(), d.in.Repo)
 			require.Equal(t, "3lrev", d.in.Rev)
-			require.Equal(t, "Bearer test-token", d.authz)
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for notifyWrite delivery")
 		}

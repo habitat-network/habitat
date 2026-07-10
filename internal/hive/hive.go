@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	_ "github.com/bluesky-social/indigo/atproto/auth" // register signing methods
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/db"
 	"gorm.io/gorm"
 )
@@ -26,20 +26,7 @@ type Hive interface {
 	MintOrgIdentity(ctx context.Context, subdomain string) (*identity.Identity, error)
 	// Minting new identities for members
 	MintIdentity(ctx context.Context, handle string, subdomain string) (*identity.Identity, error)
-	// SignServiceJWT mints a signed JWT using the did's signing key
-	SignJWT(
-		ctx context.Context,
-		did syntax.DID,
-		headers map[string]any,
-		claims jwt.Claims,
-	) (string, error)
-	// IsManaged reports whether did is a habitat-managed did:web identity (one
-	// whose signing key hive holds).
-	IsManaged(did syntax.DID) bool
-	// SignAsMember signs msg with did's signing key (HashAndSign). Precondition:
-	// IsManaged(did). Used to sign permissioned-repo commits on behalf of
-	// habitat-managed repo owners, per the atproto permissioned-data proposal.
-	SignAsMember(ctx context.Context, did syntax.DID, msg []byte) ([]byte, error)
+	PrivateKeyForDID(ctx context.Context, did syntax.DID) (atcrypto.PrivateKey, error)
 	// FUTURE METHODS:
 	// Updating a handle
 	// UpdateHandle(ctx context.Context, did string, oldHandle string, newHandle string)
@@ -148,49 +135,12 @@ func (h *hive) Purge(ctx context.Context, atid syntax.AtIdentifier) error {
 	return nil
 }
 
-// SignJWT implements Hive.
-func (h *hive) SignJWT(
+// PrivateKeyForDID implements Hive.
+func (h *hive) PrivateKeyForDID(
 	ctx context.Context,
 	did syntax.DID,
-	headers map[string]any,
-	claims jwt.Claims,
-) (string, error) {
+) (atcrypto.PrivateKey, error) {
 	// Validate the DID belongs to this hive and extract the opaque ID.
-	content := strings.TrimPrefix(did.String(), "did:web:")
-	opaqueID, after, ok := strings.Cut(content, ".")
-	if !ok || after != h.memberDomain {
-		return "", identity.ErrDIDNotFound
-	}
-	priv, err := h.store.getSigningPrivateKeyByID(ctx, opaqueID)
-	if err != nil {
-		return "", fmt.Errorf("failed to get signing private key: %w", err)
-	}
-	method := jwt.GetSigningMethod("ES256K")
-	token := &jwt.Token{
-		Header: headers,
-		Claims: claims,
-		Method: method,
-	}
-	if token.Header["typ"] == "" {
-		token.Header["typ"] = "JWT"
-	}
-	token.Header["alg"] = "ES256K"
-	tokenString, err := token.SignedString(priv)
-	if err != nil {
-		return "", fmt.Errorf("failed to sign JWT: %w", err)
-	}
-	return tokenString, nil
-}
-
-// IsManaged implements Hive.
-func (h *hive) IsManaged(did syntax.DID) bool {
-	content := strings.TrimPrefix(did.String(), "did:web:")
-	_, after, ok := strings.Cut(content, ".")
-	return ok && after == h.memberDomain
-}
-
-// SignAsMember implements Hive.
-func (h *hive) SignAsMember(ctx context.Context, did syntax.DID, msg []byte) ([]byte, error) {
 	content := strings.TrimPrefix(did.String(), "did:web:")
 	opaqueID, after, ok := strings.Cut(content, ".")
 	if !ok || after != h.memberDomain {
@@ -200,7 +150,7 @@ func (h *hive) SignAsMember(ctx context.Context, did syntax.DID, msg []byte) ([]
 	if err != nil {
 		return nil, fmt.Errorf("failed to get signing private key: %w", err)
 	}
-	return priv.HashAndSign(msg)
+	return priv, nil
 }
 
 // MintOrgIdentity implements [Hive].
