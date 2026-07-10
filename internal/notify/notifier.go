@@ -10,8 +10,10 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/api/habitat"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
+	"github.com/habitat-network/habitat/internal/utils"
 )
 
 // serviceAuthTTL bounds the lifetime of the service-auth JWT minted for each
@@ -26,12 +28,11 @@ var (
 // ServiceAuthSigner mints a habitat-issued atproto service-auth JWT for the
 // issuing identity. hive.Hive satisfies this interface.
 type ServiceAuthSigner interface {
-	SignServiceAuth(
+	SignJWT(
 		ctx context.Context,
-		iss syntax.DID,
-		aud string,
-		ttl time.Duration,
-		lxm *syntax.NSID,
+		did syntax.DID,
+		headers map[string]any,
+		claims jwt.Claims,
 	) (string, error)
 }
 
@@ -137,7 +138,8 @@ func (d *Deliverer) deliver(
 		return
 	}
 
-	token, err := d.signer.SignServiceAuth(ctx, iss, endpoint, serviceAuthTTL, &method)
+	headers, claims := utils.ServiceAuthClaims(iss, endpoint, &method)
+	token, err := d.signer.SignJWT(ctx, iss, headers, claims)
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: sign service auth",
 			"err", err, "endpoint", endpoint, "method", method)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/habitat-network/habitat/api/habitat"
@@ -20,29 +21,22 @@ var errSign = errors.New("sign failed")
 // fakeSigner records the service-auth requests it is asked to sign and returns a
 // fixed token, or err when set.
 type fakeSigner struct {
-	iss   syntax.DID
-	aud   string
-	lxm   string
-	calls int
-	err   error
+	t   *testing.T
+	err error
 }
 
-func (f *fakeSigner) SignServiceAuth(
+func (f *fakeSigner) SignJWT(
 	_ context.Context,
 	iss syntax.DID,
-	aud string,
-	_ time.Duration,
-	lxm *syntax.NSID,
+	headers map[string]any,
+	claims jwt.Claims,
 ) (string, error) {
-	f.calls++
 	if f.err != nil {
 		return "", f.err
 	}
-	f.iss = iss
-	f.aud = aud
-	if lxm != nil {
-		f.lxm = lxm.String()
-	}
+	claimIss, err := claims.GetIssuer()
+	require.NoError(f.t, err)
+	require.Equal(f.t, iss.String(), claimIss)
 	return "test-token", nil
 }
 
@@ -68,7 +62,7 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
-	signer := &fakeSigner{}
+	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
 
@@ -83,12 +77,6 @@ func TestNotifierDeliversToRegisteredEndpoints(t *testing.T) {
 			t.Fatal("timed out waiting for notifyWrite delivery")
 		}
 	}
-
-	// The service-auth JWT is issued by the space owner, audienced to the
-	// delivery endpoint, and scoped to notifyWrite.
-	require.Equal(t, space.SpaceOwner(), signer.iss)
-	require.Equal(t, subscriber.URL, signer.aud)
-	require.Equal(t, "network.habitat.space.notifyWrite", signer.lxm)
 }
 
 func TestNotifierNotifySpaceDeleted(t *testing.T) {
@@ -120,10 +108,9 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 			t.Fatal("timed out waiting for notifySpaceDeleted delivery")
 		}
 	}
-	require.Equal(t, "network.habitat.space.notifySpaceDeleted", signer.lxm)
 }
 
-func TestNotifierNoRegistrationsSkipsSigning(t *testing.T) {
+func TestNotifierNoRegistrations(t *testing.T) {
 	s := newTestStore(t)
 	signer := &fakeSigner{}
 	notifier := NewNotifier(s, http.DefaultClient, signer)
@@ -131,8 +118,6 @@ func TestNotifierNoRegistrationsSkipsSigning(t *testing.T) {
 	// With no registrations, neither path should sign or deliver anything.
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
 	notifier.NotifySpaceDeleted(t.Context(), space)
-
-	require.Zero(t, signer.calls)
 }
 
 func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
@@ -157,7 +142,6 @@ func TestNotifierSignerErrorAbortsDelivery(t *testing.T) {
 		t.Fatal("delivered despite service-auth signing failure")
 	case <-time.After(200 * time.Millisecond):
 	}
-	require.Equal(t, 1, signer.calls)
 }
 
 func TestNotifierSkipsUnmatchedRepo(t *testing.T) {

@@ -10,11 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/habitat-network/habitat/internal/authn"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/httpx"
@@ -126,19 +124,12 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 
 	// Habitat owns user signing keys, so it signs service auth tokens on behalf
 	// of users — the same role a PDS fills when calling com.atproto.server.getServiceAuth.
-	token, err := s.hive.SignJWT(
-		ctx,
+	headers, claims := utils.ServiceAuthClaims(
 		credInfo.Subject,
-		map[string]any{},
-		jwt.MapClaims{
-			"exp": jwt.NewNumericDate(time.Now().Add(time.Minute)),
-			"iat": jwt.NewNumericDate(time.Now()),
-			"iss": credInfo.Subject,
-			"aud": targetDID,
-			"jti": utils.RandomNonce(16),
-			"lxm": nsid,
-		},
+		proxyHeader,
+		&nsid,
 	)
+	token, err := s.hive.SignJWT(ctx, credInfo.Subject, headers, claims)
 	if errors.Is(err, identity.ErrDIDNotFound) {
 		token, err = s.fetchRemoteServiceAuth(ctx, credInfo, proxyHeader, nsid)
 		if err != nil {
