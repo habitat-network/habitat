@@ -12,8 +12,9 @@ import (
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
+	notify_testutil "github.com/habitat-network/habitat/internal/notify/testutil"
 	"github.com/habitat-network/habitat/internal/spaces"
-	"github.com/habitat-network/habitat/internal/spaces/testutil"
+	space_testutil "github.com/habitat-network/habitat/internal/spaces/testutil"
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 )
 
@@ -32,7 +33,10 @@ func newTestStore(t *testing.T) (*Store, spaces.Store) {
 	fga, err := fgastore.NewMemory(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = fga.Close() })
-	sp := testutil.NewTestStore(t)
+	sp := space_testutil.NewTestStore(t, space_testutil.Config{
+		FgaStore: fga,
+		DB:       db,
+	})
 	require.NoError(t, err)
 	return NewStore(db, sp, fga), sp
 }
@@ -463,7 +467,7 @@ func TestWriteTuple_RollsBackRecordOnFGAFailure(t *testing.T) {
 	fga := &flakyFGA{Store: mem}
 	eventStore, err := events.NewStore(db)
 	require.NoError(t, err)
-	sp, err := spaces.NewStore(db, fga, eventStore, nil)
+	sp, err := spaces.NewStore(db, fga, eventStore, &notify_testutil.TestNotifier{})
 	require.NoError(t, err)
 	rel := NewStore(db, sp, fga)
 
