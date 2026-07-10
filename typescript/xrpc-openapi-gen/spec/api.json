@@ -6526,6 +6526,142 @@
         }
       }
     },
+    "/network.habitat.space.getSpaceCredential": {
+      "post": {
+        "tags": [
+          "network.habitat.space"
+        ],
+        "summary": "network.habitat.space.getSpaceCredential",
+        "description": "Exchange a delegation token for a space credential. Called on the space authority, with the delegation token as the request's authorization token. The resulting space credential reads repos across the space. Requires a delegation token, plus a client attestation when the space gates on app identity.",
+        "operationId": "network.habitat.space.getSpaceCredential",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "space"
+                ],
+                "properties": {
+                  "space": {
+                    "type": "string",
+                    "description": "Reference to the space.",
+                    "format": "at-uri"
+                  },
+                  "clientAttestation": {
+                    "type": "string",
+                    "description": "Optional client attestation JWT establishing the app's identity. Required only when the space gates on app identity."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "credential"
+                  ],
+                  "properties": {
+                    "credential": {
+                      "type": "string",
+                      "description": "A signed JWT space credential."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "oneOf": [
+                        {
+                          "const": "InvalidRequest"
+                        },
+                        {
+                          "const": "ExpiredToken"
+                        },
+                        {
+                          "const": "InvalidToken"
+                        },
+                        {
+                          "const": "SpaceNotFound"
+                        },
+                        {
+                          "const": "SpaceDeleted"
+                        },
+                        {
+                          "const": "UserNotAuthorized"
+                        },
+                        {
+                          "const": "AppNotAuthorized"
+                        },
+                        {
+                          "const": "NotAuthorized"
+                        },
+                        {
+                          "const": "InvalidDelegationToken"
+                        },
+                        {
+                          "const": "InvalidClientAttestation"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "const": "AuthMissing"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/network.habitat.space.listRecords": {
       "get": {
         "tags": [

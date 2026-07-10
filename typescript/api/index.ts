@@ -94,6 +94,7 @@ import * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 import * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 import * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 import * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+import * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 import * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
 import * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
@@ -186,6 +187,7 @@ export * as NetworkHabitatSpaceDefs from './types/network/habitat/space/defs.js'
 export * as NetworkHabitatSpaceDeleteRecord from './types/network/habitat/space/deleteRecord.js'
 export * as NetworkHabitatSpaceDeleteSpace from './types/network/habitat/space/deleteSpace.js'
 export * as NetworkHabitatSpaceGetRecord from './types/network/habitat/space/getRecord.js'
+export * as NetworkHabitatSpaceGetSpaceCredential from './types/network/habitat/space/getSpaceCredential.js'
 export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/listRecords.js'
 export * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
 export * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
@@ -1917,6 +1919,17 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.getRecord', params, undefined, opts)
       .catch((e) => {
         throw NetworkHabitatSpaceGetRecord.toKnownErr(e)
+      })
+  }
+
+  getSpaceCredential(
+    data?: NetworkHabitatSpaceGetSpaceCredential.InputSchema,
+    opts?: NetworkHabitatSpaceGetSpaceCredential.CallOptions,
+  ): Promise<NetworkHabitatSpaceGetSpaceCredential.Response> {
+    return this._client
+      .call('network.habitat.space.getSpaceCredential', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceGetSpaceCredential.toKnownErr(e)
       })
   }
 
