@@ -5,11 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/habitat-network/habitat/internal/org"
 	"github.com/habitat-network/habitat/internal/utils"
@@ -79,26 +77,4 @@ func (p *AtprotoServiceAuthMethod) ValidateRaw(
 		return nil, false, err
 	}
 	return &CredentialInfo{Subject: did, Type: UserCredential, Org: &org.EveryoneOrg{}}, true, nil
-}
-
-type serviceJwtPayload struct {
-	Iss string `json:"iss"`
-	Aud string `json:"aud"`
-	Exp int64  `json:"exp"`
-	Lxm string `json:"lxm"`
-}
-
-type atcryptoVerifier struct {
-	atcrypto.PublicKey
-}
-
-var _ jose.OpaqueVerifier = (*atcryptoVerifier)(nil)
-
-// VerifyPayload implements [jose.OpaqueVerifier].
-func (a atcryptoVerifier) VerifyPayload(
-	payload []byte,
-	signature []byte,
-	alg jose.SignatureAlgorithm,
-) error {
-	return a.HashAndVerify(payload, signature)
 }

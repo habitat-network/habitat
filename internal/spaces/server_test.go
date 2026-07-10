@@ -203,7 +203,7 @@ func TestServer_PutAndGetRecord(t *testing.T) {
 
 	getReq := httptest.NewRequest(
 		http.MethodGet,
-		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=my-note",
+		"/xrpc/network.habitat.space.getRecord?space="+uri.String()+"&collection=network.habitat.note&rkey=my-note&repo=did:plc:owner",
 		nil,
 	)
 	getW := httptest.NewRecorder()

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -15,10 +14,6 @@ import (
 	habitat_syntax "github.com/habitat-network/habitat/internal/syntax"
 	"github.com/habitat-network/habitat/internal/utils"
 )
-
-// serviceAuthTTL bounds the lifetime of the service-auth JWT minted for each
-// delivery.
-const serviceAuthTTL = 60 * time.Second
 
 var (
 	nsidNotifyWrite        = syntax.NSID("network.habitat.space.notifyWrite")
