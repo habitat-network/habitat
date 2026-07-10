@@ -176,7 +176,8 @@ func TestServiceProxyIntegration_ForwardsWithServiceAuth(t *testing.T) {
 	require.Equal(t, callerID.DID.String(), iss)
 	aud, err := claims.GetAudience()
 	require.NoError(t, err)
-	require.Contains(t, aud, targetDID)
+	require.NotEmpty(t, aud)
+	require.Contains(t, aud[0], targetDID)
 }
 
 func TestServiceProxyIntegration_RemoteDID(t *testing.T) {

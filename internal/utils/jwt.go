@@ -15,7 +15,7 @@ func ServiceAuthClaims(
 	return map[string]any{}, jwt.MapClaims{
 		"exp": jwt.NewNumericDate(time.Now().Add(time.Minute)),
 		"iat": jwt.NewNumericDate(time.Now()),
-		"iss": iss,
+		"iss": iss.String(),
 		"aud": aud,
 		"jti": RandomNonce(16),
 		"lxm": lxm,

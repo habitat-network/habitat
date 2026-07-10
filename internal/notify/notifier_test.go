@@ -96,7 +96,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 	require.NoError(t, s.Register(t.Context(), space, "", subscriber.URL, future))
 	require.NoError(t, s.Register(t.Context(), space, repo, subscriber.URL, future))
 
-	signer := &fakeSigner{}
+	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, subscriber.Client(), signer)
 	notifier.NotifySpaceDeleted(t.Context(), space)
 
@@ -112,7 +112,7 @@ func TestNotifierNotifySpaceDeleted(t *testing.T) {
 
 func TestNotifierNoRegistrations(t *testing.T) {
 	s := newTestStore(t)
-	signer := &fakeSigner{}
+	signer := &fakeSigner{t: t}
 	notifier := NewNotifier(s, http.DefaultClient, signer)
 
 	// With no registrations, neither path should sign or deliver anything.
@@ -160,7 +160,7 @@ func TestNotifierSkipsUnmatchedRepo(t *testing.T) {
 		s.Register(t.Context(), space, bob, subscriber.URL, time.Now().Add(time.Hour)),
 	)
 
-	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{})
+	notifier := NewNotifier(s, subscriber.Client(), &fakeSigner{t: t})
 	notifier.NotifyWrite(t.Context(), space, repo, "3lrev")
 
 	select {
