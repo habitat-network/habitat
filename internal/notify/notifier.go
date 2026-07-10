@@ -44,9 +44,6 @@ type Deliverer struct {
 }
 
 func NewNotifier(store Store, client *http.Client, signer ServiceAuthSigner) *Deliverer {
-	if client == nil {
-		client = http.DefaultClient
-	}
 	return &Deliverer{store: store, client: client, signer: signer}
 }
 
