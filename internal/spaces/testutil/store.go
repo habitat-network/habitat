@@ -19,7 +19,8 @@ type Config struct {
 
 type testStore struct {
 	spaces.Store
-	Notifier *testutil.TestNotifier
+	Notifier   *testutil.TestNotifier
+	EventStore events.Store
 }
 
 func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
@@ -42,5 +43,5 @@ func NewTestStore(t *testing.T, cfgs ...Config) *testStore {
 	notifier := &testutil.TestNotifier{}
 	s, err := spaces.NewStore(cfg.DB, cfg.FgaStore, eventStore, notifier)
 	require.NoError(t, err)
-	return &testStore{Store: s, Notifier: notifier}
+	return &testStore{Store: s, Notifier: notifier, EventStore: eventStore}
 }

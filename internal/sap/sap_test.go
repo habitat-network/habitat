@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +24,6 @@ import (
 	authn_testutil "github.com/habitat-network/habitat/internal/authn/testutil"
 	db_testutil "github.com/habitat-network/habitat/internal/db/testutil"
 	"github.com/habitat-network/habitat/internal/encrypt"
-	"github.com/habitat-network/habitat/internal/events"
 	"github.com/habitat-network/habitat/internal/fgastore"
 	"github.com/habitat-network/habitat/internal/hive"
 	"github.com/habitat-network/habitat/internal/oauthserver"
@@ -272,15 +269,9 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
-	eventStore, err := events.NewStore(db)
-	if err != nil {
-		slog.ErrorContext(t.Context(), "unable to setup event store", "err", err)
-		os.Exit(1)
-	}
-
-	syncServer := sync.NewServer(eventStore)
-
 	spacesStore := testutil.NewTestStore(t)
+
+	syncServer := sync.NewServer(spacesStore.EventStore)
 	spacesServer := spaces.NewServer(
 		spacesStore,
 		fgaStore,
@@ -311,10 +302,8 @@ func setupPear(
 	)
 	require.NoError(t, err)
 
-	// Start sequencer after backfill data is created so that there's no
-	// concurrent write contention on the Pear DB during backfill.
 	go func() {
-		require.ErrorIs(t, eventStore.StartSequencer(t.Context()), context.Canceled)
+		require.ErrorIs(t, spacesStore.EventStore.StartSequencer(t.Context()), context.Canceled)
 	}()
 
 	return server, orgId, adminId, spacesStore, orgHive
