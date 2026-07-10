@@ -138,7 +138,7 @@ func (d *Deliverer) deliver(
 		return
 	}
 
-	headers, claims := utils.ServiceAuthClaims(iss, endpoint, &method)
+	headers, claims := utils.ServiceAuthClaims(iss, endpoint, &method, nil)
 	token, err := d.signer.SignJWT(ctx, iss, headers, claims)
 	if err != nil {
 		slog.ErrorContext(ctx, "notify: sign service auth",

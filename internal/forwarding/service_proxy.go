@@ -128,6 +128,7 @@ func (s *serviceProxy) proxy(w http.ResponseWriter, r *http.Request, proxyHeader
 		credInfo.Subject,
 		proxyHeader,
 		&nsid,
+		nil,
 	)
 	token, err := s.hive.SignJWT(ctx, credInfo.Subject, headers, claims)
 	if errors.Is(err, identity.ErrDIDNotFound) {
