@@ -99,7 +99,10 @@ import * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/l
 import * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
 import * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 import * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
+import * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/space/notifySpaceDeleted.js'
+import * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 import * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
+import * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
 import * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export * as ComAtprotoRepoCreateRecord from './types/com/atproto/repo/createRecord.js'
@@ -192,7 +195,10 @@ export * as NetworkHabitatSpaceListRecords from './types/network/habitat/space/l
 export * as NetworkHabitatSpaceListRepoOps from './types/network/habitat/space/listRepoOps.js'
 export * as NetworkHabitatSpaceListRepos from './types/network/habitat/space/listRepos.js'
 export * as NetworkHabitatSpaceListSpaces from './types/network/habitat/space/listSpaces.js'
+export * as NetworkHabitatSpaceNotifySpaceDeleted from './types/network/habitat/space/notifySpaceDeleted.js'
+export * as NetworkHabitatSpaceNotifyWrite from './types/network/habitat/space/notifyWrite.js'
 export * as NetworkHabitatSpacePutRecord from './types/network/habitat/space/putRecord.js'
+export * as NetworkHabitatSpaceRegisterNotify from './types/network/habitat/space/registerNotify.js'
 export * as NetworkHabitatSpaceRemoveMember from './types/network/habitat/space/removeMember.js'
 
 export const COMMUNITY_LEXICON_CALENDAR = {
@@ -1978,6 +1984,30 @@ export class NetworkHabitatSpaceNS {
     )
   }
 
+  notifySpaceDeleted(
+    data?: NetworkHabitatSpaceNotifySpaceDeleted.InputSchema,
+    opts?: NetworkHabitatSpaceNotifySpaceDeleted.CallOptions,
+  ): Promise<NetworkHabitatSpaceNotifySpaceDeleted.Response> {
+    return this._client.call(
+      'network.habitat.space.notifySpaceDeleted',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
+  notifyWrite(
+    data?: NetworkHabitatSpaceNotifyWrite.InputSchema,
+    opts?: NetworkHabitatSpaceNotifyWrite.CallOptions,
+  ): Promise<NetworkHabitatSpaceNotifyWrite.Response> {
+    return this._client.call(
+      'network.habitat.space.notifyWrite',
+      opts?.qp,
+      data,
+      opts,
+    )
+  }
+
   putRecord(
     data?: NetworkHabitatSpacePutRecord.InputSchema,
     opts?: NetworkHabitatSpacePutRecord.CallOptions,
@@ -1986,6 +2016,17 @@ export class NetworkHabitatSpaceNS {
       .call('network.habitat.space.putRecord', opts?.qp, data, opts)
       .catch((e) => {
         throw NetworkHabitatSpacePutRecord.toKnownErr(e)
+      })
+  }
+
+  registerNotify(
+    data?: NetworkHabitatSpaceRegisterNotify.InputSchema,
+    opts?: NetworkHabitatSpaceRegisterNotify.CallOptions,
+  ): Promise<NetworkHabitatSpaceRegisterNotify.Response> {
+    return this._client
+      .call('network.habitat.space.registerNotify', opts?.qp, data, opts)
+      .catch((e) => {
+        throw NetworkHabitatSpaceRegisterNotify.toKnownErr(e)
       })
   }
 

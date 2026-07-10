@@ -506,6 +506,7 @@ func (s *Server) PutRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	credInfo, ok := authn.NewValidator(
 		authn.WithAuthMethods(s.oauth, s.serviceAuth),
 	).Validate(w, r)
@@ -515,24 +516,24 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 
 	var params habitat.NetworkHabitatSpaceGetRecordParams
 	if err := s.decoder.Decode(&params, r.URL.Query()); err != nil {
-		utils.LogAndHTTPError(r.Context(), w, err, "decode query params", http.StatusBadRequest)
+		utils.LogAndHTTPError(ctx, w, err, "decode query params", http.StatusBadRequest)
 		return
 	}
 
-	spaceURI, ok := httpx.ParseSpaceURIInput(r.Context(), w, params.Space, "space uri")
+	spaceURI, ok := httpx.ParseSpaceURIInput(ctx, w, params.Space, "space uri")
 	if !ok {
 		return
 	}
 	if credInfo.Subject != "" {
 		isMember, err := s.store.IsMember(
-			r.Context(),
+			ctx,
 			credInfo.Org.DID(),
 			spaceURI,
 			credInfo.Subject,
 		)
 		if err != nil {
 			utils.LogAndHTTPError(
-				r.Context(),
+				ctx,
 				w,
 				err,
 				"check membership",
@@ -541,11 +542,11 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !isMember {
-			httpx.WriteSpaceNotFound(r.Context(), w, fmt.Errorf("not a member"))
+			httpx.WriteSpaceNotFound(ctx, w, fmt.Errorf("not a member"))
 			return
 		}
 	}
-	collection, ok := httpx.ParseNSIDInput(r.Context(), w, params.Collection, "collection")
+	collection, ok := httpx.ParseNSIDInput(ctx, w, params.Collection, "collection")
 	if !ok {
 		return
 	}
@@ -556,12 +557,12 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := credInfo.Subject
-	if params.Repo != "" {
-		owner, err = syntax.ParseDID(params.Repo)
+	repo, ok := httpx.ParseDIDInput(ctx, w, params.Repo, "repo")
+	if !ok {
+		return
 	}
 
-	rec, err := s.store.GetRecord(r.Context(), spaceURI, owner, collection, rkey)
+	rec, err := s.store.GetRecord(r.Context(), spaceURI, repo, collection, rkey)
 	if errors.Is(err, ErrRecordNotFound) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -570,7 +571,7 @@ func (s *Server) GetRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, owner, collection, rec.Rkey)
+	uri := habitat_syntax.ConstructSpaceRecordURI(spaceURI, repo, collection, rec.Rkey)
 	output := habitat.NetworkHabitatSpaceGetRecordOutput{
 		Uri:   uri.String(),
 		Cid:   rec.Cid.String(),
