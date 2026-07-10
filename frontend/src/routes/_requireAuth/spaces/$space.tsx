@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_requireAuth/spaces/$space")({
     const { repos } = await query(
       "network.habitat.space.listRepos",
       { space },
-      { authManager },
+      { fetcher: authManager },
     );
 
     const results = await Promise.all(
@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_requireAuth/spaces/$space")({
         const { records } = await query(
           "network.habitat.space.listRecords",
           { space, repo: repo.did },
-          { authManager },
+          { fetcher: authManager },
         );
         return records.map((record) => ({ ...record, owner: repo.did }));
       }),
@@ -87,7 +87,7 @@ function SpaceRecords() {
       await procedure(
         "network.habitat.space.deleteRecord",
         { space, collection, rkey, repo: authManager.getAuthInfo()!.did },
-        { authManager },
+        { fetcher: authManager },
       );
       router.invalidate();
     },
@@ -98,7 +98,7 @@ function SpaceRecords() {
       await procedure(
         "network.habitat.space.removeMember",
         { space, did },
-        { authManager },
+        { fetcher: authManager },
       );
       router.invalidate();
     },
@@ -109,7 +109,7 @@ function SpaceRecords() {
       await procedure(
         "network.habitat.space.addMember",
         { space, did, access },
-        { authManager },
+        { fetcher: authManager },
       );
       form.reset();
       router.invalidate();
@@ -280,7 +280,7 @@ function CreateRecordDialog({
       await procedure(
         "network.habitat.space.putRecord",
         { space, collection, record, repo: authManager.getAuthInfo()!.did },
-        { authManager },
+        { fetcher: authManager },
       );
     },
     onSuccess() {

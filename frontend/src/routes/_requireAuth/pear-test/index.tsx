@@ -65,7 +65,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
             rkey: data.rkey,
             ...(grantees.length > 0 ? { grantees } : {}),
           },
-          { authManager },
+          { fetcher: authManager },
         );
       },
     });
@@ -81,7 +81,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/")({
         const json = await query(
           "network.habitat.repo.getRecord",
           { collection: data.collection, repo: data.repo, rkey: data.rkey },
-          { authManager },
+          { fetcher: authManager },
         );
         setFetchedRecord(JSON.stringify(json.value));
       },

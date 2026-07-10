@@ -65,7 +65,7 @@ export const Route = createFileRoute("/_requireAuth/data")({
             collection: lexicon,
             repo: repo ?? "",
           },
-          { authManager: context.authManager },
+          { fetcher: context.authManager },
         );
         return { records: data.records, error: null };
       }

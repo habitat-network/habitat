@@ -56,6 +56,13 @@ export default function habitatAppPlugin(options?: {
             __DOCS_SERVER_DID__: process.env.DOCS_SERVER_DID
               ? `'${process.env.DOCS_SERVER_DID}'`
               : "undefined",
+            // HTTP base URL of the docs server, derived from its did:web DID.
+            // docsv2 points its fetcher here and authenticates with its server
+            // session instead of proxying pear calls through an Atproto-Proxy
+            // header.
+            __DOCS_SERVER_URL__: process.env.DOCS_SERVER_DID
+              ? `'https://${process.env.DOCS_SERVER_DID.replace(/^did:web:/, "")}'`
+              : "undefined",
             // DID of the home server, used as the Atproto-Proxy target so pear
             // forwards network.habitat.groups.* calls to it.
             __HOME_SERVER_DID__: process.env.HOME_SERVER_DID

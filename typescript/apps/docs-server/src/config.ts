@@ -14,9 +14,13 @@ export interface DerivedConfig extends Config {
   did: string;
   serviceId: string;
   // Base URL of sap's internal port. All authenticated pear XRPC calls are
-  // routed through <sapUrl>/proxy (sap attaches the org's OAuth token), and the
-  // org-login bootstrap kicks off sap's <sapUrl>/org/add OAuth flow.
+  // routed through <sapUrl>/proxy (sap attaches the DID's OAuth token), and the
+  // org-login and user-login bootstraps kick off sap's OAuth flows.
   sapUrl: string;
+  // Origin of the docsv2 frontend, allowed to make credentialed (cookie)
+  // cross-origin requests. Server sessions are established via a cookie on this
+  // server's domain, so the frontend must be a known origin for CORS.
+  appOrigin: string;
 }
 
 function required(name: string): string {
@@ -30,6 +34,7 @@ function required(name: string): string {
 export function loadConfig(): DerivedConfig {
   const domain = required("DOCS_SERVER_DOMAIN");
   const sapUrl = required("DOCS_SERVER_SAP_URL").replace(/\/$/, "");
+  const appOrigin = required("DOCS_SERVER_APP_ORIGIN").replace(/\/$/, "");
   const config: Config = {
     domain,
     port: parseInt(process.env.DOCS_SERVER_PORT ?? "2590", 10),
@@ -41,5 +46,6 @@ export function loadConfig(): DerivedConfig {
     serviceId,
     did: `did:web:${domain}`,
     sapUrl,
+    appOrigin,
   };
 }

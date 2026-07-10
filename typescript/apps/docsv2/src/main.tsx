@@ -8,18 +8,17 @@ import {
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { reportWebVitals, AuthManager } from "internal";
+import { reportWebVitals } from "internal";
+import { DocsServerFetcher } from "./docsServerFetcher";
 import posthog from "posthog-js";
 import { PostHogProvider } from "@posthog/react";
 
-const authManager = new AuthManager(
-  "Habitat Docs v2",
-  __DOMAIN__,
-  __HABITAT_DOMAIN__,
-  () => {
-    router.navigate({ to: "/login" });
-  },
-);
+// docsv2 has no pear OAuth session of its own: it talks to the docs server
+// directly and relies on the server session established by the login flow. The
+// fetcher carries the session cookie; a 401 sends the user back to login.
+const fetcher = new DocsServerFetcher(__DOCS_SERVER_URL__, () => {
+  router.navigate({ to: "/login" });
+});
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -35,7 +34,7 @@ const router = createRouter({
   routeTree,
   context: {
     queryClient,
-    authManager,
+    fetcher,
   },
   defaultPreload: "intent",
   scrollRestoration: true,

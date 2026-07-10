@@ -45,7 +45,7 @@ export const docEditorsQueryOptions = (
         {
           clique: editorCliqueUri,
         },
-        { authManager },
+        { fetcher: authManager },
       );
       return members ?? [];
     },
@@ -121,7 +121,7 @@ export const deleteDocMutationOptions = (authManager: AuthManager) =>
           collection: "network.habitat.docs",
           rkey,
         },
-        { authManager },
+        { fetcher: authManager },
       );
     },
   });
@@ -148,7 +148,7 @@ export const addPermissionMutationOptions = (authManager: AuthManager) =>
           },
           members: grantees,
         },
-        { authManager },
+        { fetcher: authManager },
       );
       await client.invalidateQueries(
         docEditorsQueryOptions(editorCliqueUri, authManager),
@@ -178,7 +178,7 @@ export const removePermissionMutationOptions = (authManager: AuthManager) =>
           },
           members: [grantee],
         },
-        { authManager },
+        { fetcher: authManager },
       );
       await client.invalidateQueries(
         docEditorsQueryOptions(editorCliqueUri, authManager),

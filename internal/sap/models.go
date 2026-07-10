@@ -29,6 +29,32 @@ type managedOrg struct {
 	CrawlCursor     string
 }
 
+// userSession tracks the OAuth session sap holds for an individual user (as
+// opposed to a managed org). Unlike managedOrg it triggers no crawling or
+// firehose subscription; it exists solely so services (e.g. the docs server)
+// can proxy pear calls authenticated as that user. Keyed by DID so the latest
+// login wins.
+type userSession struct {
+	DID       syntax.DID `gorm:"column:did;primaryKey"`
+	SessionID string     // OAuth session ID, keys the oauth_client session store
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// loginFlow records an in-progress user OAuth flow started via StartUserLogin,
+// keyed by the OAuth state (which is also the resulting session ID). Its
+// presence at callback time is what distinguishes a user login from an org
+// login, and it carries the URL to redirect the browser back to once the flow
+// completes. DID is filled in after the callback so the redirect target can
+// resolve which user authenticated.
+type loginFlow struct {
+	State       string `gorm:"column:state;primaryKey"`
+	RedirectURL string
+	DID         syntax.DID `gorm:"column:did"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type repoState string
 
 const (
@@ -74,5 +100,7 @@ func autoMigrate(db *gorm.DB) error {
 		&managedRepo{},
 		&outbox{},
 		&bufferedEvent{},
+		&userSession{},
+		&loginFlow{},
 	)
 }

@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_requireAuth/pear-test/view")({
     const json = await query(
       "network.habitat.repo.getRecord",
       { repo: did, rkey, collection: "network.habitat.test" },
-      { authManager: context.authManager },
+      { fetcher: context.authManager },
     );
     return JSON.stringify(json);
   },

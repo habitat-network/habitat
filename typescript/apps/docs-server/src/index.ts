@@ -8,6 +8,7 @@ import { DocCrdtStore } from "./docCrdtStore";
 import { DocMetadataStore } from "./docMetadataStore";
 import { Crawler } from "./crawler";
 import { OrgDirectory } from "./orgDirectory";
+import { SessionStore } from "./sessionStore";
 import { createApp } from "./server";
 
 async function main() {
@@ -24,6 +25,9 @@ async function main() {
   const docs = new DocCrdtStore(pear, db);
   const meta = new DocMetadataStore(db);
   const orgs = new OrgDirectory(config, pear, db);
+  // Server sessions backing the docsv2 frontend's cookie auth: they map a
+  // cookie token to the user DID sap holds an OAuth session for.
+  const sessions = new SessionStore(db);
 
   // The crawler subscribes to sap's outbox channel to discover the org's docs,
   // persisting their titles to the metadata store and their CRDT state to the
@@ -41,7 +45,7 @@ async function main() {
       console.error("[org-directory] initial refresh failed", err),
     );
 
-  const app = createApp(config, pear, docs, meta, orgs);
+  const app = createApp(config, pear, docs, meta, orgs, sessions);
 
   serve({ fetch: app.fetch, port: config.port }, (info) => {
     console.log(

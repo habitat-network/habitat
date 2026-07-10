@@ -46,7 +46,7 @@ export {
   getPrivateRecord,
   XRPCError,
 } from "./habitatClient";
-export type { TypedRecord } from "./habitatClient";
+export type { TypedRecord, Fetcher } from "./habitatClient";
 export { default as GranteeAvatars } from "./components/GranteeAvatars";
 
 // Utilities

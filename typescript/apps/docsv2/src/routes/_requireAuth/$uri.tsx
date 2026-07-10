@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
     // Re-apply the canonical state; Yjs CRDT merges are idempotent so this picks
     // up changes from other clients without clobbering local edits.
     const value = await context.queryClient.fetchQuery(
-      docQueryOptions(docId, context.authManager),
+      docQueryOptions(docId, context.fetcher),
     );
     if (value.blob) {
       Y.applyUpdateV2(ydoc, base64ToBytes(value.blob));
@@ -67,12 +67,12 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
   preloadStaleTime: 1000 * 60 * 60,
   component() {
     const { ydoc, docId } = Route.useLoaderData();
-    const { authManager } = Route.useRouteContext();
+    const { fetcher } = Route.useRouteContext();
     const [dirty, setDirty] = useState(false);
 
     // The doc's space URI comes from the docs list; it's what ShareDialogV2
     // manages access for.
-    const { data: docs } = useQuery(docsListQueryOptions(authManager));
+    const { data: docs } = useQuery(docsListQueryOptions(fetcher));
     const spaceUri = docs?.find((d) => d.docId === docId)?.uri;
 
     // Debounced save: encode the full Yjs state and push it through pear to the
@@ -85,7 +85,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
         prevTimeout = window.setTimeout(async () => {
           try {
             await pushUpdate(
-              authManager,
+              fetcher,
               docId,
               bytesToBase64(Y.encodeStateAsUpdateV2(ydoc)),
             );
@@ -95,7 +95,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
           }
         }, 1000);
       };
-    }, [authManager, docId, ydoc]);
+    }, [fetcher, docId, ydoc]);
 
     const editor = useEditor(
       {
@@ -124,7 +124,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             {spaceUri && (
               <ShareDialogV2
                 spaceUri={spaceUri}
-                authManager={authManager}
+                fetcher={fetcher}
                 relation="writer"
               />
             )}

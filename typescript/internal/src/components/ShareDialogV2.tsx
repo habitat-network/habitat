@@ -20,8 +20,7 @@ import {
 } from "./ui/table";
 import { UserAvatar } from "./UserAvatar";
 import { GroupCombobox, type GroupView } from "./GroupCombobox";
-import { AuthManager } from "../authManager";
-import { procedure, query } from "../habitatClient";
+import { procedure, query, type Fetcher } from "../habitatClient";
 import { resolveDidToHandle, resolveHandleToDid } from "../atprotoDirectory";
 
 const TUPLE_COLLECTION = "network.habitat.relationship.tuple";
@@ -62,12 +61,12 @@ function ownerDid(spaceUri: string): string {
 // to network.habitat.group spaces.
 async function loadShareState(
   spaceUri: string,
-  authManager: AuthManager,
+  fetcher: Fetcher,
 ): Promise<ShareState> {
   const { records } = await query(
     "network.habitat.space.listRecords",
     { space: spaceUri, repo: ownerDid(spaceUri), collection: TUPLE_COLLECTION },
-    { authManager },
+    { fetcher },
   );
 
   const userDids = new Set<string>();
@@ -103,7 +102,7 @@ async function loadShareState(
               collection: GROUP_PROFILE_COLLECTION,
               rkey: "self",
             },
-            { authManager },
+            { fetcher },
           );
           const profile = record.value as NetworkHabitatGroupProfile.Main;
           return { uri, name: profile.name };
@@ -120,7 +119,7 @@ async function loadShareState(
 
 interface ShareDialogV2Props {
   spaceUri: string;
-  authManager: AuthManager;
+  fetcher: Fetcher;
   // Role granted to newly added users and groups. Defaults to "reader".
   relation?: Relation;
   // Custom trigger element; defaults to a "Share" button. Must be a single
@@ -132,7 +131,7 @@ interface ShareDialogV2Props {
 // groups that currently have access and lets the caller grant access to more.
 export const ShareDialogV2 = ({
   spaceUri,
-  authManager,
+  fetcher,
   relation = "reader",
   trigger,
 }: ShareDialogV2Props) => {
@@ -144,7 +143,7 @@ export const ShareDialogV2 = ({
 
   const { data, isLoading } = useQuery({
     queryKey,
-    queryFn: () => loadShareState(spaceUri, authManager),
+    queryFn: () => loadShareState(spaceUri, fetcher),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
@@ -159,7 +158,7 @@ export const ShareDialogV2 = ({
           relation,
           object: { space: spaceUri },
         },
-        { authManager },
+        { fetcher },
       );
     },
     onSuccess: () => {
@@ -181,7 +180,7 @@ export const ShareDialogV2 = ({
           relation,
           object: { space: spaceUri },
         },
-        { authManager },
+        { fetcher },
       );
     },
     onSuccess: () => {
@@ -233,7 +232,7 @@ export const ShareDialogV2 = ({
           <div className="flex gap-2">
             <div className="flex-1">
               <GroupCombobox
-                authManager={authManager}
+                fetcher={fetcher}
                 value={selectedGroup}
                 onValueChange={setSelectedGroup}
               />

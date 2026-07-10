@@ -8,14 +8,18 @@ const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const MARKDOWN_COLLECTION = "network.habitat.docs.markdown";
 const SELF = "self";
 
-// DocCrdtStore persists each document's canonical Yjs state in sqlite (shared
-// with the doc-metadata store) instead of memory, so state survives restarts
-// and large docs aren't all held in memory. Each document is its own space,
-// owned by the caller's org; the store writes a CRDT record and a
-// rendered-markdown record to pear, both keyed "self", and mirrors the CRDT
-// state to the db. The crawler feeds CRDT records it observes from sap back in
-// via upsertState. The org DID is passed per call (resolved from the caller's
-// membership) so one docs server can serve many orgs.
+// DocCrdtStore persists each document's merged Yjs state in sqlite (shared with
+// the doc-metadata store) instead of memory, so state survives restarts and
+// large docs aren't all held in memory. Each document is its own space, owned
+// by the caller's org. The merged state is the union of every editor's CRDT
+// record: each user writes their own CRDT record into their slice of the space
+// (repo = their DID) using their own credential, so edits are attributed to the
+// user who made them. The store keeps merging those records — the ones pushed
+// live from the frontend (applyUpdate) and the ones the crawler observes from
+// sap (upsertState) — into one canonical Yjs doc per space. The rendered
+// markdown record stays a single "self" record written with the org
+// credential. Org and user DIDs are passed per call so one docs server can
+// serve many orgs.
 export class DocCrdtStore {
   private pear: PearClient;
   private db: DatabaseSync;
@@ -37,39 +41,57 @@ export class DocCrdtStore {
   }
 
   // createDoc creates a new doc space owned by the caller's org, seeds its
-  // records, persists the CRDT state, and grants the creating member the owner
-  // role. Owner includes read/write (so they can read the doc back directly)
-  // plus manage-members, which is what lets them share the doc with others via
-  // the relationship endpoints.
+  // markdown record with the org credential, persists an empty CRDT state, and
+  // grants the creating member the owner role. Owner includes read/write (so
+  // they can read the doc back and write their own CRDT record) plus
+  // manage-members, which is what lets them share the doc with others via the
+  // relationship endpoints. No CRDT record is written yet — the member's own
+  // CRDT record is created on their first applyUpdate, authored as them.
   async createDoc(
     memberDid: string,
     org: string,
   ): Promise<{ uri: string; docId: string }> {
     const space = await this.pear.createSpace(org);
     const ydoc = new Y.Doc();
-    await this.writeRecords(org, space.uri, ydoc);
     this.persist(space.uri, ydoc);
+    await this.writeMarkdown(org, space.uri, ydoc, "Untitled");
     await this.pear.grantRole(org, space.uri, memberDid, "owner");
     return { uri: space.uri, docId: space.skey };
   }
 
-  // applyUpdate merges a Yjs update into a doc and rewrites its records.
-  // Concurrent calls for the same doc are serialized so the updates apply one
-  // after another: each reads the latest state from the db, merges, then writes
-  // it back.
+  // applyUpdate merges a Yjs update from a member into the doc's merged state,
+  // writes that member's CRDT record with their own credential, and refreshes
+  // the org-owned markdown record. Concurrent calls for the same doc are
+  // serialized so the updates apply one after another: each reads the latest
+  // merged state from the db, merges, then writes it back.
   applyUpdate(
     docId: string,
     updateB64: string,
-    _: string, // memberDid - not doing attribution yet
+    memberDid: string,
     org: string,
   ): Promise<{ uri: string; cid?: string }> {
     const spaceUri = this.pear.spaceUri(docId, org);
     return this.runExclusive(spaceUri, async () => {
-      const ydoc = await this.load(org, spaceUri);
+      const ydoc = this.read(spaceUri) ?? new Y.Doc();
       Y.applyUpdateV2(ydoc, decode(updateB64));
       this.persist(spaceUri, ydoc);
-      return this.writeRecords(org, spaceUri, ydoc);
+      // The member's CRDT record is written as them (repo = their DID); the
+      // markdown record stays org-authored.
+      const crdt = await this.writeCrdt(memberDid, spaceUri, ydoc);
+      await this.writeMarkdown(org, spaceUri, ydoc);
+      return crdt;
     });
+  }
+
+  // stateB64 returns the merged CRDT state for a space as a base64 string, or
+  // undefined if the server has no state for it yet. This is the canonical doc
+  // content the frontend reads (the space no longer holds a single "self" CRDT
+  // record; it holds one per editor, and this is their merge).
+  stateB64(spaceUri: string): string | undefined {
+    const row = this.db
+      .prepare(`SELECT state FROM doc_crdt WHERE space_uri = ?`)
+      .get(spaceUri);
+    return row ? String(row.state) : undefined;
   }
 
   // upsertState merges a CRDT record the crawler observed from sap into the
@@ -81,28 +103,6 @@ export class DocCrdtStore {
       Y.applyUpdateV2(ydoc, decode(stateB64));
       this.persist(spaceUri, ydoc);
     });
-  }
-
-  // load reads the doc's CRDT state from the db, falling back to the record in
-  // pear when the crawler hasn't delivered it yet (e.g. a doc created on another
-  // server).
-  private async load(org: string, spaceUri: string): Promise<Y.Doc> {
-    const stored = this.read(spaceUri);
-    if (stored) {
-      return stored;
-    }
-    const record = await this.pear.getRecord(
-      org,
-      spaceUri,
-      CRDT_COLLECTION,
-      SELF,
-    );
-    const ydoc = new Y.Doc();
-    const blob = record && (record.value as { blob?: string }).blob;
-    if (blob) {
-      Y.applyUpdateV2(ydoc, decode(blob));
-    }
-    return ydoc;
   }
 
   // read loads the persisted CRDT state for a space, or undefined if none is
@@ -133,32 +133,51 @@ export class DocCrdtStore {
       .run(spaceUri, state, Date.now());
   }
 
-  // writeRecords persists the CRDT state and a freshly-rendered markdown record.
-  // nameOverride sets the title on creation (when the doc is still empty);
-  // otherwise the title is derived from the rendered content.
-  private async writeRecords(
-    org: string,
+  // writeCrdt writes the merged CRDT state as the given member's own record
+  // (repo = their DID), authored with their credential. Each editor thus has
+  // their own CRDT record in the space; sap replicates them and the crawler
+  // merges them back via upsertState.
+  private writeCrdt(
+    memberDid: string,
     spaceUri: string,
     ydoc: Y.Doc,
-    nameOverride?: string,
   ): Promise<{ uri: string; cid?: string }> {
-    const rendered = renderDoc(ydoc);
-    const title = nameOverride ?? rendered.title;
     // TODO this should be a blob
-    const crdt = await this.pear.putRecord(
-      org,
+    return this.pear.putRecord(
+      memberDid,
       spaceUri,
+      memberDid,
       CRDT_COLLECTION,
       SELF,
       {
         blob: Buffer.from(Y.encodeStateAsUpdateV2(ydoc)).toString("base64"),
       },
     );
-    await this.pear.putRecord(org, spaceUri, MARKDOWN_COLLECTION, SELF, {
-      title,
-      content: rendered.markdown,
-    });
-    return { uri: crdt.uri, cid: crdt.cid };
+  }
+
+  // writeMarkdown writes the freshly-rendered markdown record with the org
+  // credential (repo = org). nameOverride sets the title on creation (when the
+  // doc is still empty); otherwise the title is derived from the rendered
+  // content.
+  private async writeMarkdown(
+    org: string,
+    spaceUri: string,
+    ydoc: Y.Doc,
+    nameOverride?: string,
+  ): Promise<void> {
+    const rendered = renderDoc(ydoc);
+    const title = nameOverride ?? rendered.title;
+    await this.pear.putRecord(
+      org,
+      spaceUri,
+      org,
+      MARKDOWN_COLLECTION,
+      SELF,
+      {
+        title,
+        content: rendered.markdown,
+      },
+    );
   }
 
   // runExclusive queues fn behind any in-flight work for the same key, so

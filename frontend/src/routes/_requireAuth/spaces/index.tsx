@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_requireAuth/spaces/")({
     const data = await query(
       "network.habitat.space.listSpaces",
       {},
-      { authManager },
+      { fetcher: authManager },
     );
     return { spaces: data.spaces };
   },
@@ -47,7 +47,7 @@ function SpacesList() {
               {
                 type: spaceType,
               },
-              { authManager },
+              { fetcher: authManager },
             );
             await router.navigate({
               to: "/spaces/$space",

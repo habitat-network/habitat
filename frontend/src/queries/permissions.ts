@@ -6,6 +6,6 @@ export function listPermissions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["permissions"],
     queryFn: () =>
-      query("network.habitat.permissions.listPermissions", {}, { authManager }),
+      query("network.habitat.permissions.listPermissions", {}, { fetcher: authManager }),
   });
 }

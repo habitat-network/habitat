@@ -19,7 +19,7 @@ export function collectionsListQueryOptions(authManager: AuthManager) {
       const { collections } = await query(
         "network.habitat.collections.listCollections",
         {},
-        { authManager, headers: homeProxyHeaders() },
+        { fetcher: authManager, headers: homeProxyHeaders() },
       );
       return collections;
     },
@@ -39,7 +39,7 @@ export function collectionRecordsQueryOptions(
       const { records } = await query(
         "network.habitat.collections.listRecords",
         { collection },
-        { authManager, headers: homeProxyHeaders() },
+        { fetcher: authManager, headers: homeProxyHeaders() },
       );
       return records;
     },
@@ -63,7 +63,7 @@ export function recordBodyQueryOptions(
           collection: record.collection,
           rkey: record.rkey,
         },
-        { authManager },
+        { fetcher: authManager },
       );
       return value;
     },

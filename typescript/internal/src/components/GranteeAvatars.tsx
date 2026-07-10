@@ -2,15 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { NetworkHabitatRepoGetRecord } from "api";
 import { AvatarGroup, AvatarGroupCount, Spinner } from "./ui";
 import { UserAvatar } from "./UserAvatar";
-import { query } from "../habitatClient";
+import { query, type Fetcher } from "../habitatClient";
 import { getProfiles } from "../bskyPublicApi";
-import { AuthManager } from "../authManager";
 import { Actor } from "@/types/Actor";
 
 interface GranteeAvatarProps {
   uri: string;
   grantees: NetworkHabitatRepoGetRecord.OutputSchema["permissions"];
-  authManager: AuthManager;
+  fetcher: Fetcher;
   max?: number;
   size?: "sm" | "lg" | "default";
 }
@@ -18,7 +17,7 @@ interface GranteeAvatarProps {
 const GranteeAvatars = ({
   uri,
   grantees,
-  authManager,
+  fetcher,
   max,
   size = "default",
 }: GranteeAvatarProps) => {
@@ -34,7 +33,7 @@ const GranteeAvatars = ({
               {
                 clique: g.clique,
               },
-              { authManager },
+              { fetcher },
             );
             return members;
           }) ?? [],

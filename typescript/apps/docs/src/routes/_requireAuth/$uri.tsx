@@ -68,7 +68,7 @@ async function startPeerDiscovery(
         lxm: "com.atproto.server.getServiceAuth",
         aud: habitatDID,
       },
-      { authManager: authManager },
+      { fetcher: authManager },
     );
 
     const encoder = new TextEncoder();
@@ -319,7 +319,7 @@ export const Route = createFileRoute("/_requireAuth/$uri")({
             },
             grantees: doc.permissions,
           },
-          { authManager },
+          { fetcher: authManager },
         );
       },
 

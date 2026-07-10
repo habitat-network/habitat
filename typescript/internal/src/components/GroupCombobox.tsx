@@ -10,8 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { NetworkHabitatGroupsDefs } from "api";
-import { AuthManager } from "../authManager";
-import { query } from "../habitatClient";
+import { query, type Fetcher } from "../habitatClient";
 
 export type GroupView = NetworkHabitatGroupsDefs.GroupView;
 
@@ -24,7 +23,7 @@ function homeProxyHeader(): Headers {
 }
 
 interface GroupComboboxProps {
-  authManager: AuthManager;
+  fetcher: Fetcher;
   value: GroupView | null;
   onValueChange: (value: GroupView | null) => void;
   placeholder?: string;
@@ -34,7 +33,7 @@ interface GroupComboboxProps {
 // see. Selecting a group emits the full GroupView so callers have its URI and
 // display name.
 export const GroupCombobox = ({
-  authManager,
+  fetcher,
   value,
   onValueChange,
   placeholder = "Search groups…",
@@ -53,7 +52,7 @@ export const GroupCombobox = ({
       const { groups } = await query(
         "network.habitat.groups.listGroups",
         {},
-        { authManager, headers: homeProxyHeader() },
+        { fetcher, headers: homeProxyHeader() },
       );
       return groups;
     },

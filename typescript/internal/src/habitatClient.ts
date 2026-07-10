@@ -57,8 +57,22 @@ import type {
   NetworkHabitatCollectionsListRecords,
   NetworkHabitatRelationshipWriteTuple,
 } from "api";
-import { AuthManager } from "./authManager";
 import { DPoPOptions } from "openid-client";
+
+// Fetcher is the minimal transport habitatClient needs: something that can make
+// an authenticated request to a Habitat XRPC endpoint and return the raw
+// Response. AuthManager implements it (OAuth against pear), but so can any other
+// transport — e.g. the docsv2 app points a fetcher straight at the docs server
+// and relies on its server session for auth, no AuthManager required.
+export interface Fetcher {
+  fetch(
+    url: string,
+    method: string,
+    body?: BodyInit | null,
+    headers?: Headers,
+    options?: DPoPOptions,
+  ): Promise<Response>;
+}
 
 type Query<
   Params extends Record<string, string | number | boolean | string[]>,
@@ -332,7 +346,7 @@ type ProcedureEndpoints = {
 
 interface AuthedOptions {
   unauthenticated?: false;
-  authManager: AuthManager;
+  fetcher: Fetcher;
   headers?: Headers;
   fetchOptions?: DPoPOptions;
 }
@@ -385,7 +399,7 @@ export const query = async <T extends keyof QueryEndpoints>(
   const path = "/xrpc/" + endpoint + "?" + queryParams.toString();
   const response = options.unauthenticated
     ? await fetch(`https://${(options as UnauthedOptions).domain}${path}`)
-    : await (options as AuthedOptions).authManager.fetch(
+    : await (options as AuthedOptions).fetcher.fetch(
         path,
         "GET",
         null,
@@ -424,7 +438,7 @@ const authedRequest = (
   params: unknown,
   options: AuthedOptions,
 ) =>
-  options.authManager.fetch(
+  options.fetcher.fetch(
     "/xrpc/" + endpoint,
     "POST",
     JSON.stringify(params),
@@ -460,7 +474,7 @@ export interface TypedRecord<T extends Record<string, unknown>>
 }
 
 export const getPrivateRecord = async <T = Record<string, unknown>>(
-  authManager: AuthManager,
+  fetcher: Fetcher,
   collection: string,
   rkey: string,
   repo: string,
@@ -469,7 +483,7 @@ export const getPrivateRecord = async <T = Record<string, unknown>>(
   const response = await query(
     "network.habitat.repo.getRecord",
     { collection, rkey, repo, includePermissions },
-    { authManager },
+    { fetcher },
   );
   return response as NetworkHabitatRepoGetRecord.OutputSchema & { value: T };
 };
@@ -480,7 +494,7 @@ export interface ListRecordsResponse<T extends Record<string, unknown>>
 }
 
 export const listPrivateRecords = async <T extends Record<string, unknown>>(
-  authManager: AuthManager,
+  fetcher: Fetcher,
   collection: string,
   limit?: number,
   cursor?: string,
@@ -490,7 +504,7 @@ export const listPrivateRecords = async <T extends Record<string, unknown>>(
   const response = await query(
     "network.habitat.repo.listRecords",
     { collection, limit, cursor, subjects: subjects ?? [], includePermissions },
-    { authManager },
+    { fetcher },
   );
   return response as ListRecordsResponse<T>;
 };

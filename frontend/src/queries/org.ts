@@ -10,7 +10,7 @@ export function getConfigQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["config"],
     queryFn: () =>
-      query("network.habitat.org.getMetadata", {}, { authManager }),
+      query("network.habitat.org.getMetadata", {}, { fetcher: authManager }),
     staleTime: Infinity,
   });
 }
@@ -18,26 +18,26 @@ export function getConfigQueryOptions(authManager: AuthManager) {
 export function getAdminsQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["org", "admins"],
-    queryFn: () => query("network.habitat.org.getAdmins", {}, { authManager }),
+    queryFn: () => query("network.habitat.org.getAdmins", {}, { fetcher: authManager }),
   });
 }
 
 export function getMembersQueryOptions(authManager: AuthManager) {
   return queryOptions({
     queryKey: ["org", "members"],
-    queryFn: () => query("network.habitat.org.getMembers", {}, { authManager }),
+    queryFn: () => query("network.habitat.org.getMembers", {}, { fetcher: authManager }),
   });
 }
 
 export function addAdmin(authManager: AuthManager, admin: string) {
-  return procedure("network.habitat.org.addAdmin", { admin }, { authManager });
+  return procedure("network.habitat.org.addAdmin", { admin }, { fetcher: authManager });
 }
 
 export function addMembers(authManager: AuthManager, members: string[]) {
   return procedure(
     "network.habitat.org.addMembers",
     { members },
-    { authManager },
+    { fetcher: authManager },
   );
 }
 
@@ -45,7 +45,7 @@ export function removeAdmin(authManager: AuthManager, admin: string) {
   return procedure(
     "network.habitat.org.removeAdmin",
     { admin },
-    { authManager },
+    { fetcher: authManager },
   );
 }
 
@@ -53,7 +53,7 @@ export function removeMembers(authManager: AuthManager, members: string[]) {
   return procedure(
     "network.habitat.org.removeMembers",
     { members },
-    { authManager },
+    { fetcher: authManager },
   );
 }
 
@@ -61,7 +61,7 @@ export function downgradeAdmin(authManager: AuthManager, admin: string) {
   return procedure(
     "network.habitat.org.downgradeAdmin",
     { admin },
-    { authManager },
+    { fetcher: authManager },
   );
 }
 
@@ -71,6 +71,6 @@ export function issueInviteToken(authManager: AuthManager) {
     {
       reusable: true,
     },
-    { authManager },
+    { fetcher: authManager },
   );
 }

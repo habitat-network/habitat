@@ -28,11 +28,12 @@ export interface SpaceRef {
   skey: string;
 }
 
-// PearClient wraps the network.habitat.space XRPC endpoints. It holds no org
-// credential; every call is routed through sap's proxy (POST /proxy/<nsid>)
-// with the target org DID in the Habitat-Did header, and sap authenticates the
-// request as that org. The org is passed per call, so one docs server can act
-// for any org sap has a session for.
+// PearClient wraps the network.habitat.space XRPC endpoints. It holds no
+// credential of its own; every call is routed through sap's proxy (POST
+// /proxy/<nsid>) with the DID to authenticate as in the Habitat-Did header, and
+// sap attaches that DID's OAuth token. The auth DID is passed per call, so one
+// docs server can act for any org — or user — sap has a session for. It also
+// bootstraps sap's org- and user-login OAuth flows.
 export class PearClient {
   private config: DerivedConfig;
 
@@ -46,8 +47,58 @@ export class PearClient {
     return `ats://${orgDid}/${DOCS_SPACE_TYPE}/${skey}`;
   }
 
+  // startUserLogin kicks off sap's user OAuth flow for a handle, telling sap to
+  // redirect the browser back to redirectUrl (this server's session callback)
+  // once the user's session is stored. Returns the PDS authorization URL.
+  async startUserLogin(handle: string, redirectUrl: string): Promise<string> {
+    const res = await fetch(`${this.config.sapUrl}/session/add`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ handle, redirect: redirectUrl }),
+    });
+    if (!res.ok) {
+      throw new Error(`start user login failed (${res.status})`);
+    }
+    const { redirect_url } = (await res.json()) as { redirect_url: string };
+    return redirect_url;
+  }
+
+  // resolveLogin exchanges the login token sap handed to the session callback
+  // for the DID that authenticated.
+  async resolveLogin(loginToken: string): Promise<string> {
+    const res = await fetch(
+      `${this.config.sapUrl}/session/get?login=${encodeURIComponent(loginToken)}`,
+    );
+    if (!res.ok) {
+      throw new Error(`resolve login failed (${res.status})`);
+    }
+    const { did } = (await res.json()) as { did: string };
+    return did;
+  }
+
+  // proxy forwards an arbitrary XRPC request to pear through sap, authenticated
+  // as authDid. Used to serve the docsv2 frontend's space/relationship calls
+  // directly (as the logged-in user) instead of the frontend proxying via pear.
+  // `forward` carries the allowlisted request headers to pass through (e.g.
+  // content-type, and Atproto-Proxy for service-proxied endpoints); the auth
+  // DID header is added here and sap swaps in the OAuth token. Returns the raw
+  // upstream Response so status and body pass through unchanged.
+  async proxy(
+    authDid: string,
+    nsid: string,
+    method: string,
+    search: string,
+    body: BodyInit | undefined,
+    forward: Headers,
+  ): Promise<Response> {
+    const headers = new Headers(forward);
+    headers.set(habitatDIDHeader, authDid);
+    const url = `${this.config.sapUrl}/proxy/${nsid}${search}`;
+    return fetch(url, { method, body, headers });
+  }
+
   private async call<T>(
-    org: string,
+    authDid: string,
     nsid: string,
     method: "GET" | "POST",
     payload: object,
@@ -55,7 +106,7 @@ export class PearClient {
     const base = `${this.config.sapUrl}/proxy/${nsid}`;
     let url = base;
     let body: string | undefined;
-    const headers: Record<string, string> = { [habitatDIDHeader]: org };
+    const headers: Record<string, string> = { [habitatDIDHeader]: authDid };
     if (method === "GET") {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(payload)) {
@@ -119,15 +170,20 @@ export class PearClient {
     return out.spaces;
   }
 
+  // putRecord writes a record into repo's slice of a space, authenticated as
+  // authDid. pear requires authDid === repo (a caller may only write to their
+  // own repo), so the CRDT records are written as the editing user (repo = the
+  // user's DID) and the markdown record as the org (repo = the org's DID).
   async putRecord(
-    org: string,
+    authDid: string,
     space: string,
+    repo: string,
     collection: string,
     rkey: string,
     record: Record<string, unknown>,
   ): Promise<NetworkHabitatSpacePutRecord.OutputSchema> {
     return this.call<NetworkHabitatSpacePutRecord.OutputSchema>(
-      org,
+      authDid,
       "network.habitat.space.putRecord",
       "POST",
       {
@@ -135,23 +191,24 @@ export class PearClient {
         collection,
         rkey,
         record,
-        repo: org,
+        repo,
       } satisfies NetworkHabitatSpacePutRecord.InputSchema,
     );
   }
 
   async getRecord(
-    org: string,
+    authDid: string,
     space: string,
+    repo: string,
     collection: string,
     rkey: string,
   ): Promise<NetworkHabitatSpaceGetRecord.OutputSchema | undefined> {
     try {
       return await this.call<NetworkHabitatSpaceGetRecord.OutputSchema>(
-        org,
+        authDid,
         "network.habitat.space.getRecord",
         "GET",
-        { space, repo: org, collection, rkey },
+        { space, repo, collection, rkey },
       );
     } catch {
       // Record not found (or not yet replicated).

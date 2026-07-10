@@ -13,6 +13,10 @@ tasks:
       # /org/add + /org/list (org bootstrap/lookup) and /channel (outbox
       # websocket) endpoints. Reached directly, not via Caddy/TLS.
       DOCS_SERVER_SAP_URL: "http://127.0.0.1:2581"
+      # Origin of the docsv2 frontend, allowed to make credentialed (cookie)
+      # cross-origin requests. docsv2 authenticates with the server-session
+      # cookie this server sets on its own domain.
+      DOCS_SERVER_APP_ORIGIN: "https://docsv2.local.habitat.network"
     deps:
       - pear:dev
       - sap:dev

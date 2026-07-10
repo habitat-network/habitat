@@ -1,15 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
-import { AuthManager, procedure, query } from "internal";
+import { procedure, query } from "internal";
+import type { DocsServerFetcher } from "@/docsServerFetcher";
 
 const CRDT_COLLECTION = "network.habitat.docs.crdt";
 const SELF = "self";
-
-// docsProxyHeaders targets the docs server via pear service proxying: pear
-// validates the caller's OAuth session, signs a service-auth JWT, and forwards
-// the network.habitat.docs.* call to the docs server's #docs service endpoint.
-export function docsProxyHeaders(): Headers {
-  return new Headers({ "Atproto-Proxy": `${__DOCS_SERVER_DID__}#docs` });
-}
 
 export interface DocSummary {
   docId: string;
@@ -18,28 +12,32 @@ export interface DocSummary {
 }
 
 // The sidebar list comes entirely from the docs server's listDocs endpoint,
-// which enumerates the org's doc spaces and reads each one's markdown title.
-export const docsListQueryOptions = (authManager: AuthManager) =>
+// which enumerates the org's doc spaces and reads each one's markdown title. The
+// fetcher points straight at the docs server; its server session authenticates
+// the request.
+export const docsListQueryOptions = (fetcher: DocsServerFetcher) =>
   queryOptions({
     queryKey: ["docs"],
     queryFn: async (): Promise<DocSummary[]> => {
       const { docs } = await query(
         "network.habitat.docs.listDocs",
         {},
-        { authManager, headers: docsProxyHeaders() },
+        { fetcher },
       );
       return docs;
     },
   });
 
-// Read a doc's canonical CRDT state directly from its space (the member was
-// granted read access when the doc was created/updated). The space URI comes
-// from the docs list; its second path segment is the owning org DID.
-export const docQueryOptions = (docId: string, authManager: AuthManager) =>
+// Read a doc's merged CRDT state from the docs server. The space no longer holds
+// a single "self" CRDT record — each editor writes their own — so the docs
+// server serves getRecord for the CRDT collection from its merged state. The
+// space URI comes from the docs list; its second path segment is the owning org
+// DID.
+export const docQueryOptions = (docId: string, fetcher: DocsServerFetcher) =>
   queryOptions({
     queryKey: ["doc", docId],
     queryFn: async ({ client }) => {
-      const docs = await client.fetchQuery(docsListQueryOptions(authManager));
+      const docs = await client.fetchQuery(docsListQueryOptions(fetcher));
       const doc = docs.find((d) => d.docId === docId);
       if (!doc) {
         throw new Error(`doc not found: ${docId}`);
@@ -53,30 +51,26 @@ export const docQueryOptions = (docId: string, authManager: AuthManager) =>
           collection: CRDT_COLLECTION,
           rkey: SELF,
         },
-        { authManager },
+        { fetcher },
       );
       return record.value as { blob?: string };
     },
   });
 
-export function createDoc(authManager: AuthManager) {
-  return procedure(
-    "network.habitat.docs.createDoc",
-    {},
-    { authManager, headers: docsProxyHeaders() },
-  );
+export function createDoc(fetcher: DocsServerFetcher) {
+  return procedure("network.habitat.docs.createDoc", {}, { fetcher });
 }
 
-// pushUpdate sends a base64-encoded Yjs update through pear to the docs server,
-// which merges it into the canonical document.
+// pushUpdate sends a base64-encoded Yjs update to the docs server, which merges
+// it into the doc and writes it back as the user's own CRDT record.
 export function pushUpdate(
-  authManager: AuthManager,
+  fetcher: DocsServerFetcher,
   docId: string,
   update: string,
 ) {
   return procedure(
     "network.habitat.docs.updateDoc",
     { docId, update },
-    { authManager, headers: docsProxyHeaders() },
+    { fetcher },
   );
 }

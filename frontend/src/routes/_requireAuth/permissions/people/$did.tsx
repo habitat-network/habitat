@@ -38,7 +38,7 @@ function PersonDetail() {
           collection,
           ...(rkey ? { rkey } : {}),
         },
-        { authManager },
+        { fetcher: authManager },
       );
       await queryClient.invalidateQueries({ queryKey: ["permissions"] });
       router.invalidate();

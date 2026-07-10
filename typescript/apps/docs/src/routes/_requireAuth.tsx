@@ -103,7 +103,7 @@ export const Route = createFileRoute("/_requireAuth")({
           {
             members: [],
           },
-          { authManager },
+          { fetcher: authManager },
         );
         const response = await procedure(
           "network.habitat.repo.putRecord",
@@ -122,7 +122,7 @@ export const Route = createFileRoute("/_requireAuth")({
               },
             ],
           },
-          { authManager },
+          { fetcher: authManager },
         );
         navigate({
           to: "/$uri",

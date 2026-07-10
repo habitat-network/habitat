@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_requireAuth/")({
     const appData = await query(
       "network.habitat.listConnectedApps",
       {},
-      { authManager },
+      { fetcher: authManager },
     );
 
     const apps = appData.apps.filter(
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_requireAuth/")({
       const meta = await query(
         "network.habitat.org.getMetadata",
         {},
-        { authManager },
+        { fetcher: authManager },
       );
       orgName = meta.name;
     } catch {

@@ -30,7 +30,7 @@ export function groupsListQueryOptions(authManager: AuthManager) {
       const { groups } = await query(
         "network.habitat.groups.listGroups",
         {},
-        { authManager, headers: homeProxyHeaders() },
+        { fetcher: authManager, headers: homeProxyHeaders() },
       );
       return groups;
     },
@@ -46,7 +46,7 @@ export function groupQueryOptions(group: string, authManager: AuthManager) {
       query(
         "network.habitat.groups.getGroup",
         { group },
-        { authManager, headers: homeProxyHeaders() },
+        { fetcher: authManager, headers: homeProxyHeaders() },
       ),
   });
 }
@@ -59,7 +59,7 @@ export function createGroup(
   return procedure(
     "network.habitat.groups.createGroup",
     { name, description },
-    { authManager, headers: homeProxyHeaders() },
+    { fetcher: authManager, headers: homeProxyHeaders() },
   );
 }
 
@@ -73,6 +73,6 @@ export function addMember(
   return procedure(
     "network.habitat.groups.addMember",
     { group, ...subject },
-    { authManager, headers: homeProxyHeaders() },
+    { fetcher: authManager, headers: homeProxyHeaders() },
   );
 }

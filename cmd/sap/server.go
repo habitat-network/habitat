@@ -80,23 +80,65 @@ func (s *server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(r.Context(), w, map[string]any{"orgs": orgs})
 }
 
+// handleAddUserSession starts an OAuth flow for an individual user (as opposed
+// to a managed org). The caller (e.g. the docs server) supplies the handle to
+// authenticate and the URL to redirect the browser back to once sap has stored
+// the user's session. sap returns the PDS authorization URL.
+func (s *server) handleAddUserSession(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Handle   string `json:"handle"`
+		Redirect string `json:"redirect"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.Handle == "" || req.Redirect == "" {
+		http.Error(w, "handle and redirect are required", http.StatusBadRequest)
+		return
+	}
+
+	redirectURL, err := s.sap.StartUserLogin(r.Context(), req.Handle, req.Redirect)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("start user login: %s", err), http.StatusInternalServerError)
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, map[string]string{"redirect_url": redirectURL})
+}
+
+// handleGetLogin resolves a login token (handed to the redirect target when a
+// user login completes) to the DID that authenticated, so the docs server can
+// bind its server session to the user.
+func (s *server) handleGetLogin(w http.ResponseWriter, r *http.Request) {
+	loginToken := r.URL.Query().Get("login")
+	if loginToken == "" {
+		http.Error(w, "missing login query param", http.StatusBadRequest)
+		return
+	}
+	did, err := s.sap.GetCompletedLogin(r.Context(), loginToken)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unknown login token: %s", err), http.StatusNotFound)
+		return
+	}
+	httpx.WriteJSON(r.Context(), w, map[string]string{"did": did.String()})
+}
+
 func (s *server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
-	sessionData, err := s.oauthClient.ProcessCallback(r.Context(), r.URL.Query())
+	redirect, err := s.sap.CompleteLogin(r.Context(), r.URL.Query())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("process callback: %s", err), http.StatusInternalServerError)
 		return
 	}
 
-	if err := s.sap.AddManagedOrg(
-		r.Context(),
-		sessionData.AccountDID,
-		sessionData.SessionID,
-	); err != nil {
-		http.Error(w, fmt.Sprintf("save org: %s", err), http.StatusInternalServerError)
+	// A user login redirects the browser back to the service that started it
+	// (with a login token); an org login has no redirect and just reports success.
+	if redirect != "" {
+		w.Header().Set("Location", redirect)
+		w.WriteHeader(http.StatusSeeOther)
 		return
 	}
 
-	slog.InfoContext(r.Context(), "org oauth complete", "did", sessionData.AccountDID)
+	slog.InfoContext(r.Context(), "org oauth complete")
 	w.WriteHeader(http.StatusOK)
 }
 

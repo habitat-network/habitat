@@ -20,23 +20,23 @@ import {
 import { FileTextIcon, PlusIcon } from "lucide-react";
 
 export const Route = createFileRoute("/_requireAuth")({
+  // Auth is the docs server's server session; whoami confirms it and yields the
+  // logged-in DID (placed on the route context for the component and loader).
   async beforeLoad({ context }) {
-    await context.authManager.maybeExchangeCode();
-    if (!context.authManager.getAuthInfo()) {
+    const did = await context.fetcher.whoami();
+    if (!did) {
       throw redirect({ to: "/login" });
     }
-  },
-  async loader({ context }) {
-    const did = context.authManager.getAuthInfo()!.did;
-    await context.queryClient.prefetchQuery(
-      docsListQueryOptions(context.authManager),
-    );
     return { did };
   },
+  async loader({ context }) {
+    await context.queryClient.prefetchQuery(
+      docsListQueryOptions(context.fetcher),
+    );
+  },
   component() {
-    const { did } = Route.useLoaderData();
-    const { authManager, queryClient } = Route.useRouteContext();
-    const { data: docs } = useQuery(docsListQueryOptions(authManager));
+    const { did, fetcher, queryClient } = Route.useRouteContext();
+    const { data: docs } = useQuery(docsListQueryOptions(fetcher));
     const router = useRouter();
     const navigate = Route.useNavigate();
 
@@ -47,11 +47,11 @@ export const Route = createFileRoute("/_requireAuth")({
     });
 
     const { mutate: create, isPending } = useMutation({
-      mutationFn: () => createDoc(authManager),
+      mutationFn: () => createDoc(fetcher),
       onSuccess: async ({ docId }) => {
         // Refresh the list so the editor route can resolve the new doc's space
         // URI from it before navigating.
-        await queryClient.invalidateQueries(docsListQueryOptions(authManager));
+        await queryClient.invalidateQueries(docsListQueryOptions(fetcher));
         router.invalidate();
         navigate({ to: "/$uri", params: { uri: docId } });
       },
@@ -63,7 +63,7 @@ export const Route = createFileRoute("/_requireAuth")({
     return (
       <AppLayout
         actor={{ did }}
-        onSignOut={() => authManager.logout()}
+        onSignOut={() => fetcher.logout()}
         title="Habitat Docs"
         sidebar={
           <>
